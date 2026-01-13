@@ -38,6 +38,9 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^2.1.0
         version: 2.1.0
+      '@keycloak/keycloak-admin-client':
+        specifier: ^26.5.0
+        version: 26.5.0
       '@plexica/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -423,6 +426,10 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
+  '@keycloak/keycloak-admin-client@26.5.0':
+    resolution: {integrity: sha512-sT7ASGHhgogkpjRYNoN2hECJ60JQ9En6kbe0Tz3im3HUcr/CO+mJYxlcG8DdgfBApg82ECEnnRxrWe5YM0oKXQ==}
+    engines: {node: '>=18'}
+
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
@@ -667,6 +674,10 @@ packages:
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
     engines: {node: '>=8'}
+
+  camelize-ts@3.0.0:
+    resolution: {integrity: sha512-cgRwKKavoDKLTjO4FQTs3dRBePZp/2Y9Xpud0FhuCOTE86M2cniKN4CCXgRnsyXNMmQMifVHcv6SPaMtTx6ofQ==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   chai@4.5.0:
     resolution: {integrity: sha512-RITGBfijLkBddZvnn8jdqoTypxvqbOLYQkGGxXzeFjVHvudaPw0HNFD9x928/eUwYWd2dPCugVqspGALTZZQKw==}
@@ -1233,6 +1244,10 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
+  url-template@3.1.1:
+    resolution: {integrity: sha512-4oszoaEKE/mQOtAmdMWqIRHmkxWkUZMnXFnjQ5i01CuRSK3uluxcH1MRVVVWmhlnzT1SCDfKxxficm2G37qzCA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
   vite-node@1.6.1:
     resolution: {integrity: sha512-YAXkfvGtuTzwWbDSACdJSg4A4DZiAqckWe90Zapc/sEX3XvHcw1NdurM/6od8J207tSDqNbSsgdCacBgvJKFuA==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -1547,6 +1562,11 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
+  '@keycloak/keycloak-admin-client@26.5.0':
+    dependencies:
+      camelize-ts: 3.0.0
+      url-template: 3.1.1
+
   '@lukeed/ms@2.0.2': {}
 
   '@pinojs/redact@0.4.0': {}
@@ -1740,6 +1760,8 @@ snapshots:
       ieee754: 1.2.1
 
   cac@6.7.14: {}
+
+  camelize-ts@3.0.0: {}
 
   chai@4.5.0:
     dependencies:
@@ -2359,6 +2381,8 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  url-template@3.1.1: {}
 
   vite-node@1.6.1(@types/node@20.19.29):
     dependencies:

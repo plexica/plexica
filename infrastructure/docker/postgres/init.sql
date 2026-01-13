@@ -1,10 +1,5 @@
--- Create Keycloak schema for Keycloak to use
-CREATE SCHEMA IF NOT EXISTS keycloak;
-
--- Grant permissions
-GRANT ALL PRIVILEGES ON SCHEMA keycloak TO plexica;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA keycloak TO plexica;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA keycloak TO plexica;
+-- Create Keycloak database
+CREATE DATABASE keycloak WITH OWNER = plexica;
 
 -- Create core schema for Plexica core data
 CREATE SCHEMA IF NOT EXISTS core;

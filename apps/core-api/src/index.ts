@@ -6,6 +6,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { config } from './config';
 import { healthRoutes } from './routes/health';
+import { tenantRoutes } from './routes/tenant';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -58,6 +59,7 @@ async function registerPlugins() {
         tags: [
           { name: 'health', description: 'Health check endpoints' },
           { name: 'tenants', description: 'Tenant management' },
+          { name: 'plugins', description: 'Plugin management' },
           { name: 'auth', description: 'Authentication & authorization' },
         ],
       },
@@ -76,10 +78,7 @@ async function registerPlugins() {
 // Register routes
 async function registerRoutes() {
   await server.register(healthRoutes, { prefix: '/health' });
-  
-  // TODO: Register more routes
-  // await server.register(tenantRoutes, { prefix: '/api/tenants' });
-  // await server.register(authRoutes, { prefix: '/api/auth' });
+  await server.register(tenantRoutes, { prefix: '/api' });
 }
 
 // Error handler
