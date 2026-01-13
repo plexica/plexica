@@ -1,5 +1,6 @@
 import { PrismaClient, TenantStatus } from '@prisma/client';
 import { keycloakService } from './keycloak.service.js';
+import { permissionService } from './permission.service.js';
 import { db } from '../lib/db.js';
 
 export interface CreateTenantInput {
@@ -67,7 +68,11 @@ export class TenantService {
       // Step 2: Create Keycloak realm for tenant
       await keycloakService.createRealm(slug, name);
 
-      // Step 3: Create MinIO bucket (to be implemented)
+      // Step 3: Initialize default roles and permissions
+      const schemaName = this.getSchemaName(slug);
+      await permissionService.initializeDefaultRoles(schemaName);
+
+      // Step 4: Create MinIO bucket (to be implemented)
       // await this.createMinIOBucket(slug);
 
       // Update tenant status to ACTIVE

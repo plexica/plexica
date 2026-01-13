@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService, type CreateTenantInput, type UpdateTenantInput } from '../services/tenant.service.js';
 import { TenantStatus } from '@prisma/client';
+import { requireSuperAdmin } from '../middleware/auth.js';
 
 // Request schemas
 const createTenantSchema = {
@@ -278,6 +279,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id',
     {
+      preHandler: requireSuperAdmin,
       schema: {
         description: 'Update tenant information',
         tags: ['tenants'],
@@ -326,6 +328,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id',
     {
+      preHandler: requireSuperAdmin,
       schema: {
         description: 'Delete tenant (soft delete - marks as PENDING_DELETION)',
         tags: ['tenants'],
