@@ -45,21 +45,8 @@ const updateTenantSchema = {
   body: {
     type: 'object',
     properties: {
-      name: {
-        type: 'string',
-        minLength: 1,
-        maxLength: 255,
-      },
-      status: {
-        type: 'string',
-        enum: ['PROVISIONING', 'ACTIVE', 'SUSPENDED', 'PENDING_DELETION', 'DELETED'],
-      },
-      settings: {
-        type: 'object',
-      },
-      theme: {
-        type: 'object',
-      },
+      name: { type: 'string' },
+      slug: { type: 'string' },
     },
   },
 };
@@ -351,99 +338,6 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         await tenantService.deleteTenant(request.params.id);
-        return reply.code(204).send();
-      } catch (error: any) {
-        request.log.error(error);
-        return reply.code(404).send({ error: error.message });
-      }
-    }
-  );
-
-  // Install plugin for tenant
-  fastify.post<{
-    Params: { id: string };
-    Body: { pluginId: string; configuration?: Record<string, any> };
-  }>(
-    '/tenants/:id/plugins',
-    {
-      schema: {
-        description: 'Install a plugin for a tenant',
-        tags: ['tenants', 'plugins'],
-        ...installPluginSchema,
-        response: {
-          201: {
-            description: 'Plugin installed successfully',
-            type: 'object',
-            properties: {
-              tenantId: { type: 'string' },
-              pluginId: { type: 'string' },
-              enabled: { type: 'boolean' },
-              configuration: { type: 'object' },
-              installedAt: { type: 'string', format: 'date-time' },
-            },
-          },
-          400: {
-            description: 'Bad request',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-    async (
-      request: FastifyRequest<{
-        Params: { id: string };
-        Body: { pluginId: string; configuration?: Record<string, any> };
-      }>,
-      reply: FastifyReply
-    ) => {
-      try {
-        const tenantPlugin = await tenantService.installPlugin(
-          request.params.id,
-          request.body.pluginId,
-          request.body.configuration || {}
-        );
-        return reply.code(201).send(tenantPlugin);
-      } catch (error: any) {
-        request.log.error(error);
-        return reply.code(400).send({ error: error.message });
-      }
-    }
-  );
-
-  // Uninstall plugin from tenant
-  fastify.delete<{
-    Params: { id: string; pluginId: string };
-  }>(
-    '/tenants/:id/plugins/:pluginId',
-    {
-      schema: {
-        description: 'Uninstall a plugin from a tenant',
-        tags: ['tenants', 'plugins'],
-        ...uninstallPluginSchema,
-        response: {
-          204: {
-            description: 'Plugin uninstalled successfully',
-            type: 'null',
-          },
-          404: {
-            description: 'Plugin or tenant not found',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-    async (
-      request: FastifyRequest<{ Params: { id: string; pluginId: string } }>,
-      reply: FastifyReply
-    ) => {
-      try {
-        await tenantService.uninstallPlugin(request.params.id, request.params.pluginId);
         return reply.code(204).send();
       } catch (error: any) {
         request.log.error(error);

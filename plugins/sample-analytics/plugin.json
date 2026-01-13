@@ -1,0 +1,147 @@
+{
+  "id": "sample-analytics",
+  "name": "Sample Analytics Plugin",
+  "version": "1.0.0",
+  "description": "Sample plugin demonstrating analytics capabilities for tracking user activity and generating reports",
+  "category": "analytics",
+  "metadata": {
+    "author": {
+      "name": "Plexica Team",
+      "email": "team@plexica.dev",
+      "url": "https://plexica.dev"
+    },
+    "license": "MIT",
+    "repository": "https://github.com/plexica/sample-analytics",
+    "keywords": ["analytics", "reporting", "metrics", "tracking"],
+    "homepage": "https://plexica.dev/plugins/sample-analytics",
+    "documentation": "https://docs.plexica.dev/plugins/sample-analytics"
+  },
+  "config": [
+    {
+      "key": "apiKey",
+      "type": "string",
+      "label": "API Key",
+      "description": "Analytics service API key for external integration",
+      "required": true,
+      "validation": {
+        "minLength": 10,
+        "maxLength": 100,
+        "pattern": "^[a-zA-Z0-9_-]+$"
+      }
+    },
+    {
+      "key": "trackingEnabled",
+      "type": "boolean",
+      "label": "Enable Tracking",
+      "description": "Enable or disable user activity tracking",
+      "default": true,
+      "required": false
+    },
+    {
+      "key": "reportingInterval",
+      "type": "number",
+      "label": "Reporting Interval (hours)",
+      "description": "How often to generate analytics reports",
+      "default": 24,
+      "required": false,
+      "validation": {
+        "min": 1,
+        "max": 168
+      }
+    },
+    {
+      "key": "dataRetentionDays",
+      "type": "number",
+      "label": "Data Retention (days)",
+      "description": "Number of days to retain analytics data",
+      "default": 90,
+      "required": false,
+      "validation": {
+        "min": 7,
+        "max": 365
+      }
+    }
+  ],
+  "permissions": [
+    {
+      "resource": "analytics",
+      "action": "read",
+      "description": "View analytics data and reports"
+    },
+    {
+      "resource": "analytics",
+      "action": "write",
+      "description": "Generate and export analytics reports"
+    },
+    {
+      "resource": "analytics",
+      "action": "delete",
+      "description": "Delete analytics data"
+    }
+  ],
+  "dependencies": {
+    "required": [],
+    "optional": [],
+    "conflicts": []
+  },
+  "backend": {
+    "entry": "./src/index.ts",
+    "hooks": [
+      {
+        "name": "user.login",
+        "description": "Track user login events for session analytics"
+      },
+      {
+        "name": "user.logout",
+        "description": "Track user logout events and session duration"
+      },
+      {
+        "name": "api.request",
+        "description": "Track API requests for usage analytics"
+      }
+    ],
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/analytics/dashboard",
+        "description": "Get analytics dashboard data",
+        "auth": true
+      },
+      {
+        "method": "GET",
+        "path": "/analytics/reports",
+        "description": "List available analytics reports",
+        "auth": true
+      },
+      {
+        "method": "POST",
+        "path": "/analytics/reports",
+        "description": "Generate a new analytics report",
+        "auth": true
+      }
+    ]
+  },
+  "frontend": {
+    "entry": "./dist/index.js",
+    "routes": [
+      {
+        "path": "/analytics",
+        "component": "AnalyticsDashboard",
+        "title": "Analytics"
+      },
+      {
+        "path": "/analytics/reports",
+        "component": "ReportsList",
+        "title": "Reports"
+      }
+    ],
+    "menuItems": [
+      {
+        "label": "Analytics",
+        "path": "/analytics",
+        "icon": "chart-bar",
+        "order": 100
+      }
+    ]
+  }
+}

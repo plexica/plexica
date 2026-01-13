@@ -8,6 +8,7 @@ import { config } from './config';
 import { healthRoutes } from './routes/health';
 import { tenantRoutes } from './routes/tenant';
 import { authRoutes } from './routes/auth';
+import { pluginRoutes } from './routes/plugin';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -81,6 +82,7 @@ async function registerRoutes() {
   await server.register(healthRoutes, { prefix: '/health' });
   await server.register(authRoutes, { prefix: '/api' });
   await server.register(tenantRoutes, { prefix: '/api' });
+  await server.register(pluginRoutes, { prefix: '/api' });
 }
 
 // Error handler

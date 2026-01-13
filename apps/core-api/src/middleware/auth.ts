@@ -1,4 +1,4 @@
-import type { FastifyRequest, FastifyReply, HookHandlerDoneFunction } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
   extractBearerToken,
   verifyTokenWithTenant,
@@ -25,8 +25,7 @@ declare module 'fastify' {
  */
 export async function authMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply,
-  done: HookHandlerDoneFunction
+  reply: FastifyReply
 ): Promise<void> {
   try {
     // Extract token from Authorization header
@@ -51,8 +50,6 @@ export async function authMiddleware(
       tenantSlug: payload.tenantSlug,
     };
     request.token = payload;
-
-    done();
   } catch (error: any) {
     request.log.error({ error }, 'Authentication failed');
     
@@ -70,8 +67,7 @@ export async function authMiddleware(
  */
 export async function optionalAuthMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply,
-  done: HookHandlerDoneFunction
+  reply: FastifyReply
 ): Promise<void> {
   try {
     const token = extractBearerToken(request.headers.authorization);
@@ -86,11 +82,8 @@ export async function optionalAuthMiddleware(
       };
       request.token = payload;
     }
-
-    done();
   } catch (error: any) {
     request.log.warn({ error }, 'Optional auth failed, continuing without auth');
-    done();
   }
 }
 
@@ -104,8 +97,7 @@ export async function optionalAuthMiddleware(
 export function requireRole(...roles: string[]) {
   return async (
     request: FastifyRequest,
-    reply: FastifyReply,
-    done: HookHandlerDoneFunction
+    reply: FastifyReply
   ): Promise<void> => {
     if (!request.user) {
       return reply.code(401).send({
@@ -123,8 +115,6 @@ export function requireRole(...roles: string[]) {
         message: `Required role(s): ${roles.join(', ')}`,
       });
     }
-
-    done();
   };
 }
 
@@ -141,8 +131,7 @@ export function requireRole(...roles: string[]) {
 export function requirePermission(...permissions: string[]) {
   return async (
     request: FastifyRequest,
-    reply: FastifyReply,
-    done: HookHandlerDoneFunction
+    reply: FastifyReply
   ): Promise<void> => {
     if (!request.user) {
       return reply.code(401).send({
@@ -165,8 +154,6 @@ export function requirePermission(...permissions: string[]) {
         message: `Required permission(s): ${permissions.join(', ')}`,
       });
     }
-
-    done();
   };
 }
 
@@ -189,8 +176,7 @@ async function getUserPermissions(userId: string, tenantSlug: string): Promise<s
  */
 export async function requireSuperAdmin(
   request: FastifyRequest,
-  reply: FastifyReply,
-  done: HookHandlerDoneFunction
+  reply: FastifyReply
 ): Promise<void> {
   if (!request.user) {
     return reply.code(401).send({
@@ -214,8 +200,6 @@ export async function requireSuperAdmin(
       message: 'Super admin access required',
     });
   }
-
-  done();
 }
 
 /**
@@ -224,8 +208,7 @@ export async function requireSuperAdmin(
  */
 export async function requireTenantOwner(
   request: FastifyRequest,
-  reply: FastifyReply,
-  done: HookHandlerDoneFunction
+  reply: FastifyReply
 ): Promise<void> {
   if (!request.user) {
     return reply.code(401).send({
@@ -236,7 +219,6 @@ export async function requireTenantOwner(
 
   // Super admins can access any tenant
   if (request.user.tenantSlug === 'master' && request.user.roles.includes('super_admin')) {
-    done();
     return;
   }
 
@@ -247,6 +229,4 @@ export async function requireTenantOwner(
       message: 'Tenant owner or admin access required',
     });
   }
-
-  done();
 }
