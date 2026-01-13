@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "prisma.prisma",
+    "orta.vscode-jest",
+    "redhat.vscode-yaml",
+    "ms-azuretools.vscode-docker",
+    "mikestead.dotenv"
+  ]
+}

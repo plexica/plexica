@@ -1,0 +1,36 @@
+# Ignore node_modules
+**/node_modules/
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore build artifacts
+**/dist/
+**/build/
+**/.turbo/
+
+# Ignore env files (will be provided at runtime)
+**/.env
+**/.env.*
+
+# Ignore docs and specs
+docs/
+*.md
+!README.md
+
+# Ignore tests
+**/*.test.ts
+**/*.spec.ts
+**/tests/
+
+# Ignore CI/CD
+.github/
+.gitlab-ci.yml
+
+# Ignore IDE
+.vscode/
+.idea/
+
+# Ignore infrastructure (not needed in container)
+infrastructure/

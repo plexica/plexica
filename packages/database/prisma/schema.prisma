@@ -1,0 +1,103 @@
+// Prisma schema for Plexica
+// Documentation: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["core"]
+}
+
+// ============================================================================
+// CORE SCHEMA - Global data (tenant registry, plugins, super admins)
+// ============================================================================
+
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  PENDING_DELETION
+  DELETED
+
+  @@schema("core")
+}
+
+model Tenant {
+  id        String       @id @default(uuid())
+  slug      String       @unique
+  name      String
+  status    TenantStatus @default(PROVISIONING)
+  settings  Json         @default("{}")
+  theme     Json         @default("{}")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  plugins TenantPlugin[]
+
+  @@map("tenants")
+  @@schema("core")
+}
+
+enum PluginStatus {
+  AVAILABLE
+  INSTALLED
+  DEPRECATED
+
+  @@schema("core")
+}
+
+model Plugin {
+  id        String       @id
+  name      String
+  version   String
+  manifest  Json
+  status    PluginStatus @default(AVAILABLE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  tenantPlugins TenantPlugin[]
+
+  @@map("plugins")
+  @@schema("core")
+}
+
+model TenantPlugin {
+  tenantId      String
+  pluginId      String
+  enabled       Boolean @default(true)
+  configuration Json    @default("{}")
+  installedAt   DateTime @default(now()) @map("installed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, pluginId])
+  @@map("tenant_plugins")
+  @@schema("core")
+}
+
+model SuperAdmin {
+  id         String   @id @default(uuid())
+  keycloakId String   @unique @map("keycloak_id")
+  email      String   @unique
+  name       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("super_admins")
+  @@schema("core")
+}
+
+// ============================================================================
+// TENANT SCHEMA TEMPLATE
+// Note: These models are templates. Each tenant gets its own schema
+// dynamically created at provisioning time (e.g., tenant_acme_corp)
+// ============================================================================
+
+// The models below would be replicated in each tenant schema
+// For now, we define them in the core schema as templates
+// In production, these would be created dynamically per tenant
+// See tenant-schema-template.sql for the full tenant schema definition

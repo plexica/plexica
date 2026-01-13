@@ -1,0 +1,34 @@
+{
+  "name": "plexica",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plexica - Cloud-native multi-tenant platform with plugin architecture",
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:migrate": "pnpm --filter @plexica/database db:migrate",
+    "db:studio": "pnpm --filter @plexica/database db:studio",
+    "db:generate": "pnpm --filter @plexica/database db:generate",
+    "infra:start": "./scripts/infra.sh start",
+    "infra:stop": "./scripts/infra.sh stop",
+    "infra:restart": "./scripts/infra.sh restart",
+    "infra:status": "./scripts/infra.sh status",
+    "infra:logs": "./scripts/infra.sh logs",
+    "infra:clean": "./scripts/infra.sh clean"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "prettier": "^3.2.4",
+    "turbo": "^1.12.4",
+    "typescript": "^5.3.3"
+  }
+}
