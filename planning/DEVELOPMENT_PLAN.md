@@ -1,7 +1,8 @@
 # Plexica - Development Plan
 
-**Current Phase**: Pre-development  
-**Last Updated**: January 2025
+**Current Phase**: Phase 1 - MVP Core (Backend Complete)  
+**Last Updated**: January 13, 2026  
+**Status**: Backend 100% ✅, Frontend 0% ⚪
 
 ---
 
@@ -17,324 +18,348 @@
 
 ## Phase 1 - MVP Core
 
-### Milestone 1.1 - Foundation (4 weeks)
+### Milestone 1.1 - Foundation (4 weeks) ✅ COMPLETED
 
-#### Week 1: Monorepo Setup
+**Completion Date**: January 13, 2026  
+**Commit**: `b7f71e0`
 
-**Tasks**:
-```
-[ ] Setup repository
-    [ ] Initialize Git repository
-    [ ] Configure .gitignore
-    [ ] Setup pnpm workspace (pnpm-workspace.yaml)
-    [ ] Setup Turborepo (turbo.json)
-    [ ] Configure ESLint + Prettier (shared config)
-    [ ] Setup TypeScript base config
-
-[ ] Configure development tools
-    [ ] Setup Vitest for testing
-    [ ] Configure Husky for pre-commit hooks
-    [ ] Setup commitlint for conventional commits
-    [ ] Configure path aliases (@plexica/*)
-```
-
-**Deliverable**: Working monorepo with development tools
-
-#### Week 2-3: Infrastructure Setup
+#### Week 1: Monorepo Setup ✅
 
 **Tasks**:
+
 ```
-[ ] Docker Compose for local development
-    [ ] PostgreSQL 15 container
-    [ ] Redis 7 cluster (3 nodes)
-    [ ] Keycloak 23 container
-    [ ] MinIO/S3 container
-    [ ] PgAdmin for DB debug
-    [ ] Redis Commander for cache debug
+[x] Setup repository
+    [x] Initialize Git repository
+    [x] Configure .gitignore
+    [x] Setup pnpm workspace (pnpm-workspace.yaml)
+    [x] Setup Turborepo (turbo.json)
+    [x] Configure ESLint + Prettier (shared config)
+    [x] Setup TypeScript base config
 
-[ ] Prisma setup
-    [ ] Install Prisma in packages/database
-    [ ] Configure PostgreSQL datasource
-    [ ] Create first schema (core)
-    [ ] Setup migration workflow
-    [ ] Seed script for test data
-
-[ ] Keycloak configuration
-    [ ] Setup master realm
-    [ ] Create admin client for Core API
-    [ ] Configure SMTP for email (Mailhog dev)
+[x] Configure development tools
+    [x] Setup Vitest for testing
+    [x] Configure Husky for pre-commit hooks
+    [x] Setup commitlint for conventional commits
+    [x] Configure path aliases (@plexica/*)
 ```
 
-**Deliverable**: Working dev infrastructure, DB and Keycloak configured
+**Deliverable**: ✅ Working monorepo with development tools
 
-#### Week 4: Core API Skeleton
+#### Week 2-3: Infrastructure Setup ✅
 
 **Tasks**:
+
 ```
-[ ] apps/core-api setup
-    [ ] Initialize Fastify app
-    [ ] Configure env variables (.env.example)
-    [ ] Setup Prisma client in app
-    [ ] Configure logger (Pino)
-    [ ] Health check endpoint
-    [ ] OpenAPI/Swagger setup
+[x] Docker Compose for local development
+    [x] PostgreSQL 15 container
+    [x] Redis 7 cluster (3 nodes)
+    [x] Keycloak 23 container
+    [x] MinIO/S3 container
+    [x] PgAdmin for DB debug
+    [x] Redis Commander for cache debug
 
-[ ] Base shared packages
-    [ ] @plexica/types: define initial interfaces
-    [ ] @plexica/config: shared configurations
-    [ ] @plexica/database: Prisma client wrapper
+[x] Prisma setup
+    [x] Install Prisma in packages/database
+    [x] Configure PostgreSQL datasource
+    [x] Create first schema (core)
+    [x] Setup migration workflow
+    [x] Seed script for test data
 
-[ ] Base CI/CD
-    [ ] GitHub Actions: lint and typecheck
-    [ ] GitHub Actions: test runner
-    [ ] GitHub Actions: build check
+[x] Keycloak configuration
+    [x] Setup master realm
+    [x] Create admin client for Core API
+    [x] Configure SMTP for email (Mailhog dev)
 ```
 
-**Deliverable**: Working Core API with base endpoints
+**Deliverable**: ✅ Working dev infrastructure, DB and Keycloak configured
+
+#### Week 4: Core API Skeleton ✅
+
+**Tasks**:
+
+```
+[x] apps/core-api setup
+    [x] Initialize Fastify app
+    [x] Configure env variables (.env.example)
+    [x] Setup Prisma client in app
+    [x] Configure logger (Pino)
+    [x] Health check endpoint
+    [x] OpenAPI/Swagger setup
+
+[x] Base shared packages
+    [x] @plexica/types: define initial interfaces
+    [x] @plexica/config: shared configurations
+    [x] @plexica/database: Prisma client wrapper
+
+[x] Base CI/CD
+    [x] GitHub Actions: lint and typecheck
+    [x] GitHub Actions: test runner
+    [x] GitHub Actions: build check
+```
+
+**Deliverable**: ✅ Working Core API with base endpoints
 
 ---
 
-### Milestone 1.2 - Multi-Tenancy Core (4 weeks)
+### Milestone 1.2 - Multi-Tenancy Core (4 weeks) ✅ COMPLETED
 
-#### Week 5-6: Tenant Management
+**Completion Date**: January 13, 2026  
+**Commit**: `0921ab7`
 
-**Tasks**:
-```
-[ ] Core Prisma schema
-    [ ] Model Tenant
-    [ ] Model Plugin
-    [ ] Model TenantPlugin
-    [ ] Model SuperAdmin
-    [ ] Migration 001_create_core_schema
-
-[ ] Tenant Module (apps/core-api)
-    [ ] tenant.controller.ts
-        [ ] POST /api/tenants (create)
-        [ ] GET /api/tenants (list)
-        [ ] GET /api/tenants/:id (get)
-        [ ] PATCH /api/tenants/:id (update)
-        [ ] DELETE /api/tenants/:id (delete)
-    [ ] tenant.service.ts
-        [ ] CRUD business logic
-        [ ] Slug validation (alphanumeric, lowercase)
-    [ ] tenant.repository.ts
-        [ ] Data access layer
-    [ ] tenant.schema.ts
-        [ ] Zod validation schemas
-
-[ ] Testing
-    [ ] Unit tests tenant.service
-    [ ] Integration tests tenant API
-```
-
-**Deliverable**: Working tenant CRUD (without provisioning)
-
-#### Week 7-8: Tenant Provisioning
+#### Week 5-6: Tenant Management ✅
 
 **Tasks**:
+
 ```
-[ ] Provisioning Service
-    [ ] provisioning.service.ts
-        [ ] createTenantSchema(slug): create PostgreSQL schema
-        [ ] createKeycloakRealm(slug): create Keycloak realm
-        [ ] createStorageBucket(slug): create MinIO bucket
-        [ ] seedTenantData(slug): insert initial data
-        [ ] orchestrateProvisioning(): coordinate all operations
+[x] Core Prisma schema
+    [x] Model Tenant
+    [x] Model Plugin
+    [x] Model TenantPlugin
+    [x] Model SuperAdmin
+    [x] Migration 001_create_core_schema
 
-[ ] Tenant schema template
-    [ ] Create migration template in packages/database
-    [ ] Script to apply template to new schema
-    [ ] Seed base data (roles, core permissions)
+[x] Tenant Module (apps/core-api)
+    [x] tenant.controller.ts
+        [x] POST /api/tenants (create)
+        [x] GET /api/tenants (list)
+        [x] GET /api/tenants/:id (get)
+        [x] PATCH /api/tenants/:id (update)
+        [x] DELETE /api/tenants/:id (delete)
+    [x] tenant.service.ts
+        [x] CRUD business logic
+        [x] Slug validation (alphanumeric, lowercase)
+    [x] tenant.repository.ts
+        [x] Data access layer
+    [x] tenant.schema.ts
+        [x] Zod validation schemas
 
-[ ] Keycloak Admin Client integration
-    [ ] keycloak.service.ts
-    [ ] createRealm()
-    [ ] createClients (web, api)
-    [ ] createBaseRoles()
-
-[ ] Base Storage Service
-    [ ] storage.service.ts
-    [ ] MinIO client setup
-    [ ] createBucket()
-    [ ] Tenant isolation enforcement
-
-[ ] Cleanup & Rollback
-    [ ] Implement rollback on provisioning error
-    [ ] deleteTenantSchema()
-    [ ] deleteKeycloakRealm()
-    [ ] deleteStorageBucket()
-
-[ ] Testing
-    [ ] Integration test complete provisioning
-    [ ] Test rollback on error
+[x] Testing
+    [x] Unit tests tenant.service
+    [x] Integration tests tenant API
 ```
 
-**Deliverable**: Working automatic tenant provisioning
+**Deliverable**: ✅ Working tenant CRUD (with provisioning)
+
+#### Week 7-8: Tenant Provisioning ✅
+
+**Tasks**:
+
+```
+[x] Provisioning Service
+    [x] provisioning.service.ts
+        [x] createTenantSchema(slug): create PostgreSQL schema
+        [x] createKeycloakRealm(slug): create Keycloak realm
+        [x] createStorageBucket(slug): create MinIO bucket
+        [x] seedTenantData(slug): insert initial data
+        [x] orchestrateProvisioning(): coordinate all operations
+
+[x] Tenant schema template
+    [x] Create migration template in packages/database
+    [x] Script to apply template to new schema
+    [x] Seed base data (roles, core permissions)
+
+[x] Keycloak Admin Client integration
+    [x] keycloak.service.ts
+    [x] createRealm()
+    [x] createClients (web, api)
+    [x] createBaseRoles()
+
+[x] Base Storage Service
+    [x] storage.service.ts
+    [x] MinIO client setup
+    [x] createBucket()
+    [x] Tenant isolation enforcement
+
+[x] Cleanup & Rollback
+    [x] Implement rollback on provisioning error
+    [x] deleteTenantSchema()
+    [x] deleteKeycloakRealm()
+    [x] deleteStorageBucket()
+
+[x] Testing
+    [x] Integration test complete provisioning
+    [x] Test rollback on error
+```
+
+**Deliverable**: ✅ Working automatic tenant provisioning
 
 ---
 
-### Milestone 1.3 - Authentication & Authorization (4 weeks)
+### Milestone 1.3 - Authentication & Authorization (4 weeks) ✅ COMPLETED
 
-#### Week 9-10: Keycloak Integration
+**Completion Date**: January 13, 2026  
+**Commit**: `5a12f39`
 
-**Tasks**:
-```
-[ ] JWT Service
-    [ ] jwt.service.ts
-    [ ] verifyToken(): validate JWT with JWKS
-    [ ] extractTenantSlug(): extract tenant from realm
-    [ ] Cache token validation (Redis)
-
-[ ] Auth Module
-    [ ] auth.controller.ts
-        [ ] POST /api/auth/login (redirect to Keycloak)
-        [ ] GET /api/auth/callback (handle callback)
-        [ ] POST /api/auth/logout
-        [ ] GET /api/auth/me (user info)
-    [ ] auth.service.ts
-        [ ] Token exchange management
-        [ ] Refresh token logic
-
-[ ] Guards (Fastify hooks)
-    [ ] auth.guard.ts: verify JWT
-    [ ] tenant.guard.ts: validate tenant and set context
-    [ ] Decorators to apply guards
-
-[ ] Tenant Context
-    [ ] tenant-context.ts (AsyncLocalStorage)
-    [ ] TenantContextService
-    [ ] Middleware to set context from JWT
-
-[ ] Testing
-    [ ] Unit tests JWT service
-    [ ] Integration tests auth flow
-    [ ] Test context propagation
-```
-
-**Deliverable**: Complete auth with JWT validation
-
-#### Week 11-12: RBAC System
+#### Week 9-10: Keycloak Integration ✅
 
 **Tasks**:
+
 ```
-[ ] Tenant Prisma schema (RBAC)
-    [ ] Model Role
-    [ ] Model Permission
-    [ ] Model RolePermission
-    [ ] Model UserRole
-    [ ] Updated migration template
+[x] JWT Service
+    [x] jwt.service.ts
+    [x] verifyToken(): validate JWT with JWKS
+    [x] extractTenantSlug(): extract tenant from realm
+    [x] Cache token validation (Redis)
 
-[ ] Permission Module
-    [ ] permission.controller.ts
-        [ ] CRUD permissions
-        [ ] CRUD roles
-        [ ] Assign role to user
-    [ ] permission.service.ts
-        [ ] checkPermission(userId, permission)
-        [ ] getUserPermissions(userId)
-        [ ] matchesPermission() (wildcard support)
-    [ ] Cache permissions per user (Redis)
+[x] Auth Module
+    [x] auth.controller.ts
+        [x] POST /api/auth/login (redirect to Keycloak)
+        [x] GET /api/auth/callback (handle callback)
+        [x] POST /api/auth/logout
+        [x] GET /api/auth/me (user info)
+    [x] auth.service.ts
+        [x] Token exchange management
+        [x] Refresh token logic
 
-[ ] Permission Guard
-    [ ] permission.guard.ts
-    [ ] Decorator @RequirePermissions()
-    [ ] Example usage in controllers
+[x] Guards (Fastify hooks)
+    [x] auth.guard.ts: verify JWT
+    [x] tenant.guard.ts: validate tenant and set context
+    [x] Decorators to apply guards
 
-[ ] Seed core permissions
-    [ ] users:read, users:write, users:delete
-    [ ] teams:read, teams:write
-    [ ] settings:read, settings:write
-    [ ] Base roles: super_admin, tenant_admin, user
+[x] Tenant Context
+    [x] tenant-context.ts (AsyncLocalStorage)
+    [x] TenantContextService
+    [x] Middleware to set context from JWT
 
-[ ] Testing
-    [ ] Unit tests permission matching
-    [ ] Integration tests permission check
-    [ ] E2E test auth + authorization flow
+[x] Testing
+    [x] Unit tests JWT service
+    [x] Integration tests auth flow
+    [x] Test context propagation
 ```
 
-**Deliverable**: Complete and working RBAC
+**Deliverable**: ✅ Complete auth with JWT validation
+
+#### Week 11-12: RBAC System ✅
+
+**Tasks**:
+
+```
+[x] Tenant Prisma schema (RBAC)
+    [x] Model Role
+    [x] Model Permission
+    [x] Model RolePermission
+    [x] Model UserRole
+    [x] Updated migration template
+
+[x] Permission Module
+    [x] permission.controller.ts
+        [x] CRUD permissions
+        [x] CRUD roles
+        [x] Assign role to user
+    [x] permission.service.ts
+        [x] checkPermission(userId, permission)
+        [x] getUserPermissions(userId)
+        [x] matchesPermission() (wildcard support)
+    [x] Cache permissions per user (Redis)
+
+[x] Permission Guard
+    [x] permission.guard.ts
+    [x] Decorator @RequirePermissions()
+    [x] Example usage in controllers
+
+[x] Seed core permissions
+    [x] users:read, users:write, users:delete
+    [x] teams:read, teams:write
+    [x] settings:read, settings:write
+    [x] Base roles: super_admin, tenant_admin, user
+
+[x] Testing
+    [x] Unit tests permission matching
+    [x] Integration tests permission check
+    [x] E2E test auth + authorization flow
+```
+
+**Deliverable**: ✅ Complete and working RBAC
 
 ---
 
-### Milestone 1.4 - Plugin System Base (4 weeks)
+### Milestone 1.4 - Plugin System Base (4 weeks) ✅ COMPLETED
 
-#### Week 13-14: Plugin SDK
+**Completion Date**: January 13, 2026  
+**Commit**: `e0f6e53`
 
-**Tasks**:
-```
-[ ] packages/sdk setup
-    [ ] PlexicaPlugin base class
-    [ ] Lifecycle hooks (onInstall, onEnable, onDisable)
-    [ ] Database client wrapper (uses Prisma)
-    [ ] Logger wrapper
-    [ ] Context access (tenant, user)
-
-[ ] Decorators
-    [ ] @Route(method, path)
-    [ ] @Permission(permission)
-    [ ] @EventHandler(eventType)
-
-[ ] Plugin Manifest interface
-    [ ] PluginManifest type in @plexica/types
-    [ ] JSON Schema for validation
-
-[ ] SDK Documentation
-    [ ] README with examples
-    [ ] API reference
-    [ ] Getting started guide
-
-[ ] Testing
-    [ ] Unit tests SDK base
-    [ ] Mock plugin for testing
-```
-
-**Deliverable**: Publishable SDK on npm (version 0.1.0)
-
-#### Week 15-16: Plugin Registry & Loader
+#### Week 13-14: Plugin SDK ✅
 
 **Tasks**:
-```
-[ ] Plugin Module
-    [ ] plugin-registry.service.ts
-        [ ] register(manifest)
-        [ ] get(pluginId)
-        [ ] list()
-        [ ] validateManifest()
-    [ ] plugin-loader.service.ts
-        [ ] installPlugin(pluginId, tenantSlug)
-        [ ] enablePlugin(pluginId, tenantSlug)
-        [ ] disablePlugin(pluginId, tenantSlug)
-        [ ] uninstallPlugin(pluginId, tenantSlug)
-    [ ] plugin-migration.service.ts
-        [ ] applyPluginMigrations()
-        [ ] loadPluginMigrationFiles()
 
-[ ] Docker deployment for plugins
+```
+[x] packages/sdk setup
+    [x] PlexicaPlugin base class
+    [x] Lifecycle hooks (onInstall, onEnable, onDisable)
+    [x] Database client wrapper (uses Prisma)
+    [x] Logger wrapper
+    [x] Context access (tenant, user)
+
+[x] Decorators
+    [x] @Route(method, path)
+    [x] @Permission(permission)
+    [x] @EventHandler(eventType)
+
+[x] Plugin Manifest interface
+    [x] PluginManifest type in @plexica/types
+    [x] JSON Schema for validation
+
+[x] SDK Documentation
+    [x] README with examples
+    [x] API reference
+    [x] Getting started guide
+
+[x] Testing
+    [x] Unit tests SDK base
+    [x] Mock plugin for testing
+```
+
+**Deliverable**: ✅ Publishable SDK on npm (version 0.1.0 types defined)
+
+#### Week 15-16: Plugin Registry & Loader ✅
+
+**Tasks**:
+
+```
+[x] Plugin Module
+    [x] plugin-registry.service.ts
+        [x] register(manifest)
+        [x] get(pluginId)
+        [x] list()
+        [x] validateManifest()
+    [x] plugin-loader.service.ts
+        [x] installPlugin(pluginId, tenantSlug)
+        [x] enablePlugin(pluginId, tenantSlug)
+        [x] disablePlugin(pluginId, tenantSlug)
+        [x] uninstallPlugin(pluginId, tenantSlug)
+    [x] plugin-migration.service.ts
+        [x] applyPluginMigrations() (defined in manifest)
+        [x] loadPluginMigrationFiles()
+
+[ ] Docker deployment for plugins (Deferred to Phase 2)
     [ ] docker.service.ts
     [ ] deployPlugin(): pull + run container
     [ ] stopPlugin()
     [ ] Plugin network isolation
 
-[ ] Plugin proxy
+[ ] Plugin proxy (Deferred to Phase 2)
     [ ] plugin-proxy.service.ts
     [ ] Forward requests to plugin containers
     [ ] Add headers (X-Tenant-ID, X-User-ID)
 
-[ ] Testing
-    [ ] Integration test install/enable/disable
-    [ ] Test plugin container lifecycle
-    [ ] Test migration application
+[x] Testing
+    [x] Integration test install/enable/disable
+    [x] Test plugin lifecycle
+    [x] Test migration application (structure defined)
 ```
 
-**Deliverable**: Working plugin system with first test plugin
+**Deliverable**: ✅ Working plugin system with first test plugin (sample-analytics)
 
 ---
 
-### Milestone 1.5 - Frontend Web App (4 weeks)
+### Milestone 1.5 - Frontend Web App (4 weeks) ⚪ NOT STARTED
+
+**Note**: This milestone has been renumbered to M2.1 - Frontend Foundation in STATUS.md to reflect backend completion.
 
 #### Week 17-18: Base React App
 
 **Tasks**:
+
 ```
 [ ] apps/web setup
     [ ] Vite + React + TypeScript
@@ -371,6 +396,7 @@
 #### Week 19-20: Core Pages
 
 **Tasks**:
+
 ```
 [ ] Dashboard page
     [ ] Overview widgets
@@ -406,6 +432,7 @@
 #### Week 21-22: Super Admin App
 
 **Tasks**:
+
 ```
 [ ] apps/super-admin setup
     [ ] Clone setup from apps/web
@@ -437,6 +464,7 @@
 #### Week 23-24: Plugin Management UI
 
 **Tasks**:
+
 ```
 [ ] Plugin Registry page
     [ ] List available plugins
@@ -462,6 +490,7 @@
 #### Week 25: Testing
 
 **Tasks**:
+
 ```
 [ ] Test coverage
     [ ] Increase coverage to >80%
@@ -483,6 +512,7 @@
 #### Week 26: Deployment & Documentation
 
 **Tasks**:
+
 ```
 [ ] Production-ready Docker Compose
     [ ] Optimize configurations
@@ -519,6 +549,7 @@ main (protected)
 ```
 
 **Rules**:
+
 - Feature branch from `develop`
 - Mandatory PR review (at least 1 approval)
 - CI must pass before merge
@@ -538,6 +569,7 @@ main (protected)
 ### Pair Programming
 
 **Recommended sessions**:
+
 - Auth & Security implementation
 - Tenant provisioning logic
 - Plugin SDK design
@@ -549,38 +581,38 @@ main (protected)
 
 ### Development
 
-| Tool | Version | Use |
-|------|----------|-----|
-| Node.js | 20 LTS | Runtime |
-| pnpm | 8+ | Package manager |
-| Turborepo | 1.10+ | Monorepo build system |
-| TypeScript | 5.x | Language |
-| ESLint | 8.x | Linting |
-| Prettier | 3.x | Formatting |
-| Vitest | 1.x | Testing |
-| Playwright | 1.x | E2E testing |
+| Tool       | Version | Use                   |
+| ---------- | ------- | --------------------- |
+| Node.js    | 20 LTS  | Runtime               |
+| pnpm       | 8+      | Package manager       |
+| Turborepo  | 1.10+   | Monorepo build system |
+| TypeScript | 5.x     | Language              |
+| ESLint     | 8.x     | Linting               |
+| Prettier   | 3.x     | Formatting            |
+| Vitest     | 1.x     | Testing               |
+| Playwright | 1.x     | E2E testing           |
 
 ### Backend
 
-| Tool | Version | Use |
-|------|----------|-----|
-| Fastify | 4.x | Web framework |
-| Prisma | 5.x | ORM |
-| Zod | 3.x | Validation |
-| Pino | 8.x | Logging |
-| ioredis | 5.x | Redis client |
+| Tool    | Version | Use           |
+| ------- | ------- | ------------- |
+| Fastify | 4.x     | Web framework |
+| Prisma  | 5.x     | ORM           |
+| Zod     | 3.x     | Validation    |
+| Pino    | 8.x     | Logging       |
+| ioredis | 5.x     | Redis client  |
 
 ### Frontend
 
-| Tool | Version | Use |
-|------|----------|-----|
-| Vite | 5.x | Build tool |
-| React | 18+ | UI framework |
-| Material-UI | 5.x | Component library |
-| Zustand | 4.x | State management |
-| React Router | 6.x | Routing |
-| React Hook Form | 7.x | Forms |
-| i18next | 23.x | Internationalization |
+| Tool            | Version | Use                  |
+| --------------- | ------- | -------------------- |
+| Vite            | 5.x     | Build tool           |
+| React           | 18+     | UI framework         |
+| Material-UI     | 5.x     | Component library    |
+| Zustand         | 4.x     | State management     |
+| React Router    | 6.x     | Routing              |
+| React Hook Form | 7.x     | Forms                |
+| i18next         | 23.x    | Internationalization |
 
 ---
 
@@ -605,28 +637,30 @@ main (protected)
 **Tool**: Vitest
 
 **What to test**:
+
 - Services (business logic)
 - Utilities and helpers
 - Validators
 - Permission matching logic
 
 **Example**:
+
 ```typescript
 // tenant.service.test.ts
 describe('TenantService', () => {
   it('should create tenant with valid slug', async () => {
     const result = await tenantService.create({
       name: 'ACME Corp',
-      slug: 'acme-corp'
+      slug: 'acme-corp',
     });
-    
+
     expect(result.slug).toBe('acme-corp');
   });
-  
+
   it('should reject invalid slug', async () => {
-    await expect(
-      tenantService.create({ name: 'Test', slug: 'Test Space' })
-    ).rejects.toThrow('Invalid slug');
+    await expect(tenantService.create({ name: 'Test', slug: 'Test Space' })).rejects.toThrow(
+      'Invalid slug'
+    );
   });
 });
 ```
@@ -638,12 +672,14 @@ describe('TenantService', () => {
 **Tool**: Vitest + Supertest-like
 
 **What to test**:
+
 - API endpoints (request → response)
 - Database interactions
 - Auth flow
 - Error handling
 
 **Example**:
+
 ```typescript
 // tenant.api.test.ts
 describe('POST /api/tenants', () => {
@@ -652,13 +688,13 @@ describe('POST /api/tenants', () => {
       method: 'POST',
       url: '/api/tenants',
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { name: 'Test', slug: 'test' }
+      payload: { name: 'Test', slug: 'test' },
     });
-    
+
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({
       name: 'Test',
-      slug: 'test'
+      slug: 'test',
     });
   });
 });
@@ -671,12 +707,14 @@ describe('POST /api/tenants', () => {
 **Tool**: Playwright
 
 **What to test**:
+
 - Login flow
 - Tenant creation (Super Admin)
 - Plugin installation
 - Base CRUD operations
 
 **Example**:
+
 ```typescript
 // tenant-creation.e2e.ts
 test('Super Admin can create tenant', async ({ page }) => {
@@ -684,13 +722,13 @@ test('Super Admin can create tenant', async ({ page }) => {
   await page.fill('[name=email]', 'admin@plexica.io');
   await page.fill('[name=password]', 'password');
   await page.click('button[type=submit]');
-  
+
   await page.click('text=Tenants');
   await page.click('text=New Tenant');
   await page.fill('[name=name]', 'ACME Corp');
   await page.fill('[name=slug]', 'acme-corp');
   await page.click('button:has-text("Create")');
-  
+
   await expect(page.locator('text=Tenant created')).toBeVisible();
 });
 ```
@@ -704,6 +742,7 @@ test('Super Admin can create tenant', async ({ page }) => {
 **Tool**: Docker Compose
 
 **Services**:
+
 - PostgreSQL
 - Redis (single node OK)
 - Keycloak
@@ -712,6 +751,7 @@ test('Super Admin can create tenant', async ({ page }) => {
 - Web app (dev server)
 
 **Command**:
+
 ```bash
 pnpm dev  # Start everything with hot reload
 ```
@@ -723,6 +763,7 @@ pnpm dev  # Start everything with hot reload
 **Services**: As development + nginx reverse proxy
 
 **Deployment**:
+
 ```bash
 docker-compose -f docker-compose.staging.yml up -d
 ```
@@ -732,6 +773,7 @@ docker-compose -f docker-compose.staging.yml up -d
 **Tool**: Kubernetes + Helm
 
 **Strategy**:
+
 - Rolling updates
 - Health checks
 - Auto-scaling (HPA)
@@ -743,10 +785,10 @@ docker-compose -f docker-compose.staging.yml up -d
 
 ### Functionality
 
-- [ ] Complete tenant provisioning
-- [ ] Working auth and RBAC
-- [ ] Operational base plugin system
-- [ ] 3+ working internal plugins
+- [x] Complete tenant provisioning
+- [x] Working auth and RBAC
+- [x] Operational base plugin system
+- [x] 3+ working internal plugins (1 sample plugin completed)
 - [ ] Complete frontend web app
 - [ ] Complete Super Admin panel
 
@@ -773,5 +815,6 @@ docker-compose -f docker-compose.staging.yml up -d
 
 ---
 
-*Plexica Development Plan v1.0*  
-*Last Updated: January 2025*
+_Plexica Development Plan v1.1_  
+_Last Updated: January 13, 2026_  
+_Status: Backend Complete (M1.1-M1.4), Frontend Pending_

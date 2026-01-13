@@ -9,14 +9,14 @@
 
 ## 📊 Quick Overview
 
-| Metric | Value | Status |
-|---------|--------|-------|
-| **Current Phase** | Phase 1 - MVP Core (Backend Complete) | 🟢 57% Complete |
-| **Current Milestone** | M1.4 - Plugin System | ✅ Completed |
-| **Phase 1 Overall Progress** | 4/7 milestones | 🟢 57% (4 milestones done) |
-| **Backend MVP** | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete |
-| **Frontend MVP** | Not started | ⚪ 0% |
-| **Team Size** | 1 developer (AI-assisted) | - |
+| Metric                       | Value                                 | Status                     |
+| ---------------------------- | ------------------------------------- | -------------------------- |
+| **Current Phase**            | Phase 1 - MVP Core (Backend Complete) | 🟢 57% Complete            |
+| **Current Milestone**        | M1.4 - Plugin System                  | ✅ Completed               |
+| **Phase 1 Overall Progress** | 4/7 milestones                        | 🟢 57% (4 milestones done) |
+| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete           |
+| **Frontend MVP**             | Not started                           | ⚪ 0%                      |
+| **Team Size**                | 1 developer (AI-assisted)             | -                          |
 
 ---
 
@@ -28,15 +28,15 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
 
 ### Milestone Status
 
-| Milestone | Name | Duration | Status | Progress | Completion Date |
-|-----------|------|----------|--------|----------|-----------------|
-| **M1.1** | Foundation Setup | 4 weeks | ✅ Completed | 100% | Jan 13, 2026 |
-| **M1.2** | Multi-Tenancy Core | 4 weeks | ✅ Completed | 100% | Jan 13, 2026 |
-| **M1.3** | Authentication & Authorization | 4 weeks | ✅ Completed | 100% | Jan 13, 2026 |
-| **M1.4** | Plugin System | 5 weeks | ✅ Completed | 100% | Jan 13, 2026 |
-| **M2.1** | Frontend Foundation | 4 weeks | ⚪ Not Started | 0% | - |
-| **M2.2** | Frontend Auth & Layout | 3 weeks | ⚪ Not Started | 0% | - |
-| **M2.3** | Testing & Deployment | 2 weeks | ⚪ Not Started | 0% | - |
+| Milestone | Name                           | Duration | Status         | Progress | Completion Date |
+| --------- | ------------------------------ | -------- | -------------- | -------- | --------------- |
+| **M1.1**  | Foundation Setup               | 4 weeks  | ✅ Completed   | 100%     | Jan 13, 2026    |
+| **M1.2**  | Multi-Tenancy Core             | 4 weeks  | ✅ Completed   | 100%     | Jan 13, 2026    |
+| **M1.3**  | Authentication & Authorization | 4 weeks  | ✅ Completed   | 100%     | Jan 13, 2026    |
+| **M1.4**  | Plugin System                  | 5 weeks  | ✅ Completed   | 100%     | Jan 13, 2026    |
+| **M2.1**  | Frontend Tenant App Foundation | 4 weeks  | ⚪ Not Started | 0%       | -               |
+| **M2.2**  | Super-Admin Frontend App       | 3 weeks  | ⚪ Not Started | 0%       | -               |
+| **M2.3**  | Testing & Deployment           | 2 weeks  | ⚪ Not Started | 0%       | -               |
 
 **Total Phase 1 Progress**: █████████░░░░ 57% (4/7 milestones completed)
 
@@ -50,6 +50,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
 **Commit**: `initial commit + foundation`
 
 **Deliverables**:
+
 - ✅ Monorepo with Turborepo + pnpm workspaces
 - ✅ Docker Compose infrastructure (PostgreSQL, Redis, Keycloak, Redpanda, MinIO)
 - ✅ Core API skeleton with Fastify
@@ -67,6 +68,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
 **Commit**: `0921ab7` - "feat: implement multi-tenancy core (M1.2)"
 
 **Deliverables**:
+
 - ✅ Keycloak Integration Service (252 lines)
   - Admin client authentication
   - Realm CRUD operations
@@ -93,6 +95,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
   - Schema-per-tenant routing helpers
 
 **Test Results**:
+
 - 3 tenants created successfully: `acme-corp`, `globex-inc`, `demo-company`
 - Each with isolated PostgreSQL schema and Keycloak realm
 
@@ -104,6 +107,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
 **Commit**: `5a12f39` - "feat: implement authentication and authorization system (M1.3)"
 
 **Deliverables**:
+
 - ✅ JWT Verification Utilities (253 lines)
   - JWKS integration with Keycloak
   - Token verification with realm-specific public keys
@@ -124,7 +128,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
   - User-role assignment in tenant database
   - Permission querying with aggregation
   - Default roles created on tenant provisioning:
-    - **admin**: full permissions (users.*, roles.*, settings.*, plugins.*)
+    - **admin**: full permissions (users._, roles._, settings._, plugins._)
     - **user**: read permissions (users.read, settings.read)
     - **guest**: minimal read access (users.read)
 
@@ -135,6 +139,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
   - GET /api/auth/me - Current user info (requires auth)
 
 **Dependencies Added**:
+
 - `@keycloak/keycloak-admin-client@26.5.0`
 - `jsonwebtoken@9.0.3`
 - `jwks-rsa@3.2.0`
@@ -198,6 +203,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
   - Comprehensive documentation (96 lines)
 
 **Test Results**:
+
 - ✅ Plugin registration in global registry
 - ✅ Plugin installation for tenant with configuration
 - ✅ Plugin activation
@@ -206,6 +212,7 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
 - ✅ List installed plugins per tenant
 
 **Architecture Supports**:
+
 - Module Federation for frontend plugins
 - Backend hooks for extensibility
 - Custom API endpoints per plugin
@@ -216,23 +223,24 @@ Develop the functional core of the Plexica platform with multi-tenancy support, 
 
 ---
 
-## 📋 Next Milestone: M2.1 - Frontend Foundation
+## 📋 Next Milestone: M2.1 - Frontend Tenant App Foundation
 
 **Status**: ⚪ Not Started  
 **Duration**: ~4 weeks  
-**Priority**: High
+**Priority**: High  
+**Target**: `apps/web` (Tenant user frontend)
 
 ### Objectives
 
-Create the base frontend application with authentication integration and Module Federation setup for dynamic plugin loading.
+Create the base tenant frontend application (`apps/web`) with authentication integration and Module Federation setup for dynamic plugin loading.
 
 ### Main Tasks
 
-1. **Frontend Application Setup**
+1. **Frontend Application Setup** (`apps/web`)
    - [ ] React 18 + Vite + TypeScript
    - [ ] TanStack Router for routing
    - [ ] TanStack Query for data fetching
-   - [ ] Tailwind CSS + shadcn/ui components
+   - [ ] Tailwind CSS styling
    - Effort: ~8h
 
 2. **Module Federation Configuration**
@@ -264,9 +272,76 @@ Create the base frontend application with authentication integration and Module 
    - [ ] Tenant-specific data fetching
    - Effort: ~8h
 
-**Total Estimated Effort**: ~56 hours (~1.5 weeks)
+6. **Core Pages**
+   - [ ] Dashboard home page
+   - [ ] My Plugins page (installed plugins management)
+   - [ ] Team management page
+   - [ ] Workspace settings page
+   - Effort: ~12h
 
-**Prerequisites**: 
+**Total Estimated Effort**: ~68 hours (~2 weeks)
+
+---
+
+## 📋 Future Milestone: M2.2 - Super-Admin Frontend App
+
+**Status**: ⚪ Not Started  
+**Duration**: ~3 weeks  
+**Priority**: Medium  
+**Target**: `apps/super-admin` (Platform admin frontend - separate app on port 3002)
+
+### Objectives
+
+Create a separate super-admin frontend application for platform management (global tenant/plugin management).
+
+### Main Tasks
+
+1. **Super-Admin App Setup** (`apps/super-admin`)
+   - [ ] React 18 + Vite + TypeScript (separate from apps/web)
+   - [ ] TanStack Router + Query
+   - [ ] Tailwind CSS
+   - [ ] Super-admin layout (different from tenant app)
+   - Effort: ~8h
+
+2. **Platform Dashboard**
+   - [ ] Platform-wide statistics
+   - [ ] System health monitoring
+   - [ ] Activity logs
+   - Effort: ~8h
+
+3. **Tenant Management UI**
+   - [ ] List all tenants
+   - [ ] Create new tenant
+   - [ ] View/edit tenant details
+   - [ ] Suspend/delete tenant
+   - [ ] Tenant provisioning status
+   - Effort: ~12h
+
+4. **Global Plugin Registry Management**
+   - [ ] Browse all plugins (marketplace)
+   - [ ] Publish new plugin
+   - [ ] Edit plugin metadata
+   - [ ] Manage plugin versions
+   - [ ] View install statistics per plugin
+   - [ ] Approve/deprecate plugins
+   - Effort: ~16h
+
+5. **Platform User Management**
+   - [ ] List all users across tenants
+   - [ ] Assign super-admin roles
+   - [ ] User activity monitoring
+   - Effort: ~8h
+
+**Total Estimated Effort**: ~52 hours (~1.5 weeks)
+
+**Key Difference from M2.1**:
+
+- M2.1 (`apps/web`) = Tenant users managing their workspace
+- M2.2 (`apps/super-admin`) = Platform admins managing all tenants/plugins globally
+- Two separate applications, different ports, different security contexts
+
+**Prerequisites**:
+
 - Backend API complete ✅
 - Sample plugin for testing ✅
 - Authentication system ready ✅
@@ -278,6 +353,7 @@ Create the base frontend application with authentication integration and Module 
 ### ✅ Completed
 
 **Backend (100% Complete)**:
+
 - ✅ Monorepo structure with Turborepo + pnpm
 - ✅ Core API Service with Fastify 4
 - ✅ PostgreSQL 15 with schema-per-tenant
@@ -293,6 +369,7 @@ Create the base frontend application with authentication integration and Module 
 - ✅ Docker Compose infrastructure
 
 **Plugin System (100% Complete)**:
+
 - ✅ Plugin manifest schema
 - ✅ Plugin registry service
 - ✅ Plugin lifecycle management
@@ -308,6 +385,7 @@ Create the base frontend application with authentication integration and Module 
 ### 📋 Planned
 
 **Frontend (0% Complete)**:
+
 - ⚪ React 18 web application
 - ⚪ Module Federation setup
 - ⚪ Authentication UI
@@ -317,6 +395,7 @@ Create the base frontend application with authentication integration and Module 
 - ⚪ Admin panel
 
 **Testing & Deployment**:
+
 - ⚪ Unit tests (Vitest)
 - ⚪ Integration tests
 - ⚪ E2E tests (Playwright)
@@ -328,30 +407,30 @@ Create the base frontend application with authentication integration and Module 
 
 ## 📦 Package Status
 
-| Package | Status | Version | Description |
-|---------|--------|---------|-------------|
-| @plexica/core-api | ✅ Production-ready | 0.1.0 | Core API service with auth & plugins |
-| @plexica/database | ✅ Production-ready | 0.1.0 | Prisma schema & migrations |
-| @plexica/web | ⚪ Not Started | - | Web frontend application |
-| @plexica/sdk | 📋 Planned | - | Plugin SDK |
-| @plexica/types | 📋 Planned | - | Shared TypeScript types |
-| @plexica/api-client | 📋 Planned | - | Frontend API client |
-| @plexica/ui | 📋 Planned | - | Shared UI components |
-| @plexica/super-admin | 📋 Planned | - | Super Admin panel |
+| Package              | Status              | Version | Description                          |
+| -------------------- | ------------------- | ------- | ------------------------------------ |
+| @plexica/core-api    | ✅ Production-ready | 0.1.0   | Core API service with auth & plugins |
+| @plexica/database    | ✅ Production-ready | 0.1.0   | Prisma schema & migrations           |
+| @plexica/web         | ⚪ Not Started      | -       | Web frontend application             |
+| @plexica/sdk         | 📋 Planned          | -       | Plugin SDK                           |
+| @plexica/types       | 📋 Planned          | -       | Shared TypeScript types              |
+| @plexica/api-client  | 📋 Planned          | -       | Frontend API client                  |
+| @plexica/ui          | 📋 Planned          | -       | Shared UI components                 |
+| @plexica/super-admin | 📋 Planned          | -       | Super Admin panel                    |
 
 ---
 
 ## 🔧 Infrastructure Status
 
-| Service | Status | Version | Port | Health | Notes |
-|---------|--------|---------|------|--------|-------|
-| PostgreSQL | ✅ Running | 15 | 5432 | ✅ Healthy | 4 active tenants with schemas |
-| Redis | ✅ Running | 7 | 6379 | ✅ Healthy | Cache layer operational |
-| Keycloak | ✅ Running | 23 | 8080 | ✅ Healthy | 4 realms configured |
-| Redpanda | ✅ Running | Latest | 9092 | ✅ Healthy | Event streaming ready |
-| Redpanda Console | ✅ Running | Latest | 8090 | ✅ Running | UI for monitoring |
-| MinIO | ✅ Running | Latest | 9000/9001 | ✅ Healthy | Object storage ready |
-| Core API | ✅ Running | 0.1.0 | 3000 | ✅ Healthy | All endpoints operational |
+| Service          | Status     | Version | Port      | Health     | Notes                         |
+| ---------------- | ---------- | ------- | --------- | ---------- | ----------------------------- |
+| PostgreSQL       | ✅ Running | 15      | 5432      | ✅ Healthy | 4 active tenants with schemas |
+| Redis            | ✅ Running | 7       | 6379      | ✅ Healthy | Cache layer operational       |
+| Keycloak         | ✅ Running | 23      | 8080      | ✅ Healthy | 4 realms configured           |
+| Redpanda         | ✅ Running | Latest  | 9092      | ✅ Healthy | Event streaming ready         |
+| Redpanda Console | ✅ Running | Latest  | 8090      | ✅ Running | UI for monitoring             |
+| MinIO            | ✅ Running | Latest  | 9000/9001 | ✅ Healthy | Object storage ready          |
+| Core API         | ✅ Running | 0.1.0   | 3000      | ✅ Healthy | All endpoints operational     |
 
 **API Documentation**: http://localhost:3000/docs
 
@@ -370,6 +449,7 @@ Create the base frontend application with authentication integration and Module 
 ## 📊 Database Status
 
 ### Core Schema (`core`)
+
 - ✅ `tenants` - Tenant registry (4 tenants)
 - ✅ `plugins` - Global plugin catalog (1 plugin: sample-analytics)
 - ✅ `tenant_plugins` - Plugin installations per tenant
@@ -377,12 +457,15 @@ Create the base frontend application with authentication integration and Module 
 - ✅ `_prisma_migrations` - Migration history
 
 ### Tenant Schemas
+
 Each tenant has isolated schema with:
+
 - ✅ `users` - Tenant users
 - ✅ `roles` - Roles with JSONB permissions
 - ✅ `user_roles` - User-role assignments
 
 **Active Tenants**:
+
 1. **acme-corp** - ACME Corporation (realm + default roles)
 2. **globex-inc** - Globex Inc (realm + default roles)
 3. **demo-company** - Demo Company (realm + default roles + test plugin)
@@ -397,12 +480,14 @@ Each tenant has isolated schema with:
 **Overall Progress**: █████████░░░░░░░ 57% (4/7 milestones)
 
 **Backend Complete (100%)**:
+
 - [x] M1.1 - Foundation (Week 4) ✅ Jan 13, 2026
 - [x] M1.2 - Multi-Tenancy Core (Week 8) ✅ Jan 13, 2026
 - [x] M1.3 - Authentication & Authorization (Week 12) ✅ Jan 13, 2026
 - [x] M1.4 - Plugin System (Week 16) ✅ Jan 13, 2026
 
 **Frontend Pending (0%)**:
+
 - [ ] M2.1 - Frontend Foundation (4 weeks) ← **NEXT**
 - [ ] M2.2 - Frontend Auth & Layout (3 weeks)
 - [ ] M2.3 - Testing & Deployment (2 weeks)
@@ -446,6 +531,7 @@ pnpm clean                    # Clean build artifacts
 ## 🔑 Key Achievements
 
 ### Technical Excellence
+
 - ✅ **Production-ready backend** with enterprise-grade architecture
 - ✅ **Complete multi-tenancy** with schema-per-tenant isolation
 - ✅ **Robust authentication** with Keycloak + JWT + RBAC
@@ -454,12 +540,14 @@ pnpm clean                    # Clean build artifacts
 - ✅ **Comprehensive API** with OpenAPI documentation
 
 ### Code Quality
+
 - ✅ **Type-safe** TypeScript codebase with strict mode
 - ✅ **Well-structured** code with clear separation of concerns
 - ✅ **Documented** with inline comments and README files
 - ✅ **Tested manually** with complete lifecycle verification
 
 ### Developer Experience
+
 - ✅ **Monorepo** with Turborepo for optimal build performance
 - ✅ **Docker Compose** for one-command infrastructure setup
 - ✅ **Hot reload** with tsx watch for rapid development
@@ -472,6 +560,7 @@ pnpm clean                    # Clean build artifacts
 ### 2026-01-13
 
 **Completed**:
+
 - ✅ **M1.4 - Plugin System** (2,062 lines added)
   - Plugin type definitions and manifest schema
   - Plugin registry and lifecycle services
@@ -483,6 +572,7 @@ pnpm clean                    # Clean build artifacts
   - Complete lifecycle testing
 
 **Files Modified/Created**:
+
 - New: `apps/core-api/src/types/plugin.types.ts` (218 lines)
 - New: `apps/core-api/src/services/plugin.service.ts` (585 lines)
 - New: `apps/core-api/src/routes/plugin.ts` (572 lines)
@@ -492,12 +582,14 @@ pnpm clean                    # Clean build artifacts
 - Modified: `apps/core-api/src/routes/tenant.ts` (removed duplicate routes)
 
 **Testing Results**:
+
 - ✅ All plugin lifecycle operations verified
 - ✅ Plugin registration, installation, activation, deactivation, uninstallation
 - ✅ Configuration validation working
 - ✅ Hook system structure complete
 
 **Next Actions**:
+
 - ⏳ Start M2.1 - Frontend Foundation
 - ⏳ Setup React application with Vite
 - ⏳ Configure Module Federation
@@ -550,15 +642,15 @@ pnpm clean                    # Clean build artifacts
 
 ## 🎯 Success Metrics
 
-| Metric | Target | Current | Status |
-|---------|--------|---------|--------|
-| API Response Time (p95) | < 500ms | TBD | ⏳ Not measured |
-| API Response Time (p99) | < 1000ms | TBD | ⏳ Not measured |
-| Database Query (p95) | < 100ms | TBD | ⏳ Not measured |
-| Availability | 99.9% | 100% | ✅ Dev |
-| Error Rate | < 0.1% | 0% | ✅ No errors |
-| Tenant Provisioning | < 30s | ~2s | ✅ Exceeds target |
-| Plugin Install | < 60s | ~0.05s | ✅ Exceeds target |
+| Metric                  | Target   | Current | Status            |
+| ----------------------- | -------- | ------- | ----------------- |
+| API Response Time (p95) | < 500ms  | TBD     | ⏳ Not measured   |
+| API Response Time (p99) | < 1000ms | TBD     | ⏳ Not measured   |
+| Database Query (p95)    | < 100ms  | TBD     | ⏳ Not measured   |
+| Availability            | 99.9%    | 100%    | ✅ Dev            |
+| Error Rate              | < 0.1%   | 0%      | ✅ No errors      |
+| Tenant Provisioning     | < 30s    | ~2s     | ✅ Exceeds target |
+| Plugin Install          | < 60s    | ~0.05s  | ✅ Exceeds target |
 
 ---
 
@@ -573,5 +665,5 @@ pnpm clean                    # Clean build artifacts
 ---
 
 **Plexica v0.1.0-alpha**  
-*Last updated: January 13, 2026*  
-*Next update: After M2.1 completion*
+_Last updated: January 13, 2026_  
+_Next update: After M2.1 completion_
