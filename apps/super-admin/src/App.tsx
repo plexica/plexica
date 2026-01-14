@@ -126,6 +126,11 @@ function TabButton({
 // Tenants View
 function TenantsView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'provisioning'>(
+    'all'
+  );
 
   const {
     data: tenantsData,
@@ -151,7 +156,18 @@ function TenantsView() {
     },
   });
 
-  const tenants: Tenant[] = tenantsData?.tenants || [];
+  const allTenants: Tenant[] = tenantsData?.tenants || [];
+
+  // Filter tenants based on search and status
+  const tenants = allTenants.filter((tenant) => {
+    const matchesSearch =
+      tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tenant.slug.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = statusFilter === 'all' || tenant.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div>
@@ -194,24 +210,66 @@ function TenantsView() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Search and Filters */}
       {!isLoading && !error && (
         <>
+          <div className="flex items-center gap-4 mb-6">
+            {/* Search Input */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Search tenants by name or slug..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 pl-10 bg-card border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                🔍
+              </span>
+            </div>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="provisioning">Provisioning</option>
+            </select>
+
+            {/* Clear Filters */}
+            {(searchQuery || statusFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                }}
+                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <StatCard title="Total Tenants" value={tenants.length} icon="🏢" />
+            <StatCard title="Total Tenants" value={allTenants.length} icon="🏢" />
             <StatCard
               title="Active"
-              value={tenants.filter((t) => t.status === 'active').length}
+              value={allTenants.filter((t) => t.status === 'active').length}
               icon="✅"
             />
             <StatCard
               title="Suspended"
-              value={tenants.filter((t) => t.status === 'suspended').length}
+              value={allTenants.filter((t) => t.status === 'suspended').length}
               icon="⏸️"
             />
             <StatCard
               title="Provisioning"
-              value={tenants.filter((t) => t.status === 'provisioning').length}
+              value={allTenants.filter((t) => t.status === 'provisioning').length}
               icon="⚙️"
             />
           </div>
@@ -262,7 +320,10 @@ function TenantsView() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                        <button
+                          onClick={() => setSelectedTenant(tenant)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
                           View
                         </button>
                         <button className="text-orange-600 hover:text-orange-800 text-sm font-medium">
@@ -300,12 +361,21 @@ function TenantsView() {
               </tbody>
             </table>
 
-            {/* Empty State */}
-            {tenants.length === 0 && !isLoading && !error && (
+            {/* Empty State - No Tenants */}
+            {allTenants.length === 0 && !isLoading && !error && (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🏢</div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">No tenants yet</h3>
                 <p className="text-muted-foreground">Create your first tenant to get started</p>
+              </div>
+            )}
+
+            {/* No Results State - Filtered */}
+            {allTenants.length > 0 && tenants.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">No tenants found</h3>
+                <p className="text-muted-foreground">Try adjusting your search or filters</p>
               </div>
             )}
           </div>
@@ -322,12 +392,24 @@ function TenantsView() {
           }}
         />
       )}
+
+      {/* Tenant Detail Modal */}
+      {selectedTenant && (
+        <TenantDetailModal tenant={selectedTenant} onClose={() => setSelectedTenant(null)} />
+      )}
     </div>
   );
 }
 
 // Plugins View (Marketplace)
 function PluginsView() {
+  const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'deprecated'>(
+    'all'
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
   const {
     data: pluginsData,
     isLoading,
@@ -337,7 +419,23 @@ function PluginsView() {
     queryFn: () => apiClient.getPlugins(),
   });
 
-  const plugins: Plugin[] = pluginsData?.plugins || [];
+  const allPlugins: Plugin[] = pluginsData?.plugins || [];
+
+  // Get unique categories
+  const categories = Array.from(new Set(allPlugins.map((p) => p.category)));
+
+  // Filter plugins based on search, status, and category
+  const plugins = allPlugins.filter((plugin) => {
+    const matchesSearch =
+      plugin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      plugin.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      plugin.author.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = statusFilter === 'all' || plugin.status === statusFilter;
+    const matchesCategory = categoryFilter === 'all' || plugin.category === categoryFilter;
+
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
   return (
     <div>
@@ -368,6 +466,93 @@ function PluginsView() {
             <strong>Error:</strong> Failed to load plugins. {(error as Error).message}
           </p>
         </div>
+      )}
+
+      {/* Search and Filters */}
+      {!isLoading && !error && (
+        <>
+          <div className="flex items-center gap-4 mb-6">
+            {/* Search Input */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Search plugins by name, description, or author..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 pl-10 bg-card border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                🔍
+              </span>
+            </div>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All Statuses</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+              <option value="deprecated">Deprecated</option>
+            </select>
+
+            {/* Category Filter */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+
+            {/* Clear Filters */}
+            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                  setCategoryFilter('all');
+                }}
+                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          {/* Stats */}
+          <div className="mb-6 flex items-center gap-6 text-sm text-muted-foreground">
+            <span>
+              <strong className="text-foreground">{allPlugins.length}</strong> total plugins
+            </span>
+            <span>•</span>
+            <span>
+              <strong className="text-foreground">
+                {allPlugins.filter((p) => p.status === 'published').length}
+              </strong>{' '}
+              published
+            </span>
+            <span>•</span>
+            <span>
+              <strong className="text-foreground">{categories.length}</strong> categories
+            </span>
+            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
+              <>
+                <span>•</span>
+                <span>
+                  <strong className="text-foreground">{plugins.length}</strong> results
+                </span>
+              </>
+            )}
+          </div>
+        </>
       )}
 
       {/* Plugins Grid */}
@@ -404,7 +589,10 @@ function PluginsView() {
                     <span>By {plugin.author}</span>
                   </div>
                   <div className="flex gap-2">
-                    <button className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200">
+                    <button
+                      onClick={() => setSelectedPlugin(plugin)}
+                      className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200"
+                    >
                       View
                     </button>
                     <button className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded text-sm font-medium hover:bg-orange-200">
@@ -414,7 +602,7 @@ function PluginsView() {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : allPlugins.length === 0 ? (
             <div className="bg-card border border-border rounded-lg p-12 text-center">
               <div className="text-6xl mb-4">🧩</div>
               <h3 className="text-xl font-semibold text-foreground mb-2">No plugins yet</h3>
@@ -425,8 +613,19 @@ function PluginsView() {
                 + Publish Plugin
               </button>
             </div>
+          ) : (
+            <div className="bg-card border border-border rounded-lg p-12 text-center">
+              <div className="text-6xl mb-4">🔍</div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">No plugins found</h3>
+              <p className="text-muted-foreground">Try adjusting your search or filters</p>
+            </div>
           )}
         </>
+      )}
+
+      {/* Plugin Detail Modal */}
+      {selectedPlugin && (
+        <PluginDetailModal plugin={selectedPlugin} onClose={() => setSelectedPlugin(null)} />
       )}
     </div>
   );
@@ -621,6 +820,297 @@ function CreateTenantModal({ onClose, onSuccess }: { onClose: () => void; onSucc
             </div>
           )}
         </form>
+      </div>
+    </div>
+  );
+}
+
+// Plugin Detail Modal Component
+function PluginDetailModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-2xl">
+                {plugin.icon || '🧩'}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">{plugin.name}</h2>
+                <p className="text-sm text-muted-foreground">v{plugin.version}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Status and Category */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Status:</span>
+              <span
+                className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                  plugin.status === 'published'
+                    ? 'bg-green-100 text-green-700'
+                    : plugin.status === 'draft'
+                      ? 'bg-gray-100 text-gray-700'
+                      : 'bg-red-100 text-red-700'
+                }`}
+              >
+                {plugin.status}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Category:</span>
+              <span className="text-sm text-foreground">{plugin.category}</span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Description</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{plugin.description}</p>
+          </div>
+
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Plugin ID</p>
+              <p className="text-sm text-foreground font-mono">{plugin.id}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Author</p>
+              <p className="text-sm text-foreground">{plugin.author}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Version</p>
+              <p className="text-sm text-foreground font-mono">{plugin.version}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Published</p>
+              <p className="text-sm text-foreground">
+                {new Date(plugin.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Technical Info */}
+          {plugin.entryPoint && (
+            <div className="border-t border-border pt-4">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Technical Details</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Entry Point:</span>
+                  <span className="text-foreground font-mono text-xs">{plugin.entryPoint}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Installation Statistics */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Statistics</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">Installs</p>
+                <p className="text-xl font-bold text-foreground">-</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">Active Users</p>
+                <p className="text-xl font-bold text-foreground">-</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">Rating</p>
+                <p className="text-xl font-bold text-foreground">-</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Detailed statistics coming in future release
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Actions</h3>
+            <div className="flex gap-3">
+              <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium">
+                Edit Plugin
+              </button>
+              <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium">
+                View Installations
+              </button>
+              {plugin.status === 'published' && (
+                <button className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium">
+                  Deprecate
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Tenant Detail Modal Component
+function TenantDetailModal({ tenant, onClose }: { tenant: Tenant; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">{tenant.name}</h2>
+              <p className="text-sm text-muted-foreground">{tenant.slug}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Status Badge */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">Status:</span>
+            <span
+              className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                tenant.status === 'active'
+                  ? 'bg-green-100 text-green-700'
+                  : tenant.status === 'suspended'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-orange-100 text-orange-700'
+              }`}
+            >
+              {tenant.status}
+            </span>
+          </div>
+
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Tenant ID</p>
+              <p className="text-sm text-foreground font-mono">{tenant.id}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Created At</p>
+              <p className="text-sm text-foreground">
+                {new Date(tenant.createdAt).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Updated At</p>
+              <p className="text-sm text-foreground">
+                {new Date(tenant.updatedAt).toLocaleString()}
+              </p>
+            </div>
+            {tenant.suspendedAt && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Suspended At</p>
+                <p className="text-sm text-foreground">
+                  {new Date(tenant.suspendedAt).toLocaleString()}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Infrastructure Info */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Infrastructure</h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Database Schema:</span>
+                <span className="text-foreground font-mono">{tenant.slug}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Keycloak Realm:</span>
+                <span className="text-foreground font-mono">{tenant.slug}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">MinIO Bucket:</span>
+                <span className="text-foreground font-mono">{tenant.slug}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Statistics Placeholder */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Statistics</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">Members</p>
+                <p className="text-xl font-bold text-foreground">-</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">Plugins</p>
+                <p className="text-xl font-bold text-foreground">-</p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">API Calls</p>
+                <p className="text-xl font-bold text-foreground">-</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Detailed statistics coming in future release
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Actions</h3>
+            <div className="flex gap-3">
+              <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium">
+                View Details
+              </button>
+              <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium">
+                Manage Settings
+              </button>
+              {tenant.status === 'active' ? (
+                <button className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium">
+                  Suspend Tenant
+                </button>
+              ) : tenant.status === 'suspended' ? (
+                <button className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium">
+                  Activate Tenant
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
