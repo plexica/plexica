@@ -177,7 +177,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     '/tenants',
     {
       // TODO: Re-enable authMiddleware after implementing Keycloak in super-admin
-      preHandler: [authMiddleware],
+      // preHandler: [authMiddleware],
       schema: {
         description: 'List all tenants with pagination',
         tags: ['tenants'],
