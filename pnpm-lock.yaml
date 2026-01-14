@@ -88,10 +88,10 @@ importers:
   apps/super-admin:
     dependencies:
       '@tanstack/react-query':
-        specifier: ^5.62.0
+        specifier: ^5.90.16
         version: 5.90.16(react@18.3.1)
       '@tanstack/react-router':
-        specifier: ^1.95.0
+        specifier: ^1.149.3
         version: 1.149.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       axios:
         specifier: ^1.6.5

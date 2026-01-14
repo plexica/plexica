@@ -31,7 +31,7 @@ The **Super-Admin Application** is a separate frontend app for platform administ
 - **Framework**: React 18.3.1 + TypeScript 5.6.2
 - **Build Tool**: Vite 5.4.21
 - **Styling**: Tailwind CSS 3.4.1
-- **State**: React useState (simple state, no Zustand yet)
+- **State**: React Query (TanStack Query) 5.62.0
 - **HTTP Client**: Axios 1.6.5
 - **Auth**: Keycloak JS 23.0.0 (to be integrated)
 
@@ -48,45 +48,41 @@ The **Super-Admin Application** is a separate frontend app for platform administ
 
 **Features**:
 
+- **Real-time data** from backend API (`GET /api/tenants`)
 - Tenant list table with:
   - Tenant name and slug
-  - Status badge (Active/Suspended)
-  - Member count
-  - Plugin count
+  - Status badge (Active/Suspended/Provisioning)
   - Created date
   - Actions: View, Edit, Suspend/Activate
 - Stats cards:
   - Total tenants
   - Active tenants
   - Suspended tenants
-  - Total members across all tenants
-- "Create Tenant" button
-
-**Mock Data**:
-
-- ACME Corporation (active, 12 members, 5 plugins)
-- Globex Inc (active, 8 members, 3 plugins)
-- Demo Company (active, 5 members, 2 plugins)
-- TestCorp (suspended, 3 members, 1 plugin)
+  - Provisioning tenants
+- **"Create Tenant" modal** with:
+  - Name and slug input
+  - Auto-slug generation from name
+  - Provisioning progress indicator
+  - Real-time tenant creation via API
+  - Automatic table refresh after creation
+- **Suspend/Activate functionality** with confirmation
+- Loading and error states
+- Empty state when no tenants exist
 
 ### 3. Plugins View (Marketplace) ✅
 
 **Features**:
 
+- **Real-time data** from backend API (`GET /api/plugins`)
 - Plugin cards grid showing:
   - Plugin icon
-  - Name, version, category
-  - Status (published)
-  - Install count
+  - Name, version, category, description
+  - Status (published/draft/deprecated)
   - Author
-  - Actions: Edit, Unpublish
-- "Publish Plugin" button
-
-**Mock Data**:
-
-- Analytics Dashboard v2.1.0 (45 installs)
-- CRM Integration v1.5.2 (32 installs)
-- Reporting Suite v3.0.1 (28 installs)
+  - Actions: View, Edit
+- "Publish Plugin" button (to be implemented)
+- Loading and error states
+- Empty state when no plugins exist
 
 ### 4. Users View 🟡
 
@@ -94,10 +90,8 @@ The **Super-Admin Application** is a separate frontend app for platform administ
 
 ### 5. Analytics View 🟡
 
-**Status**: Placeholder with platform-wide stats:
+**Status**: Placeholder with platform-wide stats
 
-- Total tenants: 142
-- Total users: 1,847
 - Active plugins: 23
 - API calls (24h): 45.2k
 
@@ -218,29 +212,34 @@ http://localhost:3000  # Backend API
 
 ## Current Status
 
-**Milestone M2.2 - Super-Admin App**: 40% Complete
+**Milestone M2.2 - Super-Admin App**: **80% Complete**
 
 **Completed**:
 
 - ✅ Project setup and configuration
 - ✅ Vite + React + TypeScript + Tailwind
+- ✅ **React Query integration** for data fetching
+- ✅ **API client service** (no tenant header)
 - ✅ Basic dashboard with tab navigation
-- ✅ Tenants view with table and stats
-- ✅ Plugins marketplace view with cards
+- ✅ **Tenants view with real API integration**
+- ✅ **Create tenant modal with provisioning**
+- ✅ **Suspend/Activate tenant functionality**
+- ✅ **Plugins marketplace with real API integration**
+- ✅ Loading, error, and empty states
 - ✅ Placeholder views for Users and Analytics
 - ✅ Dev server running on port 3002
 
 **TODO** (Priority Order):
 
-1. **Integrate TanStack Router** for proper routing
+1. ~~**Integrate TanStack Router** for proper routing~~ _(Deferred - current tab system works)_
 2. **Add authentication** with Keycloak (super-admin role)
-3. **Connect to backend API** (remove mock data)
+3. ~~**Connect to backend API** (remove mock data)~~ ✅ **DONE**
 4. **Implement tenant detail page** with full info
-5. **Implement create tenant form** with provisioning progress
+5. ~~**Implement create tenant form** with provisioning progress~~ ✅ **DONE**
 6. **Implement plugin detail page** with install stats
 7. **Implement users view** with cross-tenant search
 8. **Implement analytics dashboard** with charts
-9. **Add proper error handling** and loading states
+9. ~~**Add proper error handling** and loading states~~ ✅ **DONE**
 10. **Add search and filters** for tenants and plugins
 
 ## Design Principles
