@@ -1136,7 +1136,7 @@ function AnalyticsView() {
         <div className="bg-card border border-border rounded-lg p-6">
           <h3 className="text-lg font-semibold text-foreground mb-4">Tenant Growth</h3>
           <div className="space-y-2">
-            {tenantGrowthData.map((data, index) => (
+            {tenantGrowthData.map((data, _index) => (
               <div key={data.date} className="flex items-center gap-3">
                 <span className="text-xs text-muted-foreground w-20">
                   {new Date(data.date).toLocaleDateString('en-US', {

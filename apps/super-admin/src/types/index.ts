@@ -7,6 +7,7 @@ export interface Tenant {
   status: 'active' | 'provisioning' | 'suspended';
   createdAt: string;
   updatedAt: string;
+  suspendedAt?: string;
 }
 
 export interface Plugin {
@@ -19,6 +20,7 @@ export interface Plugin {
   status: 'published' | 'draft' | 'deprecated';
   icon?: string;
   homepage?: string;
+  entryPoint?: string;
   createdAt: string;
   updatedAt: string;
 }
