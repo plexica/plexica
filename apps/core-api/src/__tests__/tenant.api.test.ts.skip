@@ -1,0 +1,162 @@
+// Integration tests for Tenant API
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import Fastify, { FastifyInstance } from 'fastify';
+import { tenantRoutes } from '../routes/tenant';
+
+describe('Tenant API Integration Tests', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = Fastify();
+
+    // Register routes
+    await app.register(tenantRoutes);
+
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  describe('GET /api/tenants', () => {
+    it('should return list of tenants', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/tenants',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('tenants');
+      expect(Array.isArray(body.tenants)).toBe(true);
+    });
+
+    it('should support pagination', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/tenants?page=1&limit=10',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('tenants');
+      expect(body).toHaveProperty('pagination');
+    });
+  });
+
+  describe('POST /api/tenants', () => {
+    it('should create a new tenant', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/tenants',
+        payload: {
+          name: 'Test Tenant',
+          slug: 'test-tenant-' + Date.now(),
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('tenant');
+      expect(body.tenant).toHaveProperty('id');
+      expect(body.tenant.name).toBe('Test Tenant');
+    });
+
+    it('should validate required fields', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/tenants',
+        payload: {
+          name: 'Test Tenant',
+          // Missing slug
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('should prevent duplicate slugs', async () => {
+      const slug = 'duplicate-test-' + Date.now();
+
+      // Create first tenant
+      await app.inject({
+        method: 'POST',
+        url: '/api/tenants',
+        payload: {
+          name: 'First Tenant',
+          slug,
+        },
+      });
+
+      // Try to create duplicate
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/tenants',
+        payload: {
+          name: 'Second Tenant',
+          slug, // Same slug
+        },
+      });
+
+      expect(response.statusCode).toBe(409); // Conflict
+    });
+  });
+
+  describe('POST /api/tenants/:id/suspend', () => {
+    it('should suspend an active tenant', async () => {
+      // Create a tenant first
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tenants',
+        payload: {
+          name: 'Suspend Test',
+          slug: 'suspend-test-' + Date.now(),
+        },
+      });
+
+      const { tenant } = JSON.parse(createResponse.body);
+
+      // Suspend it
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/tenants/${tenant.id}/suspend`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.tenant.status).toBe('SUSPENDED');
+    });
+  });
+
+  describe('POST /api/tenants/:id/activate', () => {
+    it('should activate a suspended tenant', async () => {
+      // Create and suspend a tenant
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tenants',
+        payload: {
+          name: 'Activate Test',
+          slug: 'activate-test-' + Date.now(),
+        },
+      });
+
+      const { tenant } = JSON.parse(createResponse.body);
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/tenants/${tenant.id}/suspend`,
+      });
+
+      // Activate it
+      const response = await app.inject({
+        method: 'POST',
+        url: `/api/tenants/${tenant.id}/activate`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.tenant.status).toBe('ACTIVE');
+    });
+  });
+});

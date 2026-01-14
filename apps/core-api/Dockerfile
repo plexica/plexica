@@ -32,6 +32,9 @@ RUN pnpm --filter @plexica/core-api build
 FROM node:20-alpine AS production
 RUN corepack enable pnpm
 
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init curl
+
 WORKDIR /app
 
 # Copy package files
@@ -51,10 +54,21 @@ COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
+
+# Change ownership to nodejs user
+RUN chown -R nodejs:nodejs /app
+
 USER nodejs
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
 
 CMD ["node", "apps/core-api/dist/index.js"]
