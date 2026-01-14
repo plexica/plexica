@@ -136,6 +136,18 @@ class ApiClient {
     return response.data;
   }
 
+  // ===== USER MANAGEMENT (CROSS-TENANT) =====
+
+  async getUsers(params?: { tenantId?: string; search?: string; role?: string }) {
+    const response = await this.client.get('/api/admin/users', { params });
+    return response.data;
+  }
+
+  async getUser(userId: string) {
+    const response = await this.client.get(`/api/admin/users/${userId}`);
+    return response.data;
+  }
+
   // ===== ANALYTICS =====
 
   async getAnalyticsOverview() {

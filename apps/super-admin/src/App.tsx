@@ -18,12 +18,127 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <AuthWrapper />
     </QueryClientProvider>
   );
 }
 
-function AppContent() {
+// Auth Wrapper - Simple authentication check
+function AuthWrapper() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // Check if user is authenticated (simple localStorage check)
+    return localStorage.getItem('super-admin-auth') === 'true';
+  });
+
+  const handleLogin = (email: string, password: string) => {
+    // Simple mock authentication
+    // In production, this would integrate with Keycloak
+    if (email === 'admin@plexica.com' && password === 'admin') {
+      localStorage.setItem('super-admin-auth', 'true');
+      localStorage.setItem('super-admin-email', email);
+      setIsAuthenticated(true);
+    } else {
+      alert('Invalid credentials. Use: admin@plexica.com / admin');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('super-admin-auth');
+    localStorage.removeItem('super-admin-email');
+    setIsAuthenticated(false);
+  };
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  return <AppContent onLogout={handleLogout} />;
+}
+
+// Login Page Component
+function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => void }) {
+  const [email, setEmail] = useState('admin@plexica.com');
+  const [password, setPassword] = useState('admin');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onLogin(email, password);
+  };
+
+  return (
+    <div className="min-h-screen bg-muted flex items-center justify-center px-4">
+      <div className="bg-card border border-border rounded-lg p-8 w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex w-16 h-16 bg-primary rounded-lg items-center justify-center text-white font-bold text-2xl mb-4">
+            P
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-1">Plexica Super Admin</h1>
+          <p className="text-sm text-muted-foreground">Platform Management Console</p>
+        </div>
+
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+              Email Address
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="admin@plexica.com"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Enter your password"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="w-full px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+          >
+            Sign In
+          </button>
+        </form>
+
+        {/* Demo Credentials */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-xs text-blue-800">
+            <strong>Demo Credentials:</strong>
+          </p>
+          <p className="text-xs text-blue-700 mt-1">
+            Email: <code>admin@plexica.com</code>
+            <br />
+            Password: <code>admin</code>
+          </p>
+        </div>
+
+        {/* Note */}
+        <p className="text-xs text-muted-foreground text-center mt-6">
+          In production, this would integrate with Keycloak SSO
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AppContent({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<'tenants' | 'plugins' | 'users' | 'analytics'>(
     'tenants'
   );
@@ -44,8 +159,13 @@ function AppContent() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">admin@plexica.com</span>
-              <button className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+              <span className="text-sm text-muted-foreground">
+                {localStorage.getItem('super-admin-email') || 'admin@plexica.com'}
+              </span>
+              <button
+                onClick={onLogout}
+                className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+              >
                 Logout
               </button>
             </div>
@@ -633,45 +753,480 @@ function PluginsView() {
 
 // Users View
 function UsersView() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [tenantFilter, setTenantFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+
+  // NOTE: Using mock data since backend API endpoint doesn't exist yet
+  // In production, this would use: useQuery({ queryKey: ['users'], queryFn: () => apiClient.getUsers() })
+  const { data: tenantsData } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: () => apiClient.getTenants(),
+  });
+
+  const tenants = tenantsData?.tenants || [];
+
+  // Mock users data (simulates cross-tenant user list from API)
+  const mockUsers = [
+    {
+      id: '1',
+      email: 'john.doe@acme.com',
+      name: 'John Doe',
+      tenantId: tenants.find((t: any) => t.slug === 'acme-corp')?.id || '1',
+      tenantName: 'ACME Corporation',
+      tenantSlug: 'acme-corp',
+      roles: ['admin', 'user'],
+      status: 'active',
+      lastLogin: '2026-01-14T10:30:00Z',
+      createdAt: '2026-01-10T08:00:00Z',
+    },
+    {
+      id: '2',
+      email: 'jane.smith@globex.com',
+      name: 'Jane Smith',
+      tenantId: tenants.find((t: any) => t.slug === 'globex-inc')?.id || '2',
+      tenantName: 'Globex Inc',
+      tenantSlug: 'globex-inc',
+      roles: ['user'],
+      status: 'active',
+      lastLogin: '2026-01-14T09:15:00Z',
+      createdAt: '2026-01-11T10:00:00Z',
+    },
+    {
+      id: '3',
+      email: 'bob.johnson@acme.com',
+      name: 'Bob Johnson',
+      tenantId: tenants.find((t: any) => t.slug === 'acme-corp')?.id || '1',
+      tenantName: 'ACME Corporation',
+      tenantSlug: 'acme-corp',
+      roles: ['user'],
+      status: 'active',
+      lastLogin: '2026-01-13T16:45:00Z',
+      createdAt: '2026-01-12T14:00:00Z',
+    },
+    {
+      id: '4',
+      email: 'alice.williams@demo.com',
+      name: 'Alice Williams',
+      tenantId: tenants.find((t: any) => t.slug === 'demo-company')?.id || '3',
+      tenantName: 'Demo Company',
+      tenantSlug: 'demo-company',
+      roles: ['admin', 'user'],
+      status: 'active',
+      lastLogin: '2026-01-14T11:00:00Z',
+      createdAt: '2026-01-09T09:00:00Z',
+    },
+    {
+      id: '5',
+      email: 'charlie.brown@globex.com',
+      name: 'Charlie Brown',
+      tenantId: tenants.find((t: any) => t.slug === 'globex-inc')?.id || '2',
+      tenantName: 'Globex Inc',
+      tenantSlug: 'globex-inc',
+      roles: ['admin', 'user'],
+      status: 'active',
+      lastLogin: '2026-01-12T14:30:00Z',
+      createdAt: '2026-01-08T11:00:00Z',
+    },
+  ];
+
+  // Filter users
+  const allUsers = mockUsers;
+  const users = allUsers.filter((user) => {
+    const matchesSearch =
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.tenantName.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesTenant = tenantFilter === 'all' || user.tenantSlug === tenantFilter;
+    const matchesRole = roleFilter === 'all' || user.roles.includes(roleFilter);
+
+    return matchesSearch && matchesTenant && matchesRole;
+  });
+
+  // Get unique roles
+  const allRoles = Array.from(new Set(allUsers.flatMap((u) => u.roles)));
+
   return (
     <div>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground mb-1">Platform Users</h2>
           <p className="text-muted-foreground">View all users across all tenants</p>
         </div>
       </div>
-      <div className="bg-card border border-border rounded-lg p-12 text-center">
-        <div className="text-6xl mb-4">👥</div>
-        <h3 className="text-xl font-semibold text-foreground mb-2">User Management</h3>
-        <p className="text-muted-foreground">User management view coming soon</p>
+
+      {/* Search and Filters */}
+      <div className="flex items-center gap-4 mb-6">
+        {/* Search Input */}
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            placeholder="Search users by name, email, or tenant..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 pl-10 bg-card border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">🔍</span>
+        </div>
+
+        {/* Tenant Filter */}
+        <select
+          value={tenantFilter}
+          onChange={(e) => setTenantFilter(e.target.value)}
+          className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="all">All Tenants</option>
+          {tenants.map((tenant: any) => (
+            <option key={tenant.id} value={tenant.slug}>
+              {tenant.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Role Filter */}
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="all">All Roles</option>
+          {allRoles.map((role) => (
+            <option key={role} value={role}>
+              {role.charAt(0).toUpperCase() + role.slice(1)}
+            </option>
+          ))}
+        </select>
+
+        {/* Clear Filters */}
+        {(searchQuery || tenantFilter !== 'all' || roleFilter !== 'all') && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setTenantFilter('all');
+              setRoleFilter('all');
+            }}
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
+
+      {/* Stats */}
+      <div className="mb-6 flex items-center gap-6 text-sm text-muted-foreground">
+        <span>
+          <strong className="text-foreground">{allUsers.length}</strong> total users
+        </span>
+        <span>•</span>
+        <span>
+          <strong className="text-foreground">{tenants.length}</strong> tenants
+        </span>
+        <span>•</span>
+        <span>
+          <strong className="text-foreground">{allRoles.length}</strong> roles
+        </span>
+        {(searchQuery || tenantFilter !== 'all' || roleFilter !== 'all') && (
+          <>
+            <span>•</span>
+            <span>
+              <strong className="text-foreground">{users.length}</strong> results
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Users Table */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-muted/50 border-b border-border">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                User
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                Tenant
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                Roles
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                Last Login
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {users.map((user) => (
+              <tr key={user.id} className="hover:bg-muted/30 transition-colors">
+                <td className="px-6 py-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div>
+                    <p className="text-sm text-foreground">{user.tenantName}</p>
+                    <p className="text-xs text-muted-foreground">{user.tenantSlug}</p>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex gap-1">
+                    {user.roles.map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">
+                  {new Date(user.lastLogin).toLocaleString()}
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button
+                    onClick={() => setSelectedUser(user)}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Empty State - No Users */}
+        {allUsers.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">👥</div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">No users yet</h3>
+            <p className="text-muted-foreground">Users will appear here once tenants are created</p>
+          </div>
+        )}
+
+        {/* No Results State - Filtered */}
+        {allUsers.length > 0 && users.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">No users found</h3>
+            <p className="text-muted-foreground">Try adjusting your search or filters</p>
+          </div>
+        )}
+      </div>
+
+      {/* User Detail Modal */}
+      {selectedUser && (
+        <UserDetailModal user={selectedUser} onClose={() => setSelectedUser(null)} />
+      )}
     </div>
   );
 }
 
 // Analytics View
 function AnalyticsView() {
+  const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d'>('7d');
+
+  const { data: tenantsData } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: () => apiClient.getTenants(),
+  });
+
+  const { data: pluginsData } = useQuery({
+    queryKey: ['plugins'],
+    queryFn: () => apiClient.getPlugins(),
+  });
+
+  const tenants = tenantsData?.tenants || [];
+  const plugins = pluginsData?.plugins || [];
+
+  // Mock analytics data
+  const mockStats = {
+    totalTenants: tenants.length,
+    activeTenants: tenants.filter((t: any) => t.status === 'active').length,
+    totalUsers: 5, // From mock users
+    totalPlugins: plugins.length,
+    apiCalls24h: 12543,
+    avgResponseTime: 45, // ms
+    errorRate: 0.2, // %
+  };
+
+  // Mock tenant growth data
+  const tenantGrowthData = [
+    { date: '2026-01-08', count: 1 },
+    { date: '2026-01-09', count: 2 },
+    { date: '2026-01-10', count: 3 },
+    { date: '2026-01-11', count: 3 },
+    { date: '2026-01-12', count: 4 },
+    { date: '2026-01-13', count: 4 },
+    { date: '2026-01-14', count: 4 },
+  ];
+
+  // Mock API calls data
+  const apiCallsData = [
+    { hour: '00:00', calls: 450 },
+    { hour: '04:00', calls: 320 },
+    { hour: '08:00', calls: 890 },
+    { hour: '12:00', calls: 1250 },
+    { hour: '16:00', calls: 1680 },
+    { hour: '20:00', calls: 980 },
+  ];
+
+  // Calculate max values for chart scaling
+  const maxApiCalls = Math.max(...apiCallsData.map((d) => d.calls));
+
   return (
     <div>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground mb-1">Platform Analytics</h2>
-          <p className="text-muted-foreground">Monitor platform-wide metrics</p>
+          <p className="text-muted-foreground">Monitor platform-wide metrics and performance</p>
+        </div>
+        {/* Time Period Selector */}
+        <select
+          value={timePeriod}
+          onChange={(e) => setTimePeriod(e.target.value as typeof timePeriod)}
+          className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="24h">Last 24 Hours</option>
+          <option value="7d">Last 7 Days</option>
+          <option value="30d">Last 30 Days</option>
+        </select>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <StatCard title="Total Tenants" value={mockStats.totalTenants} icon="🏢" />
+        <StatCard title="Total Users" value={mockStats.totalUsers} icon="👥" />
+        <StatCard title="Active Plugins" value={mockStats.totalPlugins} icon="🧩" />
+        <StatCard
+          title="API Calls (24h)"
+          value={mockStats.apiCalls24h.toLocaleString()}
+          icon="📊"
+        />
+      </div>
+
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Avg Response Time</p>
+          <p className="text-2xl font-bold text-foreground">{mockStats.avgResponseTime}ms</p>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Error Rate</p>
+          <p className="text-2xl font-bold text-foreground">{mockStats.errorRate}%</p>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground mb-1">Active Tenants</p>
+          <p className="text-2xl font-bold text-foreground">{mockStats.activeTenants}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Total Tenants" value="..." icon="🏢" />
-        <StatCard title="Total Users" value="..." icon="👥" />
-        <StatCard title="Active Plugins" value="..." icon="🧩" />
-        <StatCard title="API Calls (24h)" value="..." icon="📊" />
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Tenant Growth Chart */}
+        <div className="bg-card border border-border rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Tenant Growth</h3>
+          <div className="space-y-2">
+            {tenantGrowthData.map((data, index) => (
+              <div key={data.date} className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-20">
+                  {new Date(data.date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+                <div className="flex-1 bg-muted rounded-full h-8 overflow-hidden">
+                  <div
+                    className="bg-primary h-full flex items-center justify-end pr-2 transition-all"
+                    style={{
+                      width: `${(data.count / Math.max(...tenantGrowthData.map((d) => d.count))) * 100}%`,
+                    }}
+                  >
+                    <span className="text-xs font-medium text-white">{data.count}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* API Calls Chart */}
+        <div className="bg-card border border-border rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">API Calls (24h)</h3>
+          <div className="space-y-2">
+            {apiCallsData.map((data) => (
+              <div key={data.hour} className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-12">{data.hour}</span>
+                <div className="flex-1 bg-muted rounded-full h-8 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full flex items-center justify-end pr-2 transition-all"
+                    style={{ width: `${(data.calls / maxApiCalls) * 100}%` }}
+                  >
+                    <span className="text-xs font-medium text-white">
+                      {data.calls.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-12 text-center">
-        <div className="text-6xl mb-4">📊</div>
-        <h3 className="text-xl font-semibold text-foreground mb-2">Advanced Analytics</h3>
-        <p className="text-muted-foreground">Detailed analytics dashboard coming soon</p>
+      {/* Plugin Usage Table */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-foreground mb-4">Plugin Usage</h3>
+        <div className="space-y-3">
+          {plugins.slice(0, 5).map((plugin: any) => (
+            <div key={plugin.id} className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{plugin.icon || '🧩'}</span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{plugin.name}</p>
+                  <p className="text-xs text-muted-foreground">{plugin.category}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-foreground">- installs</p>
+                <p className="text-xs text-muted-foreground">No data</p>
+              </div>
+            </div>
+          ))}
+          {plugins.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No plugins available</p>
+          )}
+        </div>
+      </div>
+
+      {/* Note about mock data */}
+      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          <strong>Note:</strong> This analytics dashboard displays mock data for demonstration
+          purposes. In production, these metrics would be fetched from the backend API endpoints:
+        </p>
+        <ul className="text-xs text-blue-700 mt-2 ml-4 list-disc space-y-1">
+          <li>
+            <code>/api/admin/analytics/overview</code> - Platform-wide statistics
+          </li>
+          <li>
+            <code>/api/admin/analytics/tenants</code> - Tenant growth data
+          </li>
+          <li>
+            <code>/api/admin/analytics/api-calls</code> - API usage metrics
+          </li>
+          <li>
+            <code>/api/admin/analytics/plugins</code> - Plugin installation stats
+          </li>
+        </ul>
       </div>
     </div>
   );
@@ -953,6 +1508,113 @@ function PluginDetailModal({ plugin, onClose }: { plugin: Plugin; onClose: () =>
                   Deprecate
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// User Detail Modal Component
+function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">{user.name}</h2>
+              <p className="text-sm text-muted-foreground">{user.email}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Status Badge */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">Status:</span>
+            <span className="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
+              {user.status}
+            </span>
+          </div>
+
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">User ID</p>
+              <p className="text-sm text-foreground font-mono">{user.id}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Email</p>
+              <p className="text-sm text-foreground">{user.email}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Tenant</p>
+              <p className="text-sm text-foreground">{user.tenantName}</p>
+              <p className="text-xs text-muted-foreground">{user.tenantSlug}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Roles</p>
+              <div className="flex gap-1 flex-wrap">
+                {user.roles.map((role: string) => (
+                  <span
+                    key={role}
+                    className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700"
+                  >
+                    {role}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Activity Info */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Activity</h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Created:</span>
+                <span className="text-foreground">{new Date(user.createdAt).toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Last Login:</span>
+                <span className="text-foreground">{new Date(user.lastLogin).toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Actions</h3>
+            <div className="flex gap-3">
+              <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium">
+                View in Keycloak
+              </button>
+              <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium">
+                Manage Roles
+              </button>
+              <button className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium">
+                Suspend User
+              </button>
             </div>
           </div>
         </div>
