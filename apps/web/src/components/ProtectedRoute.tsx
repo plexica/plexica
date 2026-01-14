@@ -8,16 +8,14 @@ import { useAuthStore } from '../stores/auth-store';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: string;
-  requireTenant?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  children,
-  requiredRole,
-  requireTenant = true,
-}) => {
-  const { isAuthenticated, isLoading, hasRole } = useAuth();
-  const { tenant } = useAuthStore();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
+  const { isAuthenticated: keycloakAuth, isLoading, hasRole } = useAuth();
+  const { isAuthenticated: storeAuth } = useAuthStore();
+
+  // Use store auth state for persistence, fallback to Keycloak
+  const isAuthenticated = storeAuth || keycloakAuth;
 
   if (isLoading) {
     return (
@@ -32,10 +30,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
-  }
-
-  if (requireTenant && !tenant) {
-    return <Navigate to="/select-tenant" />;
   }
 
   if (requiredRole && !hasRole(requiredRole)) {

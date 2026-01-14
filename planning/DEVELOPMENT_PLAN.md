@@ -536,6 +536,289 @@
 
 ---
 
+### Milestone 2.4 - Workspaces (3-4 weeks) ⏳ PENDING
+
+**Start Date**: TBD (After M2.3)  
+**Priority**: **CRITICAL** for MVP  
+**Estimated Hours**: 120-160 hours
+
+**Note**: Originally planned for Phase 2, workspace feature moved to Phase 1 MVP per business requirements. See `specs/WORKSPACE_SPECIFICATIONS.md` for comprehensive technical specification.
+
+#### Week 27-28: Backend Implementation
+
+**Tasks**:
+
+```
+[ ] Database schema updates (12h)
+    [ ] Create Workspace model (slug, name, description, settings)
+    [ ] Create WorkspaceMember model (workspaceId, userId, role, invitedBy, joinedAt)
+    [ ] Create WorkspaceResource model (for cross-workspace resource tracking)
+    [ ] Update Team model: add workspaceId FK (NOT NULL after migration)
+    [ ] Add workspace_id column to all plugin tables
+    [ ] Create indexes:
+        - workspace.slug (unique)
+        - workspace_member (workspaceId, userId) unique
+        - workspace_member (userId) for user's workspace list
+        - team (workspaceId) for workspace teams query
+    [ ] Configure cascading deletes (workspace → members, teams)
+    [ ] Run Prisma generate and migrate
+
+[ ] Tenant Context enhancement (4h)
+    [ ] Update TenantContext interface: add workspaceId? field
+    [ ] Add TenantContextService.getWorkspaceIdOrThrow() method
+    [ ] Update context type definitions in @plexica/types
+
+[ ] Workspace Service (24h)
+    [ ] Implement WorkspaceService (~400 lines):
+        [ ] create(dto, creatorId) - with admin membership
+        [ ] findAll(userId) - user's accessible workspaces
+        [ ] findOne(id) - with members, teams, counts
+        [ ] update(id, dto) - name, description, settings
+        [ ] delete(id) - with team count validation
+        [ ] getMembership(workspaceId, userId) - with Redis cache
+        [ ] addMember(workspaceId, dto, invitedBy) - with conflict check
+        [ ] updateMemberRole(workspaceId, userId, role)
+        [ ] removeMember(workspaceId, userId) - prevent last admin removal
+        [ ] getTeams(workspaceId) - workspace teams with counts
+    [ ] Integrate RedisService for membership caching (5 min TTL)
+    [ ] Integrate EventBusService for workspace events:
+        - core.workspace.created
+        - core.workspace.updated
+        - core.workspace.deleted
+        - core.workspace.member.added
+        - core.workspace.member.role_updated
+        - core.workspace.member.removed
+    [ ] Add error handling and validation
+    [ ] Add logging for all operations
+
+[ ] Guards & Middleware (16h)
+    [ ] Implement WorkspaceGuard (~80 lines):
+        [ ] Extract workspaceId from header (X-Workspace-ID)
+        [ ] Extract workspaceId from path params
+        [ ] Extract workspaceId from query params
+        [ ] Extract workspaceId from request body
+        [ ] Verify workspace exists and user has membership
+        [ ] Enhance tenantContext.workspaceId
+        [ ] Attach workspaceMembership to request
+    [ ] Implement WorkspaceRoleGuard (~50 lines):
+        [ ] Create @WorkspaceRoles() decorator
+        [ ] Check required roles from metadata
+        [ ] Verify membership role matches required roles
+        [ ] Return 403 if insufficient permissions
+    [ ] Create WorkspaceRepository base class (~50 lines):
+        [ ] getWorkspaceId() helper
+        [ ] applyWorkspaceFilter(query) helper
+        [ ] Document usage patterns
+
+[ ] Workspace Controller (12h)
+    [ ] Implement WorkspaceController (~200 lines):
+        [ ] POST /api/workspaces - create (auth required)
+        [ ] GET /api/workspaces - list user's workspaces (auth required)
+        [ ] GET /api/workspaces/:workspaceId - get details (workspace guard)
+        [ ] PATCH /api/workspaces/:workspaceId - update (admin only)
+        [ ] DELETE /api/workspaces/:workspaceId - delete (admin only)
+        [ ] GET /api/workspaces/:workspaceId/members - list members
+        [ ] POST /api/workspaces/:workspaceId/members - add member (admin only)
+        [ ] PATCH /api/workspaces/:workspaceId/members/:userId - update role (admin only)
+        [ ] DELETE /api/workspaces/:workspaceId/members/:userId - remove (admin only)
+        [ ] GET /api/workspaces/:workspaceId/teams - list teams
+    [ ] Apply guards (TenantGuard, WorkspaceGuard, WorkspaceRoleGuard)
+    [ ] Add OpenAPI/Swagger decorators
+    [ ] Add request validation (DTOs)
+
+[ ] DTOs & Validation (4h)
+    [ ] Create CreateWorkspaceDto (slug, name, description, settings)
+    [ ] Create UpdateWorkspaceDto (name, description, settings)
+    [ ] Create AddMemberDto (userId, role)
+    [ ] Create UpdateMemberRoleDto (role)
+    [ ] Add class-validator decorators:
+        - slug: lowercase, alphanumeric + hyphens, 2-50 chars
+        - name: 2-100 chars
+        - description: optional, max 500 chars
+        - userId: UUID validation
+        - role: enum validation (ADMIN, MEMBER, VIEWER)
+```
+
+**Estimated Hours**: 72h (Backend)
+
+#### Week 29: Frontend Implementation
+
+**Tasks**:
+
+```
+[ ] Workspace Context (8h)
+    [ ] Create WorkspaceContext provider (~100 lines):
+        [ ] State: currentWorkspace, workspaces[], isLoading
+        [ ] fetchWorkspaces() - load user's workspaces
+        [ ] switchWorkspace(id) - change current workspace
+        [ ] createWorkspace(dto) - create and switch
+        [ ] useWorkspace() hook export
+    [ ] Integrate with TenantContext (workspace lives within tenant)
+    [ ] Persist current workspace in localStorage
+    [ ] Auto-select first workspace if none selected
+
+[ ] Workspace Switcher Component (12h)
+    [ ] Create WorkspaceSwitcher component (~150 lines):
+        [ ] Dropdown trigger button in header (shows current workspace)
+        [ ] Workspace list with icons and names
+        [ ] Search/filter for 10+ workspaces
+        [ ] "Create New Workspace" button
+        [ ] Create workspace modal/dialog
+        [ ] Loading and error states
+        [ ] Keyboard navigation support
+        [ ] Responsive design (mobile/desktop)
+    [ ] Add to main layout header
+    [ ] Style with existing design system
+
+[ ] Workspace Settings Page (16h)
+    [ ] Create WorkspaceSettingsPage (~300 lines):
+        [ ] General tab:
+            - Workspace name (editable, admin only)
+            - Workspace slug (read-only)
+            - Description (editable, admin only)
+            - Created date and creator info
+        [ ] Members tab:
+            - Members list with role badges
+            - Add member button (admin only)
+            - Role dropdown per member (admin only)
+            - Remove member button (admin only, not last admin)
+            - Invite pending state (future: email invites)
+        [ ] Teams tab:
+            - Teams list in workspace
+            - Team member counts
+            - Link to team detail pages
+        [ ] Danger zone (admin only):
+            - Delete workspace button
+            - Confirmation dialog with team count warning
+    [ ] Add to routes configuration
+    [ ] Protect with role-based rendering
+
+[ ] API Client Enhancement (4h)
+    [ ] Update API client (~50 lines):
+        [ ] Add X-Workspace-ID header injection from context
+        [ ] Handle 400 (missing workspace) errors
+        [ ] Handle 403 (workspace access denied) errors
+        [ ] Add workspace API methods:
+            - getWorkspaces()
+            - getWorkspace(id)
+            - createWorkspace(dto)
+            - updateWorkspace(id, dto)
+            - deleteWorkspace(id)
+            - getWorkspaceMembers(id)
+            - addWorkspaceMember(id, dto)
+            - updateWorkspaceMemberRole(id, userId, role)
+            - removeWorkspaceMember(id, userId)
+            - getWorkspaceTeams(id)
+
+[ ] Update Team Pages (8h)
+    [ ] Update TeamListPage:
+        [ ] Filter teams by current workspace
+        [ ] Show "No teams in workspace" empty state
+        [ ] Show workspace context in breadcrumb
+    [ ] Update TeamDetailPage:
+        [ ] Show workspace name in header
+        [ ] Workspace badge/tag
+    [ ] Update CreateTeamForm:
+        [ ] Auto-assign current workspace
+        [ ] Hide workspace selector (implicit from context)
+```
+
+**Estimated Hours**: 48h (Frontend)
+
+#### Week 30: Migration, Testing & Documentation
+
+**Tasks**:
+
+```
+[X] Migration Script (SKIPPED - 0h)
+    [X] Decision: Database reset instead of migration (14 Jan 2025)
+    [X] Executed `pnpm prisma migrate reset --force`
+    [X] All migrations reapplied from scratch
+    [X] Clean database with workspace schema
+    Note: No migration script needed - no production installations yet
+
+[ ] Unit Tests (16h)
+    [ ] WorkspaceService tests (~15 tests, 200 lines):
+        [ ] create() - success, duplicate slug
+        [ ] findAll() - user's workspaces only
+        [ ] findOne() - with relations, not found
+        [ ] update() - success, not found
+        [ ] delete() - success, with teams error, not found
+        [ ] getMembership() - cache hit, cache miss, not member
+        [ ] addMember() - success, duplicate error
+        [ ] updateMemberRole() - success, not found
+        [ ] removeMember() - success, last admin error
+        [ ] getTeams() - filtered by workspace
+    [ ] WorkspaceGuard tests (~8 tests, 100 lines):
+        [ ] Extract from header, path, query, body
+        [ ] No workspace ID error
+        [ ] No membership error
+        [ ] Context enhancement
+    [ ] WorkspaceRoleGuard tests (~6 tests, 80 lines):
+        [ ] Admin access granted
+        [ ] Member access granted for MEMBER+ roles
+        [ ] Viewer access denied for ADMIN roles
+        [ ] No membership error
+    [ ] Target coverage: >80% for workspace code
+
+[ ] Integration Tests (12h)
+    [ ] Workspace API tests (~200 lines):
+        [ ] Full workspace lifecycle (create, read, update, delete)
+        [ ] Membership management (add, update role, remove)
+        [ ] Permission scenarios (admin vs member vs viewer)
+        [ ] Error cases (not found, forbidden, bad request)
+        [ ] Team filtering by workspace
+    [ ] Test with real tenant context
+    [ ] Test workspace isolation
+
+[ ] E2E Tests (8h)
+    [ ] Playwright tests (~150 lines):
+        [ ] Login and workspace switcher appears
+        [ ] Create new workspace
+        [ ] Switch between workspaces
+        [ ] Add member to workspace (admin flow)
+        [ ] Update member role
+        [ ] Remove member
+        [ ] Delete workspace (with empty workspace)
+        [ ] Verify team list filtered by workspace
+
+[ ] Documentation (8h)
+    [ ] Update specifications:
+        [x] FUNCTIONAL_SPECIFICATIONS.md (already updated)
+        [x] TECHNICAL_SPECIFICATIONS.md (already updated)
+        [ ] Update API documentation (Swagger/OpenAPI)
+    [ ] Create user guide:
+        [ ] What are workspaces
+        [ ] How to create a workspace
+        [ ] How to manage members
+        [ ] How to switch workspaces
+        [ ] Workspace roles explained
+    [ ] Create developer guide:
+        [ ] Workspace context usage
+        [ ] WorkspaceGuard usage
+        [ ] WorkspaceRepository pattern
+        [ ] Workspace-scoped queries
+    [ ] Update README.md with workspace feature
+```
+
+**Estimated Hours**: 52h (Migration, Testing, Docs)
+
+**Total Estimated Hours**: 172h (~4 weeks with 1-2 developers)
+
+**Deliverable**: Fully functional workspace system integrated into Plexica MVP
+
+**Success Criteria**:
+
+- ✅ All 9 workspace API endpoints functional and tested
+- ✅ Workspace UI components integrated in header and settings
+- ✅ Migration script successfully tested on dev data
+- ✅ Test coverage >80% for workspace code
+- ✅ E2E tests pass for full workspace workflows
+- ✅ Documentation updated and published
+- ✅ Backward compatibility maintained (default workspace)
+
+---
+
 ## Development Strategies
 
 ### Git Workflow

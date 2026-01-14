@@ -9,13 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settings'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SelectTenantRouteImport } from './routes/select-tenant'
 import { Route as PluginsRouteImport } from './routes/plugins'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 
+const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
+  id: '/workspace-settings',
+  path: '/workspace-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -24,11 +29,6 @@ const TeamRoute = TeamRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SelectTenantRoute = SelectTenantRouteImport.update({
-  id: '/select-tenant',
-  path: '/select-tenant',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PluginsRoute = PluginsRouteImport.update({
@@ -51,26 +51,26 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/plugins': typeof PluginsRoute
-  '/select-tenant': typeof SelectTenantRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
+  '/workspace-settings': typeof WorkspaceSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/plugins': typeof PluginsRoute
-  '/select-tenant': typeof SelectTenantRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
+  '/workspace-settings': typeof WorkspaceSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/plugins': typeof PluginsRoute
-  '/select-tenant': typeof SelectTenantRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
+  '/workspace-settings': typeof WorkspaceSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -78,32 +78,45 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/plugins'
-    | '/select-tenant'
     | '/settings'
     | '/team'
+    | '/workspace-settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/plugins' | '/select-tenant' | '/settings' | '/team'
+  to:
+    | '/'
+    | '/login'
+    | '/plugins'
+    | '/settings'
+    | '/team'
+    | '/workspace-settings'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/plugins'
-    | '/select-tenant'
     | '/settings'
     | '/team'
+    | '/workspace-settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   PluginsRoute: typeof PluginsRoute
-  SelectTenantRoute: typeof SelectTenantRoute
   SettingsRoute: typeof SettingsRoute
   TeamRoute: typeof TeamRoute
+  WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workspace-settings': {
+      id: '/workspace-settings'
+      path: '/workspace-settings'
+      fullPath: '/workspace-settings'
+      preLoaderRoute: typeof WorkspaceSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/team': {
       id: '/team'
       path: '/team'
@@ -116,13 +129,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/select-tenant': {
-      id: '/select-tenant'
-      path: '/select-tenant'
-      fullPath: '/select-tenant'
-      preLoaderRoute: typeof SelectTenantRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plugins': {
@@ -153,9 +159,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   PluginsRoute: PluginsRoute,
-  SelectTenantRoute: SelectTenantRoute,
   SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,
+  WorkspaceSettingsRoute: WorkspaceSettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

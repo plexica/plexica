@@ -16,17 +16,17 @@ Plexica is a cloud-native platform that serves as a foundation for developing en
 
 ### 1.3 Technology Stack
 
-| Component | Technology |
-|-----------|------------|
-| Database | PostgreSQL (schema per tenant) |
-| Cache | Redis (prefixes per tenant) |
-| Message Broker | Redpanda (Kafka-compatible) |
-| Identity Provider | Keycloak (realm per tenant) |
-| API Gateway | Kong or Traefik |
-| Frontend | React + Module Federation |
-| Backend Plugins | TypeScript (Node.js) |
-| Container Registry | Docker Registry / Harbor |
-| Package Registry | Private npm / PyPI |
+| Component          | Technology                     |
+| ------------------ | ------------------------------ |
+| Database           | PostgreSQL (schema per tenant) |
+| Cache              | Redis (prefixes per tenant)    |
+| Message Broker     | Redpanda (Kafka-compatible)    |
+| Identity Provider  | Keycloak (realm per tenant)    |
+| API Gateway        | Kong or Traefik                |
+| Frontend           | React + Module Federation      |
+| Backend Plugins    | TypeScript (Node.js)           |
+| Container Registry | Docker Registry / Harbor       |
+| Package Registry   | Private npm / PyPI             |
 
 ---
 
@@ -118,13 +118,13 @@ PostgreSQL Instance
                        (reactivation)
 ```
 
-| State | Description |
-|-------|-------------|
-| PROVISIONING | Creating DB schema, storage bucket, Keycloak realm |
-| ACTIVE | Operational tenant |
-| SUSPENDED | Access blocked, data preserved |
-| PENDING_DELETION | Grace period before permanent deletion |
-| DELETED | Data permanently removed |
+| State            | Description                                        |
+| ---------------- | -------------------------------------------------- |
+| PROVISIONING     | Creating DB schema, storage bucket, Keycloak realm |
+| ACTIVE           | Operational tenant                                 |
+| SUSPENDED        | Access blocked, data preserved                     |
+| PENDING_DELETION | Grace period before permanent deletion             |
+| DELETED          | Data permanently removed                           |
 
 #### Automatic Provisioning
 
@@ -171,11 +171,11 @@ Keycloak Instance
 
 ### 4.2 Keycloak Roles (Base)
 
-| Role | Description |
-|------|-------------|
-| super_admin | Access to Super Admin panel (master realm) |
-| tenant_admin | Tenant administrator |
-| user | Base tenant user |
+| Role         | Description                                |
+| ------------ | ------------------------------------------ |
+| super_admin  | Access to Super Admin panel (master realm) |
+| tenant_admin | Tenant administrator                       |
+| user         | Base tenant user                           |
 
 ### 4.3 JWT Token Structure
 
@@ -195,13 +195,14 @@ Keycloak Instance
 
 Keycloak only manages authentication. Profile data is in the Plexica DB:
 
-| Keycloak | Plexica DB |
-|----------|------------|
+| Keycloak              | Plexica DB                                   |
+| --------------------- | -------------------------------------------- |
 | UUID, email, password | UUID (FK), display_name, avatar, preferences |
-| Realm membership | tenant_id, team_memberships |
-| Basic roles | Granular RBAC/ABAC permissions |
+| Realm membership      | tenant_id, team_memberships                  |
+| Basic roles           | Granular RBAC/ABAC permissions               |
 
 **Sync Mechanism:**
+
 - Keycloak emits events on user create/update/delete
 - Plexica consumes events via webhook or Redpanda
 - Internal DB is updated in near-realtime
@@ -253,12 +254,12 @@ Examples:
 
 #### System Roles (Built-in)
 
-| Role | Scope | Permissions |
-|------|-------|-------------|
-| super_admin | Global | Everything |
+| Role         | Scope  | Permissions                                    |
+| ------------ | ------ | ---------------------------------------------- |
+| super_admin  | Global | Everything                                     |
 | tenant_admin | Tenant | Tenant management, users, teams, plugin config |
-| team_admin | Team | Team member management |
-| user | Tenant | Base permissions defined by tenant admin |
+| team_admin   | Team   | Team member management                         |
+| user         | Tenant | Base permissions defined by tenant admin       |
 
 ### 5.3 ABAC - Attribute Based Access Control
 
@@ -274,8 +275,8 @@ ABAC policies are evaluated when RBAC is not sufficient:
   "resource": "crm:deals:*",
   "conditions": {
     "all": [
-      {"attribute": "user.teams", "operator": "contains", "value": "sales"},
-      {"attribute": "resource.owner_team", "operator": "equals", "value": "user.primary_team"}
+      { "attribute": "user.teams", "operator": "contains", "value": "sales" },
+      { "attribute": "resource.owner_team", "operator": "equals", "value": "user.primary_team" }
     ]
   }
 }
@@ -283,12 +284,12 @@ ABAC policies are evaluated when RBAC is not sufficient:
 
 #### Available Attributes
 
-| Category | Attributes |
-|----------|-----------|
-| User | id, email, roles, teams, department, created_at |
-| Resource | id, type, owner, owner_team, created_at, custom_* |
-| Environment | time, ip_address, device_type |
-| Tenant | id, plan, settings |
+| Category    | Attributes                                         |
+| ----------- | -------------------------------------------------- |
+| User        | id, email, roles, teams, department, created_at    |
+| Resource    | id, type, owner, owner*team, created_at, custom*\* |
+| Environment | time, ip_address, device_type                      |
+| Tenant      | id, plan, settings                                 |
 
 #### Policy Sources
 
@@ -349,47 +350,150 @@ Plugins can register:
 
 ---
 
-## 6. Teams and Organization
+## 6. Workspaces and Organization
 
-### 6.1 Team Structure
+### 6.1 Workspace Hierarchy
 
-Teams are **flat** (non-hierarchical) within a tenant:
+Plexica implements a hierarchical organizational structure within tenants:
 
 ```
-Tenant: ACME Corp
+Tenant: ACME Corp (Complete isolation: DB schema, Keycloak realm, S3 bucket)
 |
-+-- Team: Sales
-|   +-- User: Alice (team_admin)
-|   +-- User: Bob
++-- Workspace: Sales (Logical grouping within tenant schema)
+|   +-- Team: Enterprise Sales
+|   |   +-- User: Alice (team_admin)
+|   |   +-- User: Bob
+|   +-- Team: SMB Sales
+|       +-- User: Charlie (team_admin)
 |
-+-- Team: Marketing
-|   +-- User: Charlie (team_admin)
-|   +-- User: Alice (also member here)
++-- Workspace: Marketing
+|   +-- Team: Content Marketing
+|   |   +-- User: Dave (team_admin)
+|   +-- Team: Demand Gen
+|       +-- User: Eve
+|       +-- User: Alice (cross-workspace member)
 |
-+-- Team: Engineering
-    +-- User: Dave (team_admin)
-    +-- User: Eve
++-- Workspace: Engineering
+    +-- Team: Backend
+    |   +-- User: Frank (team_admin)
+    +-- Team: Frontend
+        +-- User: Grace (team_admin)
 ```
 
-### 6.2 Membership
+**Organizational Levels**:
 
-- A user can belong to **multiple teams**
+| Level         | Isolation                            | Domain           | Use Case                          |
+| ------------- | ------------------------------------ | ---------------- | --------------------------------- |
+| **Tenant**    | Complete (DB schema, realm, bucket)  | Unique subdomain | Different customers/organizations |
+| **Workspace** | Logical (filtered by `workspace_id`) | Same as tenant   | Internal departments/divisions    |
+| **Team**      | None (collaboration unit)            | Same as tenant   | Project teams, working groups     |
+
+### 6.2 Workspace vs Tenant
+
+**When to Use Workspaces**:
+
+- Internal departmental separation (Sales, Marketing, Engineering)
+- Shared data access acceptable (e.g., company-wide contacts)
+- Cost optimization important (avoid schema overhead)
+- Fast provisioning required (no infrastructure setup)
+- Cross-workspace collaboration common
+
+**When to Use Tenants**:
+
+- Complete data isolation required (regulatory, security)
+- Different customers/organizations
+- Separate billing and resource quotas
+- Custom domain or branding per customer
+- Legal separation of data required
+
+**Analogy**:
+
+- **Tenant** = GitHub Account (e.g., `acme-corp`)
+- **Workspace** = GitHub Organization (e.g., `acme-corp/sales`, `acme-corp/engineering`)
+- **Team** = GitHub Repository/Project (e.g., `sales/lead-tracking`)
+
+### 6.3 Workspace Features
+
+#### 6.3.1 Workspace Properties
+
+```json
+{
+  "id": "uuid",
+  "slug": "sales",
+  "name": "Sales Department",
+  "description": "Customer-facing sales operations",
+  "status": "ACTIVE",
+  "settings": {
+    "defaultTeamRole": "MEMBER",
+    "allowCrossWorkspaceSharing": true
+  },
+  "createdAt": "2024-01-15T10:00:00Z"
+}
+```
+
+#### 6.3.2 Workspace Roles
+
+| Role       | Permissions                               |
+| ---------- | ----------------------------------------- |
+| **ADMIN**  | Manage workspace settings, members, teams |
+| **MEMBER** | Access workspace resources, join teams    |
+| **VIEWER** | Read-only access to workspace resources   |
+
+#### 6.3.3 Workspace Isolation
+
+- Each workspace has its own set of teams
+- Resources (contacts, deals, invoices) belong to a workspace
+- Users can be members of multiple workspaces
+- Permissions are evaluated per-workspace
+- Cross-workspace resource sharing is optional
+
+### 6.4 Team Structure
+
+Teams are organizational units within workspaces:
+
+#### 6.4.1 Team Membership
+
+- A user can belong to **multiple teams** across multiple workspaces
 - Each team has at least one **team_admin**
-- Permissions are **additive**: if a user belongs to Team A and Team B, they have permissions from both
+- Permissions are **additive**: users inherit permissions from all their teams
+- Teams belong to a single workspace
 
-### 6.3 Resource Sharing Between Teams
+#### 6.4.2 Team Roles
 
-Resources can be shared between teams in the same tenant:
+| Role       | Permissions                       |
+| ---------- | --------------------------------- |
+| **ADMIN**  | Manage team members, assign roles |
+| **MEMBER** | Standard team access              |
+
+### 6.5 Resource Sharing
+
+#### 6.5.1 Within Workspace
+
+Resources can be shared between teams in the same workspace:
 
 ```json
 {
   "resource_id": "deal-123",
   "resource_type": "crm:deal",
-  "owner_team": "sales",
-  "shared_with": [
-    {"team": "marketing", "permission": "read"},
-    {"team": "engineering", "permission": "read"}
-  ]
+  "workspace_id": "sales",
+  "owner_team": "enterprise-sales",
+  "shared_with": [{ "team": "smb-sales", "permission": "read" }]
+}
+```
+
+#### 6.5.2 Cross-Workspace Sharing
+
+Resources can optionally be shared across workspaces:
+
+```json
+{
+  "resource_id": "contact-456",
+  "resource_type": "crm:contact",
+  "source_workspace": "sales",
+  "target_workspace": "marketing",
+  "permission": "read",
+  "shared_by": "user-id",
+  "shared_at": "2024-01-15T10:00:00Z"
 }
 ```
 
@@ -417,7 +521,7 @@ Each plugin declares its capabilities in a manifest:
   "name": "CRM",
   "version": "1.2.0",
   "description": "Customer Relationship Management",
-  
+
   "runtime": {
     "type": "typescript",
     "image": "registry.plexica.io/plugins/crm:1.2.0",
@@ -426,18 +530,18 @@ Each plugin declares its capabilities in a manifest:
       "memory": "512Mi"
     }
   },
-  
+
   "dependencies": [
-    {"plugin": "core", "version": ">=1.0.0"},
-    {"plugin": "notifications", "version": ">=1.0.0"}
+    { "plugin": "core", "version": ">=1.0.0" },
+    { "plugin": "notifications", "version": ">=1.0.0" }
   ],
-  
+
   "api": {
     "basePath": "/api/plugins/crm",
     "healthCheck": "/health",
     "openapi": "/openapi.json"
   },
-  
+
   "frontend": {
     "remoteEntry": "https://cdn.plexica.io/plugins/crm/1.2.0/remoteEntry.js",
     "routePrefix": "/crm",
@@ -447,19 +551,19 @@ Each plugin declares its capabilities in a manifest:
       "ContactWidget": "./src/widgets/ContactCard"
     }
   },
-  
+
   "permissions": [
-    {"key": "crm:contacts:read", "name": "View Contacts"},
-    {"key": "crm:contacts:write", "name": "Edit Contacts"},
-    {"key": "crm:deals:read", "name": "View Deals"},
-    {"key": "crm:deals:write", "name": "Edit Deals"}
+    { "key": "crm:contacts:read", "name": "View Contacts" },
+    { "key": "crm:contacts:write", "name": "Edit Contacts" },
+    { "key": "crm:deals:read", "name": "View Deals" },
+    { "key": "crm:deals:write", "name": "Edit Deals" }
   ],
-  
+
   "translations": {
     "namespaces": ["crm"],
     "supportedLocales": ["en", "it", "es", "de"]
   },
-  
+
   "events": {
     "publishes": [
       "crm.contact.created",
@@ -468,19 +572,16 @@ Each plugin declares its capabilities in a manifest:
       "crm.deal.won",
       "crm.deal.lost"
     ],
-    "subscribes": [
-      "billing.invoice.created",
-      "notifications.send"
-    ]
+    "subscribes": ["billing.invoice.created", "notifications.send"]
   },
-  
+
   "configuration": {
     "schema": {
       "type": "object",
       "properties": {
         "dealStages": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": { "type": "string" },
           "default": ["Lead", "Qualified", "Proposal", "Negotiation", "Won", "Lost"]
         },
         "enableLeadScoring": {
@@ -490,7 +591,7 @@ Each plugin declares its capabilities in a manifest:
       }
     }
   },
-  
+
   "migrations": {
     "path": "/migrations"
   }
@@ -514,13 +615,13 @@ Each plugin declares its capabilities in a manifest:
 
 #### Lifecycle Operations
 
-| Operation | Actions |
-|-----------|---------|
-| Install | Pull image, run migrations, register routes, load frontend |
-| Enable | Start container, register in service discovery |
-| Disable | Stop container, keep data |
-| Update | Pull new image, run migrations, hot-swap (if possible) |
-| Uninstall | Stop container, cleanup data (optional), remove routes |
+| Operation | Actions                                                    |
+| --------- | ---------------------------------------------------------- |
+| Install   | Pull image, run migrations, register routes, load frontend |
+| Enable    | Start container, register in service discovery             |
+| Disable   | Stop container, keep data                                  |
+| Update    | Pull new image, run migrations, hot-swap (if possible)     |
+| Uninstall | Stop container, cleanup data (optional), remove routes     |
 
 ### 7.4 Plugin Communication
 
@@ -547,7 +648,7 @@ const billingService = await core.getService('billing');
 const invoice = await billingService.post('/invoices', {
   tenant_id: context.tenant_id,
   deal_id: deal.id,
-  amount: deal.value
+  amount: deal.value,
 });
 ```
 
@@ -559,7 +660,7 @@ For critical shared data:
 // Write shared data
 await core.sharedData.set('customer-profile', customerId, {
   name: 'ACME Corp',
-  industry: 'Technology'
+  industry: 'Technology',
 });
 
 // Read from another plugin
@@ -570,21 +671,21 @@ const profile = await core.sharedData.get('customer-profile', customerId);
 
 Each plugin MUST expose:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| /health | GET | Health check (liveness) |
-| /ready | GET | Readiness check |
-| /openapi.json | GET | OpenAPI specification |
-| /metrics | GET | Prometheus metrics |
+| Endpoint      | Method | Description             |
+| ------------- | ------ | ----------------------- |
+| /health       | GET    | Health check (liveness) |
+| /ready        | GET    | Readiness check         |
+| /openapi.json | GET    | OpenAPI specification   |
+| /metrics      | GET    | Prometheus metrics      |
 
 Required headers in every request:
 
-| Header | Description |
-|--------|-------------|
-| X-Tenant-ID | Tenant ID |
-| X-User-ID | User ID |
-| X-Trace-ID | ID for distributed tracing |
-| Authorization | Bearer JWT token |
+| Header        | Description                |
+| ------------- | -------------------------- |
+| X-Tenant-ID   | Tenant ID                  |
+| X-User-ID     | User ID                    |
+| X-Trace-ID    | ID for distributed tracing |
+| Authorization | Bearer JWT token           |
 
 ### 7.6 Plugin SDK
 
@@ -595,28 +696,26 @@ Plexica provides TypeScript SDK for plugin development:
 import { PlexicaPlugin, PluginContext } from '@plexica/sdk';
 
 export class CRMPlugin extends PlexicaPlugin {
-  
   async onInstall(context: PluginContext) {
     // Run migrations, setup
   }
-  
+
   async onEnable(context: PluginContext) {
     // Register event handlers
     this.subscribe('billing.invoice.created', this.handleInvoice);
   }
-  
+
   async onDisable(context: PluginContext) {
     // Cleanup
   }
-  
+
   // API handlers
   @Route('GET', '/contacts')
   @Permission('crm:contacts:read')
   async listContacts(req: Request, ctx: PluginContext) {
-    const contacts = await this.db.query(
-      'SELECT * FROM contacts WHERE tenant_id = $1',
-      [ctx.tenant.id]
-    );
+    const contacts = await this.db.query('SELECT * FROM contacts WHERE tenant_id = $1', [
+      ctx.tenant.id,
+    ]);
     return contacts;
   }
 }
@@ -661,14 +760,14 @@ The web app provides:
 // Web app configuration
 const remotes = {
   crm: 'crm@https://cdn.plexica.io/plugins/crm/1.2.0/remoteEntry.js',
-  billing: 'billing@https://cdn.plexica.io/plugins/billing/1.0.0/remoteEntry.js'
+  billing: 'billing@https://cdn.plexica.io/plugins/billing/1.0.0/remoteEntry.js',
 };
 
 // Dynamic route registration
-const routes = plugins.flatMap(plugin => 
-  plugin.frontend.routes.map(route => ({
+const routes = plugins.flatMap((plugin) =>
+  plugin.frontend.routes.map((route) => ({
     path: `/${plugin.manifest.frontend.routePrefix}${route.path}`,
-    component: lazy(() => import(`${plugin.id}/${route.component}`))
+    component: lazy(() => import(`${plugin.id}/${route.component}`)),
   }))
 );
 ```
@@ -677,13 +776,14 @@ const routes = plugins.flatMap(plugin =>
 
 To avoid conflicts, each plugin has a unique prefix:
 
-| Plugin | Prefix | Example Route |
-|--------|--------|---------------|
-| CRM | /crm | /crm/contacts, /crm/deals |
-| Billing | /billing | /billing/invoices |
-| Analytics | /analytics | /analytics/dashboard |
+| Plugin    | Prefix     | Example Route             |
+| --------- | ---------- | ------------------------- |
+| CRM       | /crm       | /crm/contacts, /crm/deals |
+| Billing   | /billing   | /billing/invoices         |
+| Analytics | /analytics | /analytics/dashboard      |
 
 Routes reserved for web app:
+
 - `/` - Dashboard
 - `/settings` - Tenant settings
 - `/admin` - Tenant admin
@@ -840,7 +940,7 @@ Isolation: each tenant has its own bucket `tenant-{tenant_id}`.
 interface NotificationService {
   send(notification: Notification): Promise<void>;
   sendBulk(notifications: Notification[]): Promise<void>;
-  
+
   // Channels
   email(to: string, template: string, data: object): Promise<void>;
   push(userId: string, message: PushMessage): Promise<void>;
@@ -888,14 +988,14 @@ await search.index({
   content: {
     name: 'John Doe',
     email: 'john@example.com',
-    company: 'ACME'
-  }
+    company: 'ACME',
+  },
 });
 
 const results = await search.search({
   query: 'john',
   types: ['crm:contact'],
-  tenant_id: 'acme-corp'
+  tenant_id: 'acme-corp',
 });
 ```
 
@@ -907,14 +1007,14 @@ const results = await search.search({
 
 The Super Admin panel is independent of tenants and manages:
 
-| Section | Features |
-|---------|----------|
-| Dashboard | System overview, metrics, health status |
-| Tenants | CRUD tenants, provisioning, suspension, deletion |
-| Plugins | Registry, installation, updates, global configuration |
-| Users | Super admin management |
-| System | Global configuration, feature flags, maintenance |
-| Logs | Audit log, error tracking |
+| Section   | Features                                              |
+| --------- | ----------------------------------------------------- |
+| Dashboard | System overview, metrics, health status               |
+| Tenants   | CRUD tenants, provisioning, suspension, deletion      |
+| Plugins   | Registry, installation, updates, global configuration |
+| Users     | Super admin management                                |
+| System    | Global configuration, feature flags, maintenance      |
+| Logs      | Audit log, error tracking                             |
 
 ### 11.2 Tenant Management
 
@@ -952,15 +1052,15 @@ The Super Admin panel is independent of tenants and manages:
 
 Each tenant has an admin interface to manage:
 
-| Section | Features |
-|---------|----------|
-| Dashboard | Tenant overview, usage metrics |
-| Users | User management, invites, deactivation |
-| Teams | CRUD teams, membership |
-| Roles | Custom role management, permission assignment |
-| Plugins | Enable/disable, per-tenant configuration |
-| Settings | Theme, preferences, integrations |
-| Audit Log | User activity logs |
+| Section   | Features                                      |
+| --------- | --------------------------------------------- |
+| Dashboard | Tenant overview, usage metrics                |
+| Users     | User management, invites, deactivation        |
+| Teams     | CRUD teams, membership                        |
+| Roles     | Custom role management, permission assignment |
+| Plugins   | Enable/disable, per-tenant configuration      |
+| Settings  | Theme, preferences, integrations              |
+| Audit Log | User activity logs                            |
 
 ### 12.2 User Management
 
@@ -1010,15 +1110,15 @@ Each tenant has an admin interface to manage:
 ```yaml
 # K8s deployment structure
 plexica-namespace/
-  - core-api (Deployment + Service)
-  - plugin-crm (Deployment + Service)
-  - plugin-billing (Deployment + Service)
-  - api-gateway (Kong/Traefik Ingress)
-  - postgresql (StatefulSet or managed)
-  - redis (StatefulSet or managed)
-  - redpanda (StatefulSet or managed)
-  - keycloak (Deployment or managed)
-  - minio (StatefulSet, only if not S3)
+- core-api (Deployment + Service)
+- plugin-crm (Deployment + Service)
+- plugin-billing (Deployment + Service)
+- api-gateway (Kong/Traefik Ingress)
+- postgresql (StatefulSet or managed)
+- redis (StatefulSet or managed)
+- redpanda (StatefulSet or managed)
+- keycloak (Deployment or managed)
+- minio (StatefulSet, only if not S3)
 ```
 
 #### Helm Chart Values (example)
@@ -1072,8 +1172,8 @@ services:
   gateway:
     image: kong:3.4
     ports:
-      - "80:8000"
-      - "443:8443"
+      - '80:8000'
+      - '443:8443'
     depends_on:
       - core-api
 
@@ -1147,7 +1247,7 @@ services:
   frontend:
     image: plexica/frontend:latest
     ports:
-      - "3000:80"
+      - '3000:80'
 
 volumes:
   postgres_data:
@@ -1182,13 +1282,13 @@ All logs MUST include:
 
 ### 14.2 Log Levels
 
-| Level | Usage |
-|-------|-------|
-| error | Errors requiring attention |
-| warn | Anomalous but handled situations |
-| info | Significant business events |
-| debug | Troubleshooting details |
-| trace | Very verbose details (dev only) |
+| Level | Usage                            |
+| ----- | -------------------------------- |
+| error | Errors requiring attention       |
+| warn  | Anomalous but handled situations |
+| info  | Significant business events      |
+| debug | Troubleshooting details          |
+| trace | Very verbose details (dev only)  |
 
 ### 14.3 Trace Context Propagation
 
@@ -1204,11 +1304,21 @@ The trace_id is propagated through:
 
 ### 15.1 Data Isolation
 
+**Tenant-Level Isolation** (Complete):
+
 - Separate PostgreSQL schemas per tenant
 - Separate storage buckets per tenant
 - Redis keys with tenant prefix
 - Separate Keycloak realms per tenant
 - Every query MUST include tenant_id filter
+
+**Workspace-Level Isolation** (Logical):
+
+- Shared PostgreSQL schema (filtered by `workspace_id`)
+- Shared storage bucket (prefixed path)
+- Same Keycloak realm (workspace as user attribute)
+- Every workspace-scoped query MUST include workspace_id filter
+- Workspace membership enforced via middleware
 
 ### 15.2 API Security
 
@@ -1286,15 +1396,15 @@ Events to log:
 
 ## Appendix A - Glossary
 
-| Term | Definition |
-|------|------------|
-| Tenant | Isolated customer organization in the platform |
-| Plugin | Extensible module that adds functionality |
-| Realm | Isolated Keycloak instance for a tenant |
-| Policy | ABAC rule for access control |
-| Manifest | Plugin configuration file |
-| Web App | Main frontend application |
-| Remote | Dynamically loaded frontend module |
+| Term     | Definition                                     |
+| -------- | ---------------------------------------------- |
+| Tenant   | Isolated customer organization in the platform |
+| Plugin   | Extensible module that adds functionality      |
+| Realm    | Isolated Keycloak instance for a tenant        |
+| Policy   | ABAC rule for access control                   |
+| Manifest | Plugin configuration file                      |
+| Web App  | Main frontend application                      |
+| Remote   | Dynamically loaded frontend module             |
 
 ---
 
@@ -1426,5 +1536,5 @@ CREATE TABLE audit_logs (
 
 ---
 
-*Document generated for Plexica v0.1*
-*Last updated: January 2025*
+_Document generated for Plexica v0.1_
+_Last updated: January 2025_

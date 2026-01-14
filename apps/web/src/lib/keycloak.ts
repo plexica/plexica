@@ -2,14 +2,37 @@
 
 import Keycloak from 'keycloak-js';
 import type { KeycloakConfig, KeycloakInitOptions } from 'keycloak-js';
+import { getTenantFromUrl, getRealmForTenant } from './tenant';
 
-const keycloakConfig: KeycloakConfig = {
-  url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080',
-  realm: import.meta.env.VITE_KEYCLOAK_REALM || 'master',
-  clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'plexica-web',
+// Keycloak instance is tenant-specific and initialized dynamically
+let keycloakInstance: Keycloak | null = null;
+let initializationPromise: Promise<boolean> | null = null;
+let currentTenantSlug: string | null = null;
+
+/**
+ * Gets the current tenant slug from URL.
+ * This function is exported to allow other modules to access the tenant.
+ */
+export const getCurrentTenantSlug = (): string => {
+  return getTenantFromUrl();
 };
 
-const keycloak = new Keycloak(keycloakConfig);
+/**
+ * Creates a Keycloak configuration for the current tenant.
+ * Each tenant has its own realm in Keycloak.
+ */
+function createKeycloakConfig(): KeycloakConfig {
+  const tenantSlug = getTenantFromUrl();
+  const realm = getRealmForTenant(tenantSlug);
+
+  console.log(`[Keycloak] Creating config for tenant: ${tenantSlug}, realm: ${realm}`);
+
+  return {
+    url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080',
+    realm,
+    clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'plexica-web',
+  };
+}
 
 const initOptions: KeycloakInitOptions = {
   onLoad: 'check-sso',
@@ -18,72 +41,121 @@ const initOptions: KeycloakInitOptions = {
   checkLoginIframe: false,
 };
 
-let isInitialized = false;
-
 export const initKeycloak = async (): Promise<boolean> => {
-  if (isInitialized) {
-    return keycloak.authenticated || false;
+  const tenantSlug = getTenantFromUrl();
+
+  // If we're switching tenants, clear the current instance
+  if (currentTenantSlug && currentTenantSlug !== tenantSlug) {
+    console.log(
+      `[Keycloak] Tenant changed from ${currentTenantSlug} to ${tenantSlug}, reinitializing...`
+    );
+    keycloakInstance = null;
+    initializationPromise = null;
   }
 
-  try {
-    const authenticated = await keycloak.init(initOptions);
-    isInitialized = true;
+  currentTenantSlug = tenantSlug;
 
-    // Setup token refresh
-    if (authenticated && keycloak.token) {
-      // Refresh token every 60 seconds
-      setInterval(() => {
-        keycloak
-          .updateToken(70)
-          .then((refreshed) => {
-            if (refreshed) {
-              console.log('Token refreshed');
-            }
-          })
-          .catch(() => {
-            console.error('Failed to refresh token');
-          });
-      }, 60000);
+  // If initialization is in progress, wait for it to complete
+  if (initializationPromise) {
+    console.log('[Keycloak] Initialization in progress, waiting...');
+    return initializationPromise;
+  }
+
+  // If already initialized, return the current authentication status
+  if (keycloakInstance) {
+    console.log('[Keycloak] Already initialized, returning auth status');
+    return keycloakInstance.authenticated || false;
+  }
+
+  // Start new initialization
+  console.log('[Keycloak] Starting initialization...');
+  initializationPromise = (async () => {
+    try {
+      const keycloakConfig = createKeycloakConfig();
+      keycloakInstance = new Keycloak(keycloakConfig);
+      const authenticated = await keycloakInstance.init(initOptions);
+
+      // Setup token refresh
+      if (authenticated && keycloakInstance.token) {
+        // Refresh token every 60 seconds
+        setInterval(() => {
+          keycloakInstance!
+            .updateToken(70)
+            .then((refreshed: boolean) => {
+              if (refreshed) {
+                console.log('[Keycloak] Token refreshed');
+              }
+            })
+            .catch(() => {
+              console.error('[Keycloak] Failed to refresh token');
+            });
+        }, 60000);
+      }
+
+      console.log('[Keycloak] Initialization complete, authenticated:', authenticated);
+      // Reset promise after successful initialization
+      initializationPromise = null;
+      return authenticated;
+    } catch (error) {
+      console.error('[Keycloak] Failed to initialize:', error);
+      initializationPromise = null;
+      return false;
     }
+  })();
 
-    return authenticated;
-  } catch (error) {
-    console.error('Failed to initialize Keycloak:', error);
-    return false;
-  }
+  const result = await initializationPromise;
+  console.log('[Keycloak] Returning initialization result:', result);
+  return result;
 };
 
 export const login = () => {
-  keycloak.login();
+  if (!keycloakInstance) {
+    console.error('[Keycloak] Not initialized, cannot login');
+    return;
+  }
+  keycloakInstance.login();
 };
 
 export const logout = () => {
-  keycloak.logout();
+  if (!keycloakInstance) {
+    console.error('[Keycloak] Not initialized, cannot logout');
+    return;
+  }
+  keycloakInstance.logout();
 };
 
 export const getToken = (): string | undefined => {
-  return keycloak.token;
+  return keycloakInstance?.token;
 };
 
 export const getTokenParsed = () => {
-  return keycloak.tokenParsed;
+  return keycloakInstance?.tokenParsed;
 };
 
 export const isAuthenticated = (): boolean => {
-  return keycloak.authenticated || false;
+  return keycloakInstance?.authenticated || false;
 };
 
 export const hasRole = (role: string): boolean => {
-  return keycloak.hasRealmRole(role);
+  return keycloakInstance?.hasRealmRole(role) || false;
 };
 
 export const getUserInfo = () => {
-  return keycloak.loadUserInfo();
+  if (!keycloakInstance) {
+    console.error('[Keycloak] Not initialized, cannot get user info');
+    return null;
+  }
+  return keycloakInstance.loadUserInfo();
 };
 
 export const updateToken = (minValidity: number = 5) => {
-  return keycloak.updateToken(minValidity);
+  if (!keycloakInstance) {
+    console.error('[Keycloak] Not initialized, cannot update token');
+    return Promise.reject(new Error('Keycloak not initialized'));
+  }
+  return keycloakInstance.updateToken(minValidity);
 };
 
-export { keycloak };
-export default keycloak;
+export const getKeycloakInstance = (): Keycloak | null => {
+  return keycloakInstance;
+};

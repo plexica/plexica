@@ -2,17 +2,18 @@
 
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
-**Version**: 0.1.0-alpha  
-**Status**: Backend MVP Complete | Frontend In Planning  
-**Last Updated**: January 13, 2026
+**Version**: 0.6.0-alpha  
+**Status**: Phase 1 MVP - Backend ✅ | Frontend ✅ | Testing 🟡 | Workspaces ⏳  
+**Last Updated**: January 14, 2026
 
 ---
 
 ## 📊 Project Status
 
-**Current Phase**: Phase 1 - MVP Core (57% complete)  
-**Completed Milestones**: M1.1-M1.4 (Foundation + Multi-tenancy + Auth + Plugins) ✅  
-**Next Milestone**: M2.1 - Frontend Foundation
+**Current Phase**: Phase 1 - MVP Core (88% complete)  
+**Completed Milestones**: M1.1-M1.4 (Backend) + M2.1-M2.2 (Frontend) ✅  
+**In Progress**: M2.3 (Testing & Deployment - 50%), M2.4 (Workspaces - Pending)  
+**Next**: Complete testing and integrate workspaces
 
 👉 **See [STATUS.md](./STATUS.md) for detailed progress tracking**
 
@@ -58,6 +59,7 @@ pnpm dev
 ```
 
 The Core API will be available at:
+
 - **API**: http://localhost:3000
 - **API Docs (Swagger)**: http://localhost:3000/docs
 - **Health Check**: http://localhost:3000/health
@@ -110,6 +112,7 @@ The Core API will be available at:
 ## 🎯 Key Features
 
 ### ✅ Multi-Tenancy (Completed)
+
 - **Schema-per-tenant** on PostgreSQL for complete data isolation
 - **Automatic tenant provisioning** with Keycloak realm creation
 - **Tenant lifecycle management** (create, suspend, delete)
@@ -117,6 +120,7 @@ The Core API will be available at:
 - **4 test tenants** currently active
 
 ### ✅ Authentication & Authorization (Completed)
+
 - **Keycloak** for Identity & Access Management
 - **Separate realms** per tenant for isolation
 - **JWT token** validation with JWKS
@@ -125,6 +129,7 @@ The Core API will be available at:
 - **REST API** for login, logout, refresh, user info
 
 ### ✅ Plugin System (Completed)
+
 - **Modular architecture** with lifecycle management
 - **Plugin registry** (global catalog)
 - **Lifecycle operations**: install → activate → deactivate → uninstall
@@ -134,12 +139,39 @@ The Core API will be available at:
 - **Module Federation** support (ready for frontend)
 - **Sample analytics plugin** included
 
-### ⚪ Frontend (Planned - M2.1)
-- React 18 + Vite + TypeScript
-- Module Federation for dynamic plugin loading
-- TanStack Router + Query
-- Tailwind CSS + shadcn/ui
-- Authentication integration
+### ⏳ Workspaces (In Progress - M2.4)
+
+- **Organizational layer** within tenants for better resource management
+- **Workspace hierarchy**: Tenant → Workspace → Team
+- **Role-based access control** (ADMIN, MEMBER, VIEWER)
+- **Workspace-scoped resources** and teams
+- **Workspace switching UI** in frontend
+- **Member management** per workspace
+- **Default workspace** for existing installations (backward compatible)
+- **Comprehensive spec** available in `specs/WORKSPACE_SPECIFICATIONS.md`
+
+### ✅ Frontend (Completed - M2.1, M2.2)
+
+- **Tenant Web App** (`apps/web` - port 3001):
+  - React 18 + Vite + TypeScript
+  - TanStack Router + Query for routing and data fetching
+  - Tailwind CSS + shadcn/ui components
+  - Authentication with Keycloak (PKCE flow)
+  - Dashboard with stats and tenant data
+  - Plugin management UI (install, enable, disable, uninstall)
+  - Team management with mock data
+  - Settings page (5 tabs: general, security, billing, integrations, advanced)
+  - Module Federation setup for dynamic plugin loading
+  - Responsive design with collapsible sidebar
+- **Super-Admin Panel** (`apps/super-admin` - port 3002):
+  - Separate admin interface for platform management
+  - Platform dashboard with tenant/plugin/API stats
+  - Tenant management (list, create, suspend, detail view)
+  - Plugin marketplace UI with search and filters
+  - Platform users management
+  - Analytics dashboard with charts
+  - Mock authentication (admin@plexica.com / admin)
+  - React Query for data fetching
 
 ---
 
@@ -185,25 +217,28 @@ plexica/
 ## 🛠️ Technology Stack
 
 ### Backend (✅ Complete)
-| Category | Technology | Version | Status |
-|----------|------------|---------|--------|
-| Runtime | Node.js | 20 LTS | ✅ |
-| Language | TypeScript | 5.x | ✅ |
-| Framework | Fastify | 4.x | ✅ |
-| ORM | Prisma | 5.x | ✅ |
-| Validation | Zod | 3.x | ✅ |
-| Testing | Vitest | 1.x | 📋 Configured |
+
+| Category   | Technology | Version | Status        |
+| ---------- | ---------- | ------- | ------------- |
+| Runtime    | Node.js    | 20 LTS  | ✅            |
+| Language   | TypeScript | 5.x     | ✅            |
+| Framework  | Fastify    | 4.x     | ✅            |
+| ORM        | Prisma     | 5.x     | ✅            |
+| Validation | Zod        | 3.x     | ✅            |
+| Testing    | Vitest     | 1.x     | 📋 Configured |
 
 ### Infrastructure (✅ Complete)
-| Service | Version | Port | Status |
-|---------|---------|------|--------|
-| PostgreSQL | 15 | 5432 | ✅ Running |
-| Redis | 7 | 6379 | ✅ Running |
-| Keycloak | 23 | 8080 | ✅ Running |
-| Redpanda | Latest | 9092 | ✅ Running |
-| MinIO | Latest | 9000/9001 | ✅ Running |
+
+| Service    | Version | Port      | Status     |
+| ---------- | ------- | --------- | ---------- |
+| PostgreSQL | 15      | 5432      | ✅ Running |
+| Redis      | 7       | 6379      | ✅ Running |
+| Keycloak   | 23      | 8080      | ✅ Running |
+| Redpanda   | Latest  | 9092      | ✅ Running |
+| MinIO      | Latest  | 9000/9001 | ✅ Running |
 
 ### Frontend (⚪ Planned)
+
 - Framework: React 18+
 - Build Tool: Vite 5.x
 - Routing: TanStack Router
@@ -399,23 +434,27 @@ GET /api/tenants/:id/plugins
 ## 📚 Documentation
 
 ### Specifications
+
 - **[Functional Specifications](./specs/FUNCTIONAL_SPECIFICATIONS.md)** - Business requirements and features
 - **[Technical Specifications](./specs/TECHNICAL_SPECIFICATIONS.md)** - Detailed architecture and implementation
 - **[Project Structure](./specs/PROJECT_STRUCTURE.md)** - Monorepo organization
 - **[Plugin Strategy](./specs/PLUGIN_STRATEGY.md)** - Plugin system design
 
 ### Planning
+
 - **[Roadmap](./planning/ROADMAP.md)** - Phase 1-5 timeline
 - **[Development Plan](./planning/DEVELOPMENT_PLAN.md)** - Detailed MVP plan
 - **[Milestones](./planning/MILESTONES.md)** - Milestone tracking
 - **[Decisions](./planning/DECISIONS.md)** - Architectural Decision Records (ADR)
 
 ### Guides
+
 - **[Getting Started](./docs/GETTING_STARTED.md)** - Setup and first steps
 - **[Contributing](./docs/CONTRIBUTING.md)** - Contribution guidelines
 - **[Agent Guidelines](./AGENTS.md)** - For AI coding agents
 
 ### API
+
 - **[OpenAPI/Swagger](http://localhost:3000/docs)** - Interactive API documentation
 - **Health Check**: http://localhost:3000/health
 
@@ -424,21 +463,25 @@ GET /api/tenants/:id/plugins
 ## 🧪 Testing Strategy
 
 ### Unit Tests (Planned)
+
 - Framework: Vitest
 - Coverage target: >80%
 - Location: `*.test.ts` files alongside source
 
 ### Integration Tests (Planned)
+
 - Test API endpoints
 - Test database operations
 - Test Keycloak integration
 
 ### E2E Tests (Planned)
+
 - Framework: Playwright
 - Test complete user workflows
 - Test plugin lifecycle
 
 ### Load Tests (Planned)
+
 - Tool: k6 or Artillery
 - Test API performance
 - Test multi-tenant scalability
@@ -448,6 +491,7 @@ GET /api/tenants/:id/plugins
 ## 🚀 Deployment
 
 ### Development
+
 ```bash
 # Already running with:
 docker-compose up -d
@@ -455,6 +499,7 @@ pnpm dev
 ```
 
 ### Production (Planned - M2.3)
+
 - **Platform**: Kubernetes (Helm charts)
 - **Container Registry**: Docker Hub / GHCR
 - **CI/CD**: GitHub Actions
@@ -467,6 +512,7 @@ pnpm dev
 ## 🎯 Completed Features
 
 ### Backend MVP ✅
+
 - [x] Monorepo with Turborepo + pnpm
 - [x] Core API with Fastify
 - [x] PostgreSQL with schema-per-tenant
@@ -487,6 +533,7 @@ pnpm dev
 ## 📈 What's Next
 
 ### M2.1 - Frontend Foundation (Next - 4 weeks)
+
 - [ ] React 18 application with Vite
 - [ ] TanStack Router + Query setup
 - [ ] Module Federation configuration
@@ -496,6 +543,7 @@ pnpm dev
 - [ ] Dynamic plugin loading
 
 ### M2.2 - Frontend Auth & Layout (3 weeks)
+
 - [ ] Protected routes
 - [ ] User profile management
 - [ ] Tenant management UI
@@ -503,6 +551,7 @@ pnpm dev
 - [ ] Admin panel basics
 
 ### M2.3 - Testing & Deployment (2 weeks)
+
 - [ ] Unit tests (backend + frontend)
 - [ ] Integration tests
 - [ ] E2E tests with Playwright
@@ -556,6 +605,7 @@ TBD
 ## 🙏 Acknowledgments
 
 Built with:
+
 - [Fastify](https://fastify.io/) - Fast and low overhead web framework
 - [Prisma](https://prisma.io/) - Next-generation ORM
 - [Keycloak](https://www.keycloak.org/) - Open Source Identity and Access Management
@@ -565,4 +615,4 @@ Built with:
 ---
 
 **Plexica v0.1.0-alpha** | Built with ❤️ by Plexica Engineering Team  
-*Last updated: January 13, 2026*
+_Last updated: January 13, 2026_

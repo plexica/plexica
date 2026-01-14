@@ -5,7 +5,7 @@ import {
   type UpdateTenantInput,
 } from '../services/tenant.service.js';
 import { TenantStatus } from '@prisma/client';
-import { requireSuperAdmin } from '../middleware/auth.js';
+import { requireSuperAdmin, authMiddleware } from '../middleware/auth.js';
 
 // Request schemas
 const createTenantSchema = {
@@ -171,9 +171,13 @@ export async function tenantRoutes(fastify: FastifyInstance) {
   );
 
   // List all tenants
-  fastify.get(
+  fastify.get<{
+    Querystring: { skip?: number; take?: number; status?: TenantStatus };
+  }>(
     '/tenants',
     {
+      // TODO: Re-enable authMiddleware after implementing Keycloak in super-admin
+      preHandler: [authMiddleware],
       schema: {
         description: 'List all tenants with pagination',
         tags: ['tenants'],
@@ -203,12 +207,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
         },
       },
     },
-    async (
-      request: FastifyRequest<{
-        Querystring: { skip?: number; take?: number; status?: TenantStatus };
-      }>,
-      reply: FastifyReply
-    ) => {
+    async (request, reply) => {
       try {
         const result = await tenantService.listTenants(request.query);
         return reply.send(result);
@@ -219,12 +218,69 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Get tenant by slug (public endpoint for authentication flow)
+  fastify.get<{
+    Params: { slug: string };
+  }>(
+    '/tenants/slug/:slug',
+    {
+      schema: {
+        description: 'Get tenant details by slug (public endpoint)',
+        tags: ['tenants'],
+        params: {
+          type: 'object',
+          required: ['slug'],
+          properties: {
+            slug: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            description: 'Tenant details',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              status: { type: 'string' },
+              settings: { type: 'object' },
+              theme: { type: 'object' },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+              plugins: {
+                type: 'array',
+                items: { type: 'object' },
+              },
+            },
+          },
+          404: {
+            description: 'Tenant not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { slug: string } }>, reply: FastifyReply) => {
+      try {
+        const tenant = await tenantService.getTenantBySlug(request.params.slug);
+        return reply.send(tenant);
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.code(404).send({ error: error.message });
+      }
+    }
+  );
+
   // Get tenant by ID
   fastify.get<{
     Params: { id: string };
   }>(
     '/tenants/:id',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Get tenant details by ID',
         tags: ['tenants'],

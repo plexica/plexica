@@ -42,10 +42,12 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setUser: (user) => {
+        console.log('[AuthStore] setUser called, setting isAuthenticated to true');
         set({ user, isAuthenticated: true });
       },
 
       setToken: (token) => {
+        console.log('[AuthStore] setToken called');
         apiClient.setToken(token);
         set({ token });
       },
@@ -65,6 +67,8 @@ export const useAuthStore = create<AuthStore>()(
         set((state) => ({
           tenant,
           user: state.user ? { ...state.user, tenantId: tenant.id } : null,
+          // Ensure we remain authenticated when setting tenant
+          isAuthenticated: state.isAuthenticated || !!state.user,
         }));
       },
 
@@ -94,6 +98,18 @@ export const useAuthStore = create<AuthStore>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Rehydrate API client with persisted values
+        if (state) {
+          if (state.token) {
+            apiClient.setToken(state.token);
+          }
+          if (state.tenant) {
+            apiClient.setTenantSlug(state.tenant.slug);
+          }
+          console.log('[AuthStore] Rehydrated API client with token and tenant');
+        }
+      },
     }
   )
 );

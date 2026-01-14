@@ -97,7 +97,104 @@ model SuperAdmin {
 // dynamically created at provisioning time (e.g., tenant_acme_corp)
 // ============================================================================
 
-// The models below would be replicated in each tenant schema
-// For now, we define them in the core schema as templates
-// In production, these would be created dynamically per tenant
-// See tenant-schema-template.sql for the full tenant schema definition
+// Workspace Role Enum
+enum WorkspaceRole {
+  ADMIN
+  MEMBER
+  VIEWER
+
+  @@schema("core") // Template in core, replicated per tenant
+}
+
+// User Model (in tenant schema)
+model User {
+  id          String   @id @default(uuid())
+  keycloakId  String   @unique @map("keycloak_id")
+  email       String   @unique
+  firstName   String?  @map("first_name")
+  lastName    String?  @map("last_name")
+  avatar      String?
+  locale      String   @default("en")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspaceMemberships WorkspaceMember[]
+  teamsOwned           Team[]            @relation("TeamOwner")
+  invitedBy            WorkspaceMember[] @relation("InvitedBy")
+
+  @@map("users")
+  @@schema("core") // Template - will be in tenant schemas
+}
+
+// Workspace Model (in tenant schema)
+model Workspace {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members   WorkspaceMember[]
+  teams     Team[]
+  resources WorkspaceResource[]
+
+  @@map("workspaces")
+  @@schema("core") // Template - will be in tenant schemas
+}
+
+// Workspace Member Model (in tenant schema)
+model WorkspaceMember {
+  workspaceId String        @map("workspace_id")
+  userId      String        @map("user_id")
+  role        WorkspaceRole
+  invitedBy   String        @map("invited_by")
+  joinedAt    DateTime      @default(now()) @map("joined_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("InvitedBy", fields: [invitedBy], references: [id])
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId])
+  @@map("workspace_members")
+  @@schema("core") // Template - will be in tenant schemas
+}
+
+// Workspace Resource Model (for cross-workspace resource tracking)
+model WorkspaceResource {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  resourceType String   @map("resource_type")
+  resourceId   String   @map("resource_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, resourceType, resourceId])
+  @@index([workspaceId])
+  @@index([resourceType, resourceId])
+  @@map("workspace_resources")
+  @@schema("core") // Template - will be in tenant schemas
+}
+
+// Team Model (in tenant schema) - Updated with workspace relationship
+model Team {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  description String?
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User      @relation("TeamOwner", fields: [ownerId], references: [id])
+
+  @@index([workspaceId])
+  @@index([ownerId])
+  @@map("teams")
+  @@schema("core") // Template - will be in tenant schemas
+}

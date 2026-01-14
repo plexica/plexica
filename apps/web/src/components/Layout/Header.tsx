@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../AuthProvider';
 import { useAuthStore } from '@/stores/auth-store';
+import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -19,13 +20,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     logout();
   };
 
-  const handleChangeTenant = () => {
-    navigate({ to: '/select-tenant' });
-    setUserMenuOpen(false);
-  };
-
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4">
+    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 gap-4">
       {/* Left: Menu Button (mobile) */}
       <button
         onClick={onMenuClick}
@@ -42,9 +38,14 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </svg>
       </button>
 
-      {/* Center: Breadcrumb / Page Title */}
-      <div className="flex-1 px-4">
+      {/* Center Left: Tenant Name (hidden on mobile) */}
+      <div className="hidden md:block">
         <h1 className="text-lg font-semibold text-foreground">{tenant?.name || 'Plexica'}</h1>
+      </div>
+
+      {/* Center: Workspace Switcher */}
+      <div className="flex-1 flex justify-center md:justify-start">
+        <WorkspaceSwitcher />
       </div>
 
       {/* Right: User Menu */}
@@ -58,8 +59,8 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
           </div>
 
-          {/* User Info */}
-          <div className="hidden md:block text-left">
+          {/* User Info (hidden on mobile) */}
+          <div className="hidden lg:block text-left">
             <p className="text-sm font-medium text-foreground">{user?.name || 'User'}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
           </div>
@@ -89,23 +90,23 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
                 {tenant && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    <span className="font-medium">Workspace:</span> {tenant.name}
+                    <span className="font-medium">Tenant:</span> {tenant.name}
                   </p>
                 )}
               </div>
 
               {/* Menu Items */}
               <div className="py-2">
-                <button
-                  onClick={handleChangeTenant}
-                  className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors"
-                >
-                  Switch Workspace
-                </button>
                 <button className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors">
                   Profile Settings
                 </button>
-                <button className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors">
+                <button
+                  onClick={() => {
+                    navigate({ to: '/workspace-settings' });
+                    setUserMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-muted transition-colors"
+                >
                   Workspace Settings
                 </button>
               </div>

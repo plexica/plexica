@@ -2,29 +2,29 @@
 
 **Current Version**: 0.6.0 (Pre-Alpha)  
 **Last Updated**: January 14, 2026  
-**Current Phase**: Phase 1 - MVP Core (Testing & Deployment)  
-**Current Progress**: 99% (6.95/7 milestones completed)
+**Current Phase**: Phase 1 - MVP Core (Workspaces Integration)  
+**Current Progress**: 88% (6.95/8 milestones completed)
 
 ---
 
 ## Timeline Overview
 
 ```
-2025-2026 Q1: Phase 1 (MVP Core) - 99% COMPLETE (M2.3 in progress)
+2025-2026 Q1: Phase 1 (MVP Core) - 88% COMPLETE (M2.3 testing, M2.4 pending)
 2026 Q2-Q3:   Phase 2 (Plugin Ecosystem)
 2026 Q4-2027: Phase 3 (Advanced Features)
 2027+:        Phase 4 (Enterprise)
 Future:       Phase 5 (Ecosystem Expansion)
 ```
 
-**Phase 1 Status**: Backend ✅, Frontend ✅, Testing & Deployment 🟡 (50%)
+**Phase 1 Status**: Backend ✅, Frontend ✅, Testing 🟡 (50%), **Workspaces ⏳ (Pending)**
 
 ---
 
 ## Phase 1 - MVP Core (Q1 2026)
 
 **Objective**: Functional platform with multi-tenancy and base plugin system  
-**Status**: 99% Complete (6.95/7 milestones) - Testing & Deployment in Progress 🟡
+**Status**: 88% Complete (6.95/8 milestones) - Workspaces Integration Pending ⏳
 
 ### Milestone 1.1 - Foundation (Weeks 1-4) ✅ COMPLETED
 
@@ -200,6 +200,66 @@ Future:       Phase 5 (Ecosystem Expansion)
 **Current Status**: Test coverage ~28%, production infrastructure ready
 
 **Deliverable**: 🟡 Deployable and tested MVP platform (in progress)
+
+### Milestone 2.4 - Workspaces (Weeks 27-30) 🟡 25% COMPLETE
+
+**Start Date**: January 14, 2026  
+**Priority**: CRITICAL for MVP  
+**Estimated Duration**: 3 weeks (164 hours, reduced from 172h)
+
+**Overview**: Add workspace organizational layer within tenants, enabling better resource organization and team management.
+
+**Rationale**: Originally planned for Phase 2, workspaces are now REQUIRED for MVP due to critical business need for organizational flexibility within tenants.
+
+- [x] Backend Implementation (Week 1-2) - 75% COMPLETE
+  - [x] Database schema updates
+    - [x] Workspace, WorkspaceMember, User, WorkspaceResource models
+    - [x] Update Team model with workspaceId FK
+    - [x] Migration: 20260114095039_add_workspaces
+    - [x] Database reset (no production installations yet)
+  - [x] Workspace Service (CRUD, membership management) - 400 lines
+  - [x] WorkspaceGuard and WorkspaceRoleGuard - 160 lines
+  - [x] Enhanced TenantContext with workspace helpers
+  - [x] Workspace Repository base class - 170 lines
+  - [x] 10 API endpoints for workspace operations - 550 lines
+  - [x] Routes registered in main server
+  - [ ] Event publishing for workspace changes (optional)
+  - [ ] Redis caching for membership checks (optional)
+- [ ] Frontend Implementation (Week 3)
+  - [ ] WorkspaceContext provider
+  - [ ] Workspace switcher component (header)
+  - [ ] Workspace settings page
+  - [ ] Workspace member management UI
+  - [ ] API client with X-Workspace-ID header
+  - [ ] Update Team pages to be workspace-scoped
+- [ ] Testing & Documentation (Week 4)
+  - [x] Migration: Database reset instead of migration script
+  - [ ] Unit tests for WorkspaceService (16h)
+  - [ ] Integration tests for workspace API (12h)
+  - [ ] E2E tests for workspace switching (8h)
+  - [ ] Documentation updates (8h)
+
+**Key Features**:
+
+- Workspace CRUD operations
+- Workspace membership with roles (ADMIN, MEMBER, VIEWER)
+- Workspace-scoped teams and resources
+- Default workspace for existing installations
+- Workspace switching UI
+- Permission-based access control
+
+**Success Criteria**:
+
+- ✅ Users can create and manage workspaces
+- ✅ Teams can be organized within workspaces
+- ✅ Resources are isolated per workspace
+- ✅ Existing tenants migrated seamlessly to default workspace
+- ✅ Workspace switching works smoothly in UI
+- ✅ All workspace operations covered by tests
+
+**Dependencies**: M2.3 completion, WORKSPACE_SPECIFICATIONS.md
+
+**Deliverable**: ⏳ Fully functional workspace system integrated into MVP
 
 ---
 
@@ -383,6 +443,9 @@ Future:       Phase 5 (Ecosystem Expansion)
 - ✅ API response time p95 < 500ms
 - ✅ 3+ working internal plugins
 - ✅ Working Docker Compose deploy
+- ⏳ Workspace creation < 5s
+- ⏳ Workspace switching < 500ms
+- ⏳ Support 10+ workspaces per tenant
 
 ### Phase 2 (Plugin Ecosystem)
 

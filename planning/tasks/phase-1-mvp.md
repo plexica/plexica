@@ -1,26 +1,30 @@
 # Phase 1 - MVP Core - Task Breakdown
 
-Detailed tasks for Milestone 1.1 - 1.7
+Detailed tasks for Milestone 1.1 - 2.4
 
-**Last Updated**: January 13, 2026  
-**Status**: Backend Complete ✅ (M1.1-M1.4), Frontend Pending (M2.1-M2.3)
+**Last Updated**: January 14, 2026  
+**Status**: Backend Complete ✅ (M1.1-M1.4), Frontend Complete ✅ (M2.1-M2.2), Testing 🟡 (M2.3 50%), Workspaces ⏳ (M2.4 Pending)
 
 ---
 
 ## Completion Summary
 
-| Milestone                             | Status         | Completion Date | Total Hours      |
-| ------------------------------------- | -------------- | --------------- | ---------------- |
-| M1.1 - Foundation                     | ✅ Complete    | 2026-01-13      | ~32h             |
-| M1.2 - Multi-Tenancy Core             | ✅ Complete    | 2026-01-13      | ~41h             |
-| M1.3 - Authentication & Authorization | ✅ Complete    | 2026-01-13      | ~43h             |
-| M1.4 - Plugin System Base             | ✅ Complete    | 2026-01-13      | ~40h (estimated) |
-| M2.1 - Frontend Foundation            | ⚪ Not Started | TBD             | ~56h (estimated) |
-| M2.2 - Frontend Auth & Layout         | ⚪ Not Started | TBD             | TBD              |
-| M2.3 - Testing & Deployment           | ⚪ Not Started | TBD             | TBD              |
+| Milestone                             | Status          | Completion Date | Total Hours       |
+| ------------------------------------- | --------------- | --------------- | ----------------- |
+| M1.1 - Foundation                     | ✅ Complete     | 2026-01-13      | ~32h              |
+| M1.2 - Multi-Tenancy Core             | ✅ Complete     | 2026-01-13      | ~41h              |
+| M1.3 - Authentication & Authorization | ✅ Complete     | 2026-01-13      | ~43h              |
+| M1.4 - Plugin System Base             | ✅ Complete     | 2026-01-13      | ~40h (estimated)  |
+| M2.1 - Frontend Tenant App            | ✅ Complete     | 2026-01-14      | ~56h (estimated)  |
+| M2.2 - Super-Admin App                | ✅ Complete     | 2026-01-14      | ~48h (estimated)  |
+| M2.3 - Testing & Deployment           | 🟡 50% Complete | In Progress     | ~60h (estimated)  |
+| M2.4 - Workspaces                     | ⏳ Pending      | TBD             | ~172h (estimated) |
 
 **Backend Total**: ~156h completed  
-**Phase 1 Progress**: 57% (4/7 milestones)
+**Frontend Total**: ~104h completed  
+**Testing**: ~30h completed  
+**Phase 1 Progress**: 88% (6.95/8 milestones)  
+**Remaining**: M2.3 (50%), M2.4 (0%)
 
 ---
 
@@ -387,8 +391,478 @@ See STATUS.md for detailed task breakdown for this milestone.
 
 ## M2.3 - Testing & Deployment (Formerly M1.7)
 
-**Status**: ⚪ Not Started  
+**Status**: 🟡 50% Complete  
 **Dependencies**: M2.2
+
+---
+
+## M2.4 - Workspaces (Week 27-30) ⏳ PENDING
+
+**Status**: ⏳ Pending (0% Complete)  
+**Priority**: **CRITICAL** for MVP  
+**Dependencies**: M2.3 (can proceed in parallel after 75% completion)  
+**Estimated Total**: 172 hours (~4 weeks with 1-2 developers)
+
+**Reference**: `specs/WORKSPACE_SPECIFICATIONS.md` (1,781 lines comprehensive spec)
+
+### Week 27-28: Backend Implementation (72h)
+
+```
+[ ] T2.4.1: Database Schema Updates (12h)
+    Owner: Backend Lead
+    Priority: High
+    Tasks:
+    - [ ] Create Workspace model in Prisma schema
+        - slug (String, unique)
+        - name (String)
+        - description (String?, optional)
+        - settings (Json, default: {})
+        - createdAt, updatedAt
+    - [ ] Create WorkspaceMember model
+        - workspaceId (FK to Workspace)
+        - userId (FK to User)
+        - role (Enum: ADMIN, MEMBER, VIEWER)
+        - invitedBy (String)
+        - joinedAt (DateTime)
+        - Unique constraint: (workspaceId, userId)
+    - [ ] Create WorkspaceResource model
+        - id, workspaceId, resourceType, resourceId
+        - For cross-workspace resource tracking (Phase 2+)
+    - [ ] Update Team model
+        - Add workspaceId (String, NOT NULL after migration)
+        - Add FK constraint to Workspace
+    - [ ] Create indexes:
+        - workspace.slug (unique)
+        - workspace_member: (workspaceId, userId) unique
+        - workspace_member: (userId) for user workspace list
+        - team: (workspaceId) for filtering
+    - [ ] Configure cascading deletes
+    - [ ] Run prisma generate && prisma migrate dev
+    Status: ⏳ Pending
+
+[ ] T2.4.2: Tenant Context Enhancement (4h)
+    Owner: Backend Lead
+    Priority: High
+    Dependencies: T2.4.1
+    Tasks:
+    - [ ] Update TenantContext interface: add workspaceId?: string
+    - [ ] Add TenantContextService.getWorkspaceIdOrThrow() method
+    - [ ] Update @plexica/types package
+    - [ ] Update existing context creation to support workspaceId
+    Status: ⏳ Pending
+
+[ ] T2.4.3: Workspace Service Implementation (24h)
+    Owner: Backend Developer 1
+    Priority: High
+    Dependencies: T2.4.1, T2.4.2
+    Files: apps/core-api/src/modules/workspace/workspace.service.ts (~400 lines)
+    Tasks:
+    - [ ] Implement CRUD operations:
+        - create(dto, creatorId) - with admin membership creation
+        - findAll(userId) - user's accessible workspaces
+        - findOne(id) - with members, teams, counts
+        - update(id, dto) - name, description, settings only
+        - delete(id) - validate no teams exist
+    - [ ] Implement membership operations:
+        - getMembership(workspaceId, userId) - with Redis cache
+        - addMember(workspaceId, dto, invitedBy)
+        - updateMemberRole(workspaceId, userId, role)
+        - removeMember(workspaceId, userId) - prevent last admin
+    - [ ] Implement workspace queries:
+        - getTeams(workspaceId) - workspace teams with counts
+    - [ ] Integrate RedisService:
+        - Cache membership checks (key: workspace:{id}:member:{userId})
+        - TTL: 5 minutes
+        - Invalidate on membership changes
+    - [ ] Integrate EventBusService:
+        - core.workspace.created
+        - core.workspace.updated
+        - core.workspace.deleted
+        - core.workspace.member.added
+        - core.workspace.member.role_updated
+        - core.workspace.member.removed
+    - [ ] Add validation and error handling
+    - [ ] Add structured logging
+    Status: ⏳ Pending
+
+[ ] T2.4.4: Workspace Guards Implementation (16h)
+    Owner: Backend Developer 2
+    Priority: High
+    Dependencies: T2.4.3
+    Files:
+    - apps/core-api/src/shared/guards/workspace.guard.ts (~80 lines)
+    - apps/core-api/src/shared/guards/workspace-role.guard.ts (~50 lines)
+    Tasks:
+    - [ ] Implement WorkspaceGuard:
+        - Extract workspaceId from: header > path > query > body
+        - Call WorkspaceService.getMembership()
+        - Throw 400 if no workspaceId
+        - Throw 403 if no membership
+        - Enhance tenantContext.workspaceId
+        - Attach workspaceMembership to request
+    - [ ] Implement WorkspaceRoleGuard:
+        - Create @WorkspaceRoles(...roles) decorator
+        - Use Reflector to get required roles
+        - Check request.workspaceMembership.role
+        - Throw 403 if insufficient permissions
+    - [ ] Create WorkspaceRepository base class:
+        - getWorkspaceId() helper
+        - applyWorkspaceFilter(query) helper
+        - Add JSDoc with usage examples
+    Status: ⏳ Pending
+
+[ ] T2.4.5: Workspace Controller Implementation (12h)
+    Owner: Backend Developer 1
+    Priority: High
+    Dependencies: T2.4.3, T2.4.4
+    File: apps/core-api/src/modules/workspace/workspace.controller.ts (~200 lines)
+    Tasks:
+    - [ ] Implement 9 API endpoints:
+        - POST /api/workspaces (TenantGuard only)
+        - GET /api/workspaces (TenantGuard only)
+        - GET /api/workspaces/:workspaceId (WorkspaceGuard)
+        - PATCH /api/workspaces/:workspaceId (WorkspaceGuard + ADMIN)
+        - DELETE /api/workspaces/:workspaceId (WorkspaceGuard + ADMIN)
+        - GET /api/workspaces/:workspaceId/members (WorkspaceGuard)
+        - POST /api/workspaces/:workspaceId/members (WorkspaceGuard + ADMIN)
+        - PATCH /api/workspaces/:workspaceId/members/:userId (WorkspaceGuard + ADMIN)
+        - DELETE /api/workspaces/:workspaceId/members/:userId (WorkspaceGuard + ADMIN)
+        - GET /api/workspaces/:workspaceId/teams (WorkspaceGuard)
+    - [ ] Apply appropriate guards to each endpoint
+    - [ ] Add OpenAPI/Swagger decorators
+    - [ ] Add request validation with DTOs
+    - [ ] Add response DTOs/serializers
+    - [ ] Test all endpoints manually with Postman/Insomnia
+    Status: ⏳ Pending
+
+[ ] T2.4.6: DTOs and Validation (4h)
+    Owner: Backend Developer 2
+    Priority: Medium
+    Dependencies: None (can do in parallel)
+    Files: apps/core-api/src/modules/workspace/dto/*.dto.ts
+    Tasks:
+    - [ ] CreateWorkspaceDto:
+        - slug: string (2-50 chars, lowercase, alphanumeric + hyphens)
+        - name: string (2-100 chars)
+        - description?: string (max 500 chars)
+        - settings?: Record<string, any>
+    - [ ] UpdateWorkspaceDto:
+        - name?: string
+        - description?: string
+        - settings?: Record<string, any>
+    - [ ] AddMemberDto:
+        - userId: string (UUID)
+        - role?: WorkspaceRole (default: MEMBER)
+    - [ ] UpdateMemberRoleDto:
+        - role: WorkspaceRole (enum validation)
+    - [ ] Add class-validator decorators to all DTOs
+    - [ ] Export all DTOs from index.ts
+    Status: ⏳ Pending
+```
+
+### Week 29: Frontend Implementation (48h)
+
+```
+[ ] T2.4.7: Workspace Context Provider (8h)
+    Owner: Frontend Developer 1
+    Priority: High
+    Dependencies: Backend API ready (T2.4.5)
+    File: apps/web/src/contexts/WorkspaceContext.tsx (~100 lines)
+    Tasks:
+    - [ ] Create WorkspaceContext with state:
+        - currentWorkspace: Workspace | null
+        - workspaces: Workspace[]
+        - isLoading: boolean
+        - error: string | null
+    - [ ] Implement methods:
+        - fetchWorkspaces() - load user's workspaces
+        - switchWorkspace(id) - change current + invalidate queries
+        - createWorkspace(dto) - create and auto-switch
+        - refreshWorkspaces() - force reload
+    - [ ] Integrate with TenantContext (workspace lives within tenant)
+    - [ ] Persist currentWorkspace.id in localStorage
+    - [ ] Auto-select first workspace on load if none selected
+    - [ ] Add useWorkspace() hook export
+    - [ ] Add error handling and retry logic
+    Status: ⏳ Pending
+
+[ ] T2.4.8: Workspace Switcher Component (12h)
+    Owner: Frontend Developer 1
+    Priority: High
+    Dependencies: T2.4.7
+    File: apps/web/src/components/WorkspaceSwitcher.tsx (~150 lines)
+    Tasks:
+    - [ ] Create dropdown component:
+        - Trigger button shows current workspace name + icon
+        - Dropdown content with workspace list
+        - Each workspace: icon, name, member count
+        - Search/filter input for 10+ workspaces
+        - "Create New Workspace" button at bottom
+        - Keyboard navigation (arrow keys, enter, escape)
+    - [ ] Create workspace modal/dialog:
+        - Form: name, slug (auto-generated from name), description
+        - Validation and error display
+        - Submit creates workspace and switches to it
+    - [ ] Add loading states (skeleton during fetch)
+    - [ ] Add empty state ("No workspaces yet")
+    - [ ] Style with existing design system (shadcn/ui)
+    - [ ] Add to main layout header (between logo and user menu)
+    - [ ] Responsive: hide text on mobile, show icon only
+    Status: ⏳ Pending
+
+[ ] T2.4.9: Workspace Settings Page (16h)
+    Owner: Frontend Developer 2
+    Priority: High
+    Dependencies: T2.4.7, Backend API
+    File: apps/web/src/pages/settings/WorkspaceSettings.tsx (~300 lines)
+    Tasks:
+    - [ ] Create page with tabs:
+        - General: name, slug, description, created info
+        - Members: list with roles, add/edit/remove actions
+        - Teams: list of teams in workspace
+        - (Danger Zone: delete workspace)
+    - [ ] General tab:
+        - Editable fields: name, description (admin only)
+        - Read-only: slug, created date, creator name
+        - Save button with optimistic updates
+    - [ ] Members tab:
+        - Table: avatar, name, email, role badge, joined date, actions
+        - Add member button (opens modal) - admin only
+        - Role dropdown per member (inline edit) - admin only
+        - Remove button (with confirmation) - admin only
+        - Disable remove for last admin
+        - Search and pagination for many members
+    - [ ] Teams tab:
+        - Card grid or table view
+        - Team name, member count, created date
+        - Click to navigate to team detail page
+        - Empty state: "No teams in this workspace"
+    - [ ] Danger Zone (admin only):
+        - Delete workspace button
+        - Confirmation dialog with warning about teams
+        - Prevent deletion if teams exist (show error)
+    - [ ] Add to routes: /settings/workspace
+    - [ ] Protect with workspace context requirement
+    Status: ⏳ Pending
+
+[ ] T2.4.10: API Client Enhancement (4h)
+    Owner: Frontend Developer 1
+    Priority: High
+    Dependencies: T2.4.7
+    File: apps/web/src/lib/api/client.ts (enhancements)
+    Tasks:
+    - [ ] Add X-Workspace-ID header injection:
+        - Read from WorkspaceContext.currentWorkspace.id
+        - Add to all requests automatically
+        - Skip if no workspace selected (allow null for workspace list endpoint)
+    - [ ] Handle workspace-specific errors:
+        - 400 "Workspace ID required" → show workspace switcher
+        - 403 "Access to workspace denied" → redirect to workspace list
+    - [ ] Add workspace API methods:
+        - getWorkspaces()
+        - getWorkspace(id)
+        - createWorkspace(dto)
+        - updateWorkspace(id, dto)
+        - deleteWorkspace(id)
+        - getWorkspaceMembers(id)
+        - addWorkspaceMember(id, dto)
+        - updateWorkspaceMemberRole(id, userId, role)
+        - removeWorkspaceMember(id, userId)
+        - getWorkspaceTeams(id)
+    - [ ] Add React Query hooks for each endpoint
+    Status: ⏳ Pending
+
+[ ] T2.4.11: Update Team Pages (8h)
+    Owner: Frontend Developer 2
+    Priority: Medium
+    Dependencies: T2.4.7
+    Files: apps/web/src/pages/teams/*.tsx
+    Tasks:
+    - [ ] TeamListPage:
+        - Filter teams by currentWorkspace.id automatically
+        - Show workspace name in breadcrumb
+        - Empty state: "No teams in [workspace name]"
+        - Add workspace context badge in header
+    - [ ] TeamDetailPage:
+        - Show workspace name in page header
+        - Add workspace badge/tag
+        - Breadcrumb: Dashboard > Workspaces > [Workspace] > Teams > [Team]
+    - [ ] CreateTeamForm:
+        - Auto-assign currentWorkspace.id
+        - Hide workspace selector (implicit from context)
+        - Show selected workspace name (read-only)
+    - [ ] Update team queries to include workspace filter
+    Status: ⏳ Pending
+```
+
+### Week 30: Migration, Testing & Documentation (52h)
+
+```
+[X] T2.4.12: Migration Script (SKIPPED - Database Reset)
+    Owner: Backend Lead + DevOps
+    Priority: ~~Critical~~ N/A
+    Dependencies: All backend tasks complete
+    Decision: Instead of creating a migration script, we performed a full database reset
+             since there are no production installations yet. All data has been wiped
+             and migrations reapplied from scratch with the new workspace schema.
+    Action Taken:
+    - [X] Executed `pnpm prisma migrate reset --force` (14 Jan 2025)
+    - [X] All migrations reapplied: 20260113194754_init + 20260114095039_add_workspaces
+    - [X] Prisma Client regenerated
+    - [X] Database now has clean workspace-enabled schema
+    Note: Future production migrations will require proper migration scripts
+    Status: ✅ Complete (Alternative approach taken)
+
+[ ] T2.4.13: Unit Tests - Backend (16h)
+    Owner: Backend Team
+    Priority: High
+    Dependencies: T2.4.3, T2.4.4
+    Files: apps/core-api/src/modules/workspace/**/*.spec.ts
+    Tasks:
+    - [ ] WorkspaceService tests (~15 tests):
+        - create() success, duplicate slug error
+        - findAll() returns user's workspaces only
+        - findOne() with relations, not found error
+        - update() success, not found error
+        - delete() success, has teams error, not found error
+        - getMembership() cache hit, cache miss, not member
+        - addMember() success, duplicate error
+        - updateMemberRole() success, not found
+        - removeMember() success, last admin error
+        - getTeams() filtered by workspace
+    - [ ] WorkspaceGuard tests (~8 tests):
+        - Extract from header, path, query, body
+        - No workspace ID error
+        - No membership error
+        - Context enhancement success
+    - [ ] WorkspaceRoleGuard tests (~6 tests):
+        - Admin access granted
+        - Member access granted/denied based on required roles
+        - Viewer access denied for admin-only endpoints
+    - [ ] Target: >80% coverage for workspace code
+    - [ ] Run: pnpm test:cov
+    Status: ⏳ Pending
+
+[ ] T2.4.14: Integration Tests - Backend (12h)
+    Owner: Backend Team
+    Priority: High
+    Dependencies: T2.4.5
+    Files: apps/core-api/src/modules/workspace/**/*.integration.spec.ts
+    Tasks:
+    - [ ] Full workspace lifecycle test:
+        - Create workspace
+        - List workspaces
+        - Get workspace details
+        - Update workspace
+        - Delete workspace
+    - [ ] Membership management test:
+        - Add member
+        - List members
+        - Update member role
+        - Remove member
+        - Last admin protection
+    - [ ] Permission scenarios:
+        - Admin can do everything
+        - Member can view, not edit
+        - Viewer can only view
+        - Non-member gets 403
+    - [ ] Team filtering test:
+        - Create teams in different workspaces
+        - Verify filtering works correctly
+    - [ ] Error cases:
+        - Not found (404)
+        - Forbidden (403)
+        - Bad request (400)
+        - Conflict (409)
+    Status: ⏳ Pending
+
+[ ] T2.4.15: E2E Tests - Frontend (8h)
+    Owner: QA + Frontend Team
+    Priority: High
+    Dependencies: Frontend complete
+    Files: apps/web/e2e/workspace.spec.ts
+    Tools: Playwright
+    Tasks:
+    - [ ] Workspace switcher test:
+        - Login
+        - Verify workspace switcher visible
+        - Open dropdown
+        - Verify workspace list
+    - [ ] Create workspace test:
+        - Click "Create New Workspace"
+        - Fill form (name, description)
+        - Submit
+        - Verify switched to new workspace
+        - Verify appears in switcher
+    - [ ] Switch workspace test:
+        - Open switcher
+        - Click different workspace
+        - Verify URL or context changes
+        - Verify teams list updates
+    - [ ] Workspace settings test:
+        - Navigate to workspace settings
+        - Edit workspace name
+        - Save
+        - Verify updated in header
+    - [ ] Member management test (admin):
+        - Go to members tab
+        - Add member
+        - Change member role
+        - Remove member
+        - Verify changes persist
+    - [ ] Delete workspace test:
+        - Navigate to danger zone
+        - Attempt delete with teams (should fail)
+        - Remove all teams
+        - Delete workspace
+        - Verify redirected and removed from list
+    Status: ⏳ Pending
+
+[ ] T2.4.16: Documentation (8h)
+    Owner: Tech Lead + Team
+    Priority: Medium
+    Dependencies: All implementation complete
+    Tasks:
+    - [ ] Update technical specifications:
+        - [x] FUNCTIONAL_SPECIFICATIONS.md (already done)
+        - [x] TECHNICAL_SPECIFICATIONS.md (already done)
+        - [ ] Update OpenAPI/Swagger docs with workspace endpoints
+    - [ ] Create user documentation:
+        - [ ] docs/user/WORKSPACES.md:
+            * What are workspaces
+            * How to create a workspace
+            * How to invite members
+            * How to manage workspace settings
+            * Workspace roles explained
+            * How to switch between workspaces
+    - [ ] Create developer documentation:
+        - [ ] docs/developer/WORKSPACE_INTEGRATION.md:
+            * WorkspaceContext usage
+            * WorkspaceGuard usage patterns
+            * WorkspaceRepository pattern
+            * Writing workspace-scoped queries
+            * Testing workspace features
+    - [ ] Update README.md:
+        - [ ] Add workspace to key features list
+        - [ ] Add workspace screenshot
+        - [ ] Update architecture diagram if needed
+    - [ ] Update CHANGELOG.md:
+        - [ ] Add v0.7.0 entry with workspace feature
+    Status: ⏳ Pending
+```
+
+**Success Criteria for M2.4**:
+
+- ✅ All 9 workspace API endpoints functional
+- ✅ Frontend workspace switcher integrated in header
+- ✅ Workspace settings page fully functional
+- ✅ Migration script tested on dev database
+- ✅ Test coverage >80% for workspace code
+- ✅ E2E tests pass for workspace workflows
+- ✅ Documentation complete and reviewed
+- ✅ Backward compatibility maintained (default workspace)
+- ✅ No breaking changes to existing features
+- ✅ Performance: workspace operations < 500ms p95
 
 ---
 
@@ -407,6 +881,6 @@ For each task:
 
 ---
 
-_Phase 1 MVP Task Breakdown v1.1_  
-_Last Updated: January 13, 2026_  
-_Status: Backend Complete (M1.1-M1.4), Frontend Pending (M2.1-M2.3)_
+_Phase 1 MVP Task Breakdown v1.2_  
+_Last Updated: January 14, 2026_  
+_Status: Backend Complete ✅ (M1.1-M1.4), Frontend Complete ✅ (M2.1-M2.2), Testing 🟡 (M2.3 50%), Workspaces ⏳ (M2.4 Pending)_

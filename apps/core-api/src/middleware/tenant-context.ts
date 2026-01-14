@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import type { FastifyRequest, FastifyReply, HookHandlerDoneFunction } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService } from '../services/tenant.service.js';
 
 // Tenant context stored in AsyncLocalStorage
@@ -7,6 +7,8 @@ export interface TenantContext {
   tenantId: string;
   tenantSlug: string;
   schemaName: string;
+  workspaceId?: string; // Optional: Current workspace for workspace-scoped operations
+  userId?: string; // Optional: Current user ID for user-scoped operations
 }
 
 // AsyncLocalStorage instance for tenant context
@@ -21,7 +23,7 @@ export function getTenantContext(): TenantContext | undefined {
 
 /**
  * Fastify hook to extract tenant from request and set context
- * 
+ *
  * The tenant can be identified by:
  * 1. JWT token (tenant claim) - for authenticated requests
  * 2. X-Tenant-Slug header - for API requests
@@ -29,14 +31,13 @@ export function getTenantContext(): TenantContext | undefined {
  */
 export async function tenantContextMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply,
-  done: HookHandlerDoneFunction
+  reply: FastifyReply
 ): Promise<void> {
   try {
     // Skip tenant context for certain routes
     const skipRoutes = ['/health', '/docs', '/api/tenants'];
     if (skipRoutes.some((route) => request.url.startsWith(route))) {
-      return done();
+      return;
     }
 
     let tenantSlug: string | undefined;
@@ -95,11 +96,13 @@ export async function tenantContextMiddleware(
       schemaName: tenantService.getSchemaName(tenant.slug),
     };
 
-    // Store context in AsyncLocalStorage
-    tenantContextStorage.run(context, () => {
-      // Add context to request for easy access
-      (request as any).tenant = context;
-      done();
+    // Store context in AsyncLocalStorage and add to request
+    await new Promise<void>((resolve) => {
+      tenantContextStorage.run(context, () => {
+        // Add context to request for easy access
+        (request as any).tenant = context;
+        resolve();
+      });
     });
   } catch (error) {
     request.log.error(error, 'Error in tenant context middleware');
@@ -128,8 +131,63 @@ export function getCurrentTenantSchema(): string | undefined {
 }
 
 /**
+ * Get current workspace ID from context
+ * @throws Error if no workspace context is set
+ */
+export function getWorkspaceIdOrThrow(): string {
+  const context = getTenantContext();
+  if (!context) {
+    throw new Error('No tenant context available');
+  }
+  if (!context.workspaceId) {
+    throw new Error('No workspace context available');
+  }
+  return context.workspaceId;
+}
+
+/**
+ * Get current workspace ID from context (returns undefined if not set)
+ */
+export function getWorkspaceId(): string | undefined {
+  const context = getTenantContext();
+  return context?.workspaceId;
+}
+
+/**
+ * Set workspace ID in current context
+ * Note: This should only be called by workspace middleware
+ */
+export function setWorkspaceId(workspaceId: string): void {
+  const context = getTenantContext();
+  if (!context) {
+    throw new Error('No tenant context available');
+  }
+  context.workspaceId = workspaceId;
+}
+
+/**
+ * Get current user ID from context
+ */
+export function getUserId(): string | undefined {
+  const context = getTenantContext();
+  return context?.userId;
+}
+
+/**
+ * Set user ID in current context
+ * Note: This should only be called by auth middleware
+ */
+export function setUserId(userId: string): void {
+  const context = getTenantContext();
+  if (!context) {
+    throw new Error('No tenant context available');
+  }
+  context.userId = userId;
+}
+
+/**
  * Helper to execute a query in the current tenant's schema
- * 
+ *
  * Usage:
  * await executeInTenantSchema(prisma, async (client) => {
  *   return client.user.findMany();
@@ -140,9 +198,15 @@ export async function executeInTenantSchema<T>(
   callback: (client: any) => Promise<T>
 ): Promise<T> {
   const schemaName = getCurrentTenantSchema();
-  
+
   if (!schemaName) {
     throw new Error('No tenant context available');
+  }
+
+  // Validate schema name to prevent SQL injection
+  // Only allow lowercase alphanumeric characters and underscores
+  if (!/^[a-z0-9_]+$/.test(schemaName)) {
+    throw new Error(`Invalid schema name: ${schemaName}`);
   }
 
   // Set the schema for this query

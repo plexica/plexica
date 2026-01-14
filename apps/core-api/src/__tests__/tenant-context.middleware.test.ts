@@ -1,6 +1,6 @@
 // Unit tests for tenant-context middleware
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { FastifyRequest, FastifyReply, HookHandlerDoneFunction } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
   tenantContextMiddleware,
   getTenantContext,
@@ -20,7 +20,6 @@ vi.mock('../services/tenant.service', () => ({
 describe('Tenant Context Middleware', () => {
   let mockRequest: Partial<FastifyRequest>;
   let mockReply: Partial<FastifyReply>;
-  let mockDone: HookHandlerDoneFunction;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,8 +36,6 @@ describe('Tenant Context Middleware', () => {
       code: vi.fn().mockReturnThis(),
       send: vi.fn().mockReturnThis(),
     };
-
-    mockDone = vi.fn();
   });
 
   describe('tenantContextMiddleware', () => {
@@ -59,12 +56,9 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(tenantService.getTenantBySlug).toHaveBeenCalledWith('test-tenant');
-      expect(mockDone).toHaveBeenCalled();
       expect(mockReply.code).not.toHaveBeenCalled();
     });
 
@@ -73,12 +67,9 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
-      expect(mockDone).toHaveBeenCalled();
     });
 
     it('should skip tenant context for docs route', async () => {
@@ -86,12 +77,9 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
-      expect(mockDone).toHaveBeenCalled();
     });
 
     it('should skip tenant context for /api/tenants route', async () => {
@@ -99,27 +87,21 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
-      expect(mockDone).toHaveBeenCalled();
     });
 
     it('should return 400 when X-Tenant-Slug header is missing', async () => {
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(mockReply.code).toHaveBeenCalledWith(400);
       expect(mockReply.send).toHaveBeenCalledWith({
         error: 'Bad Request',
         message: 'Tenant identification required. Provide X-Tenant-Slug header.',
       });
-      expect(mockDone).not.toHaveBeenCalled();
     });
 
     it('should return 404 when tenant is not found', async () => {
@@ -131,9 +113,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(mockReply.code).toHaveBeenCalledWith(404);
       expect(mockReply.send).toHaveBeenCalledWith({
@@ -158,9 +138,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(mockReply.code).toHaveBeenCalledWith(403);
       expect(mockReply.send).toHaveBeenCalledWith({
@@ -185,9 +163,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(mockReply.code).toHaveBeenCalledWith(403);
       expect(mockReply.send).toHaveBeenCalledWith({
@@ -207,9 +183,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(mockReply.code).toHaveBeenCalledWith(500);
       expect(mockReply.send).toHaveBeenCalledWith({
@@ -226,9 +200,7 @@ describe('Tenant Context Middleware', () => {
       // Should return 400 since header is array (typeof !== 'string')
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(mockReply.code).toHaveBeenCalledWith(400);
     });
@@ -250,9 +222,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect((mockRequest as any).tenant).toEqual({
         tenantId: 'tenant-123',
@@ -310,9 +280,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       // Empty string is falsy, should return 400
       expect(mockReply.code).toHaveBeenCalledWith(400);
@@ -335,11 +303,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
-
-      expect(mockDone).toHaveBeenCalled();
+        mockReply as FastifyReply);
     });
 
     it('should handle case-sensitive tenant slugs', async () => {
@@ -351,9 +315,7 @@ describe('Tenant Context Middleware', () => {
 
       await tenantContextMiddleware(
         mockRequest as FastifyRequest,
-        mockReply as FastifyReply,
-        mockDone
-      );
+        mockReply as FastifyReply);
 
       expect(tenantService.getTenantBySlug).toHaveBeenCalledWith('Test-Tenant');
     });

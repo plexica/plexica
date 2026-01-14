@@ -26,11 +26,31 @@ Frontend web application for the Plexica platform.
 Copy `.env.example` to `.env` and configure:
 
 ```env
+# Backend API URL
 VITE_API_URL=http://localhost:3000
+
+# Keycloak Configuration
 VITE_KEYCLOAK_URL=http://localhost:8080
-VITE_KEYCLOAK_REALM=master
 VITE_KEYCLOAK_CLIENT_ID=plexica-web
+
+# Tenant Configuration
+# For development: Default tenant slug when accessing localhost
+VITE_DEFAULT_TENANT=default
+
+# For production: Base domain used to extract tenant from subdomain
+# Example: tenant1.plexica.app -> tenant1
+VITE_BASE_DOMAIN=plexica.app
+
+# Optional: Override realm detection (for development/testing only)
+# By default, the app will use {tenant-slug}-realm pattern
+# VITE_KEYCLOAK_REALM=tenant1-realm
 ```
+
+**Note**: Each tenant has its own Keycloak realm. The app automatically determines the tenant from the URL subdomain and connects to the corresponding realm. For example:
+
+- `tenant1.plexica.app` → connects to `tenant1-realm`
+- `tenant2.plexica.app` → connects to `tenant2-realm`
+- `localhost` (dev) → connects to `default-realm` (or override with `VITE_KEYCLOAK_REALM`)
 
 ### Development
 

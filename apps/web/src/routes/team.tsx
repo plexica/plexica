@@ -3,328 +3,404 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
-import { useAuthStore } from '../stores/auth-store';
-import { useState } from 'react';
+import { useWorkspace } from '../contexts/WorkspaceContext';
+import { useState, useEffect } from 'react';
+import { apiClient } from '../lib/api-client';
+import type { Team } from '../types';
 
 export const Route = createFileRoute('/team')({
   component: TeamPage,
 });
 
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: 'active' | 'invited' | 'suspended';
-  joinedAt: string;
-  lastActive?: string;
-  avatar?: string;
-}
-
-// Mock data - in real app this would come from API
-const mockTeamMembers: TeamMember[] = [
-  {
-    id: '1',
-    name: 'Test User',
-    email: 'testuser@example.com',
-    role: 'Admin',
-    status: 'active',
-    joinedAt: '2024-01-15T10:00:00Z',
-    lastActive: '2025-01-13T14:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    role: 'Member',
-    status: 'active',
-    joinedAt: '2024-02-20T09:00:00Z',
-    lastActive: '2025-01-13T12:15:00Z',
-  },
-  {
-    id: '3',
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    role: 'Member',
-    status: 'active',
-    joinedAt: '2024-03-10T11:00:00Z',
-    lastActive: '2025-01-12T16:45:00Z',
-  },
-  {
-    id: '4',
-    name: 'Bob Johnson',
-    email: 'bob.johnson@example.com',
-    role: 'Viewer',
-    status: 'invited',
-    joinedAt: '2025-01-10T08:00:00Z',
-  },
-];
-
 function TeamPage() {
-  const { tenant } = useAuthStore();
+  const { currentWorkspace } = useWorkspace();
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Filter members
-  const filteredMembers = mockTeamMembers.filter((member) => {
-    const matchesSearch =
-      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = selectedRole === 'all' || member.role.toLowerCase() === selectedRole;
-    return matchesSearch && matchesRole;
-  });
+  // Load teams when workspace changes
+  useEffect(() => {
+    if (currentWorkspace) {
+      loadTeams();
+    } else {
+      setTeams([]);
+      setIsLoading(false);
+    }
+  }, [currentWorkspace]);
 
-  const stats = {
-    total: mockTeamMembers.length,
-    active: mockTeamMembers.filter((m) => m.status === 'active').length,
-    invited: mockTeamMembers.filter((m) => m.status === 'invited').length,
+  const loadTeams = async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await apiClient.getWorkspaceTeams(currentWorkspace.id);
+      setTeams(data);
+    } catch (err: any) {
+      console.error('Failed to load teams:', err);
+      setError(err.response?.data?.message || 'Failed to load teams');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  // Filter teams
+  const filteredTeams = teams.filter(
+    (team) =>
+      team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (team.description && team.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  // Show workspace selection prompt if no workspace selected
+  if (!currentWorkspace) {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center max-w-md">
+              <svg
+                className="w-16 h-16 mx-auto text-muted-foreground mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
+              <p className="text-muted-foreground mb-4">
+                Please select a workspace from the switcher in the header to view teams.
+              </p>
+            </div>
+          </div>
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
       <AppLayout>
-        {/* Header */}
+        {/* Header with Breadcrumb */}
         <div className="mb-8">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+            <span className="hover:text-foreground cursor-pointer">Dashboard</span>
+            <span>›</span>
+            <span className="text-primary font-medium">{currentWorkspace.name}</span>
+            <span>›</span>
+            <span className="text-foreground">Teams</span>
+          </div>
+
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Team Members</h1>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Teams</h1>
               <p className="text-muted-foreground">
-                Manage your workspace members and their access
+                Manage teams in{' '}
+                <span className="font-medium text-foreground">{currentWorkspace.name}</span>{' '}
+                workspace
               </p>
             </div>
             <button
-              onClick={() => setShowInviteModal(true)}
+              onClick={() => setShowCreateModal(true)}
               className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium flex items-center gap-2"
             >
-              <span>➕</span>
-              Invite Member
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Create Team
             </button>
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Total:</span>
-              <span className="font-semibold text-foreground">{stats.total}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Active:</span>
-              <span className="font-semibold text-green-600">{stats.active}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Invited:</span>
-              <span className="font-semibold text-orange-600">{stats.invited}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-card border border-border rounded-lg p-4 mb-6">
-          <div className="flex items-center gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search members by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-
-            {/* Role Filter */}
-            <select
-              value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="px-4 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          {/* Workspace Badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-lg">
+            <svg
+              className="w-4 h-4 text-primary"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-              <option value="viewer">Viewer</option>
-            </select>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+              />
+            </svg>
+            <span className="text-sm font-medium text-primary">{currentWorkspace.name}</span>
+            <span className="text-xs text-primary/70">
+              • {teams.length} team{teams.length !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
 
-        {/* Team Members List */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Member
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Role
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Joined
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Last Active
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredMembers.map((member) => (
-                <tr key={member.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
-                        {member.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">{member.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {member.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusBadge status={member.status} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                    {new Date(member.joinedAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                    {member.lastActive
-                      ? formatRelativeTime(member.lastActive)
-                      : member.status === 'invited'
-                        ? 'Not joined'
-                        : 'Never'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                        Edit
-                      </button>
-                      <button className="text-red-600 hover:text-red-800 text-sm font-medium">
-                        Remove
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Empty State */}
-          {filteredMembers.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No team members found</p>
-            </div>
-          )}
+        {/* Search */}
+        <div className="bg-card border border-border rounded-lg p-4 mb-6">
+          <input
+            type="text"
+            placeholder="Search teams by name or description..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
 
-        {/* Invite Modal */}
-        {showInviteModal && (
-          <InviteModal onClose={() => setShowInviteModal(false)} tenant={tenant} />
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-border border-t-primary rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !isLoading && (
+          <div className="p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
+            {error}
+          </div>
+        )}
+
+        {/* Teams Grid */}
+        {!isLoading && !error && (
+          <>
+            {filteredTeams.length > 0 ? (
+              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {filteredTeams.map((team) => (
+                  <TeamCard key={team.id} team={team} onUpdate={loadTeams} />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-card border border-border rounded-lg p-12 text-center">
+                <svg
+                  className="w-16 h-16 mx-auto text-muted-foreground mb-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  {searchQuery ? 'No teams found' : 'No teams yet'}
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  {searchQuery
+                    ? 'Try adjusting your search query'
+                    : `Get started by creating your first team in ${currentWorkspace.name}`}
+                </p>
+                {!searchQuery && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                  >
+                    Create Your First Team
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Create Team Modal */}
+        {showCreateModal && (
+          <CreateTeamModal
+            workspaceId={currentWorkspace.id}
+            workspaceName={currentWorkspace.name}
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={loadTeams}
+          />
         )}
       </AppLayout>
     </ProtectedRoute>
   );
 }
 
-// Status Badge Component
-function StatusBadge({ status }: { status: string }) {
-  const styles = {
-    active: 'bg-green-100 text-green-700',
-    invited: 'bg-orange-100 text-orange-700',
-    suspended: 'bg-red-100 text-red-700',
-  };
+// Team Card Component
+interface TeamCardProps {
+  team: Team;
+  onUpdate: () => void;
+}
 
+function TeamCard({ team, onUpdate: _onUpdate }: TeamCardProps) {
   return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-        styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-700'
-      }`}
-    >
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
+    <div className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
+            {team.name}
+          </h3>
+          {team.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">{team.description}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+        <div className="flex items-center gap-1">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+            />
+          </svg>
+          <span>{team._count?.members || 0} members</span>
+        </div>
+      </div>
+
+      {/* Created Date */}
+      <div className="text-xs text-muted-foreground mb-4">
+        Created {new Date(team.createdAt).toLocaleDateString()}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        <button className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium">
+          View Team
+        </button>
+        <button className="px-3 py-2 border border-border rounded-lg hover:bg-muted transition-colors">
+          <svg
+            className="w-5 h-5 text-muted-foreground"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }
 
-// Invite Modal Component
-function InviteModal({ onClose, tenant: _tenant }: { onClose: () => void; tenant: any }) {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('member');
+// Create Team Modal Component
+interface CreateTeamModalProps {
+  workspaceId: string;
+  workspaceName: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function CreateTeamModal({ workspaceId, workspaceName, onClose, onSuccess }: CreateTeamModalProps) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!name.trim()) {
+      setError('Team name is required');
+      return;
+    }
+
     setIsSubmitting(true);
-    // TODO: Implement API call to invite user
-    setTimeout(() => {
-      alert(`Invitation sent to ${email} as ${role}`);
-      setIsSubmitting(false);
+    setError(null);
+
+    try {
+      await apiClient.createTeam({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        workspaceId,
+      });
+
+      onSuccess();
       onClose();
-    }, 1000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create team');
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-foreground">Invite Team Member</h2>
+          <h2 className="text-xl font-semibold text-foreground">Create New Team</h2>
           <button
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
-            ✕
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email Input */}
+          {/* Workspace Info */}
+          <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+            <p className="text-sm text-primary">
+              <span className="font-medium">Workspace:</span> {workspaceName}
+            </p>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {/* Team Name */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-              Email Address
+            <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
+              Team Name *
             </label>
             <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              id="name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError(null);
+              }}
               required
-              placeholder="colleague@example.com"
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="e.g., Engineering, Marketing, Sales"
+              className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
 
-          {/* Role Select */}
+          {/* Description */}
           <div>
-            <label htmlFor="role" className="block text-sm font-medium text-foreground mb-2">
-              Role
+            <label htmlFor="description" className="block text-sm font-medium text-foreground mb-2">
+              Description
             </label>
-            <select
-              id="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="admin">Admin - Full access to workspace</option>
-              <option value="member">Member - Can use and configure plugins</option>
-              <option value="viewer">Viewer - Read-only access</option>
-            </select>
-          </div>
-
-          {/* Info Box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-xs text-blue-800">
-              An invitation email will be sent to this address with instructions to join the
-              workspace.
-            </p>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="What is this team for?"
+              className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            />
           </div>
 
           {/* Actions */}
@@ -341,27 +417,11 @@ function InviteModal({ onClose, tenant: _tenant }: { onClose: () => void; tenant
               disabled={isSubmitting}
               className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Sending...' : 'Send Invitation'}
+              {isSubmitting ? 'Creating...' : 'Create Team'}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-}
-
-// Helper Functions
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInMs = now.getTime() - date.getTime();
-  const diffInMinutes = Math.floor(diffInMs / 60000);
-  const diffInHours = Math.floor(diffInMs / 3600000);
-  const diffInDays = Math.floor(diffInMs / 86400000);
-
-  if (diffInMinutes < 1) return 'Just now';
-  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  if (diffInHours < 24) return `${diffInHours}h ago`;
-  if (diffInDays < 7) return `${diffInDays}d ago`;
-  return date.toLocaleDateString();
 }

@@ -9,6 +9,7 @@ import { healthRoutes } from './routes/health';
 import { tenantRoutes } from './routes/tenant';
 import { authRoutes } from './routes/auth';
 import { pluginRoutes } from './routes/plugin';
+import { workspaceRoutes } from './routes/workspace';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -41,8 +42,9 @@ async function registerPlugins() {
   });
 
   // Rate limiting
+  // Increased for local development to prevent issues during testing
   await server.register(rateLimit, {
-    max: 100,
+    max: 1000, // Increased from 100 to 1000 for local dev
     timeWindow: '1 minute',
   });
 
@@ -61,6 +63,7 @@ async function registerPlugins() {
         tags: [
           { name: 'health', description: 'Health check endpoints' },
           { name: 'tenants', description: 'Tenant management' },
+          { name: 'workspaces', description: 'Workspace management' },
           { name: 'plugins', description: 'Plugin management' },
           { name: 'auth', description: 'Authentication & authorization' },
         ],
@@ -82,6 +85,7 @@ async function registerRoutes() {
   await server.register(healthRoutes, { prefix: '/health' });
   await server.register(authRoutes, { prefix: '/api' });
   await server.register(tenantRoutes, { prefix: '/api' });
+  await server.register(workspaceRoutes, { prefix: '/api' });
   await server.register(pluginRoutes, { prefix: '/api' });
 }
 

@@ -2,6 +2,7 @@
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../components/AuthProvider';
+import { useAuthStore } from '../stores/auth-store';
 import { useEffect } from 'react';
 
 export const Route = createFileRoute('/login')({
@@ -10,13 +11,25 @@ export const Route = createFileRoute('/login')({
 
 function LoginPage() {
   const { isAuthenticated, login, isLoading } = useAuth();
+  const { tenant } = useAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('[LoginPage] useEffect triggered', {
+      isAuthenticated,
+      tenant: tenant?.slug,
+      isLoading,
+    });
+
+    if (isLoading) return;
+
+    // If authenticated, always redirect to home
+    // The tenant is determined by the URL subdomain, not user selection
     if (isAuthenticated) {
-      navigate({ to: '/' });
+      console.log('[LoginPage] Authenticated, navigating to home');
+      navigate({ to: '/', replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, tenant, navigate, isLoading]);
 
   if (isLoading) {
     return (
