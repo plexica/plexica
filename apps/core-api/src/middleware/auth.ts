@@ -20,13 +20,10 @@ declare module 'fastify' {
 /**
  * Authentication middleware
  * Verifies JWT token and extracts user information
- * 
+ *
  * Routes that require authentication should use this middleware
  */
-export async function authMiddleware(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
+export async function authMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     // Extract token from Authorization header
     const token = extractBearerToken(request.headers.authorization);
@@ -52,7 +49,7 @@ export async function authMiddleware(
     request.token = payload;
   } catch (error: any) {
     request.log.error({ error }, 'Authentication failed');
-    
+
     return reply.code(401).send({
       error: 'Unauthorized',
       message: error.message || 'Invalid or expired token',
@@ -67,7 +64,7 @@ export async function authMiddleware(
  */
 export async function optionalAuthMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  _reply: FastifyReply
 ): Promise<void> {
   try {
     const token = extractBearerToken(request.headers.authorization);
@@ -90,15 +87,12 @@ export async function optionalAuthMiddleware(
 /**
  * Role-based access control middleware
  * Requires authentication and checks for specific roles
- * 
+ *
  * Usage:
  * fastify.get('/admin', { preHandler: [authMiddleware, requireRole('admin')] }, handler)
  */
 export function requireRole(...roles: string[]) {
-  return async (
-    request: FastifyRequest,
-    reply: FastifyReply
-  ): Promise<void> => {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (!request.user) {
       return reply.code(401).send({
         error: 'Unauthorized',
@@ -121,18 +115,15 @@ export function requireRole(...roles: string[]) {
 /**
  * Permission-based access control middleware
  * Checks if user has specific permissions
- * 
+ *
  * Permissions should be stored in the tenant's database
  * This middleware fetches and caches them
- * 
+ *
  * Usage:
  * fastify.get('/posts', { preHandler: [authMiddleware, requirePermission('posts.read')] }, handler)
  */
 export function requirePermission(...permissions: string[]) {
-  return async (
-    request: FastifyRequest,
-    reply: FastifyReply
-  ): Promise<void> => {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (!request.user) {
       return reply.code(401).send({
         error: 'Unauthorized',

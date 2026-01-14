@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { tenantService, type CreateTenantInput, type UpdateTenantInput } from '../services/tenant.service.js';
+import {
+  tenantService,
+  type CreateTenantInput,
+  type UpdateTenantInput,
+} from '../services/tenant.service.js';
 import { TenantStatus } from '@prisma/client';
 import { requireSuperAdmin } from '../middleware/auth.js';
 
@@ -84,6 +88,8 @@ const listTenantsSchema = {
   },
 };
 
+// Schema for plugin installation endpoint (future use)
+/*
 const installPluginSchema = {
   params: {
     type: 'object',
@@ -115,6 +121,7 @@ const uninstallPluginSchema = {
     },
   },
 };
+*/
 
 export async function tenantRoutes(fastify: FastifyInstance) {
   // Create a new tenant
@@ -196,9 +203,12 @@ export async function tenantRoutes(fastify: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{
-      Querystring: { skip?: number; take?: number; status?: TenantStatus };
-    }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{
+        Querystring: { skip?: number; take?: number; status?: TenantStatus };
+      }>,
+      reply: FastifyReply
+    ) => {
       try {
         const result = await tenantService.listTenants(request.query);
         return reply.send(result);

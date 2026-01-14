@@ -1,5 +1,6 @@
 import KcAdminClient from '@keycloak/keycloak-admin-client';
-import type { RealmRepresentation, UserRepresentation } from '@keycloak/keycloak-admin-client/lib/defs/realmRepresentation';
+import type RealmRepresentation from '@keycloak/keycloak-admin-client/lib/defs/realmRepresentation';
+import type UserRepresentation from '@keycloak/keycloak-admin-client/lib/defs/userRepresentation';
 import { config } from '../config/index.js';
 
 export class KeycloakService {
@@ -61,7 +62,8 @@ export class KeycloakService {
       ssoSessionIdleTimeout: 1800, // 30 minutes
       ssoSessionMaxLifespan: 36000, // 10 hours
       // Additional security settings
-      passwordPolicy: 'length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)',
+      passwordPolicy:
+        'length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)',
     };
 
     await this.client.realms.create(realmRepresentation);
@@ -89,10 +91,7 @@ export class KeycloakService {
   async updateRealm(tenantSlug: string, updates: Partial<RealmRepresentation>): Promise<void> {
     await this.ensureAuth();
 
-    await this.client.realms.update(
-      { realm: tenantSlug },
-      updates
-    );
+    await this.client.realms.update({ realm: tenantSlug }, updates);
   }
 
   /**

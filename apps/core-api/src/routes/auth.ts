@@ -339,7 +339,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       preHandler: async (request, reply) => {
         // Import authMiddleware here to avoid circular dependency
         const { authMiddleware } = await import('../middleware/auth.js');
-        await authMiddleware(request, reply, () => {});
+        await authMiddleware(request, reply);
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {

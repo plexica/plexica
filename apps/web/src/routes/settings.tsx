@@ -195,7 +195,7 @@ function GeneralSettings({ tenant }: { tenant: any }) {
 }
 
 // Security Settings Tab
-function SecuritySettings({ tenant }: { tenant: any }) {
+function SecuritySettings({ tenant: _tenant }: { tenant: any }) {
   return (
     <div className="space-y-6">
       {/* Authentication */}
@@ -260,7 +260,7 @@ function SecuritySettings({ tenant }: { tenant: any }) {
 }
 
 // Billing Settings Tab
-function BillingSettings({ tenant }: { tenant: any }) {
+function BillingSettings({ tenant: _tenant }: { tenant: any }) {
   return (
     <div className="space-y-6">
       {/* Current Plan */}
@@ -329,7 +329,7 @@ function BillingSettings({ tenant }: { tenant: any }) {
 }
 
 // Integrations Settings Tab
-function IntegrationsSettings({ tenant }: { tenant: any }) {
+function IntegrationsSettings({ tenant: _tenant }: { tenant: any }) {
   const integrations = [
     {
       name: 'Slack',
@@ -410,7 +410,7 @@ function IntegrationsSettings({ tenant }: { tenant: any }) {
 }
 
 // Advanced Settings Tab
-function AdvancedSettings({ tenant }: { tenant: any }) {
+function AdvancedSettings({ tenant: _tenant }: { tenant: any }) {
   return (
     <div className="space-y-6">
       {/* Data Export */}

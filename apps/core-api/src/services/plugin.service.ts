@@ -1,10 +1,5 @@
 import { db } from '../lib/db.js';
-import type {
-  PluginManifest,
-  PluginRegistryEntry,
-  PluginLifecycleStatus,
-  PluginInstallation,
-} from '../types/plugin.types.js';
+import type { PluginManifest } from '../types/plugin.types.js';
 import { PluginStatus } from '@prisma/client';
 
 /**
@@ -259,7 +254,7 @@ export class PluginLifecycleService {
     }
 
     // Validate configuration
-    const manifest = plugin.manifest as PluginManifest;
+    const manifest = plugin.manifest as unknown as PluginManifest;
     this.validateConfiguration(manifest, configuration);
 
     // Check dependencies
@@ -320,7 +315,7 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already active`);
     }
 
-    const manifest = installation.plugin.manifest as PluginManifest;
+    const manifest = installation.plugin.manifest as unknown as PluginManifest;
 
     // Run activation lifecycle hook if defined
     if (manifest.lifecycle?.activate) {
@@ -361,7 +356,7 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already inactive`);
     }
 
-    const manifest = installation.plugin.manifest as PluginManifest;
+    const manifest = installation.plugin.manifest as unknown as PluginManifest;
 
     // Run deactivation lifecycle hook if defined
     if (manifest.lifecycle?.deactivate) {
@@ -403,7 +398,7 @@ export class PluginLifecycleService {
       await this.deactivatePlugin(tenantId, pluginId);
     }
 
-    const manifest = installation.plugin.manifest as PluginManifest;
+    const manifest = installation.plugin.manifest as unknown as PluginManifest;
 
     // Run uninstall lifecycle hook if defined
     if (manifest.lifecycle?.uninstall) {
@@ -441,7 +436,7 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is not installed`);
     }
 
-    const manifest = installation.plugin.manifest as PluginManifest;
+    const manifest = installation.plugin.manifest as unknown as PluginManifest;
     this.validateConfiguration(manifest, configuration);
 
     const updated = await db.tenantPlugin.update({
@@ -489,9 +484,7 @@ export class PluginLifecycleService {
         if (field.type === 'json' && actualType !== 'object') {
           throw new Error(`Configuration field '${field.key}' must be an object`);
         } else if (field.type !== 'json' && field.type !== actualType) {
-          throw new Error(
-            `Configuration field '${field.key}' must be of type ${field.type}`
-          );
+          throw new Error(`Configuration field '${field.key}' must be of type ${field.type}`);
         }
 
         // Additional validation
@@ -525,15 +518,12 @@ export class PluginLifecycleService {
   /**
    * Check plugin dependencies
    */
-  private async checkDependencies(
-    tenantId: string,
-    manifest: PluginManifest
-  ): Promise<void> {
+  private async checkDependencies(tenantId: string, manifest: PluginManifest): Promise<void> {
     if (!manifest.dependencies) return;
 
     // Check required dependencies
     if (manifest.dependencies.required) {
-      for (const [depId, version] of Object.entries(manifest.dependencies.required)) {
+      for (const [depId, _version] of Object.entries(manifest.dependencies.required)) {
         const installation = await db.tenantPlugin.findUnique({
           where: {
             tenantId_pluginId: { tenantId, pluginId: depId },
@@ -571,7 +561,7 @@ export class PluginLifecycleService {
   private async runLifecycleHook(
     manifest: PluginManifest,
     hook: string,
-    context: any
+    _context: any
   ): Promise<void> {
     // TODO: Implement actual hook execution
     // This would load the plugin code and execute the lifecycle function

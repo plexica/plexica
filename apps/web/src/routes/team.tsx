@@ -256,7 +256,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // Invite Modal Component
-function InviteModal({ onClose, tenant }: { onClose: () => void; tenant: any }) {
+function InviteModal({ onClose, tenant: _tenant }: { onClose: () => void; tenant: any }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('member');
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -88,13 +88,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
 
       {/* Bottom Actions */}
       <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-border bg-card">
-        <Link
-          to="/help"
+        <a
+          href="/help"
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground hover:bg-muted transition-colors"
         >
           <span className="text-xl">❓</span>
           {isOpen && <span className="text-sm font-medium">Help</span>}
-        </Link>
+        </a>
       </div>
     </aside>
   );

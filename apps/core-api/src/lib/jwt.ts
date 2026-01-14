@@ -1,4 +1,4 @@
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from '../config/index.js';
 
@@ -47,7 +47,7 @@ function getJwksClient(realm: string): jwksClient.JwksClient {
  */
 async function getSigningKey(realm: string, kid: string): Promise<string> {
   const client = getJwksClient(realm);
-  
+
   return new Promise((resolve, reject) => {
     client.getSigningKey(kid, (err, key) => {
       if (err) {
@@ -66,7 +66,7 @@ async function getSigningKey(realm: string, kid: string): Promise<string> {
 
 /**
  * Verify and decode Keycloak JWT token
- * 
+ *
  * @param token - JWT token string
  * @param realm - Keycloak realm name (defaults to master)
  * @returns Decoded token payload
@@ -78,7 +78,7 @@ export async function verifyKeycloakToken(
   try {
     // Decode token header to get kid
     const decoded = jwt.decode(token, { complete: true });
-    
+
     if (!decoded || !decoded.header.kid) {
       throw new Error('Invalid token: missing kid in header');
     }
@@ -106,7 +106,7 @@ export async function verifyKeycloakToken(
 
 /**
  * Verify token and extract tenant information
- * 
+ *
  * @param token - JWT token string
  * @returns Decoded payload with tenant info
  */
@@ -115,14 +115,14 @@ export async function verifyTokenWithTenant(
 ): Promise<KeycloakJwtPayload & { tenantSlug: string }> {
   // First try to decode to get the realm/tenant
   const decoded = jwt.decode(token) as KeycloakJwtPayload | null;
-  
+
   if (!decoded) {
     throw new Error('Invalid token');
   }
 
   // Extract tenant from issuer or custom claim
   let tenantSlug: string;
-  
+
   if (decoded.tenant) {
     // Custom tenant claim
     tenantSlug = decoded.tenant;
@@ -214,12 +214,13 @@ export function extractUserInfo(payload: KeycloakJwtPayload): UserInfo {
  */
 export function generateInternalToken(
   payload: Record<string, any>,
-  expiresIn: string = '15m'
+  expiresIn: string | number = '15m'
 ): string {
-  return jwt.sign(payload, config.jwtSecret, {
-    expiresIn,
+  const options: SignOptions = {
+    expiresIn: expiresIn as any,
     issuer: 'plexica-core-api',
-  });
+  };
+  return jwt.sign(payload, config.jwtSecret, options);
 }
 
 /**

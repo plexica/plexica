@@ -86,9 +86,9 @@ async function registerRoutes() {
 }
 
 // Error handler
-server.setErrorHandler((error, request, reply) => {
+server.setErrorHandler((error, _request, reply) => {
   server.log.error(error);
-  
+
   reply.status(error.statusCode || 500).send({
     error: error.name,
     message: error.message,
@@ -127,7 +127,7 @@ async function start() {
     });
 
     server.log.info(`🚀 Core API server listening on ${config.host}:${config.port}`);
-    
+
     if (config.nodeEnv === 'development') {
       server.log.info(`📚 API Documentation: http://localhost:${config.port}/docs`);
     }
