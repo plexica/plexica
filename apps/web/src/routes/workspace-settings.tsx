@@ -7,18 +7,26 @@ import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/auth-store';
 import { apiClient } from '../lib/api-client';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@plexica/ui';
+import { Badge } from '@plexica/ui';
+import { Input } from '@plexica/ui';
+import { Textarea } from '@plexica/ui';
+import { Button } from '@plexica/ui';
+import { Label } from '@plexica/ui';
+import { Alert, AlertDescription } from '@plexica/ui';
+import { AlertCircle } from 'lucide-react';
+import { useForm } from '@/hooks/useForm';
+import { toast } from '@/components/ToastProvider';
+import { z } from 'zod';
 import type { WorkspaceMember, Team } from '../types';
 
 export const Route = createFileRoute('/workspace-settings')({
   component: WorkspaceSettingsPage,
 });
 
-type SettingsTab = 'general' | 'members' | 'teams';
-
 function WorkspaceSettingsPage() {
   const { currentWorkspace, updateWorkspace, deleteWorkspace, isAdmin } = useWorkspace();
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   if (!currentWorkspace) {
     return (
@@ -62,67 +70,35 @@ function WorkspaceSettingsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 mb-6 border-b border-border">
-          <TabButton
-            label="General"
-            active={activeTab === 'general'}
-            onClick={() => setActiveTab('general')}
-          />
-          <TabButton
-            label="Members"
-            active={activeTab === 'members'}
-            onClick={() => setActiveTab('members')}
-          />
-          <TabButton
-            label="Teams"
-            active={activeTab === 'teams'}
-            onClick={() => setActiveTab('teams')}
-          />
-        </div>
+        <Tabs defaultValue="general" className="max-w-4xl">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="teams">Teams</TabsTrigger>
+          </TabsList>
 
-        {/* Tab Content */}
-        <div className="max-w-4xl">
-          {activeTab === 'general' && (
+          {/* Tab Content */}
+          <TabsContent value="general" className="mt-6">
             <GeneralTab
               workspace={currentWorkspace}
               onUpdate={updateWorkspace}
               onDelete={deleteWorkspace}
               isAdmin={isAdmin}
             />
-          )}
-          {activeTab === 'members' && (
+          </TabsContent>
+          <TabsContent value="members" className="mt-6">
             <MembersTab
               workspaceId={currentWorkspace.id}
               currentUserId={user?.id || ''}
               isAdmin={isAdmin}
             />
-          )}
-          {activeTab === 'teams' && <TeamsTab workspaceId={currentWorkspace.id} />}
-        </div>
+          </TabsContent>
+          <TabsContent value="teams" className="mt-6">
+            <TeamsTab workspaceId={currentWorkspace.id} />
+          </TabsContent>
+        </Tabs>
       </AppLayout>
     </ProtectedRoute>
-  );
-}
-
-// Tab Button Component
-interface TabButtonProps {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}
-
-function TabButton({ label, active, onClick }: TabButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-        active
-          ? 'text-primary border-primary'
-          : 'text-muted-foreground border-transparent hover:text-foreground'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -134,41 +110,35 @@ interface GeneralTabProps {
   isAdmin: boolean;
 }
 
+// Validation schema for workspace settings
+const workspaceSettingsSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Workspace name is required')
+    .max(100, 'Name must be 100 characters or less'),
+  description: z.string().max(500, 'Description must be 500 characters or less').optional(),
+});
+
 function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [formData, setFormData] = useState({
-    name: workspace.name,
-    description: workspace.description || '',
+
+  const { values, errors, isSubmitting, handleChange, handleSubmit } = useForm({
+    initialValues: {
+      name: workspace.name,
+      description: workspace.description || '',
+    },
+    validationSchema: workspaceSettingsSchema,
+    onSubmit: async (_formValues) => {
+      try {
+        await onUpdate(workspace.id, values);
+        toast.success('Workspace updated successfully!');
+        setIsEditing(false);
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to update workspace');
+      }
+    },
   });
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      setError(null);
-      await onUpdate(workspace.id, formData);
-      setIsEditing(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to update workspace');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      setIsDeleting(true);
-      await onDelete(workspace.id);
-      // Redirect handled by workspace context
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete workspace');
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -176,70 +146,88 @@ function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps)
       <div className="bg-card border border-border rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Workspace Information</h2>
 
-        {error && (
-          <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-lg text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Workspace Name</label>
+            <Label htmlFor="name">Workspace Name</Label>
             {isEditing && isAdmin ? (
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  value={values.name}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  className="mt-2"
+                />
+                {errors.name && (
+                  <Alert variant="destructive" className="mt-2 py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">{errors.name}</AlertDescription>
+                  </Alert>
+                )}
+              </>
             ) : (
-              <p className="text-muted-foreground">{workspace.name}</p>
+              <p className="text-muted-foreground mt-2">{workspace.name}</p>
             )}
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+            <Label htmlFor="description">Description</Label>
             {isEditing && isAdmin ? (
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <>
+                <Textarea
+                  id="description"
+                  name="description"
+                  value={values.description || ''}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  rows={3}
+                  className="mt-2"
+                />
+                {errors.description && (
+                  <Alert variant="destructive" className="mt-2 py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">{errors.description}</AlertDescription>
+                  </Alert>
+                )}
+              </>
             ) : (
-              <p className="text-muted-foreground">{workspace.description || 'No description'}</p>
+              <p className="text-muted-foreground mt-2">
+                {workspace.description || 'No description'}
+              </p>
             )}
           </div>
 
           {/* Slug (read-only) */}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Slug</label>
+            <Label>Slug</Label>
             <p className="text-muted-foreground font-mono text-sm">{workspace.slug}</p>
           </div>
 
           {/* Created Info */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Created</label>
+              <Label>Created</Label>
               <p className="text-muted-foreground text-sm">
                 {new Date(workspace.createdAt).toLocaleDateString()}
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Your Role</label>
-              <span
-                className={`inline-block px-2 py-1 text-xs rounded ${
+              <Label>Your Role</Label>
+              <Badge
+                variant={
                   workspace.memberRole === 'ADMIN'
-                    ? 'bg-primary/20 text-primary'
+                    ? 'default'
                     : workspace.memberRole === 'MEMBER'
-                      ? 'bg-blue-500/20 text-blue-600'
-                      : 'bg-muted text-muted-foreground'
-                }`}
+                      ? 'secondary'
+                      : 'outline'
+                }
               >
                 {workspace.memberRole}
-              </span>
+              </Badge>
             </div>
           </div>
 
@@ -247,39 +235,27 @@ function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps)
           {isAdmin && (
             <div className="flex gap-2 pt-4">
               {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                >
+                <Button onClick={() => setIsEditing(true)} type="button">
                   Edit Workspace
-                </button>
+                </Button>
               ) : (
                 <>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setFormData({
-                        name: workspace.name,
-                        description: workspace.description || '',
-                      });
-                      setError(null);
-                    }}
-                    className="px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSubmitting}
+                    type="button"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
           )}
-        </div>
+        </form>
       </div>
 
       {/* Danger Zone */}
@@ -291,31 +267,32 @@ function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps)
           </p>
 
           {!showDeleteConfirm ? (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors"
-            >
+            <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)} type="button">
               Delete Workspace
-            </button>
+            </Button>
           ) : (
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">
                 Are you absolutely sure? This action cannot be undone.
               </p>
               <div className="flex gap-2">
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="px-4 py-2 bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    try {
+                      await onDelete(workspace.id);
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to delete workspace');
+                      setShowDeleteConfirm(false);
+                    }
+                  }}
+                  type="button"
                 >
-                  {isDeleting ? 'Deleting...' : 'Yes, Delete Workspace'}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
-                >
+                  Yes, Delete Workspace
+                </Button>
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} type="button">
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -414,17 +391,17 @@ function MembersTab({ workspaceId, currentUserId, isAdmin }: MembersTabProps) {
             </div>
 
             <div className="flex items-center gap-3">
-              <span
-                className={`px-2 py-1 text-xs rounded ${
+              <Badge
+                variant={
                   member.role === 'ADMIN'
-                    ? 'bg-primary/20 text-primary'
+                    ? 'default'
                     : member.role === 'MEMBER'
-                      ? 'bg-blue-500/20 text-blue-600'
-                      : 'bg-muted text-muted-foreground'
-                }`}
+                      ? 'secondary'
+                      : 'outline'
+                }
               >
                 {member.role}
-              </span>
+              </Badge>
 
               {isAdmin && member.userId !== currentUserId && (
                 <button

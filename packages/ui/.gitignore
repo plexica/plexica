@@ -1,0 +1,10 @@
+.DS_Store
+node_modules
+dist
+.storybook-static
+*.log
+.env
+.env.local
+
+# Test coverage
+coverage

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Plexica - Cloud-native multi-tenant platform with plugin architecture",
-  "packageManager": "pnpm@10.23.0",
+  "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
@@ -26,9 +26,17 @@
     "infra:clean": "./scripts/infra.sh clean"
   },
   "devDependencies": {
-    "@types/node": "^20.11.5",
-    "prettier": "^3.2.4",
-    "turbo": "^1.12.4",
-    "typescript": "^5.3.3"
+    "@types/node": "^25.0.9",
+    "prettier": "^3.8.0",
+    "turbo": "^2.7.5",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "^19.2.3",
+      "react-dom": "^19.2.3",
+      "@types/react": "^19.2.9",
+      "@types/react-dom": "^19.2.3"
+    }
   }
 }

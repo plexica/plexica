@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../components/AuthProvider';
 import { useAuthStore } from '../stores/auth-store';
 import { useEffect } from 'react';
+import { Button } from '@plexica/ui';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -50,12 +51,9 @@ function LoginPage() {
           <p className="mt-2 text-muted-foreground">Sign in to access your workspace</p>
         </div>
 
-        <button
-          onClick={login}
-          className="w-full px-4 py-3 text-white bg-primary hover:bg-primary/90 rounded-lg font-medium transition-colors"
-        >
+        <Button onClick={login} size="lg" className="w-full">
           Sign in with Keycloak
-        </button>
+        </Button>
 
         <div className="text-center text-sm text-muted-foreground">
           <p>Multi-tenant SaaS Platform</p>

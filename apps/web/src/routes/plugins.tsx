@@ -7,6 +7,13 @@ import { useAuthStore } from '../stores/auth-store';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { useState } from 'react';
+import { Button } from '@plexica/ui';
+import { Badge } from '@plexica/ui';
+import { ToggleGroup, ToggleGroupItem } from '@plexica/ui';
+import { Alert, AlertDescription } from '@plexica/ui';
+import { AlertCircle } from 'lucide-react';
+import { DataTable } from '@plexica/ui';
+import type { ColumnDef } from '@tanstack/react-table';
 import type { TenantPlugin } from '../types';
 
 export const Route = createFileRoute('/plugins')({
@@ -16,7 +23,7 @@ export const Route = createFileRoute('/plugins')({
 function PluginsPage() {
   const { tenant } = useAuthStore();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid');
 
   // Fetch tenant plugins
   const {
@@ -81,28 +88,18 @@ function PluginsPage() {
             </div>
             <div className="flex items-center gap-3">
               {/* View Toggle */}
-              <div className="flex items-center bg-muted rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                    viewMode === 'grid'
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Grid
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  List
-                </button>
-              </div>
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(mode: string) => {
+                  // Prevent deselection - always maintain a selected view mode
+                  setViewMode((mode || viewMode) as 'grid' | 'list' | 'table');
+                }}
+              >
+                <ToggleGroupItem value="grid">Grid</ToggleGroupItem>
+                <ToggleGroupItem value="list">List</ToggleGroupItem>
+                <ToggleGroupItem value="table">Table</ToggleGroupItem>
+              </ToggleGroup>
             </div>
           </div>
 
@@ -134,11 +131,10 @@ function PluginsPage() {
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800 text-sm">
-              <strong>Error:</strong> Failed to load plugins. Please try again later.
-            </p>
-          </div>
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Failed to load plugins. Please try again later.</AlertDescription>
+          </Alert>
         )}
 
         {/* Empty State */}
@@ -150,26 +146,16 @@ function PluginsPage() {
               You haven't installed any plugins yet. Browse the marketplace to extend your workspace
               with powerful features.
             </p>
-            <button className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium">
-              Browse Plugin Marketplace
-            </button>
+            <Button size="lg">Browse Plugin Marketplace</Button>
           </div>
         )}
 
-        {/* Plugins Grid/List */}
+        {/* Plugins Grid/List/Table */}
         {!isLoading && !error && plugins.length > 0 && (
-          <div
-            className={
-              viewMode === 'grid'
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                : 'space-y-4'
-            }
-          >
-            {plugins.map((tenantPlugin) => (
-              <PluginCard
-                key={tenantPlugin.id}
-                tenantPlugin={tenantPlugin}
-                viewMode={viewMode}
+          <>
+            {viewMode === 'table' ? (
+              <PluginsTableView
+                plugins={plugins}
                 onToggleStatus={(pluginId, currentStatus) =>
                   toggleStatusMutation.mutate({ pluginId, currentStatus })
                 }
@@ -181,11 +167,135 @@ function PluginsPage() {
                 isToggling={toggleStatusMutation.isPending}
                 isUninstalling={uninstallMutation.isPending}
               />
-            ))}
-          </div>
+            ) : (
+              <div
+                className={
+                  viewMode === 'grid'
+                    ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                    : 'space-y-4'
+                }
+              >
+                {plugins.map((tenantPlugin) => (
+                  <PluginCard
+                    key={tenantPlugin.id}
+                    tenantPlugin={tenantPlugin}
+                    viewMode={viewMode}
+                    onToggleStatus={(pluginId, currentStatus) =>
+                      toggleStatusMutation.mutate({ pluginId, currentStatus })
+                    }
+                    onUninstall={(pluginId) => {
+                      if (confirm('Are you sure you want to uninstall this plugin?')) {
+                        uninstallMutation.mutate(pluginId);
+                      }
+                    }}
+                    isToggling={toggleStatusMutation.isPending}
+                    isUninstalling={uninstallMutation.isPending}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </AppLayout>
     </ProtectedRoute>
+  );
+}
+
+// Table View Component
+function PluginsTableView({
+  plugins,
+  onToggleStatus,
+  onUninstall,
+  isToggling,
+  isUninstalling,
+}: {
+  plugins: TenantPlugin[];
+  onToggleStatus: (pluginId: string, currentStatus: string) => void;
+  onUninstall: (pluginId: string) => void;
+  isToggling: boolean;
+  isUninstalling: boolean;
+}) {
+  const columns: ColumnDef<TenantPlugin>[] = [
+    {
+      accessorFn: (row) => row.plugin.name,
+      id: 'name',
+      header: 'Name',
+      cell: (info) => {
+        const tenantPlugin = info.row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{tenantPlugin.plugin.icon || '🧩'}</span>
+            <div>
+              <p className="font-medium text-foreground">{tenantPlugin.plugin.name}</p>
+              <p className="text-xs text-muted-foreground">{tenantPlugin.plugin.description}</p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorFn: (row) => row.plugin.version,
+      id: 'version',
+      header: 'Version',
+    },
+    {
+      accessorFn: (row) => row.plugin.category,
+      id: 'category',
+      header: 'Category',
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: (info) => <StatusBadge status={info.getValue() as string} />,
+    },
+    {
+      accessorFn: (row) => new Date(row.installedAt).toLocaleDateString(),
+      id: 'installedAt',
+      header: 'Installed',
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      cell: (info) => {
+        const tenantPlugin = info.row.original;
+        const isActive = tenantPlugin.status === 'active';
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => onToggleStatus(tenantPlugin.plugin.id, tenantPlugin.status)}
+              disabled={isToggling}
+              variant={isActive ? 'secondary' : 'default'}
+              size="sm"
+            >
+              {isToggling ? '...' : isActive ? 'Disable' : 'Enable'}
+            </Button>
+            <Button variant="secondary" size="sm">
+              Configure
+            </Button>
+            <Button
+              onClick={() => onUninstall(tenantPlugin.plugin.id)}
+              disabled={isUninstalling}
+              variant="destructive"
+              size="sm"
+            >
+              {isUninstalling ? '...' : 'Uninstall'}
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      data={plugins}
+      isLoading={false}
+      enableSorting
+      enableColumnFilters
+      enableGlobalFilter
+      enablePagination
+    />
   );
 }
 
@@ -199,7 +309,7 @@ function PluginCard({
   isUninstalling,
 }: {
   tenantPlugin: TenantPlugin;
-  viewMode: 'grid' | 'list';
+  viewMode: 'grid' | 'list' | 'table';
   onToggleStatus: (pluginId: string, currentStatus: string) => void;
   onUninstall: (pluginId: string) => void;
   isToggling: boolean;
@@ -237,27 +347,25 @@ function PluginCard({
 
           {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
+            <Button
               onClick={() => onToggleStatus(plugin.id, status)}
               disabled={isToggling}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              variant={isActive ? 'secondary' : 'default'}
+              size="sm"
             >
               {isToggling ? '...' : isActive ? 'Disable' : 'Enable'}
-            </button>
-            <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors">
+            </Button>
+            <Button variant="secondary" size="sm">
               Configure
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => onUninstall(plugin.id)}
               disabled={isUninstalling}
-              className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              variant="destructive"
+              size="sm"
             >
               {isUninstalling ? '...' : 'Uninstall'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -296,28 +404,26 @@ function PluginCard({
 
       {/* Actions */}
       <div className="space-y-2">
-        <button
+        <Button
           onClick={() => onToggleStatus(plugin.id, status)}
           disabled={isToggling}
-          className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            isActive
-              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-              : 'bg-green-100 text-green-700 hover:bg-green-200'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          variant={isActive ? 'secondary' : 'default'}
+          className="w-full"
         >
           {isToggling ? 'Processing...' : isActive ? 'Disable Plugin' : 'Enable Plugin'}
-        </button>
+        </Button>
         <div className="flex gap-2">
-          <button className="flex-1 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors">
+          <Button variant="secondary" className="flex-1">
             Configure
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => onUninstall(plugin.id)}
             disabled={isUninstalling}
-            className="flex-1 px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            variant="destructive"
+            className="flex-1"
           >
             {isUninstalling ? '...' : 'Uninstall'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -337,14 +443,8 @@ function PluginCard({
 // Status Badge Component
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span
-      className={`px-3 py-1 rounded-full text-xs font-medium ${
-        status === 'active'
-          ? 'bg-green-100 text-green-700'
-          : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-      }`}
-    >
+    <Badge variant={status === 'active' ? 'default' : 'secondary'}>
       {status === 'active' ? '● Active' : '○ Inactive'}
-    </span>
+    </Badge>
   );
 }

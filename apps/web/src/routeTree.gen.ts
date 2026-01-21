@@ -13,7 +13,9 @@ import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settin
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PluginsRouteImport } from './routes/plugins'
+import { Route as MembersManagementRouteImport } from './routes/members-management'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ActivityLogRouteImport } from './routes/activity-log'
 import { Route as IndexRouteImport } from './routes/index'
 
 const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
@@ -36,9 +38,19 @@ const PluginsRoute = PluginsRouteImport.update({
   path: '/plugins',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MembersManagementRoute = MembersManagementRouteImport.update({
+  id: '/members-management',
+  path: '/members-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityLogRoute = ActivityLogRouteImport.update({
+  id: '/activity-log',
+  path: '/activity-log',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,7 +61,9 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/activity-log': typeof ActivityLogRoute
   '/login': typeof LoginRoute
+  '/members-management': typeof MembersManagementRoute
   '/plugins': typeof PluginsRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
@@ -57,7 +71,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/activity-log': typeof ActivityLogRoute
   '/login': typeof LoginRoute
+  '/members-management': typeof MembersManagementRoute
   '/plugins': typeof PluginsRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
@@ -66,7 +82,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/activity-log': typeof ActivityLogRoute
   '/login': typeof LoginRoute
+  '/members-management': typeof MembersManagementRoute
   '/plugins': typeof PluginsRoute
   '/settings': typeof SettingsRoute
   '/team': typeof TeamRoute
@@ -76,7 +94,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/activity-log'
     | '/login'
+    | '/members-management'
     | '/plugins'
     | '/settings'
     | '/team'
@@ -84,7 +104,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/activity-log'
     | '/login'
+    | '/members-management'
     | '/plugins'
     | '/settings'
     | '/team'
@@ -92,7 +114,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/activity-log'
     | '/login'
+    | '/members-management'
     | '/plugins'
     | '/settings'
     | '/team'
@@ -101,7 +125,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActivityLogRoute: typeof ActivityLogRoute
   LoginRoute: typeof LoginRoute
+  MembersManagementRoute: typeof MembersManagementRoute
   PluginsRoute: typeof PluginsRoute
   SettingsRoute: typeof SettingsRoute
   TeamRoute: typeof TeamRoute
@@ -138,11 +164,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PluginsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/members-management': {
+      id: '/members-management'
+      path: '/members-management'
+      fullPath: '/members-management'
+      preLoaderRoute: typeof MembersManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity-log': {
+      id: '/activity-log'
+      path: '/activity-log'
+      fullPath: '/activity-log'
+      preLoaderRoute: typeof ActivityLogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -157,7 +197,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActivityLogRoute: ActivityLogRoute,
   LoginRoute: LoginRoute,
+  MembersManagementRoute: MembersManagementRoute,
   PluginsRoute: PluginsRoute,
   SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,

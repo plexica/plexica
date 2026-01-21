@@ -1,0 +1,6 @@
+{
+  "approvedPackages": {
+    "@prisma/engines": "7.2.0",
+    "prisma": "7.2.0"
+  }
+}

@@ -1,4 +1,4 @@
-import { PrismaClient, WorkspaceRole } from '@prisma/client';
+import { PrismaClient, WorkspaceRole } from '@plexica/database';
 import { db } from '../../lib/db.js';
 import { getTenantContext, executeInTenantSchema } from '../../middleware/tenant-context.js';
 import type { CreateWorkspaceDto, UpdateWorkspaceDto, AddMemberDto } from './dto/index.js';

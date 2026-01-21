@@ -48,7 +48,7 @@ docker-compose up -d
 # 5. Wait for services to be healthy
 pnpm infra:status
 
-# 6. Generate Prisma Client
+# 6. Generate Prisma Client (Prisma 7 with PostgreSQL adapter)
 pnpm db:generate
 
 # 7. Run database migrations
@@ -221,9 +221,9 @@ plexica/
 | Category   | Technology | Version | Status        |
 | ---------- | ---------- | ------- | ------------- |
 | Runtime    | Node.js    | 20 LTS  | ✅            |
-| Language   | TypeScript | 5.x     | ✅            |
-| Framework  | Fastify    | 4.x     | ✅            |
-| ORM        | Prisma     | 5.x     | ✅            |
+| Language   | TypeScript | 5.9.3   | ✅            |
+| Framework  | Fastify    | 5.7.1   | ✅            |
+| ORM        | Prisma     | 7.2.0   | ✅            |
 | Validation | Zod        | 3.x     | ✅            |
 | Testing    | Vitest     | 1.x     | 📋 Configured |
 
@@ -293,21 +293,40 @@ pnpm infra:logs core-api
 ### Database Operations
 
 ```bash
-# Generate Prisma Client
+# Generate Prisma Client (Prisma 7 - uses npx due to pnpm security policy)
 pnpm db:generate
+# Or manually:
+cd packages/database && npx --yes prisma@7.2.0 generate --config ./prisma/prisma.config.ts
 
 # Run migrations
 pnpm db:migrate
+# Or manually:
+cd packages/database && npx prisma migrate dev --config ./prisma/prisma.config.ts
 
 # Create new migration
 pnpm db:migrate:dev --name "migration_name"
+# Or manually:
+cd packages/database && npx prisma migrate dev --name "migration_name" --config ./prisma/prisma.config.ts
 
 # Open Prisma Studio (database GUI)
 pnpm db:studio
+# Or manually:
+cd packages/database && npx prisma studio --config ./prisma/prisma.config.ts
 
 # Reset database (WARNING: deletes all data)
 pnpm db:reset
+
+# Check migration status
+cd packages/database && npx prisma migrate status --config ./prisma/prisma.config.ts
 ```
+
+**⚠️ Important - Prisma 7 Notes:**
+
+- Plexica uses **Prisma 7.2.0** with PostgreSQL adapter (`@prisma/adapter-pg`)
+- Due to pnpm 10+ security policy, Prisma client generation uses `npx` instead of `pnpm exec`
+- The `prisma.config.ts` file manages database connection and environment variables
+- Always use `--config ./prisma/prisma.config.ts` flag when running Prisma CLI commands manually
+- See `packages/database/README.md` for detailed Prisma 7 documentation
 
 ### Testing
 
@@ -450,6 +469,7 @@ GET /api/tenants/:id/plugins
 ### Guides
 
 - **[Getting Started](./docs/GETTING_STARTED.md)** - Setup and first steps
+- **[Prisma 7 Migration Guide](./docs/PRISMA_7_MIGRATION.md)** - Troubleshooting and best practices
 - **[Contributing](./docs/CONTRIBUTING.md)** - Contribution guidelines
 - **[Agent Guidelines](./AGENTS.md)** - For AI coding agents
 
@@ -614,5 +634,5 @@ Built with:
 
 ---
 
-**Plexica v0.1.0-alpha** | Built with ❤️ by Plexica Engineering Team  
-_Last updated: January 13, 2026_
+**Plexica v0.6.0-alpha** | Built with ❤️ by Plexica Engineering Team  
+_Last updated: January 21, 2026_

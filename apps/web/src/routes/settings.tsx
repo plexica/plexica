@@ -1,20 +1,28 @@
 // apps/web/src/routes/settings.tsx
 
 import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
 import { useAuthStore } from '../stores/auth-store';
-import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@plexica/ui';
+import { Switch } from '@plexica/ui';
+import { Input } from '@plexica/ui';
+import { Label } from '@plexica/ui';
+import { Textarea } from '@plexica/ui';
+import { Button } from '@plexica/ui';
+import { Alert, AlertDescription } from '@plexica/ui';
+import { AlertCircle } from 'lucide-react';
+import { useForm } from '@/hooks/useForm';
+import { toast } from '@/components/ToastProvider';
+import { z } from 'zod';
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage,
 });
 
-type SettingsTab = 'general' | 'security' | 'billing' | 'integrations' | 'advanced';
-
 function SettingsPage() {
   const { tenant } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   return (
     <ProtectedRoute>
@@ -28,144 +36,151 @@ function SettingsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 mb-6 border-b border-border">
-          <TabButton
-            label="General"
-            icon="⚙️"
-            active={activeTab === 'general'}
-            onClick={() => setActiveTab('general')}
-          />
-          <TabButton
-            label="Security"
-            icon="🔒"
-            active={activeTab === 'security'}
-            onClick={() => setActiveTab('security')}
-          />
-          <TabButton
-            label="Billing"
-            icon="💳"
-            active={activeTab === 'billing'}
-            onClick={() => setActiveTab('billing')}
-          />
-          <TabButton
-            label="Integrations"
-            icon="🔗"
-            active={activeTab === 'integrations'}
-            onClick={() => setActiveTab('integrations')}
-          />
-          <TabButton
-            label="Advanced"
-            icon="🔧"
-            active={activeTab === 'advanced'}
-            onClick={() => setActiveTab('advanced')}
-          />
-        </div>
+        <Tabs defaultValue="general" className="max-w-4xl">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="general">⚙️ General</TabsTrigger>
+            <TabsTrigger value="security">🔒 Security</TabsTrigger>
+            <TabsTrigger value="billing">💳 Billing</TabsTrigger>
+            <TabsTrigger value="integrations">🔗 Integrations</TabsTrigger>
+            <TabsTrigger value="advanced">🔧 Advanced</TabsTrigger>
+          </TabsList>
 
-        {/* Tab Content */}
-        <div className="max-w-4xl">
-          {activeTab === 'general' && <GeneralSettings tenant={tenant} />}
-          {activeTab === 'security' && <SecuritySettings tenant={tenant} />}
-          {activeTab === 'billing' && <BillingSettings tenant={tenant} />}
-          {activeTab === 'integrations' && <IntegrationsSettings tenant={tenant} />}
-          {activeTab === 'advanced' && <AdvancedSettings tenant={tenant} />}
-        </div>
+          {/* Tab Content */}
+          <TabsContent value="general" className="mt-6">
+            <GeneralSettings tenant={tenant} />
+          </TabsContent>
+          <TabsContent value="security" className="mt-6">
+            <SecuritySettings tenant={tenant} />
+          </TabsContent>
+          <TabsContent value="billing" className="mt-6">
+            <BillingSettings tenant={tenant} />
+          </TabsContent>
+          <TabsContent value="integrations" className="mt-6">
+            <IntegrationsSettings tenant={tenant} />
+          </TabsContent>
+          <TabsContent value="advanced" className="mt-6">
+            <AdvancedSettings tenant={tenant} />
+          </TabsContent>
+        </Tabs>
       </AppLayout>
     </ProtectedRoute>
   );
 }
 
-// Tab Button Component
-function TabButton({
-  label,
-  icon,
-  active,
-  onClick,
-}: {
-  label: string;
-  icon: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-        active
-          ? 'border-primary text-primary font-medium'
-          : 'border-transparent text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      <span>{icon}</span>
-      <span className="text-sm">{label}</span>
-    </button>
-  );
-}
+// Validation schema for General Settings
+const generalSettingsSchema = z.object({
+  workspaceName: z
+    .string()
+    .min(1, 'Workspace name is required')
+    .max(100, 'Name must be 100 characters or less'),
+  workspaceSlug: z
+    .string()
+    .min(1, 'Workspace slug is required')
+    .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
+  description: z.string().max(500, 'Description must be 500 characters or less').optional(),
+});
 
 // General Settings Tab
 function GeneralSettings({ tenant }: { tenant: any }) {
-  const [workspaceName, setWorkspaceName] = useState(tenant?.name || '');
-  const [workspaceSlug, setWorkspaceSlug] = useState(tenant?.slug || '');
+  const { values, errors, isSubmitting, handleChange, handleSubmit } = useForm({
+    initialValues: {
+      workspaceName: tenant?.name || '',
+      workspaceSlug: tenant?.slug || '',
+      description: tenant?.description || '',
+    },
+    validationSchema: generalSettingsSchema,
+    onSubmit: async (_formValues) => {
+      try {
+        // TODO: Implement API call to update workspace
+        // await apiClient.updateWorkspace(tenant.id, {
+        //   name: formValues.workspaceName,
+        //   slug: formValues.workspaceSlug,
+        //   description: formValues.description,
+        // });
 
-  const handleSave = () => {
-    // TODO: Implement API call to update workspace
-    alert('Workspace settings saved!');
-  };
+        // Simulate delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        toast.success('Workspace settings saved successfully!');
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to save workspace settings');
+      }
+    },
+  });
 
   return (
-    <div className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* Workspace Information */}
       <div className="bg-card border border-border rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Workspace Information</h2>
         <div className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
-              Workspace Name
-            </label>
-            <input
+            <Label htmlFor="workspaceName">Workspace Name</Label>
+            <Input
               type="text"
-              id="name"
-              value={workspaceName}
-              onChange={(e) => setWorkspaceName(e.target.value)}
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              id="workspaceName"
+              name="workspaceName"
+              value={values.workspaceName}
+              onChange={handleChange}
+              disabled={isSubmitting}
+              className="mt-2"
             />
+            {errors.workspaceName && (
+              <Alert variant="destructive" className="mt-2 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{errors.workspaceName}</AlertDescription>
+              </Alert>
+            )}
           </div>
 
           <div>
-            <label htmlFor="slug" className="block text-sm font-medium text-foreground mb-2">
-              Workspace Slug
-            </label>
-            <input
+            <Label htmlFor="workspaceSlug">Workspace Slug</Label>
+            <Input
               type="text"
-              id="slug"
-              value={workspaceSlug}
-              onChange={(e) => setWorkspaceSlug(e.target.value)}
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              id="workspaceSlug"
+              name="workspaceSlug"
+              value={values.workspaceSlug}
+              onChange={handleChange}
+              disabled={isSubmitting}
+              className="mt-2"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              This is used in your workspace URL: plexica.app/{workspaceSlug}
-            </p>
+            {errors.workspaceSlug ? (
+              <Alert variant="destructive" className="mt-2 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{errors.workspaceSlug}</AlertDescription>
+              </Alert>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1">
+                This is used in your workspace URL: plexica.app/{values.workspaceSlug}
+              </p>
+            )}
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-foreground mb-2">
-              Description (Optional)
-            </label>
-            <textarea
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Textarea
               id="description"
-              rows={3}
+              name="description"
+              value={values.description || ''}
+              onChange={handleChange}
               placeholder="A brief description of your workspace..."
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isSubmitting}
+              rows={3}
+              className="mt-2"
             />
+            {errors.description && (
+              <Alert variant="destructive" className="mt-2 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{errors.description}</AlertDescription>
+              </Alert>
+            )}
           </div>
         </div>
 
         <div className="mt-6 pt-6 border-t border-border">
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
-          >
-            Save Changes
-          </button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </div>
 
@@ -190,33 +205,96 @@ function GeneralSettings({ tenant }: { tenant: any }) {
           />
         </div>
       </div>
-    </div>
+    </form>
   );
 }
 
+// Validation schema for Security Settings
+const securitySettingsSchema = z.object({
+  twoFactorAuth: z.boolean(),
+  strongPasswords: z.boolean(),
+  sessionTimeout: z.boolean(),
+  emailDomains: z.string().optional(),
+  ipRestriction: z.boolean(),
+});
+
 // Security Settings Tab
 function SecuritySettings({ tenant: _tenant }: { tenant: any }) {
+  const { values, errors, isSubmitting, handleChange, handleSubmit } = useForm({
+    initialValues: {
+      twoFactorAuth: false,
+      strongPasswords: true,
+      sessionTimeout: true,
+      emailDomains: '',
+      ipRestriction: false,
+    },
+    validationSchema: securitySettingsSchema,
+    onSubmit: async (_formValues) => {
+      try {
+        // TODO: Implement API call to update security settings
+        // await apiClient.updateSecuritySettings(tenant.id, formValues);
+
+        // Simulate delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        toast.success('Security settings saved successfully!');
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to save security settings');
+      }
+    },
+  });
+
+  const handleToggle = (fieldName: string, value: boolean) => {
+    handleChange({ target: { name: fieldName, value } } as any);
+  };
+
   return (
-    <div className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* Authentication */}
       <div className="bg-card border border-border rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Authentication</h2>
         <div className="space-y-4">
-          <ToggleSetting
-            label="Require two-factor authentication"
-            description="All workspace members must enable 2FA"
-            defaultChecked={false}
-          />
-          <ToggleSetting
-            label="Enforce strong passwords"
-            description="Require passwords with minimum 12 characters"
-            defaultChecked={true}
-          />
-          <ToggleSetting
-            label="Session timeout"
-            description="Automatically log out users after 8 hours of inactivity"
-            defaultChecked={true}
-          />
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">
+                Require two-factor authentication
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                All workspace members must enable 2FA
+              </p>
+            </div>
+            <Switch
+              checked={values.twoFactorAuth}
+              onCheckedChange={(val) => handleToggle('twoFactorAuth', val)}
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Enforce strong passwords</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Require passwords with minimum 12 characters
+              </p>
+            </div>
+            <Switch
+              checked={values.strongPasswords}
+              onCheckedChange={(val) => handleToggle('strongPasswords', val)}
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Session timeout</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Automatically log out users after 8 hours of inactivity
+              </p>
+            </div>
+            <Switch
+              checked={values.sessionTimeout}
+              onCheckedChange={(val) => handleToggle('sessionTimeout', val)}
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
       </div>
 
@@ -225,23 +303,42 @@ function SecuritySettings({ tenant: _tenant }: { tenant: any }) {
         <h2 className="text-lg font-semibold text-foreground mb-4">Access Control</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
-              Allowed email domains
-            </label>
-            <input
+            <Label htmlFor="emailDomains">Allowed email domains</Label>
+            <Input
+              id="emailDomains"
+              name="emailDomains"
               type="text"
+              value={values.emailDomains}
+              onChange={handleChange}
               placeholder="example.com, company.org"
-              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isSubmitting}
+              className="mt-2"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Only users with these email domains can join (comma-separated)
-            </p>
+            {errors.emailDomains && (
+              <Alert variant="destructive" className="mt-2 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{errors.emailDomains}</AlertDescription>
+              </Alert>
+            )}
+            {!errors.emailDomains && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Only users with these email domains can join (comma-separated)
+              </p>
+            )}
           </div>
-          <ToggleSetting
-            label="Restrict workspace access by IP"
-            description="Only allow access from whitelisted IP addresses"
-            defaultChecked={false}
-          />
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Restrict workspace access by IP</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Only allow access from whitelisted IP addresses
+              </p>
+            </div>
+            <Switch
+              checked={values.ipRestriction}
+              onCheckedChange={(val) => handleToggle('ipRestriction', val)}
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
       </div>
 
@@ -251,11 +348,18 @@ function SecuritySettings({ tenant: _tenant }: { tenant: any }) {
         <p className="text-sm text-muted-foreground mb-4">
           Manage API keys for programmatic access to your workspace
         </p>
-        <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium text-sm">
+        <Button type="button" disabled={isSubmitting}>
           Generate New API Key
-        </button>
+        </Button>
       </div>
-    </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -283,9 +387,7 @@ function BillingSettings({ tenant: _tenant }: { tenant: any }) {
           <PlanFeature text="Custom integrations" />
           <PlanFeature text="Advanced analytics" />
         </div>
-        <button className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium">
-          Upgrade Plan
-        </button>
+        <Button className="w-full">Upgrade Plan</Button>
       </div>
 
       {/* Usage Stats */}
@@ -310,9 +412,9 @@ function BillingSettings({ tenant: _tenant }: { tenant: any }) {
             <p className="text-xs text-muted-foreground">Expires 12/2026</p>
           </div>
         </div>
-        <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+        <Button variant="link" className="p-0">
           Update Payment Method
-        </button>
+        </Button>
       </div>
 
       {/* Billing History */}
@@ -381,14 +483,14 @@ function IntegrationsSettings({ tenant: _tenant }: { tenant: any }) {
               {integration.connected ? (
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-green-600 font-medium">✓ Connected</span>
-                  <button className="text-xs text-red-600 hover:text-red-800 font-medium">
+                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800">
                     Disconnect
-                  </button>
+                  </Button>
                 </div>
               ) : (
-                <button className="w-full px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 transition-colors">
+                <Button className="w-full" size="sm">
                   Connect
-                </button>
+                </Button>
               )}
             </div>
           ))}
@@ -401,9 +503,7 @@ function IntegrationsSettings({ tenant: _tenant }: { tenant: any }) {
         <p className="text-sm text-muted-foreground mb-4">
           Configure webhooks to receive real-time events
         </p>
-        <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium text-sm">
-          Add Webhook
-        </button>
+        <Button>Add Webhook</Button>
       </div>
     </div>
   );
@@ -419,9 +519,7 @@ function AdvancedSettings({ tenant: _tenant }: { tenant: any }) {
         <p className="text-sm text-muted-foreground mb-4">
           Export all your workspace data in JSON format
         </p>
-        <button className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium text-sm">
-          Export Data
-        </button>
+        <Button>Export Data</Button>
       </div>
 
       {/* Danger Zone */}
@@ -434,9 +532,7 @@ function AdvancedSettings({ tenant: _tenant }: { tenant: any }) {
               <p className="text-sm font-medium text-red-800">Transfer Ownership</p>
               <p className="text-xs text-red-700">Transfer workspace to another admin</p>
             </div>
-            <button className="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm">
-              Transfer
-            </button>
+            <Button variant="outline">Transfer</Button>
           </div>
 
           <div className="border-t border-red-200 pt-4">
@@ -447,9 +543,7 @@ function AdvancedSettings({ tenant: _tenant }: { tenant: any }) {
                   Permanently delete this workspace and all data
                 </p>
               </div>
-              <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm">
-                Delete
-              </button>
+              <Button variant="destructive">Delete</Button>
             </div>
           </div>
         </div>
@@ -488,23 +582,12 @@ function ToggleSetting({
   const [checked, setChecked] = useState(defaultChecked);
 
   return (
-    <div className="flex items-start justify-between">
+    <div className="flex items-center justify-between">
       <div className="flex-1">
         <p className="text-sm font-medium text-foreground">{label}</p>
         <p className="text-xs text-muted-foreground mt-1">{description}</p>
       </div>
-      <button
-        onClick={() => setChecked(!checked)}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-          checked ? 'bg-primary' : 'bg-muted'
-        }`}
-      >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-6' : 'translate-x-1'
-          }`}
-        />
-      </button>
+      <Switch checked={checked} onCheckedChange={setChecked} />
     </div>
   );
 }
@@ -565,7 +648,9 @@ function BillingItem({ date, amount, status }: { date: string; amount: string; s
       </div>
       <div className="flex items-center gap-3">
         <span className="text-sm font-semibold text-foreground">{amount}</span>
-        <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">Download</button>
+        <Button variant="link" size="sm">
+          Download
+        </Button>
       </div>
     </div>
   );

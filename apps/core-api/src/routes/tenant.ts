@@ -4,7 +4,7 @@ import {
   type CreateTenantInput,
   type UpdateTenantInput,
 } from '../services/tenant.service.js';
-import { TenantStatus } from '@prisma/client';
+import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin, authMiddleware } from '../middleware/auth.js';
 
 // Request schemas

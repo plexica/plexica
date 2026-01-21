@@ -6,10 +6,33 @@ import { AppLayout } from '../components/Layout';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useState, useEffect } from 'react';
 import { apiClient } from '../lib/api-client';
+import { Button } from '@plexica/ui';
+import { Input } from '@plexica/ui';
+import { Textarea } from '@plexica/ui';
+import { Label } from '@plexica/ui';
+import { Alert, AlertDescription } from '@plexica/ui';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@plexica/ui';
+import { AlertCircle } from 'lucide-react';
+import { useForm } from '@/hooks/useForm';
+import { toast } from '@/components/ToastProvider';
+import { z } from 'zod';
 import type { Team } from '../types';
 
 export const Route = createFileRoute('/team')({
   component: TeamPage,
+});
+
+// Validation schema for create team form
+const createTeamSchema = z.object({
+  name: z.string().min(1, 'Team name is required').max(100, 'Name must be 100 characters or less'),
+  description: z.string().max(500, 'Description must be 500 characters or less').optional(),
 });
 
 function TeamPage() {
@@ -165,9 +188,10 @@ function TeamPage() {
 
         {/* Error State */}
         {error && !isLoading && (
-          <div className="p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
-            {error}
-          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* Teams Grid */}
@@ -215,15 +239,14 @@ function TeamPage() {
           </>
         )}
 
-        {/* Create Team Modal */}
-        {showCreateModal && (
-          <CreateTeamModal
-            workspaceId={currentWorkspace.id}
-            workspaceName={currentWorkspace.name}
-            onClose={() => setShowCreateModal(false)}
-            onSuccess={loadTeams}
-          />
-        )}
+        {/* Create Team Dialog */}
+        <CreateTeamDialog
+          open={showCreateModal}
+          onOpenChange={setShowCreateModal}
+          workspaceId={currentWorkspace.id}
+          workspaceName={currentWorkspace.name}
+          onSuccess={loadTeams}
+        />
       </AppLayout>
     </ProtectedRoute>
   );
@@ -271,16 +294,9 @@ function TeamCard({ team, onUpdate: _onUpdate }: TeamCardProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <button className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium">
-          View Team
-        </button>
-        <button className="px-3 py-2 border border-border rounded-lg hover:bg-muted transition-colors">
-          <svg
-            className="w-5 h-5 text-muted-foreground"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+        <Button className="flex-1">View Team</Button>
+        <Button variant="outline" size="icon">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -288,71 +304,67 @@ function TeamCard({ team, onUpdate: _onUpdate }: TeamCardProps) {
               d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
             />
           </svg>
-        </button>
+        </Button>
       </div>
     </div>
   );
 }
 
-// Create Team Modal Component
-interface CreateTeamModalProps {
+// Create Team Dialog Component
+interface CreateTeamDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   workspaceId: string;
   workspaceName: string;
-  onClose: () => void;
   onSuccess: () => void;
 }
 
-function CreateTeamModal({ workspaceId, workspaceName, onClose, onSuccess }: CreateTeamModalProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function CreateTeamDialog({
+  open,
+  onOpenChange,
+  workspaceId,
+  workspaceName,
+  onSuccess,
+}: CreateTeamDialogProps) {
+  const { values, errors, isSubmitting, handleChange, handleSubmit } = useForm({
+    initialValues: {
+      name: '',
+      description: '',
+    },
+    validationSchema: createTeamSchema,
+    onSubmit: async (_formValues) => {
+      try {
+        await apiClient.createTeam({
+          name: values.name.trim(),
+          description: values.description?.trim() || undefined,
+          workspaceId,
+        });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+        toast.success('Team created successfully!');
+        onSuccess();
+        onOpenChange(false);
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || 'Failed to create team');
+      }
+    },
+  });
 
-    if (!name.trim()) {
-      setError('Team name is required');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      await apiClient.createTeam({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        workspaceId,
-      });
-
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create team');
-      setIsSubmitting(false);
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      // Reset form when closing
+      onOpenChange(newOpen);
+    } else {
+      onOpenChange(newOpen);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-foreground">Create New Team</h2>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create New Team</DialogTitle>
+          <DialogDescription>Add a new team to {workspaceName} workspace</DialogDescription>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Workspace Info */}
@@ -362,66 +374,64 @@ function CreateTeamModal({ workspaceId, workspaceName, onClose, onSuccess }: Cre
             </p>
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="p-3 bg-destructive/10 border border-destructive rounded-lg text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
           {/* Team Name */}
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
-              Team Name *
-            </label>
-            <input
-              type="text"
+            <Label htmlFor="name">Team Name *</Label>
+            <Input
               id="name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setError(null);
-              }}
+              name="name"
+              value={values.name}
+              onChange={handleChange}
               required
               placeholder="e.g., Engineering, Marketing, Sales"
-              className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isSubmitting}
+              className="mt-2"
             />
+            {errors.name && (
+              <Alert variant="destructive" className="mt-2 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{errors.name}</AlertDescription>
+              </Alert>
+            )}
           </div>
 
           {/* Description */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-foreground mb-2">
-              Description
-            </label>
-            <textarea
+            <Label htmlFor="description">Description</Label>
+            <Textarea
               id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              name="description"
+              value={values.description || ''}
+              onChange={handleChange}
               placeholder="What is this team for?"
-              className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              disabled={isSubmitting}
+              rows={3}
+              className="mt-2"
             />
+            {errors.description && (
+              <Alert variant="destructive" className="mt-2 py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{errors.description}</AlertDescription>
+              </Alert>
+            )}
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={isSubmitting}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Creating...' : 'Create Team'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

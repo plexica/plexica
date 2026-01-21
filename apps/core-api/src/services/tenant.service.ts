@@ -1,4 +1,4 @@
-import { PrismaClient, TenantStatus } from '@prisma/client';
+import { PrismaClient, TenantStatus } from '@plexica/database';
 import { keycloakService } from './keycloak.service.js';
 import { permissionService } from './permission.service.js';
 import { db } from '../lib/db.js';
@@ -26,7 +26,7 @@ export class TenantService {
 
   /**
    * Create a new tenant with full provisioning
-   * 
+   *
    * This includes:
    * 1. Creating the tenant record in the database
    * 2. Creating a dedicated PostgreSQL schema for the tenant
@@ -86,7 +86,7 @@ export class TenantService {
       // If provisioning fails, update status to indicate failure
       await this.db.tenant.update({
         where: { id: tenant.id },
-        data: { 
+        data: {
           status: TenantStatus.SUSPENDED,
           settings: {
             ...settings,
@@ -95,7 +95,9 @@ export class TenantService {
         },
       });
 
-      throw new Error(`Failed to provision tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to provision tenant: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -300,14 +302,20 @@ export class TenantService {
         where: { id },
       });
     } catch (error) {
-      throw new Error(`Failed to delete tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to delete tenant: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   /**
    * Install a plugin for a tenant
    */
-  async installPlugin(tenantId: string, pluginId: string, configuration: Record<string, any> = {}): Promise<any> {
+  async installPlugin(
+    tenantId: string,
+    pluginId: string,
+    configuration: Record<string, any> = {}
+  ): Promise<any> {
     const tenant = await this.db.tenant.findUnique({
       where: { id: tenantId },
     });

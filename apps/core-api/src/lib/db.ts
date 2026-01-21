@@ -1,17 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '@plexica/database';
+import type { PrismaClient } from '@plexica/database';
 
-// Prisma Client singleton instance
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const db = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = db;
-}
+// Export the pre-configured Prisma Client from @plexica/database
+// This includes the pg adapter for Prisma 7 compatibility
+export const db: PrismaClient = prisma;
 
 // Graceful shutdown
 process.on('beforeExit', async () => {

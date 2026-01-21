@@ -1,11 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import {
-  pluginRegistryService,
-  pluginLifecycleService,
-} from '../services/plugin.service.js';
+import { pluginRegistryService, pluginLifecycleService } from '../services/plugin.service.js';
 import type { PluginManifest } from '../types/plugin.types.js';
 import { requireSuperAdmin, authMiddleware } from '../middleware/auth.js';
-import { PluginStatus } from '@prisma/client';
+import { PluginStatus } from '@plexica/database';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
   // =====================================
@@ -21,7 +18,6 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/plugins',
     {
-      
       preHandler: [authMiddleware, requireSuperAdmin],
       schema: {
         description: 'Register a new plugin in the global registry',
@@ -559,9 +555,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
-        const plugins = await pluginLifecycleService.getInstalledPlugins(
-          request.params.id
-        );
+        const plugins = await pluginLifecycleService.getInstalledPlugins(request.params.id);
         return reply.send(plugins);
       } catch (error: any) {
         request.log.error(error);

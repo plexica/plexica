@@ -8,6 +8,7 @@ build/
 .next/
 out/
 *.tsbuildinfo
+storybook-static/
 
 # Environment variables
 .env

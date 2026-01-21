@@ -93,10 +93,14 @@ async function registerRoutes() {
 server.setErrorHandler((error, _request, reply) => {
   server.log.error(error);
 
-  reply.status(error.statusCode || 500).send({
-    error: error.name,
-    message: error.message,
-    statusCode: error.statusCode || 500,
+  const statusCode = (error as any).statusCode || 500;
+  const name = error instanceof Error ? error.name : 'Error';
+  const message = error instanceof Error ? error.message : 'Unknown error';
+
+  reply.status(statusCode).send({
+    error: name,
+    message: message,
+    statusCode: statusCode,
   });
 });
 
