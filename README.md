@@ -111,67 +111,58 @@ The Core API will be available at:
 
 ## 🎯 Key Features
 
-### ✅ Multi-Tenancy (Completed)
+### ✅ Multi-Tenancy
 
-- **Schema-per-tenant** on PostgreSQL for complete data isolation
-- **Automatic tenant provisioning** with Keycloak realm creation
-- **Tenant lifecycle management** (create, suspend, delete)
-- **Per-tenant storage** buckets in MinIO
-- **4 test tenants** currently active
+- Schema-per-tenant on PostgreSQL for complete data isolation
+- Automatic tenant provisioning with Keycloak realm creation
+- Tenant lifecycle management (create, suspend, delete)
+- Per-tenant storage buckets in MinIO
 
-### ✅ Authentication & Authorization (Completed)
+### ✅ Authentication & Authorization
 
-- **Keycloak** for Identity & Access Management
-- **Separate realms** per tenant for isolation
-- **JWT token** validation with JWKS
-- **RBAC** (Role-Based Access Control) with default roles
-- **Middleware** for auth, role, and permission checking
-- **REST API** for login, logout, refresh, user info
+- Keycloak for Identity & Access Management
+- Separate realms per tenant for isolation
+- JWT token validation with JWKS
+- RBAC with default roles and permission-based access control
 
-### ✅ Plugin System (Completed)
+### ✅ Plugin System
 
-- **Modular architecture** with lifecycle management
-- **Plugin registry** (global catalog)
-- **Lifecycle operations**: install → activate → deactivate → uninstall
-- **Configuration validation** per plugin manifest
-- **Dependency checking** (required/optional/conflicts)
-- **Hook/event system** for extensibility
-- **Module Federation** support (ready for frontend)
-- **Sample analytics plugin** included
+- Modular architecture with lifecycle management (install → activate → deactivate → uninstall)
+- Plugin registry (global catalog) with configuration validation
+- Dependency checking and hook/event system
+- Module Federation support for frontend
+- Sample analytics plugin included
 
-### ⏳ Workspaces (In Progress - M2.4)
+### ⏳ Workspaces (88% Complete - M2.4)
 
-- **Organizational layer** within tenants for better resource management
-- **Workspace hierarchy**: Tenant → Workspace → Team
-- **Role-based access control** (ADMIN, MEMBER, VIEWER)
-- **Workspace-scoped resources** and teams
-- **Workspace switching UI** in frontend
-- **Member management** per workspace
-- **Default workspace** for existing installations (backward compatible)
-- **Comprehensive spec** available in `specs/WORKSPACE_SPECIFICATIONS.md`
+- Organizational layer within tenants for better resource management
+- Workspace hierarchy: Tenant → Workspace → Team
+- Role-based access control (ADMIN, MEMBER, VIEWER)
+- Workspace-scoped resources, teams, and member management
+- Workspace switching UI in frontend
+- Default workspace for backward compatibility
 
-### ✅ Frontend (Completed - M2.1, M2.2)
+See **[specs/WORKSPACE_SPECIFICATIONS.md](./specs/WORKSPACE_SPECIFICATIONS.md)** for complete specification.
 
-- **Tenant Web App** (`apps/web` - port 3001):
-  - React 18 + Vite + TypeScript
-  - TanStack Router + Query for routing and data fetching
-  - Tailwind CSS + shadcn/ui components
-  - Authentication with Keycloak (PKCE flow)
-  - Dashboard with stats and tenant data
-  - Plugin management UI (install, enable, disable, uninstall)
-  - Team management with mock data
-  - Settings page (5 tabs: general, security, billing, integrations, advanced)
-  - Module Federation setup for dynamic plugin loading
-  - Responsive design with collapsible sidebar
-- **Super-Admin Panel** (`apps/super-admin` - port 3002):
-  - Separate admin interface for platform management
-  - Platform dashboard with tenant/plugin/API stats
-  - Tenant management (list, create, suspend, detail view)
-  - Plugin marketplace UI with search and filters
-  - Platform users management
-  - Analytics dashboard with charts
-  - Mock authentication (admin@plexica.com / admin)
-  - React Query for data fetching
+### Frontend (✅ Complete - M2.1, M2.2)
+
+**Tenant Web App** (`apps/web` - port 3001):
+
+- React 18 + Vite + TypeScript + TanStack Router/Query
+- Tailwind CSS + shadcn/ui components
+- Keycloak authentication (PKCE flow)
+- Dashboard, plugin management, team management, settings
+- Module Federation for dynamic plugin loading
+- Responsive design with collapsible sidebar
+
+**Super-Admin Panel** (`apps/super-admin` - port 3002):
+
+- Platform management interface
+- Tenant/plugin/user administration
+- Analytics dashboard with charts
+- Mock authentication for development
+
+See **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** for detailed frontend architecture.
 
 ---
 
@@ -181,8 +172,8 @@ The Core API will be available at:
 plexica/
 ├── apps/
 │   ├── core-api/              # ✅ Core API Service (Fastify)
-│   ├── web/                   # ⚪ Frontend Web App (React) - Planned
-│   ├── super-admin/           # ⚪ Super Admin Panel - Planned
+│   ├── web/                   # ✅ Frontend Web App (React)
+│   ├── super-admin/           # ✅ Super Admin Panel
 │   └── plugins/               # Internal plugins (future)
 │
 ├── packages/
@@ -196,21 +187,15 @@ plexica/
 ├── plugins/                   # Example external plugins
 │   └── sample-analytics/      # ✅ Sample analytics plugin
 │
-├── infrastructure/
-│   ├── docker/                # ✅ Docker Compose for development
-│   ├── helm/                  # ⚪ Helm charts - Planned
-│   ├── terraform/             # ⚪ Infrastructure as Code - Planned
-│   └── k8s/                   # ⚪ Kubernetes manifests - Planned
-│
-├── docs/                      # ✅ Documentation
+├── docs/                      # ✅ Documentation & guides
 ├── specs/                     # ✅ Technical specifications
 ├── planning/                  # ✅ Roadmap and milestones
-├── changelog/                 # ✅ Version history
-├── templates/                 # ✅ Document templates
-└── tools/                     # CLI and utilities (future)
+└── infrastructure/            # ⚪ Docker, Helm, K8s (planned)
 ```
 
 **Legend**: ✅ Complete | ⚪ Planned
+
+See **[specs/PROJECT_STRUCTURE.md](./specs/PROJECT_STRUCTURE.md)** for detailed information.
 
 ---
 
@@ -245,7 +230,6 @@ plexica/
 - State: TanStack Query + Zustand
 - UI: Tailwind CSS + shadcn/ui
 - Forms: React Hook Form 7.x
-- i18n: i18next 23.x
 
 ---
 
@@ -469,9 +453,18 @@ GET /api/tenants/:id/plugins
 ### Guides
 
 - **[Getting Started](./docs/GETTING_STARTED.md)** - Setup and first steps
+- **[Frontend Architecture](./docs/ARCHITECTURE.md)** - Complete frontend architecture overview
 - **[Prisma 7 Migration Guide](./docs/PRISMA_7_MIGRATION.md)** - Troubleshooting and best practices
 - **[Contributing](./docs/CONTRIBUTING.md)** - Contribution guidelines
 - **[Agent Guidelines](./AGENTS.md)** - For AI coding agents
+
+### Testing
+
+- **[Testing Overview](./docs/testing/README.md)** - Complete testing strategy
+- **[Quick Test Guide](./docs/testing/QUICK_TEST.md)** - 5-minute smoke test
+- **[Frontend Testing](./docs/testing/FRONTEND_TESTING.md)** - React component tests
+- **[E2E Testing](./docs/testing/E2E_TESTING.md)** - End-to-end workflows
+- **[Backend Testing](./docs/testing/BACKEND_TESTING.md)** - API integration tests
 
 ### API
 
@@ -480,31 +473,32 @@ GET /api/tenants/:id/plugins
 
 ---
 
-## 🧪 Testing Strategy
+## 🧪 Testing
 
-### Unit Tests (Planned)
+Plexica has comprehensive testing documentation to ensure quality and reliability.
 
-- Framework: Vitest
-- Coverage target: >80%
-- Location: `*.test.ts` files alongside source
+### Quick Testing Guides
 
-### Integration Tests (Planned)
+- **[Quick Test Guide](./docs/testing/QUICK_TEST.md)** - 5-minute smoke test for essential functionality
+- **[Frontend Testing](./docs/testing/FRONTEND_TESTING.md)** - React component and authentication testing
+- **[E2E Testing](./docs/testing/E2E_TESTING.md)** - Complete user workflows and manual testing checklist
+- **[Backend Testing](./docs/testing/BACKEND_TESTING.md)** - API and integration tests
 
-- Test API endpoints
-- Test database operations
-- Test Keycloak integration
+### Running Tests
 
-### E2E Tests (Planned)
+```bash
+# Run all tests
+pnpm test
 
-- Framework: Playwright
-- Test complete user workflows
-- Test plugin lifecycle
+# Run tests for specific package
+pnpm test --filter @plexica/core-api
 
-### Load Tests (Planned)
+# Run tests in watch mode
+pnpm test:watch
 
-- Tool: k6 or Artillery
-- Test API performance
-- Test multi-tenant scalability
+# Generate coverage report
+pnpm test:coverage
+```
 
 ---
 
@@ -513,81 +507,34 @@ GET /api/tenants/:id/plugins
 ### Development
 
 ```bash
-# Already running with:
+# Start infrastructure and development server
 docker-compose up -d
 pnpm dev
 ```
 
 ### Production (Planned - M2.3)
 
-- **Platform**: Kubernetes (Helm charts)
-- **Container Registry**: Docker Hub / GHCR
-- **CI/CD**: GitHub Actions
-- **Monitoring**: Prometheus + Grafana
-- **Logging**: ELK Stack / Loki
-- **Secrets**: Vault / Kubernetes Secrets
+- Platform: Kubernetes (Helm charts)
+- CI/CD: GitHub Actions
+- Monitoring: Prometheus + Grafana
+- Container Registry: Docker Hub / GHCR
+
+See **[STATUS.md](./STATUS.md)** for deployment milestone details.
 
 ---
 
-## 🎯 Completed Features
+## 📈 Next Steps
 
-### Backend MVP ✅
-
-- [x] Monorepo with Turborepo + pnpm
-- [x] Core API with Fastify
-- [x] PostgreSQL with schema-per-tenant
-- [x] Keycloak authentication
-- [x] JWT token validation
-- [x] RBAC system with permissions
-- [x] Multi-tenancy system
-- [x] Tenant provisioning (DB + Keycloak + Storage)
-- [x] Plugin system (registry + lifecycle + hooks)
-- [x] Sample analytics plugin
-- [x] REST API with Swagger docs
-- [x] Docker Compose infrastructure
-- [x] Health checks and monitoring endpoints
-- [x] Database migrations with Prisma
+See **[STATUS.md](./STATUS.md)** for detailed milestone tracking, completion status, and upcoming tasks.
 
 ---
 
-## 📈 What's Next
+## 🔗 Resources
 
-### M2.1 - Frontend Foundation (Next - 4 weeks)
-
-- [ ] React 18 application with Vite
-- [ ] TanStack Router + Query setup
-- [ ] Module Federation configuration
-- [ ] Authentication UI (login/logout)
-- [ ] Base layout with navigation
-- [ ] Tenant switcher component
-- [ ] Dynamic plugin loading
-
-### M2.2 - Frontend Auth & Layout (3 weeks)
-
-- [ ] Protected routes
-- [ ] User profile management
-- [ ] Tenant management UI
-- [ ] Plugin marketplace UI
-- [ ] Admin panel basics
-
-### M2.3 - Testing & Deployment (2 weeks)
-
-- [ ] Unit tests (backend + frontend)
-- [ ] Integration tests
-- [ ] E2E tests with Playwright
-- [ ] Production deployment
-- [ ] CI/CD pipeline improvements
-- [ ] Monitoring and logging
-
----
-
-## 🔗 Useful Links
-
-- **Repository**: https://github.com/[org]/plexica
-- **Documentation**: https://docs.plexica.io (future)
 - **API Docs**: http://localhost:3000/docs (dev)
-- **Issue Tracker**: GitHub Issues
+- **Health Check**: http://localhost:3000/health (dev)
 - **Changelog**: [CHANGELOG.md](./changelog/CHANGELOG.md)
+- **Status**: [STATUS.md](./STATUS.md) - Detailed project progress
 
 ---
 

@@ -315,9 +315,10 @@ FRONTEND_URL=http://localhost:5000 ./scripts/setup-keycloak.sh
 
 ## 📚 Related Documentation
 
-- [Authentication Testing Guide](../apps/web/TESTING_AUTH.md)
-- [Manual Testing Guide](../MANUAL_TESTING_GUIDE.md)
-- [Quick Start Testing](../QUICK_START_TESTING.md)
+- [Testing Overview](../docs/testing/README.md) - Complete testing strategy and guide
+- [Frontend Testing Guide](../docs/testing/FRONTEND_TESTING.md) - React component and authentication testing
+- [E2E Testing Guide](../docs/testing/E2E_TESTING.md) - End-to-end workflows and manual testing checklist
+- [Quick Test Guide](../docs/testing/QUICK_TEST.md) - 5-minute smoke test for essential functionality
 
 ---
 
