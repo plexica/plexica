@@ -1,7 +1,7 @@
 # Plexica - Roadmap
 
 **Current Version**: 0.6.0 (Pre-Alpha)  
-**Last Updated**: January 14, 2026  
+**Last Updated**: January 21, 2026  
 **Current Phase**: Phase 1 - MVP Core (Workspaces Integration)  
 **Current Progress**: 88% (6.95/8 milestones completed)
 
@@ -263,56 +263,218 @@ Future:       Phase 5 (Ecosystem Expansion)
 
 ---
 
-## Phase 2 - Plugin Ecosystem (Q3-Q4 2025)
+## Phase 2 - Plugin Ecosystem (Q2-Q3 2026)
 
-**Objective**: Complete plugin ecosystem with event-driven communication
+**Objective**: Complete plugin ecosystem with event-driven communication  
+**Duration**: 26 weeks (6.5 months)  
+**Status**: 🔴 Not Started (Planning Complete)  
+**Team**: 5-7 developers (2 Backend, 2 Frontend, 1 DevOps, 1 QA, 1 Tech Lead)  
+**Estimated Cost**: ~$435,000 (development + infrastructure)
 
-### Milestone 2.1 - Event System (Weeks 27-30)
+**Prerequisites**: Phase 1 MVP 100% Complete (currently 94%)
 
-- [ ] Redpanda integration
-- [ ] Event Bus service
-- [ ] Event publishing/subscription
-- [ ] Dead letter queue
-- [ ] Event decorators for plugins
+### Milestone 2.1 - Event System (Weeks 1-4) 🔴
 
-### Milestone 2.2 - Module Federation (Weeks 31-34)
+**Priority**: 🔥 Critical  
+**Owner**: Backend Team  
+**Hours**: 160h
 
-- [ ] Complete dynamic plugin route registration in `apps/web`
-- [ ] Plugin remote entry CDN/hosting
-- [ ] Sample plugins with Module Federation
-- [ ] Dynamic routing per plugin
-- [ ] Plugin menu item registration in sidebar
+**Objectives**:
 
-### Milestone 2.3 - Plugin-to-Plugin Communication (Weeks 35-38)
+- [ ] Redpanda cluster setup (3-node HA)
+- [ ] EventBus service implementation
+- [ ] Event publishing/subscription API
+- [ ] Dead letter queue with retry logic
+- [ ] SDK event decorators (@EventHandler, @EventPublisher)
+- [ ] Monitoring and metrics
 
-- [ ] Advanced service discovery
-- [ ] REST API inter-plugin
-- [ ] Shared data service
-- [ ] Plugin dependency resolution
+**Key Deliverables**:
 
-### Milestone 2.4 - Plugin Registry & Marketplace (Weeks 39-42)
+- ✅ Redpanda integration with Redpanda Console
+- ✅ EventBus service with pub/sub (400 lines)
+- ✅ DLQ service with PostgreSQL persistence
+- ✅ Enhanced Plugin SDK v0.2.0 with event support
+- ✅ Event architecture documentation
 
-- [ ] Plugin Registry API
-- [ ] Plugin publishing workflow
-- [ ] Marketplace UI
-- [ ] Plugin installation from registry
-- [ ] Plugin versioning
+**Performance Targets**:
 
-### Milestone 2.5 - Kubernetes Deployment (Weeks 43-46)
+- Event publish < 10ms p95
+- Event delivery < 100ms p95
+- Throughput > 1000 events/sec
 
-- [ ] Helm charts
-- [ ] K8s manifests
-- [ ] Plugin deployment automation K8s
-- [ ] Production-ready configuration
+### Milestone 2.2 - Module Federation (Weeks 5-8) 🔴
 
-### Milestone 2.6 - Official Plugins (Weeks 47-52)
+**Priority**: 🔥 Critical  
+**Owner**: Frontend Team  
+**Hours**: 160h
 
-- [ ] CRM Plugin
-- [ ] Billing Plugin
-- [ ] Analytics Plugin
-- [ ] Plugin developer documentation
+**Objectives**:
 
-**Deliverable**: Complete and working plugin ecosystem
+- [ ] Module Federation in apps/web (Vite plugin)
+- [ ] Plugin CDN infrastructure (MinIO + CloudFront)
+- [ ] Dynamic plugin loader service
+- [ ] Plugin route registration system
+- [ ] Dynamic menu system
+- [ ] Sample frontend plugins (CRM, Analytics)
+
+**Key Deliverables**:
+
+- ✅ Module Federation infrastructure
+- ✅ CDN setup with asset hosting
+- ✅ plexica-cli build/publish commands
+- ✅ Dynamic routing and menu system (500 lines)
+- ✅ 2 sample frontend plugins
+
+**Performance Targets**:
+
+- Plugin load time < 3s
+- Initial bundle < 100KB (gzipped)
+- Route transitions < 300ms
+- CDN cache hit rate > 90%
+
+### Milestone 2.3 - Plugin-to-Plugin Communication (Weeks 9-12) 🔴
+
+**Priority**: ⭐ High  
+**Owner**: Backend Team  
+**Hours**: 160h
+
+**Objectives**:
+
+- [ ] Service registry and discovery (Redis + PostgreSQL)
+- [ ] Plugin API Gateway with routing
+- [ ] REST client wrapper in SDK
+- [ ] Shared data service (cross-plugin state)
+- [ ] Plugin dependency resolution system
+- [ ] Communication patterns (Request-Response, Pub-Sub, Saga)
+
+**Key Deliverables**:
+
+- ✅ Service registry operational (350 lines)
+- ✅ Plugin API Gateway (400 lines)
+- ✅ Shared data service with namespacing
+- ✅ Dependency graph and resolution (300 lines)
+- ✅ Enhanced Plugin SDK v0.3.0
+
+**Performance Targets**:
+
+- Service discovery < 10ms (cached)
+- Inter-plugin call < 100ms p95
+- Shared data access < 5ms p95
+
+### Milestone 2.4 - Plugin Registry & Marketplace (Weeks 13-16) 🔴
+
+**Priority**: ⭐ High  
+**Owner**: Full Stack Team  
+**Hours**: 160h
+
+**Objectives**:
+
+- [ ] Plugin Registry API (11 endpoints)
+- [ ] Publishing workflow with validation
+- [ ] Marketplace UI (Super Admin + Tenant)
+- [ ] Plugin versioning (semver)
+- [ ] Review and rating system
+- [ ] Search with full-text and filters
+- [ ] Installation wizard
+
+**Key Deliverables**:
+
+- ✅ Plugin Registry API with search
+- ✅ plexica-cli publish command (400 lines)
+- ✅ Super Admin marketplace UI (700 lines)
+- ✅ Tenant marketplace UI (900 lines)
+- ✅ Installation wizard (300 lines)
+- ✅ Analytics dashboard
+
+**Performance Targets**:
+
+- Registry search < 200ms
+- Plugin installation < 60s
+- Marketplace page load < 2s
+
+### Milestone 2.5 - Kubernetes Deployment (Weeks 17-20) 🔴
+
+**Priority**: 🔥 Critical  
+**Owner**: DevOps Team  
+**Hours**: 160h
+
+**Objectives**:
+
+- [ ] Helm charts for all services
+- [ ] K8s operator for plugin deployment
+- [ ] Production cluster configuration
+- [ ] Auto-scaling (HPA + Cluster Autoscaler)
+- [ ] High Availability setup
+- [ ] CI/CD pipeline with ArgoCD
+- [ ] Monitoring and alerting
+
+**Key Deliverables**:
+
+- ✅ Helm charts for 8+ services
+- ✅ K8s operator with CRD (500 lines)
+- ✅ Production cluster (multi-zone HA)
+- ✅ CI/CD pipeline (GitHub Actions + ArgoCD)
+- ✅ Backup/restore with Velero
+- ✅ Load test results (1000 concurrent users)
+
+**Performance Targets**:
+
+- Support 100+ concurrent plugin instances
+- Auto-scale in < 2 min
+- Zero downtime deployments
+- RTO < 5 min, RPO < 1 hour
+
+### Milestone 2.6 - Official Plugins (Weeks 21-26) 🔴
+
+**Priority**: ⭐ High  
+**Owner**: Full Stack Team  
+**Hours**: 240h
+
+**Objectives**:
+
+- [ ] CRM Plugin (contacts, companies, deals, activities)
+- [ ] Billing Plugin (subscriptions, invoices, payments, Stripe)
+- [ ] Analytics Plugin (dashboards, reports, real-time)
+- [ ] Plugin developer documentation (100+ pages)
+- [ ] Plugin templates and examples
+- [ ] Video tutorials
+
+**Key Deliverables**:
+
+- ✅ CRM Plugin (~2,500 lines)
+  - Backend: Contacts, Companies, Deals, Activities
+  - Frontend: 6 pages, Kanban board, Timeline
+- ✅ Billing Plugin (~2,300 lines)
+  - Backend: Subscriptions, Invoices, Stripe integration
+  - Frontend: Payment forms, Revenue dashboard
+- ✅ Analytics Plugin (~2,400 lines)
+  - Backend: Metrics, Queries, Reports
+  - Frontend: Interactive dashboards, Real-time updates
+- ✅ Plugin Developer Guide
+- ✅ Plugin templates (backend, frontend, full-stack)
+
+**Quality Targets**:
+
+- Test coverage > 80% per plugin
+- API response time < 200ms p95
+- Plugin load time < 3s
+
+---
+
+**Phase 2 Success Metrics**:
+
+- ✅ 10+ plugins available in registry
+- ✅ Plugin install < 60s
+- ✅ Event delivery < 100ms p95
+- ✅ Production-ready Kubernetes deploy
+- ✅ Zero-downtime plugin updates
+- ✅ Support 100+ concurrent plugin instances
+- ✅ Developer satisfaction > 8/10
+- ✅ Plugin SDK downloads > 500
+
+**Deliverable**: Complete and working plugin ecosystem with marketplace and production infrastructure
+
+**Detailed Planning**: See `planning/tasks/phase-2-plugin-ecosystem.md` (2,599 lines)
 
 ---
 
@@ -504,7 +666,7 @@ Future:       Phase 5 (Ecosystem Expansion)
 
 ---
 
-_Plexica Roadmap v1.1_  
-_Last Updated: January 13, 2026_  
+_Plexica Roadmap v1.2_  
+_Last Updated: January 21, 2026_  
 _Team: Plexica Engineering_  
-_Status: Phase 1 Backend Complete (4/7 milestones)_
+_Status: Phase 1 MVP 94% Complete, Phase 2 Planning Complete_

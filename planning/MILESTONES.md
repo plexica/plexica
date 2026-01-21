@@ -736,35 +736,267 @@ Frontend:
 
 ## Phase 2 - Plugin Ecosystem
 
-### M2.1 - Event System ✅ Target: Week 30
+**Overall Progress**: 🔴 0% Complete (0/6 milestones)  
+**Planning Status**: ✅ Complete (2,599 lines detailed plan)
+
+**Status Summary**:
+
+- 🔴 M2.1 - Event System (0%)
+- 🔴 M2.2 - Module Federation (0%)
+- 🔴 M2.3 - Plugin-to-Plugin Communication (0%)
+- 🔴 M2.4 - Plugin Registry & Marketplace (0%)
+- 🔴 M2.5 - Kubernetes Deployment (0%)
+- 🔴 M2.6 - Official Plugins (0%)
+
+**Prerequisites**: Phase 1 MVP 100% Complete (currently 94%)
+
+**Detailed Planning**: `planning/tasks/phase-2-plugin-ecosystem.md`
+
+---
+
+### M2.1 - Event System 🔴 Target: Week 4 (Q2 2026)
 
 **Status**: 🔴 Not Started  
-**Objectives**: Redpanda + Event Bus
+**Owner**: Backend Team  
+**Duration**: 4 weeks (160 hours)  
+**Priority**: 🔥 Critical
 
-### M2.2 - Module Federation ✅ Target: Week 34
+**Objectives**:
+
+- [ ] Redpanda cluster setup (3-node HA)
+- [ ] EventBus service implementation
+- [ ] Event publishing/subscription
+- [ ] Dead letter queue with retry logic
+- [ ] Event decorators for SDK
+
+**Completion Criteria**:
+
+- [ ] Redpanda cluster running and healthy
+- [ ] EventBus service operational
+- [ ] Plugin SDK supports events
+- [ ] DLQ captures and retries failed events
+- [ ] Event publish < 10ms p95
+- [ ] Event delivery < 100ms p95
+- [ ] Throughput > 1000 events/sec
+- [ ] Test coverage > 80%
+
+**Key Deliverables**:
+
+- ✅ Redpanda integration (3-node cluster)
+- ✅ TopicManager service (~200 lines)
+- ✅ EventBus service (~400 lines)
+- ✅ DLQ service with PostgreSQL (~250 lines)
+- ✅ Enhanced Plugin SDK v0.2.0 with events
+- ✅ Event decorators (@EventHandler, @EventPublisher)
+- ✅ Prometheus metrics for events
+- ✅ Documentation
+
+**Dependencies**: Phase 1 MVP Complete
+
+---
+
+### M2.2 - Module Federation 🔴 Target: Week 8 (Q2 2026)
 
 **Status**: 🔴 Not Started  
-**Objectives**: Dynamic frontend loading
+**Owner**: Frontend Team  
+**Duration**: 4 weeks (160 hours)  
+**Priority**: 🔥 Critical
 
-### M2.3 - Plugin Communication ✅ Target: Week 38
+**Objectives**:
+
+- [ ] Module Federation in apps/web
+- [ ] CDN infrastructure for plugins
+- [ ] Dynamic plugin loader
+- [ ] Plugin route registration
+- [ ] Dynamic menu system
+- [ ] Sample frontend plugins
+
+**Completion Criteria**:
+
+- [ ] Module Federation configured and working
+- [ ] Plugin bundles hosted on CDN
+- [ ] Dynamic route registration functional
+- [ ] Menu system integrated
+- [ ] Plugin load time < 3s
+- [ ] Initial bundle < 100KB (gzipped)
+- [ ] Test coverage > 75%
+
+**Key Deliverables**:
+
+- ✅ Module Federation infrastructure
+- ✅ Plugin CDN setup (MinIO + CloudFront)
+- ✅ PluginLoader service (~300 lines)
+- ✅ Dynamic routing system (~250 lines)
+- ✅ Dynamic menu system (~200 lines)
+- ✅ plexica-cli build/publish commands
+- ✅ 2 sample frontend plugins (CRM, Analytics)
+- ✅ Documentation
+
+**Dependencies**: M2.1 (Event System)
+
+---
+
+### M2.3 - Plugin-to-Plugin Communication 🔴 Target: Week 12 (Q2 2026)
 
 **Status**: 🔴 Not Started  
-**Objectives**: Advanced service discovery
+**Owner**: Backend Team  
+**Duration**: 4 weeks (160 hours)  
+**Priority**: ⭐ High
 
-### M2.4 - Plugin Registry & Marketplace ✅ Target: Week 42
+**Objectives**:
+
+- [ ] Service registry and discovery
+- [ ] Plugin API Gateway
+- [ ] REST client wrapper
+- [ ] Shared data service
+- [ ] Dependency resolution
+
+**Completion Criteria**:
+
+- [ ] Service discovery operational
+- [ ] Inter-plugin REST communication working
+- [ ] Shared data service functional
+- [ ] Dependency resolution implemented
+- [ ] Service discovery < 10ms (cached)
+- [ ] Inter-plugin call < 100ms p95
+- [ ] Test coverage > 80%
+
+**Key Deliverables**:
+
+- ✅ Service registry (~350 lines)
+- ✅ Plugin API Gateway (~400 lines)
+- ✅ Shared data service (~350 lines)
+- ✅ Dependency resolution (~300 lines)
+- ✅ Enhanced Plugin SDK v0.3.0
+- ✅ Communication patterns documented
+- ✅ Integration tests
+
+**Dependencies**: M2.1 (Event System), M2.2 (Module Federation)
+
+---
+
+### M2.4 - Plugin Registry & Marketplace 🔴 Target: Week 16 (Q2-Q3 2026)
 
 **Status**: 🔴 Not Started  
-**Objectives**: Plugin marketplace
+**Owner**: Full Stack Team  
+**Duration**: 4 weeks (160 hours)  
+**Priority**: ⭐ High
 
-### M2.5 - Kubernetes Deployment ✅ Target: Week 46
+**Objectives**:
+
+- [ ] Plugin Registry API
+- [ ] Publishing workflow
+- [ ] Marketplace UI (Super Admin + Tenant)
+- [ ] Plugin versioning
+- [ ] Review and rating system
+- [ ] Installation wizard
+
+**Completion Criteria**:
+
+- [ ] Registry API operational (11 endpoints)
+- [ ] Publishing workflow functional
+- [ ] Marketplace UI complete
+- [ ] Installation from registry working
+- [ ] Registry search < 200ms
+- [ ] Plugin installation < 60s
+- [ ] Test coverage > 75%
+
+**Key Deliverables**:
+
+- ✅ Plugin Registry API with search
+- ✅ plexica-cli publish command (~400 lines)
+- ✅ Super Admin marketplace UI (~700 lines)
+- ✅ Tenant marketplace UI (~900 lines)
+- ✅ Installation wizard (~300 lines)
+- ✅ Review and rating system
+- ✅ Analytics dashboard
+- ✅ Publishing guide
+
+**Dependencies**: M2.2 (Module Federation), M2.3 (Plugin Communication)
+
+---
+
+### M2.5 - Kubernetes Deployment 🔴 Target: Week 20 (Q3 2026)
 
 **Status**: 🔴 Not Started  
-**Objectives**: Helm charts
+**Owner**: DevOps Team  
+**Duration**: 4 weeks (160 hours)  
+**Priority**: 🔥 Critical
 
-### M2.6 - Official Plugins ✅ Target: Week 52
+**Objectives**:
+
+- [ ] Helm charts for all services
+- [ ] K8s operator for plugins
+- [ ] Production cluster setup
+- [ ] Auto-scaling configuration
+- [ ] HA and DR setup
+- [ ] CI/CD with ArgoCD
+
+**Completion Criteria**:
+
+- [ ] All services deployed on K8s
+- [ ] Plugin operator functional
+- [ ] Auto-scaling working
+- [ ] HA configured and tested
+- [ ] Support 100+ plugin instances
+- [ ] Zero downtime deployments
+- [ ] Load tests pass (1000 users)
+
+**Key Deliverables**:
+
+- ✅ Helm charts for 8+ services
+- ✅ K8s operator with CRD (~500 lines)
+- ✅ Production cluster (multi-zone HA)
+- ✅ HPA + Cluster Autoscaler
+- ✅ CI/CD pipeline (GitHub Actions + ArgoCD)
+- ✅ Backup/restore with Velero
+- ✅ Monitoring (Prometheus + Grafana)
+- ✅ Deployment guide
+
+**Dependencies**: Can run parallel with M2.1-M2.4
+
+---
+
+### M2.6 - Official Plugins 🔴 Target: Week 26 (Q3 2026)
 
 **Status**: 🔴 Not Started  
-**Objectives**: CRM, Billing, Analytics
+**Owner**: Full Stack Team  
+**Duration**: 6 weeks (240 hours)  
+**Priority**: ⭐ High
+
+**Objectives**:
+
+- [ ] CRM Plugin (production-ready)
+- [ ] Billing Plugin (production-ready)
+- [ ] Analytics Plugin (production-ready)
+- [ ] Plugin developer documentation
+- [ ] Plugin templates
+
+**Completion Criteria**:
+
+- [ ] 3 official plugins complete
+- [ ] All plugins published to marketplace
+- [ ] Test coverage > 80% per plugin
+- [ ] Plugin load time < 3s
+- [ ] API response < 200ms p95
+- [ ] Documentation complete
+
+**Key Deliverables**:
+
+- ✅ CRM Plugin (~2,500 lines)
+  - Contacts, Companies, Deals, Activities
+  - Kanban board, Timeline view
+- ✅ Billing Plugin (~2,300 lines)
+  - Subscriptions, Invoices, Payments
+  - Stripe integration, Revenue dashboard
+- ✅ Analytics Plugin (~2,400 lines)
+  - Metrics, Dashboards, Reports
+  - Real-time updates, Export
+- ✅ Plugin Developer Guide (100+ pages)
+- ✅ Plugin templates (3 types)
+- ✅ Example plugins
+
+**Dependencies**: M2.1-M2.5 Complete
 
 ---
 
@@ -839,6 +1071,6 @@ Any additional notes
 
 ---
 
-_Plexica Milestones v1.3_  
-_Last Updated: January 14, 2026_  
-_Status: Phase 1 MVP 94% Complete - M2.4 Workspaces completed, M2.3 Testing in progress (50%)_
+_Plexica Milestones v1.4_  
+_Last Updated: January 21, 2026_  
+_Status: Phase 1 MVP 94% Complete, Phase 2 Planning Complete (2,599 lines)_
