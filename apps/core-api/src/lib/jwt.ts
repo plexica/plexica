@@ -80,19 +80,16 @@ export async function verifyKeycloakToken(
   token: string,
   realm: string = 'master'
 ): Promise<KeycloakJwtPayload> {
-  console.log(`[JWT] Verifying token for realm: ${realm}`);
   try {
     // Decode token header to get kid
     const decoded = jwt.decode(token, { complete: true });
 
     if (!decoded || !decoded.header.kid) {
-      console.error('[JWT] Missing kid in header');
       throw new Error('Invalid token: missing kid in header');
     }
 
     // Get signing key from Keycloak
     const signingKey = await getSigningKey(realm, decoded.header.kid);
-    console.log('[JWT] Signing key retrieved successfully');
 
     // Verify token
     const payload = jwt.verify(token, signingKey, {
@@ -100,10 +97,8 @@ export async function verifyKeycloakToken(
       issuer: `${config.keycloakUrl}/realms/${realm}`,
     }) as KeycloakJwtPayload;
 
-    console.log('[JWT] Token verified successfully for user:', payload.sub);
     return payload;
   } catch (error: any) {
-    console.error('[JWT] Verification failed:', error.message);
     if (error instanceof jwt.TokenExpiredError) {
       throw new Error('Token expired');
     }
@@ -127,7 +122,6 @@ export async function verifyTokenWithTenant(
   const decoded = jwt.decode(token) as KeycloakJwtPayload | null;
 
   if (!decoded) {
-    console.error('[JWT] Failed to decode token');
     throw new Error('Invalid token');
   }
 
@@ -142,8 +136,6 @@ export async function verifyTokenWithTenant(
       tenantSlug = issuerMatch[1];
     }
   }
-
-  console.log(`[JWT] Detected tenantSlug: ${tenantSlug}`);
 
   // Verify token with the detected realm
   const payload = await verifyKeycloakToken(token, tenantSlug);

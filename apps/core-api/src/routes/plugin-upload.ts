@@ -3,6 +3,7 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { minioClient } from '../services/minio-client';
 import { authMiddleware } from '../middleware/auth.js';
+import { validatePluginId, validatePluginVersion } from '../lib/plugin-validator';
 
 /**
  * Plugin Upload Routes
@@ -51,6 +52,23 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
           return reply.status(400).send({
             error: 'BadRequest',
             message: 'pluginId and version are required',
+          });
+        }
+
+        // SECURITY: Validate plugin ID and version to prevent path traversal
+        const idValidation = validatePluginId(pluginId);
+        if (!idValidation.valid) {
+          return reply.status(400).send({
+            error: 'BadRequest',
+            message: idValidation.error || 'Invalid plugin ID format',
+          });
+        }
+
+        const versionValidation = validatePluginVersion(version);
+        if (!versionValidation.valid) {
+          return reply.status(400).send({
+            error: 'BadRequest',
+            message: versionValidation.error || 'Invalid plugin version format',
           });
         }
 
@@ -124,6 +142,16 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { pluginId: string } }>, reply: FastifyReply) => {
       try {
         const { pluginId } = request.params;
+
+        // SECURITY: Validate plugin ID to prevent path traversal
+        const idValidation = validatePluginId(pluginId);
+        if (!idValidation.valid) {
+          return reply.status(400).send({
+            error: 'BadRequest',
+            message: idValidation.error || 'Invalid plugin ID format',
+          });
+        }
+
         const versions = await minioClient.listPluginVersions(pluginId);
 
         return reply.send({
@@ -173,6 +201,24 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
     ) => {
       try {
         const { pluginId, version } = request.params;
+
+        // SECURITY: Validate plugin ID and version to prevent path traversal
+        const idValidation = validatePluginId(pluginId);
+        if (!idValidation.valid) {
+          return reply.status(400).send({
+            error: 'BadRequest',
+            message: idValidation.error || 'Invalid plugin ID format',
+          });
+        }
+
+        const versionValidation = validatePluginVersion(version);
+        if (!versionValidation.valid) {
+          return reply.status(400).send({
+            error: 'BadRequest',
+            message: versionValidation.error || 'Invalid plugin version format',
+          });
+        }
+
         await minioClient.deletePluginVersion(pluginId, version);
 
         return reply.send({
@@ -222,6 +268,24 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
       reply: FastifyReply
     ) => {
       const { pluginId, version } = request.params;
+
+      // SECURITY: Validate plugin ID and version to prevent path traversal
+      const idValidation = validatePluginId(pluginId);
+      if (!idValidation.valid) {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: idValidation.error || 'Invalid plugin ID format',
+        });
+      }
+
+      const versionValidation = validatePluginVersion(version);
+      if (!versionValidation.valid) {
+        return reply.status(400).send({
+          error: 'BadRequest',
+          message: versionValidation.error || 'Invalid plugin version format',
+        });
+      }
+
       const remoteEntryUrl = minioClient.getPluginRemoteEntryUrl(pluginId, version);
 
       return reply.send({

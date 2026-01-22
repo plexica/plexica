@@ -38,7 +38,7 @@ export async function csrfProtectionMiddleware(
     const token = extractCSRFToken(request);
 
     if (!token) {
-      console.warn(`[CSRF] Missing token for ${request.method} ${request.url}`);
+      request.log.warn(`[CSRF] Missing token for ${request.method} ${request.url}`);
       return reply.code(403).send({
         error: 'Forbidden',
         message: 'CSRF token missing',
@@ -54,9 +54,7 @@ export async function csrfProtectionMiddleware(
     const isValid = validateCSRFToken(token, sessionId, userAgent);
 
     if (!isValid) {
-      console.warn(
-        `[CSRF] Invalid token for ${request.method} ${request.url} (session: ${sessionId})`
-      );
+      request.log.warn(`[CSRF] Invalid token for ${request.method} ${request.url}`);
       return reply.code(403).send({
         error: 'Forbidden',
         message: 'Invalid CSRF token',
@@ -65,7 +63,7 @@ export async function csrfProtectionMiddleware(
     }
 
     // Token is valid, proceed
-    console.log(`[CSRF] Token validated for ${request.method} ${request.url}`);
+    request.log.debug(`[CSRF] Token validated for ${request.method} ${request.url}`);
   } catch (error) {
     request.log.error(error, 'Error in CSRF protection middleware');
     return reply.code(500).send({

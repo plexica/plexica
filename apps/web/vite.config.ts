@@ -34,6 +34,14 @@ export default defineConfig({
   },
   server: {
     port: 3001,
+    // Security: Restrict CORS to prevent unauthorized cross-origin requests in dev
+    cors: {
+      origin: 'http://localhost:3000',
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Slug', 'X-Workspace-ID'],
+      maxAge: 3600,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

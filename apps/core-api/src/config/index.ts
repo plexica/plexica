@@ -26,11 +26,16 @@ const configSchema = z.object({
 
   // Database
   databaseUrl: z.string(),
+  databaseSslMode: z
+    .enum(['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full'])
+    .default('require')
+    .describe('SSL mode for database connections (require for production)'),
 
   // Redis
   redisHost: z.string().default('localhost'),
   redisPort: z.coerce.number().default(6379),
   redisPassword: z.string().optional(),
+  redisTls: booleanFromString.default(false as any),
 
   // Keycloak
   keycloakUrl: z.string(),
@@ -45,8 +50,18 @@ const configSchema = z.object({
 
   // Storage
   storageEndpoint: z.string().default('localhost:9000'),
-  storageAccessKey: z.string(),
-  storageSecretKey: z.string(),
+  storageAccessKey: z
+    .string()
+    .refine(
+      (val) => val !== 'minioadmin',
+      'MinIO default access key "minioadmin" is insecure and must be changed in production'
+    ),
+  storageSecretKey: z
+    .string()
+    .refine(
+      (val) => val !== 'minioadmin',
+      'MinIO default secret key "minioadmin" is insecure and must be changed in production'
+    ),
   storageUseSsl: booleanFromString.default(false as any),
 
   // JWT
@@ -65,10 +80,12 @@ export const config = configSchema.parse({
   logLevel: process.env.LOG_LEVEL,
 
   databaseUrl: process.env.DATABASE_URL,
+  databaseSslMode: process.env.DATABASE_SSL_MODE,
 
   redisHost: process.env.REDIS_HOST,
   redisPort: process.env.REDIS_PORT,
   redisPassword: process.env.REDIS_PASSWORD,
+  redisTls: process.env.REDIS_TLS,
 
   keycloakUrl: process.env.KEYCLOAK_URL,
   keycloakRealm: process.env.KEYCLOAK_REALM,

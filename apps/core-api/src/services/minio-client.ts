@@ -45,10 +45,8 @@ export class MinIOClientService {
 
       // Set CORS policy for plugin bucket
       await this.setPluginBucketPolicy();
-
-      console.log('[MinIO] Initialization complete');
     } catch (error) {
-      console.error('[MinIO] Initialization failed:', error);
+      console.error('MinIO initialization failed:', error);
       throw error;
     }
   }
@@ -62,12 +60,9 @@ export class MinIOClientService {
 
       if (!exists) {
         await this.client.makeBucket(bucketName, 'us-east-1');
-        console.log(`[MinIO] Created bucket: ${bucketName}`);
-      } else {
-        console.log(`[MinIO] Bucket exists: ${bucketName}`);
       }
     } catch (error) {
-      console.error(`[MinIO] Error ensuring bucket ${bucketName}:`, error);
+      console.error(`MinIO error ensuring bucket ${bucketName}:`, error);
       throw error;
     }
   }
@@ -90,9 +85,8 @@ export class MinIOClientService {
 
     try {
       await this.client.setBucketPolicy(this.pluginBucket, JSON.stringify(policy));
-      console.log('[MinIO] Set public read policy for plugin bucket');
     } catch (error) {
-      console.error('[MinIO] Failed to set bucket policy:', error);
+      console.error('MinIO failed to set bucket policy:', error);
       // Don't throw - policy might already be set
     }
   }
@@ -115,11 +109,9 @@ export class MinIOClientService {
         ...options?.metadata,
       });
 
-      console.log(`[MinIO] Uploaded plugin bundle: ${objectName}`);
-
       return this.getPluginUrl(pluginId, version, fileName);
     } catch (error) {
-      console.error('[MinIO] Upload failed:', error);
+      console.error('MinIO upload failed:', error);
       throw error;
     }
   }
@@ -208,10 +200,9 @@ export class MinIOClientService {
 
       if (objectsList.length > 0) {
         await this.client.removeObjects(this.pluginBucket, objectsList);
-        console.log(`[MinIO] Deleted plugin version: ${pluginId}@${version}`);
       }
     } catch (error) {
-      console.error('[MinIO] Failed to delete version:', error);
+      console.error('MinIO failed to delete version:', error);
       throw error;
     }
   }
@@ -233,11 +224,9 @@ export class MinIOClientService {
         ...options?.metadata,
       });
 
-      console.log(`[MinIO] Uploaded tenant file: ${objectName}`);
-
       return objectName;
     } catch (error) {
-      console.error('[MinIO] Tenant file upload failed:', error);
+      console.error('MinIO tenant file upload failed:', error);
       throw error;
     }
   }
@@ -289,10 +278,6 @@ export function getMinioClient(): MinIOClientService {
       accessKey: config.storageAccessKey,
       secretKey: config.storageSecretKey,
     };
-    console.log('[MinIO] Initializing with config:', {
-      ...minioConfig,
-      secretKey: '***',
-    });
     _minioClient = new MinIOClientService(minioConfig);
   }
   return _minioClient;

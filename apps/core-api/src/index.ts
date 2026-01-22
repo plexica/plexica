@@ -24,6 +24,7 @@ import { SharedDataService } from './services/shared-data.service';
 import { DependencyResolutionService } from './services/dependency-resolution.service';
 import { csrfProtectionMiddleware } from './middleware/csrf-protection.js';
 import { advancedRateLimitMiddleware } from './middleware/advanced-rate-limit.js';
+import { setupErrorHandler } from './middleware/error-handler.js';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -40,13 +41,41 @@ const server = fastify({
           }
         : undefined,
   },
+  // SECURITY: Set request timeout to prevent slow client DoS attacks
+  requestTimeout: 30 * 1000, // 30 seconds
 });
 
 // Register plugins
 async function registerPlugins() {
   // Security
   await server.register(helmet, {
-    contentSecurityPolicy: config.nodeEnv === 'production',
+    // SECURITY: Strict CSP in production to prevent XSS and injection attacks
+    contentSecurityPolicy:
+      config.nodeEnv === 'production'
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              scriptSrc: ["'self'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'"],
+              fontSrc: ["'self'"],
+              objectSrc: ["'none'"],
+              mediaSrc: ["'self'"],
+              frameSrc: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+              frameAncestors: ["'none'"],
+              upgradeInsecureRequests: [],
+            },
+          }
+        : false,
+    // SECURITY: Prevent SSL stripping attacks
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
   });
 
   // CORS
@@ -138,19 +167,8 @@ async function registerRoutes() {
 }
 
 // Error handler
-server.setErrorHandler((error, _request, reply) => {
-  server.log.error(error);
-
-  const statusCode = (error as any).statusCode || 500;
-  const name = error instanceof Error ? error.name : 'Error';
-  const message = error instanceof Error ? error.message : 'Unknown error';
-
-  reply.status(statusCode).send({
-    error: name,
-    message: message,
-    statusCode: statusCode,
-  });
-});
+// SECURITY: Sanitize error messages to prevent information disclosure
+setupErrorHandler(server);
 
 // Not found handler
 server.setNotFoundHandler((request, reply) => {

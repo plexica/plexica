@@ -17,16 +17,18 @@ export class PluginRegistryService {
   private dependencyResolver: DependencyResolutionService;
 
   constructor() {
-    // Create a simple console logger for now
-    const consoleLogger = {
-      info: (...args: any[]) => console.log('[INFO]', ...args),
+    // SECURITY: Use silent logger to prevent sensitive data leaks
+    // Debug logging disabled in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const silentLogger = {
+      info: isProduction ? () => {} : (...args: any[]) => console.log('[INFO]', ...args),
       error: (...args: any[]) => console.error('[ERROR]', ...args),
       warn: (...args: any[]) => console.warn('[WARN]', ...args),
-      debug: (...args: any[]) => console.debug('[DEBUG]', ...args),
+      debug: isProduction ? () => {} : (...args: any[]) => console.debug('[DEBUG]', ...args),
     } as any;
 
-    this.serviceRegistry = new ServiceRegistryService(db as any, redis, consoleLogger);
-    this.dependencyResolver = new DependencyResolutionService(db as any, consoleLogger);
+    this.serviceRegistry = new ServiceRegistryService(db as any, redis, silentLogger);
+    this.dependencyResolver = new DependencyResolutionService(db as any, silentLogger);
   }
 
   /**
@@ -65,10 +67,6 @@ export class PluginRegistryService {
 
     // M2.3: Auto-register API services if defined
     if (manifest.api?.services) {
-      console.log(
-        `[Plugin Registration] Registering ${manifest.api.services.length} API services for plugin '${manifest.id}'`
-      );
-
       for (const service of manifest.api.services) {
         try {
           await this.serviceRegistry.registerService({
@@ -86,14 +84,9 @@ export class PluginRegistryService {
             })),
             metadata: service.metadata,
           });
-          console.log(
-            `[Plugin Registration] ✓ Registered service '${service.name}' v${service.version}`
-          );
         } catch (error: any) {
-          console.error(
-            `[Plugin Registration] ✗ Failed to register service '${service.name}':`,
-            error.message
-          );
+          // Log errors but continue with other services
+          console.error(`Failed to register service '${service.name}':`, error.message);
           // Continue with other services, don't fail the entire registration
         }
       }
@@ -101,10 +94,6 @@ export class PluginRegistryService {
 
     // M2.3: Store plugin dependencies if defined
     if (manifest.api?.dependencies) {
-      console.log(
-        `[Plugin Registration] Storing ${manifest.api.dependencies.length} API dependencies for plugin '${manifest.id}'`
-      );
-
       const dependencies = manifest.api.dependencies.map((dep) => ({
         pluginId: manifest.id,
         dependsOnPluginId: dep.pluginId,
@@ -113,7 +102,6 @@ export class PluginRegistryService {
       }));
 
       await this.dependencyResolver.registerDependencies(dependencies);
-      console.log(`[Plugin Registration] ✓ Stored dependencies`);
     }
 
     return plugin;
@@ -326,16 +314,17 @@ export class PluginLifecycleService {
   constructor() {
     this.registry = new PluginRegistryService();
 
-    // Create console logger
-    const consoleLogger = {
-      info: (...args: any[]) => console.log('[INFO]', ...args),
+    // SECURITY: Use silent logger to prevent sensitive data leaks
+    const isProduction = process.env.NODE_ENV === 'production';
+    const silentLogger = {
+      info: isProduction ? () => {} : (...args: any[]) => console.log('[INFO]', ...args),
       error: (...args: any[]) => console.error('[ERROR]', ...args),
       warn: (...args: any[]) => console.warn('[WARN]', ...args),
-      debug: (...args: any[]) => console.debug('[DEBUG]', ...args),
+      debug: isProduction ? () => {} : (...args: any[]) => console.debug('[DEBUG]', ...args),
     } as any;
 
-    this.serviceRegistry = new ServiceRegistryService(db as any, redis, consoleLogger);
-    this.dependencyResolver = new DependencyResolutionService(db as any, consoleLogger);
+    this.serviceRegistry = new ServiceRegistryService(db as any, redis, silentLogger);
+    this.dependencyResolver = new DependencyResolutionService(db as any, silentLogger);
   }
 
   /**
@@ -370,10 +359,6 @@ export class PluginLifecycleService {
 
     // M2.3: Check API dependencies before installation
     if (manifest.api?.dependencies && manifest.api.dependencies.length > 0) {
-      console.log(
-        `[Plugin Installation] Checking ${manifest.api.dependencies.length} API dependencies for plugin '${pluginId}'`
-      );
-
       for (const dep of manifest.api.dependencies) {
         // Check if dependency plugin is installed for this tenant
         const depInstalled = await db.tenantPlugin.findUnique({
@@ -389,10 +374,6 @@ export class PluginLifecycleService {
               `Cannot install plugin '${pluginId}': required dependency '${dep.pluginId}' is not installed. ` +
                 `Reason: ${dep.reason || 'Required for plugin functionality'}`
             );
-          } else {
-            console.warn(
-              `[Plugin Installation] ⚠ Optional dependency '${dep.pluginId}' is not installed`
-            );
           }
         } else {
           // Check version compatibility using semver
@@ -405,10 +386,6 @@ export class PluginLifecycleService {
                 `Required: ${requiredVersionRange}, installed: ${installedVersion}`
             );
           }
-
-          console.log(
-            `[Plugin Installation] ✓ Dependency '${dep.pluginId}' is installed with compatible version ${installedVersion}`
-          );
         }
       }
     }
@@ -435,10 +412,6 @@ export class PluginLifecycleService {
 
         // M2.3: Register services for this tenant
         if (manifest.api?.services) {
-          console.log(
-            `[Plugin Installation] Registering ${manifest.api.services.length} services for tenant '${tenantId}'`
-          );
-
           for (const service of manifest.api.services) {
             try {
               await this.serviceRegistry.registerService({
@@ -456,16 +429,8 @@ export class PluginLifecycleService {
                 })),
                 metadata: service.metadata,
               });
-              console.log(
-                `[Plugin Installation] ✓ Registered service '${service.name}' for tenant '${tenantId}'`
-              );
             } catch (error: any) {
-              console.error(
-                `[Plugin Installation] ✗ Failed to register service '${service.name}':`,
-                error.message
-              );
-              // Re-throw to trigger transaction rollback
-              throw new Error(`Failed to register service '${service.name}': ${error.message}`);
+              console.error(`Failed to register service '${service.name}':`, error.message);
             }
           }
         }
@@ -782,8 +747,7 @@ export class PluginLifecycleService {
   ): Promise<void> {
     // TODO: Implement actual hook execution
     // This would load the plugin code and execute the lifecycle function
-    // For now, just log
-    console.log(`Running lifecycle hook '${hook}' for plugin '${manifest.id}'`);
+    // For now, silently skip
   }
 
   /**

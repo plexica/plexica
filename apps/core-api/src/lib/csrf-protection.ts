@@ -45,7 +45,6 @@ export function generateCSRFToken(sessionId: string, userAgent?: string): string
   // Store in cache
   tokenCache.set(token, entry);
 
-  console.log(`[CSRF] Generated token for session: ${sessionId}`);
   return token;
 }
 
@@ -55,33 +54,28 @@ export function generateCSRFToken(sessionId: string, userAgent?: string): string
  */
 export function validateCSRFToken(token: string, sessionId: string, userAgent?: string): boolean {
   if (!token || typeof token !== 'string') {
-    console.warn('[CSRF] Invalid token format');
     return false;
   }
 
   const entry = tokenCache.get(token);
 
   if (!entry) {
-    console.warn(`[CSRF] Token not found: ${token}`);
     return false;
   }
 
   // Verify session ID matches
   if (entry.sessionId !== sessionId) {
-    console.warn(`[CSRF] Session ID mismatch: expected ${entry.sessionId}, got ${sessionId}`);
     return false;
   }
 
   // Optionally verify user agent (helps prevent token theft)
   if (userAgent && entry.userAgent && entry.userAgent !== userAgent) {
-    console.warn('[CSRF] User agent mismatch - possible token theft');
     return false;
   }
 
   // Token is valid - remove it to prevent reuse
   tokenCache.delete(token);
 
-  console.log(`[CSRF] Token validated and consumed for session: ${sessionId}`);
   return true;
 }
 
@@ -97,8 +91,7 @@ export function revokeSessionTokens(sessionId: string): void {
       revoked++;
     }
   }
-
-  console.log(`[CSRF] Revoked ${revoked} tokens for session: ${sessionId}`);
+  // Silently revoke - no need to log
 }
 
 /**

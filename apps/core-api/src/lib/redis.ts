@@ -10,6 +10,8 @@ export const redis = new Redis({
   host: config.redisHost,
   port: config.redisPort,
   password: config.redisPassword,
+  // SECURITY: Enable TLS if configured
+  tls: config.redisTls ? {} : undefined,
   maxRetriesPerRequest: 3,
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
@@ -27,15 +29,15 @@ export const redis = new Redis({
 
 // Log connection status
 redis.on('connect', () => {
-  console.log('✅ Redis client connected');
+  // Connection successful - no need to log this
 });
 
 redis.on('error', (err) => {
-  console.error('❌ Redis client error:', err);
+  console.error('Redis client error:', err);
 });
 
 redis.on('close', () => {
-  console.log('🔌 Redis client connection closed');
+  // Connection closed - handle gracefully in shutdown
 });
 
 // Graceful shutdown

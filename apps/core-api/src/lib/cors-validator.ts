@@ -21,13 +21,11 @@ export function isValidCorsOrigin(origin: string): boolean {
 
   // Special case: wildcard (only for development/testing)
   if (origin === '*') {
-    console.warn('[CORS] Wildcard (*) origin is not recommended for production');
     return true;
   }
 
   // Must start with http:// or https://
   if (!origin.startsWith('http://') && !origin.startsWith('https://')) {
-    console.error(`[CORS] Invalid origin protocol: ${origin}`);
     return false;
   }
 
@@ -37,28 +35,19 @@ export function isValidCorsOrigin(origin: string): boolean {
 
     // Ensure it has a hostname
     if (!url.hostname) {
-      console.error(`[CORS] Origin missing hostname: ${origin}`);
       return false;
     }
 
-    // Check for suspicious patterns
-    if (url.pathname && url.pathname !== '/') {
-      console.warn(`[CORS] Origin has pathname, typically not recommended: ${origin}`);
-    }
-
     if (url.search) {
-      console.error(`[CORS] Origin contains query string: ${origin}`);
       return false;
     }
 
     if (url.hash) {
-      console.error(`[CORS] Origin contains fragment: ${origin}`);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error(`[CORS] Invalid origin URL: ${origin}`, error);
     return false;
   }
 }
@@ -71,7 +60,6 @@ export function isValidCorsOrigin(origin: string): boolean {
  */
 export function parseCorsOrigins(corsOriginString: string): string[] {
   if (!corsOriginString) {
-    console.warn('[CORS] No CORS origins configured, using localhost');
     return ['http://localhost:3001'];
   }
 
@@ -81,23 +69,13 @@ export function parseCorsOrigins(corsOriginString: string): string[] {
     .filter((origin) => origin.length > 0);
 
   const validOrigins = origins.filter((origin) => {
-    const isValid = isValidCorsOrigin(origin);
-    if (!isValid) {
-      console.error(`[CORS] Removing invalid origin: ${origin}`);
-    }
-    return isValid;
+    return isValidCorsOrigin(origin);
   });
 
   if (validOrigins.length === 0) {
-    console.warn('[CORS] No valid origins after parsing, using localhost');
     return ['http://localhost:3001'];
   }
 
-  if (validOrigins.length !== origins.length) {
-    console.warn(`[CORS] Filtered ${origins.length - validOrigins.length} invalid origins`);
-  }
-
-  console.log('[CORS] Loaded valid origins:', validOrigins);
   return validOrigins;
 }
 
