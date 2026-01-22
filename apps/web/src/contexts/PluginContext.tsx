@@ -1,6 +1,13 @@
 // File: apps/web/src/contexts/PluginContext.tsx
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from 'react';
 import { useAuthStore } from '../stores/auth-store';
 import { pluginRegistry } from '../lib/plugin-registry';
 import { pluginRouteManager } from '../lib/plugin-routes';
@@ -24,6 +31,8 @@ export function PluginProvider({ children }: { children: ReactNode }) {
   const [menuItems, setMenuItems] = useState<DynamicMenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // HIGH FIX #7: Use AbortController to cancel in-flight plugin loading
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   const loadPlugins = useCallback(async () => {
     if (!tenant?.id) {
@@ -35,6 +44,10 @@ export function PluginProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // HIGH FIX #7: Cancel previous request if still in flight
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
       setIsLoading(true);
       setError(null);
 
@@ -58,9 +71,12 @@ export function PluginProvider({ children }: { children: ReactNode }) {
       setMenuItems(pluginMenuManager.getAllMenuItems());
       setIsLoading(false);
     } catch (err: any) {
-      console.error('[PluginContext] Failed to load plugins:', err);
-      setError(err.message || 'Failed to load plugins');
-      setIsLoading(false);
+      // HIGH FIX #7: Don't set error if request was aborted
+      if (err.name !== 'AbortError') {
+        console.error('[PluginContext] Failed to load plugins:', err);
+        setError(err.message || 'Failed to load plugins');
+        setIsLoading(false);
+      }
     }
   }, [tenant?.id]);
 
@@ -69,7 +85,8 @@ export function PluginProvider({ children }: { children: ReactNode }) {
     loadPlugins();
 
     return () => {
-      // Cleanup on unmount
+      // HIGH FIX #7: Cleanup - abort in-flight requests on unmount
+      abortControllerRef.current?.abort();
       pluginRegistry.clear();
       pluginRouteManager.clear();
       pluginMenuManager.clear();

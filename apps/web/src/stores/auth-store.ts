@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { jwtDecode } from 'jwt-decode';
 import type { User, Tenant } from '@/types';
 import { apiClient } from '@/lib/api-client';
 
@@ -101,13 +102,31 @@ export const useAuthStore = create<AuthStore>()(
       onRehydrateStorage: () => (state) => {
         // Rehydrate API client with persisted values
         if (state) {
+          // CRITICAL FIX #1: Validate token expiry on rehydration
+          // If token is expired, clear auth immediately
           if (state.token) {
-            apiClient.setToken(state.token);
+            try {
+              const decoded = jwtDecode(state.token) as any;
+              const expiryTime = decoded.exp ? decoded.exp * 1000 : null;
+
+              if (!expiryTime || Date.now() >= expiryTime) {
+                console.warn('[AuthStore] Token expired during rehydration, clearing auth');
+                state.clearAuth?.();
+                return;
+              }
+
+              // Token is still valid, rehydrate API client
+              apiClient.setToken(state.token);
+            } catch (error) {
+              console.error('[AuthStore] Failed to decode token during rehydration:', error);
+              state.clearAuth?.();
+              return;
+            }
           }
           if (state.tenant) {
             apiClient.setTenantSlug(state.tenant.slug);
           }
-          console.log('[AuthStore] Rehydrated API client with token and tenant');
+          console.log('[AuthStore] Rehydrated API client with valid token and tenant');
         }
       },
     }

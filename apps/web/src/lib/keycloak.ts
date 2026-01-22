@@ -9,6 +9,9 @@ let keycloakInstance: Keycloak | null = null;
 let initializationPromise: Promise<boolean> | null = null;
 let currentTenantSlug: string | null = null;
 
+// CRITICAL FIX #2: Atomic flag to prevent race conditions during initialization
+let isInitializing = false;
+
 /**
  * Gets the current tenant slug from URL.
  * This function is exported to allow other modules to access the tenant.
@@ -51,12 +54,14 @@ export const initKeycloak = async (): Promise<boolean> => {
     );
     keycloakInstance = null;
     initializationPromise = null;
+    isInitializing = false;
   }
 
   currentTenantSlug = tenantSlug;
 
-  // If initialization is in progress, wait for it to complete
-  if (initializationPromise) {
+  // CRITICAL FIX #2: Use atomic flag to prevent concurrent initialization
+  // If initialization is already in progress, wait for it to complete
+  if (isInitializing && initializationPromise) {
     console.log('[Keycloak] Initialization in progress, waiting...');
     return initializationPromise;
   }
@@ -67,45 +72,51 @@ export const initKeycloak = async (): Promise<boolean> => {
     return keycloakInstance.authenticated || false;
   }
 
-  // Start new initialization
-  console.log('[Keycloak] Starting initialization...');
-  initializationPromise = (async () => {
-    try {
-      const keycloakConfig = createKeycloakConfig();
-      keycloakInstance = new Keycloak(keycloakConfig);
-      const authenticated = await keycloakInstance.init(initOptions);
+  // Set atomic flag BEFORE starting initialization to prevent other threads
+  isInitializing = true;
 
-      // Setup token refresh
-      if (authenticated && keycloakInstance.token) {
-        // Refresh token every 60 seconds
-        setInterval(() => {
-          keycloakInstance!
-            .updateToken(70)
-            .then((refreshed: boolean) => {
-              if (refreshed) {
-                console.log('[Keycloak] Token refreshed');
-              }
-            })
-            .catch(() => {
-              console.error('[Keycloak] Failed to refresh token');
-            });
-        }, 60000);
+  try {
+    // Start new initialization
+    console.log('[Keycloak] Starting initialization...');
+    initializationPromise = (async () => {
+      try {
+        const keycloakConfig = createKeycloakConfig();
+        keycloakInstance = new Keycloak(keycloakConfig);
+        const authenticated = await keycloakInstance.init(initOptions);
+
+        // Setup token refresh
+        if (authenticated && keycloakInstance.token) {
+          // Refresh token every 60 seconds
+          setInterval(() => {
+            keycloakInstance!
+              .updateToken(70)
+              .then((refreshed: boolean) => {
+                if (refreshed) {
+                  console.log('[Keycloak] Token refreshed');
+                }
+              })
+              .catch(() => {
+                console.error('[Keycloak] Failed to refresh token');
+              });
+          }, 60000);
+        }
+
+        console.log('[Keycloak] Initialization complete, authenticated:', authenticated);
+        return authenticated;
+      } catch (error) {
+        console.error('[Keycloak] Failed to initialize:', error);
+        throw error;
       }
+    })();
 
-      console.log('[Keycloak] Initialization complete, authenticated:', authenticated);
-      // Reset promise after successful initialization
-      initializationPromise = null;
-      return authenticated;
-    } catch (error) {
-      console.error('[Keycloak] Failed to initialize:', error);
-      initializationPromise = null;
-      return false;
-    }
-  })();
-
-  const result = await initializationPromise;
-  console.log('[Keycloak] Returning initialization result:', result);
-  return result;
+    const result = await initializationPromise;
+    console.log('[Keycloak] Returning initialization result:', result);
+    return result;
+  } finally {
+    // Always reset the atomic flag after initialization completes
+    isInitializing = false;
+    initializationPromise = null;
+  }
 };
 
 export const login = () => {

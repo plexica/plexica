@@ -55,8 +55,35 @@ function PluginsPage() {
         return await apiClient.activatePlugin(tenant.id, pluginId);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tenant-plugins'] });
+    // HIGH FIX #5: Use optimistic updates instead of invalidateQueries
+    // This avoids the N+1 query problem where invalidation triggers a full refetch
+    onMutate: async ({ pluginId, currentStatus }) => {
+      // Cancel any in-flight requests
+      await queryClient.cancelQueries({ queryKey: ['tenant-plugins', tenant?.id] });
+
+      // Snapshot the previous data
+      const previousData = queryClient.getQueryData(['tenant-plugins', tenant?.id]);
+
+      // Optimistically update the cache
+      queryClient.setQueryData(['tenant-plugins', tenant?.id], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          plugins: old.plugins.map((p: TenantPlugin) =>
+            p.plugin.id === pluginId
+              ? { ...p, status: currentStatus === 'active' ? 'inactive' : 'active' }
+              : p
+          ),
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_error, _variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['tenant-plugins', tenant?.id], context.previousData);
+      }
     },
   });
 
@@ -66,8 +93,26 @@ function PluginsPage() {
       if (!tenant?.id) throw new Error('No tenant selected');
       return await apiClient.uninstallPlugin(tenant.id, pluginId);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tenant-plugins'] });
+    // HIGH FIX #5: Use optimistic updates instead of invalidateQueries
+    onMutate: async (pluginId) => {
+      await queryClient.cancelQueries({ queryKey: ['tenant-plugins', tenant?.id] });
+
+      const previousData = queryClient.getQueryData(['tenant-plugins', tenant?.id]);
+
+      queryClient.setQueryData(['tenant-plugins', tenant?.id], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          plugins: old.plugins.filter((p: TenantPlugin) => p.plugin.id !== pluginId),
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_error, _pluginId, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['tenant-plugins', tenant?.id], context.previousData);
+      }
     },
   });
 

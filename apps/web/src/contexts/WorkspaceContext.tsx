@@ -134,16 +134,18 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       try {
         setError(null);
 
-        // Find workspace in local list first
-        let workspace = workspaces.find((w) => w.id === workspaceId);
+        // CRITICAL FIX #4: Validate workspace access before selection
+        // Only allow selection of workspaces the user has access to
+        const workspace = workspaces.find((w) => w.id === workspaceId);
 
-        // If not found, fetch details from API
         if (!workspace) {
-          workspace = await apiClient.getWorkspace(workspaceId);
+          throw new Error('Workspace not found or access denied');
         }
 
-        if (!workspace) {
-          throw new Error('Workspace not found');
+        // CRITICAL FIX #4: Verify user has a valid role in the workspace
+        // If memberRole is missing, user doesn't have access to this workspace
+        if (!workspace.memberRole) {
+          throw new Error('Access denied: insufficient permissions for this workspace');
         }
 
         setCurrentWorkspace(workspace);
