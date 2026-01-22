@@ -11,6 +11,7 @@ import type {
 import { DomainEventSchema } from '../types';
 import { RedpandaClient } from './redpanda-client';
 import { TopicManager } from './topic-manager';
+import { DeadLetterQueueService } from './dead-letter-queue.service';
 
 /**
  * Circuit breaker states for error handling
@@ -63,6 +64,7 @@ interface BatchConfig {
 export class EventBusService {
   private producer: Producer;
   private topicManager: TopicManager;
+  private dlqService: DeadLetterQueueService;
   private subscriptions: Map<string, SubscriptionMetadata> = new Map();
   private circuitBreaker: Map<
     string,
@@ -92,6 +94,7 @@ export class EventBusService {
   constructor(private client: RedpandaClient) {
     this.producer = client.getProducer();
     this.topicManager = new TopicManager(client);
+    this.dlqService = new DeadLetterQueueService(client);
   }
 
   /**
@@ -359,6 +362,13 @@ export class EventBusService {
   }
 
   /**
+   * Get Dead Letter Queue service
+   */
+  getDLQService(): DeadLetterQueueService {
+    return this.dlqService;
+  }
+
+  /**
    * Handle incoming message
    */
   private async handleMessage(subscriptionId: string, payload: EachMessagePayload): Promise<void> {
@@ -368,9 +378,11 @@ export class EventBusService {
       return;
     }
 
+    let event: DomainEvent | null = null;
+
     try {
       // Deserialize event
-      const event = this.deserializeEvent(payload.message.value);
+      event = this.deserializeEvent(payload.message.value);
 
       // Apply filter
       if (subscription.filter && !subscription.filter(event)) {
@@ -385,10 +397,17 @@ export class EventBusService {
     } catch (error) {
       console.error(`❌ Error handling event in ${subscriptionId}:`, error);
 
-      // TODO: Route to Dead Letter Queue
-      // await this.routeToDLQ(event, error);
+      // Route to Dead Letter Queue
+      if (event) {
+        await this.dlqService.routeToDLQ(event, subscription.topic, error as Error, {
+          consumerGroup: subscription.groupId,
+          partition: payload.partition,
+          offset: payload.message.offset,
+        });
+      }
 
-      throw error; // Rethrow to trigger consumer retry or DLQ
+      // Don't rethrow - event is in DLQ and will be retried
+      // throw error; // Commented out to prevent consumer crash
     }
   }
 
