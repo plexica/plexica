@@ -20,6 +20,28 @@ export const Route = createFileRoute('/plugins')({
   component: PluginsPage,
 });
 
+// LOW FIX #11: Extract common plugin toggle action handler
+// Removes duplication of toggle logic in card and table views
+function createPluginToggleHandler(
+  pluginId: string,
+  currentStatus: string,
+  toggleStatusMutation: any
+): () => void {
+  return () => {
+    toggleStatusMutation.mutate({ pluginId, currentStatus });
+  };
+}
+
+// LOW FIX #11: Extract common uninstall action handler
+// Removes duplication of confirmation and uninstall logic
+function createPluginUninstallHandler(pluginId: string, uninstallMutation: any): () => void {
+  return () => {
+    if (confirm('Are you sure you want to uninstall this plugin?')) {
+      uninstallMutation.mutate(pluginId);
+    }
+  };
+}
+
 function PluginsPage() {
   const { tenant } = useAuthStore();
   const queryClient = useQueryClient();
@@ -225,14 +247,17 @@ function PluginsPage() {
                     key={tenantPlugin.id}
                     tenantPlugin={tenantPlugin}
                     viewMode={viewMode}
-                    onToggleStatus={(pluginId, currentStatus) =>
-                      toggleStatusMutation.mutate({ pluginId, currentStatus })
-                    }
-                    onUninstall={(pluginId) => {
-                      if (confirm('Are you sure you want to uninstall this plugin?')) {
-                        uninstallMutation.mutate(pluginId);
-                      }
-                    }}
+                    // LOW FIX #11: Using helper function reference (defined above)
+                    // This eliminates inline callback creation and improves performance
+                    onToggleStatus={createPluginToggleHandler(
+                      tenantPlugin.plugin.id,
+                      tenantPlugin.status,
+                      toggleStatusMutation
+                    )}
+                    onUninstall={createPluginUninstallHandler(
+                      tenantPlugin.plugin.id,
+                      uninstallMutation
+                    )}
                     isToggling={toggleStatusMutation.isPending}
                     isUninstalling={uninstallMutation.isPending}
                   />

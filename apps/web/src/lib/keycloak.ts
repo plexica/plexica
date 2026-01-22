@@ -12,6 +12,9 @@ let currentTenantSlug: string | null = null;
 // CRITICAL FIX #2: Atomic flag to prevent race conditions during initialization
 let isInitializing = false;
 
+// MEDIUM FIX #9: Store token refresh interval ID for cleanup
+let tokenRefreshIntervalId: ReturnType<typeof setInterval> | null = null;
+
 /**
  * Gets the current tenant slug from URL.
  * This function is exported to allow other modules to access the tenant.
@@ -86,18 +89,29 @@ export const initKeycloak = async (): Promise<boolean> => {
 
         // Setup token refresh
         if (authenticated && keycloakInstance.token) {
-          // Refresh token every 60 seconds
-          setInterval(() => {
-            keycloakInstance!
-              .updateToken(70)
-              .then((refreshed: boolean) => {
-                if (refreshed) {
-                  console.log('[Keycloak] Token refreshed');
-                }
-              })
-              .catch(() => {
-                console.error('[Keycloak] Failed to refresh token');
-              });
+          // MEDIUM FIX #9: Handle token refresh errors properly
+          // Refresh token every 60 seconds with proper error handling
+          // Clear any existing interval first
+          if (tokenRefreshIntervalId) {
+            clearInterval(tokenRefreshIntervalId);
+          }
+
+          tokenRefreshIntervalId = setInterval(async () => {
+            try {
+              const refreshed = await keycloakInstance!.updateToken(70);
+              if (refreshed) {
+                console.log('[Keycloak] Token refreshed successfully');
+              }
+            } catch (error) {
+              console.error('[Keycloak] Token refresh failed:', error);
+              // MEDIUM FIX #9: Notify auth store of refresh failure
+              // This allows the app to redirect to login if token refresh fails
+              const authStore = (window as any).__authStoreInstance;
+              if (authStore && typeof authStore.clearAuth === 'function') {
+                console.warn('[Keycloak] Clearing auth due to token refresh failure');
+                authStore.clearAuth();
+              }
+            }
           }, 60000);
         }
 
