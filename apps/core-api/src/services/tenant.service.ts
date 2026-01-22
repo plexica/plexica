@@ -25,6 +25,23 @@ export class TenantService {
   }
 
   /**
+   * Validate tenant slug to prevent SQL injection
+   */
+  private validateSlug(slug: string): void {
+    const slugPattern = /^[a-z0-9-]{1,50}$/;
+    if (!slugPattern.test(slug)) {
+      throw new Error('Tenant slug must be 1-50 chars, lowercase alphanumeric with hyphens only');
+    }
+  }
+
+  /**
+   * Get the schema name for a tenant
+   */
+  getSchemaName(slug: string): string {
+    return `tenant_${slug.replace(/-/g, '_')}`;
+  }
+
+  /**
    * Create a new tenant with full provisioning
    *
    * This includes:
@@ -36,30 +53,28 @@ export class TenantService {
   async createTenant(input: CreateTenantInput): Promise<any> {
     const { slug, name, settings = {}, theme = {} } = input;
 
-    // Validate slug format (alphanumeric and hyphens only)
-    if (!/^[a-z0-9-]+$/.test(slug)) {
-      throw new Error('Tenant slug must contain only lowercase letters, numbers, and hyphens');
+    // Validate slug format
+    this.validateSlug(slug);
+
+    // Attempt to create tenant with unique constraint
+    let tenant;
+    try {
+      tenant = await this.db.tenant.create({
+        data: {
+          slug,
+          name,
+          status: TenantStatus.PROVISIONING,
+          settings,
+          theme,
+        },
+      });
+    } catch (error: any) {
+      // Handle unique constraint violation
+      if (error.code === 'P2002') {
+        throw new Error(`Tenant with slug '${slug}' already exists`);
+      }
+      throw error;
     }
-
-    // Check if tenant already exists
-    const existing = await this.db.tenant.findUnique({
-      where: { slug },
-    });
-
-    if (existing) {
-      throw new Error(`Tenant with slug '${slug}' already exists`);
-    }
-
-    // Create tenant record with PROVISIONING status
-    const tenant = await this.db.tenant.create({
-      data: {
-        slug,
-        name,
-        status: TenantStatus.PROVISIONING,
-        settings,
-        theme,
-      },
-    });
 
     try {
       // Step 1: Create PostgreSQL schema for tenant
@@ -105,7 +120,10 @@ export class TenantService {
    * Create a dedicated PostgreSQL schema for the tenant
    */
   private async createTenantSchema(slug: string): Promise<void> {
-    const schemaName = `tenant_${slug.replace(/-/g, '_')}`;
+    // Validate slug before using in SQL
+    this.validateSlug(slug);
+
+    const schemaName = this.getSchemaName(slug);
 
     // Create schema
     await this.db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
@@ -289,12 +307,15 @@ export class TenantService {
       throw new Error('Tenant not found');
     }
 
+    // Validate tenant slug before using in SQL
+    this.validateSlug(tenant.slug);
+
     try {
       // Delete Keycloak realm
       await keycloakService.deleteRealm(tenant.slug);
 
       // Drop PostgreSQL schema
-      const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
+      const schemaName = this.getSchemaName(tenant.slug);
       await this.db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
 
       // Delete tenant record
@@ -373,13 +394,6 @@ export class TenantService {
         },
       },
     });
-  }
-
-  /**
-   * Get schema name for a tenant
-   */
-  getSchemaName(slug: string): string {
-    return `tenant_${slug.replace(/-/g, '_')}`;
   }
 }
 

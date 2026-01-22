@@ -8,6 +8,7 @@ import {
 } from '../lib/jwt.js';
 import { permissionService } from '../services/permission.service.js';
 import { tenantService } from '../services/tenant.service.js';
+import { MASTER_TENANT_SLUG, USER_ROLES } from '../constants/index.js';
 
 // Extend FastifyRequest to include auth information
 declare module 'fastify' {
@@ -131,18 +132,25 @@ export function requirePermission(...permissions: string[]) {
       });
     }
 
-    // TODO: Fetch user permissions from database
-    // For now, we'll use a simple role-to-permission mapping
-    const userPermissions = await getUserPermissions(request.user.id, request.user.tenantSlug);
+    try {
+      // Fetch user permissions from database
+      const userPermissions = await getUserPermissions(request.user.id, request.user.tenantSlug);
 
-    const hasRequiredPermission = permissions.some((permission) =>
-      userPermissions.includes(permission)
-    );
+      const hasRequiredPermission = permissions.some((permission) =>
+        userPermissions.includes(permission)
+      );
 
-    if (!hasRequiredPermission) {
-      return reply.code(403).send({
-        error: 'Forbidden',
-        message: `Required permission(s): ${permissions.join(', ')}`,
+      if (!hasRequiredPermission) {
+        return reply.code(403).send({
+          error: 'Forbidden',
+          message: `Required permission(s): ${permissions.join(', ')}`,
+        });
+      }
+    } catch (error: any) {
+      request.log.error({ error }, 'Permission check failed');
+      return reply.code(500).send({
+        error: 'Permission System Error',
+        message: 'Failed to check permissions',
       });
     }
   };
@@ -152,13 +160,8 @@ export function requirePermission(...permissions: string[]) {
  * Fetch user permissions from database
  */
 async function getUserPermissions(userId: string, tenantSlug: string): Promise<string[]> {
-  try {
-    const schemaName = tenantService.getSchemaName(tenantSlug);
-    return await permissionService.getUserPermissions(userId, schemaName);
-  } catch (error) {
-    // If tenant doesn't exist or permission fetch fails, return empty array
-    return [];
-  }
+  const schemaName = tenantService.getSchemaName(tenantSlug);
+  return await permissionService.getUserPermissions(userId, schemaName);
 }
 
 /**
@@ -177,7 +180,11 @@ export async function requireSuperAdmin(
   }
 
   // Super admins should be from master realm
-  if (request.user.tenantSlug !== 'master') {
+  if (request.user.tenantSlug !== MASTER_TENANT_SLUG) {
+    request.log.warn(
+      { userId: request.user.id, tenantSlug: request.user.tenantSlug },
+      'Unauthorized super admin access attempt from non-master tenant'
+    );
     return reply.code(403).send({
       error: 'Forbidden',
       message: 'Super admin access required',
@@ -185,7 +192,11 @@ export async function requireSuperAdmin(
   }
 
   // Check for super_admin role
-  if (!request.user.roles.includes('super_admin')) {
+  if (!request.user.roles.includes(USER_ROLES.SUPER_ADMIN)) {
+    request.log.warn(
+      { userId: request.user.id, userRoles: request.user.roles },
+      'Unauthorized super admin access attempt - missing super_admin role'
+    );
     return reply.code(403).send({
       error: 'Forbidden',
       message: 'Super admin access required',
@@ -209,12 +220,18 @@ export async function requireTenantOwner(
   }
 
   // Super admins can access any tenant
-  if (request.user.tenantSlug === 'master' && request.user.roles.includes('super_admin')) {
+  if (
+    request.user.tenantSlug === MASTER_TENANT_SLUG &&
+    request.user.roles.includes(USER_ROLES.SUPER_ADMIN)
+  ) {
     return;
   }
 
   // Check for tenant_owner role
-  if (!request.user.roles.includes('tenant_owner') && !request.user.roles.includes('admin')) {
+  if (
+    !request.user.roles.includes(USER_ROLES.TENANT_OWNER) &&
+    !request.user.roles.includes(USER_ROLES.ADMIN)
+  ) {
     return reply.code(403).send({
       error: 'Forbidden',
       message: 'Tenant owner or admin access required',

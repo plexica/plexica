@@ -5,6 +5,8 @@ import { validatePluginManifest } from '../schemas/plugin-manifest.schema.js';
 import { ServiceRegistryService } from './service-registry.service.js';
 import { DependencyResolutionService } from './dependency-resolution.service.js';
 import { redis } from '../lib/redis.js';
+import semver from 'semver';
+import { TENANT_STATUS } from '../constants/index.js';
 
 /**
  * Plugin Registry Service
@@ -171,6 +173,10 @@ export class PluginRegistryService {
   }): Promise<{ plugins: any[]; total: number }> {
     const { status, category, search, skip = 0, take = 50 } = options || {};
 
+    // Enforce bounds on pagination
+    const validatedSkip = Math.max(0, skip);
+    const validatedTake = Math.max(1, Math.min(take, 500)); // Max 500 results per page
+
     const where: any = {};
 
     if (status) {
@@ -194,8 +200,8 @@ export class PluginRegistryService {
     const [plugins, total] = await Promise.all([
       db.plugin.findMany({
         where,
-        skip,
-        take,
+        skip: validatedSkip,
+        take: validatedTake,
         orderBy: { createdAt: 'desc' },
       }),
       db.plugin.count({ where }),
@@ -244,15 +250,23 @@ export class PluginRegistryService {
     activeTenants: number;
     version: string;
   }> {
-    const plugin = await this.getPlugin(pluginId);
+    // Fetch plugin and installation stats in parallel (not sequentially)
+    const [plugin, installations] = await Promise.all([
+      db.plugin.findUnique({
+        where: { id: pluginId },
+      }),
+      db.tenantPlugin.findMany({
+        where: { pluginId },
+        include: { tenant: true },
+      }),
+    ]);
 
-    const installations = await db.tenantPlugin.findMany({
-      where: { pluginId },
-      include: { tenant: true },
-    });
+    if (!plugin) {
+      throw new Error(`Plugin '${pluginId}' not found`);
+    }
 
     const activeTenants = installations.filter(
-      (i) => i.enabled && i.tenant.status === 'ACTIVE'
+      (i) => i.enabled && i.tenant.status === TENANT_STATUS.ACTIVE
     ).length;
 
     return {
@@ -266,20 +280,24 @@ export class PluginRegistryService {
    * Validate plugin manifest
    */
   private validateManifest(manifest: PluginManifest): void {
-    if (!manifest.id || !/^[a-z0-9-]+$/.test(manifest.id)) {
-      throw new Error('Plugin ID must be lowercase alphanumeric with hyphens');
+    if (!manifest.id || !/^[a-z0-9-]{1,64}$/.test(manifest.id)) {
+      throw new Error('Plugin ID must be 1-64 chars, lowercase alphanumeric with hyphens');
     }
 
-    if (!manifest.name || manifest.name.length < 3) {
-      throw new Error('Plugin name must be at least 3 characters');
+    if (!manifest.name || manifest.name.length < 3 || manifest.name.length > 255) {
+      throw new Error('Plugin name must be 3-255 characters');
     }
 
     if (!manifest.version || !/^\d+\.\d+\.\d+$/.test(manifest.version)) {
       throw new Error('Plugin version must follow semver format (x.y.z)');
     }
 
-    if (!manifest.description || manifest.description.length < 10) {
-      throw new Error('Plugin description must be at least 10 characters');
+    if (
+      !manifest.description ||
+      manifest.description.length < 10 ||
+      manifest.description.length > 1000
+    ) {
+      throw new Error('Plugin description must be 10-1000 characters');
     }
 
     if (!manifest.category) {
@@ -377,9 +395,19 @@ export class PluginLifecycleService {
             );
           }
         } else {
-          // TODO: Check version compatibility using semver
+          // Check version compatibility using semver
+          const installedVersion = depInstalled.plugin.version;
+          const requiredVersionRange = dep.version;
+
+          if (!semver.satisfies(installedVersion, requiredVersionRange)) {
+            throw new Error(
+              `Cannot install plugin '${pluginId}': dependency '${dep.pluginId}' version mismatch. ` +
+                `Required: ${requiredVersionRange}, installed: ${installedVersion}`
+            );
+          }
+
           console.log(
-            `[Plugin Installation] ✓ Dependency '${dep.pluginId}' is installed (${depInstalled.plugin.version})`
+            `[Plugin Installation] ✓ Dependency '${dep.pluginId}' is installed with compatible version ${installedVersion}`
           );
         }
       }
@@ -388,75 +416,81 @@ export class PluginLifecycleService {
     // Check old-style dependencies
     await this.checkDependencies(tenantId, manifest);
 
-    // Create installation
-    const installation = await db.tenantPlugin.create({
-      data: {
-        tenantId,
-        pluginId,
-        enabled: false, // Start disabled, must be explicitly activated
-        configuration,
-      },
-      include: {
-        plugin: true,
-        tenant: true,
-      },
-    });
-
-    // M2.3: Register services for this tenant
-    if (manifest.api?.services) {
-      console.log(
-        `[Plugin Installation] Registering ${manifest.api.services.length} services for tenant '${tenantId}'`
-      );
-
-      for (const service of manifest.api.services) {
-        try {
-          await this.serviceRegistry.registerService({
-            pluginId,
+    // Create installation within transaction
+    try {
+      return await db.$transaction(async (tx) => {
+        // Create installation
+        const installation = await tx.tenantPlugin.create({
+          data: {
             tenantId,
-            serviceName: service.name,
-            version: service.version,
-            baseUrl: service.baseUrl || `http://plugin-${pluginId}:8080`,
-            endpoints: service.endpoints?.map((ep) => ({
-              method: ep.method,
-              path: ep.path,
-              description: ep.description,
-              permissions: ep.permissions,
-              metadata: ep.metadata,
-            })),
-            metadata: service.metadata,
-          });
-          console.log(
-            `[Plugin Installation] ✓ Registered service '${service.name}' for tenant '${tenantId}'`
-          );
-        } catch (error: any) {
-          console.error(
-            `[Plugin Installation] ✗ Failed to register service '${service.name}':`,
-            error.message
-          );
-        }
-      }
-    }
-
-    // Run installation lifecycle hook if defined
-    if (manifest.lifecycle?.install) {
-      try {
-        await this.runLifecycleHook(manifest, 'install', {
-          tenantId,
-          pluginId,
-          configuration,
-        });
-      } catch (error: any) {
-        // Rollback installation on error
-        await db.tenantPlugin.delete({
-          where: {
-            tenantId_pluginId: { tenantId, pluginId },
+            pluginId,
+            enabled: false, // Start disabled, must be explicitly activated
+            configuration,
+          },
+          include: {
+            plugin: true,
+            tenant: true,
           },
         });
-        throw new Error(`Plugin installation failed: ${error.message}`);
-      }
-    }
 
-    return installation;
+        // M2.3: Register services for this tenant
+        if (manifest.api?.services) {
+          console.log(
+            `[Plugin Installation] Registering ${manifest.api.services.length} services for tenant '${tenantId}'`
+          );
+
+          for (const service of manifest.api.services) {
+            try {
+              await this.serviceRegistry.registerService({
+                pluginId,
+                tenantId,
+                serviceName: service.name,
+                version: service.version,
+                baseUrl: service.baseUrl || `http://plugin-${pluginId}:8080`,
+                endpoints: service.endpoints?.map((ep) => ({
+                  method: ep.method,
+                  path: ep.path,
+                  description: ep.description,
+                  permissions: ep.permissions,
+                  metadata: ep.metadata,
+                })),
+                metadata: service.metadata,
+              });
+              console.log(
+                `[Plugin Installation] ✓ Registered service '${service.name}' for tenant '${tenantId}'`
+              );
+            } catch (error: any) {
+              console.error(
+                `[Plugin Installation] ✗ Failed to register service '${service.name}':`,
+                error.message
+              );
+              // Re-throw to trigger transaction rollback
+              throw new Error(`Failed to register service '${service.name}': ${error.message}`);
+            }
+          }
+        }
+
+        // Run installation lifecycle hook if defined
+        if (manifest.lifecycle?.install) {
+          try {
+            await this.runLifecycleHook(manifest, 'install', {
+              tenantId,
+              pluginId,
+              configuration,
+            });
+          } catch (error: any) {
+            // Transaction will automatically rollback on error
+            throw new Error(`Plugin installation lifecycle hook failed: ${error.message}`);
+          }
+        }
+
+        return installation;
+      });
+    } catch (error: any) {
+      throw new Error(
+        `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 
   /**
@@ -653,8 +687,28 @@ export class PluginLifecycleService {
         // Additional validation
         if (field.validation) {
           if (field.validation.pattern && typeof value === 'string') {
-            const regex = new RegExp(field.validation.pattern);
-            if (!regex.test(value)) {
+            // ReDoS protection: validate regex pattern and limit string length
+            try {
+              const pattern = field.validation.pattern;
+
+              // Reject patterns with common ReDoS indicators
+              this.validateRegexPattern(pattern);
+
+              // Create regex with a safety timeout by limiting test string length
+              const regex = new RegExp(pattern);
+              const maxTestLength = 1000; // Limit test string to 1000 chars
+              const testValue = value.substring(0, maxTestLength);
+
+              if (!regex.test(testValue)) {
+                throw new Error(
+                  field.validation.message ||
+                    `Configuration field '${field.key}' does not match required pattern`
+                );
+              }
+            } catch (error: any) {
+              if (error.message.includes('ReDoS') || error.message.includes('pattern')) {
+                throw error;
+              }
               throw new Error(
                 field.validation.message ||
                   `Configuration field '${field.key}' does not match required pattern`
@@ -730,6 +784,34 @@ export class PluginLifecycleService {
     // This would load the plugin code and execute the lifecycle function
     // For now, just log
     console.log(`Running lifecycle hook '${hook}' for plugin '${manifest.id}'`);
+  }
+
+  /**
+   * Validate regex pattern for common ReDoS (Regular Expression Denial of Service) vulnerabilities
+   * Rejects patterns with nested quantifiers, alternation with overlap, etc.
+   */
+  private validateRegexPattern(pattern: string): void {
+    // Common ReDoS indicators to reject:
+    // 1. Nested quantifiers: (a+)+ , (a*)*
+    // 2. Alternation with overlap: (a|a)+ , (a|ab)+
+    // 3. Multiple overlapping alternations: (a|a|a)+
+
+    const redosPatterns = [
+      /(\w\+)\+/, // nested + quantifier
+      /(\w\*)\*/, // nested * quantifier
+      /(\w\{[\d,]+\})\+/, // nested { } with +
+      /\([^)]*\|[^)]*\)\+/, // alternation with +
+      /\([^)]*\|[^)]*\)\*/, // alternation with *
+    ];
+
+    for (const redosPattern of redosPatterns) {
+      if (redosPattern.test(pattern)) {
+        throw new Error(
+          `ReDoS vulnerability detected in regex pattern: ${pattern}. ` +
+            `Patterns with nested quantifiers or overlapping alternations are not allowed.`
+        );
+      }
+    }
   }
 }
 

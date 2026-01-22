@@ -1,5 +1,6 @@
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import { LRUCache } from 'lru-cache';
 import { config } from '../config/index.js';
 
 // Keycloak JWT payload interface
@@ -22,8 +23,12 @@ export interface KeycloakJwtPayload extends JwtPayload {
   azp?: string; // Authorized party (client_id)
 }
 
-// JWKS client for Keycloak public keys
-const jwksClients: Map<string, jwksClient.JwksClient> = new Map();
+// JWKS client cache with LRU eviction
+// Limits cache to 1000 JWKS clients to prevent unbounded memory growth
+// Most deployments will only have 1-5 realms, but we allow up to 1000 for flexibility
+const jwksClients = new LRUCache<string, jwksClient.JwksClient>({
+  max: 1000,
+});
 
 /**
  * Get JWKS client for a specific realm
@@ -198,8 +203,16 @@ export interface UserInfo {
 }
 
 export function extractUserInfo(payload: KeycloakJwtPayload): UserInfo {
+  // Validate required claims
+  if (!payload.sub) {
+    throw new Error('Invalid token: missing sub claim');
+  }
+  if (!payload.preferred_username) {
+    throw new Error('Invalid token: missing preferred_username claim');
+  }
+
   return {
-    id: payload.sub!,
+    id: payload.sub,
     username: payload.preferred_username,
     email: payload.email,
     emailVerified: payload.email_verified,

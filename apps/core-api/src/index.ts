@@ -54,16 +54,20 @@ async function registerPlugins() {
   });
 
   // Rate limiting
-  // Increased for local development to prevent issues during testing
+  // Production: 100 requests/minute per IP
+  // Development: 1000 requests/minute per IP (allows testing without rate limit errors)
+  // Consider per-tenant rate limiting in future for multi-tenant scenarios
   await server.register(rateLimit, {
-    max: 1000, // Increased from 100 to 1000 for local dev
+    max: config.nodeEnv === 'production' ? 100 : 1000,
     timeWindow: '1 minute',
   });
 
   // Multipart support for file uploads
   await server.register(multipart, {
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100 MB max file size
+      // Limit to 50 MB for plugin uploads (from 100 MB)
+      // Consider that plugins are typically < 10 MB
+      fileSize: 50 * 1024 * 1024,
     },
   });
 

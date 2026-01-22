@@ -56,9 +56,18 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   /**
    * List all plugins in the registry
    */
-  fastify.get(
+  fastify.get<{
+    Querystring: {
+      status?: PluginStatus;
+      category?: string;
+      search?: string;
+      skip?: number;
+      take?: number;
+    };
+  }>(
     '/plugins',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'List all plugins in the global registry',
         tags: ['plugins'],

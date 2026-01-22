@@ -315,8 +315,8 @@ describe('Auth Middleware', () => {
       const middleware = requirePermission('users.read');
       await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
 
-      // Should deny access when permission fetch fails
-      expect(mockReply.code).toHaveBeenCalledWith(403);
+      // Should return 500 when permission fetch fails (internal error, not access denied)
+      expect(mockReply.code).toHaveBeenCalledWith(500);
     });
   });
 

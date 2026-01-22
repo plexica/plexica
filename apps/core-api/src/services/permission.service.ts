@@ -32,9 +32,24 @@ export interface UserWithRoles {
  */
 export class PermissionService {
   /**
+   * Validate schema name to prevent SQL injection
+   */
+  private validateSchemaName(schemaName: string): void {
+    const schemaPattern = /^tenant_[a-z0-9_]{1,63}$/;
+    if (!schemaPattern.test(schemaName)) {
+      throw new Error(
+        `Invalid schema name: ${schemaName}. Must match pattern tenant_[a-z0-9_]{{1,63}}`
+      );
+    }
+  }
+
+  /**
    * Get all permissions for a user in a tenant
    */
   async getUserPermissions(userId: string, schemaName: string): Promise<Permission[]> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     // Set schema
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
@@ -52,7 +67,7 @@ export class PermissionService {
 
       // Aggregate all permissions from all roles
       const permissions = new Set<Permission>();
-      
+
       for (const row of result) {
         const rolePermissions = row.permissions as Permission[];
         if (Array.isArray(rolePermissions)) {
@@ -112,11 +127,14 @@ export class PermissionService {
     permissions: Permission[],
     description?: string
   ): Promise<Role> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
       const id = crypto.randomUUID();
-      
+
       await db.$executeRawUnsafe(
         `
         INSERT INTO "${schemaName}".roles (id, name, description, permissions, created_at, updated_at)
@@ -147,6 +165,9 @@ export class PermissionService {
     roleId: string,
     permissions: Permission[]
   ): Promise<void> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -168,6 +189,9 @@ export class PermissionService {
    * Get all roles in a tenant
    */
   async getRoles(schemaName: string): Promise<Role[]> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -201,6 +225,9 @@ export class PermissionService {
    * Get a specific role
    */
   async getRole(schemaName: string, roleId: string): Promise<Role | null> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -240,6 +267,9 @@ export class PermissionService {
    * Delete a role
    */
   async deleteRole(schemaName: string, roleId: string): Promise<void> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -258,11 +288,10 @@ export class PermissionService {
   /**
    * Assign role to user
    */
-  async assignRoleToUser(
-    schemaName: string,
-    userId: string,
-    roleId: string
-  ): Promise<void> {
+  async assignRoleToUser(schemaName: string, userId: string, roleId: string): Promise<void> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -283,11 +312,10 @@ export class PermissionService {
   /**
    * Remove role from user
    */
-  async removeRoleFromUser(
-    schemaName: string,
-    userId: string,
-    roleId: string
-  ): Promise<void> {
+  async removeRoleFromUser(schemaName: string, userId: string, roleId: string): Promise<void> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -308,6 +336,9 @@ export class PermissionService {
    * Get user roles
    */
   async getUserRoles(schemaName: string, userId: string): Promise<Role[]> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
@@ -344,6 +375,9 @@ export class PermissionService {
    * Initialize default roles for a new tenant
    */
   async initializeDefaultRoles(schemaName: string): Promise<void> {
+    // Validate schema name to prevent SQL injection
+    this.validateSchemaName(schemaName);
+
     // Admin role with all permissions
     await this.createRole(
       schemaName,
@@ -372,12 +406,7 @@ export class PermissionService {
     );
 
     // Guest role with minimal permissions
-    await this.createRole(
-      schemaName,
-      'guest',
-      ['users.read'],
-      'Guest with minimal read access'
-    );
+    await this.createRole(schemaName, 'guest', ['users.read'], 'Guest with minimal read access');
   }
 }
 

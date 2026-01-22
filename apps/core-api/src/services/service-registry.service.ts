@@ -29,6 +29,11 @@ export interface ServiceEndpoint {
   metadata?: Record<string, any>;
 }
 
+// Type guard for HTTP methods
+function isValidHttpMethod(value: unknown): value is 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' {
+  return typeof value === 'string' && ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(value);
+}
+
 // Service discovery result
 export interface DiscoveredService {
   id: string;
@@ -190,13 +195,19 @@ export class ServiceRegistryService {
       version: service.version,
       baseUrl: service.baseUrl || undefined,
       status: service.status,
-      endpoints: service.endpoints.map((endpoint) => ({
-        method: endpoint.method as any,
-        path: endpoint.path,
-        description: endpoint.description || undefined,
-        permissions: (endpoint.permissions as string[]) || [],
-        metadata: (endpoint.metadata as Record<string, any>) || {},
-      })),
+      endpoints: service.endpoints.map((endpoint) => {
+        // Validate HTTP method with type guard
+        if (!isValidHttpMethod(endpoint.method)) {
+          throw new Error(`Invalid HTTP method: ${endpoint.method}`);
+        }
+        return {
+          method: endpoint.method,
+          path: endpoint.path,
+          description: endpoint.description || undefined,
+          permissions: (endpoint.permissions as string[]) || [],
+          metadata: (endpoint.metadata as Record<string, any>) || {},
+        };
+      }),
       metadata: (service.metadata as Record<string, any>) || {},
       lastSeenAt: service.lastSeenAt,
     };
@@ -238,13 +249,19 @@ export class ServiceRegistryService {
       version: service.version,
       baseUrl: service.baseUrl || undefined,
       status: service.status,
-      endpoints: service.endpoints.map((endpoint) => ({
-        method: endpoint.method as any,
-        path: endpoint.path,
-        description: endpoint.description || undefined,
-        permissions: (endpoint.permissions as string[]) || [],
-        metadata: (endpoint.metadata as Record<string, any>) || {},
-      })),
+      endpoints: service.endpoints.map((endpoint) => {
+        // Validate HTTP method with type guard
+        if (!isValidHttpMethod(endpoint.method)) {
+          throw new Error(`Invalid HTTP method: ${endpoint.method}`);
+        }
+        return {
+          method: endpoint.method,
+          path: endpoint.path,
+          description: endpoint.description || undefined,
+          permissions: (endpoint.permissions as string[]) || [],
+          metadata: (endpoint.metadata as Record<string, any>) || {},
+        };
+      }),
       metadata: (service.metadata as Record<string, any>) || {},
       lastSeenAt: service.lastSeenAt,
     }));
