@@ -14,3 +14,6 @@ export * from './decorators/event-handler.decorator';
 
 // Export utilities
 export * from './utils/event-handler-initializer';
+
+// Export metrics
+export { EventMetrics, eventMetrics } from './metrics/event-metrics';

@@ -10,6 +10,8 @@ import { tenantRoutes } from './routes/tenant';
 import { authRoutes } from './routes/auth';
 import { pluginRoutes } from './routes/plugin';
 import { workspaceRoutes } from './routes/workspace';
+import { dlqRoutes } from './routes/dlq';
+import metricsRoutes from './routes/metrics';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -66,6 +68,8 @@ async function registerPlugins() {
           { name: 'workspaces', description: 'Workspace management' },
           { name: 'plugins', description: 'Plugin management' },
           { name: 'auth', description: 'Authentication & authorization' },
+          { name: 'dlq', description: 'Dead Letter Queue management' },
+          { name: 'metrics', description: 'Event system metrics' },
         ],
       },
     });
@@ -87,6 +91,8 @@ async function registerRoutes() {
   await server.register(tenantRoutes, { prefix: '/api' });
   await server.register(workspaceRoutes, { prefix: '/api' });
   await server.register(pluginRoutes, { prefix: '/api' });
+  await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });
+  await server.register(metricsRoutes, { prefix: '/api/metrics' });
 }
 
 // Error handler

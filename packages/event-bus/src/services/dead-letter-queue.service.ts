@@ -2,6 +2,7 @@ import type { DomainEvent } from '../types';
 import { TopicManager } from './topic-manager';
 import { RedpandaClient } from './redpanda-client';
 import type { Producer } from 'kafkajs';
+import { eventMetrics } from '../metrics/event-metrics';
 
 /**
  * Failed event record stored in DLQ
@@ -161,6 +162,9 @@ export class DeadLetterQueueService {
 
       // Update statistics
       this.updateStats(originalTopic, error.message, 'failed');
+
+      // Record DLQ metrics
+      eventMetrics.recordDLQEvent(originalTopic, event.type, error.constructor.name);
 
       console.error(
         `📥 Event routed to DLQ [${failedEvent.id}]: ${event.type} (retry ${retryCount}/${this.config.maxRetries})`
@@ -338,6 +342,11 @@ export class DeadLetterQueueService {
         pending++;
       }
     }
+
+    // Update metrics
+    eventMetrics.setDLQPendingCount('PENDING', pending);
+    eventMetrics.setDLQPendingCount('FAILED', maxRetriesExceeded);
+    eventMetrics.setDLQPendingCount('RESOLVED', this.stats.successfulRetries);
 
     return {
       ...this.stats,

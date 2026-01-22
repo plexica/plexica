@@ -12,6 +12,7 @@ import { DomainEventSchema } from '../types';
 import { RedpandaClient } from './redpanda-client';
 import { TopicManager } from './topic-manager';
 import { DeadLetterQueueService } from './dead-letter-queue.service';
+import { eventMetrics } from '../metrics/event-metrics';
 
 /**
  * Circuit breaker states for error handling
@@ -110,6 +111,8 @@ export class EventBusService {
       throw new Error('EventBus is shutting down');
     }
 
+    const startTime = Date.now();
+
     try {
       // Build domain event
       const event = this.buildDomainEvent(eventType, data, metadata);
@@ -152,11 +155,29 @@ export class EventBusService {
       // Record success
       this.recordCircuitSuccess(topic);
 
-      // TODO: Emit metrics (publish.success, publish.latency)
-      console.log(`✅ Event published: ${event.type} [${event.id}]`);
+      // Record metrics
+      const duration = Date.now() - startTime;
+      eventMetrics.recordEventPublished(
+        topic,
+        eventType,
+        event.tenantId,
+        event.metadata.source || 'unknown'
+      );
+      eventMetrics.recordEventPublishDuration(topic, eventType, duration);
+
+      console.log(`✅ Event published: ${event.type} [${event.id}] (${duration}ms)`);
     } catch (error) {
       // Record failure
       this.recordCircuitFailure(eventType);
+
+      // Record failure metrics
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      eventMetrics.recordEventFailed(
+        eventType,
+        eventType,
+        metadata?.tenantId || 'unknown',
+        errorType
+      );
 
       console.error(`❌ Failed to publish event ${eventType}:`, error);
       throw error;
@@ -274,6 +295,9 @@ export class EventBusService {
 
       this.subscriptions.set(subscriptionId, subscription);
 
+      // Record subscription metric
+      eventMetrics.incrementSubscriptions(topic, groupId);
+
       // Start consuming
       await consumer.run({
         autoCommit: options.autoCommit !== false, // Default: true
@@ -307,6 +331,9 @@ export class EventBusService {
 
       // Remove subscription
       this.subscriptions.delete(subscriptionId);
+
+      // Record unsubscribe metric
+      eventMetrics.decrementSubscriptions(subscription.topic, subscription.groupId);
 
       console.log(`✅ Unsubscribed: ${subscriptionId}`);
     } catch (error) {
@@ -379,6 +406,7 @@ export class EventBusService {
     }
 
     let event: DomainEvent | null = null;
+    const startTime = Date.now();
 
     try {
       // Deserialize event
@@ -393,9 +421,28 @@ export class EventBusService {
       // Execute handler
       await subscription.handler(event);
 
-      // TODO: Emit metrics (consume.success, consume.latency)
+      // Record consumption metrics
+      const duration = Date.now() - startTime;
+      eventMetrics.recordEventConsumed(
+        subscription.topic,
+        event.type,
+        event.tenantId,
+        subscription.groupId
+      );
+      eventMetrics.recordEventConsumeDuration(
+        subscription.topic,
+        event.type,
+        subscription.groupId,
+        duration
+      );
     } catch (error) {
       console.error(`❌ Error handling event in ${subscriptionId}:`, error);
+
+      // Record failure metrics
+      if (event) {
+        const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+        eventMetrics.recordEventFailed(subscription.topic, event.type, event.tenantId, errorType);
+      }
 
       // Route to Dead Letter Queue
       if (event) {
