@@ -2,6 +2,7 @@ import fastify from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { config } from './config';
@@ -9,9 +10,11 @@ import { healthRoutes } from './routes/health';
 import { tenantRoutes } from './routes/tenant';
 import { authRoutes } from './routes/auth';
 import { pluginRoutes } from './routes/plugin';
+import { pluginUploadRoutes } from './routes/plugin-upload';
 import { workspaceRoutes } from './routes/workspace';
 import { dlqRoutes } from './routes/dlq';
 import metricsRoutes from './routes/metrics';
+import { minioClient } from './services/minio-client';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -48,6 +51,13 @@ async function registerPlugins() {
   await server.register(rateLimit, {
     max: 1000, // Increased from 100 to 1000 for local dev
     timeWindow: '1 minute',
+  });
+
+  // Multipart support for file uploads
+  await server.register(multipart, {
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100 MB max file size
+    },
   });
 
   // API Documentation
@@ -91,6 +101,7 @@ async function registerRoutes() {
   await server.register(tenantRoutes, { prefix: '/api' });
   await server.register(workspaceRoutes, { prefix: '/api' });
   await server.register(pluginRoutes, { prefix: '/api' });
+  await server.register(pluginUploadRoutes, { prefix: '/api' });
   await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });
   await server.register(metricsRoutes, { prefix: '/api/metrics' });
 }
@@ -132,6 +143,11 @@ process.on('SIGTERM', () => closeGracefully('SIGTERM'));
 // Start server
 async function start() {
   try {
+    // Initialize MinIO
+    server.log.info('Initializing MinIO...');
+    await minioClient.initialize();
+    server.log.info('MinIO initialized successfully');
+
     await registerPlugins();
     await registerRoutes();
 
