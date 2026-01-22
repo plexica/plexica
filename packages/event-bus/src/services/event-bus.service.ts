@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Producer, Consumer, EachMessagePayload, CompressionTypes } from 'kafkajs';
 import type {
   DomainEvent,
-  EventHandler,
+  EventHandlerFn,
   SubscriptionOptions,
   PublishOptions,
   EventFilter,
@@ -36,7 +36,7 @@ interface CircuitBreakerConfig {
 interface SubscriptionMetadata {
   topic: string;
   groupId: string;
-  handler: EventHandler;
+  handler: EventHandlerFn;
   filter?: EventFilter;
   consumer: Consumer;
 }
@@ -236,7 +236,7 @@ export class EventBusService {
    */
   async subscribe(
     eventType: string,
-    handler: EventHandler,
+    handler: EventHandlerFn,
     options: SubscriptionOptions = {}
   ): Promise<string> {
     const topic = eventType;

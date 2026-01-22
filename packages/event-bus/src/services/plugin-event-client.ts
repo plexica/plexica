@@ -1,5 +1,5 @@
 import type { EventBusService } from './event-bus.service';
-import type { EventHandler, SubscriptionOptions, PublishOptions } from '../types';
+import type { EventHandlerFn, SubscriptionOptions, PublishOptions } from '../types';
 
 /**
  * Plugin Event Client
@@ -84,7 +84,7 @@ export class PluginEventClient {
     // Subscribe
     const subscriptionId = await this.eventBus.subscribe(
       topic,
-      handler as EventHandler,
+      handler as EventHandlerFn,
       subscriptionOptions
     );
 

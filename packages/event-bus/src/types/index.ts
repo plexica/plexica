@@ -38,7 +38,7 @@ export interface SubscriptionOptions {
 /**
  * Event handler function type
  */
-export type EventHandler<T = unknown> = (event: DomainEvent<T>) => Promise<void>;
+export type EventHandlerFn<T = unknown> = (event: DomainEvent<T>) => Promise<void>;
 
 /**
  * Event publish options
