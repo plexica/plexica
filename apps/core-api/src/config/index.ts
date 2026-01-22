@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { parseCorsOrigins } from '../lib/cors-validator.js';
 
 // Load environment variables
 dotenv.config();
@@ -9,6 +10,12 @@ const booleanFromString = z
   .string()
   .transform((val) => val === 'true' || val === '1')
   .pipe(z.boolean());
+
+// CORS origin validation
+const corsOriginTransform = z
+  .string()
+  .default('http://localhost:3001')
+  .transform((val) => parseCorsOrigins(val));
 
 // Configuration schema
 const configSchema = z.object({
@@ -46,8 +53,8 @@ const configSchema = z.object({
   jwtSecret: z.string(),
   jwtExpiration: z.string().default('15m'),
 
-  // CORS
-  corsOrigin: z.string().default('http://localhost:3001'),
+  // CORS - SECURITY: Validate and parse CORS origins
+  corsOrigins: corsOriginTransform,
 });
 
 // Parse and validate configuration
@@ -80,7 +87,7 @@ export const config = configSchema.parse({
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiration: process.env.JWT_EXPIRATION,
 
-  corsOrigin: process.env.CORS_ORIGIN,
+  corsOrigins: process.env.CORS_ORIGIN,
 });
 
 export type Config = z.infer<typeof configSchema>;

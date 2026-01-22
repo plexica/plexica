@@ -2,6 +2,7 @@
 
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { minioClient } from '../services/minio-client';
+import { authMiddleware } from '../middleware/auth.js';
 
 /**
  * Plugin Upload Routes
@@ -10,6 +11,7 @@ import { minioClient } from '../services/minio-client';
 export async function pluginUploadRoutes(server: FastifyInstance) {
   /**
    * Upload plugin bundle
+   * SECURITY: Requires authentication to prevent unauthorized plugin uploads
    */
   server.post(
     '/plugins/upload',
@@ -17,6 +19,8 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
       schema: {
         hide: true, // Hide from swagger docs to avoid schema validation issues
       },
+      // SECURITY: Add authentication middleware to require valid JWT token
+      preHandler: [authMiddleware],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {

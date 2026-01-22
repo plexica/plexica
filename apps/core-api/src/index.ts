@@ -22,6 +22,8 @@ import { ServiceRegistryService } from './services/service-registry.service';
 import { PluginApiGateway } from './services/plugin-api-gateway.service';
 import { SharedDataService } from './services/shared-data.service';
 import { DependencyResolutionService } from './services/dependency-resolution.service';
+import { csrfProtectionMiddleware } from './middleware/csrf-protection.js';
+import { advancedRateLimitMiddleware } from './middleware/advanced-rate-limit.js';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -48,8 +50,9 @@ async function registerPlugins() {
   });
 
   // CORS
+  // SECURITY: Origins are now validated by cors-validator.ts
   await server.register(cors, {
-    origin: config.corsOrigin.split(','),
+    origin: config.corsOrigins,
     credentials: true,
   });
 
@@ -104,6 +107,12 @@ async function registerPlugins() {
       },
     });
   }
+
+  // SECURITY: Register advanced rate limiting middleware (multi-level)
+  server.addHook('preHandler', advancedRateLimitMiddleware);
+
+  // SECURITY: Register CSRF protection middleware globally
+  server.addHook('preHandler', csrfProtectionMiddleware);
 }
 
 // Register routes

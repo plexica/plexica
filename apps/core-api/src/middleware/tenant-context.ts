@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService } from '../services/tenant.service.js';
+import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
 
 // Tenant context stored in AsyncLocalStorage
 export interface TenantContext {
@@ -42,10 +43,24 @@ export async function tenantContextMiddleware(
 
     let tenantSlug: string | undefined;
 
-    // Method 1: Extract tenant from X-Tenant-Slug header
-    const tenantHeader = request.headers['x-tenant-slug'];
-    if (tenantHeader && typeof tenantHeader === 'string') {
-      tenantSlug = tenantHeader;
+    // SECURITY: Validate and extract custom headers
+    const headerValidation = validateCustomHeaders(request.headers);
+
+    // Log any header validation errors
+    if (headerValidation.errors.length > 0) {
+      headerValidation.errors.forEach((error) => {
+        logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
+      });
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: 'Invalid header format',
+        details: headerValidation.errors,
+      });
+    }
+
+    // Use validated tenant slug from header
+    if (headerValidation.tenantSlug) {
+      tenantSlug = headerValidation.tenantSlug;
     }
 
     // Method 2: Extract tenant from JWT token (to be implemented with auth)
@@ -94,6 +109,8 @@ export async function tenantContextMiddleware(
       tenantId: tenant.id,
       tenantSlug: tenant.slug,
       schemaName: tenantService.getSchemaName(tenant.slug),
+      // SECURITY: Set workspace ID if provided and validated
+      workspaceId: headerValidation.workspaceId,
     };
 
     // Store context in AsyncLocalStorage and add to request
