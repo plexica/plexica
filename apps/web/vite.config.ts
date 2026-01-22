@@ -12,12 +12,19 @@ export default defineConfig({
     tailwindcss(),
     react(),
     federation({
-      name: 'plexica-shell',
+      name: 'plexica_host',
       remotes: {
         // Dynamic remotes will be loaded at runtime
-        // Plugins will register themselves here
+        // Plugins register themselves via PluginLoader
       },
-      shared: ['react', 'react-dom', '@tanstack/react-router', '@tanstack/react-query'],
+      shared: [
+        'react',
+        'react-dom',
+        '@tanstack/react-router',
+        '@tanstack/react-query',
+        'axios',
+        'zustand',
+      ],
     }),
   ],
   resolve: {

@@ -76,11 +76,13 @@ class PluginLoaderService {
         throw new Error(`Plugin container not found: ${manifest.id}`);
       }
 
-      // Initialize the container
-      await container.init(__webpack_share_scopes__.default);
+      // Initialize the container with shared scope
+      // For Vite Module Federation, use __federation_shared__
+      const sharedScope = (window as any).__federation_shared__ || {};
+      await container.init(sharedScope);
 
-      // Get the plugin module
-      const factory = await container.get('./plugin');
+      // Get the plugin module (Vite MF uses './Plugin' by convention)
+      const factory = await container.get('./Plugin');
       const module = factory();
 
       console.log(`[PluginLoader] Plugin loaded successfully: ${manifest.name}`);
@@ -161,12 +163,12 @@ class PluginLoaderService {
 
   private getPluginRemoteEntry(plugin: any): string {
     // In development, plugins are served from a local dev server
-    // In production, they would be served from CDN or plugin registry
+    // In production, they are served from CDN (MinIO or CloudFront)
     const baseUrl = import.meta.env.DEV
-      ? 'http://localhost:3100' // Dev server for plugins
-      : `${import.meta.env.VITE_PLUGIN_CDN_URL || '/plugins'}`;
+      ? import.meta.env.VITE_PLUGIN_DEV_URL || 'http://localhost:3100'
+      : import.meta.env.VITE_PLUGIN_CDN_URL || 'http://localhost:9000/plexica-plugins';
 
-    return `${baseUrl}/${plugin.id}/remoteEntry.js`;
+    return `${baseUrl}/${plugin.id}/${plugin.version}/remoteEntry.js`;
   }
 
   private getPluginRoutes(tenantPlugin: TenantPlugin): PluginRoute[] {

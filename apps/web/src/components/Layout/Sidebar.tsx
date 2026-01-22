@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { usePlugins } from '../../contexts/PluginContext';
+import * as LucideIcons from 'lucide-react';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -32,9 +34,21 @@ const coreMenuItems: MenuItem[] = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapsedChange }) => {
   const location = useLocation();
+  const { menuItems, isLoading } = usePlugins();
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  // Helper to get icon component from string name
+  const getIcon = (iconName?: string) => {
+    if (!iconName) return <Puzzle className="w-5 h-5" />;
+
+    const IconComponent = (LucideIcons as any)[iconName];
+    if (IconComponent) {
+      return <IconComponent className="w-5 h-5" />;
+    }
+    return <Puzzle className="w-5 h-5" />;
   };
 
   return (
@@ -79,9 +93,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapsedChange }
               APPLICATIONS
             </h3>
           )}
-          {!collapsed && (
+          {isLoading && !collapsed && (
+            <div className="px-3 py-2 text-sm text-muted-foreground">Loading plugins...</div>
+          )}
+          {!isLoading && menuItems.length === 0 && !collapsed && (
             <div className="px-3 py-2 text-sm text-muted-foreground">No plugins installed</div>
           )}
+          {!isLoading &&
+            menuItems.map((item) => (
+              <Link key={item.id} to={item.path || '#'}>
+                <div
+                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                    collapsed ? 'justify-center px-2' : ''
+                  } ${
+                    isActive(item.path || '')
+                      ? 'bg-muted text-foreground border-l-4 border-l-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <span className="flex-shrink-0">{getIcon(item.icon)}</span>
+                  {!collapsed && <span className="flex-1">{item.label}</span>}
+                  {!collapsed && item.badge && (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            ))}
         </div>
 
         <hr className="my-2 border-t border-border" />

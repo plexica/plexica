@@ -1,0 +1,37 @@
+{
+  "name": "@plexica/plugin-template-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plexica frontend plugin template",
+  "scripts": {
+    "dev": "vite --port 3100",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "clean": "rm -rf dist node_modules .turbo"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "@tanstack/react-router": "^1.153.2",
+    "@tanstack/react-query": "^5.90.19",
+    "axios": "^1.13.2",
+    "zustand": "^5.0.10",
+    "lucide-react": "^0.562.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@originjs/vite-plugin-federation": "^1.4.1",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "globals": "^17.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.53.1",
+    "vite": "^7.3.1"
+  }
+}

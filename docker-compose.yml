@@ -9,14 +9,14 @@ services:
       POSTGRES_USER: plexica
       POSTGRES_PASSWORD: plexica_password
       POSTGRES_DB: plexica
-      POSTGRES_INITDB_ARGS: "-E UTF8"
+      POSTGRES_INITDB_ARGS: '-E UTF8'
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plexica"]
+      test: ['CMD-SHELL', 'pg_isready -U plexica']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,11 +29,11 @@ services:
     container_name: plexica-redis
     command: redis-server --appendonly yes --requirepass ""
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -53,15 +53,19 @@ services:
       KC_DB_SCHEMA: keycloak
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HEALTH_ENABLED: "true"
-      KC_METRICS_ENABLED: "true"
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
     ports:
-      - "8080:8080"
+      - '8080:8080'
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;grep 'HTTP/1.1 200 OK' <&3"]
+      test:
+        [
+          'CMD-SHELL',
+          "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;grep 'HTTP/1.1 200 OK' <&3",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -69,43 +73,44 @@ services:
     networks:
       - plexica-network
 
-  # Redpanda - Kafka-compatible event streaming
-  redpanda:
+  # Redpanda - Kafka-compatible event streaming (3-node cluster for HA)
+  redpanda-1:
     image: docker.redpanda.com/redpandadata/redpanda:latest
-    container_name: plexica-redpanda
+    container_name: plexica-redpanda-1
     command:
       - redpanda
       - start
       - --smp
-      - "1"
+      - '1'
       - --memory
-      - "1G"
+      - '1G'
       - --reserve-memory
-      - "0M"
+      - '0M'
       - --overprovisioned
       - --node-id
-      - "0"
+      - '0'
       - --kafka-addr
       - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
       - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - PLAINTEXT://redpanda-1:29092,OUTSIDE://localhost:9092
       - --pandaproxy-addr
       - PLAINTEXT://0.0.0.0:8082,OUTSIDE://0.0.0.0:8083
       - --advertise-pandaproxy-addr
-      - PLAINTEXT://redpanda:8082,OUTSIDE://localhost:8083
+      - PLAINTEXT://redpanda-1:8082,OUTSIDE://localhost:8083
       - --rpc-addr
       - 0.0.0.0:33145
       - --advertise-rpc-addr
-      - redpanda:33145
+      - redpanda-1:33145
+      - --seeds
+      - redpanda-1:33145,redpanda-2:33146,redpanda-3:33147
     ports:
-      - "9092:9092"
-      - "8081:8081"
-      - "8083:8083"
-      - "9644:9644"
+      - '9092:9092'
+      - '8083:8083'
+      - '9644:9644'
     volumes:
-      - redpanda_data:/var/lib/redpanda/data
+      - redpanda_1_data:/var/lib/redpanda/data
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
+      test: ['CMD-SHELL', "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -113,18 +118,112 @@ services:
     networks:
       - plexica-network
 
-  # Redpanda Console - UI for Redpanda
+  redpanda-2:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: plexica-redpanda-2
+    command:
+      - redpanda
+      - start
+      - --smp
+      - '1'
+      - --memory
+      - '1G'
+      - --reserve-memory
+      - '0M'
+      - --overprovisioned
+      - --node-id
+      - '1'
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29093,OUTSIDE://0.0.0.0:9093
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-2:29093,OUTSIDE://localhost:9093
+      - --pandaproxy-addr
+      - PLAINTEXT://0.0.0.0:8084,OUTSIDE://0.0.0.0:8085
+      - --advertise-pandaproxy-addr
+      - PLAINTEXT://redpanda-2:8084,OUTSIDE://localhost:8085
+      - --rpc-addr
+      - 0.0.0.0:33146
+      - --advertise-rpc-addr
+      - redpanda-2:33146
+      - --seeds
+      - redpanda-1:33145,redpanda-2:33146,redpanda-3:33147
+    ports:
+      - '9093:9093'
+      - '8085:8085'
+      - '9645:9644'
+    volumes:
+      - redpanda_2_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ['CMD-SHELL', "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - plexica-network
+    depends_on:
+      - redpanda-1
+
+  redpanda-3:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: plexica-redpanda-3
+    command:
+      - redpanda
+      - start
+      - --smp
+      - '1'
+      - --memory
+      - '1G'
+      - --reserve-memory
+      - '0M'
+      - --overprovisioned
+      - --node-id
+      - '2'
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29094,OUTSIDE://0.0.0.0:9094
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-3:29094,OUTSIDE://localhost:9094
+      - --pandaproxy-addr
+      - PLAINTEXT://0.0.0.0:8086,OUTSIDE://0.0.0.0:8087
+      - --advertise-pandaproxy-addr
+      - PLAINTEXT://redpanda-3:8086,OUTSIDE://localhost:8087
+      - --rpc-addr
+      - 0.0.0.0:33147
+      - --advertise-rpc-addr
+      - redpanda-3:33147
+      - --seeds
+      - redpanda-1:33145,redpanda-2:33146,redpanda-3:33147
+    ports:
+      - '9094:9094'
+      - '8087:8087'
+      - '9646:9644'
+    volumes:
+      - redpanda_3_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ['CMD-SHELL', "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - plexica-network
+    depends_on:
+      - redpanda-1
+
+  # Redpanda Console - UI for Redpanda cluster
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:latest
     container_name: plexica-redpanda-console
     environment:
-      KAFKA_BROKERS: redpanda:29092
-      KAFKA_SCHEMAREGISTRY_ENABLED: "false"
-      CONNECT_ENABLED: "false"
+      KAFKA_BROKERS: redpanda-1:29092,redpanda-2:29093,redpanda-3:29094
+      KAFKA_SCHEMAREGISTRY_ENABLED: 'false'
+      CONNECT_ENABLED: 'false'
     ports:
-      - "8090:8080"
+      - '8090:8080'
     depends_on:
-      - redpanda
+      - redpanda-1
+      - redpanda-2
+      - redpanda-3
     networks:
       - plexica-network
 
@@ -137,12 +236,12 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -169,7 +268,11 @@ volumes:
     driver: local
   redis_data:
     driver: local
-  redpanda_data:
+  redpanda_1_data:
+    driver: local
+  redpanda_2_data:
+    driver: local
+  redpanda_3_data:
     driver: local
   minio_data:
     driver: local

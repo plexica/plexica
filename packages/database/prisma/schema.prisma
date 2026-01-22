@@ -67,8 +67,8 @@ model Plugin {
 model TenantPlugin {
   tenantId      String
   pluginId      String
-  enabled       Boolean @default(true)
-  configuration Json    @default("{}")
+  enabled       Boolean  @default(true)
+  configuration Json     @default("{}")
   installedAt   DateTime @default(now()) @map("installed_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -91,6 +91,96 @@ model SuperAdmin {
 }
 
 // ============================================================================
+// SERVICE REGISTRY - For Plugin-to-Plugin Communication (M2.3)
+// ============================================================================
+
+enum ServiceStatus {
+  HEALTHY
+  DEGRADED
+  UNAVAILABLE
+
+  @@schema("core")
+}
+
+// Registered plugin services
+model PluginService {
+  id          String        @id @default(uuid())
+  pluginId    String        @map("plugin_id")
+  tenantId    String        @map("tenant_id")
+  serviceName String        @map("service_name") // e.g., "crm.contacts", "analytics.metrics"
+  version     String
+  baseUrl     String?       @map("base_url") // For external services
+  status      ServiceStatus @default(HEALTHY)
+  metadata    Json          @default("{}") // Additional service metadata
+  lastSeenAt  DateTime      @default(now()) @map("last_seen_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  endpoints PluginServiceEndpoint[]
+
+  @@unique([tenantId, pluginId, serviceName])
+  @@index([tenantId, status])
+  @@index([pluginId])
+  @@map("plugin_services")
+  @@schema("core")
+}
+
+// Service endpoints (API methods)
+model PluginServiceEndpoint {
+  id          String   @id @default(uuid())
+  serviceId   String   @map("service_id")
+  method      String // GET, POST, PUT, DELETE, PATCH
+  path        String // /api/contacts/:id
+  description String?
+  permissions Json     @default("[]") // Required permissions
+  metadata    Json     @default("{}") // Schema, rate limits, etc.
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  service PluginService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, method, path])
+  @@index([serviceId])
+  @@map("plugin_service_endpoints")
+  @@schema("core")
+}
+
+// Plugin dependencies (for resolution)
+model PluginDependency {
+  id                String   @id @default(uuid())
+  pluginId          String   @map("plugin_id")
+  dependsOnPluginId String   @map("depends_on_plugin_id")
+  version           String // Semver constraint (e.g., "^1.0.0")
+  required          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([pluginId, dependsOnPluginId])
+  @@index([pluginId])
+  @@index([dependsOnPluginId])
+  @@map("plugin_dependencies")
+  @@schema("core")
+}
+
+// Shared data between plugins (namespaced key-value store)
+model SharedPluginData {
+  id        String    @id @default(uuid())
+  tenantId  String    @map("tenant_id")
+  namespace String // e.g., "crm.analytics.sync"
+  key       String
+  value     Json
+  ownerId   String    @map("owner_id") // Plugin ID that owns this data
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, namespace, key])
+  @@index([tenantId, namespace])
+  @@index([ownerId])
+  @@index([expiresAt])
+  @@map("shared_plugin_data")
+  @@schema("core")
+}
+
+// ============================================================================
 // TENANT SCHEMA TEMPLATE
 // Note: These models are templates. Each tenant gets its own schema
 // dynamically created at provisioning time (e.g., tenant_acme_corp)
@@ -107,15 +197,15 @@ enum WorkspaceRole {
 
 // User Model (in tenant schema)
 model User {
-  id          String   @id @default(uuid())
-  keycloakId  String   @unique @map("keycloak_id")
-  email       String   @unique
-  firstName   String?  @map("first_name")
-  lastName    String?  @map("last_name")
-  avatar      String?
-  locale      String   @default("en")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(uuid())
+  keycloakId String   @unique @map("keycloak_id")
+  email      String   @unique
+  firstName  String?  @map("first_name")
+  lastName   String?  @map("last_name")
+  avatar     String?
+  locale     String   @default("en")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   workspaceMemberships WorkspaceMember[]
   teamsOwned           Team[]            @relation("TeamOwner")
