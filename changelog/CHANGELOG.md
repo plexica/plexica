@@ -9,6 +9,182 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Next - M2.4 Plugin Registry & Marketplace
+
+#### Planning
+
+- Plugin publishing workflow
+- Marketplace UI (Super Admin + Tenant)
+- Installation wizard
+- Review and rating system
+
+---
+
+## [0.3.0] - 2026-01-22 - Plugin-to-Plugin Communication Complete
+
+### Milestone 2.3 - Plugin-to-Plugin Communication ✅
+
+#### Added
+
+- **Service Registry** (359 lines)
+  - Service registration and discovery with Redis caching
+  - Health check and availability tracking
+  - Fast service lookup (<1ms cached)
+  - Automatic service deregistration on plugin deactivation
+
+- **Dependency Resolution Service** (411 lines)
+  - Topological sorting for dependency order validation
+  - Circular dependency detection and prevention
+  - Required vs optional dependency support
+  - Conflict detection and resolution
+
+- **Shared Data Service** (340 lines)
+  - Cross-plugin state management with TTL
+  - JSON data storage with validation
+  - Namespace-based access control
+  - Automatic cleanup of expired data
+
+- **Plugin API Gateway** (278 lines)
+  - Inter-plugin HTTP request routing
+  - Request/response proxying with tenant context
+  - Service discovery integration
+  - Low overhead (5-20ms) communication layer
+
+- **Plugin Manifest Schema** (271 lines)
+  - Zod-based validation for plugin.json
+  - Service declaration support (provides/consumes)
+  - Dependency specification with semver
+  - Comprehensive validation error messages
+
+- **REST API** (573 lines - 15 endpoints)
+  - POST /api/plugin-gateway/services/register
+  - DELETE /api/plugin-gateway/services/:serviceId
+  - GET /api/plugin-gateway/services
+  - GET /api/plugin-gateway/services/:serviceId
+  - POST /api/plugin-gateway/dependencies/validate
+  - GET /api/plugin-gateway/dependencies/:pluginId
+  - POST /api/plugin-gateway/shared-data
+  - GET /api/plugin-gateway/shared-data
+  - GET /api/plugin-gateway/shared-data/:key
+  - DELETE /api/plugin-gateway/shared-data/:key
+  - POST /api/plugin-gateway/call/:serviceId/:endpoint
+  - GET /api/plugin-gateway/call/:serviceId/:endpoint
+  - PUT /api/plugin-gateway/call/:serviceId/:endpoint
+  - DELETE /api/plugin-gateway/call/:serviceId/:endpoint
+  - POST /api/plugin-gateway/manifest/validate
+
+- **Database Migration** (4 new tables)
+  - `plugin_services` - Service registry with metadata
+  - `plugin_service_endpoints` - HTTP endpoint definitions
+  - `plugin_dependencies` - Dependency graph storage
+  - `shared_plugin_data` - Cross-plugin state with TTL
+
+- **Example Plugins** (2 working plugins)
+  - **CRM Plugin** (port 3100):
+    - Exposes `crm.contacts` and `crm.deals` services
+    - 15 REST endpoints for contact/deal management
+    - In-memory data storage
+    - Complete plugin.json manifest
+  - **Analytics Plugin** (port 3200):
+    - Consumes CRM services via API Gateway
+    - Generates reports from CRM data
+    - HTTP client for inter-plugin communication
+    - Declares dependencies in manifest
+
+- **Testing Suite** (111 tests, 100% passing)
+  - Service Registry: 14 tests (76.56% coverage)
+  - Dependency Resolution: 15 tests (92.18% coverage)
+  - Shared Data: 23 tests (83.33% coverage)
+  - API Gateway: 18 tests (93.33% coverage)
+  - Manifest Schema: 30 tests (92.85% coverage)
+  - Integration: 11 tests (full workflow coverage)
+  - Average coverage: 87.65% ✅
+
+- **E2E Test Script** (scripts/test-plugin-to-plugin.sh)
+  - Service registration verification
+  - Dependency validation tests
+  - Shared data operations
+  - Inter-plugin API calls
+  - All 7 tests passing ✅
+
+- **Comprehensive Documentation** (~3,600 lines)
+  - **API Reference** (docs/api/plugin-communication-api.md - 700 lines)
+    - All 15 endpoints documented
+    - Request/response examples with cURL
+    - Error codes and handling
+  - **Plugin Developer Guide** (docs/guides/plugin-development.md - 1,000 lines)
+    - Quick start tutorial
+    - Service exposure patterns
+    - Service consumption patterns
+    - Shared data usage
+    - Best practices
+  - **Architecture Documentation** (docs/architecture/plugin-ecosystem.md - 800 lines)
+    - System overview with diagrams
+    - Service Registry architecture
+    - Dependency Resolution algorithm
+    - API Gateway design
+    - Performance & scalability
+  - **Example Integration** (docs/examples/crm-analytics-integration.md - 600 lines)
+    - Complete CRM ↔ Analytics walkthrough
+    - Real code references
+    - Testing instructions
+  - **Migration Guide** (docs/guides/plugin-migration.md - 500 lines)
+    - Step-by-step upgrade instructions
+    - Before/after examples
+    - Troubleshooting guide
+
+**Commits**:
+
+- `8f90b46` - feat(m2.3): complete plugin-to-plugin communication with comprehensive documentation
+- Merge commit `446b2c0` - Merge M2.3 Plugin-to-Plugin Communication (100% complete)
+
+**Total Code**: ~9,500 lines
+
+- Production code: ~1,660 lines (4 services)
+- Test code: ~2,753 lines (111 tests)
+- Documentation: ~3,600 lines (5 documents)
+- Example plugins: ~1,500 lines (2 plugins)
+
+**Performance Achievements**:
+
+- Service discovery (cached): <1ms ✅
+- API Gateway overhead: 5-20ms ✅
+- Test coverage: 87.65% ✅ (exceeds 80% target)
+
+**Phase 2 Progress**: 50% (3/6 milestones complete)
+
+---
+
+## [0.2.0] - 2026-01-20 - Module Federation & CDN Complete
+
+### Milestone 2.2 - Module Federation & CDN ✅
+
+#### Added
+
+- MinIO CDN infrastructure for plugin storage
+- Plugin upload API with validation
+- Module Federation configuration
+- Frontend plugin loading system
+- Plugin hot-reloading support
+
+---
+
+## [0.1.0] - 2026-01-18 - Event System Complete
+
+### Milestone 2.1 - Event System & Message Bus ✅
+
+#### Added
+
+- Redpanda integration for event streaming
+- Event Bus service with publish/subscribe
+- Dead Letter Queue (DLQ) handling
+- Event metrics and monitoring
+- Plugin event client
+
+---
+
+## [Unreleased - Old]
+
 ### In Progress - M2.3 Testing & Deployment (50%)
 
 #### Added
