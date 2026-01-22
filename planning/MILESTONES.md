@@ -742,13 +742,13 @@ Frontend:
 **Status Summary**:
 
 - 🟢 M2.1 - Event System (100% - Complete)
-- 🔴 M2.2 - Module Federation (0%)
+- 🟡 M2.2 - Module Federation (42% - In Progress)
 - 🔴 M2.3 - Plugin-to-Plugin Communication (0%)
 - 🔴 M2.4 - Plugin Registry & Marketplace (0%)
 - 🔴 M2.5 - Kubernetes Deployment (0%)
 - 🔴 M2.6 - Official Plugins (0%)
 
-**Current Focus**: M2.2 Module Federation (next milestone)
+**Current Focus**: M2.2 Module Federation (Tasks 1-5 complete, working on Task 6)
 
 **Prerequisites**: Phase 1 MVP 100% Complete (currently 94%)
 
@@ -917,44 +917,89 @@ Frontend:
 
 ---
 
-### M2.2 - Module Federation 🔴 Target: Week 8 (Q2 2026)
+### M2.2 - Module Federation 🟡 Target: Week 8 (Q2 2026)
 
-**Status**: 🔴 Not Started  
+**Status**: 🟡 42% Complete (5/12 tasks)  
 **Owner**: Frontend Team  
 **Duration**: 4 weeks (160 hours)  
-**Priority**: 🔥 Critical
+**Priority**: 🔥 Critical  
+**Start Date**: 2026-01-21  
+**Commits**:
+
+- `6f597ca` - "feat(module-federation): implement Module Federation infrastructure for M2.2"
+- `bc76fcc` - "feat(cdn): implement MinIO CDN infrastructure and plugin upload API for M2.2"
 
 **Objectives**:
 
-- [ ] Module Federation in apps/web
-- [ ] CDN infrastructure for plugins
-- [ ] Dynamic plugin loader
-- [ ] Plugin route registration
-- [ ] Dynamic menu system
-- [ ] Sample frontend plugins
+- [x] Module Federation in apps/web (Task 1) ✅
+- [x] CDN infrastructure for plugins (Task 4) ✅
+- [x] Plugin upload API (Task 5) ✅
+- [x] Plugin template structure (Task 2) ✅
+- [x] PluginLoader & Registry services (Task 3) ✅
+- [ ] CLI build & publish commands (Task 6) 🔴
+- [ ] Dynamic plugin route registration (Task 7) 🔴
+- [ ] Dynamic menu system (Task 8) 🔴
+- [ ] Sample CRM frontend plugin (Task 9) 🔴
+- [ ] Sample Analytics frontend plugin (Task 10) 🔴
+- [ ] E2E tests (Task 11) 🔴
+- [ ] Documentation (Task 12) 🔴
 
 **Completion Criteria**:
 
-- [ ] Module Federation configured and working
-- [ ] Plugin bundles hosted on CDN
-- [ ] Dynamic route registration functional
-- [ ] Menu system integrated
-- [ ] Plugin load time < 3s
-- [ ] Initial bundle < 100KB (gzipped)
-- [ ] Test coverage > 75%
+- [x] Module Federation configured and working ✅
+- [x] Plugin bundles can be uploaded to CDN ✅
+- [x] MinIO buckets created with public read policy ✅
+- [ ] Dynamic route registration functional 🔴
+- [ ] Menu system integrated 🔴
+- [ ] Plugin load time < 3s 🔴
+- [ ] Initial bundle < 100KB (gzipped) 🔴
+- [ ] Test coverage > 75% 🔴
 
 **Key Deliverables**:
 
-- ✅ Module Federation infrastructure
-- ✅ Plugin CDN setup (MinIO + CloudFront)
-- ✅ PluginLoader service (~300 lines)
-- ✅ Dynamic routing system (~250 lines)
-- ✅ Dynamic menu system (~200 lines)
-- ✅ plexica-cli build/publish commands
-- ✅ 2 sample frontend plugins (CRM, Analytics)
-- ✅ Documentation
+- ✅ Module Federation infrastructure (Vite + @originjs/vite-plugin-federation)
+  - Host app: `apps/web` (plexica_host)
+  - Shared deps: React, React Router, React Query, Zustand, Axios
+- ✅ Plugin template (`apps/plugin-template-frontend/`) - 676 lines
+  - Complete remote config with exposed modules
+  - Manifest structure with routes, menus, permissions
+  - Development server on port 3100
+- ✅ PluginLoader service (`apps/web/src/lib/plugin-loader.ts`) - 239 lines
+  - Dynamic script injection for remote entry
+  - Vite Module Federation compatibility
+  - Versioned CDN URL support
+- ✅ Plugin Registry service (`apps/web/src/lib/plugin-registry.ts`) - 176 lines
+  - Plugin lifecycle management
+  - Backend API integration
+  - Filtering and search capabilities
+- ✅ MinIO CDN infrastructure (`apps/core-api/src/services/minio-client.ts`) - 305 lines
+  - S3-compatible storage service
+  - Bucket management: `plexica-plugins` (public), `plexica-tenants` (private)
+  - Plugin upload, versioning, deletion
+  - Public read policy for plugin bucket
+  - Health check functionality
+- ✅ Plugin Upload API (`apps/core-api/src/routes/plugin-upload.ts`) - 248 lines
+  - POST /api/plugins/upload - Multipart file upload
+  - GET /api/plugins/:pluginId/versions - List versions
+  - DELETE /api/plugins/:pluginId/versions/:version - Delete version
+  - GET /api/plugins/:pluginId/versions/:version/remote-entry - Get URL
+- ✅ File upload support with @fastify/multipart (100 MB limit)
+- 🔴 Dynamic routing system (~250 lines) - TODO
+- 🔴 Dynamic menu system (~200 lines) - TODO
+- 🔴 plexica-cli build/publish commands (~450 lines) - TODO
+- 🔴 2 sample frontend plugins (CRM, Analytics) - TODO
+- 🔴 E2E tests - TODO
+- 🔴 Documentation - TODO
 
-**Dependencies**: M2.1 (Event System)
+**Code Statistics**:
+
+- Production code: ~1,900 lines
+- Configuration: 16 files modified
+- Services: 3 new (MinIOClientService, PluginLoader, PluginRegistry)
+- API endpoints: 4 new
+- Dependencies: minio@8.0.6, @fastify/multipart@9.4.0
+
+**Dependencies**: M2.1 (Event System) ✅
 
 ---
 
