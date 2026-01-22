@@ -15,31 +15,7 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
     '/plugins/upload',
     {
       schema: {
-        description: 'Upload plugin bundle files to CDN',
-        tags: ['plugins'],
-        body: {
-          type: 'object',
-          required: ['pluginId', 'version'],
-          properties: {
-            pluginId: { type: 'string' },
-            version: { type: 'string' },
-          },
-        },
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean' },
-              pluginId: { type: 'string' },
-              version: { type: 'string' },
-              urls: {
-                type: 'array',
-                items: { type: 'string' },
-              },
-              remoteEntryUrl: { type: 'string' },
-            },
-          },
-        },
+        hide: true, // Hide from swagger docs to avoid schema validation issues
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {

@@ -84,6 +84,50 @@ export interface PluginEndpoint {
 }
 
 /**
+ * Plugin API Service Definition (M2.3 - Plugin-to-Plugin Communication)
+ * Defines a service that the plugin exposes to other plugins
+ */
+export interface PluginApiService {
+  /** Unique service name (e.g., "crm.contacts", "analytics.reports") */
+  name: string;
+  /** Service version (semver) */
+  version: string;
+  /** Optional base URL override (defaults to plugin's backend URL) */
+  baseUrl?: string;
+  /** Service description */
+  description?: string;
+  /** API endpoints exposed by this service */
+  endpoints: Array<{
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    path: string;
+    description?: string;
+    /** Required permissions to call this endpoint */
+    permissions?: string[];
+    /** Custom metadata for the endpoint */
+    metadata?: Record<string, any>;
+  }>;
+  /** Service-level metadata */
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Plugin API Dependency (M2.3 - Plugin-to-Plugin Communication)
+ * Declares that this plugin depends on another plugin's API
+ */
+export interface PluginApiDependency {
+  /** The plugin ID this plugin depends on */
+  pluginId: string;
+  /** Optional specific service name (if only consuming one service) */
+  serviceName?: string;
+  /** Version constraint (semver range, e.g., "^1.0.0", ">=2.0.0") */
+  version: string;
+  /** Whether this dependency is required for the plugin to function */
+  required: boolean;
+  /** Description of why this dependency is needed */
+  reason?: string;
+}
+
+/**
  * Plugin frontend module
  */
 export interface PluginFrontendModule {
@@ -161,6 +205,14 @@ export interface PluginManifest {
   frontend?: {
     modules?: PluginFrontendModule[];
     assets?: string[];
+  };
+
+  // API Communication (M2.3 - Plugin-to-Plugin Communication)
+  api?: {
+    /** Services exposed by this plugin for other plugins to consume */
+    services?: PluginApiService[];
+    /** Other plugins this plugin depends on */
+    dependencies?: PluginApiDependency[];
   };
 
   // Lifecycle hooks

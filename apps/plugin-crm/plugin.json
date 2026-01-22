@@ -1,0 +1,200 @@
+{
+  "id": "plugin-crm",
+  "name": "CRM Plugin",
+  "version": "1.0.0",
+  "description": "Customer Relationship Management plugin - manage contacts, deals, and sales pipeline",
+  "category": "crm",
+  "metadata": {
+    "author": {
+      "name": "Plexica Team",
+      "email": "team@plexica.io",
+      "url": "https://plexica.io"
+    },
+    "license": "MIT",
+    "homepage": "https://plexica.io/plugins/crm",
+    "repository": "https://github.com/plexica/plugin-crm",
+    "keywords": ["crm", "contacts", "deals", "sales", "pipeline"]
+  },
+  "permissions": [
+    {
+      "resource": "contacts",
+      "action": "read",
+      "description": "Read customer contacts"
+    },
+    {
+      "resource": "contacts",
+      "action": "write",
+      "description": "Create and update contacts"
+    },
+    {
+      "resource": "deals",
+      "action": "read",
+      "description": "Read sales deals"
+    },
+    {
+      "resource": "deals",
+      "action": "write",
+      "description": "Create and update deals"
+    }
+  ],
+  "config": [
+    {
+      "key": "pipelineStages",
+      "type": "json",
+      "label": "Pipeline Stages",
+      "description": "Configure your sales pipeline stages",
+      "required": false,
+      "default": ["Lead", "Qualified", "Proposal", "Negotiation", "Closed Won", "Closed Lost"]
+    },
+    {
+      "key": "currency",
+      "type": "select",
+      "label": "Default Currency",
+      "description": "Default currency for deals",
+      "required": true,
+      "default": "USD",
+      "options": [
+        { "value": "USD", "label": "US Dollar" },
+        { "value": "EUR", "label": "Euro" },
+        { "value": "GBP", "label": "British Pound" }
+      ]
+    }
+  ],
+  "backend": {
+    "entry": "dist/index.js",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/contacts",
+        "description": "List all contacts",
+        "requiresAuth": true,
+        "permissions": ["plugin.crm.contacts.read"]
+      },
+      {
+        "method": "POST",
+        "path": "/contacts",
+        "description": "Create a new contact",
+        "requiresAuth": true,
+        "permissions": ["plugin.crm.contacts.write"]
+      },
+      {
+        "method": "GET",
+        "path": "/contacts/:id",
+        "description": "Get contact by ID",
+        "requiresAuth": true,
+        "permissions": ["plugin.crm.contacts.read"]
+      },
+      {
+        "method": "GET",
+        "path": "/deals",
+        "description": "List all deals",
+        "requiresAuth": true,
+        "permissions": ["plugin.crm.deals.read"]
+      },
+      {
+        "method": "POST",
+        "path": "/deals",
+        "description": "Create a new deal",
+        "requiresAuth": true,
+        "permissions": ["plugin.crm.deals.write"]
+      }
+    ]
+  },
+  "frontend": {
+    "modules": [
+      {
+        "name": "CRM",
+        "entry": "http://localhost:3200/remoteEntry.js",
+        "scope": "pluginCRM",
+        "type": "page",
+        "route": "/plugins/crm",
+        "icon": "Users",
+        "menu": {
+          "label": "CRM",
+          "position": 10
+        }
+      }
+    ]
+  },
+  "api": {
+    "services": [
+      {
+        "name": "crm.contacts",
+        "version": "1.0.0",
+        "description": "Contact management service",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/contacts",
+            "description": "List all contacts",
+            "permissions": ["plugin.crm.contacts.read"]
+          },
+          {
+            "method": "GET",
+            "path": "/contacts/:id",
+            "description": "Get contact by ID",
+            "permissions": ["plugin.crm.contacts.read"]
+          },
+          {
+            "method": "POST",
+            "path": "/contacts",
+            "description": "Create a new contact",
+            "permissions": ["plugin.crm.contacts.write"]
+          },
+          {
+            "method": "PUT",
+            "path": "/contacts/:id",
+            "description": "Update a contact",
+            "permissions": ["plugin.crm.contacts.write"]
+          },
+          {
+            "method": "DELETE",
+            "path": "/contacts/:id",
+            "description": "Delete a contact",
+            "permissions": ["plugin.crm.contacts.write"]
+          }
+        ],
+        "metadata": {
+          "rateLimit": 100,
+          "cacheTTL": 300
+        }
+      },
+      {
+        "name": "crm.deals",
+        "version": "1.0.0",
+        "description": "Deal management service",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/deals",
+            "description": "List all deals",
+            "permissions": ["plugin.crm.deals.read"]
+          },
+          {
+            "method": "GET",
+            "path": "/deals/:id",
+            "description": "Get deal by ID",
+            "permissions": ["plugin.crm.deals.read"]
+          },
+          {
+            "method": "POST",
+            "path": "/deals",
+            "description": "Create a new deal",
+            "permissions": ["plugin.crm.deals.write"]
+          },
+          {
+            "method": "PUT",
+            "path": "/deals/:id",
+            "description": "Update a deal",
+            "permissions": ["plugin.crm.deals.write"]
+          }
+        ]
+      }
+    ],
+    "dependencies": []
+  },
+  "lifecycle": {
+    "install": "scripts/install.js",
+    "activate": "scripts/activate.js"
+  }
+}

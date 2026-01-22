@@ -73,7 +73,7 @@ describe('PluginRegistryService', () => {
   describe('registerPlugin', () => {
     it('should register a new plugin', async () => {
       const manifest = {
-        id: 'test-plugin',
+        id: 'plugin-test',
         name: 'Test Plugin',
         version: '1.0.0',
         description: 'A test plugin for testing',

@@ -1,0 +1,151 @@
+{
+  "id": "plugin-analytics",
+  "name": "Analytics Plugin",
+  "version": "1.0.0",
+  "description": "Analytics and reporting plugin - visualize data from CRM and other sources",
+  "category": "analytics",
+  "metadata": {
+    "author": {
+      "name": "Plexica Team",
+      "email": "team@plexica.io",
+      "url": "https://plexica.io"
+    },
+    "license": "MIT",
+    "homepage": "https://plexica.io/plugins/analytics",
+    "repository": "https://github.com/plexica/plugin-analytics",
+    "keywords": ["analytics", "reporting", "dashboards", "metrics", "insights"]
+  },
+  "permissions": [
+    {
+      "resource": "reports",
+      "action": "read",
+      "description": "View analytics reports"
+    },
+    {
+      "resource": "reports",
+      "action": "write",
+      "description": "Create and manage custom reports"
+    },
+    {
+      "resource": "dashboards",
+      "action": "read",
+      "description": "View dashboards"
+    },
+    {
+      "resource": "dashboards",
+      "action": "write",
+      "description": "Create and manage dashboards"
+    }
+  ],
+  "config": [
+    {
+      "key": "refreshInterval",
+      "type": "number",
+      "label": "Data Refresh Interval (seconds)",
+      "description": "How often to refresh dashboard data",
+      "required": false,
+      "default": 300,
+      "validation": {
+        "min": 60,
+        "max": 3600,
+        "message": "Refresh interval must be between 60 and 3600 seconds"
+      }
+    },
+    {
+      "key": "defaultDateRange",
+      "type": "select",
+      "label": "Default Date Range",
+      "description": "Default time range for reports",
+      "required": true,
+      "default": "30d",
+      "options": [
+        { "value": "7d", "label": "Last 7 days" },
+        { "value": "30d", "label": "Last 30 days" },
+        { "value": "90d", "label": "Last 90 days" },
+        { "value": "1y", "label": "Last year" }
+      ]
+    }
+  ],
+  "backend": {
+    "entry": "dist/index.js",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/reports",
+        "description": "List all reports",
+        "requiresAuth": true,
+        "permissions": ["plugin.analytics.reports.read"]
+      },
+      {
+        "method": "GET",
+        "path": "/dashboards/:id",
+        "description": "Get dashboard by ID",
+        "requiresAuth": true,
+        "permissions": ["plugin.analytics.dashboards.read"]
+      }
+    ]
+  },
+  "frontend": {
+    "modules": [
+      {
+        "name": "Analytics",
+        "entry": "http://localhost:3201/remoteEntry.js",
+        "scope": "pluginAnalytics",
+        "type": "page",
+        "route": "/plugins/analytics",
+        "icon": "BarChart3",
+        "menu": {
+          "label": "Analytics",
+          "position": 20
+        }
+      }
+    ]
+  },
+  "api": {
+    "services": [
+      {
+        "name": "analytics.reports",
+        "version": "1.0.0",
+        "description": "Analytics reporting service",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/reports",
+            "description": "List all reports"
+          },
+          {
+            "method": "GET",
+            "path": "/reports/:id",
+            "description": "Get report by ID"
+          },
+          {
+            "method": "POST",
+            "path": "/reports/:id/run",
+            "description": "Run a report and get results",
+            "permissions": ["plugin.analytics.reports.read"]
+          }
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "pluginId": "plugin-crm",
+        "serviceName": "crm.contacts",
+        "version": "^1.0.0",
+        "required": true,
+        "reason": "Fetch contact data for analytics dashboards and reports"
+      },
+      {
+        "pluginId": "plugin-crm",
+        "serviceName": "crm.deals",
+        "version": "^1.0.0",
+        "required": true,
+        "reason": "Fetch deal data for sales analytics and pipeline reports"
+      }
+    ]
+  },
+  "lifecycle": {
+    "install": "scripts/install.js",
+    "activate": "scripts/activate.js"
+  }
+}

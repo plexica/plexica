@@ -40,6 +40,11 @@ export default defineConfig({
     target: 'esnext',
     minify: true,
     cssCodeSplit: false,
+    lib: {
+      entry: './src/Plugin.tsx',
+      name: 'PluginTemplate',
+      formats: ['es'],
+    },
     rollupOptions: {
       output: {
         format: 'esm',

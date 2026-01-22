@@ -3,6 +3,7 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { AuthProvider } from '../components/AuthProvider';
 import { WorkspaceProvider } from '../contexts/WorkspaceContext';
+import { PluginProvider } from '../contexts/PluginContext';
 import { ToastProvider } from '../components/ToastProvider';
 
 export const Route = createRootRoute({
@@ -13,8 +14,10 @@ function RootComponent() {
   return (
     <AuthProvider>
       <WorkspaceProvider>
-        <ToastProvider />
-        <Outlet />
+        <PluginProvider>
+          <ToastProvider />
+          <Outlet />
+        </PluginProvider>
       </WorkspaceProvider>
     </AuthProvider>
   );

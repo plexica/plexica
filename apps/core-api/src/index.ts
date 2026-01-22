@@ -14,7 +14,14 @@ import { pluginUploadRoutes } from './routes/plugin-upload';
 import { workspaceRoutes } from './routes/workspace';
 import { dlqRoutes } from './routes/dlq';
 import metricsRoutes from './routes/metrics';
+import { pluginGatewayRoutes } from './routes/plugin-gateway';
 import { minioClient } from './services/minio-client';
+import { db } from './lib/db';
+import { redis } from './lib/redis';
+import { ServiceRegistryService } from './services/service-registry.service';
+import { PluginApiGateway } from './services/plugin-api-gateway.service';
+import { SharedDataService } from './services/shared-data.service';
+import { DependencyResolutionService } from './services/dependency-resolution.service';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -70,7 +77,7 @@ async function registerPlugins() {
           version: '0.1.0',
         },
         schemes: ['http', 'https'],
-        consumes: ['application/json'],
+        consumes: ['application/json', 'multipart/form-data'],
         produces: ['application/json'],
         tags: [
           { name: 'health', description: 'Health check endpoints' },
@@ -80,6 +87,7 @@ async function registerPlugins() {
           { name: 'auth', description: 'Authentication & authorization' },
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
+          { name: 'plugin-gateway', description: 'Plugin-to-plugin communication (M2.3)' },
         ],
       },
     });
@@ -104,6 +112,16 @@ async function registerRoutes() {
   await server.register(pluginUploadRoutes, { prefix: '/api' });
   await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });
   await server.register(metricsRoutes, { prefix: '/api/metrics' });
+
+  // Plugin Gateway Routes (M2.3 - Plugin-to-Plugin Communication)
+  // Initialize services for plugin communication
+  const serviceRegistry = new ServiceRegistryService(db, redis, server.log);
+  const apiGateway = new PluginApiGateway(serviceRegistry, server.log);
+  const sharedData = new SharedDataService(db, redis, server.log);
+  const dependencyResolver = new DependencyResolutionService(db, server.log);
+
+  // Register plugin gateway routes
+  await pluginGatewayRoutes(server, serviceRegistry, apiGateway, sharedData, dependencyResolver);
 }
 
 // Error handler
