@@ -1,21 +1,21 @@
+// File: apps/plugin-template-frontend/vite.config.ts
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import federation from '@originjs/vite-plugin-federation';
-import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    TanStackRouterVite(),
-    tailwindcss(),
     react(),
     federation({
-      name: 'plexica_host',
-      remotes: {
-        // Dynamic remotes will be loaded at runtime
-        // Plugins register themselves via PluginLoader
+      name: 'plugin_template',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './Plugin': './src/Plugin.tsx',
+        './routes': './src/routes/index.ts',
+        './manifest': './src/manifest.ts',
       },
       shared: [
         'react',
@@ -33,17 +33,20 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3001,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-    },
+    port: 3100,
+    cors: true,
   },
   build: {
     target: 'esnext',
-    minify: false,
+    minify: true,
     cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        format: 'esm',
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
   },
 });
