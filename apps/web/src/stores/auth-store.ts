@@ -5,6 +5,14 @@ import { persist } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
 import type { User, Tenant } from '@/types';
 import { apiClient } from '@/lib/api-client';
+import {
+  saveToken,
+  getToken,
+  clearToken,
+  saveTenant,
+  clearTenant,
+  broadcastTokenClear,
+} from '@/lib/secure-storage';
 
 interface AuthStore {
   user: User | null;
@@ -34,6 +42,9 @@ export const useAuthStore = create<AuthStore>()(
       setAuth: (user, tenant, token) => {
         apiClient.setToken(token);
         apiClient.setTenantSlug(tenant.slug);
+        // SECURITY: Use secure storage (sessionStorage) for token instead of localStorage
+        saveToken(token);
+        saveTenant(tenant);
         set({
           user,
           tenant,
@@ -50,11 +61,18 @@ export const useAuthStore = create<AuthStore>()(
       setToken: (token) => {
         console.log('[AuthStore] setToken called');
         apiClient.setToken(token);
+        // SECURITY: Use secure storage (sessionStorage) for token instead of localStorage
+        saveToken(token);
         set({ token });
       },
 
       clearAuth: () => {
         apiClient.clearAuth();
+        // SECURITY: Clear token from secure storage
+        clearToken();
+        clearTenant();
+        // Broadcast logout to other tabs
+        broadcastTokenClear();
         set({
           user: null,
           tenant: null,
@@ -65,6 +83,8 @@ export const useAuthStore = create<AuthStore>()(
 
       setTenant: (tenant) => {
         apiClient.setTenantSlug(tenant.slug);
+        // SECURITY: Use secure storage (sessionStorage) for tenant
+        saveTenant(tenant);
         set((state) => ({
           tenant,
           user: state.user ? { ...state.user, tenantId: tenant.id } : null,
@@ -96,29 +116,35 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (state) => ({
         user: state.user,
         tenant: state.tenant,
-        token: state.token,
+        // SECURITY: Don't persist token to localStorage
+        // Token is managed separately via secure-storage.ts (sessionStorage + memory)
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
         // Rehydrate API client with persisted values
         if (state) {
           // CRITICAL FIX #1: Validate token expiry on rehydration
-          // If token is expired, clear auth immediately
-          if (state.token) {
+          // Restore token from secure storage (sessionStorage)
+          const token = getToken();
+          if (token) {
             try {
-              const decoded = jwtDecode(state.token) as any;
+              const decoded = jwtDecode(token) as any;
               const expiryTime = decoded.exp ? decoded.exp * 1000 : null;
 
               if (!expiryTime || Date.now() >= expiryTime) {
                 console.warn('[AuthStore] Token expired during rehydration, clearing auth');
+                clearToken();
                 state.clearAuth?.();
                 return;
               }
 
               // Token is still valid, rehydrate API client
-              apiClient.setToken(state.token);
+              apiClient.setToken(token);
+              // Update state with restored token
+              state.token = token;
             } catch (error) {
               console.error('[AuthStore] Failed to decode token during rehydration:', error);
+              clearToken();
               state.clearAuth?.();
               return;
             }

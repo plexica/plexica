@@ -232,6 +232,7 @@ export function generateInternalToken(
   expiresIn: string | number = '15m'
 ): string {
   const options: SignOptions = {
+    algorithm: 'HS256', // SECURITY: Explicitly specify algorithm to prevent algorithm confusion attacks
     expiresIn: expiresIn as any,
     issuer: 'plexica-core-api',
   };
@@ -243,6 +244,7 @@ export function generateInternalToken(
  */
 export function verifyInternalToken(token: string): JwtPayload {
   return jwt.verify(token, config.jwtSecret, {
+    algorithms: ['HS256'], // SECURITY: Explicitly specify allowed algorithms to prevent algorithm confusion attacks
     issuer: 'plexica-core-api',
   }) as JwtPayload;
 }
