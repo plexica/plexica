@@ -1,6 +1,6 @@
 /**
  * Plugin System Types
- * 
+ *
  * Defines the structure and types for the Plexica plugin system
  */
 
@@ -136,19 +136,19 @@ export interface PluginManifest {
   version: string;
   description: string;
   category: PluginCategory;
-  
+
   // Metadata
   metadata: PluginMetadata;
-  
+
   // Configuration
   config?: PluginConfigField[];
-  
+
   // Permissions required
   permissions?: PluginPermission[];
-  
+
   // Dependencies
   dependencies?: PluginDependencies;
-  
+
   // Backend integration
   backend?: {
     entry?: string;
@@ -156,13 +156,13 @@ export interface PluginManifest {
     endpoints?: PluginEndpoint[];
     migrations?: string[];
   };
-  
+
   // Frontend integration
   frontend?: {
     modules?: PluginFrontendModule[];
     assets?: string[];
   };
-  
+
   // Lifecycle hooks
   lifecycle?: {
     install?: string;
@@ -194,9 +194,34 @@ export interface PluginInstallation {
  */
 export interface PluginHookContext {
   tenantId: string;
+  workspaceId?: string;
   userId?: string;
   pluginId: string;
   data: any;
+
+  // Event capabilities (added in M2.1)
+  events?: {
+    publish: <T = unknown>(
+      eventName: string,
+      data: T,
+      options?: {
+        workspaceId?: string;
+        correlationId?: string;
+        causationId?: string;
+      }
+    ) => Promise<void>;
+
+    subscribe: (
+      eventName: string,
+      handler: (event: any) => Promise<void>,
+      options?: {
+        workspaceId?: string;
+        fromBeginning?: boolean;
+      }
+    ) => Promise<string>; // Returns subscription ID
+
+    unsubscribe: (subscriptionId: string) => Promise<void>;
+  };
 }
 
 /**
