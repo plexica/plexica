@@ -1,7 +1,8 @@
 // File: apps/super-admin/src/components/providers/AuthProvider.tsx
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 import * as keycloak from '@/lib/keycloak';
+import { useAuthStore } from '@/stores/auth-store';
 
 /**
  * Super Admin Authentication Context
@@ -47,12 +48,18 @@ interface AuthProviderProps {
 }
 
 /**
- * AuthProvider with Keycloak SSO Integration
+ * AuthProvider with Keycloak SSO Integration + Zustand Store
  */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  // Use Zustand store for state management
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    setAuth,
+    clearAuth: clearAuthStore,
+    setLoading,
+  } = useAuthStore();
 
   useEffect(() => {
     initAuth();
@@ -60,20 +67,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initAuth = async () => {
     try {
+      setLoading(true);
       console.log('[AuthProvider] Initializing Keycloak...');
       const authenticated = await keycloak.initKeycloak();
 
-      setIsAuthenticated(authenticated);
-
       if (authenticated) {
         await loadUserInfo();
+      } else {
+        // Not authenticated, clear store
+        clearAuthStore();
       }
     } catch (error) {
       console.error('[AuthProvider] Keycloak initialization failed:', error);
-      setIsAuthenticated(false);
-      setUser(null);
+      clearAuthStore();
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -81,8 +89,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const tokenParsed = keycloak.getTokenParsed();
       const userInfo = await keycloak.getUserInfo();
+      const token = keycloak.getToken();
 
-      if (tokenParsed && userInfo) {
+      if (tokenParsed && userInfo && token) {
         const userData: User = {
           id: tokenParsed.sub || '',
           email: (userInfo as any).email || tokenParsed.email || '',
@@ -90,11 +99,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           roles: tokenParsed.realm_access?.roles || [],
         };
 
-        setUser(userData);
-        console.log('[AuthProvider] User loaded:', userData);
+        // Update Zustand store
+        setAuth(userData, token);
+        console.log('[AuthProvider] User loaded and stored:', userData);
       }
     } catch (error) {
       console.error('[AuthProvider] Failed to load user info:', error);
+      clearAuthStore();
     }
   };
 
@@ -105,8 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = () => {
     console.log('[AuthProvider] Logging out...');
-    setUser(null);
-    setIsAuthenticated(false);
+    clearAuthStore();
     keycloak.logout();
   };
 

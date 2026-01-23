@@ -86,13 +86,15 @@
 - [x] Update login page for SSO redirect
 - [x] Create `public/silent-check-sso.html` for SSO check
 
-### Phase 4: Zustand Auth Store
+### Phase 4: Zustand Auth Store ✅
 
-- [ ] Create `stores/auth-store.ts`
-- [ ] Integrate with Keycloak
-- [ ] Use secure token storage
-- [ ] Add token expiry validation
-- [ ] Cross-tab logout support
+- [x] Create `stores/auth-store.ts`
+- [x] Remove tenant/workspace-related fields
+- [x] Integrate with Keycloak
+- [x] Use secure token storage (sessionStorage)
+- [x] Add token expiry validation on rehydration
+- [x] Integrate store with AuthProvider
+- [x] Expose auth store globally for token refresh error handling
 
 ### Phase 7: Theme and Styling
 
@@ -185,7 +187,7 @@ apps/super-admin/src/
 
 ## 📊 Migration Status
 
-**Overall Progress**: ~80% complete
+**Overall Progress**: ~85% complete
 
 - ✅ Folder structure alignment (100%)
 - ✅ Configuration and utilities (100%)
@@ -193,11 +195,11 @@ apps/super-admin/src/
 - ✅ Routing migration (100%)
 - ✅ Custom hooks implementation (100%)
 - ✅ Authentication migration (100%)
-- ⏳ State management enhancement (0%)
+- ✅ State management enhancement (100%)
 - ⏳ Theme alignment (0%)
 - ⏳ Testing and documentation (0%)
 
-**Estimated Time Remaining**: 2-4 days
+**Estimated Time Remaining**: 1-2 days
 
 ---
 

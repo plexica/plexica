@@ -54,3 +54,8 @@ export const secureStorage = {
     }
   },
 };
+
+// Export individual functions for convenience
+export const saveToken = secureStorage.setToken.bind(secureStorage);
+export const getToken = secureStorage.getToken.bind(secureStorage);
+export const clearToken = secureStorage.removeToken.bind(secureStorage);
