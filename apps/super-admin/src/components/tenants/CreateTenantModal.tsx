@@ -13,7 +13,7 @@ import {
 } from '@plexica/ui';
 import { AlertCircle, X, CheckCircle2 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
-import { apiClient } from '../lib/api-client';
+import { apiClient } from '../../lib/api-client';
 import { z } from 'zod';
 
 interface CreateTenantModalProps {
