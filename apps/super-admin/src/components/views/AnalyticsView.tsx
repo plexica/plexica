@@ -1,59 +1,18 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Card } from '@plexica/ui';
-import { apiClient } from '../../lib/api-client';
-import { StatCard } from '../StatCard';
+import { useAnalytics } from '@/hooks';
+import { StatCard } from '../tenants/StatCard';
 
 export function AnalyticsView() {
-  const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d'>('7d');
-
-  const { data: tenantsData } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: () => apiClient.getTenants(),
-  });
-
-  const { data: pluginsData } = useQuery({
-    queryKey: ['plugins'],
-    queryFn: () => apiClient.getPlugins(),
-  });
-
-  const tenants = tenantsData?.tenants || [];
-  const plugins = pluginsData?.plugins || [];
-
-  // Mock analytics data
-  const mockStats = {
-    totalTenants: tenants.length,
-    activeTenants: tenants.filter((t: any) => t.status === 'active').length,
-    totalUsers: 5, // From mock users
-    totalPlugins: plugins.length,
-    apiCalls24h: 12543,
-    avgResponseTime: 45, // ms
-    errorRate: 0.2, // %
-  };
-
-  // Mock tenant growth data
-  const tenantGrowthData = [
-    { date: '2026-01-08', count: 1 },
-    { date: '2026-01-09', count: 2 },
-    { date: '2026-01-10', count: 3 },
-    { date: '2026-01-11', count: 3 },
-    { date: '2026-01-12', count: 4 },
-    { date: '2026-01-13', count: 4 },
-    { date: '2026-01-14', count: 4 },
-  ];
-
-  // Mock API calls data
-  const apiCallsData = [
-    { hour: '00:00', calls: 450 },
-    { hour: '04:00', calls: 320 },
-    { hour: '08:00', calls: 890 },
-    { hour: '12:00', calls: 1250 },
-    { hour: '16:00', calls: 1680 },
-    { hour: '20:00', calls: 980 },
-  ];
-
-  // Calculate max values for chart scaling
-  const maxApiCalls = Math.max(...apiCallsData.map((d) => d.calls));
+  const {
+    stats,
+    tenantGrowthData,
+    apiCallsData,
+    plugins,
+    timePeriod,
+    setTimePeriod,
+    maxTenantGrowth,
+    maxApiCalls,
+  } = useAnalytics();
 
   return (
     <div>
@@ -77,29 +36,25 @@ export function AnalyticsView() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Total Tenants" value={mockStats.totalTenants} icon="🏢" />
-        <StatCard title="Total Users" value={mockStats.totalUsers} icon="👥" />
-        <StatCard title="Active Plugins" value={mockStats.totalPlugins} icon="🧩" />
-        <StatCard
-          title="API Calls (24h)"
-          value={mockStats.apiCalls24h.toLocaleString()}
-          icon="📊"
-        />
+        <StatCard title="Total Tenants" value={stats.totalTenants} icon="🏢" />
+        <StatCard title="Total Users" value={stats.totalUsers} icon="👥" />
+        <StatCard title="Active Plugins" value={stats.totalPlugins} icon="🧩" />
+        <StatCard title="API Calls (24h)" value={stats.apiCalls24h.toLocaleString()} icon="📊" />
       </div>
 
       {/* Secondary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Avg Response Time</p>
-          <p className="text-2xl font-bold text-foreground">{mockStats.avgResponseTime}ms</p>
+          <p className="text-2xl font-bold text-foreground">{stats.avgResponseTime}ms</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Error Rate</p>
-          <p className="text-2xl font-bold text-foreground">{mockStats.errorRate}%</p>
+          <p className="text-2xl font-bold text-foreground">{stats.errorRate}%</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground mb-1">Active Tenants</p>
-          <p className="text-2xl font-bold text-foreground">{mockStats.activeTenants}</p>
+          <p className="text-2xl font-bold text-foreground">{stats.activeTenants}</p>
         </Card>
       </div>
 
@@ -121,7 +76,7 @@ export function AnalyticsView() {
                   <div
                     className="bg-primary h-full flex items-center justify-end pr-2 transition-all"
                     style={{
-                      width: `${(data.count / Math.max(...tenantGrowthData.map((d) => d.count))) * 100}%`,
+                      width: `${(data.count / maxTenantGrowth) * 100}%`,
                     }}
                   >
                     <span className="text-xs font-medium text-white">{data.count}</span>

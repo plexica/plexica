@@ -1,57 +1,33 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button, Input, Badge, Card } from '@plexica/ui';
 import { Search } from 'lucide-react';
-import { apiClient } from '../../lib/api-client';
-import { Tenant } from '../../types';
-import { StatCard } from '../StatCard';
-import { CreateTenantModal } from '../CreateTenantModal';
-import { TenantDetailModal } from '../modals/TenantDetailModal';
+import { useTenants } from '@/hooks';
+import { Tenant } from '@/types';
+import { StatCard } from '../tenants/StatCard';
+import { CreateTenantModal } from '../tenants/CreateTenantModal';
+import { TenantDetailModal } from '../tenants/TenantDetailModal';
 
 export function TenantsView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended' | 'provisioning'>(
-    'all'
-  );
 
   const {
-    data: tenantsData,
+    tenants,
+    stats,
     isLoading,
     error,
+    searchQuery,
+    setSearchQuery,
+    statusFilter,
+    setStatusFilter,
+    clearFilters,
+    hasActiveFilters,
+    suspendTenant,
+    activateTenant,
+    isSuspending,
+    isActivating,
     refetch,
-  } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: () => apiClient.getTenants(),
-  });
-
-  const suspendMutation = useMutation({
-    mutationFn: (tenantId: string) => apiClient.suspendTenant(tenantId),
-    onSuccess: () => {
-      refetch();
-    },
-  });
-
-  const activateMutation = useMutation({
-    mutationFn: (tenantId: string) => apiClient.activateTenant(tenantId),
-    onSuccess: () => {
-      refetch();
-    },
-  });
-
-  const allTenants: Tenant[] = tenantsData?.tenants || [];
-
-  // Filter tenants based on search and status
-  const tenants = allTenants.filter((tenant) => {
-    const matchesSearch =
-      tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tenant.slug.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || tenant.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
+  } = useTenants();
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -135,15 +111,8 @@ export function TenantsView() {
             </select>
 
             {/* Clear Filters */}
-            {(searchQuery || statusFilter !== 'all') && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                }}
-              >
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Clear filters
               </Button>
             )}
@@ -151,22 +120,10 @@ export function TenantsView() {
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <StatCard title="Total Tenants" value={allTenants.length} icon="🏢" />
-            <StatCard
-              title="Active"
-              value={allTenants.filter((t) => t.status === 'active').length}
-              icon="✅"
-            />
-            <StatCard
-              title="Suspended"
-              value={allTenants.filter((t) => t.status === 'suspended').length}
-              icon="⏸️"
-            />
-            <StatCard
-              title="Provisioning"
-              value={allTenants.filter((t) => t.status === 'provisioning').length}
-              icon="⚙️"
-            />
+            <StatCard title="Total Tenants" value={stats.total} icon="🏢" />
+            <StatCard title="Active" value={stats.active} icon="✅" />
+            <StatCard title="Suspended" value={stats.suspended} icon="⏸️" />
+            <StatCard title="Provisioning" value={stats.provisioning} icon="⚙️" />
           </div>
 
           {/* Tenants Table */}
@@ -217,12 +174,12 @@ export function TenantsView() {
                             size="sm"
                             onClick={() => {
                               if (confirm(`Suspend tenant "${tenant.name}"?`)) {
-                                suspendMutation.mutate(tenant.id);
+                                suspendTenant(tenant.id);
                               }
                             }}
-                            disabled={suspendMutation.isPending}
+                            disabled={isSuspending}
                           >
-                            {suspendMutation.isPending ? '...' : 'Suspend'}
+                            {isSuspending ? '...' : 'Suspend'}
                           </Button>
                         ) : tenant.status === 'suspended' ? (
                           <Button
@@ -230,12 +187,12 @@ export function TenantsView() {
                             size="sm"
                             onClick={() => {
                               if (confirm(`Activate tenant "${tenant.name}"?`)) {
-                                activateMutation.mutate(tenant.id);
+                                activateTenant(tenant.id);
                               }
                             }}
-                            disabled={activateMutation.isPending}
+                            disabled={isActivating}
                           >
-                            {activateMutation.isPending ? '...' : 'Activate'}
+                            {isActivating ? '...' : 'Activate'}
                           </Button>
                         ) : null}
                       </div>
@@ -246,7 +203,7 @@ export function TenantsView() {
             </table>
 
             {/* Empty State - No Tenants */}
-            {allTenants.length === 0 && !isLoading && !error && (
+            {stats.total === 0 && !isLoading && !error && (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🏢</div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">No tenants yet</h3>
@@ -255,7 +212,7 @@ export function TenantsView() {
             )}
 
             {/* No Results State - Filtered */}
-            {allTenants.length > 0 && tenants.length === 0 && (
+            {stats.total > 0 && tenants.length === 0 && (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🔍</div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">No tenants found</h3>

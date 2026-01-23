@@ -1,118 +1,26 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Button, Input, Badge, Card } from '@plexica/ui';
 import { Search } from 'lucide-react';
-import { apiClient } from '../../lib/api-client';
-import { UserDetailModal } from '../modals/UserDetailModal';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  tenantId: string;
-  tenantName: string;
-  tenantSlug: string;
-  roles: string[];
-  status: string;
-  lastLogin: string;
-  createdAt: string;
-}
+import { useUsers, User } from '@/hooks';
+import { UserDetailModal } from '../users/UserDetailModal';
 
 export function UsersView() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tenantFilter, setTenantFilter] = useState<string>('all');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // NOTE: Using mock data since backend API endpoint doesn't exist yet
-  // In production, this would use: useQuery({ queryKey: ['users'], queryFn: () => apiClient.getUsers() })
-  const { data: tenantsData } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: () => apiClient.getTenants(),
-  });
-
-  const tenants = tenantsData?.tenants || [];
-
-  // Mock users data (simulates cross-tenant user list from API)
-  const mockUsers: User[] = [
-    {
-      id: '1',
-      email: 'john.doe@acme.com',
-      name: 'John Doe',
-      tenantId: tenants.find((t: any) => t.slug === 'acme-corp')?.id || '1',
-      tenantName: 'ACME Corporation',
-      tenantSlug: 'acme-corp',
-      roles: ['admin', 'user'],
-      status: 'active',
-      lastLogin: '2026-01-14T10:30:00Z',
-      createdAt: '2026-01-10T08:00:00Z',
-    },
-    {
-      id: '2',
-      email: 'jane.smith@globex.com',
-      name: 'Jane Smith',
-      tenantId: tenants.find((t: any) => t.slug === 'globex-inc')?.id || '2',
-      tenantName: 'Globex Inc',
-      tenantSlug: 'globex-inc',
-      roles: ['user'],
-      status: 'active',
-      lastLogin: '2026-01-14T09:15:00Z',
-      createdAt: '2026-01-11T10:00:00Z',
-    },
-    {
-      id: '3',
-      email: 'bob.johnson@acme.com',
-      name: 'Bob Johnson',
-      tenantId: tenants.find((t: any) => t.slug === 'acme-corp')?.id || '1',
-      tenantName: 'ACME Corporation',
-      tenantSlug: 'acme-corp',
-      roles: ['user'],
-      status: 'active',
-      lastLogin: '2026-01-13T16:45:00Z',
-      createdAt: '2026-01-12T14:00:00Z',
-    },
-    {
-      id: '4',
-      email: 'alice.williams@demo.com',
-      name: 'Alice Williams',
-      tenantId: tenants.find((t: any) => t.slug === 'demo-company')?.id || '3',
-      tenantName: 'Demo Company',
-      tenantSlug: 'demo-company',
-      roles: ['admin', 'user'],
-      status: 'active',
-      lastLogin: '2026-01-14T11:00:00Z',
-      createdAt: '2026-01-09T09:00:00Z',
-    },
-    {
-      id: '5',
-      email: 'charlie.brown@globex.com',
-      name: 'Charlie Brown',
-      tenantId: tenants.find((t: any) => t.slug === 'globex-inc')?.id || '2',
-      tenantName: 'Globex Inc',
-      tenantSlug: 'globex-inc',
-      roles: ['admin', 'user'],
-      status: 'active',
-      lastLogin: '2026-01-12T14:30:00Z',
-      createdAt: '2026-01-08T11:00:00Z',
-    },
-  ];
-
-  // Filter users
-  const allUsers = mockUsers;
-  const users = allUsers.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.tenantName.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesTenant = tenantFilter === 'all' || user.tenantSlug === tenantFilter;
-    const matchesRole = roleFilter === 'all' || user.roles.includes(roleFilter);
-
-    return matchesSearch && matchesTenant && matchesRole;
-  });
-
-  // Get unique roles
-  const allRoles = Array.from(new Set(allUsers.flatMap((u) => u.roles)));
+  const {
+    users,
+    tenants,
+    allRoles,
+    stats,
+    searchQuery,
+    setSearchQuery,
+    tenantFilter,
+    setTenantFilter,
+    roleFilter,
+    setRoleFilter,
+    clearFilters,
+    hasActiveFilters,
+  } = useUsers();
 
   return (
     <div>
@@ -167,16 +75,8 @@ export function UsersView() {
         </select>
 
         {/* Clear Filters */}
-        {(searchQuery || tenantFilter !== 'all' || roleFilter !== 'all') && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearchQuery('');
-              setTenantFilter('all');
-              setRoleFilter('all');
-            }}
-          >
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
             Clear filters
           </Button>
         )}
@@ -185,17 +85,17 @@ export function UsersView() {
       {/* Stats */}
       <div className="mb-6 flex items-center gap-6 text-sm text-muted-foreground">
         <span>
-          <strong className="text-foreground">{allUsers.length}</strong> total users
+          <strong className="text-foreground">{stats.total}</strong> total users
         </span>
         <span>•</span>
         <span>
-          <strong className="text-foreground">{tenants.length}</strong> tenants
+          <strong className="text-foreground">{stats.tenants}</strong> tenants
         </span>
         <span>•</span>
         <span>
-          <strong className="text-foreground">{allRoles.length}</strong> roles
+          <strong className="text-foreground">{stats.roles}</strong> roles
         </span>
-        {(searchQuery || tenantFilter !== 'all' || roleFilter !== 'all') && (
+        {hasActiveFilters && (
           <>
             <span>•</span>
             <span>
@@ -265,7 +165,7 @@ export function UsersView() {
         </table>
 
         {/* Empty State - No Users */}
-        {allUsers.length === 0 && (
+        {stats.total === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">👥</div>
             <h3 className="text-xl font-semibold text-foreground mb-2">No users yet</h3>
@@ -274,7 +174,7 @@ export function UsersView() {
         )}
 
         {/* No Results State - Filtered */}
-        {allUsers.length > 0 && users.length === 0 && (
+        {stats.total > 0 && users.length === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="text-xl font-semibold text-foreground mb-2">No users found</h3>

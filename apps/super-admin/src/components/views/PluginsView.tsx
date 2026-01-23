@@ -1,45 +1,28 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Button, Input, Badge, Card } from '@plexica/ui';
 import { Search } from 'lucide-react';
-import { apiClient } from '../../lib/api-client';
-import { Plugin } from '../../types';
-import { PluginDetailModal } from '../modals/PluginDetailModal';
+import { usePlugins } from '@/hooks';
+import { Plugin } from '@/types';
+import { PluginDetailModal } from '../plugins/PluginDetailModal';
 
 export function PluginsView() {
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft' | 'deprecated'>(
-    'all'
-  );
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const {
-    data: pluginsData,
+    plugins,
+    categories,
+    stats,
     isLoading,
     error,
-  } = useQuery({
-    queryKey: ['plugins'],
-    queryFn: () => apiClient.getPlugins(),
-  });
-
-  const allPlugins: Plugin[] = pluginsData?.plugins || [];
-
-  // Get unique categories
-  const categories = Array.from(new Set(allPlugins.map((p) => p.category)));
-
-  // Filter plugins based on search, status, and category
-  const plugins = allPlugins.filter((plugin) => {
-    const matchesSearch =
-      plugin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.author.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || plugin.status === statusFilter;
-    const matchesCategory = categoryFilter === 'all' || plugin.category === categoryFilter;
-
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
+    searchQuery,
+    setSearchQuery,
+    statusFilter,
+    setStatusFilter,
+    categoryFilter,
+    setCategoryFilter,
+    clearFilters,
+    hasActiveFilters,
+  } = usePlugins();
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
@@ -128,16 +111,8 @@ export function PluginsView() {
             </select>
 
             {/* Clear Filters */}
-            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                  setCategoryFilter('all');
-                }}
-              >
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
                 Clear filters
               </Button>
             )}
@@ -146,20 +121,17 @@ export function PluginsView() {
           {/* Stats */}
           <div className="mb-6 flex items-center gap-6 text-sm text-muted-foreground">
             <span>
-              <strong className="text-foreground">{allPlugins.length}</strong> total plugins
+              <strong className="text-foreground">{stats.total}</strong> total plugins
             </span>
             <span>•</span>
             <span>
-              <strong className="text-foreground">
-                {allPlugins.filter((p) => p.status === 'published').length}
-              </strong>{' '}
-              published
+              <strong className="text-foreground">{stats.published}</strong> published
             </span>
             <span>•</span>
             <span>
-              <strong className="text-foreground">{categories.length}</strong> categories
+              <strong className="text-foreground">{stats.categories}</strong> categories
             </span>
-            {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
+            {hasActiveFilters && (
               <>
                 <span>•</span>
                 <span>
@@ -210,7 +182,7 @@ export function PluginsView() {
                 </Card>
               ))}
             </div>
-          ) : allPlugins.length === 0 ? (
+          ) : stats.total === 0 ? (
             <Card className="p-12 text-center">
               <div className="text-6xl mb-4">🧩</div>
               <h3 className="text-xl font-semibold text-foreground mb-2">No plugins yet</h3>
