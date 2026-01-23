@@ -1,8 +1,8 @@
-// apps/super-admin/src/components/ThemeToggle.tsx
+// apps/super-admin/src/components/ui/ThemeToggle.tsx
 
 import { Moon, Sun } from 'lucide-react';
 import { Button } from '@plexica/ui';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function ThemeToggle() {
   const { isDark, setTheme, theme } = useTheme();

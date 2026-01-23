@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@plexica/ui';
 import { LogOut } from 'lucide-react';
 import { TabButton } from './TabButton';
-import { ThemeToggle } from './ThemeToggle';
+import { ThemeToggle } from './ui/ThemeToggle';
 import { TenantsView } from './views/TenantsView';
 import { PluginsView } from './views/PluginsView';
 import { UsersView } from './views/UsersView';
