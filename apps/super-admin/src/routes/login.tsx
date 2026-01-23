@@ -1,42 +1,49 @@
 // File: apps/super-admin/src/routes/login.tsx
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
-import { Button, Card, CardContent, Input, Label } from '@plexica/ui';
-import { AlertCircle } from 'lucide-react';
+import { useEffect } from 'react';
+import { Button, Card, CardContent } from '@plexica/ui';
+import { AlertCircle, LogIn } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { toast } from 'sonner';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
+/**
+ * Login Page with Keycloak SSO
+ *
+ * Redirects authenticated users to /tenants
+ * Shows SSO login button for unauthenticated users
+ */
 function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [email, setEmail] = useState('admin@plexica.com');
-  const [password, setPassword] = useState('admin');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isAuthenticated, isLoading, login } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const success = await login(email, password);
-      if (success) {
-        toast.success('Login successful!');
-        navigate({ to: '/tenants' });
-      } else {
-        toast.error('Invalid credentials. Please try again.');
-      }
-    } catch (error) {
-      toast.error('An error occurred during login.');
-      console.error('Login error:', error);
-    } finally {
-      setIsSubmitting(false);
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('[LoginPage] User already authenticated, redirecting...');
+      navigate({ to: '/tenants' });
     }
+  }, [isAuthenticated, navigate]);
+
+  const handleLogin = () => {
+    console.log('[LoginPage] Initiating Keycloak SSO login...');
+    login();
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-muted flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-4"></div>
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted flex items-center justify-center px-4">
@@ -51,58 +58,56 @@ function LoginPage() {
             <p className="text-sm text-muted-foreground">Platform Management Console</p>
           </div>
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="admin@plexica.com"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="Enter your password"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Signing in...' : 'Sign In'}
+          {/* SSO Login Button */}
+          <div className="space-y-4">
+            <Button onClick={handleLogin} className="w-full" size="lg">
+              <LogIn className="mr-2 h-5 w-5" />
+              Sign in with Keycloak SSO
             </Button>
-          </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <p className="text-xs text-blue-800 dark:text-blue-200 font-medium">
-              Demo Credentials:
-            </p>
-            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-              Email:{' '}
-              <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">admin@plexica.com</code>
-              <br />
-              Password: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">admin</code>
+            <p className="text-xs text-center text-muted-foreground">
+              You will be redirected to Keycloak for authentication
             </p>
           </div>
 
-          {/* Note */}
-          <div className="mt-6 flex gap-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
-            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-800 dark:text-amber-200">
-              In production, this will integrate with Keycloak SSO for the plexica-admin realm
-            </p>
+          {/* Info Cards */}
+          <div className="mt-6 space-y-3">
+            {/* Keycloak Realm Info */}
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
+                Authentication Realm
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">plexica-admin</code>
+              </p>
+            </div>
+
+            {/* Required Role Info */}
+            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <div className="flex gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs text-amber-800 dark:text-amber-200 font-medium mb-1">
+                    Required Role
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    You must have the{' '}
+                    <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">super-admin</code>{' '}
+                    role in Keycloak to access this application.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Development Note */}
+            <div className="bg-muted border border-border rounded-lg p-3">
+              <p className="text-xs text-muted-foreground">
+                <strong className="text-foreground">Note:</strong> Ensure Keycloak is running at{' '}
+                <code className="bg-background px-1 rounded">
+                  {import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080'}
+                </code>
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

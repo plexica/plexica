@@ -2,28 +2,51 @@
 
 import axios from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { getToken, updateToken } from './keycloak';
+import { getApiUrl } from './config';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+/**
+ * Super Admin API Client
+ *
+ * CRITICAL DIFFERENCES from tenant app:
+ * - NO X-Tenant-Slug header (platform-wide access)
+ * - NO X-Workspace-ID header (no workspace concept)
+ * - Uses Keycloak token from plexica-admin realm
+ * - All endpoints are admin-level
+ */
 
 class ApiClient {
   private client: AxiosInstance;
-  private token: string | null = null;
 
   constructor() {
     this.client = axios.create({
-      baseURL: API_URL,
+      baseURL: getApiUrl(),
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    // Request interceptor to add auth token
-    // NOTE: NO tenant header in super-admin (global view)
+    // Request interceptor to add Keycloak auth token
+    // CRITICAL: NO tenant headers in super-admin
     this.client.interceptors.request.use(
-      (config: InternalAxiosRequestConfig) => {
-        if (this.token) {
-          config.headers.Authorization = `Bearer ${this.token}`;
+      async (config: InternalAxiosRequestConfig) => {
+        try {
+          // Ensure token is valid before making request
+          await updateToken(30); // Refresh if expires in less than 30 seconds
+        } catch (error) {
+          console.warn('[API Client] Token update failed, using existing token');
         }
+
+        const token = getToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+
+        // CRITICAL: Ensure NO tenant headers are sent
+        // This is platform-wide admin access
+        delete config.headers['X-Tenant-Slug'];
+        delete config.headers['X-Workspace-ID'];
+
         return config;
       },
       (error) => {
@@ -36,69 +59,65 @@ class ApiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Token expired or invalid
-          this.clearAuth();
+          // Token expired or invalid - redirect to login
+          console.error('[API Client] Unauthorized (401), redirecting to login');
           window.location.href = '/login';
+        } else if (error.response?.status === 403) {
+          // Forbidden - user doesn't have super-admin role
+          console.error('[API Client] Forbidden (403), insufficient permissions');
+          // You could show a toast notification here
         }
         return Promise.reject(error);
       }
     );
   }
 
-  setToken(token: string) {
-    this.token = token;
-  }
-
-  clearAuth() {
-    this.token = null;
-  }
-
   // ===== TENANT MANAGEMENT =====
 
   async getTenants(params?: { page?: number; limit?: number; search?: string; status?: string }) {
-    const response = await this.client.get('/api/tenants', { params });
+    const response = await this.client.get('/api/admin/tenants', { params });
     return response.data;
   }
 
   async getTenant(id: string) {
-    const response = await this.client.get(`/api/tenants/${id}`);
+    const response = await this.client.get(`/api/admin/tenants/${id}`);
     return response.data;
   }
 
   async createTenant(data: { name: string; slug: string }) {
-    const response = await this.client.post('/api/tenants', data);
+    const response = await this.client.post('/api/admin/tenants', data);
     return response.data;
   }
 
   async updateTenant(id: string, data: Partial<{ name: string; slug: string; status: string }>) {
-    const response = await this.client.patch(`/api/tenants/${id}`, data);
+    const response = await this.client.patch(`/api/admin/tenants/${id}`, data);
     return response.data;
   }
 
   async deleteTenant(id: string) {
-    const response = await this.client.delete(`/api/tenants/${id}`);
+    const response = await this.client.delete(`/api/admin/tenants/${id}`);
     return response.data;
   }
 
   async suspendTenant(id: string) {
-    const response = await this.client.post(`/api/tenants/${id}/suspend`);
+    const response = await this.client.post(`/api/admin/tenants/${id}/suspend`);
     return response.data;
   }
 
   async activateTenant(id: string) {
-    const response = await this.client.post(`/api/tenants/${id}/activate`);
+    const response = await this.client.post(`/api/admin/tenants/${id}/activate`);
     return response.data;
   }
 
   // ===== PLUGIN MANAGEMENT (GLOBAL REGISTRY) =====
 
   async getPlugins(params?: { category?: string; status?: string; search?: string }) {
-    const response = await this.client.get('/api/plugins', { params });
+    const response = await this.client.get('/api/admin/plugins', { params });
     return response.data;
   }
 
   async getPlugin(pluginId: string) {
-    const response = await this.client.get(`/api/plugins/${pluginId}`);
+    const response = await this.client.get(`/api/admin/plugins/${pluginId}`);
     return response.data;
   }
 
@@ -109,7 +128,7 @@ class ApiClient {
     category: string;
     author: string;
   }) {
-    const response = await this.client.post('/api/plugins', data);
+    const response = await this.client.post('/api/admin/plugins', data);
     return response.data;
   }
 
@@ -122,17 +141,17 @@ class ApiClient {
       status: string;
     }>
   ) {
-    const response = await this.client.patch(`/api/plugins/${pluginId}`, data);
+    const response = await this.client.patch(`/api/admin/plugins/${pluginId}`, data);
     return response.data;
   }
 
   async deletePlugin(pluginId: string) {
-    const response = await this.client.delete(`/api/plugins/${pluginId}`);
+    const response = await this.client.delete(`/api/admin/plugins/${pluginId}`);
     return response.data;
   }
 
   async getPluginInstalls(pluginId: string) {
-    const response = await this.client.get(`/api/plugins/${pluginId}/installs`);
+    const response = await this.client.get(`/api/admin/plugins/${pluginId}/installs`);
     return response.data;
   }
 
