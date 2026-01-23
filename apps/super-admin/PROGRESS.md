@@ -102,15 +102,67 @@
 - [x] Ensure consistent Tailwind config (matched with apps/web)
 - [x] Verify shared UI component usage (using @plexica/ui components)
 
-### Phase 8: Testing and Documentation
+### Phase 8: Testing and Documentation ⏳
 
-- [ ] Test authentication flow
-- [ ] Test all routes and navigation
-- [ ] Test protected routes
-- [ ] Test CRUD operations
-- [ ] Update README.md
-- [ ] Document Keycloak setup
-- [ ] Create ADRs for key decisions
+#### 8.1 Cleanup ✅
+
+- [x] Remove obsolete files (AuthWrapper, AppContent, TabButton, LoginPage.bak)
+
+#### 8.2 Testing Checklist
+
+- [ ] **Authentication Flow**
+  - [ ] Keycloak SSO login redirect works
+  - [ ] Token is stored securely in sessionStorage
+  - [ ] Token refresh happens automatically (60s interval)
+  - [ ] Logout clears tokens and redirects to login
+  - [ ] Protected routes redirect to login when unauthenticated
+  - [ ] Super-admin role is verified on protected routes
+- [ ] **Navigation & Routing**
+  - [ ] All sidebar links work (Tenants, Plugins, Users, Analytics)
+  - [ ] Deep linking works (refresh on any route)
+  - [ ] Browser back/forward buttons work correctly
+  - [ ] 404 page shows for invalid routes
+- [ ] **Tenant Management**
+  - [ ] List all tenants with pagination
+  - [ ] Create new tenant modal works
+  - [ ] Edit tenant modal works
+  - [ ] Delete tenant confirmation works
+  - [ ] Tenant status toggle works
+  - [ ] Search/filter tenants works
+- [ ] **Plugin Marketplace**
+  - [ ] Display all available plugins
+  - [ ] Plugin categories filter correctly
+  - [ ] Plugin search works
+  - [ ] Enable/disable plugin for tenant
+- [ ] **User Management**
+  - [ ] List users across all tenants
+  - [ ] Filter users by tenant
+  - [ ] User role management works
+  - [ ] User status toggle works
+- [ ] **Analytics Dashboard**
+  - [ ] Platform metrics load correctly
+  - [ ] Charts render with real data
+  - [ ] Date range filters work
+  - [ ] Export analytics data works
+- [ ] **Theme & UI**
+  - [ ] Dark/light mode toggle works
+  - [ ] Theme persists across page refreshes
+  - [ ] All components render correctly in both themes
+  - [ ] @plexica/ui components work properly
+- [ ] **API Communication**
+  - [ ] NO X-Tenant-Slug header is sent (CRITICAL)
+  - [ ] NO X-Workspace-ID header is sent (CRITICAL)
+  - [ ] Authorization Bearer token is included
+  - [ ] API errors are handled gracefully
+  - [ ] Toast notifications show for errors
+
+#### 8.3 Documentation ✅
+
+- [x] Update README.md with new architecture
+- [x] Document Keycloak setup for plexica-admin realm
+- [x] Create developer setup guide
+- [x] Document environment variables
+- [x] Add troubleshooting section
 
 ---
 
