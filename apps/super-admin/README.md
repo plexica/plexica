@@ -31,17 +31,17 @@ The **Super-Admin Application** is a platform administration interface for manag
 
 ### Core
 
-- **Framework**: React 18.3.1 + TypeScript 5.6.2 (strict mode)
-- **Build Tool**: Vite 5.4.21
-- **Routing**: TanStack Router 1.99.1 (file-based)
-- **State Management**: Zustand 5.0.2
-- **Authentication**: Keycloak JS 26.0.7
+- **Framework**: React 19.2.3 + TypeScript 5.9.3 (strict mode)
+- **Build Tool**: Vite 7.3.1
+- **Routing**: TanStack Router 1.153.2 (file-based)
+- **State Management**: Zustand 5.0.10
+- **Authentication**: Keycloak JS 26.2.2
 
 ### Data & Forms
 
-- **API Client**: Axios 1.6.5
-- **Data Fetching**: TanStack Query 5.62.0
-- **Form Validation**: Zod 3.24.1
+- **API Client**: Axios 1.13.2
+- **Data Fetching**: TanStack Query 5.90.19
+- **Form Validation**: Zod 4.3.5
 
 ### Styling
 
@@ -130,7 +130,7 @@ apps/super-admin/
 **CRITICAL**: This app uses a **separate Keycloak realm** from tenant apps.
 
 - **Realm**: `plexica-admin` (fixed, never changes)
-- **Client ID**: `plexica-super-admin`
+- **Client ID**: `super-admin-app` (as per .env.example)
 - **Required Role**: `super-admin` (Keycloak role)
 - **Token Storage**: sessionStorage (cleared on browser close)
 - **Token Refresh**: Automatic every 60 seconds
@@ -294,8 +294,8 @@ Base URL: `http://localhost:3000` (development)
 
 ### Prerequisites
 
-1. **Node.js**: 18.x or higher
-2. **pnpm**: 8.x or higher
+1. **Node.js**: 20.0.0 or higher
+2. **pnpm**: 8.0.0 or higher
 3. **Keycloak**: Running with `plexica-admin` realm configured
 4. **Backend API**: `@plexica/core-api` running on port 3000
 
@@ -314,11 +314,13 @@ cp .env.example .env
 # Keycloak Configuration (REQUIRED)
 VITE_KEYCLOAK_URL=http://localhost:8080
 VITE_KEYCLOAK_REALM=plexica-admin
-VITE_KEYCLOAK_CLIENT_ID=plexica-super-admin
+VITE_KEYCLOAK_CLIENT_ID=super-admin-app
 
 # Backend API
 VITE_API_URL=http://localhost:3000
 ```
+
+**Note**: The realm is fixed to `plexica-admin` (unlike the web app which uses tenant-specific realms).
 
 ### Running the App
 
@@ -441,8 +443,8 @@ pnpm type-check
 # Run linting
 pnpm lint
 
-# Run tests (when implemented)
-pnpm test
+# Note: Unit tests not yet implemented
+# pnpm test
 ```
 
 ## Deployment
