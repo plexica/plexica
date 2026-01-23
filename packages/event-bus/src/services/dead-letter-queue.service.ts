@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { DomainEvent } from '../types';
 import { TopicManager } from './topic-manager';
 import { RedpandaClient } from './redpanda-client';

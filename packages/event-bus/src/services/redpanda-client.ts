@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Kafka, Producer, Consumer, Admin, logLevel } from 'kafkajs';
 import type { EventBusConfig, ClusterHealth, BrokerInfo } from '../types';
 

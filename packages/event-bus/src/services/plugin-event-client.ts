@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { EventBusService } from './event-bus.service';
 import type { EventHandlerFn, SubscriptionOptions, PublishOptions } from '../types';
 

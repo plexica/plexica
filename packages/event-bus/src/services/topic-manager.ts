@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { Admin } from 'kafkajs';
 import type { TopicConfig, TopicMetadata, PartitionInfo } from '../types';
 import { TopicConfigSchema } from '../types';

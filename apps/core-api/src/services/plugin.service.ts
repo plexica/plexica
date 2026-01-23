@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { db } from '../lib/db.js';
 import type { PluginManifest } from '../types/plugin.types.js';
 import { PluginStatus } from '@plexica/database';

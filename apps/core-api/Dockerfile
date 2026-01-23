@@ -12,6 +12,8 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Build stage - build the application
 FROM base AS build
+ARG DATABASE_URL=postgresql://plexica:plexica_password@postgres:5432/plexica
+ENV DATABASE_URL=$DATABASE_URL
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/core-api/package.json ./apps/core-api/
 COPY packages/database/package.json ./packages/database/

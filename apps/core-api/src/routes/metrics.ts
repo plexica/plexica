@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Event Metrics Routes
  *

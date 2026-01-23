@@ -63,6 +63,7 @@ describe('Auth Middleware - authMiddleware', () => {
       };
       const mockUserInfo = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user', 'admin'],
       };
@@ -102,6 +103,7 @@ describe('Auth Middleware - authMiddleware', () => {
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
       } as any);
@@ -131,6 +133,7 @@ describe('Auth Middleware - authMiddleware', () => {
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
         id: 'user-456',
+        username: 'admin456',
         email: 'admin@example.com',
         roles,
       } as any);
@@ -295,6 +298,7 @@ describe('Auth Middleware - authMiddleware', () => {
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
         id: 'user-789',
+        username: 'user789',
         email: 'test@example.com',
         roles: [],
       } as any);
@@ -321,6 +325,7 @@ describe('Auth Middleware - authMiddleware', () => {
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
         id: 'user-789',
+        username: 'alice789',
         email: 'alice@example.com',
         roles: [],
       } as any);
@@ -347,6 +352,7 @@ describe('Auth Middleware - authMiddleware', () => {
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
         id: 'user-789',
+        username: 'user789',
         email: 'test@example.com',
         roles: [],
       } as any);
@@ -381,6 +387,7 @@ describe('Auth Middleware - optionalAuthMiddleware', () => {
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
       } as any);
@@ -487,6 +494,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['admin', 'user'],
         tenantSlug: 'test-tenant',
@@ -504,6 +512,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['moderator', 'user'],
         tenantSlug: 'test-tenant',
@@ -521,6 +530,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['admin', 'moderator', 'user'],
         tenantSlug: 'test-tenant',
@@ -540,6 +550,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -563,6 +574,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [],
         tenantSlug: 'test-tenant',
@@ -580,6 +592,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user', 'viewer'],
         tenantSlug: 'test-tenant',
@@ -622,6 +635,7 @@ describe('Auth Middleware - requireRole', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: undefined as any,
         tenantSlug: 'test-tenant',
@@ -647,6 +661,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -670,6 +685,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -693,6 +709,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'acme-corp',
@@ -719,6 +736,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -745,6 +763,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -765,6 +784,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -792,6 +812,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -820,6 +841,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
@@ -869,6 +891,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       request.user = {
         id: 'admin-123',
+        username: 'admin123',
         email: 'admin@example.com',
         roles: [USER_ROLES.SUPER_ADMIN],
         tenantSlug: MASTER_TENANT_SLUG,
@@ -885,6 +908,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       request.user = {
         id: 'admin-123',
+        username: 'admin123',
         email: 'admin@example.com',
         roles: [USER_ROLES.SUPER_ADMIN, 'user', 'moderator'],
         tenantSlug: MASTER_TENANT_SLUG,
@@ -903,6 +927,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [USER_ROLES.SUPER_ADMIN],
         tenantSlug: 'other-tenant',
@@ -925,6 +950,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [USER_ROLES.SUPER_ADMIN],
         tenantSlug: 'other-tenant',
@@ -946,6 +972,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['admin', 'user'],
         tenantSlug: MASTER_TENANT_SLUG,
@@ -968,6 +995,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [],
         tenantSlug: MASTER_TENANT_SLUG,
@@ -985,6 +1013,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
       const roles = ['admin', 'user'];
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles,
         tenantSlug: MASTER_TENANT_SLUG,
@@ -1031,6 +1060,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'admin-123',
+        username: 'admin123',
         email: 'admin@example.com',
         roles: [USER_ROLES.SUPER_ADMIN],
         tenantSlug: MASTER_TENANT_SLUG,
@@ -1047,6 +1077,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'admin-123',
+        username: 'admin123',
         email: 'admin@example.com',
         roles: [USER_ROLES.SUPER_ADMIN, 'user'],
         tenantSlug: MASTER_TENANT_SLUG,
@@ -1065,6 +1096,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [USER_ROLES.TENANT_OWNER],
         tenantSlug: 'acme-corp',
@@ -1081,6 +1113,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [USER_ROLES.ADMIN],
         tenantSlug: 'acme-corp',
@@ -1097,6 +1130,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
         tenantSlug: 'acme-corp',
@@ -1115,6 +1149,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user', 'viewer'],
         tenantSlug: 'acme-corp',
@@ -1137,6 +1172,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: [],
         tenantSlug: 'acme-corp',
@@ -1153,6 +1189,7 @@ describe('Auth Middleware - requireTenantOwner', () => {
 
       request.user = {
         id: 'user-123',
+        username: 'user123',
         email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'acme-corp',
