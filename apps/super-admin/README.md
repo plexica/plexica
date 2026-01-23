@@ -299,6 +299,30 @@ Base URL: `http://localhost:3000` (development)
 3. **Keycloak**: Running with `plexica-admin` realm configured
 4. **Backend API**: `@plexica/core-api` running on port 3000
 
+### Keycloak Setup
+
+Before running the app, you need to configure Keycloak with the `plexica-admin` realm.
+
+**Quick Setup** (Recommended):
+
+```bash
+# 1. Start Keycloak
+pnpm infra:start
+
+# 2. Import the pre-configured realm
+# Open http://localhost:8080 → Administration Console
+# Login: admin/admin
+# Create Realm → Browse → Select keycloak-realm-plexica-admin.json → Create
+```
+
+See **[KEYCLOAK_SETUP.md](./KEYCLOAK_SETUP.md)** for detailed instructions.
+
+The realm includes:
+
+- ✅ Client: `super-admin-app` (pre-configured for localhost:3002)
+- ✅ Roles: `super-admin`, `viewer`
+- ✅ Users: `admin` (password: `admin`), `viewer` (password: `viewer`)
+
 ### Environment Setup
 
 1. Copy `.env.example` to `.env`:
