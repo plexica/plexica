@@ -12,6 +12,7 @@ import { authRoutes } from './routes/auth';
 import { pluginRoutes } from './routes/plugin';
 import { pluginUploadRoutes } from './routes/plugin-upload';
 import { workspaceRoutes } from './routes/workspace';
+import { adminRoutes } from './routes/admin';
 // import { dlqRoutes } from './routes/dlq';
 // import metricsRoutes from './routes/metrics';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
@@ -152,6 +153,7 @@ async function registerRoutes() {
   await server.register(workspaceRoutes, { prefix: '/api' });
   await server.register(pluginRoutes, { prefix: '/api' });
   await server.register(pluginUploadRoutes, { prefix: '/api' });
+  await server.register(adminRoutes, { prefix: '/api' }); // Super-admin routes
   // TODO: Fix TypeScript errors in DLQ and Metrics routes before enabling
   // await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });
   // await server.register(metricsRoutes, { prefix: '/api/metrics' });
