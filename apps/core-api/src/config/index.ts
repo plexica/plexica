@@ -50,18 +50,8 @@ const configSchema = z.object({
 
   // Storage
   storageEndpoint: z.string().default('localhost:9000'),
-  storageAccessKey: z
-    .string()
-    .refine(
-      (val) => val !== 'minioadmin',
-      'MinIO default access key "minioadmin" is insecure and must be changed in production'
-    ),
-  storageSecretKey: z
-    .string()
-    .refine(
-      (val) => val !== 'minioadmin',
-      'MinIO default secret key "minioadmin" is insecure and must be changed in production'
-    ),
+  storageAccessKey: z.string(),
+  storageSecretKey: z.string(),
   storageUseSsl: booleanFromString.default(false as any),
 
   // JWT
@@ -106,5 +96,15 @@ export const config = configSchema.parse({
 
   corsOrigins: process.env.CORS_ORIGIN,
 });
+
+// Validate production security requirements
+if (config.nodeEnv === 'production') {
+  if (config.storageAccessKey === 'minioadmin' || config.storageSecretKey === 'minioadmin') {
+    throw new Error(
+      'SECURITY ERROR: MinIO default credentials (minioadmin) detected in production. ' +
+        'Please set STORAGE_ACCESS_KEY and STORAGE_SECRET_KEY to secure values.'
+    );
+  }
+}
 
 export type Config = z.infer<typeof configSchema>;
