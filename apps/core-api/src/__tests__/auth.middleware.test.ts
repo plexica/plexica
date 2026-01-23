@@ -1,4 +1,10 @@
-// Unit tests for auth middleware
+/**
+ * Authentication Middleware Unit Tests
+ *
+ * These tests verify the behavior of all authentication and authorization middleware.
+ * They focus on business logic without complex integration setup.
+ */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
@@ -8,422 +14,1172 @@ import {
   requirePermission,
   requireSuperAdmin,
   requireTenantOwner,
-} from '../middleware/auth';
-import * as jwtLib from '../lib/jwt';
-import { permissionService } from '../services/permission.service';
-import { tenantService } from '../services/tenant.service';
+} from '../middleware/auth.js';
+import * as jwtLib from '../lib/jwt.js';
+import { permissionService } from '../services/permission.service.js';
+import { tenantService } from '../services/tenant.service.js';
+import { MASTER_TENANT_SLUG, USER_ROLES } from '../constants/index.js';
 
 // Mock dependencies
-vi.mock('../lib/jwt');
-vi.mock('../services/permission.service');
-vi.mock('../services/tenant.service');
+vi.mock('../lib/jwt.js');
+vi.mock('../services/permission.service.js');
+vi.mock('../services/tenant.service.js');
 
-describe('Auth Middleware', () => {
-  let mockRequest: Partial<FastifyRequest>;
-  let mockReply: Partial<FastifyReply>;
+// Helper to create mock request/reply
+function createMockRequest(): Partial<FastifyRequest> {
+  return {
+    headers: {},
+    log: {
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+    } as any,
+  };
+}
 
+function createMockReply(): Partial<FastifyReply> {
+  return {
+    code: vi.fn().mockReturnThis(),
+    send: vi.fn().mockReturnThis(),
+  };
+}
+
+describe('Auth Middleware - authMiddleware', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockRequest = {
-      headers: {},
-      log: {
-        error: vi.fn(),
-        warn: vi.fn(),
-      } as any,
-    };
-
-    mockReply = {
-      code: vi.fn().mockReturnThis(),
-      send: vi.fn().mockReturnThis(),
-    };
   });
 
-  describe('authMiddleware', () => {
-    it('should authenticate user with valid token', async () => {
-      const mockToken = 'valid.jwt.token';
+  describe('Valid Token Scenarios', () => {
+    it('should attach user info to request on valid token', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-jwt-token';
       const mockPayload = {
         sub: 'user-123',
-        preferred_username: 'testuser',
+        email: 'user@example.com',
         tenantSlug: 'test-tenant',
-        email: 'test@example.com',
-        realm_access: { roles: ['user'] },
+        realm_access: { roles: ['user', 'admin'] },
       };
       const mockUserInfo = {
         id: 'user-123',
-        username: 'testuser',
-        email: 'test@example.com',
-        roles: ['user'],
+        email: 'user@example.com',
+        roles: ['user', 'admin'],
       };
 
-      mockRequest.headers = {
-        authorization: `Bearer ${mockToken}`,
-      };
-
+      request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
-      vi.mocked(jwtLib.extractUserInfo).mockReturnValue(mockUserInfo);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue(mockUserInfo as any);
 
-      await authMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await authMiddleware(request, reply);
 
-      expect(mockRequest.user).toEqual({
-        ...mockUserInfo,
-        tenantSlug: 'test-tenant',
-      });
-      expect(mockRequest.token).toEqual(mockPayload);
-      expect(mockReply.code).not.toHaveBeenCalled();
+      expect(request.user).toBeDefined();
+      expect(request.user?.id).toBe('user-123');
+      expect(request.user?.email).toBe('user@example.com');
+      expect(request.user?.tenantSlug).toBe('test-tenant');
+      expect(request.user?.roles).toEqual(['user', 'admin']);
+      expect(request.token).toBeDefined();
+      expect(reply.code).not.toHaveBeenCalled();
     });
 
-    it('should return 401 when Authorization header is missing', async () => {
+    it('should attach token payload to request', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-jwt-token';
+      const mockPayload = {
+        sub: 'user-123',
+        email: 'user@example.com',
+        tenantSlug: 'test-tenant',
+        iat: 1704067200,
+        exp: 1704153600,
+        realm_access: { roles: ['user'] },
+      };
+
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+      } as any);
+
+      await authMiddleware(request, reply);
+
+      expect(request.token).toBe(mockPayload);
+      expect(request.token?.iat).toBe(1704067200);
+      expect(request.token?.exp).toBe(1704153600);
+    });
+
+    it('should handle multiple roles in token', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-jwt-token';
+      const roles = ['user', 'admin', 'moderator', 'editor'];
+      const mockPayload = {
+        sub: 'user-456',
+        email: 'admin@example.com',
+        tenantSlug: 'test-tenant',
+        realm_access: { roles },
+      };
+
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
+        id: 'user-456',
+        email: 'admin@example.com',
+        roles,
+      } as any);
+
+      await authMiddleware(request, reply);
+
+      expect(request.user?.roles).toEqual(roles);
+      expect(request.user?.roles).toHaveLength(4);
+    });
+  });
+
+  describe('Missing Token Scenarios', () => {
+    it('should return 401 when authorization header is missing', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.headers!.authorization = undefined;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
 
-      await authMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await authMiddleware(request, reply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-      expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Unauthorized',
-        message: 'Missing or invalid Authorization header',
-      });
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+          message: 'Missing or invalid Authorization header',
+        })
+      );
     });
 
-    it('should return 401 when token verification fails', async () => {
-      const mockToken = 'invalid.jwt.token';
+    it('should return 401 when bearer token is malformed', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
 
-      mockRequest.headers = {
-        authorization: `Bearer ${mockToken}`,
-      };
+      request.headers!.authorization = 'InvalidToken';
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
 
+      await authMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+        })
+      );
+    });
+
+    it('should return 401 when bearer token is empty', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.headers!.authorization = 'Bearer ';
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
+
+      await authMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+    });
+
+    it('should not attach user to request on missing token', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
+
+      await authMiddleware(request, reply);
+
+      expect(request.user).toBeUndefined();
+      expect(request.token).toBeUndefined();
+    });
+  });
+
+  describe('Invalid Token Scenarios', () => {
+    it('should return 401 on token verification failure', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'invalid-jwt-token';
+      request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
-      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(new Error('Invalid token'));
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(
+        new Error('Token verification failed')
+      );
 
-      await authMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await authMiddleware(request, reply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-      expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Unauthorized',
-        message: 'Invalid token',
-      });
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+          message: 'Token verification failed',
+        })
+      );
     });
 
-    it('should return 401 when token is expired', async () => {
-      const mockToken = 'expired.jwt.token';
+    it('should return 401 on expired token', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
 
-      mockRequest.headers = {
-        authorization: `Bearer ${mockToken}`,
-      };
-
+      const mockToken = 'expired-jwt-token';
+      request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
       vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(new Error('Token expired'));
 
-      await authMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await authMiddleware(request, reply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-      expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Unauthorized',
-        message: 'Token expired',
-      });
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Token expired',
+        })
+      );
+    });
+
+    it('should return 401 on malformed token signature', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'malformed-jwt-token';
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(
+        new Error('Invalid token signature')
+      );
+
+      await authMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+    });
+
+    it('should log authentication errors', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'invalid-token';
+      const error = new Error('Token verification failed');
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(error);
+
+      await authMiddleware(request, reply);
+
+      expect(request.log.error).toHaveBeenCalledWith({ error }, 'Authentication failed');
     });
   });
 
-  describe('optionalAuthMiddleware', () => {
-    it('should authenticate user when valid token is provided', async () => {
-      const mockToken = 'valid.jwt.token';
+  describe('User Info Extraction', () => {
+    it('should extract user id from token payload', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-token';
+      const mockPayload = {
+        sub: 'user-789',
+        email: 'test@example.com',
+        tenantSlug: 'test-tenant',
+        realm_access: { roles: [] },
+      };
+
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
+        id: 'user-789',
+        email: 'test@example.com',
+        roles: [],
+      } as any);
+
+      await authMiddleware(request, reply);
+
+      expect(request.user?.id).toBe('user-789');
+    });
+
+    it('should extract email from token payload', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-token';
+      const mockPayload = {
+        sub: 'user-789',
+        email: 'alice@example.com',
+        tenantSlug: 'test-tenant',
+        realm_access: { roles: [] },
+      };
+
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
+        id: 'user-789',
+        email: 'alice@example.com',
+        roles: [],
+      } as any);
+
+      await authMiddleware(request, reply);
+
+      expect(request.user?.email).toBe('alice@example.com');
+    });
+
+    it('should extract tenant slug from token payload', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-token';
+      const mockPayload = {
+        sub: 'user-789',
+        email: 'test@example.com',
+        tenantSlug: 'acme-corp',
+        realm_access: { roles: [] },
+      };
+
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
+        id: 'user-789',
+        email: 'test@example.com',
+        roles: [],
+      } as any);
+
+      await authMiddleware(request, reply);
+
+      expect(request.user?.tenantSlug).toBe('acme-corp');
+    });
+  });
+});
+
+describe('Auth Middleware - optionalAuthMiddleware', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('With Valid Token', () => {
+    it('should attach user info when valid token is provided', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'valid-token';
       const mockPayload = {
         sub: 'user-123',
-        preferred_username: 'testuser',
+        email: 'user@example.com',
         tenantSlug: 'test-tenant',
         realm_access: { roles: ['user'] },
       };
-      const mockUserInfo = {
-        id: 'user-123',
-        username: 'testuser',
-        roles: ['user'],
-      };
 
-      mockRequest.headers = {
-        authorization: `Bearer ${mockToken}`,
-      };
-
+      request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
-      vi.mocked(jwtLib.extractUserInfo).mockReturnValue(mockUserInfo);
+      vi.mocked(jwtLib.extractUserInfo).mockReturnValue({
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+      } as any);
 
-      await optionalAuthMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await optionalAuthMiddleware(request, reply);
 
-      expect(mockRequest.user).toBeDefined();
-      expect(mockReply.code).not.toHaveBeenCalled();
-    });
-
-    it('should continue without error when no token is provided', async () => {
-      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
-
-      await optionalAuthMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockRequest.user).toBeUndefined();
-      expect(mockReply.code).not.toHaveBeenCalled();
-    });
-
-    it('should continue without error when token is invalid', async () => {
-      const mockToken = 'invalid.jwt.token';
-
-      mockRequest.headers = {
-        authorization: `Bearer ${mockToken}`,
-      };
-
-      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
-      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(new Error('Invalid token'));
-
-      await optionalAuthMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockRequest.user).toBeUndefined();
-      expect(mockReply.code).not.toHaveBeenCalled();
+      expect(request.user).toBeDefined();
+      expect(request.user?.id).toBe('user-123');
+      expect(reply.code).not.toHaveBeenCalled();
     });
   });
 
-  describe('requireRole', () => {
+  describe('Without Token', () => {
+    it('should not fail when authorization header is missing', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.headers!.authorization = undefined;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
+
+      await optionalAuthMiddleware(request, reply);
+
+      expect(request.user).toBeUndefined();
+      expect(request.token).toBeUndefined();
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should not fail when bearer token is malformed', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.headers!.authorization = 'InvalidToken';
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(null);
+
+      await optionalAuthMiddleware(request, reply);
+
+      expect(request.user).toBeUndefined();
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('With Invalid Token', () => {
+    it('should not fail on token verification error', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'invalid-token';
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(
+        new Error('Token verification failed')
+      );
+
+      await optionalAuthMiddleware(request, reply);
+
+      expect(request.user).toBeUndefined();
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should log warning on token verification error', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'invalid-token';
+      const error = new Error('Token verification failed');
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(error);
+
+      await optionalAuthMiddleware(request, reply);
+
+      expect(request.log.warn).toHaveBeenCalledWith(
+        { error },
+        'Optional auth failed, continuing without auth'
+      );
+    });
+
+    it('should not fail on expired token', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const mockToken = 'expired-token';
+      request.headers!.authorization = `Bearer ${mockToken}`;
+      vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
+      vi.mocked(jwtLib.verifyTokenWithTenant).mockRejectedValue(new Error('Token expired'));
+
+      await optionalAuthMiddleware(request, reply);
+
+      expect(request.user).toBeUndefined();
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('Auth Middleware - requireRole', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('With Valid Role', () => {
     it('should allow access when user has required role', async () => {
-      mockRequest.user = {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
+        email: 'user@example.com',
         roles: ['admin', 'user'],
         tenantSlug: 'test-tenant',
       };
 
       const middleware = requireRole('admin');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await middleware(request, reply);
 
-      expect(mockReply.code).not.toHaveBeenCalled();
+      expect(reply.code).not.toHaveBeenCalled();
     });
 
-    it('should allow access when user has any of the required roles', async () => {
-      mockRequest.user = {
+    it('should allow access when user has one of multiple required roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
-        roles: ['moderator'],
+        email: 'user@example.com',
+        roles: ['moderator', 'user'],
         tenantSlug: 'test-tenant',
       };
 
-      const middleware = requireRole('admin', 'moderator', 'owner');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      const middleware = requireRole('admin', 'moderator', 'editor');
+      await middleware(request, reply);
 
-      expect(mockReply.code).not.toHaveBeenCalled();
+      expect(reply.code).not.toHaveBeenCalled();
     });
 
-    it('should return 401 when user is not authenticated', async () => {
-      const middleware = requireRole('admin');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+    it('should allow access with multiple matching roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
 
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-      expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Unauthorized',
-        message: 'Authentication required',
-      });
-    });
-
-    it('should return 403 when user does not have required role', async () => {
-      mockRequest.user = {
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
+        email: 'user@example.com',
+        roles: ['admin', 'moderator', 'user'],
+        tenantSlug: 'test-tenant',
+      };
+
+      const middleware = requireRole('admin', 'editor');
+      await middleware(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Without Required Role', () => {
+    it('should return 403 when user lacks required role', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
       };
 
       const middleware = requireRole('admin');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await middleware(request, reply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(403);
-      expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Forbidden',
-        message: 'Required role(s): admin',
-      });
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Forbidden',
+          message: expect.stringContaining('Required role(s): admin'),
+        })
+      );
     });
 
-    it('should handle users with empty roles array', async () => {
-      mockRequest.user = {
+    it('should return 403 when user has no roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
+        email: 'user@example.com',
         roles: [],
         tenantSlug: 'test-tenant',
       };
 
       const middleware = requireRole('admin');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      await middleware(request, reply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(403);
-    });
-  });
-
-  describe('requirePermission', () => {
-    beforeEach(() => {
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test');
+      expect(reply.code).toHaveBeenCalledWith(403);
     });
 
-    it('should allow access when user has required permission', async () => {
-      mockRequest.user = {
+    it('should return 403 when none of multiple required roles match', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
-        roles: ['admin'],
+        email: 'user@example.com',
+        roles: ['user', 'viewer'],
         tenantSlug: 'test-tenant',
       };
 
+      const middleware = requireRole('admin', 'moderator', 'editor');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('admin, moderator, editor'),
+        })
+      );
+    });
+  });
+
+  describe('Without Authentication', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = undefined;
+
+      const middleware = requireRole('admin');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+          message: 'Authentication required',
+        })
+      );
+    });
+
+    it('should return 401 when user roles are undefined', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: undefined as any,
+        tenantSlug: 'test-tenant',
+      };
+
+      const middleware = requireRole('admin');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+    });
+  });
+});
+
+describe('Auth Middleware - requirePermission', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('With Valid Permission', () => {
+    it('should allow access when user has required permission', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+        tenantSlug: 'test-tenant',
+      };
+
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
       vi.mocked(permissionService.getUserPermissions).mockResolvedValue([
-        'users.read',
-        'users.write',
+        'posts.read',
+        'posts.write',
       ]);
 
-      const middleware = requirePermission('users.read');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      const middleware = requirePermission('posts.read');
+      await middleware(request, reply);
 
-      expect(mockReply.code).not.toHaveBeenCalled();
+      expect(reply.code).not.toHaveBeenCalled();
     });
 
-    it('should return 401 when user is not authenticated', async () => {
-      const middleware = requirePermission('users.read');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+    it('should allow access when user has one of multiple required permissions', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
 
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-    });
-
-    it('should return 403 when user does not have required permission', async () => {
-      mockRequest.user = {
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
+        email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
       };
 
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['users.read']);
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
+      vi.mocked(permissionService.getUserPermissions).mockResolvedValue([
+        'posts.write',
+        'comments.read',
+      ]);
 
-      const middleware = requirePermission('users.delete');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      const middleware = requirePermission('posts.read', 'posts.write', 'posts.delete');
+      await middleware(request, reply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(403);
+      expect(reply.code).not.toHaveBeenCalled();
     });
 
-    it('should handle permission fetch errors gracefully', async () => {
-      mockRequest.user = {
+    it('should fetch permissions from correct tenant schema', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
         id: 'user-123',
-        username: 'testuser',
+        email: 'user@example.com',
+        roles: ['user'],
+        tenantSlug: 'acme-corp',
+      };
+
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_acme_corp');
+      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.read']);
+
+      const middleware = requirePermission('posts.read');
+      await middleware(request, reply);
+
+      expect(tenantService.getSchemaName).toHaveBeenCalledWith('acme-corp');
+      expect(permissionService.getUserPermissions).toHaveBeenCalledWith(
+        'user-123',
+        'tenant_acme_corp'
+      );
+    });
+  });
+
+  describe('Without Required Permission', () => {
+    it('should return 403 when user lacks required permission', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
       };
 
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
+      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.read']);
+
+      const middleware = requirePermission('posts.delete');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Forbidden',
+          message: expect.stringContaining('posts.delete'),
+        })
+      );
+    });
+
+    it('should return 403 when user has no permissions', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+        tenantSlug: 'test-tenant',
+      };
+
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
+      vi.mocked(permissionService.getUserPermissions).mockResolvedValue([]);
+
+      const middleware = requirePermission('posts.read');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+    });
+
+    it('should return 403 when none of multiple required permissions match', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+        tenantSlug: 'test-tenant',
+      };
+
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
+      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.read']);
+
+      const middleware = requirePermission('posts.delete', 'posts.admin', 'comments.delete');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('posts.delete, posts.admin, comments.delete'),
+        })
+      );
+    });
+  });
+
+  describe('Permission Service Errors', () => {
+    it('should return 500 when permission service fails', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+        tenantSlug: 'test-tenant',
+      };
+
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
       vi.mocked(permissionService.getUserPermissions).mockRejectedValue(
-        new Error('Database error')
+        new Error('Database connection failed')
       );
 
-      const middleware = requirePermission('users.read');
-      await middleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      const middleware = requirePermission('posts.read');
+      await middleware(request, reply);
 
-      // Should return 500 when permission fetch fails (internal error, not access denied)
-      expect(mockReply.code).toHaveBeenCalledWith(500);
-    });
-  });
-
-  describe('requireSuperAdmin', () => {
-    it('should allow access for super admin from master realm', async () => {
-      mockRequest.user = {
-        id: 'admin-123',
-        username: 'superadmin',
-        roles: ['super_admin'],
-        tenantSlug: 'master',
-      };
-
-      await requireSuperAdmin(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).not.toHaveBeenCalled();
+      expect(reply.code).toHaveBeenCalledWith(500);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Permission System Error',
+          message: 'Failed to check permissions',
+        })
+      );
     });
 
-    it('should return 401 when user is not authenticated', async () => {
-      await requireSuperAdmin(mockRequest as FastifyRequest, mockReply as FastifyReply);
+    it('should log permission check errors', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
 
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-    });
-
-    it('should return 403 when user is not from master realm', async () => {
-      mockRequest.user = {
+      request.user = {
         id: 'user-123',
-        username: 'admin',
-        roles: ['admin'],
-        tenantSlug: 'test-tenant',
-      };
-
-      await requireSuperAdmin(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).toHaveBeenCalledWith(403);
-    });
-
-    it('should return 403 when user does not have super_admin role', async () => {
-      mockRequest.user = {
-        id: 'user-123',
-        username: 'user',
-        roles: ['admin'],
-        tenantSlug: 'master',
-      };
-
-      await requireSuperAdmin(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).toHaveBeenCalledWith(403);
-    });
-  });
-
-  describe('requireTenantOwner', () => {
-    it('should allow access for tenant owner', async () => {
-      mockRequest.user = {
-        id: 'user-123',
-        username: 'owner',
-        roles: ['tenant_owner'],
-        tenantSlug: 'test-tenant',
-      };
-
-      await requireTenantOwner(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).not.toHaveBeenCalled();
-    });
-
-    it('should allow access for tenant admin', async () => {
-      mockRequest.user = {
-        id: 'user-123',
-        username: 'admin',
-        roles: ['admin'],
-        tenantSlug: 'test-tenant',
-      };
-
-      await requireTenantOwner(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).not.toHaveBeenCalled();
-    });
-
-    it('should allow access for super admin from master realm', async () => {
-      mockRequest.user = {
-        id: 'admin-123',
-        username: 'superadmin',
-        roles: ['super_admin'],
-        tenantSlug: 'master',
-      };
-
-      await requireTenantOwner(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).not.toHaveBeenCalled();
-    });
-
-    it('should return 401 when user is not authenticated', async () => {
-      await requireTenantOwner(mockRequest as FastifyRequest, mockReply as FastifyReply);
-
-      expect(mockReply.code).toHaveBeenCalledWith(401);
-    });
-
-    it('should return 403 for regular users without owner/admin roles', async () => {
-      mockRequest.user = {
-        id: 'user-123',
-        username: 'user',
+        email: 'user@example.com',
         roles: ['user'],
         tenantSlug: 'test-tenant',
       };
 
-      await requireTenantOwner(mockRequest as FastifyRequest, mockReply as FastifyReply);
+      const error = new Error('Permission service error');
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
+      vi.mocked(permissionService.getUserPermissions).mockRejectedValue(error);
 
-      expect(mockReply.code).toHaveBeenCalledWith(403);
+      const middleware = requirePermission('posts.read');
+      await middleware(request, reply);
+
+      expect(request.log.error).toHaveBeenCalledWith({ error }, 'Permission check failed');
+    });
+  });
+
+  describe('Without Authentication', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = undefined;
+
+      const middleware = requirePermission('posts.read');
+      await middleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+          message: 'Authentication required',
+        })
+      );
+    });
+  });
+});
+
+describe('Auth Middleware - requireSuperAdmin', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('Valid Super Admin Access', () => {
+    it('should allow access when user is super admin from master tenant', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'admin-123',
+        email: 'admin@example.com',
+        roles: [USER_ROLES.SUPER_ADMIN],
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should allow access with super_admin role and other roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'admin-123',
+        email: 'admin@example.com',
+        roles: [USER_ROLES.SUPER_ADMIN, 'user', 'moderator'],
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Non-Master Tenant', () => {
+    it('should return 403 when user is from non-master tenant', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [USER_ROLES.SUPER_ADMIN],
+        tenantSlug: 'other-tenant',
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Forbidden',
+          message: 'Super admin access required',
+        })
+      );
+    });
+
+    it('should log warning for non-master tenant access attempt', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [USER_ROLES.SUPER_ADMIN],
+        tenantSlug: 'other-tenant',
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(request.log.warn).toHaveBeenCalledWith(
+        { userId: 'user-123', tenantSlug: 'other-tenant' },
+        'Unauthorized super admin access attempt from non-master tenant'
+      );
+    });
+  });
+
+  describe('Missing Super Admin Role', () => {
+    it('should return 403 when user lacks super_admin role', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['admin', 'user'],
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Forbidden',
+          message: 'Super admin access required',
+        })
+      );
+    });
+
+    it('should return 403 when user has no roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [],
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+    });
+
+    it('should log warning when missing super_admin role', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      const roles = ['admin', 'user'];
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles,
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireSuperAdmin(request, reply);
+
+      expect(request.log.warn).toHaveBeenCalledWith(
+        { userId: 'user-123', userRoles: roles },
+        'Unauthorized super admin access attempt - missing super_admin role'
+      );
+    });
+  });
+
+  describe('Without Authentication', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = undefined;
+
+      await requireSuperAdmin(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+          message: 'Authentication required',
+        })
+      );
+    });
+  });
+});
+
+describe('Auth Middleware - requireTenantOwner', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('Super Admin Access', () => {
+    it('should allow super admin from master tenant', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'admin-123',
+        email: 'admin@example.com',
+        roles: [USER_ROLES.SUPER_ADMIN],
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should allow super admin with other roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'admin-123',
+        email: 'admin@example.com',
+        roles: [USER_ROLES.SUPER_ADMIN, 'user'],
+        tenantSlug: MASTER_TENANT_SLUG,
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Tenant Owner Access', () => {
+    it('should allow user with tenant_owner role', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [USER_ROLES.TENANT_OWNER],
+        tenantSlug: 'acme-corp',
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should allow user with admin role', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [USER_ROLES.ADMIN],
+        tenantSlug: 'acme-corp',
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should allow user with both tenant_owner and admin roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
+        tenantSlug: 'acme-corp',
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Insufficient Permissions', () => {
+    it('should return 403 when user lacks required roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user', 'viewer'],
+        tenantSlug: 'acme-corp',
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Forbidden',
+          message: 'Tenant owner or admin access required',
+        })
+      );
+    });
+
+    it('should return 403 when user has no roles', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: [],
+        tenantSlug: 'acme-corp',
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+    });
+
+    it('should return 403 for non-admin tenant user', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = {
+        id: 'user-123',
+        email: 'user@example.com',
+        roles: ['user'],
+        tenantSlug: 'acme-corp',
+      };
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe('Without Authentication', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const request = createMockRequest() as FastifyRequest;
+      const reply = createMockReply() as FastifyReply;
+
+      request.user = undefined;
+
+      await requireTenantOwner(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(401);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Unauthorized',
+          message: 'Authentication required',
+        })
+      );
     });
   });
 });
