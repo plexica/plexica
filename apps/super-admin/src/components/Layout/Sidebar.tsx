@@ -1,6 +1,7 @@
 // File: apps/super-admin/src/components/Layout/Sidebar.tsx
 
 import React from 'react';
+import { Link, useLocation } from '@tanstack/react-router';
 import {
   LayoutDashboard,
   Building2,
@@ -34,18 +35,13 @@ const menuItems: MenuItem[] = [
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapsedChange }) => {
-  // Get current path (temporary, will be replaced with TanStack Router)
-  const currentPath = window.location.pathname;
+  const location = useLocation();
 
   const isActive = (path: string) => {
     if (path === '/') {
-      return currentPath === '/';
+      return location.pathname === '/';
     }
-    return currentPath.startsWith(path);
-  };
-
-  const handleNavigation = (path: string) => {
-    window.location.href = path;
+    return location.pathname.startsWith(path);
   };
 
   return (
@@ -64,20 +60,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapsedChange }
             </h3>
           )}
           {menuItems.map((item) => (
-            <div
-              key={item.path}
-              onClick={() => handleNavigation(item.path)}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                collapsed ? 'justify-center px-2' : ''
-              } ${
-                isActive(item.path)
-                  ? 'bg-muted text-foreground border-l-4 border-l-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              <span className="flex-shrink-0">{item.icon}</span>
-              {!collapsed && <span className="flex-1">{item.label}</span>}
-            </div>
+            <Link key={item.path} to={item.path}>
+              <div
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                  collapsed ? 'justify-center px-2' : ''
+                } ${
+                  isActive(item.path)
+                    ? 'bg-muted text-foreground border-l-4 border-l-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <span className="flex-shrink-0">{item.icon}</span>
+                {!collapsed && <span className="flex-1">{item.label}</span>}
+              </div>
+            </Link>
           ))}
         </div>
 
