@@ -96,30 +96,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const skip = (page - 1) * limit;
         const take = limit;
 
-        // Get tenants from service
+        // Get tenants from service (with database-level search)
         const result = await tenantService.listTenants({
           skip,
           take,
           status,
+          search,
         });
 
-        // Apply search filter if provided (client-side for now)
-        let filteredTenants = result.tenants;
-        if (search) {
-          const searchLower = search.toLowerCase();
-          filteredTenants = filteredTenants.filter(
-            (tenant) =>
-              tenant.name.toLowerCase().includes(searchLower) ||
-              tenant.slug.toLowerCase().includes(searchLower)
-          );
-        }
-
-        const total = search ? filteredTenants.length : result.total;
-        const totalPages = Math.ceil(total / limit);
+        const totalPages = Math.ceil(result.total / limit);
 
         return reply.send({
-          tenants: filteredTenants,
-          total,
+          tenants: result.tenants,
+          total: result.total,
           page,
           limit,
           totalPages,
@@ -182,8 +171,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const tenant = await tenantService.getTenant(request.params.id);
         return reply.send(tenant);
       } catch (error: any) {
-        request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to get tenant');
+
+        if (error.message === 'Tenant not found') {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to retrieve tenant details',
+        });
       }
     }
   );
@@ -234,8 +234,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
         return reply.send(tenant);
       } catch (error: any) {
-        request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to suspend tenant');
+
+        if (error.message === 'Tenant not found') {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to suspend tenant',
+        });
       }
     }
   );
@@ -286,8 +297,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
         return reply.send(tenant);
       } catch (error: any) {
-        request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to activate tenant');
+
+        if (error.message === 'Tenant not found') {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to activate tenant',
+        });
       }
     }
   );

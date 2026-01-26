@@ -219,10 +219,24 @@ export class TenantService {
     skip?: number;
     take?: number;
     status?: TenantStatus;
+    search?: string;
   }): Promise<{ tenants: any[]; total: number }> {
-    const { skip = 0, take = 50, status } = options || {};
+    const { skip = 0, take = 50, status, search } = options || {};
 
-    const where = status ? { status } : {};
+    // Build where clause with optional filters
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      // Search in name or slug using case-insensitive contains
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [tenants, total] = await Promise.all([
       this.db.tenant.findMany({
