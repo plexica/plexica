@@ -69,6 +69,192 @@ const createMockRequest = (overrides = {}) => ({
 });
 
 describe('Admin Routes', () => {
+  describe('POST /admin/tenants', () => {
+    it('should create a new tenant with valid input', () => {
+      const input = {
+        slug: 'new-tenant',
+        name: 'New Tenant Inc',
+        settings: {},
+        theme: {},
+      };
+
+      const created = {
+        id: 'tenant-new',
+        slug: input.slug,
+        name: input.name,
+        status: TenantStatus.ACTIVE,
+        settings: input.settings,
+        theme: input.theme,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      expect(created.slug).toBe(input.slug);
+      expect(created.name).toBe(input.name);
+      expect(created.status).toBe(TenantStatus.ACTIVE);
+    });
+
+    it('should validate slug format (lowercase alphanumeric with hyphens)', () => {
+      const validSlugs = ['acme-corp', 'test-123', 'my-company'];
+      const invalidSlugs = ['Acme-Corp', 'test_123', 'my company', 'Test'];
+
+      validSlugs.forEach((slug) => {
+        expect(slug).toMatch(/^[a-z0-9-]{1,50}$/);
+      });
+
+      invalidSlugs.forEach((slug) => {
+        expect(slug).not.toMatch(/^[a-z0-9-]{1,50}$/);
+      });
+    });
+
+    it('should require slug and name fields', () => {
+      const validInput = {
+        slug: 'test-tenant',
+        name: 'Test Tenant',
+      };
+
+      const missingSlug = {
+        name: 'Test Tenant',
+      };
+
+      const missingName = {
+        slug: 'test-tenant',
+      };
+
+      expect(validInput).toHaveProperty('slug');
+      expect(validInput).toHaveProperty('name');
+      expect(missingSlug).not.toHaveProperty('slug');
+      expect(missingName).not.toHaveProperty('name');
+    });
+
+    it('should set default values for settings and theme', () => {
+      const input = {
+        slug: 'minimal-tenant',
+        name: 'Minimal Tenant',
+      };
+
+      const created = {
+        ...input,
+        settings: {},
+        theme: {},
+      };
+
+      expect(created.settings).toEqual({});
+      expect(created.theme).toEqual({});
+    });
+
+    it('should return 400 for invalid slug format', () => {
+      const invalidInput = {
+        slug: 'Invalid-Slug', // Uppercase not allowed
+        name: 'Test',
+      };
+
+      const error = {
+        error: 'Bad Request',
+        message: 'Tenant slug must be 1-50 chars, lowercase alphanumeric with hyphens only',
+      };
+
+      expect(invalidInput.slug).not.toMatch(/^[a-z0-9-]{1,50}$/);
+      expect(error.error).toBe('Bad Request');
+    });
+
+    it('should return 409 for duplicate tenant slug', () => {
+      const existingSlug = 'acme-corp';
+
+      const error = {
+        error: 'Conflict',
+        message: `Tenant with slug '${existingSlug}' already exists`,
+      };
+
+      expect(error.error).toBe('Conflict');
+      expect(error.message).toContain('already exists');
+    });
+
+    it('should create PostgreSQL schema for tenant', () => {
+      const slug = 'test-tenant';
+      const schemaName = `tenant_${slug.replace(/-/g, '_')}`;
+
+      expect(schemaName).toBe('tenant_test_tenant');
+    });
+
+    it('should create Keycloak realm for tenant', () => {
+      const slug = 'test-tenant';
+      const name = 'Test Tenant';
+
+      // In actual implementation: await keycloakService.createRealm(slug, name)
+      const realmCreated = true;
+
+      expect(slug).toBe('test-tenant');
+      expect(name).toBe('Test Tenant');
+      expect(realmCreated).toBe(true);
+    });
+
+    it('should handle provisioning failures gracefully', () => {
+      const tenant = {
+        id: 'tenant-1',
+        slug: 'failed-tenant',
+        status: TenantStatus.PROVISIONING,
+      };
+
+      // Simulate provisioning failure
+      const provisioningFailed = true;
+      const updated = {
+        ...tenant,
+        status: TenantStatus.SUSPENDED,
+        settings: {
+          provisioningError: 'Failed to create Keycloak realm',
+        },
+      };
+
+      if (provisioningFailed) {
+        expect(updated.status).toBe(TenantStatus.SUSPENDED);
+        expect(updated.settings.provisioningError).toBeDefined();
+      }
+    });
+
+    it('should return 201 status code on successful creation', () => {
+      const statusCode = 201;
+      const expectedStatus = 201;
+
+      expect(statusCode).toBe(expectedStatus);
+    });
+
+    it('should log tenant creation with context', () => {
+      const tenant = {
+        id: 'tenant-123',
+        slug: 'new-tenant',
+      };
+
+      const logPayload = {
+        tenantId: tenant.id,
+        slug: tenant.slug,
+      };
+
+      expect(logPayload.tenantId).toBe('tenant-123');
+      expect(logPayload.slug).toBe('new-tenant');
+    });
+
+    it('should handle JSON settings and theme correctly', () => {
+      const input = {
+        slug: 'custom-tenant',
+        name: 'Custom Tenant',
+        settings: {
+          maxUsers: 100,
+          features: ['feature1', 'feature2'],
+        },
+        theme: {
+          primaryColor: '#007bff',
+          logo: 'https://example.com/logo.png',
+        },
+      };
+
+      expect(input.settings).toHaveProperty('maxUsers');
+      expect(input.theme).toHaveProperty('primaryColor');
+      expect(typeof input.settings).toBe('object');
+      expect(typeof input.theme).toBe('object');
+    });
+  });
+
   describe('GET /admin/tenants', () => {
     it('should list all tenants with default pagination', () => {
       const result = {

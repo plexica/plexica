@@ -120,6 +120,159 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Create a new tenant (with full provisioning)
+  fastify.post<{
+    Body: {
+      slug: string;
+      name: string;
+      settings?: Record<string, any>;
+      theme?: Record<string, any>;
+    };
+  }>(
+    '/admin/tenants',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Create a new tenant with full provisioning (super-admin only)',
+        tags: ['admin', 'tenants'],
+        body: {
+          type: 'object',
+          required: ['slug', 'name'],
+          properties: {
+            slug: {
+              type: 'string',
+              pattern: '^[a-z0-9-]{1,50}$',
+              description: 'Unique tenant slug (lowercase alphanumeric with hyphens)',
+              examples: ['acme-corp', 'globex-inc'],
+            },
+            name: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 255,
+              description: 'Tenant display name',
+              examples: ['Acme Corporation', 'Globex Inc'],
+            },
+            settings: {
+              type: 'object',
+              description: 'Optional tenant settings (JSON object)',
+              default: {},
+            },
+            theme: {
+              type: 'object',
+              description: 'Optional tenant theme configuration (JSON object)',
+              default: {},
+            },
+          },
+        },
+        response: {
+          201: {
+            description: 'Tenant created successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              status: { type: 'string' },
+              settings: { type: 'object' },
+              theme: { type: 'object' },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          400: {
+            description: 'Invalid input or validation error',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          409: {
+            description: 'Tenant with this slug already exists',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          500: {
+            description: 'Provisioning failed',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{
+        Body: {
+          slug: string;
+          name: string;
+          settings?: Record<string, any>;
+          theme?: Record<string, any>;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { slug, name, settings, theme } = request.body;
+
+        // Create tenant with full provisioning
+        // This will:
+        // 1. Create tenant record in database (status: PROVISIONING)
+        // 2. Create PostgreSQL schema for tenant
+        // 3. Create Keycloak realm for authentication
+        // 4. Initialize default roles and permissions
+        // 5. Update status to ACTIVE (or SUSPENDED if provisioning fails)
+        const tenant = await tenantService.createTenant({
+          slug,
+          name,
+          settings,
+          theme,
+        });
+
+        request.log.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant created successfully');
+
+        return reply.code(201).send(tenant);
+      } catch (error: any) {
+        request.log.error({ error, body: request.body }, 'Failed to create tenant');
+
+        // Handle validation errors
+        if (error.message.includes('must be')) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: error.message,
+          });
+        }
+
+        // Handle duplicate slug errors
+        if (error.message.includes('already exists')) {
+          return reply.code(409).send({
+            error: 'Conflict',
+            message: error.message,
+          });
+        }
+
+        // Handle provisioning errors
+        if (error.message.includes('Failed to provision')) {
+          return reply.code(500).send({
+            error: 'Provisioning Failed',
+            message: error.message,
+          });
+        }
+
+        // Generic server error
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to create tenant',
+        });
+      }
+    }
+  );
+
   // Get tenant by ID (admin view with full details)
   fastify.get<{
     Params: { id: string };
