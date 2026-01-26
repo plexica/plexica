@@ -29,14 +29,9 @@ Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
 ## 🚀 Quick Start
 
-### Prerequisites
+**Want to get started in 5 minutes?** → See **[QUICK_START.md](./QUICK_START.md)** for the fastest setup!
 
-- **Node.js** >= 20.0.0
-- **pnpm** >= 8.0.0
-- **Docker** and Docker Compose
-- **Git**
-
-### Installation
+### One-Command Setup (Recommended)
 
 ```bash
 # 1. Clone repository
@@ -46,31 +41,40 @@ cd plexica
 # 2. Install dependencies
 pnpm install
 
-# 3. Setup environment variables
-cp .env.example .env
-# Edit .env with your configuration
-
-# 4. Start infrastructure (PostgreSQL, Redis, Keycloak, Redpanda, MinIO)
-docker-compose up -d
-
-# 5. Wait for services to be healthy
-pnpm infra:status
-
-# 6. Generate Prisma Client (Prisma 7 with PostgreSQL adapter)
-pnpm db:generate
-
-# 7. Run database migrations
-pnpm db:migrate
-
-# 8. Start development server
-pnpm dev
+# 3. Initialize everything (Docker, DB, Keycloak, sample data)
+pnpm run init
 ```
 
-The Core API will be available at:
+That's it! The initialization script will:
 
-- **API**: http://localhost:3000
-- **API Docs (Swagger)**: http://localhost:3000/docs
-- **Health Check**: http://localhost:3000/health
+- ✅ Start Docker infrastructure
+- ✅ Create database schema
+- ✅ Seed sample data (3 tenants, 3 plugins, 7 users)
+- ✅ Create Keycloak realms
+- ✅ Configure all services
+
+### Start Applications
+
+```bash
+# Terminal 1: Backend API
+cd apps/core-api && pnpm dev
+
+# Terminal 2: Tenant App (Frontend)
+cd apps/web && pnpm dev
+
+# Terminal 3: Super Admin App (Frontend)
+cd apps/super-admin && pnpm dev
+```
+
+### Access Points
+
+- **Tenant App**: http://localhost:3001 (Login: `admin@acme-corp.com` / `Admin123!`)
+- **Super Admin**: http://localhost:3002 (Login: `admin@plexica.com` / `admin`)
+- **Core API**: http://localhost:3000
+- **API Health**: http://localhost:3000/health
+- **Keycloak**: http://localhost:8080 (Login: `admin` / `admin`)
+
+📖 **For detailed setup, troubleshooting, and more → See [QUICK_START.md](./QUICK_START.md)**
 
 ---
 

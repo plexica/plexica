@@ -23,7 +23,9 @@
     "infra:restart": "./scripts/infra.sh restart",
     "infra:status": "./scripts/infra.sh status",
     "infra:logs": "./scripts/infra.sh logs",
-    "infra:clean": "./scripts/infra.sh clean"
+    "infra:clean": "./scripts/infra.sh clean",
+    "init:env": "./scripts/init-env.sh",
+    "init": "./scripts/init-env.sh"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",
