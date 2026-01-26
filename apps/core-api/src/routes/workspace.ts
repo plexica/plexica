@@ -158,7 +158,36 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/workspaces',
     {
-      schema: createWorkspaceRequestSchema,
+      schema: {
+        ...createWorkspaceRequestSchema,
+        tags: ['workspaces'],
+        summary: 'Create a new workspace',
+        description:
+          'Creates a new workspace in the current tenant. The creator becomes the first admin.',
+        response: {
+          201: {
+            description: 'Workspace created successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              description: { type: 'string' },
+              settings: { type: 'object' },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          409: {
+            description: 'Workspace with this slug already exists',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -204,6 +233,29 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/workspaces',
     {
+      schema: {
+        tags: ['workspaces'],
+        summary: 'List user workspaces',
+        description: 'Returns all workspaces the authenticated user is a member of',
+        response: {
+          200: {
+            description: 'List of workspaces',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                slug: { type: 'string' },
+                name: { type: 'string' },
+                description: { type: 'string' },
+                memberRole: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
+                memberCount: { type: 'number' },
+                teamCount: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -233,7 +285,36 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/workspaces/:workspaceId',
     {
-      schema: workspaceParamsSchema,
+      schema: {
+        ...workspaceParamsSchema,
+        tags: ['workspaces'],
+        summary: 'Get workspace details',
+        description:
+          'Returns detailed information about a specific workspace including members and teams',
+        response: {
+          200: {
+            description: 'Workspace details',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              description: { type: 'string' },
+              settings: { type: 'object' },
+              members: { type: 'array' },
+              teams: { type: 'array' },
+            },
+          },
+          404: {
+            description: 'Workspace not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -262,7 +343,26 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/workspaces/:workspaceId',
     {
-      schema: updateWorkspaceRequestSchema,
+      schema: {
+        ...updateWorkspaceRequestSchema,
+        tags: ['workspaces'],
+        summary: 'Update workspace',
+        description: 'Updates workspace details. Requires ADMIN role.',
+        response: {
+          200: {
+            description: 'Workspace updated successfully',
+            type: 'object',
+          },
+          404: {
+            description: 'Workspace not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -307,7 +407,27 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/workspaces/:workspaceId',
     {
-      schema: workspaceParamsSchema,
+      schema: {
+        ...workspaceParamsSchema,
+        tags: ['workspaces'],
+        summary: 'Delete workspace',
+        description:
+          'Deletes a workspace. Cannot delete if workspace has teams. Requires ADMIN role.',
+        response: {
+          204: {
+            description: 'Workspace deleted successfully',
+            type: 'null',
+          },
+          400: {
+            description: 'Cannot delete workspace with existing teams',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -341,7 +461,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/workspaces/:workspaceId/members',
     {
-      schema: workspaceParamsSchema,
+      schema: {
+        ...workspaceParamsSchema,
+        tags: ['workspaces'],
+        summary: 'List workspace members',
+        description: 'Returns all members of a workspace with their roles',
+      },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -364,7 +489,26 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/workspaces/:workspaceId/members',
     {
-      schema: addMemberRequestSchema,
+      schema: {
+        ...addMemberRequestSchema,
+        tags: ['workspaces'],
+        summary: 'Add member to workspace',
+        description: 'Adds a user to the workspace with specified role. Requires ADMIN role.',
+        response: {
+          201: {
+            description: 'Member added successfully',
+            type: 'object',
+          },
+          409: {
+            description: 'User already a member',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -416,7 +560,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/workspaces/:workspaceId/members/:userId',
     {
-      schema: updateMemberRoleRequestSchema,
+      schema: {
+        ...updateMemberRoleRequestSchema,
+        tags: ['workspaces'],
+        summary: 'Update member role',
+        description: 'Changes the role of a workspace member. Requires ADMIN role.',
+      },
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -461,7 +610,27 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/workspaces/:workspaceId/members/:userId',
     {
-      schema: memberParamsSchema,
+      schema: {
+        ...memberParamsSchema,
+        tags: ['workspaces'],
+        summary: 'Remove member from workspace',
+        description:
+          'Removes a user from the workspace. Cannot remove the last admin. Requires ADMIN role.',
+        response: {
+          204: {
+            description: 'Member removed successfully',
+            type: 'null',
+          },
+          400: {
+            description: 'Cannot remove last admin',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -495,7 +664,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/workspaces/:workspaceId/teams',
     {
-      schema: workspaceParamsSchema,
+      schema: {
+        ...workspaceParamsSchema,
+        tags: ['workspaces'],
+        summary: 'List workspace teams',
+        description: 'Returns all teams in the workspace',
+      },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -540,6 +714,20 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               type: 'string',
               maxLength: 500,
               description: 'Optional team description',
+            },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Create team in workspace',
+        description: 'Creates a new team in the workspace. Requires MEMBER role or higher.',
+        response: {
+          201: {
+            description: 'Team created successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              workspaceId: { type: 'string' },
             },
           },
         },
