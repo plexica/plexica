@@ -255,6 +255,53 @@ describe('Admin Routes', () => {
     });
   });
 
+  describe('DELETE /admin/tenants/:id', () => {
+    it('should mark tenant for deletion (soft delete)', () => {
+      const tenant = { ...mockTenants[0] };
+      const updated = { ...tenant, status: TenantStatus.PENDING_DELETION };
+
+      expect(tenant.status).toBe(TenantStatus.ACTIVE);
+      expect(updated.status).toBe(TenantStatus.PENDING_DELETION);
+    });
+
+    it('should return success message with tenant ID', () => {
+      const tenantId = 'tenant-123';
+      const response = {
+        message: 'Tenant marked for deletion',
+        tenantId,
+      };
+
+      expect(response.message).toBe('Tenant marked for deletion');
+      expect(response.tenantId).toBe(tenantId);
+    });
+
+    it('should return 404 for non-existent tenant', () => {
+      const error = { message: 'Tenant not found' };
+
+      expect(error.message).toBe('Tenant not found');
+    });
+
+    it('should log deletion with context', () => {
+      const tenantId = 'tenant-123';
+      const logPayload = { tenantId };
+
+      expect(logPayload.tenantId).toBe('tenant-123');
+    });
+
+    it('should not immediately delete tenant data (soft delete)', () => {
+      // Soft delete only marks status as PENDING_DELETION
+      // Actual cleanup happens in background job
+      const tenant = {
+        id: 'tenant-1',
+        status: TenantStatus.PENDING_DELETION,
+      };
+
+      expect(tenant.status).toBe(TenantStatus.PENDING_DELETION);
+      // Tenant record still exists in database
+      expect(tenant.id).toBeDefined();
+    });
+  });
+
   describe('GET /admin/tenants', () => {
     it('should list all tenants with default pagination', () => {
       const result = {

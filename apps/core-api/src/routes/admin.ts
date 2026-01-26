@@ -467,6 +467,71 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Delete tenant (soft delete - marks as PENDING_DELETION)
+  fastify.delete<{
+    Params: { id: string };
+  }>(
+    '/admin/tenants/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Delete a tenant (soft delete - marks as PENDING_DELETION)',
+        tags: ['admin', 'tenants'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            description: 'Tenant marked for deletion',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              tenantId: { type: 'string' },
+            },
+          },
+          404: {
+            description: 'Tenant not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        await tenantService.deleteTenant(request.params.id);
+
+        request.log.info({ tenantId: request.params.id }, 'Tenant marked for deletion');
+
+        return reply.send({
+          message: 'Tenant marked for deletion',
+          tenantId: request.params.id,
+        });
+      } catch (error: any) {
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to delete tenant');
+
+        if (error.message === 'Tenant not found') {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to delete tenant',
+        });
+      }
+    }
+  );
+
   // ===== PLUGIN MANAGEMENT (Global Registry) =====
   // TODO: Implement plugin registry endpoints when plugin service is ready
   // GET /admin/plugins - List all plugins in global registry
