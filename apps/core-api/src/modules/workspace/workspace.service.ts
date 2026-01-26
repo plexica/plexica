@@ -29,17 +29,21 @@ export class WorkspaceService {
 
     return executeInTenantSchema(this.db, async (client) => {
       // Check slug uniqueness within tenant
-      const existing = await client.workspace.findUnique({
-        where: { slug: dto.slug },
+      const existing = await client.workspace.findFirst({
+        where: {
+          tenantId: tenantContext.tenantId,
+          slug: dto.slug,
+        },
       });
 
       if (existing) {
-        throw new Error(`Workspace with slug '${dto.slug}' already exists`);
+        throw new Error(`Workspace with slug '${dto.slug}' already exists in this tenant`);
       }
 
       // Create workspace with creator as admin
       const workspace = await client.workspace.create({
         data: {
+          tenantId: tenantContext.tenantId,
           slug: dto.slug,
           name: dto.name,
           description: dto.description,
@@ -92,9 +96,14 @@ export class WorkspaceService {
     }
 
     return executeInTenantSchema(this.db, async (client) => {
-      // Get all workspaces where user is a member
+      // Get all workspaces where user is a member, filtered by tenant
       const memberships = await client.workspaceMember.findMany({
-        where: { userId },
+        where: {
+          userId,
+          workspace: {
+            tenantId: tenantContext.tenantId,
+          },
+        },
         include: {
           workspace: {
             include: {
@@ -125,8 +134,11 @@ export class WorkspaceService {
     }
 
     return executeInTenantSchema(this.db, async (client) => {
-      const workspace = await client.workspace.findUnique({
-        where: { id },
+      const workspace = await client.workspace.findFirst({
+        where: {
+          id,
+          tenantId: tenantContext.tenantId,
+        },
         include: {
           members: {
             include: {
@@ -158,7 +170,9 @@ export class WorkspaceService {
       });
 
       if (!workspace) {
-        throw new Error(`Workspace ${id} not found`);
+        throw new Error(
+          `Workspace ${id} not found or does not belong to tenant ${tenantContext.tenantId}`
+        );
       }
 
       return workspace;
@@ -176,13 +190,27 @@ export class WorkspaceService {
 
     return executeInTenantSchema(this.db, async (client) => {
       try {
-        const workspace = await client.workspace.update({
-          where: { id },
+        const workspace = await client.workspace.updateMany({
+          where: {
+            id,
+            tenantId: tenantContext.tenantId,
+          },
           data: {
             name: dto.name,
             description: dto.description,
             settings: dto.settings,
           },
+        });
+
+        if (workspace.count === 0) {
+          throw new Error(
+            `Workspace ${id} not found or does not belong to tenant ${tenantContext.tenantId}`
+          );
+        }
+
+        // Fetch updated workspace to return
+        const updated = await client.workspace.findFirst({
+          where: { id, tenantId: tenantContext.tenantId },
         });
 
         // TODO: Publish event 'core.workspace.updated'
@@ -192,9 +220,11 @@ export class WorkspaceService {
         //   data: { workspaceId: id, changes: dto }
         // });
 
-        return workspace;
+        return updated;
       } catch (error) {
-        throw new Error(`Workspace ${id} not found`);
+        throw new Error(
+          `Failed to update workspace: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     });
   }
@@ -209,6 +239,17 @@ export class WorkspaceService {
     }
 
     await executeInTenantSchema(this.db, async (client) => {
+      // First verify workspace belongs to tenant
+      const workspace = await client.workspace.findFirst({
+        where: { id, tenantId: tenantContext.tenantId },
+      });
+
+      if (!workspace) {
+        throw new Error(
+          `Workspace ${id} not found or does not belong to tenant ${tenantContext.tenantId}`
+        );
+      }
+
       // Check if workspace has teams
       const teamCount = await client.team.count({
         where: { workspaceId: id },
@@ -218,8 +259,11 @@ export class WorkspaceService {
         throw new Error('Cannot delete workspace with existing teams. Move or delete teams first.');
       }
 
-      await client.workspace.delete({
-        where: { id },
+      await client.workspace.deleteMany({
+        where: {
+          id,
+          tenantId: tenantContext.tenantId,
+        },
       });
 
       // TODO: Publish event 'core.workspace.deleted'
@@ -277,13 +321,18 @@ export class WorkspaceService {
     }
 
     return executeInTenantSchema(this.db, async (client) => {
-      // Check workspace exists
-      const workspace = await client.workspace.findUnique({
-        where: { id: workspaceId },
+      // Check workspace exists and belongs to tenant
+      const workspace = await client.workspace.findFirst({
+        where: {
+          id: workspaceId,
+          tenantId: tenantContext.tenantId,
+        },
       });
 
       if (!workspace) {
-        throw new Error(`Workspace ${workspaceId} not found`);
+        throw new Error(
+          `Workspace ${workspaceId} not found or does not belong to tenant ${tenantContext.tenantId}`
+        );
       }
 
       // Check if user already member
@@ -463,13 +512,18 @@ export class WorkspaceService {
     }
 
     return executeInTenantSchema(this.db, async (client) => {
-      // Verify workspace exists
-      const workspace = await client.workspace.findUnique({
-        where: { id: workspaceId },
+      // Verify workspace exists and belongs to tenant
+      const workspace = await client.workspace.findFirst({
+        where: {
+          id: workspaceId,
+          tenantId: tenantContext.tenantId,
+        },
       });
 
       if (!workspace) {
-        throw new Error('Workspace not found');
+        throw new Error(
+          `Workspace not found or does not belong to tenant ${tenantContext.tenantId}`
+        );
       }
 
       // Create the team
@@ -487,11 +541,6 @@ export class WorkspaceService {
               email: true,
               firstName: true,
               lastName: true,
-            },
-          },
-          _count: {
-            select: {
-              members: true,
             },
           },
         },

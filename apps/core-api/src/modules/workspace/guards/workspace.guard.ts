@@ -45,13 +45,14 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
-    // Verify workspace exists and user has membership
+    // Verify workspace exists, belongs to current tenant, and user has membership
+    // Note: getMembership() implicitly checks tenant isolation via WorkspaceService
     const membership = await workspaceService.getMembership(workspaceId, userId);
 
     if (!membership) {
       return reply.code(403).send({
         error: 'Forbidden',
-        message: 'Access to workspace denied. User is not a member.',
+        message: 'Access to workspace denied. Workspace not found or user is not a member.',
       });
     }
 
