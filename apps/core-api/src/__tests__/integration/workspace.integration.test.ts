@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { WorkspaceRole } from '@plexica/database';
 import { WorkspaceService } from '../../modules/workspace/workspace.service.js';
@@ -49,7 +50,7 @@ describe('Workspace Integration Tests', () => {
 
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
           create: vi.fn().mockResolvedValue(mockWorkspace),
         },
       };
@@ -80,7 +81,7 @@ describe('Workspace Integration Tests', () => {
 
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue(mockExisting),
+          findFirst: vi.fn().mockResolvedValue(mockExisting),
         },
       };
 
@@ -108,7 +109,7 @@ describe('Workspace Integration Tests', () => {
 
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
           create: vi.fn().mockResolvedValue(mockWorkspace),
         },
       };
@@ -205,7 +206,7 @@ describe('Workspace Integration Tests', () => {
 
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue(mockWorkspace),
+          findFirst: vi.fn().mockResolvedValue(mockWorkspace),
         },
       };
 
@@ -222,7 +223,7 @@ describe('Workspace Integration Tests', () => {
     it('should throw error when workspace not found', async () => {
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
         },
       };
 
@@ -236,13 +237,16 @@ describe('Workspace Integration Tests', () => {
 
   describe('Update Workspace', () => {
     it('should update workspace details', async () => {
+      const updatedWorkspace = {
+        id: 'workspace-1',
+        name: 'Updated Workspace',
+        description: 'Updated description',
+      };
+
       const mockDb = {
         workspace: {
-          update: vi.fn().mockResolvedValue({
-            id: 'workspace-1',
-            name: 'Updated Workspace',
-            description: 'Updated description',
-          }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          findFirst: vi.fn().mockResolvedValue(updatedWorkspace),
         },
       };
 
@@ -260,7 +264,7 @@ describe('Workspace Integration Tests', () => {
     it('should throw error when updating non-existent workspace', async () => {
       const mockDb = {
         workspace: {
-          update: vi.fn().mockRejectedValue(new Error('Not found')),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
       };
 
@@ -272,12 +276,15 @@ describe('Workspace Integration Tests', () => {
     });
 
     it('should update workspace settings', async () => {
+      const updatedWorkspace = {
+        id: 'workspace-1',
+        settings: { theme: 'light', privacy: 'public' },
+      };
+
       const mockDb = {
         workspace: {
-          update: vi.fn().mockResolvedValue({
-            id: 'workspace-1',
-            settings: { theme: 'light', privacy: 'public' },
-          }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          findFirst: vi.fn().mockResolvedValue(updatedWorkspace),
         },
       };
 
@@ -295,7 +302,7 @@ describe('Workspace Integration Tests', () => {
     it('should add a member to workspace', async () => {
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue({
+          findFirst: vi.fn().mockResolvedValue({
             id: 'workspace-1',
             slug: 'test-workspace',
           }),
@@ -328,7 +335,7 @@ describe('Workspace Integration Tests', () => {
     it('should reject adding duplicate member', async () => {
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
         },
         workspaceMember: {
           findUnique: vi.fn().mockResolvedValue({
@@ -350,7 +357,7 @@ describe('Workspace Integration Tests', () => {
     it('should add member with specific role', async () => {
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
         },
         workspaceMember: {
           findUnique: vi.fn().mockResolvedValue(null),
@@ -502,7 +509,7 @@ describe('Workspace Integration Tests', () => {
     it('should create team in workspace', async () => {
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
         },
         team: {
           create: vi.fn().mockResolvedValue({
@@ -529,7 +536,7 @@ describe('Workspace Integration Tests', () => {
     it('should throw error creating team in non-existent workspace', async () => {
       const mockDb = {
         workspace: {
-          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
         },
       };
 
@@ -547,22 +554,26 @@ describe('Workspace Integration Tests', () => {
   describe('Delete Workspace', () => {
     it('should delete workspace with no teams', async () => {
       const mockDb = {
+        workspace: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
+          deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
         team: {
           count: vi.fn().mockResolvedValue(0),
-        },
-        workspace: {
-          delete: vi.fn().mockResolvedValue({}),
         },
       };
 
       vi.spyOn(workspaceService as any, 'db', 'get').mockReturnValue(mockDb);
 
       await expect(workspaceService.delete('workspace-1')).resolves.not.toThrow();
-      expect(mockDb.workspace.delete).toHaveBeenCalled();
+      expect(mockDb.workspace.deleteMany).toHaveBeenCalled();
     });
 
     it('should prevent deleting workspace with teams', async () => {
       const mockDb = {
+        workspace: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'workspace-1' }),
+        },
         team: {
           count: vi.fn().mockResolvedValue(2),
         },
