@@ -10,9 +10,23 @@ let pool: Pool | undefined;
 
 export function getPrismaClient(): PrismaClient {
   if (!prisma) {
-    // Create PostgreSQL connection pool
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+
+    // Parse connection string to extract components
+    // This fixes issues with password parsing in pg Pool
+    const url = new URL(databaseUrl);
+
+    // Create PostgreSQL connection pool with explicit configuration
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      host: url.hostname,
+      port: parseInt(url.port || '5432', 10),
+      database: url.pathname.split('/')[1]?.split('?')[0],
+      user: url.username,
+      password: url.password || '', // Ensure password is always a string
+      ssl: url.searchParams.get('sslmode') === 'require' ? { rejectUnauthorized: false } : false,
     });
 
     // Create Prisma adapter for node-postgres
