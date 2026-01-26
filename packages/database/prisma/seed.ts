@@ -309,8 +309,7 @@ async function main() {
     const existing = await prisma.workspace.findFirst({
       where: {
         slug: workspace.slug,
-        // Note: Workspace model doesn't have tenantId in current schema
-        // This is a limitation - workspaces are global in current schema
+        tenantId: workspace.tenantId,
       },
     });
 
@@ -318,15 +317,16 @@ async function main() {
       const result = await prisma.workspace.create({
         data: {
           id: workspace.id,
+          tenantId: workspace.tenantId,
           slug: workspace.slug,
           name: workspace.name,
           description: workspace.description,
           settings: workspace.settings,
         },
       });
-      console.log(`   ✅ ${result.slug} - ${result.name}`);
+      console.log(`   ✅ ${result.slug} - ${result.name} (tenant: ${result.tenantId})`);
     } else {
-      console.log(`   ⏭️  ${workspace.slug} - Already exists`);
+      console.log(`   ⏭️  ${workspace.slug} - Already exists for tenant ${workspace.tenantId}`);
     }
   }
 

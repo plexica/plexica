@@ -218,7 +218,8 @@ model User {
 // Workspace Model (in tenant schema)
 model Workspace {
   id          String   @id @default(uuid())
-  slug        String   @unique
+  tenantId    String   @map("tenant_id")
+  slug        String
   name        String
   description String?
   settings    Json     @default("{}")
@@ -229,6 +230,8 @@ model Workspace {
   teams     Team[]
   resources WorkspaceResource[]
 
+  @@unique([tenantId, slug])
+  @@index([tenantId])
   @@map("workspaces")
   @@schema("core") // Template - will be in tenant schemas
 }
