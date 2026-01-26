@@ -960,7 +960,7 @@ describe('Auth Middleware - requireSuperAdmin', () => {
 
       expect(request.log.warn).toHaveBeenCalledWith(
         { userId: 'user-123', tenantSlug: 'other-tenant' },
-        'Unauthorized super admin access attempt from non-master tenant'
+        'Unauthorized super admin access attempt from invalid realm'
       );
     });
   });

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService } from '../services/tenant.service.js';
+import { analyticsService } from '../services/analytics.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
 
@@ -569,21 +570,219 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // ===== ANALYTICS =====
-  // TODO: Implement analytics endpoints
-  // GET /admin/analytics/overview - Platform-wide stats
-  // GET /admin/analytics/tenants - Tenant growth over time
-  // GET /admin/analytics/plugins - Plugin usage statistics
-  // GET /admin/analytics/api-calls - API usage metrics
 
-  // Placeholder for analytics
-  fastify.get('/admin/analytics/overview', async (_request, reply) => {
-    // TODO: Implement with analytics service
-    return reply.send({
-      totalTenants: 0,
-      activeTenants: 0,
-      totalPlugins: 0,
-      totalUsers: 0,
-      message: 'Analytics endpoints not yet implemented',
-    });
-  });
+  // Platform-wide overview statistics
+  fastify.get(
+    '/admin/analytics/overview',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get platform-wide overview statistics (super-admin only)',
+        tags: ['admin', 'analytics'],
+        response: {
+          200: {
+            description: 'Platform statistics',
+            type: 'object',
+            properties: {
+              totalTenants: { type: 'number' },
+              activeTenants: { type: 'number' },
+              suspendedTenants: { type: 'number' },
+              provisioningTenants: { type: 'number' },
+              totalPlugins: { type: 'number' },
+              totalPluginInstallations: { type: 'number' },
+              totalUsers: { type: 'number' },
+              totalWorkspaces: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const overview = await analyticsService.getOverview();
+        return reply.send(overview);
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to fetch analytics overview');
+        return (reply as any).code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch analytics overview',
+        });
+      }
+    }
+  );
+
+  // Tenant growth over time
+  fastify.get<{
+    Querystring: {
+      days?: number;
+    };
+  }>(
+    '/admin/analytics/tenants',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get tenant growth statistics over time (super-admin only)',
+        tags: ['admin', 'analytics'],
+        querystring: {
+          type: 'object',
+          properties: {
+            days: {
+              type: 'number',
+              minimum: 1,
+              maximum: 365,
+              default: 30,
+              description: 'Number of days to look back',
+            },
+          },
+        },
+        response: {
+          200: {
+            description: 'Tenant growth data',
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    date: { type: 'string', format: 'date' },
+                    totalTenants: { type: 'number' },
+                    activeTenants: { type: 'number' },
+                    newTenants: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { days = 30 } = request.query;
+        const data = await analyticsService.getTenantGrowth(days);
+        return reply.send({ data });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to fetch tenant growth data');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch tenant growth data',
+        });
+      }
+    }
+  );
+
+  // Plugin usage statistics
+  fastify.get(
+    '/admin/analytics/plugins',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get plugin usage statistics (super-admin only)',
+        tags: ['admin', 'analytics'],
+        response: {
+          200: {
+            description: 'Plugin usage data',
+            type: 'object',
+            properties: {
+              plugins: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    pluginId: { type: 'string' },
+                    pluginName: { type: 'string' },
+                    version: { type: 'string' },
+                    totalInstallations: { type: 'number' },
+                    activeTenants: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const plugins = await analyticsService.getPluginUsage();
+        return reply.send({ plugins });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to fetch plugin usage data');
+        return (reply as any).code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch plugin usage data',
+        });
+      }
+    }
+  );
+
+  // API call metrics
+  fastify.get<{
+    Querystring: {
+      hours?: number;
+    };
+  }>(
+    '/admin/analytics/api-calls',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get API call metrics over time (super-admin only)',
+        tags: ['admin', 'analytics'],
+        querystring: {
+          type: 'object',
+          properties: {
+            hours: {
+              type: 'number',
+              minimum: 1,
+              maximum: 168,
+              default: 24,
+              description: 'Number of hours to look back (max 7 days)',
+            },
+          },
+        },
+        response: {
+          200: {
+            description: 'API call metrics',
+            type: 'object',
+            properties: {
+              metrics: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    period: { type: 'string', format: 'date-time' },
+                    totalCalls: { type: 'number' },
+                    successfulCalls: { type: 'number' },
+                    failedCalls: { type: 'number' },
+                    averageResponseTime: { type: 'number' },
+                  },
+                },
+              },
+              note: {
+                type: 'string',
+                description: 'Implementation status note',
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { hours = 24 } = request.query;
+        const metrics = await analyticsService.getApiCallMetrics(hours);
+        return reply.send({
+          metrics,
+          note: 'API metrics collection not yet implemented - showing placeholder data',
+        });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to fetch API call metrics');
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch API call metrics',
+        });
+      }
+    }
+  );
 }
