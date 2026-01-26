@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService } from '../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
-// import { requireSuperAdmin } from '../middleware/auth.js'; // TODO: Re-enable after Keycloak setup
+import { requireSuperAdmin } from '../middleware/auth.js';
 
 /**
  * Admin Routes for Super Admin Application
@@ -29,8 +29,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   }>(
     '/admin/tenants',
     {
-      // TODO: Re-enable after Keycloak is fully configured
-      // preHandler: [requireSuperAdmin],
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'List all tenants with pagination and filters (super-admin only)',
         tags: ['admin', 'tenants'],
@@ -138,8 +137,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   }>(
     '/admin/tenants/:id',
     {
-      // TODO: Re-enable after Keycloak is fully configured
-      // preHandler: [requireSuperAdmin],
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'Get tenant details by ID (super-admin only)',
         tags: ['admin', 'tenants'],
@@ -196,8 +194,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   }>(
     '/admin/tenants/:id/suspend',
     {
-      // TODO: Re-enable after Keycloak is fully configured
-      // preHandler: [requireSuperAdmin],
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'Suspend a tenant (super-admin only)',
         tags: ['admin', 'tenants'],
@@ -249,8 +246,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   }>(
     '/admin/tenants/:id/activate',
     {
-      // TODO: Re-enable after Keycloak is fully configured
-      // preHandler: [requireSuperAdmin],
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'Activate a suspended tenant (super-admin only)',
         tags: ['admin', 'tenants'],

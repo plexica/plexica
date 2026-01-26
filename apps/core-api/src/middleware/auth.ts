@@ -166,12 +166,19 @@ async function getUserPermissions(userId: string, tenantSlug: string): Promise<s
 
 /**
  * Super admin middleware
- * Only allows access to super admins (from master realm)
+ * Only allows access to super admins (from master realm or plexica-admin realm)
  */
 export async function requireSuperAdmin(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
+  // Run authMiddleware first if not already run
+  if (!request.user) {
+    await authMiddleware(request, reply);
+    if (reply.sent) return; // authMiddleware failed
+  }
+
+  // Double-check authentication after middleware
   if (!request.user) {
     return reply.code(401).send({
       error: 'Unauthorized',
@@ -179,11 +186,12 @@ export async function requireSuperAdmin(
     });
   }
 
-  // Super admins should be from master realm
-  if (request.user.tenantSlug !== MASTER_TENANT_SLUG) {
+  // Super admins should be from master realm or plexica-admin realm
+  const validRealms = [MASTER_TENANT_SLUG, 'plexica-admin'];
+  if (!validRealms.includes(request.user.tenantSlug)) {
     request.log.warn(
       { userId: request.user.id, tenantSlug: request.user.tenantSlug },
-      'Unauthorized super admin access attempt from non-master tenant'
+      'Unauthorized super admin access attempt from invalid realm'
     );
     return reply.code(403).send({
       error: 'Forbidden',
@@ -191,8 +199,12 @@ export async function requireSuperAdmin(
     });
   }
 
-  // Check for super_admin role
-  if (!request.user.roles.includes(USER_ROLES.SUPER_ADMIN)) {
+  // Check for super_admin or super-admin role (support both formats)
+  const hasRole =
+    request.user.roles.includes(USER_ROLES.SUPER_ADMIN) ||
+    request.user.roles.includes('super-admin');
+
+  if (!hasRole) {
     request.log.warn(
       { userId: request.user.id, userRoles: request.user.roles },
       'Unauthorized super admin access attempt - missing super_admin role'
