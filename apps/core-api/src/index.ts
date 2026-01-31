@@ -13,6 +13,7 @@ import { pluginRoutes } from './routes/plugin';
 import { pluginUploadRoutes } from './routes/plugin-upload';
 import { workspaceRoutes } from './routes/workspace';
 import { adminRoutes } from './routes/admin';
+import { marketplaceRoutes } from './routes/marketplace';
 // import { dlqRoutes } from './routes/dlq';
 // import metricsRoutes from './routes/metrics';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
@@ -121,6 +122,7 @@ async function registerPlugins() {
           { name: 'tenants', description: 'Tenant management' },
           { name: 'workspaces', description: 'Workspace management' },
           { name: 'plugins', description: 'Plugin management' },
+          { name: 'marketplace', description: 'Plugin marketplace (M2.4)' },
           { name: 'auth', description: 'Authentication & authorization' },
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
@@ -153,6 +155,7 @@ async function registerRoutes() {
   await server.register(workspaceRoutes, { prefix: '/api' });
   await server.register(pluginRoutes, { prefix: '/api' });
   await server.register(pluginUploadRoutes, { prefix: '/api' });
+  await server.register(marketplaceRoutes, { prefix: '/api' }); // Marketplace routes (M2.4)
   await server.register(adminRoutes, { prefix: '/api' }); // Super-admin routes
   // TODO: Fix TypeScript errors in DLQ and Metrics routes before enabling
   // await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });

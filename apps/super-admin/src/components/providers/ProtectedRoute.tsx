@@ -1,7 +1,7 @@
 // File: apps/super-admin/src/components/providers/ProtectedRoute.tsx
 
 import React from 'react';
-import { useAuth } from './AuthProvider';
+import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from '@tanstack/react-router';
 import { Card } from '@plexica/ui';
 

@@ -155,6 +155,115 @@ class ApiClient {
     return response.data;
   }
 
+  // ===== MARKETPLACE MANAGEMENT =====
+
+  async searchMarketplace(params?: {
+    query?: string;
+    category?: string;
+    status?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const response = await this.client.get('/api/marketplace/plugins', { params });
+    return response.data;
+  }
+
+  async getMarketplacePlugin(pluginId: string, includeAllVersions = false) {
+    const response = await this.client.get(`/api/marketplace/plugins/${pluginId}`, {
+      params: { includeAllVersions },
+    });
+    return response.data;
+  }
+
+  async getMarketplaceStats() {
+    const response = await this.client.get('/api/marketplace/stats');
+    return response.data;
+  }
+
+  async reviewPlugin(pluginId: string, data: { action: 'approve' | 'reject'; reason?: string }) {
+    const response = await this.client.post(`/api/marketplace/plugins/${pluginId}/review`, data);
+    return response.data;
+  }
+
+  async deprecatePlugin(pluginId: string) {
+    const response = await this.client.post(`/api/marketplace/plugins/${pluginId}/deprecate`);
+    return response.data;
+  }
+
+  async getPluginAnalytics(pluginId: string, timeRange: '7d' | '30d' | '90d' | 'all' = '30d') {
+    const response = await this.client.get(`/api/marketplace/plugins/${pluginId}/analytics`, {
+      params: { timeRange },
+    });
+    return response.data;
+  }
+
+  async publishPlugin(data: {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    longDescription?: string;
+    category: string;
+    author: string;
+    authorEmail: string;
+    manifest: Record<string, unknown>;
+    homepage?: string;
+    repository?: string;
+    license: string;
+    icon?: string;
+    screenshots?: string[];
+    demoUrl?: string;
+    tags?: string[];
+  }) {
+    const response = await this.client.post('/api/marketplace/publish', data);
+    return response.data;
+  }
+
+  async publishVersion(
+    pluginId: string,
+    data: {
+      version: string;
+      changelog: string;
+      manifest: Record<string, unknown>;
+      setAsLatest?: boolean;
+    }
+  ) {
+    const response = await this.client.post(`/api/marketplace/plugins/${pluginId}/versions`, data);
+    return response.data;
+  }
+
+  async updatePluginMetadata(
+    pluginId: string,
+    data: {
+      description?: string;
+      longDescription?: string;
+      tags?: string[];
+      homepage?: string;
+      repository?: string;
+      screenshots?: string[];
+      demoUrl?: string;
+    }
+  ) {
+    const response = await this.client.put(`/api/marketplace/plugins/${pluginId}/metadata`, data);
+    return response.data;
+  }
+
+  async getPluginRatings(
+    pluginId: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      minRating?: number;
+    }
+  ) {
+    const response = await this.client.get(`/api/marketplace/plugins/${pluginId}/ratings`, {
+      params,
+    });
+    return response.data;
+  }
+
   // ===== USER MANAGEMENT (CROSS-TENANT) =====
 
   async getUsers(params?: { tenantId?: string; search?: string; role?: string }) {

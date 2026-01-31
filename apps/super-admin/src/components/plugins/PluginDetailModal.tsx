@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Button, Badge } from '@plexica/ui';
 import { X } from 'lucide-react';
 import { Plugin } from '../../types';
+import { PluginVersionManager } from '../marketplace/PluginVersionManager';
+import { PluginAnalytics } from '../marketplace/PluginAnalytics';
 
 interface PluginDetailModalProps {
   plugin: Plugin;
@@ -8,6 +11,8 @@ interface PluginDetailModalProps {
 }
 
 export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
+  const [showVersionManager, setShowVersionManager] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'published':
@@ -125,14 +130,20 @@ export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
           {/* Actions */}
           <div className="border-t border-border pt-4">
             <h3 className="text-sm font-semibold text-foreground mb-3">Actions</h3>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => setShowVersionManager(true)}>
+                Manage Versions
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowAnalytics(true)}>
+                View Analytics
+              </Button>
               <Button variant="outline" size="sm">
                 Edit Plugin
               </Button>
               <Button variant="outline" size="sm">
                 View Installations
               </Button>
-              {plugin.status === 'published' && (
+              {plugin.status === 'PUBLISHED' && (
                 <Button variant="danger" size="sm">
                   Deprecate
                 </Button>
@@ -148,6 +159,21 @@ export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
           </Button>
         </div>
       </div>
+
+      {/* Version Manager Modal */}
+      {showVersionManager && (
+        <PluginVersionManager
+          plugin={plugin}
+          onClose={() => setShowVersionManager(false)}
+          onSuccess={() => {
+            // Optionally refresh plugin data
+            setShowVersionManager(false);
+          }}
+        />
+      )}
+
+      {/* Analytics Modal */}
+      {showAnalytics && <PluginAnalytics plugin={plugin} onClose={() => setShowAnalytics(false)} />}
     </div>
   );
 }

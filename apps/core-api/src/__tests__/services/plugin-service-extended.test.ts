@@ -77,7 +77,7 @@ describe('PluginRegistryService', () => {
         id: manifest.id,
         name: manifest.name,
         version: manifest.version,
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
         manifest,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -294,7 +294,7 @@ describe('PluginRegistryService', () => {
         id: pluginId,
         name: 'Test Plugin',
         version: '1.0.0',
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
       };
 
       vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
@@ -317,8 +317,8 @@ describe('PluginRegistryService', () => {
   describe('listPlugins', () => {
     it('should list all plugins without filters', async () => {
       const mockPlugins = [
-        { id: 'plugin-1', name: 'Plugin 1', status: PluginStatus.AVAILABLE },
-        { id: 'plugin-2', name: 'Plugin 2', status: PluginStatus.AVAILABLE },
+        { id: 'plugin-1', name: 'Plugin 1', status: PluginStatus.PUBLISHED },
+        { id: 'plugin-2', name: 'Plugin 2', status: PluginStatus.PUBLISHED },
       ];
 
       vi.mocked(db.plugin.findMany).mockResolvedValue(mockPlugins as any);
@@ -334,11 +334,11 @@ describe('PluginRegistryService', () => {
       vi.mocked(db.plugin.findMany).mockResolvedValue([]);
       vi.mocked(db.plugin.count).mockResolvedValue(0);
 
-      await registryService.listPlugins({ status: PluginStatus.AVAILABLE });
+      await registryService.listPlugins({ status: PluginStatus.PUBLISHED });
 
       expect(db.plugin.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ status: PluginStatus.AVAILABLE }),
+          where: expect.objectContaining({ status: PluginStatus.PUBLISHED }),
         })
       );
     });
@@ -486,7 +486,7 @@ describe('PluginLifecycleService', () => {
 
       const mockPlugin = {
         id: pluginId,
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
         manifest: validManifest,
       };
 
@@ -539,7 +539,7 @@ describe('PluginLifecycleService', () => {
 
       const mockPlugin = {
         id: pluginId,
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
         manifest: validManifest,
       };
 
@@ -574,7 +574,7 @@ describe('PluginLifecycleService', () => {
 
       const mockPlugin = {
         id: pluginId,
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
         manifest: manifestWithConfig,
       };
 
@@ -606,7 +606,7 @@ describe('PluginLifecycleService', () => {
 
       const mockPlugin = {
         id: pluginId,
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
         manifest: manifestWithDeps,
       };
 

@@ -4,7 +4,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { Button, Card, CardContent } from '@plexica/ui';
 import { AlertCircle, LogIn } from 'lucide-react';
-import { useAuth } from '@/components/providers/AuthProvider';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,

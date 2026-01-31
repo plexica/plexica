@@ -172,6 +172,23 @@ export async function requireSuperAdmin(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
+  // DEVELOPMENT MODE: Bypass authentication if BYPASS_AUTH is enabled
+  if (process.env.BYPASS_AUTH === 'true' && process.env.NODE_ENV === 'development') {
+    request.log.warn('⚠️  BYPASS_AUTH enabled - skipping authentication (DEVELOPMENT ONLY)');
+
+    // Mock a super-admin user
+    request.user = {
+      id: 'dev-super-admin',
+      username: 'dev-admin',
+      name: 'Development Super Admin',
+      email: 'dev@plexica.local',
+      roles: ['super-admin', 'super_admin'],
+      tenantSlug: 'plexica-admin',
+    };
+
+    return;
+  }
+
   // Run authMiddleware first if not already run
   if (!request.user) {
     await authMiddleware(request, reply);

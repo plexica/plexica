@@ -35,16 +35,20 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")
 
-  plugins TenantPlugin[]
+  plugins       TenantPlugin[]
+  ratings       PluginRating[]
+  installations PluginInstallation[]
 
   @@map("tenants")
   @@schema("core")
 }
 
 enum PluginStatus {
-  AVAILABLE
-  INSTALLED
-  DEPRECATED
+  DRAFT // Plugin is being developed
+  PENDING_REVIEW // Submitted for review
+  PUBLISHED // Available in marketplace
+  DEPRECATED // No longer recommended
+  REJECTED // Rejected during review
 
   @@schema("core")
 }
@@ -52,14 +56,45 @@ enum PluginStatus {
 model Plugin {
   id        String       @id
   name      String
-  version   String
+  version   String // Current/latest version
   manifest  Json
-  status    PluginStatus @default(AVAILABLE)
+  status    PluginStatus @default(DRAFT)
+  
+  // Marketplace fields
+  description   String?
+  longDescription String? @map("long_description") // Detailed description
+  category      String   @default("other")
+  author        String?
+  authorEmail   String?  @map("author_email")
+  homepage      String?
+  repository    String?
+  license       String?
+  icon          String?  // Icon URL
+  screenshots   String[] @default([]) // Array of screenshot URLs
+  demoUrl       String?  @map("demo_url") // Demo/video URL
+  
+  // Statistics
+  averageRating Float    @default(0) @map("average_rating")
+  ratingCount   Int      @default(0) @map("rating_count")
+  downloadCount Int      @default(0) @map("download_count")
+  installCount  Int      @default(0) @map("install_count")
+  
+  // Publishing
+  publishedAt   DateTime? @map("published_at")
+  rejectedAt    DateTime? @map("rejected_at")
+  rejectionReason String? @map("rejection_reason")
+  
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")
 
   tenantPlugins TenantPlugin[]
+  versions      PluginVersion[]
+  ratings       PluginRating[]
+  installations PluginInstallation[]
 
+  @@index([status])
+  @@index([category])
+  @@index([averageRating])
   @@map("plugins")
   @@schema("core")
 }
@@ -76,6 +111,76 @@ model TenantPlugin {
 
   @@id([tenantId, pluginId])
   @@map("tenant_plugins")
+  @@schema("core")
+}
+
+// ============================================================================
+// PLUGIN MARKETPLACE - Versions, Ratings, Installations (M2.4)
+// ============================================================================
+
+// Plugin Versions (semver versioning)
+model PluginVersion {
+  id             String   @id @default(uuid())
+  pluginId       String   @map("plugin_id")
+  version        String   // Semantic version (e.g., 1.2.3)
+  changelog      String?  // Release notes
+  manifest       Json     // Full plugin manifest for this version
+  assetUrl       String?  @map("asset_url") // CDN URL for plugin bundle
+  downloadCount  Int      @default(0) @map("download_count")
+  isLatest       Boolean  @default(false) @map("is_latest") // Only one version should be latest
+  publishedAt    DateTime @default(now()) @map("published_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  
+  @@unique([pluginId, version])
+  @@index([pluginId])
+  @@index([isLatest])
+  @@map("plugin_versions")
+  @@schema("core")
+}
+
+// Plugin Ratings & Reviews
+model PluginRating {
+  id          String   @id @default(uuid())
+  pluginId    String   @map("plugin_id")
+  tenantId    String   @map("tenant_id")
+  userId      String   @map("user_id") // User who rated
+  rating      Int      // 1-5 stars
+  review      String?  // Optional review text
+  helpful     Int      @default(0) // Helpful votes count
+  notHelpful  Int      @default(0) @map("not_helpful") // Not helpful votes count
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@unique([pluginId, tenantId, userId])
+  @@index([pluginId])
+  @@index([tenantId])
+  @@index([rating])
+  @@map("plugin_ratings")
+  @@schema("core")
+}
+
+// Plugin Installation Tracking
+model PluginInstallation {
+  id           String   @id @default(uuid())
+  pluginId     String   @map("plugin_id")
+  version      String   // Installed version
+  tenantId     String   @map("tenant_id")
+  installedBy  String   @map("installed_by") // User ID who installed
+  installedAt  DateTime @default(now()) @map("installed_at")
+  uninstalledAt DateTime? @map("uninstalled_at")
+  
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@index([pluginId])
+  @@index([tenantId])
+  @@index([installedAt])
+  @@map("plugin_installations")
   @@schema("core")
 }
 

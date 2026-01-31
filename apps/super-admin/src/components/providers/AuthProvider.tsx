@@ -1,8 +1,9 @@
 // File: apps/super-admin/src/components/providers/AuthProvider.tsx
 
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import * as keycloak from '@/lib/keycloak';
 import { useAuthStore } from '@/stores/auth-store';
+import { AuthContext, User } from '@/contexts/AuthContext';
 
 /**
  * Super Admin Authentication Context
@@ -15,33 +16,6 @@ import { useAuthStore } from '@/stores/auth-store';
  * - Role-based access control (super-admin role required)
  * - No tenant context (platform-wide access)
  */
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  roles: string[];
-}
-
-interface AuthContextType {
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  user: User | null;
-  login: () => void;
-  logout: () => void;
-  hasRole: (role: string) => boolean;
-  isSuperAdmin: () => boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
 
 interface AuthProviderProps {
   children: React.ReactNode;

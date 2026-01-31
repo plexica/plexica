@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Plugin } from '@/types';
 
-export type PluginStatus = 'all' | 'published' | 'draft' | 'deprecated';
+export type PluginStatus = 'all' | 'PUBLISHED' | 'DRAFT' | 'DEPRECATED';
 
 export function usePlugins() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,9 +43,9 @@ export function usePlugins() {
   // Statistics
   const stats = {
     total: allPlugins.length,
-    published: allPlugins.filter((p) => p.status === 'published').length,
-    draft: allPlugins.filter((p) => p.status === 'draft').length,
-    deprecated: allPlugins.filter((p) => p.status === 'deprecated').length,
+    published: allPlugins.filter((p) => p.status === 'PUBLISHED').length,
+    draft: allPlugins.filter((p) => p.status === 'DRAFT').length,
+    deprecated: allPlugins.filter((p) => p.status === 'DEPRECATED').length,
     categories: categories.length,
   };
 
