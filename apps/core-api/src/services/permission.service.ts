@@ -138,12 +138,12 @@ export class PermissionService {
       await db.$executeRawUnsafe(
         `
         INSERT INTO "${schemaName}".roles (id, name, description, permissions, created_at, updated_at)
-        VALUES ($1, $2, $3, $4::jsonb, NOW(), NOW())
+        VALUES ($1, $2, $3, $4::text[], NOW(), NOW())
         `,
         id,
         name,
         description || null,
-        JSON.stringify(permissions)
+        permissions
       );
 
       return {
@@ -174,10 +174,10 @@ export class PermissionService {
       await db.$executeRawUnsafe(
         `
         UPDATE "${schemaName}".roles
-        SET permissions = $1::jsonb, updated_at = NOW()
+        SET permissions = $1::text[], updated_at = NOW()
         WHERE id = $2
         `,
-        JSON.stringify(permissions),
+        permissions,
         roleId
       );
     } finally {

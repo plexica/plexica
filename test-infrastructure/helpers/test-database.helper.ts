@@ -17,6 +17,7 @@ export class TestDatabaseHelper {
   private static instance: TestDatabaseHelper;
   private prisma: PrismaClient;
   private pool: Pool;
+  private isDisconnected: boolean = false;
 
   private constructor() {
     // Create PostgreSQL connection pool
@@ -315,8 +316,20 @@ export class TestDatabaseHelper {
    * Clean up and disconnect
    */
   async disconnect(): Promise<void> {
-    await this.prisma.$disconnect();
-    await this.pool.end();
+    if (this.isDisconnected) {
+      return; // Already disconnected, skip
+    }
+
+    try {
+      await this.prisma.$disconnect();
+      await this.pool.end();
+      this.isDisconnected = true;
+    } catch (error: any) {
+      // Ignore errors if already disconnected
+      if (!error.message?.includes('end on pool more than once')) {
+        throw error;
+      }
+    }
   }
 
   /**

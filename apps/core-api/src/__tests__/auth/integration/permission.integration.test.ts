@@ -26,7 +26,88 @@ describe('Permission Service Integration', () => {
     // Reset database and seed test data
     await testContext.resetAll();
 
-    // Get test users from seed data
+    // Create test tenants with users
+    // Note: Creating tenants via the tenant service/API would be ideal,
+    // but for now we'll create the schemas and users directly
+    await db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS tenant_acme_corp`);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS tenant_acme_corp.users (
+        id TEXT PRIMARY KEY,
+        keycloak_id TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        avatar TEXT,
+        locale TEXT NOT NULL DEFAULT 'en',
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS tenant_acme_corp.roles (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT,
+        permissions TEXT[] NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS tenant_acme_corp.user_roles (
+        user_id TEXT NOT NULL,
+        role_id TEXT NOT NULL,
+        assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, role_id)
+      )
+    `);
+
+    await db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS tenant_demo_company`);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS tenant_demo_company.users (
+        id TEXT PRIMARY KEY,
+        keycloak_id TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        avatar TEXT,
+        locale TEXT NOT NULL DEFAULT 'en',
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS tenant_demo_company.roles (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT,
+        permissions TEXT[] NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS tenant_demo_company.user_roles (
+        user_id TEXT NOT NULL,
+        role_id TEXT NOT NULL,
+        assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, role_id)
+      )
+    `);
+
+    // Insert test users
+    await db.$executeRawUnsafe(`
+      INSERT INTO tenant_acme_corp.users (id, keycloak_id, email, username)
+      VALUES ('test-acme-user-1', 'keycloak-acme-1', 'test@acme.test', 'testuser')
+    `);
+    await db.$executeRawUnsafe(`
+      INSERT INTO tenant_demo_company.users (id, keycloak_id, email, username)
+      VALUES ('test-demo-user-1', 'keycloak-demo-1', 'test@demo.test', 'testuser')
+    `);
+
+    // Get test users
     const acmeUsers = await db.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id FROM tenant_acme_corp.users LIMIT 1`
     );
@@ -39,8 +120,7 @@ describe('Permission Service Integration', () => {
   });
 
   afterAll(async () => {
-    await db.$disconnect();
-    await redis.quit();
+    // Don't call db.$disconnect() or redis.quit() here - handled by global afterAll
   });
 
   beforeEach(async () => {

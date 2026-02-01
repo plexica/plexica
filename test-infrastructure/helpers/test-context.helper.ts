@@ -52,11 +52,14 @@ export class TestContext {
   }
 
   /**
-   * Reset all test data (database, MinIO, Redpanda, Redis)
+   * Reset all test data (database, MinIO, Redpanda, Redis, Keycloak)
    * This is typically called in beforeEach or beforeAll hooks
    */
   async resetAll(): Promise<void> {
     console.log('🔄 Resetting test environment...');
+
+    // Clean up Keycloak test realms
+    await this.keycloak.deleteAllTestRealms();
 
     // Reset database
     await this.db.reset();

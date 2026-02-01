@@ -307,6 +307,45 @@ export class TestKeycloakHelper {
     const response = await axios.get(jwksUrl);
     return response.data;
   }
+
+  /**
+   * Delete a realm by name
+   */
+  async deleteRealm(realmName: string): Promise<void> {
+    try {
+      await this.authenticateAdmin();
+      this.adminClient.setConfig({
+        realmName: 'master',
+      });
+      await this.adminClient.realms.del({ realm: realmName });
+    } catch (error: any) {
+      // Ignore if realm doesn't exist
+      if (error.response?.status !== 404) {
+        console.warn(`Failed to delete realm ${realmName}:`, error.message);
+      }
+    }
+  }
+
+  /**
+   * Delete all test realms (except master and plexica-test)
+   */
+  async deleteAllTestRealms(): Promise<void> {
+    try {
+      await this.authenticateAdmin();
+      this.adminClient.setConfig({
+        realmName: 'master',
+      });
+
+      const realms = await this.adminClient.realms.find();
+      const testRealms = realms.filter((r) => r.realm !== 'master' && r.realm !== 'plexica-test');
+
+      for (const realm of testRealms) {
+        await this.deleteRealm(realm.realm!);
+      }
+    } catch (error: any) {
+      console.warn('Failed to delete test realms:', error.message);
+    }
+  }
 }
 
 // Export singleton instance
