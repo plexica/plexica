@@ -1,0 +1,172 @@
+{
+  "realm": "plexica-test",
+  "enabled": true,
+  "displayName": "Plexica Test Realm",
+  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Plexica Test</span></div>",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 3600,
+  "accessTokenLifespanForImplicitFlow": 3600,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 36000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "roles": {
+    "realm": [
+      {
+        "name": "super-admin",
+        "description": "Platform administrator with full access"
+      },
+      {
+        "name": "tenant-admin",
+        "description": "Tenant administrator"
+      },
+      {
+        "name": "tenant-member",
+        "description": "Tenant member"
+      },
+      {
+        "name": "workspace-admin",
+        "description": "Workspace administrator"
+      },
+      {
+        "name": "workspace-member",
+        "description": "Workspace member"
+      },
+      {
+        "name": "workspace-viewer",
+        "description": "Workspace viewer"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "test-super-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "SuperAdmin",
+      "email": "super-admin@test.plexica.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["super-admin"],
+      "attributes": {
+        "tenant_id": [""]
+      }
+    },
+    {
+      "username": "test-tenant-admin-acme",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Acme",
+      "email": "admin@acme.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["tenant-admin"],
+      "attributes": {
+        "tenant_id": ["acme-corp"]
+      }
+    },
+    {
+      "username": "test-tenant-member-acme",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Member",
+      "lastName": "Acme",
+      "email": "member@acme.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["tenant-member"],
+      "attributes": {
+        "tenant_id": ["acme-corp"]
+      }
+    },
+    {
+      "username": "test-tenant-admin-demo",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Demo",
+      "email": "admin@demo.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["tenant-admin"],
+      "attributes": {
+        "tenant_id": ["demo-company"]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "plexica-test-api",
+      "name": "Plexica Test API",
+      "description": "Test API client for integration and E2E tests",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "frontchannelLogout": true,
+      "secret": "test-client-secret",
+      "redirectUris": ["http://localhost:3000/*", "http://localhost:*"],
+      "webOrigins": ["http://localhost:3000", "http://localhost:*"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    },
+    {
+      "clientId": "plexica-test-app",
+      "name": "Plexica Test Application",
+      "description": "Test frontend application",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "rootUrl": "http://localhost:3001",
+      "baseUrl": "http://localhost:3001",
+      "redirectUris": ["http://localhost:3001/*", "http://localhost:*"],
+      "webOrigins": ["http://localhost:3001", "http://localhost:*"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"]
+    }
+  ]
+}

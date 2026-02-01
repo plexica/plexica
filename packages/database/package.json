@@ -11,7 +11,8 @@
     "db:migrate:status": "npx prisma migrate status --config ./prisma/prisma.config.ts",
     "db:studio": "npx prisma studio --config ./prisma/prisma.config.ts",
     "db:push": "npx prisma db push --config ./prisma/prisma.config.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:quickstart": "tsx prisma/seed.quickstart.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",

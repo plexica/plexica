@@ -1,0 +1,105 @@
+version: '3.9'
+
+services:
+  # PostgreSQL - Test database with tmpfs for speed
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: plexica-postgres-test
+    environment:
+      POSTGRES_USER: plexica_test
+      POSTGRES_PASSWORD: plexica_test_password
+      POSTGRES_DB: plexica_test
+      POSTGRES_INITDB_ARGS: '-E UTF8'
+    ports:
+      - '5433:5432'
+    volumes:
+      - ./postgres-test-init.sql:/docker-entrypoint-initdb.d/init.sql
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U plexica_test']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - plexica-test-network
+
+  # Keycloak - Test IAM with auto-import realm
+  keycloak-test:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: plexica-keycloak-test
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-test:5432/plexica_test
+      KC_DB_USERNAME: plexica_test
+      KC_DB_PASSWORD: plexica_test_password
+      KC_DB_SCHEMA: keycloak
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HOSTNAME_STRICT_HTTPS: 'false'
+    ports:
+      - '8081:8080'
+    volumes:
+      - ./keycloak-test-realm.json:/opt/keycloak/data/import/realm.json
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;grep 'HTTP/1.1 200 OK' <&3",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+    networks:
+      - plexica-test-network
+
+  # Redis - Test cache with tmpfs
+  redis-test:
+    image: redis:7-alpine
+    container_name: plexica-redis-test
+    command: redis-server --appendonly no --save ""
+    ports:
+      - '6380:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - plexica-test-network
+
+  # MinIO - Test object storage with tmpfs
+  minio-test:
+    image: minio/minio:latest
+    container_name: plexica-minio-test
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin_test
+      MINIO_ROOT_PASSWORD: minioadmin_test
+    ports:
+      - '9010:9000'
+      - '9011:9001'
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - plexica-test-network
+
+networks:
+  plexica-test-network:
+    driver: bridge
