@@ -10,6 +10,19 @@ out/
 *.tsbuildinfo
 storybook-static/
 
+# TypeScript compiled files (except in dist/)
+**/*.js
+**/*.js.map
+**/*.d.ts
+**/*.d.ts.map
+**/*.mjs
+**/*.mjs.map
+**/*.d.mts
+**/*.d.mts.map
+!*.config.js
+!*.config.mjs
+!**/.*.js
+
 # Environment variables
 .env
 .env*.local
