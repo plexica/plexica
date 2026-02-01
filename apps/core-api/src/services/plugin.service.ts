@@ -495,6 +495,14 @@ export class PluginLifecycleService {
         tenantId_pluginId: { tenantId, pluginId },
       },
       data: { enabled: true },
+      select: {
+        tenantId: true,
+        pluginId: true,
+        enabled: true,
+        configuration: true,
+        installedAt: true,
+        plugin: true,
+      },
     });
 
     return updated;
@@ -536,6 +544,14 @@ export class PluginLifecycleService {
         tenantId_pluginId: { tenantId, pluginId },
       },
       data: { enabled: false },
+      select: {
+        tenantId: true,
+        pluginId: true,
+        enabled: true,
+        configuration: true,
+        installedAt: true,
+        plugin: true,
+      },
     });
 
     return updated;
@@ -607,6 +623,14 @@ export class PluginLifecycleService {
         tenantId_pluginId: { tenantId, pluginId },
       },
       data: { configuration },
+      select: {
+        tenantId: true,
+        pluginId: true,
+        enabled: true,
+        configuration: true,
+        installedAt: true,
+        plugin: true,
+      },
     });
 
     return updated;

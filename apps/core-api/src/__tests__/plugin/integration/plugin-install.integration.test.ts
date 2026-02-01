@@ -17,6 +17,7 @@ describe('Plugin Installation Integration Tests', () => {
   let tenantAdminToken: string;
   let testPluginId: string;
   let testTenantId: string;
+  let demoTenantId: string;
 
   beforeAll(async () => {
     // Reset test environment
@@ -30,7 +31,7 @@ describe('Plugin Installation Integration Tests', () => {
     const superAdminResp = await testContext.auth.getRealSuperAdminToken();
     superAdminToken = superAdminResp.access_token;
 
-    // Create test tenant
+    // Create test tenant (acme)
     const tenantResponse = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
@@ -52,6 +53,29 @@ describe('Plugin Installation Integration Tests', () => {
 
     const tenantData = tenantResponse.json();
     testTenantId = tenantData.id;
+
+    // Create demo tenant for multi-tenant tests
+    const demoResponse = await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'demo',
+        name: 'Demo Company',
+        adminEmail: 'admin@demo.test',
+        adminPassword: 'test123',
+      },
+    });
+
+    if (demoResponse.statusCode !== 201) {
+      throw new Error(`Failed to create demo tenant: ${demoResponse.body}`);
+    }
+
+    const demoData = demoResponse.json();
+    demoTenantId = demoData.id;
 
     // Get tenant admin token
     const tenantAdminResp = await testContext.auth.getRealTenantAdminToken('acme');
@@ -416,14 +440,10 @@ describe('Plugin Installation Integration Tests', () => {
     });
 
     it('should return empty array for tenant with no plugins', async () => {
-      // Get a different tenant
-      const demoTenant = await db.tenant.findUnique({
-        where: { slug: 'demo-company' },
-      });
-
+      // Use demo tenant which has no plugins installed
       const response = await app.inject({
         method: 'GET',
-        url: `/api/tenants/${demoTenant!.id}/plugins`,
+        url: `/api/tenants/${demoTenantId}/plugins`,
         headers: {
           authorization: `Bearer ${tenantAdminToken}`,
         },
@@ -432,7 +452,7 @@ describe('Plugin Installation Integration Tests', () => {
       expect(response.statusCode).toBe(200);
       const plugins = response.json();
       expect(Array.isArray(plugins)).toBe(true);
-      // May have plugins from seed data, so just check it's an array
+      expect(plugins.length).toBe(0);
     });
   });
 
@@ -505,37 +525,33 @@ describe('Plugin Installation Integration Tests', () => {
 
   describe('Plugin installation across multiple tenants', () => {
     it('should allow same plugin installed in different tenants', async () => {
-      const demoTenant = await db.tenant.findUnique({
-        where: { slug: 'demo-company' },
-      });
-
       // Install in demo tenant
       const response = await app.inject({
         method: 'POST',
-        url: `/api/tenants/${demoTenant!.id}/plugins/${testPluginId}/install`,
+        url: `/api/tenants/${demoTenantId}/plugins/${testPluginId}/install`,
         headers: {
           authorization: `Bearer ${tenantAdminToken}`,
         },
         payload: {
           configuration: {
-            apiKey: 'demo-tenant-key',
+            apiKey: 'demo-api-key',
           },
         },
       });
 
       expect(response.statusCode).toBe(201);
 
-      // Verify both tenants have independent installations
+      // Verify both tenants have the plugin
+      const demoInstallation = await db.tenantPlugin.findFirst({
+        where: { tenantId: demoTenantId, pluginId: testPluginId },
+      });
       const acmeInstallation = await db.tenantPlugin.findFirst({
         where: { tenantId: testTenantId, pluginId: testPluginId },
       });
-      const demoInstallation = await db.tenantPlugin.findFirst({
-        where: { tenantId: demoTenant!.id, pluginId: testPluginId },
-      });
 
-      expect(acmeInstallation).toBeTruthy();
       expect(demoInstallation).toBeTruthy();
-      expect(acmeInstallation!.configuration).not.toEqual(demoInstallation!.configuration);
+      expect(acmeInstallation).toBeTruthy();
+      expect(demoInstallation!.configuration).not.toEqual(acmeInstallation!.configuration);
     });
   });
 });
