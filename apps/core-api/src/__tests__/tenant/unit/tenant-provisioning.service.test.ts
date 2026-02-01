@@ -117,6 +117,16 @@ describe('TenantService', () => {
       expect(db.tenant.update).toHaveBeenCalledWith({
         where: { id: 'test-tenant-id' },
         data: { status: 'ACTIVE' },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          status: true,
+          settings: true,
+          theme: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
     });
 

@@ -318,14 +318,15 @@ export class DeadLetterQueueService {
   /**
    * Delete a failed event from DLQ
    */
-  async deleteFailedEvent(id: string): Promise<void> {
+  async deleteFailedEvent(id: string): Promise<boolean> {
     const deleted = this.failedEvents.delete(id);
     if (!deleted) {
-      throw new Error(`Failed event not found: ${id}`);
+      return false;
     }
 
     // TODO: Also delete from DLQ topic in Redpanda
     console.log(`🗑️  Failed event deleted: ${id}`);
+    return true;
   }
 
   /**

@@ -18,8 +18,6 @@ export class KeycloakService {
    * Initialize and authenticate the Keycloak admin client
    */
   async initialize(): Promise<void> {
-    if (this.initialized) return;
-
     await this.client.auth({
       username: config.keycloakAdminUsername,
       password: config.keycloakAdminPassword,
@@ -31,13 +29,38 @@ export class KeycloakService {
   }
 
   /**
+   * Re-authenticate (force token refresh)
+   */
+  private async reAuthenticate(): Promise<void> {
+    this.initialized = false;
+    await this.initialize();
+  }
+
+  /**
    * Ensure the client is authenticated (refresh token if needed)
    */
   private async ensureAuth(): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
-    // Keycloak admin client handles token refresh automatically
+    // Keycloak admin client handles token refresh automatically,
+    // but we provide a mechanism to re-auth if needed
+  }
+
+  /**
+   * Execute a Keycloak operation with automatic retry on auth failure
+   */
+  private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error: any) {
+      // If we get a 401, try to re-authenticate and retry once
+      if (error.response?.status === 401 || error.message?.includes('401')) {
+        await this.reAuthenticate();
+        return await operation();
+      }
+      throw error;
+    }
   }
 
   /**
@@ -46,27 +69,29 @@ export class KeycloakService {
   async createRealm(tenantSlug: string, tenantName: string): Promise<void> {
     await this.ensureAuth();
 
-    const realmRepresentation: RealmRepresentation = {
-      realm: tenantSlug,
-      displayName: tenantName,
-      enabled: true,
-      sslRequired: 'external',
-      registrationAllowed: false,
-      loginWithEmailAllowed: true,
-      duplicateEmailsAllowed: false,
-      resetPasswordAllowed: true,
-      editUsernameAllowed: false,
-      bruteForceProtected: true,
-      // Token settings
-      accessTokenLifespan: 900, // 15 minutes
-      ssoSessionIdleTimeout: 1800, // 30 minutes
-      ssoSessionMaxLifespan: 36000, // 10 hours
-      // Additional security settings
-      passwordPolicy:
-        'length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)',
-    };
+    await this.withRetry(async () => {
+      const realmRepresentation: RealmRepresentation = {
+        realm: tenantSlug,
+        displayName: tenantName,
+        enabled: true,
+        sslRequired: 'external',
+        registrationAllowed: false,
+        loginWithEmailAllowed: true,
+        duplicateEmailsAllowed: false,
+        resetPasswordAllowed: true,
+        editUsernameAllowed: false,
+        bruteForceProtected: true,
+        // Token settings
+        accessTokenLifespan: 900, // 15 minutes
+        ssoSessionIdleTimeout: 1800, // 30 minutes
+        ssoSessionMaxLifespan: 36000, // 10 hours
+        // Additional security settings
+        passwordPolicy:
+          'length(8) and digits(1) and lowerCase(1) and upperCase(1) and specialChars(1)',
+      };
 
-    await this.client.realms.create(realmRepresentation);
+      await this.client.realms.create(realmRepresentation);
+    });
   }
 
   /**
@@ -100,7 +125,9 @@ export class KeycloakService {
   async deleteRealm(tenantSlug: string): Promise<void> {
     await this.ensureAuth();
 
-    await this.client.realms.del({ realm: tenantSlug });
+    await this.withRetry(async () => {
+      await this.client.realms.del({ realm: tenantSlug });
+    });
   }
 
   /**

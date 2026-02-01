@@ -1,6 +1,6 @@
 # Plexica Test Infrastructure
 
-Complete test infrastructure for Plexica core-api with real services (PostgreSQL, Keycloak, Redis, MinIO).
+Complete test infrastructure for Plexica core-api with real services (PostgreSQL, Keycloak, Redis, MinIO, Redpanda).
 
 ## 📁 Directory Structure
 
@@ -18,6 +18,7 @@ test-infrastructure/
 │   ├── test-keycloak.helper.ts  # Keycloak user/token management
 │   ├── test-auth.helper.ts      # JWT token creation & validation
 │   ├── test-minio.helper.ts     # MinIO bucket/object operations
+│   ├── test-redpanda.helper.ts  # Redpanda/Kafka topic & message operations
 │   └── test-context.helper.ts   # Unified test context
 ├── scripts/                      # Setup/teardown scripts
 │   ├── test-setup.sh            # Start infrastructure & seed data
@@ -36,7 +37,7 @@ test-infrastructure/
 
 This will:
 
-- Start Docker containers (PostgreSQL, Keycloak, Redis, MinIO)
+- Start Docker containers (PostgreSQL, Keycloak, Redis, MinIO, Redpanda)
 - Run database migrations
 - Create tenant schemas
 - Create MinIO buckets for tenants
@@ -70,12 +71,14 @@ Between test runs, you can reset the data without restarting containers:
 
 All services use different ports to avoid conflicts with production:
 
-| Service    | Port(s)    | Container Name        | Purpose             |
-| ---------- | ---------- | --------------------- | ------------------- |
-| PostgreSQL | 5433       | plexica-postgres-test | Test database       |
-| Keycloak   | 8081       | plexica-keycloak-test | Test authentication |
-| Redis      | 6380       | plexica-redis-test    | Test cache          |
-| MinIO      | 9010, 9011 | plexica-minio-test    | Test object storage |
+| Service          | Port(s)    | Container Name                | Purpose                     |
+| ---------------- | ---------- | ----------------------------- | --------------------------- |
+| PostgreSQL       | 5433       | plexica-postgres-test         | Test database               |
+| Keycloak         | 8081       | plexica-keycloak-test         | Test authentication         |
+| Redis            | 6380       | plexica-redis-test            | Test cache                  |
+| MinIO            | 9010, 9011 | plexica-minio-test            | Test object storage         |
+| Redpanda         | 9095, 8088 | plexica-redpanda-test         | Test event streaming        |
+| Redpanda Console | 8091       | plexica-redpanda-console-test | Test Kafka UI for debugging |
 
 All services use **tmpfs** for maximum performance (data is stored in RAM).
 
@@ -101,6 +104,13 @@ All services use **tmpfs** for maximum performance (data is stored in RAM).
 - **Access Key**: minioadmin_test
 - **Secret Key**: minioadmin_test
 - **Console URL**: http://localhost:9011
+
+### Redpanda Admin
+
+- **Kafka Broker**: localhost:9095
+- **HTTP Proxy**: http://localhost:8088
+- **Admin API**: http://localhost:9650
+- **Console UI**: http://localhost:8091
 
 ## 📦 Minimal Seed Data
 
@@ -144,6 +154,18 @@ describe('My Test', () => {
     const token = testContext.auth.createMockSuperAdminToken();
 
     const bucket = await testContext.minio.createTenantBucket('test-tenant');
+
+    // Produce event to Redpanda
+    await testContext.redpanda.produceMessage('events.tenant.created', {
+      key: tenant.id,
+      value: { tenantId: tenant.id, name: tenant.name },
+    });
+
+    // Consume and verify event
+    const messages = await testContext.redpanda.consumeMessages('events.tenant.created', {
+      groupId: 'test-consumer',
+    });
+    expect(messages[0].value.tenantId).toBe(tenant.id);
   });
 });
 ```
@@ -265,6 +287,44 @@ const url = await testMinio.getPresignedUrl('my-tenant', 'file.pdf', 3600);
 await testMinio.cleanupAllBuckets();
 ```
 
+### Redpanda Helper
+
+```typescript
+import { testRedpanda } from '@/test-infrastructure/helpers/test-redpanda.helper';
+
+// Create topic
+await testRedpanda.createTopic('events.tenant.created', {
+  partitions: 3,
+  replicationFactor: 1,
+});
+
+// Produce message
+await testRedpanda.produceMessage('events.tenant.created', {
+  key: 'tenant-123',
+  value: { id: 'tenant-123', name: 'Test Tenant' },
+  headers: { 'content-type': 'application/json' },
+});
+
+// Consume messages
+const messages = await testRedpanda.consumeMessages('events.tenant.created', {
+  groupId: 'test-consumer-group',
+  fromBeginning: true,
+  timeout: 5000,
+});
+
+// List topics
+const topics = await testRedpanda.listTopics();
+
+// Delete topic
+await testRedpanda.deleteTopic('events.tenant.created');
+
+// Get topic metadata
+const metadata = await testRedpanda.getTopicMetadata('events.tenant.created');
+
+// Clean up all test topics
+await testRedpanda.cleanupAllTopics();
+```
+
 ## 📝 Environment Variables
 
 All test environment variables are in `apps/core-api/.env.test`:
@@ -292,6 +352,11 @@ MINIO_PORT="9010"
 MINIO_ACCESS_KEY="minioadmin_test"
 MINIO_SECRET_KEY="minioadmin_test"
 MINIO_USE_SSL="false"
+
+# Redpanda (Test Redpanda/Kafka on port 9095)
+REDPANDA_BROKERS="localhost:9095"
+KAFKA_CLIENT_ID="plexica-test-client"
+KAFKA_CONSUMER_GROUP_ID="plexica-test-consumer"
 
 # JWT
 JWT_SECRET="test-jwt-secret-key-do-not-use-in-production"
@@ -389,6 +454,21 @@ describe('E2E: Tenant Provisioning', () => {
     // 4. Verify Keycloak user can authenticate
     const userToken = await testContext.keycloak.getUserToken('admin@test.local', 'password');
     expect(userToken.access_token).toBeDefined();
+
+    // 5. Verify Redpanda topic was created
+    const topics = await testContext.redpanda.listTopics();
+    expect(topics).toContain('events.tenant.test.created');
+
+    // 6. Verify event was published
+    const messages = await testContext.redpanda.consumeMessages('events.tenant.test.created', {
+      groupId: 'test-consumer',
+      fromBeginning: true,
+    });
+    expect(messages).toHaveLength(1);
+    expect(messages[0].value).toMatchObject({
+      tenantId: 'test',
+      eventType: 'TENANT_CREATED',
+    });
   });
 });
 ```
@@ -403,6 +483,7 @@ lsof -i :5433 # PostgreSQL
 lsof -i :8081 # Keycloak
 lsof -i :6380 # Redis
 lsof -i :9010 # MinIO
+lsof -i :9095 # Redpanda Kafka
 
 # Stop existing containers
 docker-compose -f test-infrastructure/docker/docker-compose.test.yml down -v
@@ -425,6 +506,19 @@ DATABASE_URL="postgresql://plexica_test:plexica_test_password@localhost:5433/ple
 ```bash
 # Run seed manually
 tsx test-infrastructure/fixtures/minimal-seed.ts
+```
+
+### Redpanda topics are not visible
+
+```bash
+# Check Redpanda status
+docker exec plexica-redpanda-test rpk cluster health
+
+# List topics manually
+docker exec plexica-redpanda-test rpk topic list
+
+# Access Redpanda Console
+open http://localhost:8091
 ```
 
 ## 📚 Next Steps

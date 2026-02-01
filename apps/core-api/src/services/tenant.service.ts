@@ -94,6 +94,16 @@ export class TenantService {
       const activeTenant = await this.db.tenant.update({
         where: { id: tenant.id },
         data: { status: TenantStatus.ACTIVE },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          status: true,
+          settings: true,
+          theme: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
 
       return activeTenant;
@@ -128,8 +138,10 @@ export class TenantService {
     // Create schema
     await this.db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-    // Grant privileges
-    await this.db.$executeRawUnsafe(`GRANT ALL PRIVILEGES ON SCHEMA "${schemaName}" TO plexica`);
+    // Grant privileges to the current database user
+    // In production: plexica, in test: plexica_test
+    const dbUser = process.env.DATABASE_USER || 'plexica';
+    await this.db.$executeRawUnsafe(`GRANT ALL PRIVILEGES ON SCHEMA "${schemaName}" TO ${dbUser}`);
 
     // Create initial tables for tenant (users, roles, etc.)
     // This will be expanded with actual tenant-specific tables

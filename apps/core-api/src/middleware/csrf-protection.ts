@@ -18,6 +18,7 @@ import {
  * - GET, HEAD, OPTIONS requests (safe methods)
  * - Health check and docs endpoints
  * - Initial authentication routes
+ * - Requests with Bearer tokens (API clients using JWT authentication)
  */
 export async function csrfProtectionMiddleware(
   request: FastifyRequest,
@@ -32,6 +33,13 @@ export async function csrfProtectionMiddleware(
     // Check if this route is exempted from CSRF protection
     if (isCSRFExempt(request.url, request.method)) {
       return; // Exempt route
+    }
+
+    // Skip CSRF check for Bearer token authentication
+    // Bearer tokens are not vulnerable to CSRF as they're not automatically sent by browsers
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return; // Using Bearer authentication, CSRF protection not needed
     }
 
     // Extract and validate CSRF token

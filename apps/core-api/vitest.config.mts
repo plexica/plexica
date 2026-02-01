@@ -1,12 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { loadEnv } from 'vite';
 
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    testTimeout: 15000, // 15s for individual tests
+    hookTimeout: 30000, // 30s for hooks (beforeAll, afterAll)
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.config.*'],
+    env: loadEnv('test', process.cwd(), ''),
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

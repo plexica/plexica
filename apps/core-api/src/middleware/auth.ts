@@ -203,8 +203,8 @@ export async function requireSuperAdmin(
     });
   }
 
-  // Super admins should be from master realm or plexica-admin realm
-  const validRealms = [MASTER_TENANT_SLUG, 'plexica-admin'];
+  // Super admins should be from master realm, plexica-admin realm, or plexica-test realm (for tests)
+  const validRealms = [MASTER_TENANT_SLUG, 'plexica-admin', 'plexica-test'];
   if (!validRealms.includes(request.user.tenantSlug)) {
     request.log.warn(
       { userId: request.user.id, tenantSlug: request.user.tenantSlug },

@@ -9,6 +9,7 @@ import { testDb } from './test-database.helper';
 import { testKeycloak } from './test-keycloak.helper';
 import { testAuth } from './test-auth.helper';
 import { testMinio } from './test-minio.helper';
+import { testRedpanda } from './test-redpanda.helper';
 
 export class TestContext {
   private static instance: TestContext;
@@ -33,6 +34,11 @@ export class TestContext {
    */
   public readonly minio = testMinio;
 
+  /**
+   * Redpanda helper (Kafka)
+   */
+  public readonly redpanda = testRedpanda;
+
   private constructor() {}
 
   /**
@@ -46,7 +52,7 @@ export class TestContext {
   }
 
   /**
-   * Reset all test data (database, MinIO, Redis)
+   * Reset all test data (database, MinIO, Redpanda, Redis)
    * This is typically called in beforeEach or beforeAll hooks
    */
   async resetAll(): Promise<void> {
@@ -58,6 +64,10 @@ export class TestContext {
     // Clean up MinIO buckets
     await this.minio.cleanupAllBuckets();
 
+    // Clean up Redpanda topics and consumer groups
+    await this.redpanda.cleanupAllTopics();
+    await this.redpanda.cleanupAllConsumerGroups();
+
     console.log('✅ Test environment reset complete');
   }
 
@@ -67,6 +77,7 @@ export class TestContext {
    */
   async cleanup(): Promise<void> {
     await this.db.disconnect();
+    await this.redpanda.disconnect();
   }
 }
 
@@ -74,4 +85,4 @@ export class TestContext {
 export const testContext = TestContext.getInstance();
 
 // Export individual helpers for convenience
-export { testDb, testKeycloak, testAuth, testMinio };
+export { testDb, testKeycloak, testAuth, testMinio, testRedpanda };

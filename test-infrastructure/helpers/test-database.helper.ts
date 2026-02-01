@@ -62,19 +62,28 @@ export class TestDatabaseHelper {
    * Truncate all tables in core schema
    */
   async truncateCore(): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
-      DO $$
-      DECLARE
-          r RECORD;
-      BEGIN
-          SET session_replication_role = replica;
-          FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'core')
-          LOOP
-              EXECUTE 'TRUNCATE TABLE core.' || quote_ident(r.tablename) || ' CASCADE';
-          END LOOP;
-          SET session_replication_role = DEFAULT;
-      END $$;
-    `);
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        DO $$
+        DECLARE
+            r RECORD;
+        BEGIN
+            SET session_replication_role = replica;
+            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'core')
+            LOOP
+                EXECUTE 'TRUNCATE TABLE core.' || quote_ident(r.tablename) || ' CASCADE';
+            END LOOP;
+            SET session_replication_role = DEFAULT;
+        END $$;
+      `);
+    } catch (error: any) {
+      console.error('❌ truncateCore failed:');
+      console.error('  Message:', error.message);
+      console.error('  Code:', error.code);
+      console.error('  Meta:', error.meta);
+      console.error('  DATABASE_URL:', process.env.DATABASE_URL);
+      throw error;
+    }
   }
 
   /**

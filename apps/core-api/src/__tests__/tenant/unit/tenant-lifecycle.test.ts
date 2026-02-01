@@ -12,6 +12,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TenantService, type CreateTenantInput } from '../../../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
+import { permissionService } from '../../../services/permission.service.js';
+import { keycloakService } from '../../../services/keycloak.service.js';
 
 // Mock dependencies
 const mockTenantCreate = vi.fn();
@@ -50,6 +52,12 @@ describe('Tenant Lifecycle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Reconfigure mocks after clearing
+    vi.mocked(permissionService.initializeDefaultRoles).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.createRealm).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
+
     service = new TenantService();
   });
 
@@ -82,6 +90,16 @@ describe('Tenant Lifecycle', () => {
       expect(mockTenantUpdate).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
         data: { status: TenantStatus.ACTIVE },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          status: true,
+          settings: true,
+          theme: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
     });
 

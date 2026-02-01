@@ -278,14 +278,14 @@ describe('DeadLetterQueueService', () => {
       const failedEvents = dlqService.getFailedEvents();
       const failedEventId = failedEvents[0].id;
 
-      const deleted = dlqService.deleteFailedEvent(failedEventId);
+      const deleted = await dlqService.deleteFailedEvent(failedEventId);
 
       expect(deleted).toBe(true);
       expect(dlqService.getFailedEvent(failedEventId)).toBeUndefined();
     });
 
-    it('should return false when deleting non-existent event', () => {
-      const deleted = dlqService.deleteFailedEvent('non-existent-id');
+    it('should return false when deleting non-existent event', async () => {
+      const deleted = await dlqService.deleteFailedEvent('non-existent-id');
 
       expect(deleted).toBe(false);
     });

@@ -559,6 +559,13 @@ When beginning work on a milestone or task:
 4. **Review specs**: Ensure `specs/` documents reflect any implementation changes
 5. **Update README**: Add any new documentation or navigation links
 6. **Update test documentation**: If adding new test patterns, update `TEST_IMPLEMENTATION_PLAN.md`
+7. **⚠️ UPDATE DOCUMENTATION** (MANDATORY): Update all relevant documentation to reflect changes made:
+   - Update technical documentation in `docs/` if architecture or design changed
+   - Update `test-infrastructure/README.md` if test infrastructure was modified
+   - Update API documentation if endpoints were added/modified
+   - Update configuration examples if new services or settings were added
+   - Ensure all code examples in documentation are up-to-date
+   - Update diagrams and schemas if data models changed
 
 ## Notes for AI Agents
 
@@ -602,6 +609,9 @@ When beginning work on a milestone or task:
 - ✅ Test both happy paths and error cases
 - ✅ Verify tests in CI before merging
 - ✅ Update test documentation when needed
+- ✅ **Update all relevant documentation after completing any task**
+- ✅ **Keep documentation in sync with code changes**
+- ✅ **Document new patterns, services, or configurations immediately**
 
 ## Version Control
 

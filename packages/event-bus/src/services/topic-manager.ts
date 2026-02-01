@@ -224,12 +224,12 @@ export class TopicManager {
    * Validate topic name format
    */
   private validateTopicName(name: string): void {
-    const validPattern = /^(core|plugin)\.[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+    const validPattern = /^(core|plugin|dlq)\.[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
     if (!validPattern.test(name)) {
       throw new Error(
         `Invalid topic name: ${name}. ` +
-          `Must follow pattern: core.{domain}.{event} or plugin.{pluginId}.{event}`
+          `Must follow pattern: core.{domain}.{event}, plugin.{pluginId}.{event}, or dlq.{topic}`
       );
     }
   }

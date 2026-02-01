@@ -130,6 +130,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants',
     {
+      preHandler: requireSuperAdmin,
       schema: {
         description: 'Create a new tenant with full provisioning',
         tags: ['tenants'],
@@ -143,8 +144,8 @@ export async function tenantRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
@@ -243,8 +244,8 @@ export async function tenantRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
               plugins: {
@@ -280,7 +281,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id',
     {
-      preHandler: [authMiddleware],
+      preHandler: requireSuperAdmin,
       schema: {
         description: 'Get tenant details by ID',
         tags: ['tenants'],
@@ -294,8 +295,8 @@ export async function tenantRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
               plugins: {
@@ -346,8 +347,8 @@ export async function tenantRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },

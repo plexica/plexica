@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { parseCorsOrigins } from '../lib/cors-validator.js';
 
 // Load environment variables
-dotenv.config();
+// In test mode, .env.test should already be loaded by test setup
+// So we don't override if NODE_ENV=test and vars are already loaded
+if (process.env.NODE_ENV !== 'test' || !process.env.DATABASE_URL) {
+  dotenv.config();
+}
 
 // Custom boolean transformer for environment variables
 const booleanFromString = z

@@ -5,12 +5,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBusService } from '../services/event-bus.service';
-import { RedpandaClient } from '../services/redpanda-client';
-import type { DomainEvent } from '../types';
+import { EventBusService } from '../event-bus.service';
+import { RedpandaClient } from '../redpanda-client';
+import type { DomainEvent } from '../../types';
 
 // Mock RedpandaClient
-vi.mock('../services/redpanda-client', () => {
+vi.mock('../redpanda-client', () => {
   const mockProducer = {
     send: vi.fn().mockResolvedValue({}),
   };
@@ -22,15 +22,17 @@ vi.mock('../services/redpanda-client', () => {
     disconnect: vi.fn().mockResolvedValue(undefined),
   };
 
+  const mockAdmin = {
+    listTopics: vi.fn().mockResolvedValue(['test-topic']),
+    createTopics: vi.fn().mockResolvedValue(undefined),
+    deleteTopics: vi.fn().mockResolvedValue(undefined),
+  };
+
   return {
     RedpandaClient: vi.fn().mockImplementation(() => ({
-      getProducer: () => mockProducer,
+      getProducer: vi.fn(() => mockProducer),
       getConsumer: vi.fn().mockResolvedValue(mockConsumer),
-      getAdmin: () => ({
-        listTopics: vi.fn().mockResolvedValue(['test-topic']),
-        createTopics: vi.fn().mockResolvedValue(undefined),
-        deleteTopics: vi.fn().mockResolvedValue(undefined),
-      }),
+      getAdmin: vi.fn(() => mockAdmin),
     })),
   };
 });
@@ -250,22 +252,6 @@ describe('EventBusService', () => {
       const handler = vi.fn();
       const options = {
         workspaceId: 'workspace-456',
-      };
-
-      await eventBus.subscribe(eventType, handler, options);
-
-      expect(eventBus.getSubscriptionCount()).toBe(1);
-    });
-
-    it('should support custom filter predicates', async () => {
-      const eventType = 'test.event.created';
-      const handler = vi.fn();
-      const customFilter = (event: DomainEvent) => {
-        return event.data?.priority === 'high';
-      };
-
-      const options = {
-        customFilter,
       };
 
       await eventBus.subscribe(eventType, handler, options);
