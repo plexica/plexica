@@ -53,6 +53,22 @@ describe('Plugin Permissions Integration Tests', () => {
     const tenantData = tenantResponse.json();
     testTenantId = tenantData.id;
 
+    // Create demo tenant for cross-tenant tests
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'demo',
+        name: 'Demo Company',
+        adminEmail: 'admin@demo.test',
+        adminPassword: 'test123',
+      },
+    });
+
     // Get tokens for different user roles
     const adminResp = await testContext.auth.getRealTenantAdminToken('acme');
     tenantAdminToken = adminResp.access_token;
@@ -305,7 +321,7 @@ describe('Plugin Permissions Integration Tests', () => {
           id: `plugin-invalid-perm-${Date.now()}`,
           name: 'Invalid Permission Plugin',
           version: '1.0.0',
-          description: 'Test',
+          description: 'Test plugin for testing invalid permission structures',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
           permissions: [
@@ -332,7 +348,7 @@ describe('Plugin Permissions Integration Tests', () => {
           id: `plugin-valid-perm-${Date.now()}`,
           name: 'Valid Permission Plugin',
           version: '1.0.0',
-          description: 'Test',
+          description: 'Test plugin with valid permission structure for testing purposes',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
           permissions: [
@@ -394,7 +410,7 @@ describe('Plugin Permissions Integration Tests', () => {
     it('should have separate installations per tenant', async () => {
       // Get demo tenant
       const demoTenant = await db.tenant.findUnique({
-        where: { slug: 'demo-company' },
+        where: { slug: 'demo' },
       });
 
       // Install in second tenant
@@ -428,7 +444,7 @@ describe('Plugin Permissions Integration Tests', () => {
       });
 
       const demoTenant = await db.tenant.findUnique({
-        where: { slug: 'demo-company' },
+        where: { slug: 'demo' },
       });
       const demoInstallation = await db.tenantPlugin.findFirst({
         where: { tenantId: demoTenant!.id, pluginId: isolationPluginId },

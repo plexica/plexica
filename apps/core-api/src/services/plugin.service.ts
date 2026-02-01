@@ -356,7 +356,18 @@ export class PluginLifecycleService {
 
     // Validate configuration
     const manifest = plugin.manifest as unknown as PluginManifest;
-    this.validateConfiguration(manifest, configuration);
+
+    // Apply default configuration values
+    const finalConfiguration = { ...configuration };
+    if (manifest.config) {
+      for (const field of manifest.config) {
+        if (field.default !== undefined && finalConfiguration[field.key] === undefined) {
+          finalConfiguration[field.key] = field.default;
+        }
+      }
+    }
+
+    this.validateConfiguration(manifest, finalConfiguration);
 
     // M2.3: Check API dependencies before installation
     if (manifest.api?.dependencies && manifest.api.dependencies.length > 0) {
@@ -403,7 +414,7 @@ export class PluginLifecycleService {
             tenantId,
             pluginId,
             enabled: false, // Start disabled, must be explicitly activated
-            configuration,
+            configuration: finalConfiguration,
           },
           include: {
             plugin: true,
@@ -442,7 +453,7 @@ export class PluginLifecycleService {
             await this.runLifecycleHook(manifest, 'install', {
               tenantId,
               pluginId,
-              configuration,
+              configuration: finalConfiguration,
             });
           } catch (error: any) {
             // Transaction will automatically rollback on error

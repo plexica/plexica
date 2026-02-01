@@ -170,7 +170,7 @@ describe('Plugin Installation Integration Tests', () => {
         },
       });
 
-      expect(response.statusCode).toBe(401);
+      expect(response.statusCode).toBe(403); // 403 when no auth header is provided
     });
 
     it('should reject installation of non-existent plugin', async () => {

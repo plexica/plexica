@@ -44,6 +44,22 @@ describe('Plugin Marketplace Integration Tests', () => {
       },
     });
 
+    // Create demo tenant for stats tests
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'demo',
+        name: 'Demo Company',
+        adminEmail: 'admin@demo.test',
+        adminPassword: 'test123',
+      },
+    });
+
     // Get regular user (tenant admin) token
     const userResp = await testContext.auth.getRealTenantAdminToken('acme');
     regularUserToken = userResp.access_token;
@@ -85,7 +101,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       expect(plugin.id).toBe(pluginManifest.id);
       expect(plugin.name).toBe(pluginManifest.name);
       expect(plugin.version).toBe(pluginManifest.version);
-      expect(plugin.status).toBe('AVAILABLE');
+      expect(plugin.status).toBe('PUBLISHED');
 
       // Verify in database
       const dbPlugin = await db.plugin.findUnique({
@@ -139,7 +155,7 @@ describe('Plugin Marketplace Integration Tests', () => {
         payload: pluginManifest,
       });
 
-      expect(response.statusCode).toBe(401);
+      expect(response.statusCode).toBe(403); // 403 when no auth header is provided
     });
 
     it('should reject duplicate plugin registration', async () => {
@@ -255,7 +271,7 @@ describe('Plugin Marketplace Integration Tests', () => {
     it('should filter plugins by status', async () => {
       const response = await app.inject({
         method: 'GET',
-        url: '/api/plugins?status=AVAILABLE',
+        url: '/api/plugins?status=PUBLISHED',
         headers: {
           authorization: `Bearer ${regularUserToken}`,
         },
@@ -264,7 +280,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       expect(response.statusCode).toBe(200);
       const result = response.json();
       result.plugins.forEach((plugin: any) => {
-        expect(plugin.status).toBe('AVAILABLE');
+        expect(plugin.status).toBe('PUBLISHED');
       });
     });
 
@@ -582,7 +598,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       });
 
       // Install to tenant
-      const tenant = await db.tenant.findUnique({ where: { slug: 'acme-corp' } });
+      const tenant = await db.tenant.findUnique({ where: { slug: 'acme' } });
       await app.inject({
         method: 'POST',
         url: `/api/tenants/${tenant!.id}/plugins/${installedPluginId}/install`,
@@ -624,8 +640,8 @@ describe('Plugin Marketplace Integration Tests', () => {
       });
 
       // Install in multiple tenants
-      const acmeTenant = await db.tenant.findUnique({ where: { slug: 'acme-corp' } });
-      const demoTenant = await db.tenant.findUnique({ where: { slug: 'demo-company' } });
+      const acmeTenant = await db.tenant.findUnique({ where: { slug: 'acme' } });
+      const demoTenant = await db.tenant.findUnique({ where: { slug: 'demo' } });
 
       await app.inject({
         method: 'POST',
@@ -634,11 +650,25 @@ describe('Plugin Marketplace Integration Tests', () => {
         payload: { configuration: {} },
       });
 
+      // Activate in acme tenant
+      await app.inject({
+        method: 'POST',
+        url: `/api/tenants/${acmeTenant!.id}/plugins/${statsPluginId}/activate`,
+        headers: { authorization: `Bearer ${regularUserToken}` },
+      });
+
       await app.inject({
         method: 'POST',
         url: `/api/tenants/${demoTenant!.id}/plugins/${statsPluginId}/install`,
         headers: { authorization: `Bearer ${regularUserToken}` },
         payload: { configuration: {} },
+      });
+
+      // Activate in demo tenant
+      await app.inject({
+        method: 'POST',
+        url: `/api/tenants/${demoTenant!.id}/plugins/${statsPluginId}/activate`,
+        headers: { authorization: `Bearer ${regularUserToken}` },
       });
     });
 

@@ -33,11 +33,13 @@ export async function pluginRoutes(fastify: FastifyInstance) {
             category: { type: 'string' },
             metadata: { type: 'object' },
           },
+          additionalProperties: true, // Allow permissions, config, lifecycle, etc.
         },
         response: {
           201: {
             description: 'Plugin registered successfully',
             type: 'object',
+            additionalProperties: true,
           },
         },
       },
@@ -74,7 +76,10 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         querystring: {
           type: 'object',
           properties: {
-            status: { type: 'string', enum: ['AVAILABLE', 'INSTALLED', 'DEPRECATED'] },
+            status: {
+              type: 'string',
+              enum: ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'DEPRECATED', 'REJECTED'],
+            },
             category: { type: 'string' },
             search: { type: 'string' },
             skip: { type: 'number', minimum: 0, default: 0 },
@@ -137,6 +142,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           200: {
             description: 'Plugin details',
             type: 'object',
+            additionalProperties: true,
           },
           404: {
             description: 'Plugin not found',
@@ -183,6 +189,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           200: {
             description: 'Plugin updated successfully',
             type: 'object',
+            additionalProperties: true,
           },
         },
       },
@@ -319,6 +326,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           201: {
             description: 'Plugin installed successfully',
             type: 'object',
+            additionalProperties: true,
           },
         },
       },
@@ -371,6 +379,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           200: {
             description: 'Plugin activated successfully',
             type: 'object',
+            additionalProperties: true,
           },
         },
       },
@@ -414,6 +423,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           200: {
             description: 'Plugin deactivated successfully',
             type: 'object',
+            additionalProperties: true,
           },
         },
       },
@@ -508,6 +518,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           200: {
             description: 'Configuration updated successfully',
             type: 'object',
+            additionalProperties: true,
           },
         },
       },
