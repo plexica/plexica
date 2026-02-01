@@ -19,8 +19,11 @@ storybook-static/
 **/*.mjs.map
 **/*.d.mts
 **/*.d.mts.map
-!*.config.js
-!*.config.mjs
+
+# Preserve handwritten config files (not compiled from TypeScript)
+!**/tailwind.config.js
+!**/postcss.config.js
+!**/eslint.config.js
 !**/.*.js
 
 # Environment variables
