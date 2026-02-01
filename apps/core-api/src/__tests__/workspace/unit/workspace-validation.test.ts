@@ -134,8 +134,8 @@ describe('Workspace Validation', () => {
 
     it('should handle edge cases', () => {
       // Valid edge cases
-      expect(validateSlug('a-b').valid).toBe(false); // Too short (< 3 chars)
-      expect(validateSlug('a-1').valid).toBe(false); // Too short
+      expect(validateSlug('a-b').valid).toBe(true); // Exactly 3 chars - valid
+      expect(validateSlug('a-1').valid).toBe(true); // Exactly 3 chars - valid
       expect(validateSlug('abc').valid).toBe(true); // Min valid length
 
       // Boundary testing

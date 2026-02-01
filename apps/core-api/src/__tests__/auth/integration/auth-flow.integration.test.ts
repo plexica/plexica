@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper';
+import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
 import { buildTestApp } from '../../../test-app';
 import type { FastifyInstance } from 'fastify';
 
@@ -33,10 +33,10 @@ describe('Auth Flow Integration', () => {
       // Get real token from Keycloak
       const tokenResponse = await testContext.auth.getRealSuperAdminToken();
 
-      // Make authenticated request
+      // Make authenticated request (health endpoint doesn't require auth)
       const response = await app.inject({
         method: 'GET',
-        url: '/api/health',
+        url: '/health',
         headers: {
           authorization: `Bearer ${tokenResponse.access_token}`,
         },

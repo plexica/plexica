@@ -1,7 +1,11 @@
 // Comprehensive tests for Keycloak JWT functions
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import jwt from 'jsonwebtoken';
-import { verifyKeycloakToken, verifyTokenWithTenant, type KeycloakJwtPayload } from '../../lib/jwt';
+import {
+  verifyKeycloakToken,
+  verifyTokenWithTenant,
+  type KeycloakJwtPayload,
+} from '../../../lib/jwt.js';
 
 describe('Keycloak JWT Functions', () => {
   beforeEach(() => {

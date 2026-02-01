@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
-import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper';
+import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
 import { buildTestApp } from '../../../test-app';
 import { db } from '../../../lib/db';
 import { redis } from '../../../lib/redis';

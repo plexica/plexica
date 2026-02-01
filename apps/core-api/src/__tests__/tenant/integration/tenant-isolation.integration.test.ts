@@ -60,7 +60,7 @@ describe('Multi-Tenant Isolation Tests', () => {
 
   describe('Data Isolation', () => {
     it('should only return workspaces for current tenant', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 
@@ -90,7 +90,7 @@ describe('Multi-Tenant Isolation Tests', () => {
 
     it('should enforce tenant context in all database operations', async () => {
       const { getTenantContext, executeInTenantSchema } =
-        await import('../../middleware/tenant-context.js');
+        await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
       let operationContext: any;
@@ -105,7 +105,7 @@ describe('Multi-Tenant Isolation Tests', () => {
     });
 
     it('should use tenant schema for query execution', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 
@@ -135,7 +135,7 @@ describe('Multi-Tenant Isolation Tests', () => {
     });
 
     it('should prevent querying tables from another tenant schema', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 
@@ -147,7 +147,7 @@ describe('Multi-Tenant Isolation Tests', () => {
     });
 
     it('should not expose tenant context across requests', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       // Get context for first request
       const context1 = getTenantContext();
@@ -228,7 +228,7 @@ describe('Multi-Tenant Isolation Tests', () => {
 
   describe('Database Connection Isolation', () => {
     it('should use tenant-specific connection pool', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 
@@ -237,7 +237,7 @@ describe('Multi-Tenant Isolation Tests', () => {
     });
 
     it('should set correct schema in every database operation', async () => {
-      const { executeInTenantSchema } = await import('../../middleware/tenant-context.js');
+      const { executeInTenantSchema } = await import('../../../middleware/tenant-context');
 
       const schemaName = 'tenant_test_123';
       let setSchema = '';
@@ -253,7 +253,7 @@ describe('Multi-Tenant Isolation Tests', () => {
 
     it('should rollback to public schema after operation', async () => {
       // After tenant operation completes, connection should not leak tenant data
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 
@@ -323,7 +323,7 @@ describe('Multi-Tenant Isolation Tests', () => {
 
   describe('Tenant Context Validation', () => {
     it('should require valid tenant context for all operations', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 
@@ -333,7 +333,7 @@ describe('Multi-Tenant Isolation Tests', () => {
     });
 
     it('should validate tenant context before database access', async () => {
-      const { getTenantContext } = await import('../../middleware/tenant-context.js');
+      const { getTenantContext } = await import('../../../middleware/tenant-context');
 
       const context = getTenantContext();
 

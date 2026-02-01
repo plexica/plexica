@@ -21,9 +21,9 @@ import { tenantService } from '../../../services/tenant.service.js';
 import { MASTER_TENANT_SLUG, USER_ROLES } from '../../../constants/index.js';
 
 // Mock dependencies
-vi.mock('../lib/jwt.js');
-vi.mock('../services/permission.service.js');
-vi.mock('../services/tenant.service.js');
+vi.mock('../../../lib/jwt.js');
+vi.mock('../../../services/permission.service.js');
+vi.mock('../../../services/tenant.service.js');
 
 // Helper to create mock request/reply
 function createMockRequest(): Partial<FastifyRequest> {

@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { permissionService, Permissions } from '../../../services/permission.service.js';
-import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
+import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
 import { db } from '../../../lib/db.js';
 import { redis } from '../../../lib/redis.js';
 

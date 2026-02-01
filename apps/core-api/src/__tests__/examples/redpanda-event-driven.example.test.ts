@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper';
+import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
 
 describe('E2E: Event-Driven Tenant Provisioning', () => {
   /**

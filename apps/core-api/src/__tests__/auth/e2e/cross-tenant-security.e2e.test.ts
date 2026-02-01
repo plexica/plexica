@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper';
+import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
 import { buildTestApp } from '../../../test-app';
 import type { FastifyInstance } from 'fastify';
 

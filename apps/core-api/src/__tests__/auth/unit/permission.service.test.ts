@@ -4,7 +4,7 @@ import { PermissionService, Permissions } from '../../../services/permission.ser
 import { db } from '../../../lib/db';
 
 // Mock database
-vi.mock('../lib/db', () => ({
+vi.mock('../../../lib/db', () => ({
   db: {
     $executeRawUnsafe: vi.fn(),
     $queryRawUnsafe: vi.fn(),

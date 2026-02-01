@@ -7,10 +7,10 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { beforeAll, afterAll, beforeEach } from 'vitest';
-import { testContext } from '../../../../test-infrastructure/helpers/test-context.helper';
+import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
 
-// Load test environment variables
-config({ path: resolve(__dirname, '../../../.env.test') });
+// Load test environment variables (override any existing .env values)
+config({ path: resolve(__dirname, '../../../.env.test'), override: true });
 
 // Set test environment
 process.env.NODE_ENV = 'test';

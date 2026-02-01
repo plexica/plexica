@@ -62,7 +62,7 @@ export class PluginRegistryService {
         name: manifest.name,
         version: manifest.version,
         manifest: manifest as any,
-        status: PluginStatus.AVAILABLE,
+        status: PluginStatus.PUBLISHED,
       },
     });
 
@@ -339,7 +339,7 @@ export class PluginLifecycleService {
     // Get plugin from registry
     const plugin = await this.registry.getPlugin(pluginId);
 
-    if (plugin.status !== PluginStatus.AVAILABLE) {
+    if (plugin.status !== PluginStatus.PUBLISHED) {
       throw new Error(`Plugin '${pluginId}' is not available for installation`);
     }
 

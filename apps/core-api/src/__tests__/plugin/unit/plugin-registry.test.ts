@@ -108,7 +108,7 @@ describe('PluginRegistryService', () => {
           name: manifest.name,
           version: manifest.version,
           manifest: manifest,
-          status: 'AVAILABLE',
+          status: 'PUBLISHED',
         },
       });
 

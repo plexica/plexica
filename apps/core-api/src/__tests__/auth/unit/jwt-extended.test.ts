@@ -9,10 +9,10 @@ import {
   generateInternalToken,
   verifyInternalToken,
   type KeycloakJwtPayload,
-} from '../../lib/jwt';
+} from '../../../lib/jwt.js';
 
 // Mock JWT config
-vi.mock('../../config/index.js', () => ({
+vi.mock('../../../config/index.js', () => ({
   config: {
     jwtSecret: 'test-secret-key-for-testing',
     keycloakUrl: 'http://localhost:8080/auth',
