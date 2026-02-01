@@ -36,18 +36,52 @@ describe('Workspace Members Integration', () => {
     app = await buildTestApp();
     await app.ready();
 
+    // Get super admin token to create tenant
+    const superAdminResp = await testContext.auth.getRealSuperAdminToken();
+    const superAdminToken = superAdminResp.access_token;
+
+    // Create test tenant
+    const tenantResponse = await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'acme',
+        name: 'ACME Corporation',
+        adminEmail: 'admin@acme.test',
+        adminPassword: 'test123',
+      },
+    });
+
+    if (tenantResponse.statusCode !== 201) {
+      throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
+    }
+
     // Get tokens for different users
-    const adminTokenResp = await testContext.auth.getRealTenantAdminToken('acme-corp');
+    const adminTokenResp = await testContext.auth.getRealTenantAdminToken('acme');
     adminToken = adminTokenResp.access_token;
 
-    const memberTokenResp = await testContext.auth.getRealTenantMemberToken('acme-corp');
+    const memberTokenResp = await testContext.auth.getRealTenantMemberToken('acme');
     memberToken = memberTokenResp.access_token;
+
+    // Decode tokens to get user IDs
+    const adminDecoded = testContext.auth.decodeToken(adminToken);
+    const memberDecoded = testContext.auth.decodeToken(memberToken);
+
+    adminUserId = adminDecoded.sub;
+    memberUserId = memberDecoded.sub;
 
     // Create a workspace as admin
     const createResponse = await app.inject({
       method: 'POST',
       url: '/api/workspaces',
-      headers: { authorization: `Bearer ${adminToken}` },
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        'x-tenant-id': 'acme',
+      },
       payload: {
         slug: 'members-test-workspace',
         name: 'Members Test Workspace',
@@ -59,37 +93,9 @@ describe('Workspace Members Integration', () => {
     const workspace = createResponse.json();
     workspaceId = workspace.id;
 
-    // Get user IDs from database
-    const adminUser = await db.user.findFirst({
-      where: { email: 'test-tenant-admin-acme@example.com' },
-    });
-    const memberUser = await db.user.findFirst({
-      where: { email: 'test-tenant-member-acme@example.com' },
-    });
-
-    adminUserId = adminUser!.id;
-    memberUserId = memberUser!.id;
-
-    // Create additional users for testing
-    const extraUser = await db.user.create({
-      data: {
-        email: 'extra-user@example.com',
-        firstName: 'Extra',
-        lastName: 'User',
-        passwordHash: 'hashed',
-      },
-    });
-    extraUserId = extraUser.id;
-
-    const viewerUser = await db.user.create({
-      data: {
-        email: 'viewer-user@example.com',
-        firstName: 'Viewer',
-        lastName: 'User',
-        passwordHash: 'hashed',
-      },
-    });
-    viewerUserId = viewerUser.id;
+    // Create additional test user ID (mock for now)
+    extraUserId = 'extra-user-id-123';
+    viewerUserId = 'viewer-user-id-456';
   });
 
   afterAll(async () => {

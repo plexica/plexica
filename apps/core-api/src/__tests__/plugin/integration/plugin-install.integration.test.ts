@@ -26,18 +26,36 @@ describe('Plugin Installation Integration Tests', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // Get authentication tokens
+    // Get super admin token
     const superAdminResp = await testContext.auth.getRealSuperAdminToken();
     superAdminToken = superAdminResp.access_token;
 
-    const tenantAdminResp = await testContext.auth.getRealTenantAdminToken('acme-corp');
-    tenantAdminToken = tenantAdminResp.access_token;
-
-    // Get test tenant ID
-    const tenant = await db.tenant.findUnique({
-      where: { slug: 'acme-corp' },
+    // Create test tenant
+    const tenantResponse = await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'acme',
+        name: 'ACME Corporation',
+        adminEmail: 'admin@acme.test',
+        adminPassword: 'test123',
+      },
     });
-    testTenantId = tenant!.id;
+
+    if (tenantResponse.statusCode !== 201) {
+      throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
+    }
+
+    const tenantData = tenantResponse.json();
+    testTenantId = tenantData.id;
+
+    // Get tenant admin token
+    const tenantAdminResp = await testContext.auth.getRealTenantAdminToken('acme');
+    tenantAdminToken = tenantAdminResp.access_token;
 
     testPluginId = `plugin-test-${Date.now()}`;
   });

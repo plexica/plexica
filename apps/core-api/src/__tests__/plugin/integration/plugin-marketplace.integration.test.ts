@@ -24,11 +24,28 @@ describe('Plugin Marketplace Integration Tests', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // Get authentication tokens
+    // Get super admin token
     const superAdminResp = await testContext.auth.getRealSuperAdminToken();
     superAdminToken = superAdminResp.access_token;
 
-    const userResp = await testContext.auth.getRealTenantAdminToken('acme-corp');
+    // Create test tenant for regular user
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'acme',
+        name: 'ACME Corporation',
+        adminEmail: 'admin@acme.test',
+        adminPassword: 'test123',
+      },
+    });
+
+    // Get regular user (tenant admin) token
+    const userResp = await testContext.auth.getRealTenantAdminToken('acme');
     regularUserToken = userResp.access_token;
   });
 

@@ -33,23 +33,43 @@ describe('Workspace CRUD Integration', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // Get tokens
-    const adminTokenResp = await testContext.auth.getRealTenantAdminToken('acme-corp');
+    // Get super admin token to create tenant
+    const superAdminResp = await testContext.auth.getRealSuperAdminToken();
+    const superAdminToken = superAdminResp.access_token;
+
+    // Create test tenant
+    const tenantResponse = await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'acme',
+        name: 'ACME Corporation',
+        adminEmail: 'admin@acme.test',
+        adminPassword: 'test123',
+      },
+    });
+
+    if (tenantResponse.statusCode !== 201) {
+      throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
+    }
+
+    // Get tokens for admin and member
+    const adminTokenResp = await testContext.auth.getRealTenantAdminToken('acme');
     adminToken = adminTokenResp.access_token;
 
-    const memberTokenResp = await testContext.auth.getRealTenantMemberToken('acme-corp');
+    const memberTokenResp = await testContext.auth.getRealTenantMemberToken('acme');
     memberToken = memberTokenResp.access_token;
 
-    // Get user IDs
-    const adminUser = await db.user.findFirst({
-      where: { email: 'test-tenant-admin-acme@example.com' },
-    });
-    const memberUser = await db.user.findFirst({
-      where: { email: 'test-tenant-member-acme@example.com' },
-    });
+    // Decode tokens to get user IDs
+    const adminDecoded = testContext.auth.decodeToken(adminToken);
+    const memberDecoded = testContext.auth.decodeToken(memberToken);
 
-    adminUserId = adminUser!.id;
-    memberUserId = memberUser!.id;
+    adminUserId = adminDecoded.sub;
+    memberUserId = memberDecoded.sub;
   });
 
   afterAll(async () => {

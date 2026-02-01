@@ -26,21 +26,39 @@ describe('Plugin Permissions Integration Tests', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // Get authentication tokens
+    // Get super admin token
     const superAdminResp = await testContext.auth.getRealSuperAdminToken();
     superAdminToken = superAdminResp.access_token;
 
-    const adminResp = await testContext.auth.getRealTenantAdminToken('acme-corp');
+    // Create test tenant
+    const tenantResponse = await app.inject({
+      method: 'POST',
+      url: '/api/admin/tenants',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        slug: 'acme',
+        name: 'ACME Corporation',
+        adminEmail: 'admin@acme.test',
+        adminPassword: 'test123',
+      },
+    });
+
+    if (tenantResponse.statusCode !== 201) {
+      throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
+    }
+
+    const tenantData = tenantResponse.json();
+    testTenantId = tenantData.id;
+
+    // Get tokens for different user roles
+    const adminResp = await testContext.auth.getRealTenantAdminToken('acme');
     tenantAdminToken = adminResp.access_token;
 
-    const memberResp = await testContext.auth.getRealTenantMemberToken('acme-corp');
+    const memberResp = await testContext.auth.getRealTenantMemberToken('acme');
     tenantMemberToken = memberResp.access_token;
-
-    // Get test tenant ID
-    const tenant = await db.tenant.findUnique({
-      where: { slug: 'acme-corp' },
-    });
-    testTenantId = tenant!.id;
   });
 
   afterAll(async () => {
