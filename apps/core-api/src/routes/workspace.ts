@@ -240,13 +240,42 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // List user's workspaces
   // Requires: tenant context, authenticated user
+  // List user workspaces with pagination and sorting
+  // Requires: tenant context, authenticated user
   fastify.get(
     '/workspaces',
     {
       schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              description: 'Items per page (default: 50)',
+            },
+            offset: {
+              type: 'integer',
+              minimum: 0,
+              description: 'Number of items to skip (default: 0)',
+            },
+            sortBy: {
+              type: 'string',
+              enum: ['name', 'createdAt', 'joinedAt'],
+              description: 'Field to sort by (default: joinedAt)',
+            },
+            sortOrder: {
+              type: 'string',
+              enum: ['asc', 'desc'],
+              description: 'Sort order (default: desc)',
+            },
+          },
+        },
         tags: ['workspaces'],
         summary: 'List user workspaces',
-        description: 'Returns all workspaces the authenticated user is a member of',
+        description:
+          'Returns all workspaces the authenticated user is a member of with pagination and sorting',
         response: {
           200: {
             description: 'List of workspaces',
@@ -278,7 +307,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const workspaces = await workspaceService.findAll(userId, (request as any).tenant);
+        const query = request.query as any;
+        const options = {
+          limit: query.limit ? parseInt(query.limit, 10) : undefined,
+          offset: query.offset ? parseInt(query.offset, 10) : undefined,
+          sortBy: query.sortBy || undefined,
+          sortOrder: query.sortOrder || undefined,
+        };
+
+        const workspaces = await workspaceService.findAll(userId, options, (request as any).tenant);
         return reply.send(workspaces);
       } catch (error) {
         request.log.error(error);
@@ -491,24 +528,58 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Get workspace members
+  // Get workspace members with filtering and pagination
   // Requires: tenant context, workspace membership
   fastify.get(
     '/workspaces/:workspaceId/members',
     {
       schema: {
         ...workspaceParamsSchema,
+        querystring: {
+          type: 'object',
+          properties: {
+            role: {
+              type: 'string',
+              enum: ['ADMIN', 'MEMBER', 'VIEWER'],
+              description: 'Filter by role',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              description: 'Items per page (default: 50)',
+            },
+            offset: {
+              type: 'integer',
+              minimum: 0,
+              description: 'Number of items to skip (default: 0)',
+            },
+          },
+        },
         tags: ['workspaces'],
         summary: 'List workspace members',
-        description: 'Returns all members of a workspace with their roles',
+        description:
+          'Returns all members of a workspace with their roles, supporting filtering and pagination',
       },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { workspaceId } = request.params as any;
-        const workspace = await workspaceService.findOne(workspaceId, (request as any).tenant);
-        return reply.send(workspace.members);
+        const query = request.query as any;
+
+        const options = {
+          role: query.role || undefined,
+          limit: query.limit ? parseInt(query.limit, 10) : undefined,
+          offset: query.offset ? parseInt(query.offset, 10) : undefined,
+        };
+
+        const members = await workspaceService.getMembers(
+          workspaceId,
+          options,
+          (request as any).tenant
+        );
+        return reply.send(members);
       } catch (error) {
         request.log.error(error);
         return reply.code(500).send({

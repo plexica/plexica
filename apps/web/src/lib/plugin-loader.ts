@@ -110,7 +110,7 @@ function validatePluginVersion(version: string): void {
  * This is a placeholder for demonstration
  */
 // @ts-expect-error - Function reserved for future SRI validation
-function validateSubresourceIntegrity(url: string, integrity?: string): void {
+function _validateSubresourceIntegrity(url: string, integrity?: string): void {
   // NOTE: In production, you would fetch the plugin manifest from a verified source
   // and validate the integrity hash. For now, this logs a warning.
   if (!integrity) {

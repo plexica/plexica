@@ -35,9 +35,9 @@ export default defineConfig([
       ],
     },
   },
-  // Context files - disable react-refresh since they export hooks too
+  // Provider components and contexts export both components and hooks
   {
-    files: ['**/contexts/**/*.{ts,tsx}'],
+    files: ['**/contexts/**/*.{ts,tsx}', '**/*Provider.tsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

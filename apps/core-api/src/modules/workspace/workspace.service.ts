@@ -152,7 +152,16 @@ export class WorkspaceService {
   /**
    * Get all workspaces where user is a member
    */
-  async findAll(userId: string, tenantCtx?: TenantContext) {
+  async findAll(
+    userId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      sortBy?: 'name' | 'createdAt' | 'joinedAt';
+      sortOrder?: 'asc' | 'desc';
+    },
+    tenantCtx?: TenantContext
+  ) {
     const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
@@ -165,6 +174,29 @@ export class WorkspaceService {
     if (!/^[a-z0-9_]+$/.test(schemaName)) {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
+
+    // Defaults
+    const limit = Math.min(options?.limit || 50, 100); // Max 100 items per page
+    const offset = Math.max(options?.offset || 0, 0);
+    const sortBy = options?.sortBy || 'joinedAt';
+    const sortOrder = (options?.sortOrder || 'desc').toUpperCase();
+
+    // Validate sort options
+    const validSortFields = ['name', 'createdAt', 'joinedAt'];
+    if (!validSortFields.includes(sortBy)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+    if (!['ASC', 'DESC'].includes(sortOrder)) {
+      throw new Error(`Invalid sort order: ${sortOrder}`);
+    }
+
+    // Map field names to SQL column names
+    const sortFieldMap: Record<string, string> = {
+      name: 'w.name',
+      createdAt: 'w.created_at',
+      joinedAt: 'wm.joined_at',
+    };
+    const sortColumn = sortFieldMap[sortBy];
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
@@ -187,7 +219,9 @@ export class WorkspaceService {
         INNER JOIN ${membersTable} wm ON w.id = wm.workspace_id
         WHERE wm.user_id = ${userId}
           AND w.tenant_id = ${tenantId}
-        ORDER BY wm.joined_at DESC
+        ORDER BY ${Prisma.raw(sortColumn)} ${Prisma.raw(sortOrder)}
+        LIMIT ${limit}
+        OFFSET ${offset}
       `;
 
       return result.map((row: any) => ({
@@ -932,6 +966,104 @@ export class WorkspaceService {
           lastName: member.user_last_name,
         },
       };
+    });
+  }
+
+  /**
+   * Get workspace members with filtering and pagination
+   */
+  async getMembers(
+    workspaceId: string,
+    options?: {
+      role?: string;
+      limit?: number;
+      offset?: number;
+    },
+    tenantCtx?: TenantContext
+  ) {
+    const tenantContext = tenantCtx || getTenantContext();
+    if (!tenantContext) {
+      throw new Error('No tenant context available');
+    }
+
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
+
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    // Defaults
+    const limit = Math.min(options?.limit || 50, 100);
+    const offset = Math.max(options?.offset || 0, 0);
+    const role = options?.role?.toUpperCase();
+
+    // Validate role if provided
+    if (role && !['ADMIN', 'MEMBER', 'VIEWER'].includes(role)) {
+      throw new Error(`Invalid role: ${role}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const usersTable = Prisma.raw(`"${schemaName}"."users"`);
+
+      // Check workspace exists
+      const workspaceCheck = await tx.$queryRaw<any[]>`
+        SELECT id FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
+      `;
+
+      if (!workspaceCheck || workspaceCheck.length === 0) {
+        throw new Error(
+          `Workspace ${workspaceId} not found or does not belong to tenant ${tenantId}`
+        );
+      }
+
+      // Build query with optional role filter
+      let whereClause = `wm.workspace_id = ${workspaceId}`;
+      if (role) {
+        whereClause += ` AND wm.role = '${role}'`;
+      }
+
+      // Get members with user info
+      const members = await tx.$queryRaw<any[]>`
+        SELECT 
+          wm.workspace_id,
+          wm.user_id,
+          wm.role,
+          wm.invited_by,
+          wm.joined_at,
+          u.id as user_id,
+          u.email as user_email,
+          u.first_name as user_first_name,
+          u.last_name as user_last_name
+        FROM ${membersTable} wm
+        LEFT JOIN ${usersTable} u ON u.id = wm.user_id
+        WHERE ${Prisma.raw(whereClause)}
+        ORDER BY wm.joined_at DESC
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `;
+
+      return members.map((member: any) => ({
+        workspaceId: member.workspace_id,
+        userId: member.user_id,
+        role: member.role,
+        invitedBy: member.invited_by,
+        joinedAt: member.joined_at,
+        user: {
+          id: member.user_id,
+          email: member.user_email,
+          firstName: member.user_first_name,
+          lastName: member.user_last_name,
+        },
+      }));
     });
   }
 
