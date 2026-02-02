@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
+import { db } from '../lib/db.js';
 
 // Tenant context stored in AsyncLocalStorage
 export interface TenantContext {
@@ -113,14 +114,19 @@ export async function tenantContextMiddleware(
       workspaceId: headerValidation.workspaceId,
     };
 
-    // Store context in AsyncLocalStorage and add to request
-    await new Promise<void>((resolve) => {
-      tenantContextStorage.run(context, () => {
-        // Add context to request for easy access
-        (request as any).tenant = context;
-        resolve();
-      });
-    });
+    // Store context in AsyncLocalStorage using enterWith
+    // This makes the context available for the rest of this async execution chain
+    tenantContextStorage.enterWith(context);
+
+    // Also add context to request for easy access
+    (request as any).tenant = context;
+
+    // Sync user to tenant schema if authenticated
+    // This ensures the user exists in the tenant schema for foreign key constraints
+    const user = (request as any).user;
+    if (user && user.id) {
+      await syncUserToTenantSchema(context.schemaName, user);
+    }
   } catch (error) {
     request.log.error(error, 'Error in tenant context middleware');
     return reply.code(500).send({
@@ -208,13 +214,15 @@ export function setUserId(userId: string): void {
  * Usage:
  * await executeInTenantSchema(prisma, async (client) => {
  *   return client.user.findMany();
- * });
+ * }, tenantContext);
  */
 export async function executeInTenantSchema<T>(
   prismaClient: any,
-  callback: (client: any) => Promise<T>
+  callback: (client: any) => Promise<T>,
+  tenantCtx?: TenantContext
 ): Promise<T> {
-  const schemaName = getCurrentTenantSchema();
+  const context = tenantCtx || getTenantContext();
+  const schemaName = context?.schemaName;
 
   if (!schemaName) {
     throw new Error('No tenant context available');
@@ -229,12 +237,61 @@ export async function executeInTenantSchema<T>(
   // Set the schema for this query
   // Note: This is a simplified approach. In production, you might want to use
   // Prisma's multi-schema support or create separate Prisma clients per tenant
+  console.log('[EXECUTE_IN_TENANT] Setting search_path to:', schemaName);
   await prismaClient.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+  console.log('[EXECUTE_IN_TENANT] Search path set successfully');
 
   try {
-    return await callback(prismaClient);
+    const result = await callback(prismaClient);
+    console.log('[EXECUTE_IN_TENANT] Query completed successfully');
+    return result;
   } finally {
     // Reset to default schema
     await prismaClient.$executeRawUnsafe(`SET search_path TO public, core`);
+  }
+}
+
+/**
+ * Sync user to tenant schema
+ * Ensures the user exists in the tenant schema for foreign key constraints
+ */
+async function syncUserToTenantSchema(schemaName: string, userInfo: any): Promise<void> {
+  try {
+    // Validate schema name to prevent SQL injection
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    // Extract first and last name
+    const firstName = userInfo.name?.split(' ')[0] || null;
+    const lastName = userInfo.name?.split(' ').slice(1).join(' ') || null;
+
+    // Upsert user into tenant schema
+    // Note: Only use columns that exist in the tenant schema users table
+    const query = `
+      INSERT INTO "${schemaName}"."users" (
+        "id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at"
+      )
+      VALUES (
+        '${userInfo.id}', 
+        '${userInfo.id}', 
+        '${userInfo.email || ''}', 
+        ${firstName ? `'${firstName.replace(/'/g, "''")}'` : 'NULL'}, 
+        ${lastName ? `'${lastName.replace(/'/g, "''")}'` : 'NULL'}, 
+        NOW(), 
+        NOW()
+      )
+      ON CONFLICT ("keycloak_id")
+      DO UPDATE SET
+        "email" = EXCLUDED."email",
+        "first_name" = EXCLUDED."first_name",
+        "last_name" = EXCLUDED."last_name",
+        "updated_at" = NOW()
+    `;
+
+    await db.$executeRawUnsafe(query);
+  } catch (error) {
+    // Log error but don't fail the request
+    console.error('Failed to sync user to tenant schema:', error);
   }
 }

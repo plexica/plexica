@@ -170,10 +170,19 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             type: 'object',
             properties: {
               id: { type: 'string' },
+              tenantId: { type: 'string' },
               slug: { type: 'string' },
               name: { type: 'string' },
-              description: { type: 'string' },
-              settings: { type: 'object' },
+              description: { type: 'string', nullable: true },
+              settings: { type: 'object', additionalProperties: true },
+              members: { type: 'array' },
+              _count: {
+                type: 'object',
+                properties: {
+                  members: { type: 'number' },
+                  teams: { type: 'number' },
+                },
+              },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
@@ -210,7 +219,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const workspace = await workspaceService.create(body, userId);
+        const workspace = await workspaceService.create(body, userId, (request as any).tenant);
         return reply.code(201).send(workspace);
       } catch (error) {
         request.log.error(error);
@@ -268,7 +277,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const workspaces = await workspaceService.findAll(userId);
+        const workspaces = await workspaceService.findAll(userId, (request as any).tenant);
         return reply.send(workspaces);
       } catch (error) {
         request.log.error(error);
@@ -297,12 +306,23 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             type: 'object',
             properties: {
               id: { type: 'string' },
+              tenantId: { type: 'string' },
               slug: { type: 'string' },
               name: { type: 'string' },
-              description: { type: 'string' },
-              settings: { type: 'object' },
+              description: { type: 'string', nullable: true },
+              settings: { type: 'object', additionalProperties: true },
               members: { type: 'array' },
               teams: { type: 'array' },
+              _count: {
+                type: 'object',
+                properties: {
+                  members: { type: 'number' },
+                  teams: { type: 'number' },
+                },
+              },
+              userRole: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
+              createdAt: { type: 'string' },
+              updatedAt: { type: 'string' },
             },
           },
           404: {
@@ -320,8 +340,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { workspaceId } = request.params as any;
-        const workspace = await workspaceService.findOne(workspaceId);
-        return reply.send(workspace);
+        const workspace = await workspaceService.findOne(workspaceId, (request as any).tenant);
+
+        // Add user's role from workspace membership (set by workspaceGuard)
+        const userRole = (request as any).workspaceMembership?.role;
+
+        return reply.send({ ...workspace, userRole });
       } catch (error) {
         request.log.error(error);
         if (error instanceof Error && error.message.includes('not found')) {
@@ -352,6 +376,16 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           200: {
             description: 'Workspace updated successfully',
             type: 'object',
+            properties: {
+              id: { type: 'string' },
+              tenantId: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              description: { type: 'string', nullable: true },
+              settings: { type: 'object', additionalProperties: true },
+              createdAt: { type: 'string' },
+              updatedAt: { type: 'string' },
+            },
           },
           404: {
             description: 'Workspace not found',
@@ -384,7 +418,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const workspace = await workspaceService.update(workspaceId, body);
+        const workspace = await workspaceService.update(workspaceId, body, (request as any).tenant);
         return reply.send(workspace);
       } catch (error) {
         request.log.error(error);
@@ -438,7 +472,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { workspaceId } = request.params as any;
-        await workspaceService.delete(workspaceId);
+        await workspaceService.delete(workspaceId, (request as any).tenant);
         return reply.code(204).send();
       } catch (error) {
         request.log.error(error);
@@ -472,7 +506,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { workspaceId } = request.params as any;
-        const workspace = await workspaceService.findOne(workspaceId);
+        const workspace = await workspaceService.findOne(workspaceId, (request as any).tenant);
         return reply.send(workspace.members);
       } catch (error) {
         request.log.error(error);
@@ -498,6 +532,22 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           201: {
             description: 'Member added successfully',
             type: 'object',
+            properties: {
+              workspaceId: { type: 'string' },
+              userId: { type: 'string' },
+              role: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
+              invitedBy: { type: 'string' },
+              joinedAt: { type: 'string', format: 'date-time' },
+              user: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  email: { type: 'string' },
+                  firstName: { type: 'string' },
+                  lastName: { type: 'string' },
+                },
+              },
+            },
           },
           409: {
             description: 'User already a member',
@@ -531,7 +581,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const member = await workspaceService.addMember(workspaceId, body, invitedBy);
+        const member = await workspaceService.addMember(
+          workspaceId,
+          body,
+          invitedBy,
+          (request as any).tenant
+        );
         return reply.code(201).send(member);
       } catch (error) {
         request.log.error(error);
@@ -587,10 +642,21 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const member = await workspaceService.updateMemberRole(workspaceId, userId, body.role);
+        const member = await workspaceService.updateMemberRole(
+          workspaceId,
+          userId,
+          body.role,
+          (request as any).tenant
+        );
         return reply.send(member);
       } catch (error) {
         request.log.error(error);
+        if (error instanceof Error && error.message.includes('last admin')) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: error.message,
+          });
+        }
         if (error instanceof Error && error.message.includes('not found')) {
           return reply.code(404).send({
             error: 'Not Found',
@@ -641,7 +707,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { workspaceId, userId } = request.params as any;
-        await workspaceService.removeMember(workspaceId, userId);
+        await workspaceService.removeMember(workspaceId, userId, (request as any).tenant);
         return reply.code(204).send();
       } catch (error) {
         request.log.error(error);
@@ -675,7 +741,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { workspaceId } = request.params as any;
-        const teams = await workspaceService.getTeams(workspaceId);
+        const teams = await workspaceService.getTeams(workspaceId, (request as any).tenant);
         return reply.send(teams);
       } catch (error) {
         request.log.error(error);
@@ -752,11 +818,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const team = await workspaceService.createTeam(workspaceId, {
-          name: body.name,
-          description: body.description,
-          ownerId: userId,
-        });
+        const team = await workspaceService.createTeam(
+          workspaceId,
+          {
+            name: body.name,
+            description: body.description,
+            ownerId: userId,
+          },
+          (request as any).tenant
+        );
 
         return reply.code(201).send(team);
       } catch (error) {

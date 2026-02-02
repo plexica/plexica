@@ -178,6 +178,96 @@ export class TenantService {
         FOREIGN KEY (role_id) REFERENCES "${schemaName}"."roles"(id) ON DELETE CASCADE
       )
     `);
+
+    // Create workspace tables
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspaces" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        settings JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (tenant_id, slug)
+      )
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "workspaces_tenant_id_idx" 
+      ON "${schemaName}"."workspaces"(tenant_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_members" (
+        workspace_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        invited_by TEXT NOT NULL,
+        joined_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (workspace_id, user_id),
+        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE,
+        FOREIGN KEY (invited_by) REFERENCES "${schemaName}"."users"(id)
+      )
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "workspace_members_user_id_idx" 
+      ON "${schemaName}"."workspace_members"(user_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "workspace_members_workspace_id_idx" 
+      ON "${schemaName}"."workspace_members"(workspace_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."teams" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        owner_id TEXT NOT NULL,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE,
+        FOREIGN KEY (owner_id) REFERENCES "${schemaName}"."users"(id)
+      )
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "teams_workspace_id_idx" 
+      ON "${schemaName}"."teams"(workspace_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "teams_owner_id_idx" 
+      ON "${schemaName}"."teams"(owner_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        workspace_id TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT NOT NULL,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (workspace_id, resource_type, resource_id),
+        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE
+      )
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "workspace_resources_workspace_id_idx" 
+      ON "${schemaName}"."workspace_resources"(workspace_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "workspace_resources_type_id_idx" 
+      ON "${schemaName}"."workspace_resources"(resource_type, resource_id)
+    `);
   }
 
   /**

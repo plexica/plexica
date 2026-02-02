@@ -13,7 +13,8 @@ import { setWorkspaceId, getTenantContext } from '../../../middleware/tenant-con
  */
 export async function workspaceGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
-    const tenantContext = getTenantContext();
+    // Get tenant context from request (set by tenantContextMiddleware)
+    const tenantContext = (request as any).tenant;
     if (!tenantContext) {
       return reply.code(401).send({
         error: 'Unauthorized',
@@ -46,8 +47,8 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
     }
 
     // Verify workspace exists, belongs to current tenant, and user has membership
-    // Note: getMembership() implicitly checks tenant isolation via WorkspaceService
-    const membership = await workspaceService.getMembership(workspaceId, userId);
+    // Pass tenant context explicitly to avoid AsyncLocalStorage issues
+    const membership = await workspaceService.getMembership(workspaceId, userId, tenantContext);
 
     if (!membership) {
       return reply.code(403).send({
@@ -56,8 +57,9 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
-    // Enhance tenant context with workspace ID
-    setWorkspaceId(workspaceId);
+    // Note: We don't set workspace ID in AsyncLocalStorage because it's unreliable with Fastify
+    // The workspace ID is already available via request.workspaceMembership.workspaceId
+    // setWorkspaceId(workspaceId);
 
     // Attach membership to request for role guard
     (request as any).workspaceMembership = membership;

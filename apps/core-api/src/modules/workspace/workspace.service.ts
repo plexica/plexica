@@ -1,6 +1,11 @@
 import { PrismaClient, WorkspaceRole } from '@plexica/database';
 import { db } from '../../lib/db.js';
-import { getTenantContext, executeInTenantSchema } from '../../middleware/tenant-context.js';
+import {
+  getTenantContext,
+  executeInTenantSchema,
+  type TenantContext,
+} from '../../middleware/tenant-context.js';
+import { TenantPrisma } from '../../lib/tenant-prisma.js';
 import type { CreateWorkspaceDto, UpdateWorkspaceDto, AddMemberDto } from './dto/index.js';
 
 /**
@@ -21,105 +26,183 @@ export class WorkspaceService {
   /**
    * Create a new workspace with the creator as admin
    */
-  async create(dto: CreateWorkspaceDto, creatorId: string) {
-    const tenantContext = getTenantContext();
+  async create(dto: CreateWorkspaceDto, creatorId: string, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
+
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      // Check slug uniqueness within tenant
-      const existing = await client.workspace.findFirst({
-        where: {
-          tenantId: tenantContext.tenantId,
-          slug: dto.slug,
-        },
-      });
+    // Use raw SQL for better compatibility with dynamic tenant schemas
+    const schemaName = tenantContext.schemaName;
 
-      if (existing) {
-        throw new Error(`Workspace with slug '${dto.slug}' already exists in this tenant`);
+    // Validate schema name to prevent SQL injection
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    // Helper to escape single quotes in SQL strings
+    const escapeSql = (str: string | null | undefined): string => {
+      if (str === null || str === undefined) return 'NULL';
+      return `'${str.replace(/'/g, "''")}'`;
+    };
+
+    // Check slug uniqueness
+    const existing = await this.db.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM "${schemaName}"."workspaces" 
+       WHERE tenant_id = '${tenantContext.tenantId}' AND slug = '${dto.slug}' 
+       LIMIT 1`
+    );
+
+    if (existing.length > 0) {
+      throw new Error(`Workspace with slug '${dto.slug}' already exists in this tenant`);
+    }
+
+    // Use a transaction to ensure workspace and member are created together
+    return await this.db.$transaction(async (tx) => {
+      // Set search path for this transaction to use the tenant schema
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      // Generate workspace ID
+      const workspaceIdResult = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT gen_random_uuid()::text as id`
+      );
+      const newWorkspaceId = workspaceIdResult[0].id;
+
+      // Create workspace
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}"."workspaces" 
+         (id, tenant_id, slug, name, description, settings, created_at, updated_at)
+         VALUES (
+           '${newWorkspaceId}',
+           '${tenantContext.tenantId}',
+           '${dto.slug}',
+           ${escapeSql(dto.name)},
+           ${escapeSql(dto.description)},
+           '${JSON.stringify(dto.settings || {})}'::jsonb,
+           NOW(),
+           NOW()
+         )`
+      );
+
+      // Create workspace member (creator as admin)
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}"."workspace_members" 
+         (workspace_id, user_id, role, invited_by, joined_at)
+         VALUES (
+           '${newWorkspaceId}',
+           '${creatorId}',
+           '${WorkspaceRole.ADMIN}',
+           '${creatorId}',
+           NOW()
+         )`
+      );
+
+      // Fetch the complete workspace with relations
+      const workspace = await tx.$queryRawUnsafe<any[]>(
+        `SELECT 
+          w.*,
+          json_agg(
+            json_build_object(
+              'workspaceId', wm.workspace_id,
+              'userId', wm.user_id,
+              'role', wm.role,
+              'invitedBy', wm.invited_by,
+              'joinedAt', wm.joined_at,
+              'user', json_build_object(
+                'id', u.id,
+                'email', u.email,
+                'firstName', u.first_name,
+                'lastName', u.last_name
+              )
+            )
+          ) as members,
+          (SELECT COUNT(*) FROM "${schemaName}"."workspace_members" WHERE workspace_id = w.id)::int as member_count,
+          (SELECT COUNT(*) FROM "${schemaName}"."teams" WHERE workspace_id = w.id)::int as team_count
+         FROM "${schemaName}"."workspaces" w
+         LEFT JOIN "${schemaName}"."workspace_members" wm ON w.id = wm.workspace_id
+         LEFT JOIN "${schemaName}"."users" u ON wm.user_id = u.id
+         WHERE w.id = '${newWorkspaceId}'
+         GROUP BY w.id`
+      );
+
+      if (workspace.length === 0) {
+        throw new Error('Failed to fetch created workspace');
       }
 
-      // Create workspace with creator as admin
-      const workspace = await client.workspace.create({
-        data: {
-          tenantId: tenantContext.tenantId,
-          slug: dto.slug,
-          name: dto.name,
-          description: dto.description,
-          settings: dto.settings || {},
-          members: {
-            create: {
-              userId: creatorId,
-              role: WorkspaceRole.ADMIN,
-              invitedBy: creatorId,
-            },
-          },
-        },
-        include: {
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
-          _count: {
-            select: { members: true, teams: true },
-          },
-        },
-      });
+      const result = workspace[0];
 
-      // TODO: Publish event 'core.workspace.created'
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.created',
-      //   aggregateId: workspace.id,
-      //   data: { workspaceId: workspace.id, slug: workspace.slug, createdBy: creatorId }
-      // });
-
-      return workspace;
+      // Format the response to match the expected structure
+      return {
+        id: result.id,
+        tenantId: result.tenant_id,
+        slug: result.slug,
+        name: result.name,
+        description: result.description,
+        settings:
+          typeof result.settings === 'string' ? JSON.parse(result.settings) : result.settings,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at,
+        members: result.members || [],
+        _count: {
+          members: result.member_count,
+          teams: result.team_count,
+        },
+      };
     });
   }
 
   /**
    * Get all workspaces where user is a member
    */
-  async findAll(userId: string) {
-    const tenantContext = getTenantContext();
+  async findAll(userId: string, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      // Get all workspaces where user is a member, filtered by tenant
-      const memberships = await client.workspaceMember.findMany({
-        where: {
-          userId,
-          workspace: {
-            tenantId: tenantContext.tenantId,
-          },
-        },
-        include: {
-          workspace: {
-            include: {
-              _count: {
-                select: { members: true, teams: true },
-              },
-            },
-          },
-        },
-        orderBy: { joinedAt: 'desc' },
-      });
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
 
-      return memberships.map((m: any) => ({
-        ...m.workspace,
-        memberRole: m.role,
-        joinedAt: m.joinedAt,
+    // Validate schema name to prevent SQL injection
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      // Get all workspaces where user is a member
+      const result = await tx.$queryRawUnsafe<any[]>(`
+        SELECT 
+          w.*,
+          wm.role as member_role,
+          wm.joined_at,
+          (SELECT COUNT(*) FROM "${schemaName}"."workspace_members" WHERE workspace_id = w.id) as member_count,
+          (SELECT COUNT(*) FROM "${schemaName}"."teams" WHERE workspace_id = w.id) as team_count
+        FROM "${schemaName}"."workspaces" w
+        INNER JOIN "${schemaName}"."workspace_members" wm ON w.id = wm.workspace_id
+        WHERE wm.user_id = '${userId.replace(/'/g, "''")}'
+          AND w.tenant_id = '${tenantId.replace(/'/g, "''")}'
+        ORDER BY wm.joined_at DESC
+      `);
+
+      return result.map((row: any) => ({
+        id: row.id,
+        tenantId: row.tenant_id,
+        slug: row.slug,
+        name: row.name,
+        description: row.description,
+        settings: row.settings,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        memberRole: row.member_role,
+        joinedAt: row.joined_at,
+        _count: {
+          members: Number(row.member_count),
+          teams: Number(row.team_count),
+        },
       }));
     });
   }
@@ -127,91 +210,143 @@ export class WorkspaceService {
   /**
    * Get workspace by ID with full details
    */
-  async findOne(id: string) {
-    const tenantContext = getTenantContext();
+  async findOne(id: string, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      const workspace = await client.workspace.findFirst({
-        where: {
-          id,
-          tenantId: tenantContext.tenantId,
-        },
-        include: {
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  email: true,
-                  firstName: true,
-                  lastName: true,
-                  avatar: true,
-                },
-              },
-            },
-            orderBy: { joinedAt: 'asc' },
-          },
-          teams: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-          },
-          _count: {
-            select: { members: true, teams: true },
-          },
-        },
-      });
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
 
-      if (!workspace) {
-        throw new Error(
-          `Workspace ${id} not found or does not belong to tenant ${tenantContext.tenantId}`
-        );
+    // Validate schema name and inputs
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      // Get workspace with members and teams
+      const workspaces = await tx.$queryRawUnsafe<any[]>(`
+        SELECT 
+          w.*,
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'workspaceId', wm.workspace_id,
+              'userId', wm.user_id,
+              'role', wm.role,
+              'joinedAt', wm.joined_at,
+              'user', jsonb_build_object(
+                'id', u.id,
+                'email', u.email,
+                'firstName', u.first_name,
+                'lastName', u.last_name
+              )
+            )
+          ) FILTER (WHERE wm.workspace_id IS NOT NULL) as members,
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'id', t.id,
+              'name', t.name,
+              'description', t.description,
+              'createdAt', t.created_at
+            )
+          ) FILTER (WHERE t.id IS NOT NULL) as teams,
+          COUNT(DISTINCT wm.user_id) as member_count,
+          COUNT(DISTINCT t.id) as team_count
+        FROM "${schemaName}"."workspaces" w
+        LEFT JOIN "${schemaName}"."workspace_members" wm ON w.id = wm.workspace_id
+        LEFT JOIN "${schemaName}"."users" u ON wm.user_id = u.id
+        LEFT JOIN "${schemaName}"."teams" t ON w.id = t.workspace_id
+        WHERE w.id = '${id.replace(/'/g, "''")}'
+          AND w.tenant_id = '${tenantId.replace(/'/g, "''")}'
+        GROUP BY w.id
+      `);
+
+      if (!workspaces || workspaces.length === 0) {
+        throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
       }
 
-      return workspace;
+      const workspace = workspaces[0];
+      return {
+        id: workspace.id,
+        tenantId: workspace.tenant_id,
+        slug: workspace.slug,
+        name: workspace.name,
+        description: workspace.description,
+        settings: workspace.settings,
+        createdAt: workspace.created_at,
+        updatedAt: workspace.updated_at,
+        members: workspace.members || [],
+        teams: workspace.teams || [],
+        _count: {
+          members: Number(workspace.member_count),
+          teams: Number(workspace.team_count),
+        },
+      };
     });
   }
 
   /**
    * Update workspace details (name, description, settings)
    */
-  async update(id: string, dto: UpdateWorkspaceDto) {
-    const tenantContext = getTenantContext();
+  async update(id: string, dto: UpdateWorkspaceDto, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      try {
-        const workspace = await client.workspace.updateMany({
-          where: {
-            id,
-            tenantId: tenantContext.tenantId,
-          },
-          data: {
-            name: dto.name,
-            description: dto.description,
-            settings: dto.settings,
-          },
-        });
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
 
-        if (workspace.count === 0) {
-          throw new Error(
-            `Workspace ${id} not found or does not belong to tenant ${tenantContext.tenantId}`
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      try {
+        // Build dynamic update query
+        const updates: string[] = [];
+        if (dto.name !== undefined) {
+          updates.push(`name = '${dto.name.replace(/'/g, "''")}'`);
+        }
+        if (dto.description !== undefined) {
+          updates.push(
+            `description = ${dto.description ? `'${dto.description.replace(/'/g, "''")}'` : 'NULL'}`
           );
         }
+        if (dto.settings !== undefined) {
+          updates.push(`settings = '${JSON.stringify(dto.settings).replace(/'/g, "''")}'::jsonb`);
+        }
+        updates.push(`updated_at = NOW()`);
 
-        // Fetch updated workspace to return
-        const updated = await client.workspace.findFirst({
-          where: { id, tenantId: tenantContext.tenantId },
-        });
+        const updateCount = await tx.$executeRawUnsafe(`
+          UPDATE "${schemaName}"."workspaces"
+          SET ${updates.join(', ')}
+          WHERE id = '${id.replace(/'/g, "''")}'
+            AND tenant_id = '${tenantId.replace(/'/g, "''")}'
+        `);
+
+        if (updateCount === 0) {
+          throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
+        }
+
+        // Fetch updated workspace
+        const workspaces = await tx.$queryRawUnsafe<any[]>(`
+          SELECT * FROM "${schemaName}"."workspaces"
+          WHERE id = '${id.replace(/'/g, "''")}'
+            AND tenant_id = '${tenantId.replace(/'/g, "''")}'
+        `);
+
+        if (!workspaces || workspaces.length === 0) {
+          throw new Error(`Workspace ${id} not found after update`);
+        }
 
         // TODO: Publish event 'core.workspace.updated'
         // await this.eventBus.publish({
@@ -220,7 +355,18 @@ export class WorkspaceService {
         //   data: { workspaceId: id, changes: dto }
         // });
 
-        return updated;
+        const workspace = workspaces[0];
+        const result = {
+          id: workspace.id,
+          tenantId: workspace.tenant_id,
+          slug: workspace.slug,
+          name: workspace.name,
+          description: workspace.description,
+          settings: workspace.settings,
+          createdAt: workspace.created_at,
+          updatedAt: workspace.updated_at,
+        };
+        return result;
       } catch (error) {
         throw new Error(
           `Failed to update workspace: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -232,39 +378,52 @@ export class WorkspaceService {
   /**
    * Delete workspace (only if no teams exist)
    */
-  async delete(id: string): Promise<void> {
-    const tenantContext = getTenantContext();
+  async delete(id: string, tenantCtx?: TenantContext): Promise<void> {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    await executeInTenantSchema(this.db, async (client) => {
-      // First verify workspace belongs to tenant
-      const workspace = await client.workspace.findFirst({
-        where: { id, tenantId: tenantContext.tenantId },
-      });
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
 
-      if (!workspace) {
-        throw new Error(
-          `Workspace ${id} not found or does not belong to tenant ${tenantContext.tenantId}`
-        );
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      // First verify workspace belongs to tenant
+      const workspaces = await tx.$queryRawUnsafe<any[]>(`
+        SELECT id FROM "${schemaName}"."workspaces"
+        WHERE id = '${id.replace(/'/g, "''")}'
+          AND tenant_id = '${tenantId.replace(/'/g, "''")}'
+      `);
+
+      if (!workspaces || workspaces.length === 0) {
+        throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
       }
 
       // Check if workspace has teams
-      const teamCount = await client.team.count({
-        where: { workspaceId: id },
-      });
+      const teamCounts = await tx.$queryRawUnsafe<any[]>(`
+        SELECT COUNT(*) as count FROM "${schemaName}"."teams"
+        WHERE workspace_id = '${id.replace(/'/g, "''")}'
+      `);
 
+      const teamCount = Number(teamCounts[0]?.count || 0);
       if (teamCount > 0) {
         throw new Error('Cannot delete workspace with existing teams. Move or delete teams first.');
       }
 
-      await client.workspace.deleteMany({
-        where: {
-          id,
-          tenantId: tenantContext.tenantId,
-        },
-      });
+      // Delete workspace (cascade will handle members)
+      await tx.$executeRawUnsafe(`
+        DELETE FROM "${schemaName}"."workspaces"
+        WHERE id = '${id.replace(/'/g, "''")}'
+          AND tenant_id = '${tenantId.replace(/'/g, "''")}'
+      `);
 
       // TODO: Publish event 'core.workspace.deleted'
       // await this.eventBus.publish({
@@ -279,10 +438,17 @@ export class WorkspaceService {
    * Get workspace membership for a user
    * Returns null if user is not a member
    */
-  async getMembership(workspaceId: string, userId: string) {
-    const tenantContext = getTenantContext();
+  async getMembership(workspaceId: string, userId: string, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
+    }
+
+    const schemaName = tenantContext.schemaName;
+
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
     // TODO: Implement Redis caching
@@ -292,81 +458,163 @@ export class WorkspaceService {
     //   return JSON.parse(cached);
     // }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      const membership = await client.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId,
-          },
-        },
-      });
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      const memberships = await tx.$queryRawUnsafe<any[]>(`
+        SELECT * FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${userId.replace(/'/g, "''")}'
+      `);
+
+      if (!memberships || memberships.length === 0) {
+        return null;
+      }
+
+      const membership = memberships[0];
+      const result = {
+        workspaceId: membership.workspace_id,
+        userId: membership.user_id,
+        role: membership.role,
+        invitedBy: membership.invited_by,
+        joinedAt: membership.joined_at,
+      };
 
       // TODO: Cache membership for 5 minutes
-      // if (membership) {
-      //   await this.cache.set(cacheKey, JSON.stringify(membership), 300);
+      // if (result) {
+      //   await this.cache.set(cacheKey, JSON.stringify(result), 300);
       // }
 
-      return membership;
+      return result;
     });
   }
 
   /**
    * Add a member to a workspace
    */
-  async addMember(workspaceId: string, dto: AddMemberDto, invitedBy: string) {
-    const tenantContext = getTenantContext();
+  async addMember(
+    workspaceId: string,
+    dto: AddMemberDto,
+    invitedBy: string,
+    tenantCtx?: TenantContext
+  ) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      // Check workspace exists and belongs to tenant
-      const workspace = await client.workspace.findFirst({
-        where: {
-          id: workspaceId,
-          tenantId: tenantContext.tenantId,
-        },
-      });
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
 
-      if (!workspace) {
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      // Check workspace exists and belongs to tenant
+      const workspaceCheck = await tx.$queryRawUnsafe<any[]>(`
+        SELECT id FROM "${schemaName}"."workspaces"
+        WHERE id = '${workspaceId.replace(/'/g, "''")}'
+          AND tenant_id = '${tenantId.replace(/'/g, "''")}'
+      `);
+
+      if (!workspaceCheck || workspaceCheck.length === 0) {
         throw new Error(
-          `Workspace ${workspaceId} not found or does not belong to tenant ${tenantContext.tenantId}`
+          `Workspace ${workspaceId} not found or does not belong to tenant ${tenantId}`
         );
       }
 
       // Check if user already member
-      const existing = await client.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId: dto.userId,
-          },
-        },
-      });
+      const existingCheck = await tx.$queryRawUnsafe<any[]>(`
+        SELECT workspace_id FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${dto.userId.replace(/'/g, "''")}'
+      `);
 
-      if (existing) {
+      if (existingCheck && existingCheck.length > 0) {
         throw new Error('User is already a member of this workspace');
       }
 
-      const member = await client.workspaceMember.create({
-        data: {
-          workspaceId,
-          userId: dto.userId,
-          role: dto.role || WorkspaceRole.MEMBER,
-          invitedBy,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
+      // Insert the new member
+      const role = dto.role || WorkspaceRole.MEMBER;
+
+      // First, ensure the user exists in the tenant schema
+      // Get user from core schema and sync to tenant schema
+      const coreUser = await this.db.user.findUnique({
+        where: { id: dto.userId },
+        select: {
+          id: true,
+          keycloakId: true,
+          email: true,
+          firstName: true,
+          lastName: true,
         },
       });
+
+      if (!coreUser) {
+        throw new Error(`User ${dto.userId} not found`);
+      }
+
+      // Sync user to tenant schema
+      await tx.$executeRawUnsafe(`
+        INSERT INTO "${schemaName}"."users"
+        (id, keycloak_id, email, first_name, last_name, created_at, updated_at)
+        VALUES (
+          '${coreUser.id.replace(/'/g, "''")}',
+          '${(coreUser.keycloakId || '').replace(/'/g, "''")}',
+          '${coreUser.email.replace(/'/g, "''")}',
+          '${(coreUser.firstName || '').replace(/'/g, "''")}',
+          '${(coreUser.lastName || '').replace(/'/g, "''")}',
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          email = EXCLUDED.email,
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name,
+          updated_at = NOW()
+      `);
+
+      // Now insert the workspace member
+      await tx.$executeRawUnsafe(`
+        INSERT INTO "${schemaName}"."workspace_members"
+        (workspace_id, user_id, role, invited_by, joined_at)
+        VALUES (
+          '${workspaceId.replace(/'/g, "''")}',
+          '${dto.userId.replace(/'/g, "''")}',
+          '${role.replace(/'/g, "''")}',
+          '${invitedBy.replace(/'/g, "''")}',
+          NOW()
+        )
+      `);
+
+      // Get the created member with user info
+      const members = await tx.$queryRawUnsafe<any[]>(`
+        SELECT 
+          wm.workspace_id,
+          wm.user_id,
+          wm.role,
+          wm.invited_by,
+          wm.joined_at,
+          u.email as user_email,
+          u.first_name as user_first_name,
+          u.last_name as user_last_name
+        FROM "${schemaName}"."workspace_members" wm
+        LEFT JOIN "${schemaName}"."users" u ON u.id = wm.user_id
+        WHERE wm.workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND wm.user_id = '${dto.userId.replace(/'/g, "''")}'
+      `);
+
+      if (!members || members.length === 0) {
+        throw new Error('Failed to create workspace member');
+      }
+
+      const member = members[0];
 
       // TODO: Invalidate cache and publish event
       // await this.cache.del(`workspace:${workspaceId}:member:${dto.userId}`);
@@ -376,29 +624,96 @@ export class WorkspaceService {
       //   data: { workspaceId, userId: dto.userId, role: member.role, invitedBy }
       // });
 
-      return member;
+      return {
+        workspaceId: member.workspace_id,
+        userId: member.user_id,
+        role: member.role,
+        invitedBy: member.invited_by,
+        joinedAt: member.joined_at,
+        user: {
+          id: member.user_id,
+          email: member.user_email,
+          firstName: member.user_first_name,
+          lastName: member.user_last_name,
+        },
+      };
     });
   }
 
   /**
    * Update a member's role in a workspace
    */
-  async updateMemberRole(workspaceId: string, userId: string, role: WorkspaceRole) {
-    const tenantContext = getTenantContext();
+  async updateMemberRole(
+    workspaceId: string,
+    userId: string,
+    role: WorkspaceRole,
+    tenantCtx?: TenantContext
+  ) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      const member = await client.workspaceMember.update({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId,
-          },
-        },
-        data: { role },
-      });
+    const schemaName = tenantContext.schemaName;
+
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
+      // Get the current member to check their current role
+      const currentMembers = await tx.$queryRawUnsafe<any[]>(`
+        SELECT * FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${userId.replace(/'/g, "''")}'
+      `);
+
+      if (!currentMembers || currentMembers.length === 0) {
+        throw new Error('Member not found');
+      }
+
+      const currentMember = currentMembers[0];
+
+      // Check if demoting the last admin
+      if (currentMember.role === 'ADMIN' && role !== 'ADMIN') {
+        const adminCountResult = await tx.$queryRawUnsafe<any[]>(`
+          SELECT COUNT(*)::int as count
+          FROM "${schemaName}"."workspace_members"
+          WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+            AND role = 'ADMIN'
+        `);
+
+        const adminCount = adminCountResult[0]?.count || 0;
+
+        if (adminCount === 1) {
+          throw new Error('Cannot demote the last admin. Workspace must have at least one admin.');
+        }
+      }
+
+      // Update the member role
+      await tx.$executeRawUnsafe(`
+        UPDATE "${schemaName}"."workspace_members"
+        SET role = '${role.replace(/'/g, "''")}'
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${userId.replace(/'/g, "''")}'
+      `);
+
+      // Get the updated member
+      const members = await tx.$queryRawUnsafe<any[]>(`
+        SELECT * FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${userId.replace(/'/g, "''")}'
+      `);
+
+      if (!members || members.length === 0) {
+        throw new Error('Member not found');
+      }
+
+      const member = members[0];
 
       // TODO: Invalidate cache and publish event
       // await this.cache.del(`workspace:${workspaceId}:member:${userId}`);
@@ -408,7 +723,13 @@ export class WorkspaceService {
       //   data: { workspaceId, userId, newRole: role }
       // });
 
-      return member;
+      return {
+        workspaceId: member.workspace_id,
+        userId: member.user_id,
+        role: member.role,
+        invitedBy: member.invited_by,
+        joinedAt: member.joined_at,
+      };
     });
   }
 
@@ -416,42 +737,60 @@ export class WorkspaceService {
    * Remove a member from a workspace
    * Prevents removing the last admin
    */
-  async removeMember(workspaceId: string, userId: string): Promise<void> {
-    const tenantContext = getTenantContext();
+  async removeMember(
+    workspaceId: string,
+    userId: string,
+    tenantCtx?: TenantContext
+  ): Promise<void> {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    await executeInTenantSchema(this.db, async (client) => {
+    const schemaName = tenantContext.schemaName;
+
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+
       // Check if user is last admin
-      const adminCount = await client.workspaceMember.count({
-        where: {
-          workspaceId,
-          role: WorkspaceRole.ADMIN,
-        },
-      });
+      const adminCountResult = await tx.$queryRawUnsafe<any[]>(`
+        SELECT COUNT(*)::int as count
+        FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND role = 'ADMIN'
+      `);
 
-      const member = await client.workspaceMember.findUnique({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId,
-          },
-        },
-      });
+      const adminCount = adminCountResult[0]?.count || 0;
 
-      if (member?.role === WorkspaceRole.ADMIN && adminCount === 1) {
+      // Get the member to check their role
+      const members = await tx.$queryRawUnsafe<any[]>(`
+        SELECT * FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${userId.replace(/'/g, "''")}'
+      `);
+
+      if (!members || members.length === 0) {
+        throw new Error('Member not found');
+      }
+
+      const member = members[0];
+
+      if (member.role === 'ADMIN' && adminCount === 1) {
         throw new Error('Cannot remove the last admin from workspace');
       }
 
-      await client.workspaceMember.delete({
-        where: {
-          workspaceId_userId: {
-            workspaceId,
-            userId,
-          },
-        },
-      });
+      // Delete the member
+      await tx.$executeRawUnsafe(`
+        DELETE FROM "${schemaName}"."workspace_members"
+        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
+          AND user_id = '${userId.replace(/'/g, "''")}'
+      `);
 
       // TODO: Invalidate cache and publish event
       // await this.cache.del(`workspace:${workspaceId}:member:${userId}`);
@@ -466,33 +805,37 @@ export class WorkspaceService {
   /**
    * Get all teams in a workspace
    */
-  async getTeams(workspaceId: string) {
-    const tenantContext = getTenantContext();
+  async getTeams(workspaceId: string, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      return client.team.findMany({
-        where: { workspaceId },
-        include: {
-          owner: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
+    return executeInTenantSchema(
+      this.db,
+      async (client) => {
+        return client.team.findMany({
+          where: { workspaceId },
+          include: {
+            owner: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            _count: {
+              select: {
+                members: true,
+              },
             },
           },
-          _count: {
-            select: {
-              members: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-    });
+          orderBy: { createdAt: 'desc' },
+        });
+      },
+      tenantContext
+    );
   }
 
   /**
@@ -504,57 +847,62 @@ export class WorkspaceService {
       name: string;
       description?: string;
       ownerId: string;
-    }
+    },
+    tenantCtx?: TenantContext
   ) {
-    const tenantContext = getTenantContext();
+    const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(this.db, async (client) => {
-      // Verify workspace exists and belongs to tenant
-      const workspace = await client.workspace.findFirst({
-        where: {
-          id: workspaceId,
-          tenantId: tenantContext.tenantId,
-        },
-      });
+    return executeInTenantSchema(
+      this.db,
+      async (client) => {
+        // Verify workspace exists and belongs to tenant
+        const workspace = await client.workspace.findFirst({
+          where: {
+            id: workspaceId,
+            tenantId: tenantContext.tenantId,
+          },
+        });
 
-      if (!workspace) {
-        throw new Error(
-          `Workspace not found or does not belong to tenant ${tenantContext.tenantId}`
-        );
-      }
+        if (!workspace) {
+          throw new Error(
+            `Workspace not found or does not belong to tenant ${tenantContext.tenantId}`
+          );
+        }
 
-      // Create the team
-      const team = await client.team.create({
-        data: {
-          workspaceId,
-          name: data.name,
-          description: data.description,
-          ownerId: data.ownerId,
-        },
-        include: {
-          owner: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
+        // Create the team
+        const team = await client.team.create({
+          data: {
+            workspaceId,
+            name: data.name,
+            description: data.description,
+            ownerId: data.ownerId,
+          },
+          include: {
+            owner: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      // TODO: Publish event
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.team.created',
-      //   aggregateId: workspaceId,
-      //   data: { workspaceId, teamId: team.id, name: data.name }
-      // });
+        // TODO: Publish event
+        // await this.eventBus.publish({
+        //   type: 'core.workspace.team.created',
+        //   aggregateId: workspaceId,
+        //   data: { workspaceId, teamId: team.id, name: data.name }
+        // });
 
-      return team;
-    });
+        return team;
+      },
+      tenantContext
+    );
   }
 }
 
