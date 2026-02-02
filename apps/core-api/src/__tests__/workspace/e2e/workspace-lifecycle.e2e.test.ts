@@ -22,7 +22,7 @@ describe('Workspace E2E Tests', () => {
   let workspaceService: WorkspaceService;
   let testTenantId: string;
   let testUserId: string;
-  let createdWorkspaceIds: string[] = [];
+  const createdWorkspaceIds: string[] = [];
   let tenantContext: TenantContext;
 
   // Helper to run test in tenant context

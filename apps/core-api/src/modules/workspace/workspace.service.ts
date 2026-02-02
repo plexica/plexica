@@ -5,7 +5,6 @@ import {
   executeInTenantSchema,
   type TenantContext,
 } from '../../middleware/tenant-context.js';
-import { TenantPrisma } from '../../lib/tenant-prisma.js';
 import type { CreateWorkspaceDto, UpdateWorkspaceDto, AddMemberDto } from './dto/index.js';
 
 /**
@@ -856,6 +855,83 @@ export class WorkspaceService {
       //   aggregateId: workspaceId,
       //   data: { workspaceId, userId }
       // });
+    });
+  }
+
+  /**
+   * Get a single member with their user profile
+   */
+  async getMemberWithUser(workspaceId: string, userId: string, tenantCtx?: TenantContext) {
+    const tenantContext = tenantCtx || getTenantContext();
+    if (!tenantContext) {
+      throw new Error('No tenant context available');
+    }
+
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
+
+    // Validate schema name
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      // Set LOCAL search path within transaction
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const usersTable = Prisma.raw(`"${schemaName}"."users"`);
+
+      // Check workspace exists and belongs to tenant
+      const workspaceCheck = await tx.$queryRaw<any[]>`
+        SELECT id FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
+      `;
+
+      if (!workspaceCheck || workspaceCheck.length === 0) {
+        throw new Error(
+          `Workspace ${workspaceId} not found or does not belong to tenant ${tenantId}`
+        );
+      }
+
+      // Get the member with user info
+      const members = await tx.$queryRaw<any[]>`
+        SELECT 
+          wm.workspace_id,
+          wm.user_id,
+          wm.role,
+          wm.invited_by,
+          wm.joined_at,
+          u.id as user_id,
+          u.email as user_email,
+          u.first_name as user_first_name,
+          u.last_name as user_last_name
+        FROM ${membersTable} wm
+        LEFT JOIN ${usersTable} u ON u.id = wm.user_id
+        WHERE wm.workspace_id = ${workspaceId} AND wm.user_id = ${userId}
+      `;
+
+      if (!members || members.length === 0) {
+        throw new Error('Member not found');
+      }
+
+      const member = members[0];
+
+      return {
+        workspaceId: member.workspace_id,
+        userId: member.user_id,
+        role: member.role,
+        invitedBy: member.invited_by,
+        joinedAt: member.joined_at,
+        user: {
+          id: member.user_id,
+          email: member.user_email,
+          firstName: member.user_first_name,
+          lastName: member.user_last_name,
+        },
+      };
     });
   }
 

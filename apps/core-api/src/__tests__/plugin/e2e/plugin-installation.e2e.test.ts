@@ -551,7 +551,7 @@ describe('Plugin Installation E2E Tests', () => {
       });
 
       // Verify installation still references old version initially
-      let installation = await db.tenantPlugin.findFirst({
+      const installation = await db.tenantPlugin.findFirst({
         where: { tenantId: testTenantId, pluginId },
         include: { plugin: true },
       });

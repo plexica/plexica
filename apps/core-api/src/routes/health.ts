@@ -72,7 +72,7 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
         const prisma = getPrismaClient();
         await prisma.$queryRaw`SELECT 1`;
         checks.database = 'ok';
-      } catch (error) {
+      } catch {
         checks.database = 'error';
       }
 

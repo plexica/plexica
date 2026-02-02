@@ -140,13 +140,14 @@ const memberParamsSchema = {
 /**
  * Workspace routes registration
  *
- * Implements 9 API endpoints:
+ * Implements 10 API endpoints:
  * - POST   /api/workspaces              - Create workspace
  * - GET    /api/workspaces              - List user's workspaces
  * - GET    /api/workspaces/:id          - Get workspace details
  * - PATCH  /api/workspaces/:id          - Update workspace (admin only)
  * - DELETE /api/workspaces/:id          - Delete workspace (admin only)
  * - GET    /api/workspaces/:id/members  - List workspace members
+ * - GET    /api/workspaces/:id/members/:userId - Get member details
  * - POST   /api/workspaces/:id/members  - Add member (admin only)
  * - PATCH  /api/workspaces/:id/members/:userId - Update member role (admin only)
  * - DELETE /api/workspaces/:id/members/:userId - Remove member (admin only)
@@ -513,6 +514,74 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'Failed to fetch workspace members',
+        });
+      }
+    }
+  );
+
+  // Get specific member details
+  // Requires: tenant context, workspace membership
+  fastify.get(
+    '/workspaces/:workspaceId/members/:userId',
+    {
+      schema: {
+        ...memberParamsSchema,
+        tags: ['workspaces'],
+        summary: 'Get member details',
+        description: 'Returns details of a specific workspace member including their profile',
+        response: {
+          200: {
+            description: 'Member details retrieved successfully',
+            type: 'object',
+            properties: {
+              workspaceId: { type: 'string' },
+              userId: { type: 'string' },
+              role: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
+              invitedBy: { type: 'string' },
+              joinedAt: { type: 'string', format: 'date-time' },
+              user: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  email: { type: 'string' },
+                  firstName: { type: 'string' },
+                  lastName: { type: 'string' },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'Member not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { workspaceId, userId } = request.params as any;
+        const member = await workspaceService.getMemberWithUser(
+          workspaceId,
+          userId,
+          (request as any).tenant
+        );
+        return reply.send(member);
+      } catch (error) {
+        request.log.error(error);
+        if (error instanceof Error && error.message.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: 'Member not found',
+          });
+        }
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to fetch member details',
         });
       }
     }

@@ -47,7 +47,7 @@ export function isValidCorsOrigin(origin: string): boolean {
     }
 
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

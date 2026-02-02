@@ -268,7 +268,7 @@ export class KeycloakService {
       // Try to fetch the master realm as a health check
       await this.client.realms.findOne({ realm: 'master' });
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

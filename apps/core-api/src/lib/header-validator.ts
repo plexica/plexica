@@ -64,6 +64,7 @@ export function sanitizeHeaderValue(value: string, maxLength: number = 100): str
   }
 
   // Remove null bytes and control characters
+  // eslint-disable-next-line no-control-regex
   value = value.replace(/[\x00-\x1F\x7F]/g, '');
 
   // Remove CRLF injection attempts

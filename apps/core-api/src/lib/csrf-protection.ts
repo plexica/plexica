@@ -83,12 +83,12 @@ export function validateCSRFToken(token: string, sessionId: string, userAgent?: 
  * Revoke all tokens for a session (on logout)
  */
 export function revokeSessionTokens(sessionId: string): void {
-  let revoked = 0;
+  let _revoked = 0;
 
   for (const [token, entry] of tokenCache.entries()) {
     if (entry.sessionId === sessionId) {
       tokenCache.delete(token);
-      revoked++;
+      _revoked++;
     }
   }
   // Silently revoke - no need to log

@@ -33,4 +33,12 @@ export default defineConfig([
       'no-useless-escape': 'off',
     },
   },
+  // Test files - more lenient rules
+  {
+    files: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      'prefer-const': 'warn',
+    },
+  },
 ]);

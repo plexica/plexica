@@ -232,7 +232,7 @@ export function validatePluginManifest(manifest: unknown): {
     }));
 
     return { valid: false, errors };
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       errors: [{ path: 'manifest', message: 'Invalid manifest format' }],
@@ -261,7 +261,7 @@ export function validatePluginApiSection(api: unknown): {
     }));
 
     return { valid: false, errors };
-  } catch (error) {
+  } catch {
     return {
       valid: false,
       errors: [{ path: 'api', message: 'Invalid API section format' }],

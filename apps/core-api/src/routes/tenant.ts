@@ -5,7 +5,7 @@ import {
   type UpdateTenantInput,
 } from '../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
-import { requireSuperAdmin, authMiddleware } from '../middleware/auth.js';
+import { requireSuperAdmin } from '../middleware/auth.js';
 
 // Request schemas
 const createTenantSchema = {

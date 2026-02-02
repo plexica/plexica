@@ -1,6 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { workspaceService } from '../workspace.service.js';
-import { setWorkspaceId, getTenantContext } from '../../../middleware/tenant-context.js';
 
 /**
  * Workspace Guard Middleware
@@ -46,14 +45,26 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
-    // Verify workspace exists, belongs to current tenant, and user has membership
-    // Pass tenant context explicitly to avoid AsyncLocalStorage issues
+    // First check if workspace exists and belongs to tenant
+    try {
+      await workspaceService.findOne(workspaceId, tenantContext);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        return reply.code(404).send({
+          error: 'Not Found',
+          message: 'Workspace not found or does not belong to this tenant',
+        });
+      }
+      throw error;
+    }
+
+    // Then verify user has membership
     const membership = await workspaceService.getMembership(workspaceId, userId, tenantContext);
 
     if (!membership) {
       return reply.code(403).send({
         error: 'Forbidden',
-        message: 'Access to workspace denied. Workspace not found or user is not a member.',
+        message: 'You are not a member of this workspace',
       });
     }
 
