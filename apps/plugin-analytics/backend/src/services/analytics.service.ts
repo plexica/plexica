@@ -7,12 +7,10 @@
 
 import type {
   Report,
-  ReportType,
   ReportResult,
   ContactsSummaryData,
   DealsPipelineData,
   SalesForecastData,
-  TimePeriod,
 } from '../types/index.js';
 import { CRMApiClient } from '../lib/crm-client.js';
 

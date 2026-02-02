@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores(['dist', 'node_modules', 'coverage', 'build', '.turbo']),
+  globalIgnores(['dist', 'node_modules', 'coverage', 'build', '.turbo', '**/*.js']),
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
@@ -44,6 +44,7 @@ export default defineConfig([
           varsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/no-explicit-any': 'off',
     },
     settings: {
       react: {

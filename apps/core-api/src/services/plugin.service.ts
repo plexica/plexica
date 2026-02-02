@@ -777,8 +777,8 @@ export class PluginLifecycleService {
    * Run plugin lifecycle hook
    */
   private async runLifecycleHook(
-    manifest: PluginManifest,
-    hook: string,
+    _manifest: PluginManifest,
+    _hook: string,
     _context: any
   ): Promise<void> {
     // TODO: Implement actual hook execution

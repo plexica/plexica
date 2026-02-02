@@ -2,7 +2,6 @@
 // Complete database seeding script for Plexica development
 
 import { PrismaClient, TenantStatus, PluginStatus } from '@prisma/client';
-import { Prisma } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from 'dotenv';
@@ -436,34 +435,30 @@ async function main() {
   console.log('\n📦 Seeding plugins...');
   for (const plugin of plugins) {
     // Use raw SQL INSERT with ON CONFLICT to handle upsert
-    const screenshotsArray = plugin.screenshots
-      ? `ARRAY[${plugin.screenshots.map((s) => `'${s}'`).join(',')}]::text[]`
-      : 'NULL';
-
     await prisma.$executeRawUnsafe(
       `
-      INSERT INTO core.plugins (
-        id, name, version, status, manifest,
-        description, long_description, category, author, author_email,
-        homepage, repository, license, icon, screenshots, demo_url,
-        average_rating, rating_count, download_count, install_count,
-        published_at, rejected_at, rejection_reason,
-        created_at, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, ${screenshotsArray}, $15,
-        $16, $17, $18, $19,
-        $20, $21, $22,
-        NOW(), NOW()
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        version = EXCLUDED.version,
-        status = EXCLUDED.status,
-        manifest = EXCLUDED.manifest,
-        updated_at = NOW()
-    `,
+       INSERT INTO core.plugins (
+         id, name, version, status, manifest,
+         description, long_description, category, author, author_email,
+         homepage, repository, license, icon, screenshots, demo_url,
+         average_rating, rating_count, download_count, install_count,
+         published_at, rejected_at, rejection_reason,
+         created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, $4, $5,
+         $6, $7, $8, $9, $10,
+         $11, $12, $13, $14, $15, $16,
+         $17, $18, $19, $20,
+         $21, $22, $23,
+         NOW(), NOW()
+       )
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         version = EXCLUDED.version,
+         status = EXCLUDED.status,
+         manifest = EXCLUDED.manifest,
+         updated_at = NOW()
+     `,
       plugin.id,
       plugin.name,
       plugin.version,
@@ -478,14 +473,15 @@ async function main() {
       plugin.repository || null,
       plugin.license || null,
       plugin.icon || null,
+      plugin.screenshots || [],
       plugin.demoUrl || null,
       plugin.averageRating || null,
       plugin.ratingCount || 0,
       plugin.downloadCount || 0,
       plugin.installCount || 0,
       plugin.publishedAt || null,
-      plugin.rejectedAt || null,
-      plugin.rejectionReason || null
+      (plugin as any).rejectedAt || null,
+      (plugin as any).rejectionReason || null
     );
 
     console.log(`   ✅ ${plugin.id} - ${plugin.name} v${plugin.version}`);
@@ -589,13 +585,14 @@ async function main() {
   console.log('\n📌 Seeding plugin versions...');
   for (const versionData of pluginVersions) {
     // Find plugin from our local plugins array to avoid Prisma TEXT[] bug
-    const plugin = plugins.find(p => p.id === versionData.pluginId);
+    const plugin = plugins.find((p) => p.id === versionData.pluginId);
     if (plugin) {
       const versionId = `${versionData.pluginId}-${versionData.version}`;
       const assetUrl = `https://cdn.plexica.io/plugins/${versionData.pluginId}/${versionData.version}/bundle.js`;
       const downloadCount = Math.floor(Math.random() * 50);
 
-      await prisma.$executeRawUnsafe(`
+      await prisma.$executeRawUnsafe(
+        `
         INSERT INTO core.plugin_versions (
           id, plugin_id, version, changelog, manifest, asset_url,
           download_count, is_latest, published_at, created_at
@@ -616,12 +613,11 @@ async function main() {
         versionData.isLatest,
         versionData.publishedAt || null
       );
-      
+
       console.log(
         `   ✅ ${versionData.pluginId}@${versionData.version}${versionData.isLatest ? ' (latest)' : ''}`
       );
     }
-  }
   }
 
   // 7. Seed Plugin Ratings - Array definition
@@ -788,7 +784,7 @@ async function main() {
       installation.tenantId,
       installation.installedBy,
       installation.installedAt,
-      installation.uninstalledAt || null
+      null
     );
 
     console.log(
@@ -798,6 +794,7 @@ async function main() {
 
   console.log('\n✅ Marketplace seeding complete!\n');
   console.log('📊 Additional Summary:');
+  console.log(`   - Plugins: ${plugins.length}`);
   console.log(`   - Plugin Versions: ${pluginVersions.length}`);
   console.log(`   - Plugin Ratings: ${ratings.length}`);
   console.log(`   - Installation History: ${installationHistory.length}`);

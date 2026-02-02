@@ -200,7 +200,7 @@ const ContactsPage: React.FC<PluginProps> = ({ tenantId }) => {
 
       {filteredContacts.length === 0 && (
         <div className="text-center py-12 bg-white rounded-lg shadow border border-gray-200 mt-6">
-          <p className="text-gray-500">No contacts found matching "{searchTerm}"</p>
+          <p className="text-gray-500">No contacts found matching &quot;{searchTerm}&quot;</p>
         </div>
       )}
 
