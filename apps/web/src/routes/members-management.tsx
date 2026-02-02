@@ -291,7 +291,7 @@ function InviteDialog({
         toast.success('Member invited successfully');
         queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
         onInvite();
-      } catch (error) {
+      } catch {
         toast.error('Failed to invite member');
       }
     },

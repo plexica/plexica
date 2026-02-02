@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', '**/*.js', '**/*.js.map', '**/*.d.ts', '**/*.d.ts.map']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -17,7 +17,38 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
+      sourceType: 'module',
+      parser: tseslint.parser,
       globals: globals.browser,
+    },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  // Context files - disable react-refresh since they export hooks too
+  {
+    files: ['**/contexts/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  // Test files - more lenient rules
+  {
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'prefer-const': 'warn',
     },
   },
 ]);
