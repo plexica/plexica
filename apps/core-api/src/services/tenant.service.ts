@@ -243,12 +243,35 @@ export class TenantService {
     `);
 
     await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "teams_owner_id_idx" 
-      ON "${schemaName}"."teams"(owner_id)
-    `);
+       CREATE INDEX IF NOT EXISTS "teams_owner_id_idx" 
+       ON "${schemaName}"."teams"(owner_id)
+     `);
+
+    // Create team members table with CASCADE DELETE on user removal
+    await this.db.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS "${schemaName}"."TeamMember" (
+         "teamId" TEXT NOT NULL,
+         "user_id" TEXT NOT NULL,
+         "role" TEXT NOT NULL DEFAULT 'MEMBER',
+         "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         PRIMARY KEY ("teamId", "user_id"),
+         FOREIGN KEY ("teamId") REFERENCES "${schemaName}"."teams"(id) ON DELETE CASCADE,
+         FOREIGN KEY ("user_id") REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE
+       )
+     `);
 
     await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
+       CREATE INDEX IF NOT EXISTS "team_member_user_id_idx" 
+       ON "${schemaName}"."TeamMember"("user_id")
+     `);
+
+    await this.db.$executeRawUnsafe(`
+       CREATE INDEX IF NOT EXISTS "team_member_team_id_idx" 
+       ON "${schemaName}"."TeamMember"("teamId")
+     `);
+
+    await this.db.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
         workspace_id TEXT NOT NULL,
         resource_type TEXT NOT NULL,

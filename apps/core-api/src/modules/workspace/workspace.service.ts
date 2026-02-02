@@ -876,11 +876,24 @@ export class WorkspaceService {
         throw new Error('Cannot remove the last admin from workspace');
       }
 
+      // First, delete team memberships for this user in teams within this workspace
+      const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
+      const teamMembersTable = Prisma.raw(`"${schemaName}"."TeamMember"`);
+
+      await tx.$executeRaw`
+         DELETE FROM ${teamMembersTable}
+         WHERE "teamId" IN (
+           SELECT id FROM ${teamsTable}
+           WHERE workspace_id = ${workspaceId}
+         )
+         AND "user_id" = ${userId}
+       `;
+
       // Delete the member
       await tx.$executeRaw`
-        DELETE FROM ${membersTable}
-        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
-      `;
+         DELETE FROM ${membersTable}
+         WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+       `;
 
       // TODO: Invalidate cache and publish event
       // await this.cache.del(`workspace:${workspaceId}:member:${userId}`);
