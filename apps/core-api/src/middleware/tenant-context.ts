@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import { Prisma } from '@plexica/database';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
 import { db } from '../lib/db.js';
@@ -234,11 +235,12 @@ export async function executeInTenantSchema<T>(
     throw new Error(`Invalid schema name: ${schemaName}`);
   }
 
-  // Set the schema for this query
+  // Set the schema for this query using parameterized query
   // Note: This is a simplified approach. In production, you might want to use
   // Prisma's multi-schema support or create separate Prisma clients per tenant
   console.log('[EXECUTE_IN_TENANT] Setting search_path to:', schemaName);
-  await prismaClient.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+  const setSearchPath = Prisma.raw(`"${schemaName}"`);
+  await prismaClient.$executeRaw`SET search_path TO ${setSearchPath}`;
   console.log('[EXECUTE_IN_TENANT] Search path set successfully');
 
   try {
@@ -247,7 +249,7 @@ export async function executeInTenantSchema<T>(
     return result;
   } finally {
     // Reset to default schema
-    await prismaClient.$executeRawUnsafe(`SET search_path TO public, core`);
+    await prismaClient.$executeRaw`SET search_path TO public, core`;
   }
 }
 
@@ -266,30 +268,30 @@ async function syncUserToTenantSchema(schemaName: string, userInfo: any): Promis
     const firstName = userInfo.name?.split(' ')[0] || null;
     const lastName = userInfo.name?.split(' ').slice(1).join(' ') || null;
 
-    // Upsert user into tenant schema
+    // Upsert user into tenant schema using parameterized query
     // Note: Only use columns that exist in the tenant schema users table
-    const query = `
-      INSERT INTO "${schemaName}"."users" (
-        "id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at"
-      )
-      VALUES (
-        '${userInfo.id}', 
-        '${userInfo.id}', 
-        '${userInfo.email || ''}', 
-        ${firstName ? `'${firstName.replace(/'/g, "''")}'` : 'NULL'}, 
-        ${lastName ? `'${lastName.replace(/'/g, "''")}'` : 'NULL'}, 
-        NOW(), 
-        NOW()
-      )
-      ON CONFLICT ("keycloak_id")
-      DO UPDATE SET
-        "email" = EXCLUDED."email",
-        "first_name" = EXCLUDED."first_name",
-        "last_name" = EXCLUDED."last_name",
-        "updated_at" = NOW()
-    `;
+    const tableName = Prisma.raw(`"${schemaName}"."users"`);
 
-    await db.$executeRawUnsafe(query);
+    await db.$executeRaw`
+       INSERT INTO ${tableName} (
+         "id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at"
+       )
+       VALUES (
+         ${userInfo.id}, 
+         ${userInfo.id}, 
+         ${userInfo.email || null}, 
+         ${firstName}, 
+         ${lastName}, 
+         NOW(), 
+         NOW()
+       )
+       ON CONFLICT ("keycloak_id")
+       DO UPDATE SET
+         "email" = EXCLUDED."email",
+         "first_name" = EXCLUDED."first_name",
+         "last_name" = EXCLUDED."last_name",
+         "updated_at" = NOW()
+     `;
   } catch (error) {
     // Log error but don't fail the request
     console.error('Failed to sync user to tenant schema:', error);

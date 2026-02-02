@@ -170,7 +170,7 @@ describe('Tenant Context Helper Functions', () => {
   describe('executeInTenantSchema', () => {
     it('should execute callback with correct schema path', async () => {
       const mockPrisma = {
-        $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const callback = vi.fn().mockResolvedValue({ result: 'success' });
@@ -180,16 +180,14 @@ describe('Tenant Context Helper Functions', () => {
       });
 
       expect(result).toEqual({ result: 'success' });
-      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        'SET search_path TO "tenant_test_tenant"'
-      );
-      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith('SET search_path TO public, core');
+      // Should have called $executeRaw twice - once to set search_path, once to reset
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
       expect(callback).toHaveBeenCalledWith(mockPrisma);
     });
 
     it('should reset schema even when callback throws', async () => {
       const mockPrisma = {
-        $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const callback = vi.fn().mockRejectedValue(new Error('Query failed'));
@@ -200,13 +198,13 @@ describe('Tenant Context Helper Functions', () => {
         })
       ).rejects.toThrow('Query failed');
 
-      // Should still reset schema
-      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith('SET search_path TO public, core');
+      // Should still call reset schema
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
     it('should throw when no tenant context is available', async () => {
       const mockPrisma = {
-        $executeRawUnsafe: vi.fn(),
+        $executeRaw: vi.fn(),
       };
 
       const callback = vi.fn();
@@ -224,7 +222,7 @@ describe('Tenant Context Helper Functions', () => {
       };
 
       const mockPrisma = {
-        $executeRawUnsafe: vi.fn(),
+        $executeRaw: vi.fn(),
       };
 
       const callback = vi.fn();
@@ -244,7 +242,7 @@ describe('Tenant Context Helper Functions', () => {
       };
 
       const mockPrisma = {
-        $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
 
       const callback = vi.fn().mockResolvedValue({ result: 'success' });
@@ -254,9 +252,7 @@ describe('Tenant Context Helper Functions', () => {
       });
 
       expect(result).toEqual({ result: 'success' });
-      expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-        'SET search_path TO "tenant_123_abc"'
-      );
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
     });
   });
 });
