@@ -8,11 +8,7 @@ const Footer = React.forwardRef<HTMLElement, FooterProps>(
     return (
       <footer
         ref={ref}
-        className={cn(
-          'border-t bg-background-primary',
-          'h-12 flex items-center px-4',
-          className
-        )}
+        className={cn('border-t bg-background-primary', 'h-12 flex items-center px-4', className)}
         {...props}
       >
         {children}
@@ -31,7 +27,11 @@ FooterLeft.displayName = 'FooterLeft';
 
 const FooterCenter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 flex items-center justify-center', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex-1 flex items-center justify-center', className)}
+      {...props}
+    />
   )
 );
 FooterCenter.displayName = 'FooterCenter';

@@ -27,7 +27,11 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
                 onClick={() => onCollapsedChange(!collapsed)}
                 className="w-full flex items-center justify-center p-2 rounded hover:bg-background-secondary transition-colors"
               >
-                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                {collapsed ? (
+                  <ChevronRight className="h-4 w-4" />
+                ) : (
+                  <ChevronLeft className="h-4 w-4" />
+                )}
               </button>
             </div>
           )}

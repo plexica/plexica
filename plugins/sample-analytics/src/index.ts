@@ -1,6 +1,6 @@
 /**
  * Sample Analytics Plugin
- * 
+ *
  * This is a demonstration plugin that shows how to:
  * - Subscribe to system hooks
  * - Track user activity
@@ -27,15 +27,12 @@ interface PluginContext {
  */
 export async function initialize(context: PluginContext): Promise<void> {
   const { tenantId, config, logger } = context;
-  
-  logger.info(
-    `[sample-analytics] Initializing for tenant: ${tenantId} with config:`,
-    {
-      trackingEnabled: config.trackingEnabled,
-      reportingInterval: config.reportingInterval,
-      dataRetentionDays: config.dataRetentionDays,
-    }
-  );
+
+  logger.info(`[sample-analytics] Initializing for tenant: ${tenantId} with config:`, {
+    trackingEnabled: config.trackingEnabled,
+    reportingInterval: config.reportingInterval,
+    dataRetentionDays: config.dataRetentionDays,
+  });
 
   // In a real plugin, you would:
   // 1. Set up database tables for analytics
@@ -50,7 +47,7 @@ export async function initialize(context: PluginContext): Promise<void> {
  */
 export async function cleanup(context: PluginContext): Promise<void> {
   const { tenantId, logger } = context;
-  
+
   logger.info(`[sample-analytics] Cleaning up for tenant: ${tenantId}`);
 
   // In a real plugin, you would:
@@ -68,7 +65,7 @@ export const hooks = {
    */
   'user.login': async (data: any, context: PluginContext) => {
     const { logger, config } = context;
-    
+
     if (!config.trackingEnabled) {
       return;
     }
@@ -91,7 +88,7 @@ export const hooks = {
    */
   'user.logout': async (data: any, context: PluginContext) => {
     const { logger, config } = context;
-    
+
     if (!config.trackingEnabled) {
       return;
     }
@@ -114,7 +111,7 @@ export const hooks = {
    */
   'api.request': async (data: any, context: PluginContext) => {
     const { logger, config } = context;
-    
+
     if (!config.trackingEnabled) {
       return;
     }

@@ -33,7 +33,11 @@ HeaderLeft.displayName = 'HeaderLeft';
 
 const HeaderCenter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 flex items-center justify-center px-4', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex-1 flex items-center justify-center px-4', className)}
+      {...props}
+    />
   )
 );
 HeaderCenter.displayName = 'HeaderCenter';

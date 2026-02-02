@@ -32,6 +32,7 @@ pnpm infra:start
 8. Click **"Create"**
 
 ✅ Done! Realm `plexica-admin` is ready with:
+
 - Client: `super-admin-app`
 - Users: `admin/admin` (super-admin role), `viewer/viewer` (viewer role)
 
@@ -96,12 +97,14 @@ pnpm dev --filter @plexica/super-admin
 ### Verify Authentication
 
 Open browser DevTools → Application → Session Storage → Check:
+
 - ✅ `kc-token`: Keycloak access token
 - ✅ `kc-refreshToken`: Refresh token
 
 ### Check API Headers (CRITICAL)
 
 Open DevTools → Network tab → Make any API call → Check headers:
+
 - ✅ `Authorization: Bearer <token>` (should be present)
 - ❌ `X-Tenant-Slug` (should NOT be present)
 - ❌ `X-Workspace-ID` (should NOT be present)
@@ -115,25 +118,33 @@ Open DevTools → Network tab → Make any API call → Check headers:
 ## Common Issues
 
 ### "Keycloak is not initialized"
+
 **Solution**: Check if Keycloak is running:
+
 ```bash
 curl http://localhost:8080
 docker ps | grep keycloak
 ```
 
 ### "Invalid redirect URI" after login
+
 **Solution**: In Keycloak Admin Console:
+
 1. Clients → `super-admin-app` → Settings
 2. Valid redirect URIs: `http://localhost:3002/*`
 3. Web origins: `http://localhost:3002`
 
 ### Login works but shows "Access denied"
+
 **Solution**: User missing `super-admin` role:
+
 1. Users → `admin` → Role mapping
 2. Assign role → Select `super-admin` → Assign
 
 ### App doesn't start
-**Solution**: 
+
+**Solution**:
+
 ```bash
 # Clean and reinstall
 pnpm clean
@@ -162,6 +173,7 @@ cd apps/web && pnpm dev
 ```
 
 **Ports**:
+
 - 🔐 Keycloak: http://localhost:8080
 - 🔌 Backend API: http://localhost:3000
 - 🌐 Web App: http://localhost:3001
@@ -169,11 +181,11 @@ cd apps/web && pnpm dev
 
 ## Credentials Summary
 
-| Service | URL | Username | Password |
-|---------|-----|----------|----------|
-| Keycloak Admin | http://localhost:8080 | admin | admin |
-| Super Admin App | http://localhost:3002 | admin | admin |
-| Super Admin (viewer) | http://localhost:3002 | viewer | viewer |
+| Service              | URL                   | Username | Password |
+| -------------------- | --------------------- | -------- | -------- |
+| Keycloak Admin       | http://localhost:8080 | admin    | admin    |
+| Super Admin App      | http://localhost:3002 | admin    | admin    |
+| Super Admin (viewer) | http://localhost:3002 | viewer   | viewer   |
 
 ⚠️ **Change these in production!**
 

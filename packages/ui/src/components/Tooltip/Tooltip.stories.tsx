@@ -134,8 +134,8 @@ export const HelpIcon: Story = {
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           <p>
-            Controls whether this workspace can be discovered by other users in your tenant.
-            Private workspaces are only accessible via direct invitation.
+            Controls whether this workspace can be discovered by other users in your tenant. Private
+            workspaces are only accessible via direct invitation.
           </p>
         </TooltipContent>
       </Tooltip>

@@ -1,6 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import * as React from 'react';
-import { User, Settings, HelpCircle, LogOut, UserPlus, Mail, MessageSquare, PlusCircle } from 'lucide-react';
+import {
+  User,
+  Settings,
+  HelpCircle,
+  LogOut,
+  UserPlus,
+  Mail,
+  MessageSquare,
+  PlusCircle,
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,

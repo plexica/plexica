@@ -110,14 +110,18 @@ export const WorkspacePermission: Story = {
           <RadioGroupItem value="workspace" id="share-workspace" />
           <div className="flex flex-col">
             <Label htmlFor="share-workspace">Current workspace only</Label>
-            <span className="text-xs text-text-secondary">Only Sales workspace members can access</span>
+            <span className="text-xs text-text-secondary">
+              Only Sales workspace members can access
+            </span>
           </div>
         </div>
         <div className="flex items-center space-x-2">
           <RadioGroupItem value="selected" id="share-selected" />
           <div className="flex flex-col">
             <Label htmlFor="share-selected">Selected workspaces</Label>
-            <span className="text-xs text-text-secondary">Choose which workspaces to share with</span>
+            <span className="text-xs text-text-secondary">
+              Choose which workspaces to share with
+            </span>
           </div>
         </div>
         <div className="flex items-center space-x-2">

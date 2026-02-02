@@ -1,6 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Sidebar, SidebarSection, SidebarItem, SidebarDivider } from './Sidebar';
-import { LayoutDashboard, Users, DollarSign, Ticket, Settings, Building, UserCog } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  DollarSign,
+  Ticket,
+  Settings,
+  Building,
+  UserCog,
+} from 'lucide-react';
 import * as React from 'react';
 
 const meta: Meta<typeof Sidebar> = {

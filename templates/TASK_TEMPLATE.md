@@ -41,9 +41,9 @@
 
 ### Known Blockers
 
-| Blocker | Impact | Workaround | Owner | Status |
-|---------|--------|------------|-------|--------|
-| Problem description | High/Medium/Low | Possible temporary solution | Name | Open/In Progress/Resolved |
+| Blocker             | Impact          | Workaround                  | Owner | Status                    |
+| ------------------- | --------------- | --------------------------- | ----- | ------------------------- |
+| Problem description | High/Medium/Low | Possible temporary solution | Name  | Open/In Progress/Resolved |
 
 ---
 
@@ -66,11 +66,13 @@
 [Detailed task description - what needs to be done, why, and how]
 
 **Acceptance Criteria**:
+
 - [ ] Measurable criterion 1
 - [ ] Measurable criterion 2
 - [ ] Measurable criterion 3
 
 **Technical Notes**:
+
 ```
 - Technical note 1
 - Technical note 2
@@ -78,10 +80,12 @@
 ```
 
 **Dependencies**:
+
 - Depends on: [Task X.X]
 - Blocks: [Task Y.Y]
 
 **Testing**:
+
 - [ ] Unit tests written
 - [ ] Integration tests written
 - [ ] Manually tested
@@ -99,18 +103,22 @@
 [Detailed task description]
 
 **Acceptance Criteria**:
+
 - [ ] Criterion 1
 - [ ] Criterion 2
 
 **Technical Notes**:
+
 ```
 - Technical note
 ```
 
 **Dependencies**:
+
 - Depends on: [Task X.X]
 
 **Testing**:
+
 - [ ] Unit tests
 - [ ] Integration tests
 
@@ -178,12 +186,14 @@
 **Coverage Target**: >= 80%
 
 **Focus Areas**:
+
 - [ ] Services business logic
 - [ ] Utility functions
 - [ ] Validators/schemas
 - [ ] Formatters/transformers
 
 **Example**:
+
 ```typescript
 // File: src/services/__tests__/example.service.test.ts
 
@@ -203,12 +213,14 @@ describe('ExampleService', () => {
 
 **Tool**: Vitest + Testcontainers (for DB)  
 **Focus Areas**:
+
 - [ ] API endpoints
 - [ ] Database operations
 - [ ] Service interactions
 - [ ] Event handling
 
 **Example**:
+
 ```typescript
 // File: src/modules/example/__tests__/example.integration.test.ts
 
@@ -222,11 +234,8 @@ describe('Example API Integration', () => {
   });
 
   it('POST /api/example creates resource', async () => {
-    const response = await request(app)
-      .post('/api/example')
-      .send({ name: 'Test' })
-      .expect(201);
-    
+    const response = await request(app).post('/api/example').send({ name: 'Test' }).expect(201);
+
     expect(response.body).toHaveProperty('id');
   });
 });
@@ -238,12 +247,14 @@ describe('Example API Integration', () => {
 
 **Tool**: Playwright  
 **Focus Areas**:
+
 - [ ] Critical user flows
 - [ ] Authentication
 - [ ] CRUD operations
 - [ ] Error handling
 
 **Example**:
+
 ```typescript
 // File: e2e/example.spec.ts
 
@@ -254,7 +265,7 @@ test('user can create and view resource', async ({ page }) => {
   await page.fill('[name=email]', 'test@example.com');
   await page.fill('[name=password]', 'password');
   await page.click('button[type=submit]');
-  
+
   await expect(page).toHaveURL('/dashboard');
   // ... rest of test
 });
@@ -277,6 +288,7 @@ test('user can create and view resource', async ({ page }) => {
 ### During Review (Reviewer)
 
 **Code Quality**:
+
 - [ ] Logic is clear and understandable
 - [ ] Variable/function names are meaningful
 - [ ] No duplicated code
@@ -284,24 +296,28 @@ test('user can create and view resource', async ({ page }) => {
 - [ ] Appropriate logging
 
 **Architecture**:
+
 - [ ] Respects project architectural patterns
 - [ ] Separation of concerns (service/controller/repository)
 - [ ] Dependencies injected correctly
 - [ ] Well-defined interfaces
 
 **Testing**:
+
 - [ ] Tests cover edge cases
 - [ ] Tests are deterministic
 - [ ] Appropriate mocks/stubs
 - [ ] Tests not too coupled to implementation
 
 **Security**:
+
 - [ ] Input validation present
 - [ ] No sensitive data in logs
 - [ ] Permissions checked
 - [ ] SQL injection prevented (use Prisma)
 
 **Performance**:
+
 - [ ] Optimized database queries
 - [ ] No N+1 query problem
 - [ ] Appropriate caching
@@ -314,24 +330,28 @@ test('user can create and view resource', async ({ page }) => {
 ### Pre-Deployment
 
 **Code**:
+
 - [ ] Branch merged into main/develop
 - [ ] All CI/CD tests passed
 - [ ] Code review approved
 - [ ] Version bump performed
 
 **Database**:
+
 - [ ] Migration files created
 - [ ] Migration tested locally
 - [ ] Rollback plan defined
 - [ ] Database backup pre-deployment
 
 **Configuration**:
+
 - [ ] Environment variables updated
 - [ ] Secrets configured (Vault/Secrets Manager)
 - [ ] Feature flags set
 - [ ] Rate limits configured
 
 **Documentation**:
+
 - [ ] CHANGELOG.md updated
 - [ ] API docs updated (if applicable)
 - [ ] README updated
@@ -342,6 +362,7 @@ test('user can create and view resource', async ({ page }) => {
 ### Deployment
 
 **Steps**:
+
 1. [ ] Notify team deployment in progress
 2. [ ] Deploy to staging environment
 3. [ ] Smoke tests on staging
@@ -351,6 +372,7 @@ test('user can create and view resource', async ({ page }) => {
 7. [ ] Monitor logs/metrics for 15min
 
 **Rollback Plan**:
+
 ```bash
 # In case of critical issues
 kubectl rollout undo deployment/[deployment-name]
@@ -363,18 +385,21 @@ helm rollback [release-name] [revision]
 ### Post-Deployment
 
 **Verification**:
+
 - [ ] Health checks OK
 - [ ] Nominal metrics (latency, error rate)
 - [ ] No critical errors in logs
 - [ ] Production smoke tests passed
 
 **Monitoring** (first 24h):
+
 - [ ] Error rate < 1%
 - [ ] P95 latency < XXXms
 - [ ] CPU/Memory usage normal
 - [ ] No critical alerts
 
 **Communication**:
+
 - [ ] Notify team deployment completed
 - [ ] Update status page (if breaking changes)
 - [ ] Notify customers (if major feature)
@@ -383,12 +408,12 @@ helm rollback [release-name] [revision]
 
 ## Risks & Mitigation
 
-| Risk | Probability | Impact | Mitigation | Owner |
-|------|-------------|--------|------------|-------|
-| Delay on critical task X | Medium | High | Assign backup developer | [Name] |
-| Blocking bug on dependency Y | Low | High | Develop temporary workaround | [Name] |
-| External service Z unavailable | Low | Medium | Implement fallback/cache | [Name] |
-| Performance issue on query | Medium | Medium | Pre-optimize queries, add indexes | [Name] |
+| Risk                           | Probability | Impact | Mitigation                        | Owner  |
+| ------------------------------ | ----------- | ------ | --------------------------------- | ------ |
+| Delay on critical task X       | Medium      | High   | Assign backup developer           | [Name] |
+| Blocking bug on dependency Y   | Low         | High   | Develop temporary workaround      | [Name] |
+| External service Z unavailable | Low         | Medium | Implement fallback/cache          | [Name] |
+| Performance issue on query     | Medium      | Medium | Pre-optimize queries, add indexes | [Name] |
 
 ---
 
@@ -397,6 +422,7 @@ helm rollback [release-name] [revision]
 ### Technical Decisions
 
 **[DD MMM]**: Decision on [topic]
+
 - **Context**: [Why decision was needed]
 - **Decision**: [What was decided]
 - **Rationale**: [Technical reasoning]
@@ -407,6 +433,7 @@ helm rollback [release-name] [revision]
 ### Challenges Encountered
 
 **[DD MMM]**: [Challenge Name]
+
 - **Problem**: Problem description
 - **Impact**: Impact on timeline/quality
 - **Solution**: How it was resolved
@@ -449,17 +476,17 @@ helm rollback [release-name] [revision]
 
 ### Progress Tracking
 
-| Week | Tasks Planned | Tasks Completed | % Complete | Status |
-|------|---------------|-----------------|------------|--------|
-| Week 1 | 5 | 0 | 0% | Not Started |
-| Week 2 | 6 | 0 | 0% | Not Started |
-| Week 3 | 7 | 0 | 0% | Not Started |
-| Week 4 | 4 | 0 | 0% | Not Started |
-| **Total** | **22** | **0** | **0%** | **Not Started** |
+| Week      | Tasks Planned | Tasks Completed | % Complete | Status          |
+| --------- | ------------- | --------------- | ---------- | --------------- |
+| Week 1    | 5             | 0               | 0%         | Not Started     |
+| Week 2    | 6             | 0               | 0%         | Not Started     |
+| Week 3    | 7             | 0               | 0%         | Not Started     |
+| Week 4    | 4             | 0               | 0%         | Not Started     |
+| **Total** | **22**        | **0**           | **0%**     | **Not Started** |
 
 ---
 
-*Task Breakdown [Milestone Name] v1.0*  
-*Created: [DD MMM YYYY]*  
-*Last updated: [DD MMM YYYY]*  
-*Owner: [Team/Person]*
+_Task Breakdown [Milestone Name] v1.0_  
+_Created: [DD MMM YYYY]_  
+_Last updated: [DD MMM YYYY]_  
+_Owner: [Team/Person]_

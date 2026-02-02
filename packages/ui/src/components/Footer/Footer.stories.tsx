@@ -19,7 +19,10 @@ export const Default: Story = {
     <Footer>
       <FooterLeft>
         <span className="text-sm text-text-secondary">
-          Status: <Badge variant="success" className="ml-1">All systems operational</Badge>
+          Status:{' '}
+          <Badge variant="success" className="ml-1">
+            All systems operational
+          </Badge>
         </span>
       </FooterLeft>
       <FooterRight>
@@ -46,9 +49,7 @@ export const WithLinks: Story = {
         </a>
       </FooterLeft>
       <FooterCenter>
-        <span className="text-xs text-text-secondary">
-          © 2025 Plexica. All rights reserved.
-        </span>
+        <span className="text-xs text-text-secondary">© 2025 Plexica. All rights reserved.</span>
       </FooterCenter>
       <FooterRight>
         <a href="#" className="text-sm text-text-secondary hover:text-text-primary">
@@ -82,9 +83,7 @@ export const Simple: Story = {
   render: () => (
     <Footer>
       <FooterCenter>
-        <span className="text-sm text-text-secondary">
-          © 2025 Plexica. All rights reserved.
-        </span>
+        <span className="text-sm text-text-secondary">© 2025 Plexica. All rights reserved.</span>
       </FooterCenter>
     </Footer>
   ),

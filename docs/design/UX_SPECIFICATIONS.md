@@ -33,13 +33,13 @@ This document defines the user experience architecture and interface specificati
 
 ### 1.2 Design Tenets
 
-| Tenet | Description | Example |
-|-------|-------------|---------|
-| **Discoverability** | Users should easily find available features | Clear navigation labels, search, tooltips |
-| **Contextual Help** | Guidance when/where needed | Inline hints, empty states with CTAs |
-| **Feedback** | Clear system response to user actions | Toast notifications, loading states |
-| **Forgiving** | Easy to undo mistakes | Confirmation dialogs, trash/archive before delete |
-| **Efficient** | Minimize clicks for common tasks | Quick actions, keyboard shortcuts |
+| Tenet               | Description                                 | Example                                           |
+| ------------------- | ------------------------------------------- | ------------------------------------------------- |
+| **Discoverability** | Users should easily find available features | Clear navigation labels, search, tooltips         |
+| **Contextual Help** | Guidance when/where needed                  | Inline hints, empty states with CTAs              |
+| **Feedback**        | Clear system response to user actions       | Toast notifications, loading states               |
+| **Forgiving**       | Easy to undo mistakes                       | Confirmation dialogs, trash/archive before delete |
+| **Efficient**       | Minimize clicks for common tasks            | Quick actions, keyboard shortcuts                 |
 
 ### 1.3 Terminology
 
@@ -96,49 +96,57 @@ This document defines the user experience architecture and interface specificati
 ```
 
 **A. Brand Logo** (Extension Point: `header.logo`)
+
 - Default: Plexica logo
 - Tenant override: Custom tenant logo
 - Click → Navigate to dashboard
 - Dimensions: 40x40px
 
 **B. Global Search** (Extension Point: `header.search`)
+
 - Placeholder: "Search everywhere..."
 - Shortcut: `Cmd+K` / `Ctrl+K`
 - Dropdown with results categorized by plugin:
+
   ```
   Recent
   ─────────
   Contact: John Doe (CRM)
   Invoice #1234 (Billing)
-  
+
   Contacts (CRM)
   ─────────
   John Doe
   Jane Smith
-  
+
   Invoices (Billing)
   ─────────
   #1234 - $500
   ```
+
 - Plugins register searchable entities via `registerSearchProvider()`
 
 **C. Notifications Bell** (Extension Point: `header.notifications`)
+
 - Badge with unread count
 - Click → Dropdown panel:
+
   ```
   Notifications
   ─────────────────────────────────────
   🔵 New comment on Ticket #123 (Help Desk)
      2 minutes ago
-  
+
   🟢 Invoice #456 paid (Billing)
      1 hour ago
-  
+
   [Mark all as read] [View all →]
   ```
+
 - Plugins publish notifications via event system
 
 **D. Quick Actions** (Extension Point: `header.quickActions`)
+
 - Contextual actions from plugins (e.g., "+ New Contact", "+ New Invoice")
 - Max 3-4 most common actions
 - Dropdown for overflow:
@@ -153,6 +161,7 @@ This document defines the user experience architecture and interface specificati
   ```
 
 **E. Workspace Selector** (Multi-workspace users)
+
 - Shows current workspace name
 - Dropdown to switch between workspaces user has access to
 - Hidden if user has access to only one workspace
@@ -168,6 +177,7 @@ This document defines the user experience architecture and interface specificati
 - Switching workspace refreshes context (dashboard, navigation)
 
 **F. User Menu**
+
 - Avatar + Initials (or photo)
 - Dropdown:
   ```
@@ -211,12 +221,14 @@ This document defines the user experience architecture and interface specificati
 ```
 
 **Navigation Item States**:
+
 - **Default**: Gray text, icon
 - **Hover**: Light background highlight
 - **Active**: Colored background + accent border-left (3px)
 - **Disabled** (no permission): Grayed out, no click
 
 **Extension Point: `sidebar.navigation`**
+
 - Plugins register menu items via manifest:
   ```json
   {
@@ -236,11 +248,13 @@ This document defines the user experience architecture and interface specificati
   ```
 
 **Collapsible Behavior**:
+
 - Collapsed: Shows only icons (64px width)
 - Tooltip on hover shows full label
 - Toggle via button at bottom or double-click divider
 
 **Section Headers** (Extension Point: `sidebar.sections`)
+
 - Plugins can register custom sections
 - Default sections: "APPLICATIONS", "TOOLS", "ADMIN"
 
@@ -267,12 +281,14 @@ This document defines the user experience architecture and interface specificati
 ```
 
 **Page Header** (Extension Point: `page.header`)
+
 - **Breadcrumbs**: `Dashboard > CRM > Contact Details`
 - **Page Title**: `<h1>` with optional icon
 - **Primary Actions**: Buttons aligned right (max 3 visible, overflow to "More" dropdown)
 - **Tabs** (optional): Sub-navigation within plugin page
 
 **Content Area Guidelines**:
+
 - Padding: 24px
 - Max-width for forms: 1200px (centered)
 - Card-based layout for dashboard views
@@ -351,11 +367,13 @@ Plexica Platform (Shell)
 **Format**: `https://{tenant}.plexica.io/{plugin-route}/{page-route}/{item-id}`
 
 **Workspace Context**:
+
 - Workspace is stored in session/local storage, not in URL (for cleaner URLs)
 - Current workspace affects data filtering automatically
 - Workspace can be explicitly set via query param: `?workspace={workspace-id}` (for sharing)
 
 **Examples**:
+
 - Dashboard: `https://acme-corp.plexica.io/dashboard`
 - CRM Contacts: `https://acme-corp.plexica.io/crm/contacts`
 - Contact Detail: `https://acme-corp.plexica.io/crm/contacts/123`
@@ -364,6 +382,7 @@ Plexica Platform (Shell)
 - Explicit workspace: `https://acme-corp.plexica.io/crm/contacts?workspace=sales`
 
 **Rules**:
+
 - Plugin routes defined in manifest: `"routePrefix": "/crm"`
 - Deep linking supported (shareable URLs)
 - Back button respects navigation history
@@ -375,11 +394,13 @@ Plexica Platform (Shell)
 **Format**: `Home > Section > Subsection > Current Page`
 
 **Behavior**:
+
 - Auto-generated from route hierarchy
 - Each segment clickable (except current page)
 - Plugins can customize labels via route metadata
 
 **Example**:
+
 ```
 Dashboard > CRM > Contacts > John Doe
 ```
@@ -394,27 +415,28 @@ Extension points are designated UI locations where plugins can inject content. T
 
 #### 4.1.1 Global Extension Points
 
-| Extension Point ID | Location | Type | Description |
-|-------------------|----------|------|-------------|
-| `header.logo` | Header left | Replace | Custom tenant logo |
-| `header.search` | Header center | Extend | Add searchable entities |
-| `header.notifications` | Header right | Extend | Publish notifications |
-| `header.quickActions` | Header right | Extend | Add quick action buttons |
-| `header.workspaceMenu` | Workspace dropdown | Extend | Add workspace-specific actions |
-| `header.userMenu` | User dropdown | Extend | Add menu items |
-| `sidebar.navigation` | Sidebar | Extend | Add navigation items |
-| `sidebar.sections` | Sidebar | Extend | Add navigation sections |
-| `footer.content` | Footer | Extend | Add footer elements |
+| Extension Point ID     | Location           | Type    | Description                    |
+| ---------------------- | ------------------ | ------- | ------------------------------ |
+| `header.logo`          | Header left        | Replace | Custom tenant logo             |
+| `header.search`        | Header center      | Extend  | Add searchable entities        |
+| `header.notifications` | Header right       | Extend  | Publish notifications          |
+| `header.quickActions`  | Header right       | Extend  | Add quick action buttons       |
+| `header.workspaceMenu` | Workspace dropdown | Extend  | Add workspace-specific actions |
+| `header.userMenu`      | User dropdown      | Extend  | Add menu items                 |
+| `sidebar.navigation`   | Sidebar            | Extend  | Add navigation items           |
+| `sidebar.sections`     | Sidebar            | Extend  | Add navigation sections        |
+| `footer.content`       | Footer             | Extend  | Add footer elements            |
 
 #### 4.1.2 Dashboard Extension Points
 
-| Extension Point ID | Location | Type | Description |
-|-------------------|----------|------|-------------|
-| `dashboard.widgets` | Dashboard grid | Extend | Add widget cards |
-| `dashboard.topBar` | Above dashboard | Extend | Add summary metrics |
+| Extension Point ID      | Location         | Type   | Description          |
+| ----------------------- | ---------------- | ------ | -------------------- |
+| `dashboard.widgets`     | Dashboard grid   | Extend | Add widget cards     |
+| `dashboard.topBar`      | Above dashboard  | Extend | Add summary metrics  |
 | `dashboard.quickAccess` | Quick links area | Extend | Add shortcut buttons |
 
 **Dashboard Layout**:
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ Dashboard                                [Customize ⚙️]       │
@@ -437,6 +459,7 @@ Extension points are designated UI locations where plugins can inject content. T
 ```
 
 **Widget Specifications**:
+
 - Grid: 12-column system
 - Widget sizes: Small (4 cols), Medium (6 cols), Large (12 cols)
 - Height: Auto-fit content, min 200px
@@ -444,6 +467,7 @@ Extension points are designated UI locations where plugins can inject content. T
 - User can show/hide widgets (via dashboard settings)
 
 **Widget Registration**:
+
 ```typescript
 // Plugin registers dashboard widget
 pluginSDK.registerDashboardWidget({
@@ -452,20 +476,21 @@ pluginSDK.registerDashboardWidget({
   component: RecentContactsWidget,
   defaultSize: 'medium',
   refreshInterval: 30000, // 30s
-  permissions: ['crm:contacts:read']
+  permissions: ['crm:contacts:read'],
 });
 ```
 
 #### 4.1.3 Page-Level Extension Points
 
-| Extension Point ID | Location | Type | Description |
-|-------------------|----------|------|-------------|
-| `page.header.actions` | Page header right | Extend | Add action buttons |
-| `page.tabs` | Below page header | Extend | Add tab items |
-| `page.aside` | Right sidebar | Extend | Add side panels |
-| `page.contextMenu` | Right-click menu | Extend | Add context menu items |
+| Extension Point ID    | Location          | Type   | Description            |
+| --------------------- | ----------------- | ------ | ---------------------- |
+| `page.header.actions` | Page header right | Extend | Add action buttons     |
+| `page.tabs`           | Below page header | Extend | Add tab items          |
+| `page.aside`          | Right sidebar     | Extend | Add side panels        |
+| `page.contextMenu`    | Right-click menu  | Extend | Add context menu items |
 
 **Example: Contact Detail Page with Extensions**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Dashboard > CRM > Contacts > John Doe                       │
@@ -487,29 +512,31 @@ pluginSDK.registerDashboardWidget({
 ```
 
 **Cross-Plugin Extensions**:
+
 - Billing plugin adds "Related Invoices" widget to CRM contact detail page
 - Help Desk plugin adds "Support Tickets" tab to CRM contact detail page
 
 #### 4.1.4 Form Extension Points
 
-| Extension Point ID | Location | Type | Description |
-|-------------------|----------|------|-------------|
-| `form.fields` | Within form | Extend | Add custom fields |
-| `form.actions` | Form footer | Extend | Add custom buttons |
-| `form.validation` | On submit | Hook | Add custom validation |
+| Extension Point ID | Location    | Type   | Description           |
+| ------------------ | ----------- | ------ | --------------------- |
+| `form.fields`      | Within form | Extend | Add custom fields     |
+| `form.actions`     | Form footer | Extend | Add custom buttons    |
+| `form.validation`  | On submit   | Hook   | Add custom validation |
 
 **Use Case**: CRM plugin has a "Create Contact" form. Billing plugin extends it to add "Credit Limit" field.
 
 #### 4.1.5 Table/List Extension Points
 
-| Extension Point ID | Location | Type | Description |
-|-------------------|----------|------|-------------|
-| `table.columns` | Table header | Extend | Add custom columns |
-| `table.rowActions` | Row actions | Extend | Add action buttons |
-| `table.filters` | Filter bar | Extend | Add filter criteria |
+| Extension Point ID  | Location     | Type   | Description          |
+| ------------------- | ------------ | ------ | -------------------- |
+| `table.columns`     | Table header | Extend | Add custom columns   |
+| `table.rowActions`  | Row actions  | Extend | Add action buttons   |
+| `table.filters`     | Filter bar   | Extend | Add filter criteria  |
 | `table.bulkActions` | Bulk actions | Extend | Add batch operations |
 
 **Example: CRM Contacts List with Extensions**
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Contacts                             [+ New Contact]        │
@@ -541,17 +568,20 @@ pluginSDK.registerDashboardWidget({
 **Definition**: Small, self-contained UI component (typically for dashboards or embedded views)
 
 **Characteristics**:
+
 - Isolated state
 - Lightweight (< 100KB bundle)
 - Refreshable
 - Configurable
 
 **Examples**:
+
 - CRM: "Top Contacts" widget
 - Billing: "Revenue This Month" widget
 - Help Desk: "Open Tickets Count" widget
 
 **Technical Implementation**:
+
 ```typescript
 // Plugin manifest
 {
@@ -570,7 +600,7 @@ pluginSDK.registerDashboardWidget({
 // React component (Module Federation)
 export const TopContactsWidget: React.FC<WidgetProps> = ({ config }) => {
   const { data, loading } = useQuery(GET_TOP_CONTACTS);
-  
+
   return (
     <WidgetContainer title="Top Contacts" icon="users">
       {loading ? <Spinner /> : <ContactList contacts={data} />}
@@ -586,17 +616,20 @@ export const TopContactsWidget: React.FC<WidgetProps> = ({ config }) => {
 **Definition**: Full-page view within the platform shell
 
 **Characteristics**:
+
 - Full control over content area
 - Can use shell navigation (breadcrumbs, tabs)
 - Route-based
 - Permission-gated
 
 **Examples**:
+
 - CRM: "Contact List" page
 - Billing: "Invoice Details" page
 - Help Desk: "Ticket View" page
 
 **Technical Implementation**:
+
 ```typescript
 // Plugin manifest
 {
@@ -626,17 +659,20 @@ export const TopContactsWidget: React.FC<WidgetProps> = ({ config }) => {
 **Definition**: Complete standalone app that can run with minimal shell (or fullscreen)
 
 **Characteristics**:
+
 - Own navigation system
 - Can hide sidebar/footer
 - Immersive experience
 - Complex workflows
 
 **Examples**:
+
 - Analytics Dashboard (full BI interface)
 - Project Management (Kanban boards, Gantt charts)
 - Email Client (inbox, compose, folders)
 
 **Technical Implementation**:
+
 ```typescript
 // Plugin manifest
 {
@@ -654,6 +690,7 @@ export const TopContactsWidget: React.FC<WidgetProps> = ({ config }) => {
 ```
 
 **UI Modes**:
+
 - `standard`: Full shell (header + sidebar)
 - `minimal`: Header only
 - `fullscreen`: Header with minimal controls
@@ -668,27 +705,28 @@ Plexica provides a standardized component library (based on a system like Ant De
 
 **Core Components**:
 
-| Component | Usage | Extension Point |
-|-----------|-------|-----------------|
-| `Button` | Primary, secondary, danger actions | Style via theme |
-| `Card` | Content containers | Header actions |
-| `Table` | Data lists with sorting, filtering | Columns, actions |
-| `Form` | Input forms with validation | Fields, validation rules |
-| `Modal` | Dialogs, overlays | Footer actions |
-| `Tabs` | Sub-navigation | Tab items |
-| `Dropdown` | Contextual menus | Menu items |
-| `Toast` | Notifications | - |
-| `Breadcrumbs` | Navigation trail | Route labels |
-| `Avatar` | User/entity images | - |
-| `Badge` | Counts, status indicators | - |
-| `Spinner` | Loading states | - |
-| `EmptyState` | No data placeholder | CTA buttons |
+| Component     | Usage                              | Extension Point          |
+| ------------- | ---------------------------------- | ------------------------ |
+| `Button`      | Primary, secondary, danger actions | Style via theme          |
+| `Card`        | Content containers                 | Header actions           |
+| `Table`       | Data lists with sorting, filtering | Columns, actions         |
+| `Form`        | Input forms with validation        | Fields, validation rules |
+| `Modal`       | Dialogs, overlays                  | Footer actions           |
+| `Tabs`        | Sub-navigation                     | Tab items                |
+| `Dropdown`    | Contextual menus                   | Menu items               |
+| `Toast`       | Notifications                      | -                        |
+| `Breadcrumbs` | Navigation trail                   | Route labels             |
+| `Avatar`      | User/entity images                 | -                        |
+| `Badge`       | Counts, status indicators          | -                        |
+| `Spinner`     | Loading states                     | -                        |
+| `EmptyState`  | No data placeholder                | CTA buttons              |
 
 ### 5.2 Standard Patterns
 
 #### 5.2.1 List View Pattern
 
 **Structure**:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ [Page Title]                           [+ Primary Action]   │
@@ -702,6 +740,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 ```
 
 **Features**:
+
 - Search (debounced, min 3 chars)
 - Multi-select filters (dropdown)
 - Sort by column (asc/desc)
@@ -712,6 +751,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 #### 5.2.2 Detail View Pattern
 
 **Structure**:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ [Breadcrumbs] > [Entity Name]                               │
@@ -729,6 +769,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 ```
 
 **Features**:
+
 - Tabs for different data aspects
 - Read-only view with "Edit" mode toggle
 - Sidebar for metadata and quick actions
@@ -738,6 +779,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 #### 5.2.3 Form Pattern
 
 **Structure**:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ [Form Title]                                                │
@@ -759,8 +801,9 @@ Plexica provides a standardized component library (based on a system like Ant De
 ```
 
 **Features**:
+
 - Grouped sections (collapsible)
-- Required field indicator (*)
+- Required field indicator (\*)
 - Inline validation (on blur)
 - Error summary at top (on submit error)
 - Autosave draft (optional)
@@ -769,6 +812,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 #### 5.2.4 Empty State Pattern
 
 **Structure**:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                                                              │
@@ -784,6 +828,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 ```
 
 **Features**:
+
 - Friendly illustration/icon
 - Clear explanation
 - Primary CTA (action button)
@@ -795,16 +840,17 @@ Plexica provides a standardized component library (based on a system like Ant De
 
 ### 6.1 Breakpoints
 
-| Breakpoint | Screen Width | Layout Adjustments |
-|------------|--------------|-------------------|
-| Mobile | < 768px | Sidebar collapses to hamburger menu |
-| Tablet | 768px - 1024px | Sidebar auto-collapsed, expandable |
-| Desktop | 1024px - 1440px | Full layout, sidebar visible |
-| Wide | > 1440px | Full layout, optional split views |
+| Breakpoint | Screen Width    | Layout Adjustments                  |
+| ---------- | --------------- | ----------------------------------- |
+| Mobile     | < 768px         | Sidebar collapses to hamburger menu |
+| Tablet     | 768px - 1024px  | Sidebar auto-collapsed, expandable  |
+| Desktop    | 1024px - 1440px | Full layout, sidebar visible        |
+| Wide       | > 1440px        | Full layout, optional split views   |
 
 ### 6.2 Mobile-First Considerations
 
 **Header on Mobile**:
+
 ```
 ┌──────────────────────────────────┐
 │ [☰] Plexica    [🔍] [🔔] [👤]   │
@@ -816,11 +862,13 @@ Plexica provides a standardized component library (based on a system like Ant De
 - Notifications/user menus are dropdowns
 
 **Sidebar on Mobile**:
+
 - Overlay (slide-in from left)
 - Tap outside to close
 - Full-height, 280px wide
 
 **Tables on Mobile**:
+
 - Convert to card layout (stacked)
 - Show most important columns only
 - "View Details" button for full record
@@ -832,6 +880,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 ### 7.1 Theming System
 
 **Tenant-Level Customization**:
+
 - Primary color (brand color for buttons, links, active states)
 - Secondary color (accents, highlights)
 - Logo (header, login page)
@@ -839,6 +888,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 - Custom CSS (advanced)
 
 **Theme Variables**:
+
 ```css
 :root {
   --primary-color: #1890ff;
@@ -848,28 +898,30 @@ Plexica provides a standardized component library (based on a system like Ant De
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f5;
   --border-color: #d9d9d9;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 ```
 
 **Dark Mode** (future):
+
 - Toggle in user preferences
 - Automatic theme switching (system preference)
 
 ### 7.2 Typography
 
 | Element | Font Family | Size | Weight |
-|---------|-------------|------|--------|
-| H1 | Inter | 28px | 600 |
-| H2 | Inter | 24px | 600 |
-| H3 | Inter | 20px | 600 |
-| Body | Inter | 14px | 400 |
-| Small | Inter | 12px | 400 |
-| Code | Fira Code | 14px | 400 |
+| ------- | ----------- | ---- | ------ |
+| H1      | Inter       | 28px | 600    |
+| H2      | Inter       | 24px | 600    |
+| H3      | Inter       | 20px | 600    |
+| Body    | Inter       | 14px | 400    |
+| Small   | Inter       | 12px | 400    |
+| Code    | Fira Code   | 14px | 400    |
 
 ### 7.3 Spacing System
 
 **8px Grid**:
+
 - xs: 4px
 - sm: 8px
 - md: 16px
@@ -884,32 +936,38 @@ Plexica provides a standardized component library (based on a system like Ant De
 ### 8.1 Navigation
 
 **Breadcrumbs**:
+
 - Click any segment to navigate
 - Current page not clickable
 - Max 5 levels (truncate middle with "...")
 
 **Tabs**:
+
 - Horizontal tabs below page header
 - Active tab underline indicator
 - Scrollable on overflow (mobile)
 
 **Links**:
+
 - Blue underline on hover
 - External links: icon suffix "↗"
 
 ### 8.2 Actions
 
 **Buttons**:
+
 - Primary: Filled, primary color (max 1 per view)
 - Secondary: Outlined
 - Danger: Red (delete, destructive actions)
 - Text: No border (low priority actions)
 
 **Button Groups**:
+
 - Related actions grouped (e.g., [Save] [Save & Continue])
 - Max 3 buttons before overflow to dropdown
 
 **Quick Actions** (Floating Action Button - FAB):
+
 - Bottom-right corner (mobile)
 - Primary action (e.g., "+ New")
 - Expands to show 3-4 related actions
@@ -917,17 +975,20 @@ Plexica provides a standardized component library (based on a system like Ant De
 ### 8.3 Feedback
 
 **Toast Notifications**:
+
 - Position: Top-right
 - Types: Success (green), Error (red), Warning (orange), Info (blue)
 - Auto-dismiss: 5s (success/info), 10s (warning), Manual (error)
 - Max 3 visible, queue overflow
 
 **Loading States**:
+
 - Page load: Full-page spinner with logo
 - Component load: Skeleton screens
 - Action load: Button spinner (disabled)
 
 **Confirmation Dialogs**:
+
 ```
 ┌────────────────────────────────┐
 │ ⚠️  Delete Contact?            │
@@ -941,6 +1002,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 ```
 
 **Validation**:
+
 - Inline (on blur): Red border, error message below field
 - Form-level (on submit): Error summary at top, scroll to first error
 
@@ -951,21 +1013,25 @@ Plexica provides a standardized component library (based on a system like Ant De
 ### 9.1 WCAG 2.1 AA Compliance
 
 **Color Contrast**:
+
 - Text: 4.5:1 minimum contrast ratio
 - Large text (18px+): 3:1 minimum
 - UI components: 3:1 minimum
 
 **Keyboard Navigation**:
+
 - All interactive elements focusable (Tab order logical)
 - Shortcuts documented (? key opens shortcuts modal)
 - Focus indicators visible (outline, not removed)
 
 **Screen Reader Support**:
+
 - ARIA labels on icons
 - ARIA live regions for dynamic content
 - Semantic HTML (headings hierarchy)
 
 **Forms**:
+
 - Labels associated with inputs (`<label for="...">`)
 - Error messages announced (aria-describedby)
 - Required fields indicated (aria-required)
@@ -1004,6 +1070,7 @@ Plexica provides a standardized component library (based on a system like Ant De
 ```
 
 **Key Features**:
+
 - Limited sidebar (only apps with read permission)
 - Dashboard widgets from accessible plugins scoped to current workspace
 - Workspace selector shows "Sales" (current workspace)
@@ -1048,7 +1115,8 @@ Plexica provides a standardized component library (based on a system like Ant De
 └─────────────┴─────────────────────────────────────────────────┘
 ```
 
-**Note**: 
+**Note**:
+
 - Users manage teams and members within their workspace
 - Plugin configuration is NOT done here (plugins are enabled tenant-wide)
 - Plugin settings per-workspace are in Workspace Settings
@@ -1151,6 +1219,7 @@ The tenant workspace UI focuses on workspace and team management only.
 ```
 
 **Extension Points in Action**:
+
 1. **Billing plugin** added "Invoices" tab (extension: `page.tabs`)
 2. **Help Desk plugin** added "Tickets" tab (extension: `page.tabs`)
 3. **Billing plugin** added "Send Invoice" quick action (extension: `page.aside.actions`)
@@ -1158,6 +1227,7 @@ The tenant workspace UI focuses on workspace and team management only.
 5. **Workspace context** automatically filters data to "Sales" workspace
 
 **"Invoices" Tab Content** (when clicked):
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ Dashboard > CRM > Contacts > John Doe                        │
@@ -1185,11 +1255,13 @@ The tenant workspace UI focuses on workspace and team management only.
 ### 11.1 Workspace Concepts in UI
 
 **Workspace Visibility**:
+
 - Tenant is implicit (identified by subdomain: `acme-corp.plexica.io`)
 - Workspace is explicit (shown in header selector for multi-workspace users)
 - Single-workspace users don't see workspace selector (cleaner UI)
 
 **Workspace Context Awareness**:
+
 - All data queries automatically filtered by current workspace
 - Dashboard widgets show workspace-specific data
 - Search results scoped to current workspace (with option to search all workspaces)
@@ -1204,10 +1276,10 @@ The tenant workspace UI focuses on workspace and team management only.
 ────────────────────
 ● Sales (current)
   15 members
-  
+
 ○ Marketing
   8 members
-  
+
 ○ Engineering
   12 members
 ────────────────────
@@ -1215,6 +1287,7 @@ The tenant workspace UI focuses on workspace and team management only.
 ```
 
 **After Switch**:
+
 1. Page reloads/refreshes with new workspace context
 2. Dashboard shows new workspace data
 3. Navigation may change (different plugins enabled per workspace)
@@ -1225,13 +1298,14 @@ The tenant workspace UI focuses on workspace and team management only.
 
 **Workspace Roles** (displayed in user interfaces):
 
-| Role | Icon | Capabilities |
-|------|------|--------------|
-| **Workspace Admin** | 👑 | Full control: settings, users, teams, permissions |
-| **Member** | 👤 | Access workspace resources, join teams |
-| **Viewer** | 👁️ | Read-only access to workspace |
+| Role                | Icon | Capabilities                                      |
+| ------------------- | ---- | ------------------------------------------------- |
+| **Workspace Admin** | 👑   | Full control: settings, users, teams, permissions |
+| **Member**          | 👤   | Access workspace resources, join teams            |
+| **Viewer**          | 👁️   | Read-only access to workspace                     |
 
 **Permission Indicators** (shown in UI):
+
 - User list shows workspace role badge
 - Settings pages show lock icon 🔒 for non-admin sections
 - Action buttons disabled with tooltip: "Requires Workspace Admin role"
@@ -1241,6 +1315,7 @@ The tenant workspace UI focuses on workspace and team management only.
 **Trigger**: Workspace Admin clicks "+ New Workspace" in workspace dropdown
 
 **Flow**:
+
 ```
 ┌─────────────────────────────────┐
 │ Create New Workspace            │
@@ -1269,6 +1344,7 @@ The tenant workspace UI focuses on workspace and team management only.
 ```
 
 **After Creation**:
+
 1. New workspace created
 2. Creator becomes Workspace Admin
 3. Workspace appears in selector
@@ -1304,6 +1380,7 @@ Contact: John Doe (Sales Workspace)
 ```
 
 **Shared Resource Indicator**:
+
 ```
 Contact: John Doe
 ────────────────
@@ -1340,27 +1417,28 @@ Special dashboard for workspace admins showing management metrics:
 
 ### Quick Reference Table
 
-| Zone | Extension Point | Plugin Contribution | Example |
-|------|----------------|---------------------|---------|
-| Header | `header.logo` | Custom logo | Tenant branding |
-| Header | `header.search` | Searchable entities | CRM contacts, invoices |
-| Header | `header.notifications` | Notification events | "Ticket assigned to you" |
-| Header | `header.quickActions` | Action buttons | "+ New Contact" |
-| Header | `header.workspaceMenu` | Workspace actions | "Workspace settings", "Share resource" |
-| Sidebar | `sidebar.navigation` | Menu items | "CRM" app link |
-| Dashboard | `dashboard.widgets` | Widget cards | "Top Contacts" widget |
-| Dashboard | `dashboard.topBar` | Metric cards | "Revenue This Month" |
-| Page | `page.header.actions` | Action buttons | "Export", "Share" |
-| Page | `page.tabs` | Tab items | "Invoices" tab on contact |
-| Page | `page.aside` | Side panel content | "Related Items" |
-| Table | `table.columns` | Custom columns | "Credit Limit" in contacts |
-| Table | `table.rowActions` | Row action buttons | "Send Invoice" |
-| Table | `table.filters` | Filter criteria | "Credit Status" filter |
-| Form | `form.fields` | Custom fields | "SLA Tier" field |
-| Footer | `footer.content` | Status/links | "API Status" indicator |
-| Workspace | `workspace.dashboard` | Admin widgets | "Workspace activity", "Team stats" |
+| Zone      | Extension Point        | Plugin Contribution | Example                                |
+| --------- | ---------------------- | ------------------- | -------------------------------------- |
+| Header    | `header.logo`          | Custom logo         | Tenant branding                        |
+| Header    | `header.search`        | Searchable entities | CRM contacts, invoices                 |
+| Header    | `header.notifications` | Notification events | "Ticket assigned to you"               |
+| Header    | `header.quickActions`  | Action buttons      | "+ New Contact"                        |
+| Header    | `header.workspaceMenu` | Workspace actions   | "Workspace settings", "Share resource" |
+| Sidebar   | `sidebar.navigation`   | Menu items          | "CRM" app link                         |
+| Dashboard | `dashboard.widgets`    | Widget cards        | "Top Contacts" widget                  |
+| Dashboard | `dashboard.topBar`     | Metric cards        | "Revenue This Month"                   |
+| Page      | `page.header.actions`  | Action buttons      | "Export", "Share"                      |
+| Page      | `page.tabs`            | Tab items           | "Invoices" tab on contact              |
+| Page      | `page.aside`           | Side panel content  | "Related Items"                        |
+| Table     | `table.columns`        | Custom columns      | "Credit Limit" in contacts             |
+| Table     | `table.rowActions`     | Row action buttons  | "Send Invoice"                         |
+| Table     | `table.filters`        | Filter criteria     | "Credit Status" filter                 |
+| Form      | `form.fields`          | Custom fields       | "SLA Tier" field                       |
+| Footer    | `footer.content`       | Status/links        | "API Status" indicator                 |
+| Workspace | `workspace.dashboard`  | Admin widgets       | "Workspace activity", "Team stats"     |
 
 **Key Workspace-Related Patterns**:
+
 - Workspace selector hidden for single-workspace users
 - Workspace context auto-applied to all data queries
 - Cross-workspace sharing requires explicit action
@@ -1373,6 +1451,7 @@ Special dashboard for workspace admins showing management metrics:
 ### 13.1 Wireframe Deliverables
 
 **Phase 1: Static Wireframes**
+
 - [ ] Dashboard layout (all user roles)
 - [ ] Workspace selector and switching flow
 - [ ] Sidebar navigation variants (with workspace context)
@@ -1384,12 +1463,14 @@ Special dashboard for workspace admins showing management metrics:
 - [ ] Cross-workspace sharing dialog
 
 **Phase 2: Interactive Prototypes**
+
 - [ ] Figma/Sketch prototype with clickable flows
 - [ ] Workspace switching interactions
 - [ ] User testing scenarios
 - [ ] Accessibility audit
 
 **Phase 3: Implementation Guidelines**
+
 - [ ] Component library documentation
 - [ ] Extension point API reference
 - [ ] Plugin UI development guide
@@ -1398,6 +1479,7 @@ Special dashboard for workspace admins showing management metrics:
 ### 13.2 Design System Repository
 
 Create a separate design system repository:
+
 ```
 plexica-design-system/
 ├── tokens/
@@ -1424,12 +1506,14 @@ plexica-design-system/
 ### Tenant vs Workspace in UI
 
 **Tenant** (NOT visible in UI):
+
 - Identified by subdomain: `acme-corp.plexica.io`
 - Managed via separate Super Admin application (`admin.plexica.io`)
 - Users never see "tenant" in the workspace UI
 - Complete data isolation at infrastructure level
 
 **Workspace** (visible in UI):
+
 - Explicit workspace selector for multi-workspace users
 - Workspace-scoped data filtering
 - Workspace admin manages teams, users, and settings
@@ -1438,19 +1522,21 @@ plexica-design-system/
 ### Super Admin Application Separation
 
 The Super Admin application for tenant management is:
+
 - Hosted on a different subdomain (e.g., `admin.plexica.io`)
 - Uses a different authentication realm (master realm in Keycloak)
 - Has its own UI/UX (not part of this specification)
 - Manages: tenant creation, global plugin catalog, billing, platform monitoring
 
 This separation ensures clear boundaries between:
+
 - **Platform operations** (Super Admin app)
 - **Workspace operations** (Tenant workspace UI - this spec)
 
 ---
 
-*Plexica UX Specification v1.1*  
-*Last updated: 17 Jan 2025*  
-*Author: Plexica Design Team*  
-*Last updated: 16 Jan 2025*  
-*Author: Plexica Design Team*
+_Plexica UX Specification v1.1_  
+_Last updated: 17 Jan 2025_  
+_Author: Plexica Design Team_  
+_Last updated: 16 Jan 2025_  
+_Author: Plexica Design Team_

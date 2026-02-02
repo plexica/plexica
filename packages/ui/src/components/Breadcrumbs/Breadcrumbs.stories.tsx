@@ -35,10 +35,7 @@ export const WithHome: Story = {
 
 export const Simple: Story = {
   args: {
-    items: [
-      { label: 'Dashboard', href: '/dashboard' },
-      { label: 'Settings' },
-    ],
+    items: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settings' }],
   },
 };
 

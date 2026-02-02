@@ -148,9 +148,9 @@ Use this format to track your testing:
 - [ ] Redirected to dashboard (NOT to tenant selection page)
 - [ ] Header shows tenant name
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -174,9 +174,9 @@ Use this format to track your testing:
 - [ ] No manual tenant selection UI appears
 - [ ] Dashboard loads with tenant-specific data
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 **Verification**:
 
@@ -210,9 +210,9 @@ JSON.parse(localStorage.getItem('plexica-auth'));
 - [ ] Logging out from Tenant 1 doesn't affect Tenant 2
 - [ ] localStorage keys are separate or tenant-scoped
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -231,11 +231,11 @@ JSON.parse(localStorage.getItem('plexica-auth'));
 - [ ] Shows current workspace OR "No workspace selected"
 - [ ] Dropdown icon/button is clickable
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
-**Screenshot Location**: ****\_\_\_****
+**Screenshot Location**: \***\*\_\_\_\*\***
 
 ---
 
@@ -270,9 +270,9 @@ Description: Main engineering workspace
 - [ ] New workspace is now selected (shown in switcher)
 - [ ] You remain on current page (no full redirect)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 **Verification**:
 
@@ -303,7 +303,7 @@ Description: Marketing and communications
 - [ ] Can see both workspaces in switcher dropdown
 - [ ] Second workspace is now active (selected)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -330,9 +330,9 @@ Description: Marketing and communications
 - [ ] Look for key like `workspace_test-tenant` (tenant-specific)
 - [ ] Value should be the ID of "Marketing Team"
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -349,7 +349,7 @@ Description: Marketing and communications
 - [ ] Shows correct workspace name
 - [ ] Updates when switching workspaces
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -370,9 +370,9 @@ Description: Marketing and communications
 - [ ] Current workspace name shown in header/breadcrumb
 - [ ] "General" tab is active by default
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -399,9 +399,9 @@ Description: Marketing and communications
 - [ ] Changes saved (reload page to verify)
 - [ ] Workspace switcher shows updated name
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -420,7 +420,7 @@ Description: Marketing and communications
 - [ ] No "Remove" button next to your name (can't remove yourself)
 - [ ] "Add Member" button visible (if ADMIN)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -445,9 +445,9 @@ Description: Marketing and communications
 - [ ] New member appears in list with "MEMBER" role
 - [ ] Modal closes
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -466,7 +466,7 @@ Description: Marketing and communications
 - [ ] Success message shown
 - [ ] Member's role badge changes to "VIEWER"
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -486,7 +486,7 @@ Description: Marketing and communications
 - [ ] Success message shown
 - [ ] Cannot remove yourself (test this - should show error)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -503,7 +503,7 @@ Description: Marketing and communications
 - [ ] "Create Team" button visible
 - [ ] Friendly message encouraging team creation
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -525,9 +525,9 @@ Description: Marketing and communications
 - [ ] "Create Team" button visible (top-right)
 - [ ] Empty state if no teams: "No teams yet" with encouragement message
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -566,9 +566,9 @@ Description: Frontend engineers and UI/UX designers
   - More options menu (three dots)
 - [ ] Workspace badge updates to show "1 team"
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 **Verification**:
 
@@ -600,7 +600,7 @@ Description: Backend engineers and DevOps
 - [ ] Workspace badge shows "2 teams"
 - [ ] Teams ordered by creation date (newest first)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -621,7 +621,7 @@ Description: Backend engineers and DevOps
 3. [ ] Clear search (or type "Backend")
 4. [ ] Observe results update
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -655,9 +655,9 @@ Description: Infrastructure and platform engineering
 - [ ] Back to seeing "Frontend Development" and "Backend Development"
 - [ ] "Platform Team" NOT visible (workspace isolation working)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -674,7 +674,7 @@ Description: Infrastructure and platform engineering
   - "Coming Soon" message (if not implemented)
   - Error/404 (if route not set up)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 **Note**: If this redirects to a 404, that's expected - team detail page is an optional enhancement not yet implemented.
 
@@ -711,9 +711,9 @@ Description: Infrastructure and platform engineering
 - [ ] "Engineering Team" no longer in WorkspaceSwitcher dropdown
 - [ ] "Platform Team" also deleted (cascade)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 **Verification**:
 
@@ -743,7 +743,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Friendly prompt to select or create a workspace
 - [ ] No team data shown
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -765,7 +765,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] User can select a valid workspace
 - [ ] No app crash
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -790,7 +790,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Create team: Button not visible OR 403 error
 - [ ] Can VIEW all data (teams, members, workspace details)
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -813,7 +813,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Delete workspace: NOT allowed (403 or button disabled)
 - [ ] Can VIEW all data
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -834,7 +834,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] All buttons visible
 - [ ] Full control over workspace
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -858,9 +858,9 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Modals/dialogs are readable on mobile
 - [ ] No horizontal scrolling
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
-**Issues**: ****\_\_\_****
+**Issues**: \***\*\_\_\_\*\***
 
 ---
 
@@ -879,7 +879,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] No visual glitches
 - [ ] Console shows no errors
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -900,7 +900,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] No performance degradation
 - [ ] Search/filter works efficiently
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -928,7 +928,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] UI doesn't break
 - [ ] Can retry when back online
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -948,7 +948,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Form fields highlighted in red
 - [ ] Helpful hints (e.g., "Name must be 2-100 characters")
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -967,7 +967,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] No data conflicts
 - [ ] No duplicate workspaces
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -988,7 +988,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Workspace preference remembered per tenant
 - [ ] No need to re-select workspace
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -1006,7 +1006,7 @@ curl -X GET http://localhost:3000/api/workspaces \
 - [ ] Shows Tenant B's workspaces (not Tenant A's)
 - [ ] Proper multi-tenant isolation
 
-**Actual Result**: ****\_\_\_****
+**Actual Result**: \***\*\_\_\_\*\***
 
 ---
 
@@ -1158,12 +1158,12 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 ## Test Environment Info
 
-**Tester Name**: ****\_\_\_****  
-**Date**: ****\_\_\_****  
-**Backend Version**: ****\_\_\_****  
-**Frontend Version**: ****\_\_\_****  
-**Browser**: ****\_\_\_****  
-**OS**: ****\_\_\_****
+**Tester Name**: \***\*\_\_\_\*\***  
+**Date**: \***\*\_\_\_\*\***  
+**Backend Version**: \***\*\_\_\_\*\***  
+**Frontend Version**: \***\*\_\_\_\*\***  
+**Browser**: \***\*\_\_\_\*\***  
+**OS**: \***\*\_\_\_\*\***
 
 **Database State**:
 
@@ -1171,7 +1171,7 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 - [ ] Existing test data
 - [ ] Production data (DON'T test destructive operations!)
 
-**Special Notes**: ****\_\_\_****
+**Special Notes**: \***\*\_\_\_\*\***
 
 ---
 
@@ -1184,8 +1184,8 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 - [ ] Ready for production (with known issues documented)
 - [ ] Requires fixes before production
 
-**Tester Signature**: ****\_\_\_****  
-**Date**: ****\_\_\_****
+**Tester Signature**: \***\*\_\_\_\*\***  
+**Date**: \***\*\_\_\_\*\***
 
 ---
 

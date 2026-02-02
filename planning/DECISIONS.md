@@ -25,14 +25,17 @@ The decision made.
 ## Consequences
 
 ### Positive
+
 - Pro 1
 - Pro 2
 
 ### Negative
+
 - Con 1
 - Con 2
 
 ### Neutral
+
 - Consideration 1
 
 ## Alternatives Considered
@@ -65,6 +68,7 @@ We need to decide how to organize the Plexica project code, which includes core 
 ### Consequences
 
 #### Positive
+
 - End-to-end type safety between packages
 - Facilitated cross-package refactoring
 - Single source of truth for dependencies
@@ -73,6 +77,7 @@ We need to decide how to organize the Plexica project code, which includes core 
 - Atomic cross-package commits
 
 #### Negative
+
 - Larger repository
 - Requires specific tooling (Turborepo)
 - Learning curve for new developers
@@ -108,12 +113,14 @@ We need to decide the data isolation strategy for multi-tenancy on PostgreSQL.
 ### Consequences
 
 #### Positive
+
 - Complete logical isolation
 - Optimal query performance (no tenant_id in WHERE)
 - Granular backup/restore per tenant
 - Efficient vertical scaling up to ~10k tenants
 
 #### Negative
+
 - PostgreSQL limit: ~10k schemas (sufficient for use case)
 - Migration overhead (mitigated with automation)
 
@@ -153,6 +160,7 @@ We need to decide which languages to support for plugin development.
 ### Consequences
 
 #### Positive
+
 - Focus on single stack for MVP
 - End-to-end type safety
 - Coherent developer experience
@@ -160,6 +168,7 @@ We need to decide which languages to support for plugin development.
 - Faster time-to-market
 
 #### Negative
+
 - Limits developers who don't know TypeScript
 - Some use cases (ML, data science) would prefer Python
 
@@ -195,12 +204,14 @@ We need to decide how to dynamically load plugin frontends.
 ### Consequences
 
 #### Positive
+
 - Dynamic plugin UI loading
 - Automatic code splitting
 - Independent plugin versioning
 - No shell rebuild for new plugin
 
 #### Negative
+
 - Initial setup complexity
 - More difficult debugging
 - Dependency management needs care
@@ -237,6 +248,7 @@ We need to choose a message broker for event-driven communication between plugin
 ### Consequences
 
 #### Positive
+
 - Kafka-compatible API (ecosystem)
 - Simpler setup (no Zookeeper)
 - Better performance than Kafka
@@ -244,6 +256,7 @@ We need to choose a message broker for event-driven communication between plugin
 - Self-balancing
 
 #### Negative
+
 - Less mature than Kafka
 - Smaller community
 
@@ -283,6 +296,7 @@ We need to choose the web framework for Core API and plugin backend.
 ### Consequences
 
 #### Positive
+
 - Performance: 2-3x faster than Express
 - Native TypeScript support
 - Built-in plugin system
@@ -290,6 +304,7 @@ We need to choose the web framework for Core API and plugin backend.
 - Modern async/await patterns
 
 #### Negative
+
 - Smaller ecosystem than Express
 - Some Express-only libraries not compatible
 
@@ -325,6 +340,7 @@ We need to choose an ORM for PostgreSQL interaction.
 ### Consequences
 
 #### Positive
+
 - Type-safe query generation
 - Excellent migration management
 - Prisma Studio for debugging
@@ -332,6 +348,7 @@ We need to choose an ORM for PostgreSQL interaction.
 - Multi-schema support (tenant isolation)
 
 #### Negative
+
 - Less flexible for complex raw queries
 - Client generation requires build step
 
@@ -359,6 +376,7 @@ When making a new significant architectural decision:
 5. Commit in this file
 
 **When is an ADR needed?**
+
 - Major technology choices
 - Architectural patterns
 - Trade-offs with long-term impact
@@ -366,5 +384,5 @@ When making a new significant architectural decision:
 
 ---
 
-*Architectural Decision Records - Plexica v1.0*  
-*Last Updated: January 2025*
+_Architectural Decision Records - Plexica v1.0_  
+_Last Updated: January 2025_

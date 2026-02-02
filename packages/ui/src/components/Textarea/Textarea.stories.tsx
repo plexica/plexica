@@ -30,11 +30,7 @@ export const WithHelperText: Story = {
   render: () => (
     <div className="space-y-2">
       <Label htmlFor="notes">Notes</Label>
-      <Textarea
-        id="notes"
-        placeholder="Add notes..."
-        helperText="Maximum 500 characters"
-      />
+      <Textarea id="notes" placeholder="Add notes..." helperText="Maximum 500 characters" />
     </div>
   ),
 };

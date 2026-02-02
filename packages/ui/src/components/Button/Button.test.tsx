@@ -59,7 +59,11 @@ describe('Button', () => {
   });
 
   it('renders with icon size', () => {
-    render(<Button size="icon" aria-label="Icon button">⚡</Button>);
+    render(
+      <Button size="icon" aria-label="Icon button">
+        ⚡
+      </Button>
+    );
     const button = screen.getByRole('button');
     expect(button).toHaveClass('h-10', 'w-10');
   });
@@ -67,10 +71,10 @@ describe('Button', () => {
   it('handles click events', async () => {
     const handleClick = vi.fn();
     const user = userEvent.setup();
-    
+
     render(<Button onClick={handleClick}>Click me</Button>);
     const button = screen.getByRole('button');
-    
+
     await user.click(button);
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
@@ -84,10 +88,14 @@ describe('Button', () => {
   it('does not trigger click when disabled', async () => {
     const handleClick = vi.fn();
     const user = userEvent.setup();
-    
-    render(<Button disabled onClick={handleClick}>Disabled</Button>);
+
+    render(
+      <Button disabled onClick={handleClick}>
+        Disabled
+      </Button>
+    );
     const button = screen.getByRole('button');
-    
+
     await user.click(button);
     expect(handleClick).not.toHaveBeenCalled();
   });

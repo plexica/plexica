@@ -39,6 +39,7 @@ See [Getting Started Guide](./GETTING_STARTED.md) for detailed setup instruction
 1. **Fork the repository**
 
 2. **Create a feature branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    # or
@@ -51,6 +52,7 @@ See [Getting Started Guide](./GETTING_STARTED.md) for detailed setup instruction
    - Update documentation as needed
 
 4. **Commit your changes**
+
    ```bash
    git commit -m "feat: add new feature"
    # or
@@ -67,6 +69,7 @@ See [Getting Started Guide](./GETTING_STARTED.md) for detailed setup instruction
    - `chore:` Maintenance tasks
 
 5. **Push to your fork**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -121,15 +124,19 @@ export class MyClass {
 import { FastifyPluginAsync } from 'fastify';
 
 export const myRoutes: FastifyPluginAsync = async (server) => {
-  server.get('/', {
-    schema: {
-      tags: ['tag-name'],
-      summary: 'Short description',
-      description: 'Longer description',
+  server.get(
+    '/',
+    {
+      schema: {
+        tags: ['tag-name'],
+        summary: 'Short description',
+        description: 'Longer description',
+      },
     },
-  }, async (request, reply) => {
-    // Handler implementation
-  });
+    async (request, reply) => {
+      // Handler implementation
+    }
+  );
 };
 ```
 
@@ -215,15 +222,15 @@ pnpm test -- path/to/test.spec.ts
 - Document parameters and return types
 - Include usage examples for complex APIs
 
-```typescript
+````typescript
 /**
  * Creates a new tenant with the provided configuration.
- * 
+ *
  * @param data - Tenant creation data
  * @param options - Optional configuration
  * @returns Promise resolving to created tenant
  * @throws TenantAlreadyExistsError if slug is taken
- * 
+ *
  * @example
  * ```typescript
  * const tenant = await tenantService.create({
@@ -235,7 +242,7 @@ pnpm test -- path/to/test.spec.ts
 async create(data: CreateTenantDto, options?: CreateOptions): Promise<Tenant> {
   // Implementation
 }
-```
+````
 
 ### README Updates
 

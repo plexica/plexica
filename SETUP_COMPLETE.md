@@ -5,12 +5,14 @@ Congratulations! Your Plexica development environment has been successfully set 
 ## ✅ What's Been Created
 
 ### 1. Monorepo Structure
+
 - ✅ Turborepo + pnpm workspace configuration
 - ✅ Proper package organization (apps/, packages/)
 - ✅ TypeScript configuration
 - ✅ Prettier and linting setup
 
 ### 2. Infrastructure Services (Docker Compose)
+
 - ✅ **PostgreSQL 15** - Multi-tenant database with schema isolation
 - ✅ **Redis 7** - Caching and session storage
 - ✅ **Keycloak 23** - Identity and Access Management
@@ -19,6 +21,7 @@ Congratulations! Your Plexica development environment has been successfully set 
 - ✅ **Redpanda Console** - UI for monitoring event streams
 
 ### 3. Core API Service
+
 - ✅ **Fastify 4** - High-performance web framework
 - ✅ **Prisma 5** - Type-safe ORM
 - ✅ **Zod** - Runtime schema validation
@@ -31,24 +34,28 @@ Congratulations! Your Plexica development environment has been successfully set 
 - ✅ Rate limiting
 
 ### 4. Database Package
+
 - ✅ Prisma schema for core data (tenants, plugins, super_admins)
 - ✅ Multi-schema support for tenant isolation
 - ✅ Migration system
 - ✅ TypeScript types generation
 
 ### 5. CI/CD Pipeline
+
 - ✅ GitHub Actions workflows for CI (lint, test, build)
 - ✅ Docker deployment workflow
 - ✅ Dependency review automation
 - ✅ Dockerfiles for containerization
 
 ### 6. Development Tools
+
 - ✅ Infrastructure management script (`scripts/infra.sh`)
 - ✅ VSCode workspace configuration
 - ✅ Recommended extensions
 - ✅ Code formatting and linting rules
 
 ### 7. Documentation
+
 - ✅ Comprehensive README
 - ✅ Getting Started guide
 - ✅ Contributing guidelines
@@ -66,6 +73,7 @@ pnpm infra:start
 ```
 
 Wait for all services to be healthy. You'll see:
+
 ```
 ✓ PostgreSQL is ready
 ✓ Redis is ready
@@ -88,33 +96,34 @@ pnpm dev
 ```
 
 The Core API will be available at:
+
 - **API**: http://localhost:3000
 - **API Docs**: http://localhost:3000/docs
 - **Health Check**: http://localhost:3000/health
 
 ### 4. Access Service UIs
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| 🔐 Keycloak Admin | http://localhost:8080 | admin / admin |
-| 💾 Prisma Studio | `pnpm db:studio` then http://localhost:5555 | - |
-| 📊 Redpanda Console | http://localhost:8090 | - |
-| 📦 MinIO Console | http://localhost:9001 | minioadmin / minioadmin |
+| Service             | URL                                         | Credentials             |
+| ------------------- | ------------------------------------------- | ----------------------- |
+| 🔐 Keycloak Admin   | http://localhost:8080                       | admin / admin           |
+| 💾 Prisma Studio    | `pnpm db:studio` then http://localhost:5555 | -                       |
+| 📊 Redpanda Console | http://localhost:8090                       | -                       |
+| 📦 MinIO Console    | http://localhost:9001                       | minioadmin / minioadmin |
 
 ---
 
 ## 📖 Important Files
 
-| File | Purpose |
-|------|---------|
-| `README.md` | Project overview and quick start |
-| `STATUS.md` | Current project status and progress |
-| `docs/GETTING_STARTED.md` | Detailed setup and development guide |
-| `docs/CONTRIBUTING.md` | Contribution guidelines |
-| `.env.example` | Environment variables template |
-| `docker-compose.yml` | Infrastructure services definition |
-| `turbo.json` | Monorepo build pipeline |
-| `packages/database/prisma/schema.prisma` | Database schema |
+| File                                     | Purpose                              |
+| ---------------------------------------- | ------------------------------------ |
+| `README.md`                              | Project overview and quick start     |
+| `STATUS.md`                              | Current project status and progress  |
+| `docs/GETTING_STARTED.md`                | Detailed setup and development guide |
+| `docs/CONTRIBUTING.md`                   | Contribution guidelines              |
+| `.env.example`                           | Environment variables template       |
+| `docker-compose.yml`                     | Infrastructure services definition   |
+| `turbo.json`                             | Monorepo build pipeline              |
+| `packages/database/prisma/schema.prisma` | Database schema                      |
 
 ---
 
@@ -127,6 +136,7 @@ curl http://localhost:3000/health
 ```
 
 Should return:
+
 ```json
 {
   "status": "healthy",
@@ -214,6 +224,7 @@ See `../plexica-specs/planning/DEVELOPMENT_PLAN.md` for detailed task breakdown.
 ### Ports Already in Use
 
 If you get "port already in use" errors:
+
 ```bash
 # Find what's using the port (e.g., 3000)
 lsof -i :3000
@@ -293,5 +304,5 @@ For more troubleshooting, see `docs/GETTING_STARTED.md`.
 
 ---
 
-*Generated: January 2025*  
-*Milestone: M1.1 - Foundation Complete ✅*
+_Generated: January 2025_  
+_Milestone: M1.1 - Foundation Complete ✅_

@@ -79,7 +79,9 @@ export const WorkspaceSettings: Story = {
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label htmlFor="auto-assign">Auto-assign leads</Label>
-            <p className="text-sm text-text-secondary">Automatically assign new leads to team members</p>
+            <p className="text-sm text-text-secondary">
+              Automatically assign new leads to team members
+            </p>
           </div>
           <Switch id="auto-assign" defaultChecked />
         </div>

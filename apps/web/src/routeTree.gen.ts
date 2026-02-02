@@ -8,90 +8,90 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settings'
-import { Route as TeamRouteImport } from './routes/team'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as PluginsRouteImport } from './routes/plugins'
-import { Route as MembersManagementRouteImport } from './routes/members-management'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ActivityLogRouteImport } from './routes/activity-log'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as rootRouteImport } from './routes/__root';
+import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settings';
+import { Route as TeamRouteImport } from './routes/team';
+import { Route as SettingsRouteImport } from './routes/settings';
+import { Route as PluginsRouteImport } from './routes/plugins';
+import { Route as MembersManagementRouteImport } from './routes/members-management';
+import { Route as LoginRouteImport } from './routes/login';
+import { Route as ActivityLogRouteImport } from './routes/activity-log';
+import { Route as IndexRouteImport } from './routes/index';
 
 const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   id: '/workspace-settings',
   path: '/workspace-settings',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
   path: '/team',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const PluginsRoute = PluginsRouteImport.update({
   id: '/plugins',
   path: '/plugins',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const MembersManagementRoute = MembersManagementRouteImport.update({
   id: '/members-management',
   path: '/members-management',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ActivityLogRoute = ActivityLogRouteImport.update({
   id: '/activity-log',
   path: '/activity-log',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/activity-log': typeof ActivityLogRoute
-  '/login': typeof LoginRoute
-  '/members-management': typeof MembersManagementRoute
-  '/plugins': typeof PluginsRoute
-  '/settings': typeof SettingsRoute
-  '/team': typeof TeamRoute
-  '/workspace-settings': typeof WorkspaceSettingsRoute
+  '/': typeof IndexRoute;
+  '/activity-log': typeof ActivityLogRoute;
+  '/login': typeof LoginRoute;
+  '/members-management': typeof MembersManagementRoute;
+  '/plugins': typeof PluginsRoute;
+  '/settings': typeof SettingsRoute;
+  '/team': typeof TeamRoute;
+  '/workspace-settings': typeof WorkspaceSettingsRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/activity-log': typeof ActivityLogRoute
-  '/login': typeof LoginRoute
-  '/members-management': typeof MembersManagementRoute
-  '/plugins': typeof PluginsRoute
-  '/settings': typeof SettingsRoute
-  '/team': typeof TeamRoute
-  '/workspace-settings': typeof WorkspaceSettingsRoute
+  '/': typeof IndexRoute;
+  '/activity-log': typeof ActivityLogRoute;
+  '/login': typeof LoginRoute;
+  '/members-management': typeof MembersManagementRoute;
+  '/plugins': typeof PluginsRoute;
+  '/settings': typeof SettingsRoute;
+  '/team': typeof TeamRoute;
+  '/workspace-settings': typeof WorkspaceSettingsRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/activity-log': typeof ActivityLogRoute
-  '/login': typeof LoginRoute
-  '/members-management': typeof MembersManagementRoute
-  '/plugins': typeof PluginsRoute
-  '/settings': typeof SettingsRoute
-  '/team': typeof TeamRoute
-  '/workspace-settings': typeof WorkspaceSettingsRoute
+  __root__: typeof rootRouteImport;
+  '/': typeof IndexRoute;
+  '/activity-log': typeof ActivityLogRoute;
+  '/login': typeof LoginRoute;
+  '/members-management': typeof MembersManagementRoute;
+  '/plugins': typeof PluginsRoute;
+  '/settings': typeof SettingsRoute;
+  '/team': typeof TeamRoute;
+  '/workspace-settings': typeof WorkspaceSettingsRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
     | '/activity-log'
@@ -100,8 +100,8 @@ export interface FileRouteTypes {
     | '/plugins'
     | '/settings'
     | '/team'
-    | '/workspace-settings'
-  fileRoutesByTo: FileRoutesByTo
+    | '/workspace-settings';
+  fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
     | '/activity-log'
@@ -110,7 +110,7 @@ export interface FileRouteTypes {
     | '/plugins'
     | '/settings'
     | '/team'
-    | '/workspace-settings'
+    | '/workspace-settings';
   id:
     | '__root__'
     | '/'
@@ -120,78 +120,78 @@ export interface FileRouteTypes {
     | '/plugins'
     | '/settings'
     | '/team'
-    | '/workspace-settings'
-  fileRoutesById: FileRoutesById
+    | '/workspace-settings';
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ActivityLogRoute: typeof ActivityLogRoute
-  LoginRoute: typeof LoginRoute
-  MembersManagementRoute: typeof MembersManagementRoute
-  PluginsRoute: typeof PluginsRoute
-  SettingsRoute: typeof SettingsRoute
-  TeamRoute: typeof TeamRoute
-  WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute
+  IndexRoute: typeof IndexRoute;
+  ActivityLogRoute: typeof ActivityLogRoute;
+  LoginRoute: typeof LoginRoute;
+  MembersManagementRoute: typeof MembersManagementRoute;
+  PluginsRoute: typeof PluginsRoute;
+  SettingsRoute: typeof SettingsRoute;
+  TeamRoute: typeof TeamRoute;
+  WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/workspace-settings': {
-      id: '/workspace-settings'
-      path: '/workspace-settings'
-      fullPath: '/workspace-settings'
-      preLoaderRoute: typeof WorkspaceSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/workspace-settings';
+      path: '/workspace-settings';
+      fullPath: '/workspace-settings';
+      preLoaderRoute: typeof WorkspaceSettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/team': {
-      id: '/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof TeamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/team';
+      path: '/team';
+      fullPath: '/team';
+      preLoaderRoute: typeof TeamRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/settings';
+      path: '/settings';
+      fullPath: '/settings';
+      preLoaderRoute: typeof SettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/plugins': {
-      id: '/plugins'
-      path: '/plugins'
-      fullPath: '/plugins'
-      preLoaderRoute: typeof PluginsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/plugins';
+      path: '/plugins';
+      fullPath: '/plugins';
+      preLoaderRoute: typeof PluginsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/members-management': {
-      id: '/members-management'
-      path: '/members-management'
-      fullPath: '/members-management'
-      preLoaderRoute: typeof MembersManagementRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/members-management';
+      path: '/members-management';
+      fullPath: '/members-management';
+      preLoaderRoute: typeof MembersManagementRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/login';
+      path: '/login';
+      fullPath: '/login';
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/activity-log': {
-      id: '/activity-log'
-      path: '/activity-log'
-      fullPath: '/activity-log'
-      preLoaderRoute: typeof ActivityLogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/activity-log';
+      path: '/activity-log';
+      fullPath: '/activity-log';
+      preLoaderRoute: typeof ActivityLogRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -204,7 +204,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,
   WorkspaceSettingsRoute: WorkspaceSettingsRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

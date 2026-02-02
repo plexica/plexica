@@ -5,6 +5,7 @@
 **Recommendation**: Monorepo for the core + **External plugins in separate repositories**
 
 This is the optimal strategy that combines:
+
 - ✅ Monorepo advantages for the core platform
 - ✅ Independent plugin development flexibility
 - ✅ Third-party plugin marketplace
@@ -26,6 +27,7 @@ plexica/                           # Main monorepo
 ```
 
 **Characteristics:**
+
 - Developed and maintained by the Plexica team
 - Synchronized deployment with core
 - Direct access to internal packages
@@ -42,6 +44,7 @@ acme-plugin-custom/               # Custom client plugin
 ```
 
 **Characteristics:**
+
 - Independent development
 - Autonomous versioning
 - Published to registry (npm, Docker Hub)
@@ -93,12 +96,12 @@ plexica-plugin-helpdesk/
   "description": "Customer support ticketing system",
   "author": "ACME Corp",
   "license": "MIT",
-  
+
   "plexica": {
     "minVersion": "1.0.0",
     "maxVersion": "2.x"
   },
-  
+
   "runtime": {
     "type": "typescript",
     "backend": {
@@ -113,7 +116,7 @@ plexica-plugin-helpdesk/
       "routePrefix": "/helpdesk"
     }
   },
-  
+
   "dependencies": {
     "plugins": [
       {
@@ -126,13 +129,13 @@ plexica-plugin-helpdesk/
       "@plexica/types": "^1.0.0"
     }
   },
-  
+
   "api": {
     "basePath": "/api/plugins/helpdesk",
     "healthCheck": "/health",
     "openapi": "/openapi.json"
   },
-  
+
   "permissions": [
     {
       "key": "helpdesk:tickets:read",
@@ -145,18 +148,12 @@ plexica-plugin-helpdesk/
       "description": "Can create and edit tickets"
     }
   ],
-  
+
   "events": {
-    "publishes": [
-      "helpdesk.ticket.created",
-      "helpdesk.ticket.resolved"
-    ],
-    "subscribes": [
-      "crm.contact.created",
-      "notifications.send"
-    ]
+    "publishes": ["helpdesk.ticket.created", "helpdesk.ticket.resolved"],
+    "subscribes": ["crm.contact.created", "notifications.send"]
   },
-  
+
   "configuration": {
     "schema": {
       "type": "object",
@@ -174,11 +171,11 @@ plexica-plugin-helpdesk/
       }
     }
   },
-  
+
   "migrations": {
     "path": "/migrations"
   },
-  
+
   "pricing": {
     "model": "per-seat",
     "tiers": [
@@ -248,6 +245,7 @@ Plugin compatibility:
 ```
 
 **SDK publication pipeline:**
+
 ```yaml
 # .github/workflows/publish-sdk.yml
 name: Publish SDK
@@ -452,12 +450,10 @@ async function validatePluginPermissions(
   requestedPermission: string
 ): Promise<boolean> {
   const manifest = await pluginRegistry.getManifest(pluginId);
-  
-  const allowedPermissions = manifest.permissions.map(p => p.key);
-  
-  return allowedPermissions.some(allowed => 
-    matchesPermission(requestedPermission, allowed)
-  );
+
+  const allowedPermissions = manifest.permissions.map((p) => p.key);
+
+  return allowedPermissions.some((allowed) => matchesPermission(requestedPermission, allowed));
 }
 ```
 
@@ -466,13 +462,13 @@ async function validatePluginPermissions(
 ```typescript
 // Core API enforces limits from manifest
 const limits = {
-  cpu: manifest.runtime.backend.resources.cpu,      // "500m"
+  cpu: manifest.runtime.backend.resources.cpu, // "500m"
   memory: manifest.runtime.backend.resources.memory, // "512Mi"
-  storage: "1Gi",
+  storage: '1Gi',
   requests: {
     perMinute: 1000,
-    perDay: 100000
-  }
+    perDay: 100000,
+  },
 };
 ```
 
@@ -500,7 +496,7 @@ plexica-cli plugin verify \
 
 function PluginMarketplace() {
   const { data: plugins } = useQuery('plugins', fetchPlugins);
-  
+
   return (
     <Grid>
       {plugins.map(plugin => (
@@ -529,7 +525,7 @@ function PluginMarketplace() {
 
 function InstalledPlugins() {
   const { data: installed } = useQuery('tenant-plugins', fetchInstalled);
-  
+
   return (
     <List>
       {installed.map(plugin => (
@@ -539,14 +535,14 @@ function InstalledPlugins() {
             <Version>{plugin.version}</Version>
           </Info>
           <Actions>
-            <Switch 
+            <Switch
               checked={plugin.enabled}
               onChange={() => togglePlugin(plugin.id)}
             />
             <Button onClick={() => configurePlugin(plugin.id)}>
               Configure
             </Button>
-            <Button 
+            <Button
               variant="danger"
               onClick={() => uninstallPlugin(plugin.id)}
             >
@@ -656,14 +652,14 @@ import { TicketsController } from './controllers/tickets.controller';
 class HelpdeskPlugin extends PlexicaPlugin {
   async onInstall() {
     console.log('Helpdesk plugin installed');
-    
+
     // Setup default configuration
     await this.db.execute(`
       INSERT INTO plugin_config (key, value)
       VALUES ('autoAssign', 'true')
     `);
   }
-  
+
   async onEnable() {
     // Subscribe to events
     this.events.subscribe('crm.contact.created', async (event) => {
@@ -671,18 +667,17 @@ class HelpdeskPlugin extends PlexicaPlugin {
       await this.createWelcomeTicket(event.data);
     });
   }
-  
+
   @Route('GET', '/tickets')
   @Permission('helpdesk:tickets:read')
   async listTickets(req: Request) {
-    const tickets = await this.db.query(
-      'SELECT * FROM tickets WHERE tenant_id = $1',
-      [req.tenantContext.tenantId]
-    );
-    
+    const tickets = await this.db.query('SELECT * FROM tickets WHERE tenant_id = $1', [
+      req.tenantContext.tenantId,
+    ]);
+
     return tickets;
   }
-  
+
   @Route('POST', '/tickets')
   @Permission('helpdesk:tickets:write')
   async createTicket(req: Request) {
@@ -690,10 +685,10 @@ class HelpdeskPlugin extends PlexicaPlugin {
       'INSERT INTO tickets (subject, description, tenant_id) VALUES ($1, $2, $3) RETURNING *',
       [req.body.subject, req.body.description, req.tenantContext.tenantId]
     );
-    
+
     // Publish event
     await this.publishEvent('ticket.created', ticket);
-    
+
     return ticket;
   }
 }
@@ -765,5 +760,5 @@ export default HelpdeskPlugin;
 
 ---
 
-*Plexica Document - Plugin Strategy v1.0*  
-*Last updated: January 2025*
+_Plexica Document - Plugin Strategy v1.0_  
+_Last updated: January 2025_

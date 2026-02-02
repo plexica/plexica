@@ -18,6 +18,7 @@
 6. **End-to-end type safety**: TypeScript types shared between backend and frontend
 
 **Managing complexity:**
+
 - Tool: **Turborepo** or **Nx** for build caching and task orchestration
 - Package manager: **pnpm** for workspace efficiency
 - Approximately 8-12 total packages (manageable)
@@ -523,6 +524,7 @@ Separate repositories:
 ```
 
 **Multi-Repo Disadvantages:**
+
 - ❌ Type drift between repositories
 - ❌ Complex versioning (8+ repos to synchronize)
 - ❌ Difficult cross-repo refactoring
@@ -602,5 +604,5 @@ pnpm plugin:create my-plugin
 
 ---
 
-*Plexica Document - Project Structure v1.0*  
-*Last updated: January 2025*
+_Plexica Document - Project Structure v1.0_  
+_Last updated: January 2025_

@@ -25,16 +25,16 @@ const preview: Preview = {
         plexica: {
           name: 'plexica',
           value: '#f5f5f5',
-        }
-      }
+        },
+      },
     },
   },
 
   initialGlobals: {
     backgrounds: {
-      value: 'light'
-    }
-  }
+      value: 'light',
+    },
+  },
 };
 
 export default preview;

@@ -12,6 +12,7 @@ Before you begin, ensure you have the following installed:
 - **Git** ([Download](https://git-scm.com/downloads))
 
 Verify installations:
+
 ```bash
 node --version    # Should be v20.x.x or higher
 pnpm --version    # Should be 8.x.x or higher
@@ -41,6 +42,7 @@ pnpm infra:start
 ```
 
 This will start:
+
 - PostgreSQL (port 5432)
 - Redis (port 6379)
 - Keycloak (port 8080)
@@ -76,6 +78,7 @@ cp .env.example .env
 ```
 
 The default values work for local development. For production, you'll need to change:
+
 - `JWT_SECRET`
 - `KEYCLOAK_ADMIN_PASSWORD`
 - Database credentials
@@ -239,14 +242,14 @@ pnpm db:migrate
 
 ### Accessing services
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Core API | http://localhost:3000 | - |
-| API Docs | http://localhost:3000/docs | - |
-| Keycloak | http://localhost:8080 | admin/admin |
-| Prisma Studio | http://localhost:5555 | - |
-| Redpanda Console | http://localhost:8090 | - |
-| MinIO Console | http://localhost:9001 | minioadmin/minioadmin |
+| Service          | URL                        | Credentials           |
+| ---------------- | -------------------------- | --------------------- |
+| Core API         | http://localhost:3000      | -                     |
+| API Docs         | http://localhost:3000/docs | -                     |
+| Keycloak         | http://localhost:8080      | admin/admin           |
+| Prisma Studio    | http://localhost:5555      | -                     |
+| Redpanda Console | http://localhost:8090      | -                     |
+| MinIO Console    | http://localhost:9001      | minioadmin/minioadmin |
 
 ## Troubleshooting
 

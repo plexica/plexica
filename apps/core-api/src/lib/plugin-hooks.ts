@@ -2,7 +2,7 @@ import type { PluginHookContext, PluginHookHandler } from '../types/plugin.types
 
 /**
  * Plugin Hook/Event System
- * 
+ *
  * Allows plugins to subscribe to system events and extend functionality
  */
 
@@ -34,7 +34,7 @@ export class PluginHookSystem {
   unregisterPlugin(pluginId: string): void {
     for (const [hookName, hookMap] of this.hooks.entries()) {
       hookMap.delete(pluginId);
-      
+
       // Clean up empty hook maps
       if (hookMap.size === 0) {
         this.hooks.delete(hookName);

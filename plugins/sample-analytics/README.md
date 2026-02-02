@@ -14,12 +14,12 @@ A demonstration plugin for the Plexica platform that showcases analytics and rep
 
 The plugin supports the following configuration options:
 
-| Key | Type | Required | Default | Description |
-|-----|------|----------|---------|-------------|
-| `apiKey` | string | Yes | - | Analytics service API key |
-| `trackingEnabled` | boolean | No | true | Enable/disable tracking |
-| `reportingInterval` | number | No | 24 | Report generation interval (hours) |
-| `dataRetentionDays` | number | No | 90 | Data retention period (days) |
+| Key                 | Type    | Required | Default | Description                        |
+| ------------------- | ------- | -------- | ------- | ---------------------------------- |
+| `apiKey`            | string  | Yes      | -       | Analytics service API key          |
+| `trackingEnabled`   | boolean | No       | true    | Enable/disable tracking            |
+| `reportingInterval` | number  | No       | 24      | Report generation interval (hours) |
+| `dataRetentionDays` | number  | No       | 90      | Data retention period (days)       |
 
 ## Permissions
 
@@ -53,6 +53,7 @@ The plugin exposes the following REST endpoints:
 ## Installation
 
 1. Register the plugin in the global registry:
+
 ```bash
 curl -X POST http://localhost:3000/api/plugins \
   -H "Content-Type: application/json" \
@@ -61,6 +62,7 @@ curl -X POST http://localhost:3000/api/plugins \
 ```
 
 2. Install for a tenant:
+
 ```bash
 curl -X POST http://localhost:3000/api/tenants/{tenantId}/plugins/sample-analytics/install \
   -H "Authorization: Bearer <TOKEN>" \
@@ -76,6 +78,7 @@ curl -X POST http://localhost:3000/api/tenants/{tenantId}/plugins/sample-analyti
 ```
 
 3. Activate the plugin:
+
 ```bash
 curl -X POST http://localhost:3000/api/tenants/{tenantId}/plugins/sample-analytics/activate \
   -H "Authorization: Bearer <TOKEN>"

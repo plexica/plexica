@@ -29,11 +29,13 @@ describe('Redpanda Basic Test', () => {
       // Create topic
       const topicName = `test-simple-${Date.now()}`;
       await admin.createTopics({
-        topics: [{
-          topic: topicName,
-          numPartitions: 1,
-          replicationFactor: 1,
-        }],
+        topics: [
+          {
+            topic: topicName,
+            numPartitions: 1,
+            replicationFactor: 1,
+          },
+        ],
       });
 
       // Subscribe BEFORE producing
@@ -50,7 +52,7 @@ describe('Redpanda Basic Test', () => {
       });
 
       // Give consumer time to be ready
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
 
       // Produce message
       await producer.send({

@@ -187,11 +187,13 @@ Retrieves list of entities.
 **Required permissions**: `plugin.[name].entities.read`
 
 **Query Parameters**:
+
 - `page` (number, optional): Page number (default: 1)
 - `limit` (number, optional): Results per page (default: 20)
 - `filter` (string, optional): Search filter
 
 **Response 200**:
+
 ```typescript
 {
   data: Array<{
@@ -206,7 +208,7 @@ Retrieves list of entities.
     limit: number;
     total: number;
     totalPages: number;
-  };
+  }
 }
 ```
 
@@ -222,6 +224,7 @@ Creates new entity.
 **Required permissions**: `plugin.[name].entities.create`
 
 **Request Body**:
+
 ```typescript
 {
   name: string;
@@ -230,6 +233,7 @@ Creates new entity.
 ```
 
 **Response 201**:
+
 ```typescript
 {
   id: string;
@@ -253,6 +257,7 @@ Updates existing entity.
 **Required permissions**: `plugin.[name].entities.update`
 
 **Request Body**:
+
 ```typescript
 {
   name?: string;
@@ -347,6 +352,7 @@ Deletes entity.
 Main plugin dashboard.
 
 **Components**:
+
 - `DashboardPage.tsx` - Main container
 - `StatsWidget.tsx` - Statistics widget
 - `RecentActivityWidget.tsx` - Recent activities
@@ -356,6 +362,7 @@ Main plugin dashboard.
 List of entities managed by the plugin.
 
 **Components**:
+
 - `EntitiesListPage.tsx` - List with table
 - `EntityCreateModal.tsx` - Creation modal
 - `EntityDetailDrawer.tsx` - Entity details
@@ -367,6 +374,7 @@ List of entities managed by the plugin.
 Summary widget for main dashboard.
 
 **Props**:
+
 ```typescript
 interface EntitySummaryWidgetProps {
   tenantId: string;
@@ -375,6 +383,7 @@ interface EntitySummaryWidgetProps {
 ```
 
 **Usage**:
+
 ```typescript
 import { EntitySummaryWidget } from '@plexica/plugin-[name]';
 
@@ -392,7 +401,7 @@ import { useEntities } from '@plexica/plugin-[name]';
 
 function MyComponent() {
   const { entities, loading, error, create, update, remove } = useEntities();
-  
+
   // ... usage
 }
 ```
@@ -428,12 +437,12 @@ plugin:
     cache:
       enabled: true
       ttl: 3600
-    
+
     rateLimit:
       enabled: true
       maxRequests: 100
       windowMs: 60000
-    
+
     features:
       advanced_search: true
       batch_operations: false
@@ -454,6 +463,7 @@ pnpm test:coverage
 ```
 
 **Example test**:
+
 ```typescript
 // File: backend/src/services/__tests__/entity.service.test.ts
 
@@ -462,11 +472,11 @@ import { EntityService } from '../entity.service';
 
 describe('EntityService', () => {
   let service: EntityService;
-  
+
   beforeEach(() => {
     service = new EntityService();
   });
-  
+
   it('should create entity', async () => {
     const entity = await service.create({ name: 'Test' });
     expect(entity).toHaveProperty('id');
@@ -535,7 +545,7 @@ export default class MyPlugin extends PlexicaPlugin {
   async onInit() {
     this.logger.debug('Plugin initialized', {
       version: this.manifest.version,
-      config: this.config
+      config: this.config,
     });
   }
 }
@@ -576,14 +586,14 @@ spec:
         app: plexica-plugin-[name]
     spec:
       containers:
-      - name: plugin
-        image: plexica/plugin-[name]:latest
-        env:
-        - name: PLUGIN_CONFIG
-          valueFrom:
-            configMapKeyRef:
-              name: plugin-[name]-config
-              key: config.json
+        - name: plugin
+          image: plexica/plugin-[name]:latest
+          env:
+            - name: PLUGIN_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: plugin-[name]-config
+                  key: config.json
 ```
 
 ---
@@ -634,6 +644,7 @@ curl http://localhost:3000/api/plugins/[name]/health
 **Symptom**: "Plugin not found" error in core
 
 **Solution**:
+
 1. Verify manifest is valid
 2. Check core logs: `plexica logs core`
 3. Ensure plugin is registered: `plexica plugin list`
@@ -643,6 +654,7 @@ curl http://localhost:3000/api/plugins/[name]/health
 **Symptom**: 403 Forbidden on plugin APIs
 
 **Solution**:
+
 1. Verify permissions are assigned to user role
 2. Check plugin manifest for required permissions
 3. Restart core after permission changes
@@ -652,6 +664,7 @@ curl http://localhost:3000/api/plugins/[name]/health
 **Symptom**: Error during `pnpm db:migrate`
 
 **Solution**:
+
 1. Rollback last migration: `pnpm db:rollback`
 2. Verify SQL syntax of migration
 3. Check database connection
@@ -690,18 +703,22 @@ curl http://localhost:3000/api/plugins/[name]/health
 ### [1.0.0] - 2025-01-XX
 
 **Added**:
+
 - Feature 1
 - Feature 2
 
 **Changed**:
+
 - Improvement 1
 
 **Fixed**:
+
 - Bug fix 1
 
 ### [0.9.0] - 2025-01-XX
 
 **Added**:
+
 - Initial release
 
 ---
@@ -721,6 +738,6 @@ curl http://localhost:3000/api/plugins/[name]/health
 
 ---
 
-*Plugin [Name] Documentation v1.0*  
-*Last updated: January 2025*  
-*Author: [Team Name]*
+_Plugin [Name] Documentation v1.0_  
+_Last updated: January 2025_  
+_Author: [Team Name]_

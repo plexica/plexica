@@ -14,13 +14,13 @@
 
 ### Available Endpoints
 
-| Method | Endpoint | Description | Required Permission |
-|--------|----------|-------------|-------------------|
-| GET | `/[resource]` | List resources | `[module].[resource].read` |
-| GET | `/[resource]/:id` | Resource detail | `[module].[resource].read` |
-| POST | `/[resource]` | Create resource | `[module].[resource].create` |
-| PUT | `/[resource]/:id` | Update resource | `[module].[resource].update` |
-| PATCH | `/[resource]/:id` | Partial update | `[module].[resource].update` |
+| Method | Endpoint          | Description     | Required Permission          |
+| ------ | ----------------- | --------------- | ---------------------------- |
+| GET    | `/[resource]`     | List resources  | `[module].[resource].read`   |
+| GET    | `/[resource]/:id` | Resource detail | `[module].[resource].read`   |
+| POST   | `/[resource]`     | Create resource | `[module].[resource].create` |
+| PUT    | `/[resource]/:id` | Update resource | `[module].[resource].update` |
+| PATCH  | `/[resource]/:id` | Partial update  | `[module].[resource].update` |
 | DELETE | `/[resource]/:id` | Delete resource | `[module].[resource].delete` |
 
 ---
@@ -98,12 +98,12 @@ X-Plugin-ID: plugin-crm                 # Optional (plugin identifier)
 GET /api/[resource]?page=1&limit=20&sort=-createdAt&filter=active
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `page` | number | 1 | Page number |
-| `limit` | number | 20 | Results per page (max: 100) |
-| `sort` | string | `-createdAt` | Sort field (prefix `-` for DESC) |
-| `filter` | string | - | Search filter (resource-specific format) |
+| Parameter | Type   | Default      | Description                              |
+| --------- | ------ | ------------ | ---------------------------------------- |
+| `page`    | number | 1            | Page number                              |
+| `limit`   | number | 20           | Results per page (max: 100)              |
+| `sort`    | string | `-createdAt` | Sort field (prefix `-` for DESC)         |
+| `filter`  | string | -            | Search filter (resource-specific format) |
 
 ### Paginated Response
 
@@ -215,24 +215,25 @@ GET /api/users?sort=-status,email
 
 ### HTTP Error Codes
 
-| Status | Meaning | Example |
-|--------|-------------|---------|
-| 200 | OK | Request successful |
-| 201 | Created | Resource created |
-| 204 | No Content | Deletion successful |
-| 400 | Bad Request | Validation failed |
-| 401 | Unauthorized | Token missing/invalid |
-| 403 | Forbidden | Insufficient permissions |
-| 404 | Not Found | Resource not found |
-| 409 | Conflict | Conflict (e.g., email already exists) |
-| 422 | Unprocessable Entity | Data cannot be processed |
-| 429 | Too Many Requests | Rate limit exceeded |
-| 500 | Internal Server Error | Server error |
-| 503 | Service Unavailable | Service temporarily unavailable |
+| Status | Meaning               | Example                               |
+| ------ | --------------------- | ------------------------------------- |
+| 200    | OK                    | Request successful                    |
+| 201    | Created               | Resource created                      |
+| 204    | No Content            | Deletion successful                   |
+| 400    | Bad Request           | Validation failed                     |
+| 401    | Unauthorized          | Token missing/invalid                 |
+| 403    | Forbidden             | Insufficient permissions              |
+| 404    | Not Found             | Resource not found                    |
+| 409    | Conflict              | Conflict (e.g., email already exists) |
+| 422    | Unprocessable Entity  | Data cannot be processed              |
+| 429    | Too Many Requests     | Rate limit exceeded                   |
+| 500    | Internal Server Error | Server error                          |
+| 503    | Service Unavailable   | Service temporarily unavailable       |
 
 ### Error Examples
 
 **401 Unauthorized**:
+
 ```json
 {
   "error": {
@@ -249,6 +250,7 @@ GET /api/users?sort=-status,email
 ```
 
 **400 Bad Request (Validation)**:
+
 ```json
 {
   "error": {
@@ -276,6 +278,7 @@ GET /api/users?sort=-status,email
 ```
 
 **403 Forbidden**:
+
 ```json
 {
   "error": {
@@ -298,10 +301,10 @@ GET /api/users?sort=-status,email
 
 ### Limits
 
-| Tier | Limit | Window | Header |
-|------|--------|----------|--------|
-| Standard | 1000 req | 1 hour | `X-RateLimit-Limit: 1000` |
-| Premium | 5000 req | 1 hour | `X-RateLimit-Limit: 5000` |
+| Tier       | Limit     | Window | Header                     |
+| ---------- | --------- | ------ | -------------------------- |
+| Standard   | 1000 req  | 1 hour | `X-RateLimit-Limit: 1000`  |
+| Premium    | 5000 req  | 1 hour | `X-RateLimit-Limit: 5000`  |
 | Enterprise | 10000 req | 1 hour | `X-RateLimit-Limit: 10000` |
 
 ### Response Headers
@@ -342,6 +345,7 @@ List all resources (with pagination).
 **Permissions**: `[module].[resource].read`
 
 **Query Parameters**:
+
 - `page` (number, optional): Page number
 - `limit` (number, optional): Results per page
 - `sort` (string, optional): Sort field
@@ -350,6 +354,7 @@ List all resources (with pagination).
 - `include` (string, optional): Relations to include (comma-separated)
 
 **Request**:
+
 ```http
 GET /api/[resource]?page=1&limit=20&sort=-createdAt HTTP/1.1
 Host: api.plexica.io
@@ -358,6 +363,7 @@ Content-Type: application/json
 ```
 
 **Response 200**:
+
 ```typescript
 {
   "data": [
@@ -391,12 +397,15 @@ Retrieve single resource detail.
 **Permissions**: `[module].[resource].read`
 
 **Path Parameters**:
+
 - `id` (string, required): Unique resource ID (UUID)
 
 **Query Parameters**:
+
 - `include` (string, optional): Relations to include (e.g., `include=author,comments`)
 
 **Request**:
+
 ```http
 GET /api/[resource]/a1b2c3d4-e5f6-7890-abcd-ef1234567890 HTTP/1.1
 Host: api.plexica.io
@@ -404,6 +413,7 @@ Authorization: Bearer {token}
 ```
 
 **Response 200**:
+
 ```typescript
 {
   "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -435,6 +445,7 @@ Create new resource.
 **Permissions**: `[module].[resource].create`
 
 **Request Body**:
+
 ```typescript
 {
   "field1": string,           // Required
@@ -447,11 +458,13 @@ Create new resource.
 ```
 
 **Validation**:
+
 - `field1`: Required, length 3-255 characters
 - `field2`: Optional, positive number
 - `field3`: Optional, boolean
 
 **Request**:
+
 ```http
 POST /api/[resource] HTTP/1.1
 Host: api.plexica.io
@@ -465,6 +478,7 @@ Content-Type: application/json
 ```
 
 **Response 201**:
+
 ```typescript
 {
   "id": "newly-created-uuid",
@@ -491,9 +505,11 @@ Fully update existing resource (all fields).
 **Permissions**: `[module].[resource].update`
 
 **Path Parameters**:
+
 - `id` (string, required): Resource ID
 
 **Request Body**:
+
 ```typescript
 {
   "field1": string,           // Required
@@ -503,6 +519,7 @@ Fully update existing resource (all fields).
 ```
 
 **Request**:
+
 ```http
 PUT /api/[resource]/a1b2c3d4-e5f6-7890-abcd-ef1234567890 HTTP/1.1
 Host: api.plexica.io
@@ -532,9 +549,11 @@ Partially update resource (only specified fields).
 **Permissions**: `[module].[resource].update`
 
 **Path Parameters**:
+
 - `id` (string, required): Resource ID
 
 **Request Body** (all fields optional):
+
 ```typescript
 {
   "field1"?: string,
@@ -544,6 +563,7 @@ Partially update resource (only specified fields).
 ```
 
 **Request**:
+
 ```http
 PATCH /api/[resource]/a1b2c3d4-e5f6-7890-abcd-ef1234567890 HTTP/1.1
 Host: api.plexica.io
@@ -556,6 +576,7 @@ Content-Type: application/json
 ```
 
 **Response 200**:
+
 ```typescript
 {
   "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -581,12 +602,15 @@ Delete resource.
 **Permissions**: `[module].[resource].delete`
 
 **Path Parameters**:
+
 - `id` (string, required): Resource ID
 
 **Query Parameters**:
+
 - `soft` (boolean, optional): Soft delete (default: false)
 
 **Request**:
+
 ```http
 DELETE /api/[resource]/a1b2c3d4-e5f6-7890-abcd-ef1234567890 HTTP/1.1
 Host: api.plexica.io
@@ -612,6 +636,7 @@ Batch operations on multiple resources.
 **Permissions**: Depends on operation
 
 **Request Body**:
+
 ```typescript
 {
   "operation": "create" | "update" | "delete",
@@ -623,6 +648,7 @@ Batch operations on multiple resources.
 ```
 
 **Request**:
+
 ```http
 POST /api/[resource]/batch HTTP/1.1
 Host: api.plexica.io
@@ -645,6 +671,7 @@ Content-Type: application/json
 ```
 
 **Response 200**:
+
 ```typescript
 {
   "success": true,
@@ -805,6 +832,6 @@ Download complete Postman collection:
 
 ---
 
-*API Specification [Resource] v1.0*  
-*Last updated: January 2025*  
-*Team: Plexica Engineering*
+_API Specification [Resource] v1.0_  
+_Last updated: January 2025_  
+_Team: Plexica Engineering_

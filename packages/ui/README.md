@@ -35,17 +35,20 @@ function App() {
 ## Components
 
 ### Base Components
+
 - **Button** - Buttons in various styles and sizes (primary, secondary, danger, ghost, link)
 - **Card** - Container component with header, content, and footer
 - **Avatar** - User avatar with image and fallback
 - **Badge** - Small status indicators and counts
 
 ### Navigation Components
+
 - **Tabs** - Tabbed navigation interface
 - **Breadcrumbs** - Hierarchical navigation trail
 - **Dropdown** - Dropdown menus with items and separators
 
 ### Form Components
+
 - **Label** - Form field labels
 - **Input** - Text input with validation states
 - **Select** - Dropdown select component
@@ -56,6 +59,7 @@ function App() {
 - **Slider** - Range slider input
 
 ### Feedback Components
+
 - **Toast** - Toast notifications in various styles
 - **Modal/Dialog** - Modal dialogs and confirmations
 - **Spinner** - Loading indicators
@@ -63,11 +67,13 @@ function App() {
 - **Tooltip** - Contextual tooltips
 
 ### Data Display Components
+
 - **Table** - Data tables with sorting and actions
 - **EmptyState** - Empty state placeholders with CTAs
 - **Separator** - Visual divider between content
 
 ### Layout Components
+
 - **Header** - Application header with logo and actions
 - **Sidebar** - Collapsible sidebar navigation
 - **Footer** - Application footer
@@ -140,10 +146,10 @@ describe('Button', () => {
   it('handles click events', async () => {
     const handleClick = vi.fn();
     const user = userEvent.setup();
-    
+
     render(<Button onClick={handleClick}>Click me</Button>);
     const button = screen.getByRole('button');
-    
+
     await user.click(button);
     expect(handleClick).toHaveBeenCalledTimes(1);
   });

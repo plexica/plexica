@@ -51,7 +51,7 @@ export const NoSearchResults: Story = {
   args: {
     icon: <Search size={64} />,
     title: 'No results found',
-    description: 'Try adjusting your search or filter to find what you\'re looking for',
+    description: "Try adjusting your search or filter to find what you're looking for",
     action: {
       label: 'Clear filters',
       onClick: () => alert('Clear filters clicked'),
@@ -62,11 +62,7 @@ export const NoSearchResults: Story = {
 export const CustomIcon: Story = {
   render: () => (
     <EmptyState
-      icon={
-        <div className="text-6xl">
-          📊
-        </div>
-      }
+      icon={<div className="text-6xl">📊</div>}
       title="No data available"
       description="Start collecting data to see analytics here"
       action={{
