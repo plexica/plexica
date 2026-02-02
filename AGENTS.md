@@ -209,6 +209,29 @@ pnpm test --ui
 - ❌ Tests that depend on execution order
 - ❌ Not cleaning up test data after execution
 
+### Security Best Practices
+
+**🔒 CRITICAL: Always follow security guidelines in [docs/SECURITY.md](docs/SECURITY.md)**
+
+**SQL Injection Prevention (MANDATORY):**
+
+```typescript
+// ❌ NEVER: String interpolation in SQL
+await db.$queryRawUnsafe(`SELECT * FROM users WHERE email = '${email}'`);
+
+// ✅ ALWAYS: Use parameterized queries
+await db.$queryRaw`SELECT * FROM users WHERE email = ${email}`;
+```
+
+**Key Security Rules:**
+
+- ✅ **Always use parameterized queries** - never concatenate user input into SQL
+- ✅ **Validate tenant context** before accessing data
+- ✅ **Check user permissions** before sensitive operations
+- ✅ **Validate all user input** with Zod schemas
+- ✅ **Never commit secrets** - use environment variables
+- ✅ **Review [docs/SECURITY.md](docs/SECURITY.md)** before implementing features
+
 ### Best Practices
 
 - ✅ Write tests BEFORE code (test-driven development)
@@ -219,9 +242,11 @@ pnpm test --ui
 - ✅ Verify tests pass locally before committing
 - ✅ Run full test suite before creating pull request
 - ✅ Follow AAA pattern (Arrange, Act, Assert)
+- ✅ **Follow security guidelines** in docs/SECURITY.md
 
 ## Key Resources
 
+- **Security Guidelines**: 🔒 **[docs/SECURITY.md](docs/SECURITY.md)** - **MANDATORY** security best practices (SQL injection prevention, authentication, multi-tenant security)
 - **Full Guidelines**: The longer AGENTS.md sections below contain comprehensive test policy, documentation standards, and development guidelines
 - **Project Status**: See `PROJECT_COMPLETE.md` for full project overview (~870 tests implemented)
 - **Test Documentation**: `TEST_IMPLEMENTATION_PLAN.md` for testing strategies
@@ -373,6 +398,7 @@ describe('TenantService.createTenant', () => {
 
 **Critical rules:**
 
+- ✅ **Security first**: Follow [docs/SECURITY.md](docs/SECURITY.md) - use parameterized queries, validate input, check permissions
 - ✅ **Test-first development**: Write tests BEFORE code (failing tests → implementation)
 - ✅ **Three test types**: Unit, integration, and E2E tests as appropriate
 - ✅ **Coverage**: Maintain ≥80% overall, ≥85% in core modules (auth, tenant, workspace)
@@ -382,17 +408,20 @@ describe('TenantService.createTenant', () => {
 
 **Common mistakes to avoid:**
 
+- ❌ **SQL injection vulnerabilities** (string interpolation in queries)
 - ❌ No tests for new features (automatic PR rejection)
 - ❌ Using `any` type without strong justification
 - ❌ Tests that depend on execution order
 - ❌ Not cleaning up test data
 - ❌ Missing error case testing
 - ❌ Documentation out of sync with code
+- ❌ Skipping security review ([docs/SECURITY.md](docs/SECURITY.md))
 
 ---
 
 ## Resources
 
+- **Security Guidelines**: 🔒 **[docs/SECURITY.md](docs/SECURITY.md)** - SQL injection prevention, authentication, authorization, multi-tenant security
 - **Project Status**: `PROJECT_COMPLETE.md` (~870 tests implemented)
 - **Test Strategy**: `TEST_IMPLEMENTATION_PLAN.md`
 - **Specifications**: `specs/FUNCTIONAL_SPECIFICATIONS.md`, `specs/TECHNICAL_SPECIFICATIONS.md`
