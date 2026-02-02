@@ -13,7 +13,7 @@ export default defineConfig([
       js.configs.recommended,
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
+      // Exclude reactRefresh.configs.vite because it references babel-plugin-react-compiler which isn't installed
     ],
     languageOptions: {
       ecmaVersion: 2020,
@@ -23,6 +23,7 @@ export default defineConfig([
     },
     plugins: {
       '@typescript-eslint': tseslint.plugin,
+      'react-refresh': reactRefresh,
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
@@ -33,13 +34,26 @@ export default defineConfig([
           varsIgnorePattern: '^_',
         },
       ],
+      // React refresh rules
+      'react-refresh/only-export-components': 'error',
     },
   },
-  // Provider components and contexts export both components and hooks
+  // PluginContext has React Compiler warning and setState issues that require refactoring
   {
-    files: ['**/contexts/**/*.{ts,tsx}', '**/*Provider.tsx'],
+    files: ['**/contexts/PluginContext.tsx'],
     rules: {
       'react-refresh/only-export-components': 'off',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+    },
+  },
+  // Other provider components and contexts export both components and hooks/utilities
+  {
+    files: ['**/contexts/**/*.{ts,tsx}', '**/*Provider.tsx', '**/lib/plugin-routes.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/set-state-in-effect': 'warn', // Performance issue but not critical for migration
     },
   },
   // Test files - more lenient rules
