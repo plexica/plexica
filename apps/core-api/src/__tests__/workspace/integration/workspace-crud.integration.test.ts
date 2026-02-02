@@ -76,10 +76,12 @@ describe('Workspace CRUD Integration', () => {
     // Cleanup created workspaces
     for (const id of createdWorkspaceIds) {
       try {
-        await db.$executeRawUnsafe(`
-          DELETE FROM "tenant_acme_corp"."WorkspaceMember" WHERE "workspaceId" = '${id}';
-          DELETE FROM "tenant_acme_corp"."Workspace" WHERE "id" = '${id}';
-        `);
+        await db.$executeRaw`
+          DELETE FROM "tenant_acme"."workspace_members" WHERE "workspace_id" = ${id}
+        `;
+        await db.$executeRaw`
+          DELETE FROM "tenant_acme"."workspaces" WHERE "id" = ${id}
+        `;
       } catch (error) {
         // Ignore cleanup errors
       }
@@ -95,7 +97,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `test-workspace-${Date.now()}`,
           name: 'Test Workspace',
@@ -116,10 +118,10 @@ describe('Workspace CRUD Integration', () => {
       createdWorkspaceIds.push(workspace.id);
 
       // Verify in database
-      const dbWorkspace = (await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."Workspace"
-        WHERE "id" = '${workspace.id}'
-      `)) as any[];
+      const dbWorkspace = (await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspaces"
+        WHERE "id" = ${workspace.id}
+      `) as any[];
 
       expect(dbWorkspace).toHaveLength(1);
       expect(dbWorkspace[0].slug).toBe(workspace.slug);
@@ -129,7 +131,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `creator-admin-${Date.now()}`,
           name: 'Creator Admin Test',
@@ -141,10 +143,10 @@ describe('Workspace CRUD Integration', () => {
       createdWorkspaceIds.push(workspace.id);
 
       // Verify creator is admin
-      const membership = (await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspace.id}' AND "userId" = '${adminUserId}'
-      `)) as any[];
+      const membership = (await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspace.id} AND "user_id" = ${adminUserId}
+      `) as any[];
 
       expect(membership).toHaveLength(1);
       expect(membership[0].role).toBe(WorkspaceRole.ADMIN);
@@ -157,7 +159,7 @@ describe('Workspace CRUD Integration', () => {
       const response1 = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: { slug, name: 'First Workspace' },
       });
 
@@ -168,7 +170,7 @@ describe('Workspace CRUD Integration', () => {
       const response2 = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: { slug, name: 'Second Workspace' },
       });
 
@@ -181,7 +183,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `default-settings-${Date.now()}`,
           name: 'Default Settings Workspace',
@@ -200,7 +202,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `response-check-${Date.now()}`,
           name: 'Response Check Workspace',
@@ -228,7 +230,7 @@ describe('Workspace CRUD Integration', () => {
         const response = await app.inject({
           method: 'POST',
           url: '/api/workspaces',
-          headers: { authorization: `Bearer ${adminToken}` },
+          headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
           payload: { slug, name: 'Test Workspace' },
         });
 
@@ -240,7 +242,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `no-name-${Date.now()}`,
           // name missing
@@ -254,7 +256,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           // slug missing
           name: 'Test Workspace',
@@ -268,7 +270,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `member-created-${Date.now()}`,
           name: 'Member Created Workspace',
@@ -280,10 +282,10 @@ describe('Workspace CRUD Integration', () => {
       createdWorkspaceIds.push(workspace.id);
 
       // Member should be admin of their own workspace
-      const membership = (await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspace.id}' AND "userId" = '${memberUserId}'
-      `)) as any[];
+      const membership = (await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspace.id} AND "user_id" = ${memberUserId}
+      `) as any[];
 
       expect(membership[0].role).toBe(WorkspaceRole.ADMIN);
     });
@@ -297,7 +299,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `list-test-${Date.now()}`,
           name: 'List Test Workspace',
@@ -312,7 +314,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -330,7 +332,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -346,7 +348,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces?role=ADMIN',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -361,7 +363,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces?limit=5&offset=0',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -375,7 +377,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces?sortBy=name&sortOrder=asc',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -392,7 +394,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces?sortBy=createdAt&sortOrder=desc',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -415,7 +417,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `get-test-${Date.now()}`,
           name: 'Get Test Workspace',
@@ -431,7 +433,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -446,7 +448,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -461,7 +463,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -476,7 +478,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -491,7 +493,7 @@ describe('Workspace CRUD Integration', () => {
       const otherUserResponse = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
       });
 
       // Either 404 or 403 is acceptable
@@ -502,7 +504,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces/non-existent-id',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(404);
@@ -516,7 +518,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `update-test-${Date.now()}`,
           name: 'Update Test Workspace',
@@ -526,19 +528,27 @@ describe('Workspace CRUD Integration', () => {
       workspaceId = response.json().id;
       createdWorkspaceIds.push(workspaceId);
 
+      // Ensure member user exists in tenant schema
+      const memberDecoded = testContext.auth.decodeToken(memberToken);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+        VALUES (${memberUserId}, ${memberDecoded.sub}, ${memberDecoded.email}, ${memberDecoded.given_name || 'Member'}, ${memberDecoded.family_name || 'User'}, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+
       // Add member to workspace
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."WorkspaceMember" ("workspaceId", "userId", "role", "invitedBy", "joinedAt")
-        VALUES ('${workspaceId}', '${memberUserId}', 'MEMBER', '${adminUserId}', NOW())
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."workspace_members" ("workspace_id", "user_id", "role", "invited_by", "joined_at")
+        VALUES (${workspaceId}, ${memberUserId}, 'MEMBER', ${adminUserId}, NOW())
         ON CONFLICT DO NOTHING
-      `);
+      `;
     });
 
     it('should update workspace name (ADMIN only)', async () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           name: 'Updated Workspace Name',
         },
@@ -550,10 +560,10 @@ describe('Workspace CRUD Integration', () => {
       expect(workspace.name).toBe('Updated Workspace Name');
 
       // Verify in database
-      const dbWorkspace = (await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."Workspace"
-        WHERE "id" = '${workspaceId}'
-      `)) as any[];
+      const dbWorkspace = (await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspaces"
+        WHERE "id" = ${workspaceId}
+      `) as any[];
 
       expect(dbWorkspace[0].name).toBe('Updated Workspace Name');
     });
@@ -562,7 +572,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           description: 'Updated description',
         },
@@ -580,7 +590,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           settings: newSettings,
         },
@@ -596,7 +606,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           name: 'Unauthorized Update',
         },
@@ -609,7 +619,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           name: '', // Empty name invalid
         },
@@ -622,7 +632,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           name: 'Partial Update Test',
           // Only updating name, not description or settings
@@ -644,7 +654,7 @@ describe('Workspace CRUD Integration', () => {
       const createResponse = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `delete-test-${Date.now()}`,
           name: 'Delete Test Workspace',
@@ -656,16 +666,16 @@ describe('Workspace CRUD Integration', () => {
       const deleteResponse = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(deleteResponse.statusCode).toBe(204);
 
       // Verify deletion
-      const dbWorkspace = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."Workspace"
-        WHERE "id" = '${workspaceId}'
-      `);
+      const dbWorkspace = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspaces"
+        WHERE "id" = ${workspaceId}
+      `;
 
       expect(dbWorkspace).toHaveLength(0);
     });
@@ -675,7 +685,7 @@ describe('Workspace CRUD Integration', () => {
       const createResponse = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `delete-with-teams-${Date.now()}`,
           name: 'Delete With Teams Test',
@@ -686,15 +696,15 @@ describe('Workspace CRUD Integration', () => {
       createdWorkspaceIds.push(workspaceId);
 
       // Create a team
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."Team" ("id", "workspaceId", "name", "createdAt", "updatedAt")
-        VALUES (gen_random_uuid(), '${workspaceId}', 'Test Team', NOW(), NOW())
-      `);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."teams" ("id", "workspace_id", "name", "owner_id", "created_at", "updated_at")
+        VALUES (gen_random_uuid(), ${workspaceId}, 'Test Team', ${adminUserId}, NOW(), NOW())
+      `;
 
       const deleteResponse = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(deleteResponse.statusCode).toBe(400);
@@ -707,7 +717,7 @@ describe('Workspace CRUD Integration', () => {
       const createResponse = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `delete-cascade-${Date.now()}`,
           name: 'Delete Cascade Test',
@@ -716,24 +726,32 @@ describe('Workspace CRUD Integration', () => {
 
       const workspaceId = createResponse.json().id;
 
+      // Ensure member user exists in tenant schema
+      const memberDecoded = testContext.auth.decodeToken(memberToken);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+        VALUES (${memberUserId}, ${memberDecoded.sub}, ${memberDecoded.email}, ${memberDecoded.given_name || 'Member'}, ${memberDecoded.family_name || 'User'}, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+
       // Add additional member
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."WorkspaceMember" ("workspaceId", "userId", "role", "invitedBy", "joinedAt")
-        VALUES ('${workspaceId}', '${memberUserId}', 'MEMBER', '${adminUserId}', NOW())
-      `);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."workspace_members" ("workspace_id", "user_id", "role", "invited_by", "joined_at")
+        VALUES (${workspaceId}, ${memberUserId}, 'MEMBER', ${adminUserId}, NOW())
+      `;
 
       // Delete workspace
       await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       // Verify members are deleted
-      const dbMembers = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}'
-      `);
+      const dbMembers = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId}
+      `;
 
       expect(dbMembers).toHaveLength(0);
     });
@@ -742,7 +760,7 @@ describe('Workspace CRUD Integration', () => {
       const createResponse = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           slug: `delete-auth-test-${Date.now()}`,
           name: 'Delete Auth Test',
@@ -752,17 +770,25 @@ describe('Workspace CRUD Integration', () => {
       const workspaceId = createResponse.json().id;
       createdWorkspaceIds.push(workspaceId);
 
+      // Ensure member user exists in tenant schema
+      const memberDecoded = testContext.auth.decodeToken(memberToken);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+        VALUES (${memberUserId}, ${memberDecoded.sub}, ${memberDecoded.email}, ${memberDecoded.given_name || 'Member'}, ${memberDecoded.family_name || 'User'}, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+
       // Add member
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."WorkspaceMember" ("workspaceId", "userId", "role", "invitedBy", "joinedAt")
-        VALUES ('${workspaceId}', '${memberUserId}', 'MEMBER', '${adminUserId}', NOW())
-      `);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."workspace_members" ("workspace_id", "user_id", "role", "invited_by", "joined_at")
+        VALUES (${workspaceId}, ${memberUserId}, 'MEMBER', ${adminUserId}, NOW())
+      `;
 
       // Try to delete as member
       const deleteResponse = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(deleteResponse.statusCode).toBe(403);
@@ -772,7 +798,7 @@ describe('Workspace CRUD Integration', () => {
       const response = await app.inject({
         method: 'DELETE',
         url: '/api/workspaces/non-existent-id',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(404);

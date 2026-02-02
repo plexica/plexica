@@ -73,8 +73,11 @@ describe('Tenant API Integration', () => {
       }
 
       // Drop PostgreSQL schema
+      // Note: Schema names cannot be parameterized in PostgreSQL, but we sanitize the tenant slug
+      // which is already validated to contain only lowercase letters, numbers, and hyphens
       const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
       try {
+        // Safe because tenant.slug is validated to match /^[a-z0-9-]+$/ pattern
         await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
       } catch (error) {
         // Ignore errors if schema doesn't exist

@@ -74,13 +74,26 @@ describe('Workspace Members Integration', () => {
     adminUserId = adminDecoded.sub;
     memberUserId = memberDecoded.sub;
 
+    // Ensure member user exists in core database
+    await db.user.upsert({
+      where: { id: memberUserId },
+      update: {},
+      create: {
+        id: memberUserId,
+        keycloakId: memberUserId,
+        email: memberDecoded.email || 'member@acme.test',
+        firstName: 'Test',
+        lastName: 'Member',
+      },
+    });
+
     // Create a workspace as admin
     const createResponse = await app.inject({
       method: 'POST',
       url: '/api/workspaces',
       headers: {
         authorization: `Bearer ${adminToken}`,
-        'x-tenant-id': 'acme',
+        'X-Tenant-Slug': 'acme',
       },
       payload: {
         slug: 'members-test-workspace',
@@ -93,9 +106,33 @@ describe('Workspace Members Integration', () => {
     const workspace = createResponse.json();
     workspaceId = workspace.id;
 
-    // Create additional test user ID (mock for now)
-    extraUserId = 'extra-user-id-123';
-    viewerUserId = 'viewer-user-id-456';
+    // Create additional test users in core database with valid UUIDs
+    extraUserId = 'e1e935f3-61d6-47be-ac39-407da0a6db04';
+    viewerUserId = '06c0e0ee-c419-4075-a5e7-88f8e986e200';
+
+    await db.user.upsert({
+      where: { id: extraUserId },
+      update: {},
+      create: {
+        id: extraUserId,
+        keycloakId: extraUserId,
+        email: 'extra@acme.test',
+        firstName: 'Extra',
+        lastName: 'User',
+      },
+    });
+
+    await db.user.upsert({
+      where: { id: viewerUserId },
+      update: {},
+      create: {
+        id: viewerUserId,
+        keycloakId: viewerUserId,
+        email: 'viewer@acme.test',
+        firstName: 'Viewer',
+        lastName: 'User',
+      },
+    });
   });
 
   afterAll(async () => {
@@ -109,7 +146,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: memberUserId,
           role: WorkspaceRole.MEMBER,
@@ -124,10 +161,10 @@ describe('Workspace Members Integration', () => {
       expect(member.workspaceId).toBe(workspaceId);
 
       // Verify in database
-      const dbMember = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${memberUserId}'
-      `);
+      const dbMember = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${memberUserId}
+      `;
 
       expect(dbMember).toHaveLength(1);
     });
@@ -136,7 +173,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: viewerUserId,
           role: WorkspaceRole.VIEWER,
@@ -154,7 +191,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: extraUserId,
           role: WorkspaceRole.ADMIN,
@@ -168,10 +205,10 @@ describe('Workspace Members Integration', () => {
       expect(member.role).toBe(WorkspaceRole.ADMIN);
 
       // Verify in database
-      const dbMember = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${extraUserId}'
-      `);
+      const dbMember = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${extraUserId}
+      `;
 
       expect(dbMember).toHaveLength(1);
       expect((dbMember as any)[0].role).toBe(WorkspaceRole.ADMIN);
@@ -182,7 +219,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: memberUserId,
           role: WorkspaceRole.MEMBER,
@@ -201,7 +238,7 @@ describe('Workspace Members Integration', () => {
           email: 'new-member@example.com',
           firstName: 'New',
           lastName: 'Member',
-          passwordHash: 'hashed',
+          keycloakId: 'test-keycloak-id-new-member',
         },
       });
 
@@ -209,7 +246,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: newUser.id,
           role: WorkspaceRole.MEMBER,
@@ -223,7 +260,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: 'non-existent-user-id',
           role: WorkspaceRole.MEMBER,
@@ -239,7 +276,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces/non-existent-workspace/members',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: memberUserId,
           role: WorkspaceRole.MEMBER,
@@ -255,14 +292,14 @@ describe('Workspace Members Integration', () => {
           email: 'invalid-role-test@example.com',
           firstName: 'Invalid',
           lastName: 'Role',
-          passwordHash: 'hashed',
+          keycloakId: 'test-keycloak-id-invalid-role',
         },
       });
 
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           userId: newUser.id,
           role: 'INVALID_ROLE',
@@ -276,7 +313,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.MEMBER,
           // userId missing
@@ -292,7 +329,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -316,7 +353,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -328,7 +365,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members?role=ADMIN`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -344,7 +381,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members?limit=2&offset=0`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -358,7 +395,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces/non-existent/members',
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(404);
@@ -383,7 +420,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members/${memberUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -400,7 +437,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members/${memberUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -418,14 +455,14 @@ describe('Workspace Members Integration', () => {
           email: 'non-member@example.com',
           firstName: 'Non',
           lastName: 'Member',
-          passwordHash: 'hashed',
+          keycloakId: 'test-keycloak-id-non-member',
         },
       });
 
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members/${nonMember.id}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(404);
@@ -435,7 +472,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members/${adminUserId}`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -448,11 +485,15 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/${memberUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.ADMIN,
         },
       });
+
+      if (response.statusCode !== 200) {
+        console.log('[TEST] Update member role error:', response.statusCode, response.json());
+      }
 
       expect(response.statusCode).toBe(200);
       const updatedMember = response.json();
@@ -461,10 +502,10 @@ describe('Workspace Members Integration', () => {
       expect(updatedMember.role).toBe(WorkspaceRole.ADMIN);
 
       // Verify in database
-      const dbMember = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${memberUserId}'
-      `);
+      const dbMember = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${memberUserId}
+      `;
 
       expect((dbMember as any)[0].role).toBe(WorkspaceRole.ADMIN);
     });
@@ -474,7 +515,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/${extraUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.MEMBER,
         },
@@ -489,19 +530,19 @@ describe('Workspace Members Integration', () => {
     it('should prevent demoting last admin', async () => {
       // First, ensure only adminUserId is admin
       // Get all admins
-      const admins = (await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}' AND "role" = 'ADMIN'
-      `)) as any[];
+      const admins = (await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId} AND "role" = 'ADMIN'
+      `) as any[];
 
       // Demote all except adminUserId
       for (const admin of admins) {
-        if (admin.userId !== adminUserId) {
-          await db.$executeRawUnsafe(`
-            UPDATE "tenant_acme_corp"."WorkspaceMember"
+        if (admin.user_id !== adminUserId) {
+          await db.$executeRaw`
+            UPDATE "tenant_acme"."workspace_members"
             SET "role" = 'MEMBER'
-            WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${admin.userId}'
-          `);
+            WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${admin.user_id}
+          `;
         }
       }
 
@@ -509,7 +550,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/${adminUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.MEMBER,
         },
@@ -522,17 +563,17 @@ describe('Workspace Members Integration', () => {
 
     it('should allow admin to demote self if others exist', async () => {
       // First promote memberUserId to admin
-      await db.$executeRawUnsafe(`
-        UPDATE "tenant_acme_corp"."WorkspaceMember"
+      await db.$executeRaw`
+        UPDATE "tenant_acme"."workspace_members"
         SET "role" = 'ADMIN'
-        WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${memberUserId}'
-      `);
+        WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${memberUserId}
+      `;
 
       // Now admin can demote self
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/${adminUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.MEMBER,
         },
@@ -541,18 +582,18 @@ describe('Workspace Members Integration', () => {
       expect(response.statusCode).toBe(200);
 
       // Restore admin status for other tests
-      await db.$executeRawUnsafe(`
-        UPDATE "tenant_acme_corp"."WorkspaceMember"
+      await db.$executeRaw`
+        UPDATE "tenant_acme"."workspace_members"
         SET "role" = 'ADMIN'
-        WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${adminUserId}'
-      `);
+        WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${adminUserId}
+      `;
     });
 
     it('should validate new role', async () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/${memberUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: 'INVALID_ROLE',
         },
@@ -565,7 +606,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/${viewerUserId}`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.ADMIN,
         },
@@ -578,7 +619,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${workspaceId}/members/non-existent-user`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
         payload: {
           role: WorkspaceRole.ADMIN,
         },
@@ -598,48 +639,55 @@ describe('Workspace Members Integration', () => {
           email: 'removable@example.com',
           firstName: 'Removable',
           lastName: 'User',
-          passwordHash: 'hashed',
+          keycloakId: 'test-keycloak-id-removable',
         },
       });
       removableUserId = removableUser.id;
 
+      // Also create user in tenant schema
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+        VALUES (${removableUserId}, ${removableUser.keycloakId}, ${removableUser.email}, ${removableUser.firstName}, ${removableUser.lastName}, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+
       // Add to workspace
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."WorkspaceMember" ("workspaceId", "userId", "role", "invitedBy", "joinedAt")
-        VALUES ('${workspaceId}', '${removableUserId}', 'MEMBER', '${adminUserId}', NOW())
-      `);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."workspace_members" ("workspace_id", "user_id", "role", "invited_by", "joined_at")
+        VALUES (${workspaceId}, ${removableUserId}, 'MEMBER', ${adminUserId}, NOW())
+      `;
     });
 
     it('should remove member (ADMIN action)', async () => {
       const response = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}/members/${removableUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(204);
 
       // Verify removal in database
-      const dbMember = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}' AND "userId" = '${removableUserId}'
-      `);
+      const dbMember = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId} AND "user_id" = ${removableUserId}
+      `;
 
       expect(dbMember).toHaveLength(0);
     });
 
     it('should prevent removing last admin', async () => {
       // Ensure adminUserId is the only admin
-      await db.$executeRawUnsafe(`
-        UPDATE "tenant_acme_corp"."WorkspaceMember"
+      await db.$executeRaw`
+        UPDATE "tenant_acme"."workspace_members"
         SET "role" = 'MEMBER'
-        WHERE "workspaceId" = '${workspaceId}' AND "role" = 'ADMIN' AND "userId" != '${adminUserId}'
-      `);
+        WHERE "workspace_id" = ${workspaceId} AND "role" = 'ADMIN' AND "user_id" != ${adminUserId}
+      `;
 
       const response = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}/members/${adminUserId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(400);
@@ -649,11 +697,11 @@ describe('Workspace Members Integration', () => {
 
     it('should cascade delete team memberships', async () => {
       // Create a team
-      const team = (await db.$queryRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."Team" ("id", "workspaceId", "name", "createdAt", "updatedAt")
-        VALUES (gen_random_uuid(), '${workspaceId}', 'Test Team', NOW(), NOW())
+      const team = (await db.$queryRaw`
+        INSERT INTO "tenant_acme"."teams" ("id", "workspace_id", "name", "owner_id", "created_at", "updated_at")
+        VALUES (gen_random_uuid(), ${workspaceId}, 'Test Team', ${adminUserId}, NOW(), NOW())
         RETURNING *
-      `)) as any[];
+      `) as any[];
 
       const teamId = team[0].id;
 
@@ -663,34 +711,41 @@ describe('Workspace Members Integration', () => {
           email: 'cascade-test@example.com',
           firstName: 'Cascade',
           lastName: 'Test',
-          passwordHash: 'hashed',
+          keycloakId: 'test-keycloak-id-cascade',
         },
       });
 
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."WorkspaceMember" ("workspaceId", "userId", "role", "invitedBy", "joinedAt")
-        VALUES ('${workspaceId}', '${testUser.id}', 'MEMBER', '${adminUserId}', NOW())
-      `);
+      // Also create user in tenant schema
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+        VALUES (${testUser.id}, ${testUser.keycloakId}, ${testUser.email}, ${testUser.firstName}, ${testUser.lastName}, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
 
-      await db.$executeRawUnsafe(`
-        INSERT INTO "tenant_acme_corp"."TeamMember" ("teamId", "userId", "role", "joinedAt")
-        VALUES ('${teamId}', '${testUser.id}', 'MEMBER', NOW())
-      `);
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."workspace_members" ("workspace_id", "user_id", "role", "invited_by", "joined_at")
+        VALUES (${workspaceId}, ${testUser.id}, 'MEMBER', ${adminUserId}, NOW())
+      `;
+
+      await db.$executeRaw`
+        INSERT INTO "tenant_acme"."TeamMember" ("teamId", "user_id", "role", "joined_at")
+        VALUES (${teamId}, ${testUser.id}, 'MEMBER', NOW())
+      `;
 
       // Remove workspace member
       const response = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}/members/${testUser.id}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(204);
 
       // Verify team membership is also removed
-      const teamMemberships = await db.$queryRawUnsafe(`
-        SELECT * FROM "tenant_acme_corp"."TeamMember"
-        WHERE "teamId" = '${teamId}' AND "userId" = '${testUser.id}'
-      `);
+      const teamMemberships = await db.$queryRaw`
+        SELECT * FROM "tenant_acme"."TeamMember"
+        WHERE "teamId" = ${teamId} AND "user_id" = ${testUser.id}
+      `;
 
       expect(teamMemberships).toHaveLength(0);
     });
@@ -699,7 +754,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}/members/${viewerUserId}`,
-        headers: { authorization: `Bearer ${memberToken}` },
+        headers: { authorization: `Bearer ${memberToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(403);
@@ -709,7 +764,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'DELETE',
         url: `/api/workspaces/${workspaceId}/members/non-existent-user`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(404);
@@ -721,7 +776,7 @@ describe('Workspace Members Integration', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        headers: { authorization: `Bearer ${adminToken}`, 'x-tenant-slug': 'acme' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -732,10 +787,10 @@ describe('Workspace Members Integration', () => {
       expect(workspace._count.members).toBeGreaterThan(0);
 
       // Verify count matches actual members
-      const members = (await db.$queryRawUnsafe(`
-        SELECT COUNT(*) as count FROM "tenant_acme_corp"."WorkspaceMember"
-        WHERE "workspaceId" = '${workspaceId}'
-      `)) as any[];
+      const members = (await db.$queryRaw`
+        SELECT COUNT(*) as count FROM "tenant_acme"."workspace_members"
+        WHERE "workspace_id" = ${workspaceId}
+      `) as any[];
 
       expect(workspace._count.members).toBe(parseInt(members[0].count));
     });
