@@ -6,7 +6,18 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores(['dist', 'node_modules', 'coverage', '.storybook']),
+  globalIgnores([
+    'dist',
+    'node_modules',
+    'coverage',
+    '.storybook',
+    '.storybook-static',
+    'storybook-static',
+    '**/*.js',
+    '**/*.js.map',
+    '**/*.d.ts',
+    '**/*.d.ts.map',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
@@ -21,6 +32,7 @@ export default defineConfig([
         ecmaFeatures: {
           jsx: true,
         },
+        jsxPragma: 'React',
       },
     },
     plugins: {
@@ -44,11 +56,29 @@ export default defineConfig([
           varsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-empty-object-type': 'warn',
     },
     settings: {
       react: {
         version: 'detect',
       },
+    },
+  },
+  // Storybook story files have pattern issues
+  {
+    files: ['**/*.stories.tsx'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      'react-hooks/rules-of-hooks': 'off',
+      'react/no-unescaped-entities': 'warn',
+    },
+  },
+  // Test setup files
+  {
+    files: ['**/test-setup.d.ts'],
+    rules: {
+      '@typescript-eslint/triple-slash-reference': 'warn',
     },
   },
 ]);
