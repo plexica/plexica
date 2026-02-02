@@ -67,19 +67,19 @@ export class WorkspaceService {
       // Create workspace using parameterized values
       const tableName = Prisma.raw(`"${schemaName}"."workspaces"`);
       await tx.$executeRaw`
-        INSERT INTO ${tableName}
-        (id, tenant_id, slug, name, description, settings, created_at, updated_at)
-        VALUES (
-          ${newWorkspaceId},
-          ${tenantContext.tenantId},
-          ${dto.slug},
-          ${dto.name},
-          ${dto.description},
-          ${JSON.stringify(dto.settings || {})}::jsonb,
-          NOW(),
-          NOW()
-        )
-      `;
+         INSERT INTO ${tableName}
+         (id, tenant_id, slug, name, description, settings, created_at, updated_at)
+         VALUES (
+           ${newWorkspaceId},
+           ${tenantContext.tenantId},
+           ${dto.slug},
+           ${dto.name},
+           ${dto.description},
+           ${dto.settings || {}},
+           NOW(),
+           NOW()
+         )
+       `;
 
       // Create workspace member (creator as admin)
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
@@ -329,13 +329,13 @@ export class WorkspaceService {
 
         if (dto.name !== undefined && dto.description !== undefined && dto.settings !== undefined) {
           updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
-            SET name = ${dto.name},
-                description = ${dto.description},
-                settings = ${JSON.stringify(dto.settings)}::jsonb,
-                updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
+             UPDATE ${workspacesTable}
+             SET name = ${dto.name},
+                 description = ${dto.description},
+                 settings = ${dto.settings},
+                 updated_at = NOW()
+             WHERE id = ${id} AND tenant_id = ${tenantId}
+           `;
         } else if (dto.name !== undefined && dto.description !== undefined) {
           updateCount = await tx.$executeRaw`
             UPDATE ${workspacesTable}
@@ -346,20 +346,20 @@ export class WorkspaceService {
           `;
         } else if (dto.name !== undefined && dto.settings !== undefined) {
           updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
-            SET name = ${dto.name},
-                settings = ${JSON.stringify(dto.settings)}::jsonb,
-                updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
+             UPDATE ${workspacesTable}
+             SET name = ${dto.name},
+                 settings = ${dto.settings},
+                 updated_at = NOW()
+             WHERE id = ${id} AND tenant_id = ${tenantId}
+           `;
         } else if (dto.description !== undefined && dto.settings !== undefined) {
           updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
-            SET description = ${dto.description},
-                settings = ${JSON.stringify(dto.settings)}::jsonb,
-                updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
+             UPDATE ${workspacesTable}
+             SET description = ${dto.description},
+                 settings = ${dto.settings},
+                 updated_at = NOW()
+             WHERE id = ${id} AND tenant_id = ${tenantId}
+           `;
         } else if (dto.name !== undefined) {
           updateCount = await tx.$executeRaw`
             UPDATE ${workspacesTable}
@@ -374,10 +374,10 @@ export class WorkspaceService {
           `;
         } else if (dto.settings !== undefined) {
           updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
-            SET settings = ${JSON.stringify(dto.settings)}::jsonb, updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
+             UPDATE ${workspacesTable}
+             SET settings = ${dto.settings}, updated_at = NOW()
+             WHERE id = ${id} AND tenant_id = ${tenantId}
+           `;
         } else {
           // No fields to update, just update the timestamp
           updateCount = await tx.$executeRaw`

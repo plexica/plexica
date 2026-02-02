@@ -106,6 +106,46 @@ describe('Workspace Members Integration', () => {
     const workspace = createResponse.json();
     workspaceId = workspace.id;
 
+    // Create TeamMember table for this tenant (required for cascade delete test)
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "tenant_acme"."TeamMember" (
+        "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        "teamId" TEXT NOT NULL,
+        "user_id" TEXT NOT NULL,
+        "role" TEXT NOT NULL DEFAULT 'member',
+        "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create Team table for this tenant (required for cascade delete test)
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "tenant_acme"."teams" (
+        "id" TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        "workspace_id" TEXT NOT NULL,
+        "name" TEXT NOT NULL,
+        "description" TEXT,
+        "owner_id" TEXT NOT NULL,
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create users table for this tenant
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "tenant_acme"."users" (
+        "id" TEXT PRIMARY KEY,
+        "keycloak_id" TEXT UNIQUE NOT NULL,
+        "email" TEXT UNIQUE NOT NULL,
+        "first_name" TEXT,
+        "last_name" TEXT,
+        "avatar" TEXT,
+        "locale" TEXT DEFAULT 'en',
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create additional test users in core database with valid UUIDs
     extraUserId = 'e1e935f3-61d6-47be-ac39-407da0a6db04';
     viewerUserId = '06c0e0ee-c419-4075-a5e7-88f8e986e200';

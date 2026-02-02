@@ -1,0 +1,426 @@
+
+> @plexica/core-api@0.1.0 test:integration
+> vitest --config test/vitest.config.integration.ts
+
+[dotenv@17.2.3] injecting env (35) from .env.test -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+
+[1m[46m RUN [49m[22m [36mv4.0.17 [39m[90m/Users/luca/dev/opencode/plexica/apps/core-api[39m
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts
+[22m[39m[dotenv@17.2.3] injecting env (35) from .env.test -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+🔧 Integration test environment loaded
+📊 Services:
+  - Database: localhost:5433/plexica_test?schema=core
+  - Keycloak: http://localhost:8081
+  - Redis: localhost:6380
+  - MinIO: localhost:9010
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts
+[22m[39m
+🔄 Resetting test environment before integration tests...
+🔄 Resetting test environment...
+
+(node:24987) TimeoutNegativeWarning: -1770073792839 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts
+[22m[39m✅ Test environment ready
+
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts[2m > [22m[2mWorkspace Members Integration
+[22m[39m🔄 Resetting test environment...
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts[2m > [22m[2mWorkspace Members Integration
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts
+[22m[39m
+🧹 Cleaning up test environment after integration tests...
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-members.integration.test.ts
+[22m[39m✅ Cleanup complete
+
+
+ [31m❯[39m [30m[45m integration [49m[39m src/__tests__/workspace/integration/workspace-members.integration.test.ts [2m([22m[2m32 tests[22m[2m | [22m[31m12 failed[39m[2m)[22m[33m 3649[2mms[22m[39m
+       [32m✓[39m should add member with default role (MEMBER)[32m 46[2mms[22m[39m
+       [32m✓[39m should add member with VIEWER role[32m 25[2mms[22m[39m
+       [32m✓[39m should add member with ADMIN role[32m 27[2mms[22m[39m
+       [32m✓[39m should reject duplicate member (409)[32m 20[2mms[22m[39m
+       [32m✓[39m should reject non-admin user (403)[32m 16[2mms[22m[39m
+[31m       [31m×[31m should reject invalid user ID (404)[39m[32m 22[2mms[22m[39m
+[31m       [31m×[31m should reject invalid workspace ID (404)[39m[32m 15[2mms[22m[39m
+       [32m✓[39m should validate role enum[32m 5[2mms[22m[39m
+       [32m✓[39m should require userId in payload[32m 1[2mms[22m[39m
+       [32m✓[39m should list all members (any role can view)[32m 23[2mms[22m[39m
+       [32m✓[39m should allow member to view members[32m 19[2mms[22m[39m
+[31m       [31m×[31m should filter members by role[39m[32m 20[2mms[22m[39m
+[31m       [31m×[31m should paginate results[39m[32m 18[2mms[22m[39m
+[31m       [31m×[31m should return 404 for non-existent workspace[39m[32m 15[2mms[22m[39m
+[31m       [31m×[31m should return 403 for non-member[39m[32m 43[2mms[22m[39m
+[31m       [31m×[31m should get specific member details[39m[32m 2[2mms[22m[39m
+[31m       [31m×[31m should include full user profile[39m[32m 1[2mms[22m[39m
+       [32m✓[39m should return 404 for non-member[32m 4[2mms[22m[39m
+[31m       [31m×[31m should allow any member to view other members[39m[32m 1[2mms[22m[39m
+       [32m✓[39m should update member role (ADMIN action)[32m 22[2mms[22m[39m
+       [32m✓[39m should demote admin to member when other admins exist[32m 21[2mms[22m[39m
+       [32m✓[39m should prevent demoting last admin[32m 21[2mms[22m[39m
+       [32m✓[39m should allow admin to demote self if others exist[32m 25[2mms[22m[39m
+       [32m✓[39m should validate new role[32m 1[2mms[22m[39m
+[31m       [31m×[31m should return 403 for non-admin[39m[32m 21[2mms[22m[39m
+       [32m✓[39m should return 404 for non-existent member[32m 17[2mms[22m[39m
+       [32m✓[39m should remove member (ADMIN action)[32m 26[2mms[22m[39m
+       [32m✓[39m should prevent removing last admin[32m 27[2mms[22m[39m
+[31m       [31m×[31m should cascade delete team memberships[39m[32m 31[2mms[22m[39m
+       [32m✓[39m should return 403 for non-admin[32m 13[2mms[22m[39m
+[31m       [31m×[31m should return 404 for non-member[39m[32m 18[2mms[22m[39m
+       [32m✓[39m should track member count correctly[32m 19[2mms[22m[39m
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts
+[22m[39m[dotenv@17.2.3] injecting env (35) from .env.test -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Integration test environment loaded
+📊 Services:
+  - Database: localhost:5433/plexica_test?schema=core
+  - Keycloak: http://localhost:8081
+  - Redis: localhost:6380
+  - MinIO: localhost:9010
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts
+[22m[39m
+🔄 Resetting test environment before integration tests...
+🔄 Resetting test environment...
+
+(node:25018) TimeoutNegativeWarning: -1770073797661 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts
+[22m[39m✅ Test environment ready
+
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts[2m > [22m[2mWorkspace CRUD Integration
+[22m[39m🔄 Resetting test environment...
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts[2m > [22m[2mWorkspace CRUD Integration
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts
+[22m[39m
+🧹 Cleaning up test environment after integration tests...
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-crud.integration.test.ts
+[22m[39m✅ Cleanup complete
+
+
+ [31m❯[39m [30m[45m integration [49m[39m src/__tests__/workspace/integration/workspace-crud.integration.test.ts [2m([22m[2m32 tests[22m[2m | [22m[31m5 failed[39m[2m)[22m[33m 4018[2mms[22m[39m
+       [32m✓[39m should create workspace for authenticated user[32m 50[2mms[22m[39m
+       [32m✓[39m should make creator ADMIN automatically[32m 34[2mms[22m[39m
+       [32m✓[39m should validate slug uniqueness per tenant[32m 35[2mms[22m[39m
+       [32m✓[39m should set default settings if not provided[32m 24[2mms[22m[39m
+       [32m✓[39m should return 201 with workspace data[32m 22[2mms[22m[39m
+       [32m✓[39m should reject invalid slug format[32m 5[2mms[22m[39m
+       [32m✓[39m should require name field[32m 1[2mms[22m[39m
+       [32m✓[39m should require slug field[32m 1[2mms[22m[39m
+       [32m✓[39m should allow any authenticated user to create workspace[32m 24[2mms[22m[39m
+       [32m✓[39m should list user's workspaces[32m 17[2mms[22m[39m
+       [32m✓[39m should include role in each workspace[32m 15[2mms[22m[39m
+       [32m✓[39m should filter by role[32m 18[2mms[22m[39m
+[31m       [31m×[31m should paginate results[39m[32m 20[2mms[22m[39m
+[31m       [31m×[31m should sort by name[39m[32m 30[2mms[22m[39m
+[31m       [31m×[31m should sort by creation date[39m[32m 15[2mms[22m[39m
+       [32m✓[39m should get workspace details[32m 29[2mms[22m[39m
+       [32m✓[39m should include member count[32m 21[2mms[22m[39m
+       [32m✓[39m should include team count[32m 23[2mms[22m[39m
+       [32m✓[39m should include user's role[32m 22[2mms[22m[39m
+       [32m✓[39m should return 404 for non-member[32m 18[2mms[22m[39m
+[31m       [31m×[31m should return 404 for non-existent workspace[39m[32m 17[2mms[22m[39m
+       [32m✓[39m should update workspace name (ADMIN only)[32m 25[2mms[22m[39m
+       [32m✓[39m should update workspace description (ADMIN only)[32m 17[2mms[22m[39m
+       [32m✓[39m should update workspace settings (ADMIN only)[32m 18[2mms[22m[39m
+       [32m✓[39m should return 403 for non-admin[32m 19[2mms[22m[39m
+       [32m✓[39m should validate updates[32m 1[2mms[22m[39m
+       [32m✓[39m should handle partial updates[32m 23[2mms[22m[39m
+       [32m✓[39m should delete workspace (ADMIN only)[32m 40[2mms[22m[39m
+       [32m✓[39m should prevent deletion with teams[32m 36[2mms[22m[39m
+       [32m✓[39m should cascade delete members[32m 51[2mms[22m[39m
+       [32m✓[39m should return 403 for non-admin[32m 32[2mms[22m[39m
+[31m       [31m×[31m should return 404 for non-existent workspace[39m[32m 13[2mms[22m[39m
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts
+[22m[39m[dotenv@17.2.3] injecting env (35) from .env.test -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔧 Integration test environment loaded
+📊 Services:
+  - Database: localhost:5433/plexica_test?schema=core
+  - Keycloak: http://localhost:8081
+  - Redis: localhost:6380
+  - MinIO: localhost:9010
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts
+[22m[39m
+🔄 Resetting test environment before integration tests...
+🔄 Resetting test environment...
+
+(node:25052) TimeoutNegativeWarning: -1770073802559 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts
+[22m[39m✅ Test environment ready
+
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration
+[22m[39m🔄 Resetting test environment...
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mRole and Permission Management[2m > [22m[2mshould create roles with permissions
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mRole and Permission Management[2m > [22m[2mshould get all roles in a tenant
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mRole and Permission Management[2m > [22m[2mshould update role permissions
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mUser Role Assignment[2m > [22m[2mshould assign role to user
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mUser Role Assignment[2m > [22m[2mshould prevent duplicate role assignments
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mUser Role Assignment[2m > [22m[2mshould remove role from user
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mPermission Resolution[2m > [22m[2mshould aggregate permissions from multiple roles
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mPermission Resolution[2m > [22m[2mshould check if user has specific permission
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mPermission Resolution[2m > [22m[2mshould check if user has any of multiple permissions
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mPermission Resolution[2m > [22m[2mshould check if user has all of multiple permissions
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mDynamic Permission Updates[2m > [22m[2mshould reflect permission changes immediately
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mDynamic Permission Updates[2m > [22m[2mshould handle permission removal
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mMulti-Tenant Isolation[2m > [22m[2mshould isolate permissions between tenants
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mMulti-Tenant Isolation[2m > [22m[2mshould not allow cross-tenant permission queries
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mMulti-Tenant Isolation[2m > [22m[2mshould isolate roles between tenants
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mRole Deletion[2m > [22m[2mshould delete a role
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts[2m > [22m[2mPermission Service Integration[2m > [22m[2mDefault Roles Initialization[2m > [22m[2mshould initialize default roles for a new tenant
+[22m[39mprisma:error 
+Invalid `prisma.$executeRawUnsafe()` invocation:
+
+
+Raw query failed. Code: `42804`. Message: `column "permissions" is of type text[] but expression is of type jsonb`
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts
+[22m[39m
+🧹 Cleaning up test environment after integration tests...
+
+[90mstdout[2m | src/__tests__/auth/integration/permission.integration.test.ts
+[22m[39m✅ Cleanup complete
+
+
+ [31m❯[39m [30m[45m integration [49m[39m src/__tests__/auth/integration/permission.integration.test.ts [2m([22m[2m20 tests[22m[2m | [22m[31m18 failed[39m[2m)[22m[33m 1775[2mms[22m[39m
+[31m       [31m×[31m should create roles with permissions[39m[32m 33[2mms[22m[39m
+[31m       [31m×[31m should get all roles in a tenant[39m[32m 19[2mms[22m[39m
+[31m       [31m×[31m should get a specific role by ID[39m[32m 12[2mms[22m[39m
+[31m       [31m×[31m should update role permissions[39m[32m 31[2mms[22m[39m
+       [32m✓[39m should validate schema name to prevent SQL injection[32m 4[2mms[22m[39m
+[31m       [31m×[31m should assign role to user[39m[32m 20[2mms[22m[39m
+[31m       [31m×[31m should prevent duplicate role assignments[39m[32m 19[2mms[22m[39m
+[31m       [31m×[31m should remove role from user[39m[32m 18[2mms[22m[39m
+[31m       [31m×[31m should aggregate permissions from multiple roles[39m[32m 19[2mms[22m[39m
+[31m       [31m×[31m should check if user has specific permission[39m[32m 20[2mms[22m[39m
+[31m       [31m×[31m should check if user has any of multiple permissions[39m[32m 20[2mms[22m[39m
+[31m       [31m×[31m should check if user has all of multiple permissions[39m[32m 19[2mms[22m[39m
+[31m       [31m×[31m should reflect permission changes immediately[39m[32m 18[2mms[22m[39m
+[31m       [31m×[31m should handle permission removal[39m[32m 18[2mms[22m[39m
+[31m       [31m×[31m should isolate permissions between tenants[39m[32m 18[2mms[22m[39m
+[31m       [31m×[31m should not allow cross-tenant permission queries[39m[32m 17[2mms[22m[39m
+[31m       [31m×[31m should isolate roles between tenants[39m[32m 19[2mms[22m[39m
+[31m       [31m×[31m should delete a role[39m[32m 18[2mms[22m[39m
+       [32m✓[39m should handle deletion of non-existent role gracefully[32m 8[2mms[22m[39m
+[31m       [31m×[31m should initialize default roles for a new tenant[39m[32m 18[2mms[22m[39m
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-api.integration.test.ts
+[22m[39m[dotenv@17.2.3] injecting env (35) from .env.test -- tip: ⚙️  override existing env vars with { override: true }
+🔧 Integration test environment loaded
+📊 Services:
+  - Database: localhost:5433/plexica_test?schema=core
+  - Keycloak: http://localhost:8081
+  - Redis: localhost:6380
+  - MinIO: localhost:9010
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-api.integration.test.ts
+[22m[39m
+🔄 Resetting test environment before integration tests...
+🔄 Resetting test environment...
+
+(node:25065) TimeoutNegativeWarning: -1770073804316 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-api.integration.test.ts
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-api.integration.test.ts
+[22m[39m✅ Test environment ready
+
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-api.integration.test.ts
+[22m[39m
+🧹 Cleaning up test environment after integration tests...
+
+[90mstdout[2m | src/__tests__/workspace/integration/workspace-api.integration.test.ts
+[22m[39m✅ Cleanup complete
+
+
+ [31m❯[39m [30m[45m integration [49m[39m src/__tests__/workspace/integration/workspace-api.integration.test.ts [2m([22m[2m24 tests[22m[2m | [22m[31m21 failed[39m[2m)[22m[33m 413[2mms[22m[39m
+[31m       [31m×[31m should create a workspace with the creator as admin[39m[32m 8[2mms[22m[39m
+[31m       [31m×[31m should reject duplicate workspace slug within tenant[39m[32m 9[2mms[22m[39m
+[31m       [31m×[31m should create workspace with custom settings[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should get all workspaces for a user[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should return empty array when user has no workspaces[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should get workspace by ID with members and teams[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should throw error when workspace not found[39m[32m 2[2mms[22m[39m
+[31m       [31m×[31m should update workspace details[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should throw error when updating non-existent workspace[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should update workspace settings[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should add a member to workspace[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should reject adding duplicate member[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should add member with specific role[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should get membership information[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should return null for non-member[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should update member role[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should prevent removing last admin[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should allow removing non-admin member[39m[32m 2[2mms[22m[39m
+[31m       [31m×[31m should allow removing admin when multiple admins exist[39m[32m 1[2mms[22m[39m
+       [32m✓[39m should get teams in workspace[32m 1[2mms[22m[39m
+       [32m✓[39m should create team in workspace[32m 1[2mms[22m[39m
+       [32m✓[39m should throw error creating team in non-existent workspace[32m 1[2mms[22m[39m
+[31m       [31m×[31m should delete workspace with no teams[39m[32m 1[2mms[22m[39m
+[31m       [31m×[31m should prevent deleting workspace with teams[39m[32m 1[2mms[22m[39m
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts
+[22m[39m[dotenv@17.2.3] injecting env (35) from .env.test -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+🔧 Integration test environment loaded
+📊 Services:
+  - Database: localhost:5433/plexica_test?schema=core
+  - Keycloak: http://localhost:8081
+  - Redis: localhost:6380
+  - MinIO: localhost:9010
+
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts
+[22m[39m
+🔄 Resetting test environment before integration tests...
+🔄 Resetting test environment...
+
+(node:25066) TimeoutNegativeWarning: -1770073805789 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts
+[22m[39m✅ Test environment ready
+
+
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts[2m > [22m[2mTenant API Integration
+[22m[39m🔄 Resetting test environment...
+
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts[2m > [22m[2mTenant API Integration
+[22m[39m✅ Test environment reset complete
+
+[90mstdout[2m | src/__tests__/tenant/integration/tenant-api.integration.test.ts[2m > [22m[2mTenant API Integration[2m > [22m[2mPOST /api/tenants[2m > [22m[2mshould reject duplicate slug
+[22m[39mprisma:error 
+Invalid `this.db.tenant.create()` invocation in
+/Users/luca/dev/opencode/plexica/apps/core-api/src/services/tenant.service.ts:62:37
+
+  59 // Attempt to create tenant with unique constraint
+  60 let tenant;
+  61 try {
+→ 62   tenant = await this.db.tenant.create(
+Unique constraint failed on the fields: (`slug`)
+
