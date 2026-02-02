@@ -33,7 +33,7 @@ class ApiClient {
         try {
           // Ensure token is valid before making request
           await updateToken(30); // Refresh if expires in less than 30 seconds
-        } catch (error) {
+        } catch {
           console.warn('[API Client] Token update failed, using existing token');
         }
 

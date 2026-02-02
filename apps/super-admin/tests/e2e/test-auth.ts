@@ -222,7 +222,7 @@ async function testAuth() {
             { timeout: 10000 }
           );
           console.log('✅ Keycloak authentication state confirmed\n');
-        } catch (error) {
+        } catch {
           console.warn('⚠️  Keycloak state not confirmed, but continuing...\n');
         }
 

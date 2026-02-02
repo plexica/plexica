@@ -31,11 +31,6 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
     setLoading,
   } = useAuthStore();
 
-  useEffect(() => {
-    // Immediately set mock authenticated user
-    initMockAuth();
-  }, []);
-
   const initMockAuth = () => {
     console.log('[MockAuthProvider] Initializing mock authentication for E2E tests...');
     setLoading(true);
@@ -57,6 +52,11 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
 
     setLoading(false);
   };
+
+  useEffect(() => {
+    // Immediately set mock authenticated user
+    initMockAuth();
+  }, []);
 
   const login = () => {
     console.log('[MockAuthProvider] Mock login called (no-op in test mode)');

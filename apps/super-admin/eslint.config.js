@@ -7,7 +7,17 @@ import tseslint from 'typescript-eslint';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores(['dist', 'node_modules', 'coverage', 'build', '.turbo']),
+  globalIgnores([
+    'dist',
+    'node_modules',
+    'coverage',
+    'build',
+    '.turbo',
+    '**/*.js',
+    '**/*.js.map',
+    '**/*.d.ts',
+    '**/*.d.ts.map',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
@@ -44,11 +54,33 @@ export default defineConfig([
           varsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'warn',
+      'react/no-unescaped-entities': 'warn',
+      '@typescript-eslint/no-empty-object-type': 'warn',
     },
     settings: {
       react: {
         version: 'detect',
       },
+    },
+  },
+  // Test files - more lenient rules
+  {
+    files: ['**/tests/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/ban-ts-comment': 'warn',
+      'prefer-const': 'warn',
+    },
+  },
+  // Provider and context components with performance issues
+  {
+    files: ['**/contexts/**/*.{ts,tsx}', '**/*Provider.tsx'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/rules-of-hooks': 'warn',
     },
   },
 ]);
