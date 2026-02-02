@@ -1,4 +1,4 @@
-import { PrismaClient, WorkspaceRole } from '@plexica/database';
+import { PrismaClient, WorkspaceRole, Prisma } from '@plexica/database';
 import { db } from '../../lib/db.js';
 import {
   getTenantContext,
@@ -41,16 +41,10 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    // Helper to escape single quotes in SQL strings
-    const escapeSql = (str: string | null | undefined): string => {
-      if (str === null || str === undefined) return 'NULL';
-      return `'${str.replace(/'/g, "''")}'`;
-    };
-
-    // Check slug uniqueness
-    const existing = await this.db.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id FROM "${schemaName}"."workspaces" 
-       WHERE tenant_id = '${tenantContext.tenantId}' AND slug = '${dto.slug}' 
+    // Check slug uniqueness (using parameterized query to prevent SQL injection)
+    const existing = await this.db.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
+       WHERE tenant_id = ${tenantContext.tenantId} AND slug = ${dto.slug}
        LIMIT 1`
     );
 
@@ -61,46 +55,50 @@ export class WorkspaceService {
     // Use a transaction to ensure workspace and member are created together
     return await this.db.$transaction(async (tx) => {
       // Set search path for this transaction to use the tenant schema
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above, so this is safe
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
       // Generate workspace ID
-      const workspaceIdResult = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT gen_random_uuid()::text as id`
-      );
+      const workspaceIdResult = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT gen_random_uuid()::text as id
+      `;
       const newWorkspaceId = workspaceIdResult[0].id;
 
-      // Create workspace
-      await tx.$executeRawUnsafe(
-        `INSERT INTO "${schemaName}"."workspaces" 
-         (id, tenant_id, slug, name, description, settings, created_at, updated_at)
-         VALUES (
-           '${newWorkspaceId}',
-           '${tenantContext.tenantId}',
-           '${dto.slug}',
-           ${escapeSql(dto.name)},
-           ${escapeSql(dto.description)},
-           '${JSON.stringify(dto.settings || {})}'::jsonb,
-           NOW(),
-           NOW()
-         )`
-      );
+      // Create workspace using parameterized values
+      const tableName = Prisma.raw(`"${schemaName}"."workspaces"`);
+      await tx.$executeRaw`
+        INSERT INTO ${tableName}
+        (id, tenant_id, slug, name, description, settings, created_at, updated_at)
+        VALUES (
+          ${newWorkspaceId},
+          ${tenantContext.tenantId},
+          ${dto.slug},
+          ${dto.name},
+          ${dto.description},
+          ${JSON.stringify(dto.settings || {})}::jsonb,
+          NOW(),
+          NOW()
+        )
+      `;
 
       // Create workspace member (creator as admin)
-      await tx.$executeRawUnsafe(
-        `INSERT INTO "${schemaName}"."workspace_members" 
-         (workspace_id, user_id, role, invited_by, joined_at)
-         VALUES (
-           '${newWorkspaceId}',
-           '${creatorId}',
-           '${WorkspaceRole.ADMIN}',
-           '${creatorId}',
-           NOW()
-         )`
-      );
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      await tx.$executeRaw`
+        INSERT INTO ${membersTable}
+        (workspace_id, user_id, role, invited_by, joined_at)
+        VALUES (
+          ${newWorkspaceId},
+          ${creatorId},
+          ${WorkspaceRole.ADMIN},
+          ${creatorId},
+          NOW()
+        )
+      `;
 
       // Fetch the complete workspace with relations
-      const workspace = await tx.$queryRawUnsafe<any[]>(
-        `SELECT 
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const workspace = await tx.$queryRaw<any[]>`
+        SELECT 
           w.*,
           json_agg(
             json_build_object(
@@ -117,14 +115,14 @@ export class WorkspaceService {
               )
             )
           ) as members,
-          (SELECT COUNT(*) FROM "${schemaName}"."workspace_members" WHERE workspace_id = w.id)::int as member_count,
-          (SELECT COUNT(*) FROM "${schemaName}"."teams" WHERE workspace_id = w.id)::int as team_count
-         FROM "${schemaName}"."workspaces" w
-         LEFT JOIN "${schemaName}"."workspace_members" wm ON w.id = wm.workspace_id
-         LEFT JOIN "${schemaName}"."users" u ON wm.user_id = u.id
-         WHERE w.id = '${newWorkspaceId}'
-         GROUP BY w.id`
-      );
+          (SELECT COUNT(*) FROM ${membersTable} WHERE workspace_id = w.id)::int as member_count,
+          (SELECT COUNT(*) FROM ${Prisma.raw(`"${schemaName}"."teams"`)} WHERE workspace_id = w.id)::int as team_count
+         FROM ${workspacesTable} w
+         LEFT JOIN ${membersTable} wm ON w.id = wm.workspace_id
+         LEFT JOIN ${Prisma.raw(`"${schemaName}"."users"`)} u ON wm.user_id = u.id
+         WHERE w.id = ${newWorkspaceId}
+         GROUP BY w.id
+       `;
 
       if (workspace.length === 0) {
         throw new Error('Failed to fetch created workspace');
@@ -171,22 +169,27 @@ export class WorkspaceService {
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      // Get all workspaces where user is a member
-      const result = await tx.$queryRawUnsafe<any[]>(`
+      // Get all workspaces where user is a member (using parameterized query)
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
+
+      const result = await tx.$queryRaw<any[]>`
         SELECT 
           w.*,
           wm.role as member_role,
           wm.joined_at,
-          (SELECT COUNT(*) FROM "${schemaName}"."workspace_members" WHERE workspace_id = w.id) as member_count,
-          (SELECT COUNT(*) FROM "${schemaName}"."teams" WHERE workspace_id = w.id) as team_count
-        FROM "${schemaName}"."workspaces" w
-        INNER JOIN "${schemaName}"."workspace_members" wm ON w.id = wm.workspace_id
-        WHERE wm.user_id = '${userId.replace(/'/g, "''")}'
-          AND w.tenant_id = '${tenantId.replace(/'/g, "''")}'
+          (SELECT COUNT(*) FROM ${membersTable} WHERE workspace_id = w.id) as member_count,
+          (SELECT COUNT(*) FROM ${teamsTable} WHERE workspace_id = w.id) as team_count
+        FROM ${workspacesTable} w
+        INNER JOIN ${membersTable} wm ON w.id = wm.workspace_id
+        WHERE wm.user_id = ${userId}
+          AND w.tenant_id = ${tenantId}
         ORDER BY wm.joined_at DESC
-      `);
+      `;
 
       return result.map((row: any) => ({
         id: row.id,
@@ -226,10 +229,16 @@ export class WorkspaceService {
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      // Get workspace with members and teams
-      const workspaces = await tx.$queryRawUnsafe<any[]>(`
+      // Get workspace with members and teams (using parameterized query)
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const usersTable = Prisma.raw(`"${schemaName}"."users"`);
+      const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
+
+      const workspaces = await tx.$queryRaw<any[]>`
         SELECT 
           w.*,
           json_agg(
@@ -256,14 +265,14 @@ export class WorkspaceService {
           ) FILTER (WHERE t.id IS NOT NULL) as teams,
           COUNT(DISTINCT wm.user_id) as member_count,
           COUNT(DISTINCT t.id) as team_count
-        FROM "${schemaName}"."workspaces" w
-        LEFT JOIN "${schemaName}"."workspace_members" wm ON w.id = wm.workspace_id
-        LEFT JOIN "${schemaName}"."users" u ON wm.user_id = u.id
-        LEFT JOIN "${schemaName}"."teams" t ON w.id = t.workspace_id
-        WHERE w.id = '${id.replace(/'/g, "''")}'
-          AND w.tenant_id = '${tenantId.replace(/'/g, "''")}'
+        FROM ${workspacesTable} w
+        LEFT JOIN ${membersTable} wm ON w.id = wm.workspace_id
+        LEFT JOIN ${usersTable} u ON wm.user_id = u.id
+        LEFT JOIN ${teamsTable} t ON w.id = t.workspace_id
+        WHERE w.id = ${id}
+          AND w.tenant_id = ${tenantId}
         GROUP BY w.id
-      `);
+      `;
 
       if (!workspaces || workspaces.length === 0) {
         throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
@@ -308,41 +317,85 @@ export class WorkspaceService {
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
       try {
-        // Build dynamic update query
-        const updates: string[] = [];
-        if (dto.name !== undefined) {
-          updates.push(`name = '${dto.name.replace(/'/g, "''")}'`);
-        }
-        if (dto.description !== undefined) {
-          updates.push(
-            `description = ${dto.description ? `'${dto.description.replace(/'/g, "''")}'` : 'NULL'}`
-          );
-        }
-        if (dto.settings !== undefined) {
-          updates.push(`settings = '${JSON.stringify(dto.settings).replace(/'/g, "''")}'::jsonb`);
-        }
-        updates.push(`updated_at = NOW()`);
+        const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
 
-        const updateCount = await tx.$executeRawUnsafe(`
-          UPDATE "${schemaName}"."workspaces"
-          SET ${updates.join(', ')}
-          WHERE id = '${id.replace(/'/g, "''")}'
-            AND tenant_id = '${tenantId.replace(/'/g, "''")}'
-        `);
+        // Build UPDATE statement with parameterized values
+        // We need to use conditional logic to handle optional fields
+        let updateCount: number;
+
+        if (dto.name !== undefined && dto.description !== undefined && dto.settings !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET name = ${dto.name},
+                description = ${dto.description},
+                settings = ${JSON.stringify(dto.settings)}::jsonb,
+                updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else if (dto.name !== undefined && dto.description !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET name = ${dto.name},
+                description = ${dto.description},
+                updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else if (dto.name !== undefined && dto.settings !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET name = ${dto.name},
+                settings = ${JSON.stringify(dto.settings)}::jsonb,
+                updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else if (dto.description !== undefined && dto.settings !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET description = ${dto.description},
+                settings = ${JSON.stringify(dto.settings)}::jsonb,
+                updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else if (dto.name !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET name = ${dto.name}, updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else if (dto.description !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET description = ${dto.description}, updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else if (dto.settings !== undefined) {
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET settings = ${JSON.stringify(dto.settings)}::jsonb, updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        } else {
+          // No fields to update, just update the timestamp
+          updateCount = await tx.$executeRaw`
+            UPDATE ${workspacesTable}
+            SET updated_at = NOW()
+            WHERE id = ${id} AND tenant_id = ${tenantId}
+          `;
+        }
 
         if (updateCount === 0) {
           throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
         }
 
         // Fetch updated workspace
-        const workspaces = await tx.$queryRawUnsafe<any[]>(`
-          SELECT * FROM "${schemaName}"."workspaces"
-          WHERE id = '${id.replace(/'/g, "''")}'
-            AND tenant_id = '${tenantId.replace(/'/g, "''")}'
-        `);
+        const workspaces = await tx.$queryRaw<any[]>`
+          SELECT * FROM ${workspacesTable}
+          WHERE id = ${id} AND tenant_id = ${tenantId}
+        `;
 
         if (!workspaces || workspaces.length === 0) {
           throw new Error(`Workspace ${id} not found after update`);
@@ -394,24 +447,27 @@ export class WorkspaceService {
 
     await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
 
       // First verify workspace belongs to tenant
-      const workspaces = await tx.$queryRawUnsafe<any[]>(`
-        SELECT id FROM "${schemaName}"."workspaces"
-        WHERE id = '${id.replace(/'/g, "''")}'
-          AND tenant_id = '${tenantId.replace(/'/g, "''")}'
-      `);
+      const workspaces = await tx.$queryRaw<any[]>`
+        SELECT id FROM ${workspacesTable}
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+      `;
 
       if (!workspaces || workspaces.length === 0) {
         throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
       }
 
       // Check if workspace has teams
-      const teamCounts = await tx.$queryRawUnsafe<any[]>(`
-        SELECT COUNT(*) as count FROM "${schemaName}"."teams"
-        WHERE workspace_id = '${id.replace(/'/g, "''")}'
-      `);
+      const teamCounts = await tx.$queryRaw<any[]>`
+        SELECT COUNT(*) as count FROM ${teamsTable}
+        WHERE workspace_id = ${id}
+      `;
 
       const teamCount = Number(teamCounts[0]?.count || 0);
       if (teamCount > 0) {
@@ -419,11 +475,10 @@ export class WorkspaceService {
       }
 
       // Delete workspace (cascade will handle members)
-      await tx.$executeRawUnsafe(`
-        DELETE FROM "${schemaName}"."workspaces"
-        WHERE id = '${id.replace(/'/g, "''")}'
-          AND tenant_id = '${tenantId.replace(/'/g, "''")}'
-      `);
+      await tx.$executeRaw`
+        DELETE FROM ${workspacesTable}
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+      `;
 
       // TODO: Publish event 'core.workspace.deleted'
       // await this.eventBus.publish({
@@ -460,13 +515,14 @@ export class WorkspaceService {
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      const memberships = await tx.$queryRawUnsafe<any[]>(`
-        SELECT * FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${userId.replace(/'/g, "''")}'
-      `);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const memberships = await tx.$queryRaw<any[]>`
+        SELECT * FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
 
       if (!memberships || memberships.length === 0) {
         return null;
@@ -514,14 +570,18 @@ export class WorkspaceService {
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const usersTable = Prisma.raw(`"${schemaName}"."users"`);
 
       // Check workspace exists and belongs to tenant
-      const workspaceCheck = await tx.$queryRawUnsafe<any[]>(`
-        SELECT id FROM "${schemaName}"."workspaces"
-        WHERE id = '${workspaceId.replace(/'/g, "''")}'
-          AND tenant_id = '${tenantId.replace(/'/g, "''")}'
-      `);
+      const workspaceCheck = await tx.$queryRaw<any[]>`
+        SELECT id FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
+      `;
 
       if (!workspaceCheck || workspaceCheck.length === 0) {
         throw new Error(
@@ -530,11 +590,10 @@ export class WorkspaceService {
       }
 
       // Check if user already member
-      const existingCheck = await tx.$queryRawUnsafe<any[]>(`
-        SELECT workspace_id FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${dto.userId.replace(/'/g, "''")}'
-      `);
+      const existingCheck = await tx.$queryRaw<any[]>`
+        SELECT workspace_id FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${dto.userId}
+      `;
 
       if (existingCheck && existingCheck.length > 0) {
         throw new Error('User is already a member of this workspace');
@@ -560,16 +619,16 @@ export class WorkspaceService {
         throw new Error(`User ${dto.userId} not found`);
       }
 
-      // Sync user to tenant schema
-      await tx.$executeRawUnsafe(`
-        INSERT INTO "${schemaName}"."users"
+      // Sync user to tenant schema with parameterized values
+      await tx.$executeRaw`
+        INSERT INTO ${usersTable}
         (id, keycloak_id, email, first_name, last_name, created_at, updated_at)
         VALUES (
-          '${coreUser.id.replace(/'/g, "''")}',
-          '${(coreUser.keycloakId || '').replace(/'/g, "''")}',
-          '${coreUser.email.replace(/'/g, "''")}',
-          '${(coreUser.firstName || '').replace(/'/g, "''")}',
-          '${(coreUser.lastName || '').replace(/'/g, "''")}',
+          ${coreUser.id},
+          ${coreUser.keycloakId || ''},
+          ${coreUser.email},
+          ${coreUser.firstName || ''},
+          ${coreUser.lastName || ''},
           NOW(),
           NOW()
         )
@@ -578,23 +637,23 @@ export class WorkspaceService {
           first_name = EXCLUDED.first_name,
           last_name = EXCLUDED.last_name,
           updated_at = NOW()
-      `);
+      `;
 
       // Now insert the workspace member
-      await tx.$executeRawUnsafe(`
-        INSERT INTO "${schemaName}"."workspace_members"
+      await tx.$executeRaw`
+        INSERT INTO ${membersTable}
         (workspace_id, user_id, role, invited_by, joined_at)
         VALUES (
-          '${workspaceId.replace(/'/g, "''")}',
-          '${dto.userId.replace(/'/g, "''")}',
-          '${role.replace(/'/g, "''")}',
-          '${invitedBy.replace(/'/g, "''")}',
+          ${workspaceId},
+          ${dto.userId},
+          ${role},
+          ${invitedBy},
           NOW()
         )
-      `);
+      `;
 
       // Get the created member with user info
-      const members = await tx.$queryRawUnsafe<any[]>(`
+      const members = await tx.$queryRaw<any[]>`
         SELECT 
           wm.workspace_id,
           wm.user_id,
@@ -604,11 +663,10 @@ export class WorkspaceService {
           u.email as user_email,
           u.first_name as user_first_name,
           u.last_name as user_last_name
-        FROM "${schemaName}"."workspace_members" wm
-        LEFT JOIN "${schemaName}"."users" u ON u.id = wm.user_id
-        WHERE wm.workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND wm.user_id = '${dto.userId.replace(/'/g, "''")}'
-      `);
+        FROM ${membersTable} wm
+        LEFT JOIN ${usersTable} u ON u.id = wm.user_id
+        WHERE wm.workspace_id = ${workspaceId} AND wm.user_id = ${dto.userId}
+      `;
 
       if (!members || members.length === 0) {
         throw new Error('Failed to create workspace member');
@@ -663,14 +721,16 @@ export class WorkspaceService {
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
 
       // Get the current member to check their current role
-      const currentMembers = await tx.$queryRawUnsafe<any[]>(`
-        SELECT * FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${userId.replace(/'/g, "''")}'
-      `);
+      const currentMembers = await tx.$queryRaw<any[]>`
+        SELECT * FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
 
       if (!currentMembers || currentMembers.length === 0) {
         throw new Error('Member not found');
@@ -680,12 +740,11 @@ export class WorkspaceService {
 
       // Check if demoting the last admin
       if (currentMember.role === 'ADMIN' && role !== 'ADMIN') {
-        const adminCountResult = await tx.$queryRawUnsafe<any[]>(`
+        const adminCountResult = await tx.$queryRaw<any[]>`
           SELECT COUNT(*)::int as count
-          FROM "${schemaName}"."workspace_members"
-          WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-            AND role = 'ADMIN'
-        `);
+          FROM ${membersTable}
+          WHERE workspace_id = ${workspaceId} AND role = 'ADMIN'
+        `;
 
         const adminCount = adminCountResult[0]?.count || 0;
 
@@ -695,19 +754,17 @@ export class WorkspaceService {
       }
 
       // Update the member role
-      await tx.$executeRawUnsafe(`
-        UPDATE "${schemaName}"."workspace_members"
-        SET role = '${role.replace(/'/g, "''")}'
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${userId.replace(/'/g, "''")}'
-      `);
+      await tx.$executeRaw`
+        UPDATE ${membersTable}
+        SET role = ${role}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
 
       // Get the updated member
-      const members = await tx.$queryRawUnsafe<any[]>(`
-        SELECT * FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${userId.replace(/'/g, "''")}'
-      `);
+      const members = await tx.$queryRaw<any[]>`
+        SELECT * FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
 
       if (!members || members.length === 0) {
         throw new Error('Member not found');
@@ -756,24 +813,25 @@ export class WorkspaceService {
 
     await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}", public`);
+      // Note: schemaName is validated with regex above
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
 
       // Check if user is last admin
-      const adminCountResult = await tx.$queryRawUnsafe<any[]>(`
+      const adminCountResult = await tx.$queryRaw<any[]>`
         SELECT COUNT(*)::int as count
-        FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND role = 'ADMIN'
-      `);
+        FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND role = 'ADMIN'
+      `;
 
       const adminCount = adminCountResult[0]?.count || 0;
 
       // Get the member to check their role
-      const members = await tx.$queryRawUnsafe<any[]>(`
-        SELECT * FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${userId.replace(/'/g, "''")}'
-      `);
+      const members = await tx.$queryRaw<any[]>`
+        SELECT * FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
 
       if (!members || members.length === 0) {
         throw new Error('Member not found');
@@ -786,11 +844,10 @@ export class WorkspaceService {
       }
 
       // Delete the member
-      await tx.$executeRawUnsafe(`
-        DELETE FROM "${schemaName}"."workspace_members"
-        WHERE workspace_id = '${workspaceId.replace(/'/g, "''")}'
-          AND user_id = '${userId.replace(/'/g, "''")}'
-      `);
+      await tx.$executeRaw`
+        DELETE FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
 
       // TODO: Invalidate cache and publish event
       // await this.cache.del(`workspace:${workspaceId}:member:${userId}`);
