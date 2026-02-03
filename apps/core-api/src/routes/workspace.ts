@@ -865,6 +865,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             message: error.message,
           });
         }
+        if (error instanceof Error && error.message.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: 'Member not found',
+          });
+        }
         return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'Failed to remove member',

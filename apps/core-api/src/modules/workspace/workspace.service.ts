@@ -1049,31 +1049,47 @@ export class WorkspaceService {
         );
       }
 
-      // Build query with optional role filter
-      let whereClause = `wm.workspace_id = ${workspaceId}`;
+      // Get members with user info (with optional role filter)
+      let members: any[];
       if (role) {
-        whereClause += ` AND wm.role = '${role}'`;
+        members = await tx.$queryRaw<any[]>`
+          SELECT 
+            wm.workspace_id,
+            wm.user_id,
+            wm.role,
+            wm.invited_by,
+            wm.joined_at,
+            u.id as user_id,
+            u.email as user_email,
+            u.first_name as user_first_name,
+            u.last_name as user_last_name
+          FROM ${membersTable} wm
+          LEFT JOIN ${usersTable} u ON u.id = wm.user_id
+          WHERE wm.workspace_id = ${workspaceId} AND wm.role = ${role}
+          ORDER BY wm.joined_at DESC
+          LIMIT ${limit}
+          OFFSET ${offset}
+        `;
+      } else {
+        members = await tx.$queryRaw<any[]>`
+          SELECT 
+            wm.workspace_id,
+            wm.user_id,
+            wm.role,
+            wm.invited_by,
+            wm.joined_at,
+            u.id as user_id,
+            u.email as user_email,
+            u.first_name as user_first_name,
+            u.last_name as user_last_name
+          FROM ${membersTable} wm
+          LEFT JOIN ${usersTable} u ON u.id = wm.user_id
+          WHERE wm.workspace_id = ${workspaceId}
+          ORDER BY wm.joined_at DESC
+          LIMIT ${limit}
+          OFFSET ${offset}
+        `;
       }
-
-      // Get members with user info
-      const members = await tx.$queryRaw<any[]>`
-        SELECT 
-          wm.workspace_id,
-          wm.user_id,
-          wm.role,
-          wm.invited_by,
-          wm.joined_at,
-          u.id as user_id,
-          u.email as user_email,
-          u.first_name as user_first_name,
-          u.last_name as user_last_name
-        FROM ${membersTable} wm
-        LEFT JOIN ${usersTable} u ON u.id = wm.user_id
-        WHERE ${Prisma.raw(whereClause)}
-        ORDER BY wm.joined_at DESC
-        LIMIT ${limit}
-        OFFSET ${offset}
-      `;
 
       return members.map((member: any) => ({
         workspaceId: member.workspace_id,
