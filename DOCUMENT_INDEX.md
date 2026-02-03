@@ -137,10 +137,10 @@ Project planning, roadmap, and architectural decisions.
 
 ### **👨‍💼 Project Lead/Manager**
 
-1. [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) - Current progress
-2. [planning/ROADMAP.md](./planning/ROADMAP.md) - Milestones & timeline
-3. [planning/DEVELOPMENT_PLAN.md](./planning/DEVELOPMENT_PLAN.md) - Detailed planning
-4. [PROJECT_COMPLETE.md](./PROJECT_COMPLETE.md) - Test implementation summary
+1. [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) - Current progress & milestones
+2. [planning/ROADMAP.md](./planning/ROADMAP.md) - Phase timeline
+3. [planning/DEVELOPMENT_PLAN.md](./planning/DEVELOPMENT_PLAN.md) - Detailed implementation plan
+4. [README.md](./README.md) - Project overview & quick start
 
 ### **🤖 AI Coding Agent**
 
