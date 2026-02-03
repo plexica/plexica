@@ -186,6 +186,9 @@ describe('Tenant API Integration', () => {
     });
 
     it('should reject duplicate slug', async () => {
+      // Use unique slug to avoid conflicts from previous test runs
+      const uniqueSlug = `duplicate-test-${Date.now()}`;
+
       // Create first tenant
       const response1 = await app.inject({
         method: 'POST',
@@ -194,7 +197,7 @@ describe('Tenant API Integration', () => {
           authorization: `Bearer ${superAdminToken}`,
         },
         payload: {
-          slug: 'duplicate-test',
+          slug: uniqueSlug,
           name: 'Duplicate Test 1',
         },
       });
@@ -209,7 +212,7 @@ describe('Tenant API Integration', () => {
           authorization: `Bearer ${superAdminToken}`,
         },
         payload: {
-          slug: 'duplicate-test',
+          slug: uniqueSlug,
           name: 'Duplicate Test 2',
         },
       });
@@ -280,7 +283,7 @@ describe('Tenant API Integration', () => {
           authorization: `Bearer ${superAdminToken}`,
         },
         payload: {
-          slug: 'with-settings',
+          slug: `with-settings-${Date.now()}`,
           name: 'With Settings',
           settings,
         },
@@ -305,7 +308,7 @@ describe('Tenant API Integration', () => {
           authorization: `Bearer ${superAdminToken}`,
         },
         payload: {
-          slug: 'with-theme',
+          slug: `with-theme-${Date.now()}`,
           name: 'With Theme',
           theme,
         },
@@ -783,7 +786,7 @@ describe('Tenant API Integration', () => {
           authorization: `Bearer ${superAdminToken}`,
         },
         payload: {
-          slug: 'error-test',
+          slug: `error-test-${Date.now()}`,
           name: 'a'.repeat(10000), // Excessively long
         },
       });
