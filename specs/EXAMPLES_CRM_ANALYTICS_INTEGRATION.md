@@ -15,6 +15,15 @@
 7. [Testing](#testing)
 8. [Common Customizations](#common-customizations)
 
+## Related Documents
+
+For technical specifications and architectural details referenced in this example, refer to:
+
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Complete architecture that this example demonstrates
+- **[PLUGIN_COMMUNICATION_API.md](./PLUGIN_COMMUNICATION_API.md)** - API specifications used in this example
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Plugin system technical details (Section 6)
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Functional requirements (Section 7: Plugin System)
+
 ---
 
 ## Overview

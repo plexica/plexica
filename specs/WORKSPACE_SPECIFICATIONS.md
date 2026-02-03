@@ -5,6 +5,16 @@
 **Owner**: Engineering Team  
 **Document Type**: Technical Specifications
 
+## Related Documents
+
+For context on how workspaces fit into the broader Plexica architecture, refer to:
+
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Functional requirements for workspaces (Section 6: Workspaces and Organization)
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Technical implementation details for workspace isolation and access control (Section 7)
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - How plugins interact with workspaces and workspace-specific plugin instances
+
+---
+
 ## 1. Overview
 
 ### 1.1 Introduction

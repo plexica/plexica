@@ -104,6 +104,18 @@
 - [15. CI/CD Pipeline](#15-cicd-pipeline)
 - [16. Conclusions](#16-conclusions)
 
+## Related Documents
+
+For complete understanding of the Plexica platform, please refer to:
+
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Business requirements and feature specifications that guide this technical design
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Details on the plugin system's architecture and extensibility model
+- **[PLUGIN_COMMUNICATION_API.md](./PLUGIN_COMMUNICATION_API.md)** - API contracts for inter-plugin communication mechanisms
+- **[WORKSPACE_SPECIFICATIONS.md](./WORKSPACE_SPECIFICATIONS.md)** - Workspace feature specifications including role management and isolation
+- **[UX_SPECIFICATIONS.md](./UX_SPECIFICATIONS.md)** - User interface design and interaction patterns referenced in frontend architecture
+- **[PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md)** - Directory layout and module organization implementing this architecture
+- **[PLUGIN_STRATEGY.md](./PLUGIN_STRATEGY.md)** - Strategic overview of the plugin system approach and roadmap
+
 ---
 
 ## 1. System Architecture

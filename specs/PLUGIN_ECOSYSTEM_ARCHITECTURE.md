@@ -17,6 +17,16 @@
 9. [Security Model](#security-model)
 10. [Database Schema](#database-schema)
 
+## Related Documents
+
+For comprehensive understanding of the plugin ecosystem, refer to:
+
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Plugin system technical implementation (Section 6: Plugin System)
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Plugin functional requirements and lifecycle (Section 7: Plugin System)
+- **[PLUGIN_COMMUNICATION_API.md](./PLUGIN_COMMUNICATION_API.md)** - Detailed API specifications for plugin communication mechanisms
+- **[PLUGIN_STRATEGY.md](./PLUGIN_STRATEGY.md)** - Strategic overview and roadmap for plugin ecosystem development
+- **[EXAMPLES_CRM_ANALYTICS_INTEGRATION.md](./EXAMPLES_CRM_ANALYTICS_INTEGRATION.md)** - Real-world example of multi-plugin architecture with CRM and Analytics plugins
+
 ---
 
 ## System Overview

@@ -24,6 +24,15 @@ This document defines the user experience architecture and interface specificati
 9. [Accessibility Guidelines](#9-accessibility-guidelines)
 10. [Wireframe Specifications by User Role](#10-wireframe-specifications-by-user-role)
 
+## Related Documents
+
+For technical implementation and functional context, refer to:
+
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Frontend architecture details (Section 8: Frontend Architecture)
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Frontend functional requirements (Section 8: Frontend Architecture) and admin interfaces (Sections 11-12)
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Plugin integration architecture
+- **[WORKSPACE_SPECIFICATIONS.md](./WORKSPACE_SPECIFICATIONS.md)** - Workspace UI organization and permission display
+
 ---
 
 ## 1. UX Principles

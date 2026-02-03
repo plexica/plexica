@@ -5,6 +5,18 @@
 **Owner**: Architecture Team  
 **Document Type**: Technical Specifications
 
+## Related Documents
+
+For detailed technical and functional specifications of the plugin ecosystem, refer to:
+
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Complete architecture of the plugin ecosystem
+- **[PLUGIN_COMMUNICATION_API.md](./PLUGIN_COMMUNICATION_API.md)** - API specifications for plugin interactions
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Technical implementation details (Section 6: Plugin System)
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Functional requirements for plugins (Section 7: Plugin System)
+- **[MILESTONES.md](../planning/MILESTONES.md)** - Project roadmap for plugin ecosystem development
+
+---
+
 ## Overview: Hybrid Model Monorepo + External Plugins
 
 **Recommendation**: Monorepo for the core + **External plugins in separate repositories**

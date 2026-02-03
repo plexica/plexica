@@ -5,6 +5,17 @@
 **Owner**: DevOps & Architecture Team  
 **Document Type**: Technical Specifications
 
+## Related Documents
+
+For understanding how the structure supports the overall architecture, refer to:
+
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - System architecture that guides the project structure
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Functional requirements affecting module organization
+- **[PLUGIN_STRATEGY.md](./PLUGIN_STRATEGY.md)** - Strategy for organizing plugin repositories
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Plugin architecture implementation
+
+---
+
 ## Recommendation: Monorepo
 
 **Decision**: A **monorepo** approach is recommended for the Plexica project.

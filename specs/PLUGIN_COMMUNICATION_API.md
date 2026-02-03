@@ -23,6 +23,14 @@ This API enables plugin-to-plugin communication in the Plexica platform. It prov
 6. [Error Responses](#error-responses)
 7. [Rate Limits](#rate-limits)
 
+## Related Documents
+
+For architectural context and implementation details, refer to:
+
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Architecture and design patterns for the plugin ecosystem
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Technical implementation of the plugin system (Section 6)
+- **[FUNCTIONAL_SPECIFICATIONS.md](./FUNCTIONAL_SPECIFICATIONS.md)** - Plugin communication requirements (Section 7.4: Plugin Communication)
+
 ---
 
 ## Authentication

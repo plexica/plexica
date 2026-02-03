@@ -109,6 +109,19 @@
 - [Appendix A - Glossary](#appendix-a---glossary)
 - [Appendix B - Core Database Schema](#appendix-b---core-database-schema)
 
+## Related Documents
+
+For technical implementation details and architecture, please refer to:
+
+- **[TECHNICAL_SPECIFICATIONS.md](./TECHNICAL_SPECIFICATIONS.md)** - Technical implementation details, technology stack, and system architecture
+- **[WORKSPACE_SPECIFICATIONS.md](./WORKSPACE_SPECIFICATIONS.md)** - Detailed workspace hierarchy, roles, and isolation mechanisms referenced in Section 6
+- **[PLUGIN_ECOSYSTEM_ARCHITECTURE.md](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Deep dive into plugin system architecture, lifecycle, and integration patterns (Section 7)
+- **[PLUGIN_COMMUNICATION_API.md](./PLUGIN_COMMUNICATION_API.md)** - Detailed API specifications for plugin-to-plugin and plugin-to-core communication
+- **[UX_SPECIFICATIONS.md](./UX_SPECIFICATIONS.md)** - User interface design and experience specifications referenced in Sections 11-12 (Admin Interfaces)
+- **[PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md)** - Repository structure and code organization implementing these functional requirements
+- **[PLUGIN_STRATEGY.md](./PLUGIN_STRATEGY.md)** - Strategic overview and roadmap for plugin ecosystem evolution
+- **[MILESTONES.md](../planning/MILESTONES.md)** - Project timeline and phase breakdown aligned with these functional specifications
+
 ---
 
 ## 1. Project Overview
