@@ -145,6 +145,232 @@ plexica/
 - **Code examples**: Include language identifier (typescript, bash, sql, etc.)
 - **File paths**: Include as comments in code blocks
 
+## Documentation Management
+
+Comprehensive documentation is critical for maintainability and team knowledge sharing. All documentation changes must accompany related code changes.
+
+### Documentation Structure
+
+The project maintains documentation across three main directories:
+
+| Directory     | Purpose                                                            | Target Audience          | Update Frequency    |
+| ------------- | ------------------------------------------------------------------ | ------------------------ | ------------------- |
+| **specs/**    | Functional & technical specifications, architecture, system design | Developers, Architects   | When design changes |
+| **docs/**     | Developer guides, setup, security, contribution guidelines         | Developers, Contributors | With code changes   |
+| **planning/** | Roadmap, milestones, architectural decisions (ADRs)                | Team, Stakeholders       | When decisions made |
+
+### General Documentation Guidelines
+
+**File Structure**:
+
+- Use clear, hierarchical headings (H2 for sections, H3 for subsections)
+- Include a Table of Contents for documents >2000 lines
+- Add metadata at the top (Date, Status, Author/Team when relevant)
+- Use consistent formatting: tables, code blocks with language identifiers, bullet lists
+
+**Content Standards**:
+
+- **Language**: English (US spelling only)
+- **Audience**: Assume readers are technical developers or architects
+- **Length**: Keep documents focused; split long docs into related files
+- **Links**: Use relative paths for internal references (e.g., `[Security Guidelines](../docs/SECURITY.md)`)
+- **Code examples**: Always include language identifier and file path comment
+- **Terminology**: Maintain consistency with project vocab (see [Terminology](#terminology))
+
+**Correct Code Example Format**:
+
+```typescript
+// File: src/modules/auth/auth.service.ts
+export class AuthService {
+  async authenticate(email: string, password: string) {
+    // Implementation with clear purpose
+  }
+}
+```
+
+```bash
+# Database setup example
+pnpm db:migrate
+pnpm db:seed
+```
+
+### When to Update Documentation
+
+**Update `specs/` when:**
+
+- Architecture or design changes significantly
+- New system components are added
+- Technology stack decisions change
+- Technical specifications are clarified or expanded
+
+**Update `docs/` when:**
+
+- Code features are added or modified (even for internal services)
+- Setup procedures or configuration changes
+- Security best practices are updated or refined
+- Contribution guidelines need updates
+- New guides or tutorials are added
+
+**Update `planning/` when:**
+
+- Significant architectural decisions are made (create new ADR)
+- Project roadmap or milestones change
+- Previous decisions become deprecated or superseded
+- Major strategic shifts occur
+
+**Cross-Reference Rule**: If you modify code, verify related documentation is current:
+
+```bash
+# Example: Updated auth service? Check what needs updating:
+grep -r "AuthService\|auth.service" docs/ specs/ planning/
+```
+
+### Documentation Templates
+
+To maintain consistency across the project, use these templates when creating documentation:
+
+**Technical Specifications** (for `specs/`):
+
+- Template: [`.github/docs/TEMPLATE_TECHNICAL_SPECIFICATION.md`](.github/docs/TEMPLATE_TECHNICAL_SPECIFICATION.md)
+- Use for: System design, architecture details, technical implementation
+- Includes: Components, tech stack, implementation details, testing strategy
+
+**Architectural Decision Records** (for `planning/DECISIONS.md`):
+
+- Template: [`.github/docs/TEMPLATE_ARCHITECTURAL_DECISION.md`](.github/docs/TEMPLATE_ARCHITECTURAL_DECISION.md)
+- Use for: Significant architectural choices, technology selections
+- Includes: Context, decision, consequences, alternatives, related decisions
+
+**Developer Guides** (for `docs/`):
+
+- Template: [`.github/docs/TEMPLATE_DEVELOPER_GUIDE.md`](.github/docs/TEMPLATE_DEVELOPER_GUIDE.md)
+- Use for: Setup guides, feature tutorials, how-to documentation
+- Includes: Quick start, concepts, common tasks, troubleshooting, FAQ
+
+### Deprecating Documentation
+
+Documentation that is no longer accurate must be marked as deprecated to avoid confusion.
+
+**Deprecation Process**:
+
+1. **Add Deprecation Notice** at the top of the document:
+
+```markdown
+# [Feature Name] Guide
+
+⚠️ **DEPRECATED** (as of YYYY-MM-DD)
+
+This document is no longer maintained. See [Replacement Document](./NEW_GUIDE.md) instead.
+
+---
+
+[Rest of document...]
+```
+
+2. **Update Related Documents** to link to the replacement:
+
+- Search for references to the deprecated doc
+- Update all links to point to the replacement
+- Add a "See Also" section in related docs
+
+3. **Deprecation Timeline**:
+
+- **Announce**: Update header with deprecation notice
+- **Wait**: Keep for 2-4 weeks for team notification
+- **Archive**: Move to `.github/docs/deprecated/` directory
+- **Clean**: Remove completely after 3 months with no references
+
+4. **Example Deprecation**:
+
+```markdown
+# Old Multi-Tenancy Guide
+
+⚠️ **DEPRECATED** (as of 2025-02-01)
+
+This document describes the old multi-tenancy implementation. The system has been redesigned.
+
+**See instead**: [Multi-Tenancy Architecture](./ARCHITECTURE.md#multi-tenancy)
+
+**Migration Guide**: [Migrating from v1 to v2](./MIGRATION_GUIDE.md)
+
+**Questions?** Search [GitHub Issues](https://github.com/plexica/plexica/issues) or ask in [Discussions](https://github.com/plexica/plexica/discussions).
+
+---
+
+## Old Content (For Reference Only)
+
+[Original document content...]
+```
+
+5. **Superseded Decisions** (in ADRs):
+
+```markdown
+## ADR-003: Old Architecture Choice
+
+**Date**: 2024-01-15  
+**Status**: ❌ Superseded by ADR-012  
+**Superseded By**: [ADR-012: New Architecture Decision](./DECISIONS.md#adr-012)
+
+### Why Superseded
+
+[Explain what changed and why the old decision no longer applies]
+
+[Rest of ADR...]
+```
+
+### Documentation Review Checklist
+
+When creating or updating documentation:
+
+**Content Quality**:
+
+- ✅ Is the metadata (Date, Status, Author) current and accurate?
+- ✅ Are all code examples correct, tested, and working?
+- ✅ Do all internal links work (use relative paths)?
+- ✅ Is terminology consistent with project standards?
+- ✅ Are there cross-references to related documents?
+- ✅ Is the language clear, concise, and audience-appropriate?
+
+**Formatting & Style**:
+
+- ✅ Is formatting consistent (headings, tables, code blocks)?
+- ✅ Does the document follow the appropriate template?
+- ✅ Are code blocks labeled with language identifiers?
+- ✅ Are file paths included as comments in code examples?
+
+**Completeness**:
+
+- ✅ Does the document cover all necessary aspects?
+- ✅ Are deprecated sections clearly marked?
+- ✅ Are related documents linked appropriately?
+- ✅ Does the Table of Contents match the structure?
+
+### Common Documentation Mistakes
+
+- ❌ Documentation outdated (>3 months old without review)
+- ❌ Using terminology inconsistently (e.g., `module` vs `plugin`, `extension` vs `plugin`)
+- ❌ Code examples that don't work or are untested
+- ❌ Broken internal links or incorrect relative paths
+- ❌ Missing language identifiers on code blocks (e.g., ` ```typescript `)
+- ❌ No metadata (Date, Status) on specifications or guides
+- ❌ Assuming reader knowledge without explaining concepts
+- ❌ Leaving outdated docs without deprecation notice
+- ❌ Not linking related documentation together
+- ❌ Documenting desired behavior instead of actual behavior
+
+### Documentation for AI Agents
+
+**Critical Documentation Requirements**:
+
+- ✅ **Update alongside code**: Always update relevant docs when code changes
+- ✅ **Use templates**: Follow the appropriate template from `.github/docs/`
+- ✅ **Maintain consistency**: Use approved terminology and style
+- ✅ **Include examples**: All technical docs need working code examples
+- ✅ **Cross-reference**: Link related documents to help readers navigate
+- ✅ **Test your examples**: Verify all code snippets actually work
+- ✅ **Mark deprecations**: Clearly indicate outdated content
+- ✅ **Update metadata**: Keep Date/Status/Author fields current
+
 ## CI/CD Integration
 
 All pull requests must pass automated checks:
