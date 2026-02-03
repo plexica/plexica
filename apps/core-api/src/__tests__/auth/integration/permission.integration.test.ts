@@ -138,13 +138,13 @@ describe('Permission Service Integration', () => {
     it('should create roles with permissions', async () => {
       const role = await permissionService.createRole(
         'tenant_acme_corp',
-        'test-admin',
+        `test-admin-${Date.now()}`,
         [Permissions.USERS_READ, Permissions.USERS_WRITE, Permissions.SETTINGS_READ],
         'Test admin role'
       );
 
       expect(role).toBeDefined();
-      expect(role.name).toBe('test-admin');
+      expect(role.name).toMatch(/test-admin/);
       expect(role.permissions).toHaveLength(3);
       expect(role.permissions).toContain(Permissions.USERS_READ);
       expect(role.permissions).toContain(Permissions.USERS_WRITE);
@@ -154,19 +154,28 @@ describe('Permission Service Integration', () => {
     });
 
     it('should get all roles in a tenant', async () => {
-      // Create additional roles
-      await permissionService.createRole(
+      // Create admin role first
+      const adminRole = await permissionService.createRole(
         'tenant_acme_corp',
-        'test-user',
+        `test-admin-${Date.now()}-get-all`,
+        [Permissions.USERS_READ, Permissions.USERS_WRITE, Permissions.SETTINGS_READ],
+        'Test admin role'
+      );
+
+      // Create additional user role
+      const userRole = await permissionService.createRole(
+        'tenant_acme_corp',
+        `test-user-${Date.now()}`,
         [Permissions.USERS_READ],
         'Test user role'
       );
 
       const roles = await permissionService.getRoles('tenant_acme_corp');
 
+      // Should have at least the roles we just created
       expect(roles.length).toBeGreaterThanOrEqual(2);
-      const testAdminRole = roles.find((r) => r.name === 'test-admin');
-      const testUserRole = roles.find((r) => r.name === 'test-user');
+      const testAdminRole = roles.find((r) => r.id === adminRole.id);
+      const testUserRole = roles.find((r) => r.id === userRole.id);
 
       expect(testAdminRole).toBeDefined();
       expect(testUserRole).toBeDefined();
@@ -174,23 +183,42 @@ describe('Permission Service Integration', () => {
     });
 
     it('should get a specific role by ID', async () => {
-      const role = await permissionService.getRole('tenant_acme_corp', acmeAdminRoleId);
+      // Create admin role for this test
+      const role = await permissionService.createRole(
+        'tenant_acme_corp',
+        `test-admin-${Date.now()}-get-by-id`,
+        [Permissions.USERS_READ, Permissions.USERS_WRITE, Permissions.SETTINGS_READ],
+        'Test admin role'
+      );
+      const roleId = role.id;
 
-      expect(role).toBeDefined();
-      expect(role?.id).toBe(acmeAdminRoleId);
-      expect(role?.name).toBe('test-admin');
-      expect(role?.permissions).toContain(Permissions.USERS_READ);
+      // Now retrieve it
+      const retrievedRole = await permissionService.getRole('tenant_acme_corp', roleId);
+
+      expect(retrievedRole).toBeDefined();
+      expect(retrievedRole?.id).toBe(roleId);
+      expect(retrievedRole?.name).toMatch(/test-admin/);
+      expect(retrievedRole?.permissions).toContain(Permissions.USERS_READ);
     });
 
     it('should update role permissions', async () => {
+      // Create admin role for this test
+      const role = await permissionService.createRole(
+        'tenant_acme_corp',
+        `test-admin-${Date.now()}-update`,
+        [Permissions.USERS_READ, Permissions.USERS_WRITE, Permissions.SETTINGS_READ],
+        'Test admin role'
+      );
+      const roleId = role.id;
+
       // Update permissions - add new permission
-      await permissionService.updateRolePermissions('tenant_acme_corp', acmeAdminRoleId, [
+      await permissionService.updateRolePermissions('tenant_acme_corp', roleId, [
         Permissions.USERS_READ,
         Permissions.USERS_WRITE,
         Permissions.USERS_DELETE, // New permission
       ]);
 
-      const updatedRole = await permissionService.getRole('tenant_acme_corp', acmeAdminRoleId);
+      const updatedRole = await permissionService.getRole('tenant_acme_corp', roleId);
 
       expect(updatedRole?.permissions).toHaveLength(3);
       expect(updatedRole?.permissions).toContain(Permissions.USERS_DELETE);

@@ -23,13 +23,13 @@ Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 **In Progress**: M2.4 (Plugin Registry & Marketplace - Starting)  
 **Next**: Complete Phase 2 plugin ecosystem features
 
-👉 **See [STATUS.md](./STATUS.md) for detailed progress tracking**
+👉 **See [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) for detailed progress tracking**
 
 ---
 
 ## 🚀 Quick Start
 
-**Want to get started in 5 minutes?** → See **[QUICK_START.md](./QUICK_START.md)** for the fastest setup!
+**Want to get started in 5 minutes?** → See **[docs/QUICKSTART.md](./docs/QUICKSTART.md)** for the fastest setup!
 
 ### One-Command Setup (Recommended)
 
@@ -74,7 +74,7 @@ cd apps/super-admin && pnpm dev
 - **API Health**: http://localhost:3000/health
 - **Keycloak**: http://localhost:8080 (Login: `admin` / `admin`)
 
-📖 **For detailed setup, troubleshooting, and more → See [QUICK_START.md](./QUICK_START.md)**
+📖 **For detailed setup, troubleshooting, and more → See [docs/QUICKSTART.md](./docs/QUICKSTART.md)**
 
 ---
 
@@ -524,14 +524,14 @@ docker-compose up -d
 pnpm dev
 ```
 
-### Production (Planned - M2.3)
+### Production
 
 - Platform: Kubernetes (Helm charts)
 - CI/CD: GitHub Actions
 - Monitoring: Prometheus + Grafana
 - Container Registry: Docker Hub / GHCR
 
-See **[STATUS.md](./STATUS.md)** for deployment milestone details.
+See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** for detailed deployment instructions.
 
 ---
 
@@ -545,8 +545,8 @@ See **[STATUS.md](./STATUS.md)** for detailed milestone tracking, completion sta
 
 - **API Docs**: http://localhost:3000/docs (dev)
 - **Health Check**: http://localhost:3000/health (dev)
-- **Changelog**: [CHANGELOG.md](./changelog/CHANGELOG.md)
-- **Status**: [STATUS.md](./STATUS.md) - Detailed project progress
+- **Status**: [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) - Detailed project progress
+- **Project Complete**: [PROJECT_COMPLETE.md](./PROJECT_COMPLETE.md) - Test implementation summary
 
 ---
 
