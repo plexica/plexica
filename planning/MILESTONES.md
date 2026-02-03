@@ -3,14 +3,33 @@
 **Last Updated**: 2025-02-03  
 **Status**: Complete  
 **Owner**: Engineering Team  
-**Document Type**: Developer Guide
-
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
-**Owner**: Engineering Team  
 **Document Type**: Project Milestones
 
 Tracking of project's main milestones with target dates and completion criteria.
+
+## Table of Contents
+
+- [Phase 1 - MVP Core](#phase-1---mvp-core)
+  - [M1.1 - Foundation](#m11---foundation--)
+  - [M1.2 - Multi-Tenancy Core](#m12---multi-tenancy-core--)
+  - [M1.3 - Authentication & Authorization](#m13---authentication--authorization--)
+  - [M1.4 - Plugin System Base](#m14---plugin-system-base--)
+  - [M2.1 - Frontend Tenant App](#m21---frontend-tenant-app--)
+  - [M2.2 - Super-Admin App](#m22---super-admin-app--)
+  - [M2.3 - Testing & Deployment](#m23---testing--deployment-)
+  - [M2.4 - Workspaces](#m24---workspaces--)
+- [Phase 1 - Summary](#phase-1---summary)
+- [Phase 2 - Plugin Ecosystem](#phase-2---plugin-ecosystem)
+  - [M2.1 - Event System](#m21---event-system--)
+  - [M2.2 - Module Federation](#m22---module-federation--)
+  - [M2.3 - Plugin-to-Plugin Communication](#m23---plugin-to-plugin-communication--)
+  - [M2.4 - Plugin Registry & Marketplace](#m24---plugin-registry--marketplace-)
+  - [M2.5 - Kubernetes Deployment](#m25---kubernetes-deployment-)
+  - [M2.6 - Official Plugins](#m26---official-plugins-)
+- [Phase 3 - Advanced Features](#phase-3---advanced-features)
+- [Phase 4 - Enterprise](#phase-4---enterprise)
+- [Legend](#legend)
+- [Tracking Template](#tracking-template)
 
 ---
 
