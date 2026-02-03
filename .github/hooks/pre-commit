@@ -1,0 +1,27 @@
+#!/bin/bash
+# Pre-commit hook: Validate documentation metadata
+# 
+# This hook validates that all documentation files have required metadata:
+# - Last Updated
+# - Status  
+# - Owner
+# - Document Type
+#
+# Install by running: ln -s ../../.github/hooks/pre-commit .git/hooks/pre-commit
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+
+# Run the Python validator
+python3 "$PROJECT_ROOT/.github/hooks/validate-doc-metadata.py"
+exit_code=$?
+
+if [ $exit_code -ne 0 ]; then
+    echo ""
+    echo "Pre-commit hook failed. To bypass (not recommended):"
+    echo "  git commit --no-verify"
+    echo ""
+    exit $exit_code
+fi
+
+exit 0
