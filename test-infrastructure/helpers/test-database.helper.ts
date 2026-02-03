@@ -175,16 +175,40 @@ export class TestDatabaseHelper {
 
     // Create workspace_resources table
     await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
-        "id" TEXT PRIMARY KEY,
-        "workspace_id" TEXT NOT NULL,
-        "resource_type" TEXT NOT NULL,
-        "resource_id" TEXT NOT NULL,
-        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY ("workspace_id") REFERENCES "${schemaName}"."workspaces"("id") ON DELETE CASCADE,
-        UNIQUE ("workspace_id", "resource_type", "resource_id")
-      )
-    `);
+       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
+         "id" TEXT PRIMARY KEY,
+         "workspace_id" TEXT NOT NULL,
+         "resource_type" TEXT NOT NULL,
+         "resource_id" TEXT NOT NULL,
+         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         FOREIGN KEY ("workspace_id") REFERENCES "${schemaName}"."workspaces"("id") ON DELETE CASCADE,
+         UNIQUE ("workspace_id", "resource_type", "resource_id")
+       )
+     `);
+
+    // Create roles table (for permission management)
+    await this.prisma.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS "${schemaName}"."roles" (
+         "id" TEXT PRIMARY KEY,
+         "name" TEXT UNIQUE NOT NULL,
+         "description" TEXT,
+         "permissions" JSONB NOT NULL DEFAULT '[]',
+         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )
+     `);
+
+    // Create user_roles table (for role assignments)
+    await this.prisma.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS "${schemaName}"."user_roles" (
+         "user_id" TEXT NOT NULL,
+         "role_id" TEXT NOT NULL,
+         "assigned_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         PRIMARY KEY ("user_id", "role_id"),
+         FOREIGN KEY ("user_id") REFERENCES "${schemaName}"."users"("id") ON DELETE CASCADE,
+         FOREIGN KEY ("role_id") REFERENCES "${schemaName}"."roles"("id") ON DELETE CASCADE
+       )
+     `);
 
     return schemaName;
   }
