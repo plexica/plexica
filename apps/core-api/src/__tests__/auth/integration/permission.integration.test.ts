@@ -213,6 +213,10 @@ describe('Permission Service Integration', () => {
 
   describe('User Role Assignment', () => {
     beforeEach(async () => {
+      // Clear roles before creating new ones for this describe block
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.user_roles CASCADE`);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.roles CASCADE`);
+
       // Create roles for user assignment tests
       const adminRole = await permissionService.createRole(
         'tenant_acme_corp',
@@ -274,6 +278,10 @@ describe('Permission Service Integration', () => {
 
   describe('Permission Resolution', () => {
     beforeEach(async () => {
+      // Clear roles before creating new ones for this describe block
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.user_roles CASCADE`);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.roles CASCADE`);
+
       // Clear any existing roles
       await redis.flushdb();
 
@@ -388,6 +396,10 @@ describe('Permission Service Integration', () => {
 
   describe('Dynamic Permission Updates', () => {
     beforeEach(async () => {
+      // Clear roles before creating new ones for this describe block
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.user_roles CASCADE`);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.roles CASCADE`);
+
       const role = await permissionService.createRole(
         'tenant_acme_corp',
         'dynamic-role',
@@ -453,6 +465,12 @@ describe('Permission Service Integration', () => {
 
   describe('Multi-Tenant Isolation', () => {
     beforeEach(async () => {
+      // Clear roles in both tenants before creating new ones
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.user_roles CASCADE`);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_acme_corp.roles CASCADE`);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_demo_company.user_roles CASCADE`);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_demo_company.roles CASCADE`);
+
       // Create roles in both tenants
       const acmeRole = await permissionService.createRole(
         'tenant_acme_corp',
