@@ -5,12 +5,7 @@
 **Owner**: Engineering Team  
 **Document Type**: Developer Guide
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
-**Owner**: Engineering Team  
-**Document Type**: Developer Guide
-
-Complete guide for developing, building, and deploying plugins for the Plexica platform.
+Complete guide for developing, building, and deploying plugins for the Plexica platform. For advanced plugin-to-plugin communication, see [Plugin-to-Plugin Communication Guide](./guides/plugin-development.md).
 
 ## Table of Contents
 
@@ -25,6 +20,16 @@ Complete guide for developing, building, and deploying plugins for the Plexica p
 - [Deployment](#deployment)
 - [Testing](#testing)
 - [Best Practices](#best-practices)
+
+## Related Documents
+
+For advanced topics and detailed specifications, refer to:
+
+- **[guides/plugin-development.md](./guides/plugin-development.md)** - Plugin-to-Plugin Communication Guide (for M2.3+ features)
+- **[PLUGIN_DEVELOPMENT.md](../specs/TECHNICAL_SPECIFICATIONS.md#6-plugin-system)** - Technical specifications for plugin system
+- **[../specs/FUNCTIONAL_SPECIFICATIONS.md#7-plugin-system](../specs/FUNCTIONAL_SPECIFICATIONS.md#7-plugin-system)** - Functional requirements and plugin lifecycle
+- **[../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md](../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Complete plugin ecosystem architecture
+- **[../specs/PLUGIN_STRATEGY.md](../specs/PLUGIN_STRATEGY.md)** - Plugin strategy and roadmap
 
 ---
 

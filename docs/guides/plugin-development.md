@@ -26,6 +26,16 @@ This guide teaches you how to build Plexica plugins that communicate with each o
 9. [Common Patterns](#common-patterns)
 10. [Troubleshooting](#troubleshooting)
 
+## Related Documents
+
+For foundational plugin development concepts and detailed specifications, refer to:
+
+- **[../PLUGIN_DEVELOPMENT.md](../PLUGIN_DEVELOPMENT.md)** - Basic plugin development guide (UI components, structure, deployment)
+- **[../../specs/TECHNICAL_SPECIFICATIONS.md#6-plugin-system](../../specs/TECHNICAL_SPECIFICATIONS.md#6-plugin-system)** - Technical specifications for plugin system
+- **[../../specs/PLUGIN_COMMUNICATION_API.md](../../specs/PLUGIN_COMMUNICATION_API.md)** - Complete API reference for plugin communication
+- **[../../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md](../../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Architecture design patterns
+- **[../../specs/EXAMPLES_CRM_ANALYTICS_INTEGRATION.md](../../specs/EXAMPLES_CRM_ANALYTICS_INTEGRATION.md)** - Real-world example of plugin communication
+
 ---
 
 ## Introduction
