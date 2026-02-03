@@ -208,9 +208,20 @@ export class WorkspaceService {
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
 
+      // Build ORDER BY with literal string (sortColumn is pre-validated)
+      const orderByClause = `${sortColumn} ${sortOrder}`;
+
+      // Explicitly select columns to ensure proper mapping
       const result = await tx.$queryRaw<any[]>`
         SELECT 
-          w.*,
+          w.id,
+          w.tenant_id,
+          w.slug,
+          w.name,
+          w.description,
+          w.settings,
+          w.created_at,
+          w.updated_at,
           wm.role as member_role,
           wm.joined_at,
           (SELECT COUNT(*) FROM ${membersTable} WHERE workspace_id = w.id) as member_count,
@@ -219,7 +230,7 @@ export class WorkspaceService {
         INNER JOIN ${membersTable} wm ON w.id = wm.workspace_id
         WHERE wm.user_id = ${userId}
           AND w.tenant_id = ${tenantId}
-        ORDER BY ${Prisma.raw(sortColumn)} ${Prisma.raw(sortOrder)}
+        ORDER BY ${Prisma.raw(orderByClause)}
         LIMIT ${limit}
         OFFSET ${offset}
       `;
