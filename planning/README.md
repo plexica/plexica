@@ -66,7 +66,7 @@ Detailed task breakdown for Phase 2 Plugin Ecosystem.
 - Testing infrastructure
 - Documentation
 
-**[tasks/M2.4-PLUGIN-REGISTRY_MARKETPLACE.md](./tasks/M2.4-PLUGIN-REGISTRY_MARKETPLACE.md)**  
+**[tasks/M2.4-PLUGIN-REGISTRY.md](./tasks/M2.4-PLUGIN-REGISTRY.md)** & **[tasks/M2.4-PLUGIN-MARKETPLACE.md](./tasks/M2.4-PLUGIN-MARKETPLACE.md)**  
 Specific tasks for M2.4 milestone.
 
 - Plugin registry implementation

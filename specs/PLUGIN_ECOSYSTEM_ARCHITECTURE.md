@@ -1476,10 +1476,10 @@ The Plexica Plugin Ecosystem provides a robust, scalable foundation for plugin-t
 
 See companion documentation:
 
-- [API Reference](../api/plugin-communication-api.md) - Complete API endpoint documentation
-- [Plugin Developer Guide](../guides/plugin-development.md) - Building plugins with communication
-- [CRM ↔ Analytics Example](../examples/crm-analytics-integration.md) - Real-world integration walkthrough
-- [Migration Guide](../guides/plugin-migration.md) - Upgrading existing plugins
+- [API Reference](./PLUGIN_COMMUNICATION_API.md) - Complete API endpoint documentation
+- [Plugin Developer Guide](../docs/guides/plugin-development.md) - Building plugins with communication
+- [CRM ↔ Analytics Example](./EXAMPLES_CRM_ANALYTICS_INTEGRATION.md) - Real-world integration walkthrough
+- [Migration Guide](../docs/guides/plugin-migration.md) - Upgrading existing plugins
 
 ---
 

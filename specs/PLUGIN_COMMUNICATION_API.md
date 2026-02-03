@@ -1018,7 +1018,7 @@ const contacts = await sdk.callPluginApi({
 await sdk.setSharedData('analytics.cache', 'report_data', data);
 ```
 
-See [Plugin Developer Guide](../guides/plugin-development.md) for more examples.
+See [Plugin Developer Guide](../docs/guides/plugin-development.md) for more examples.
 
 ---
 

@@ -1008,18 +1008,18 @@ Version mismatch for inventory.products: requires ^2.0.0, installed 1.5.0
 
 ### Next Steps
 
-- Read the [Plugin Developer Guide](../guides/plugin-development.md)
-- Review the [CRM ↔ Analytics Example](../examples/crm-analytics-integration.md)
-- Check the [API Reference](../api/plugin-communication-api.md)
+- Read the [Plugin Developer Guide](./plugin-development.md)
+- Review the [CRM ↔ Analytics Example](../../specs/EXAMPLES_CRM_ANALYTICS_INTEGRATION.md)
+- Check the [API Reference](../../specs/PLUGIN_COMMUNICATION_API.md)
 - Join the community forum for questions
 
 ---
 
 **Related Documentation:**
 
-- [Plugin Developer Guide](../guides/plugin-development.md) - Building M2.3-compatible plugins
-- [API Reference](../api/plugin-communication-api.md) - Complete API documentation
-- [Architecture Overview](../architecture/plugin-ecosystem.md) - System design
+- [Plugin Developer Guide](./plugin-development.md) - Building M2.3-compatible plugins
+- [API Reference](../../specs/PLUGIN_COMMUNICATION_API.md) - Complete API documentation
+- [Architecture Overview](../../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md) - System design
 
 ---
 

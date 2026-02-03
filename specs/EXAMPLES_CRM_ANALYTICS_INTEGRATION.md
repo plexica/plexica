@@ -1330,9 +1330,9 @@ This example demonstrates a complete plugin-to-plugin integration:
 
 **Related Documentation:**
 
-- [API Reference](../api/plugin-communication-api.md) - Complete API documentation
-- [Plugin Developer Guide](../guides/plugin-development.md) - Building plugins
-- [Architecture Overview](../architecture/plugin-ecosystem.md) - System design
+- [API Reference](./PLUGIN_COMMUNICATION_API.md) - Complete API documentation
+- [Plugin Developer Guide](../docs/guides/plugin-development.md) - Building plugins
+- [Architecture Overview](./PLUGIN_ECOSYSTEM_ARCHITECTURE.md) - System design
 
 ---
 

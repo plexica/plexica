@@ -1361,10 +1361,10 @@ console.log('Available keys:', keys);
 ## Next Steps
 
 - **See Also**:
-  - [Plugin Communication API Reference](../api/plugin-communication-api.md)
-  - [Architecture Documentation](../architecture/plugin-ecosystem.md)
-  - [Example: CRM ↔ Analytics](../examples/crm-analytics-integration.md)
-  - [Migration Guide](../guides/plugin-migration.md)
+  - [Plugin Communication API Reference](../../specs/PLUGIN_COMMUNICATION_API.md)
+  - [Architecture Documentation](../../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md)
+  - [Example: CRM ↔ Analytics](../../specs/EXAMPLES_CRM_ANALYTICS_INTEGRATION.md)
+  - [Migration Guide](./plugin-migration.md)
 
 - **Examples**:
   - `apps/plugin-crm/` - Complete CRM plugin example

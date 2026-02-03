@@ -320,7 +320,7 @@ pnpm install
 ## Getting Help
 
 - Check the [Documentation](../README.md)
-- Review [Common Issues](./TROUBLESHOOTING.md)
+- Review [Common Issues](../test-infrastructure/TROUBLESHOOTING.md)
 - Ask in the team chat
 - Create an issue on GitHub
 
