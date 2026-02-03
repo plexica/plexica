@@ -217,6 +217,58 @@ pnpm db:seed
 - Project roadmap or milestones change
 - Previous decisions become deprecated or superseded
 - Major strategic shifts occur
+- **⭐ CRITICAL: Any milestone is completed or a new milestone is started** → Update `planning/PROJECT_STATUS.md` immediately
+
+### ⭐ Project Status Update Directive
+
+**Every time you plan or complete work:**
+
+1. **Starting a new milestone/task**: Update `planning/PROJECT_STATUS.md`
+   - Change milestone status from "⚪ Not Started" to "🟡 In Progress"
+   - Update "Current Milestone" field at the top
+   - Add start date to the milestone record
+   - Update overall phase progress percentage
+
+2. **Completing a milestone/task**: Update `planning/PROJECT_STATUS.md`
+   - Change milestone status to "✅ Completed"
+   - Add completion date
+   - Update phase progress percentage
+   - Create new section under "Completed" milestones
+   - Update "Last Updated" field with today's date
+   - Update "Current Milestone" to next pending milestone
+   - Update version if major milestone completed
+
+3. **Consistency Check Before Committing**:
+   - Run: `grep "Last Updated\|Version\|Current Phase\|Current Milestone" planning/PROJECT_STATUS.md README.md`
+   - Ensure dates, versions, and milestone names match across both files
+   - All file dates should be current (same day)
+   - Version should match README.md
+
+**Example workflow:**
+
+```bash
+# After completing M2.3
+1. Edit planning/PROJECT_STATUS.md:
+   - Change M2.3: "🟡 In Progress" → "✅ Completed"
+   - Set completion date: "Jan 23, 2026"
+   - Change Current Milestone: "M2.3" → "M2.4"
+   - Update Version if needed
+   - Update Last Updated: "Feb 3, 2026"
+
+2. Verify consistency:
+   grep "Last Updated\|Version" planning/PROJECT_STATUS.md README.md
+
+3. Commit with clear message:
+   git commit -m "docs: complete M2.3 milestone and update PROJECT_STATUS.md"
+```
+
+**Why this matters:**
+
+- ✅ Single source of truth for project status
+- ✅ Prevents documentation drift
+- ✅ Helps team understand current progress
+- ✅ Enables accurate milestone tracking
+- ✅ Ensures README and status files stay in sync
 
 **Cross-Reference Rule**: If you modify code, verify related documentation is current:
 
