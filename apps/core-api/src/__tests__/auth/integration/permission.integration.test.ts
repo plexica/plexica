@@ -45,15 +45,15 @@ describe('Permission Service Integration', () => {
       )
     `);
     await db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS tenant_acme_corp.roles (
-        id TEXT PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
-        description TEXT,
-        permissions TEXT[] NOT NULL DEFAULT '{}',
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+       CREATE TABLE IF NOT EXISTS tenant_acme_corp.roles (
+         id TEXT PRIMARY KEY,
+         name TEXT UNIQUE NOT NULL,
+         description TEXT,
+         permissions JSONB NOT NULL DEFAULT '[]',
+         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )
+     `);
     await db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS tenant_acme_corp.user_roles (
         user_id TEXT NOT NULL,
@@ -79,15 +79,15 @@ describe('Permission Service Integration', () => {
       )
     `);
     await db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS tenant_demo_company.roles (
-        id TEXT PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
-        description TEXT,
-        permissions TEXT[] NOT NULL DEFAULT '{}',
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+       CREATE TABLE IF NOT EXISTS tenant_demo_company.roles (
+         id TEXT PRIMARY KEY,
+         name TEXT UNIQUE NOT NULL,
+         description TEXT,
+         permissions JSONB NOT NULL DEFAULT '[]',
+         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )
+     `);
     await db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS tenant_demo_company.user_roles (
         user_id TEXT NOT NULL,
@@ -124,6 +124,12 @@ describe('Permission Service Integration', () => {
   });
 
   beforeEach(async () => {
+    // Clear roles and user_roles tables before each test to avoid UNIQUE constraint violations
+    await db.$executeRawUnsafe(`TRUNCATE TABLE tenant_acme_corp.user_roles CASCADE`);
+    await db.$executeRawUnsafe(`TRUNCATE TABLE tenant_acme_corp.roles CASCADE`);
+    await db.$executeRawUnsafe(`TRUNCATE TABLE tenant_demo_company.user_roles CASCADE`);
+    await db.$executeRawUnsafe(`TRUNCATE TABLE tenant_demo_company.roles CASCADE`);
+
     // Clear Redis cache before each test
     await redis.flushdb();
   });

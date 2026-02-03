@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { db } from '../lib/db.js';
 
 /**
@@ -133,7 +134,7 @@ export class PermissionService {
     await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
 
     try {
-      const id = crypto.randomUUID();
+      const id = randomUUID();
 
       await db.$executeRawUnsafe(
         `
