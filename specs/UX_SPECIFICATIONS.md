@@ -1,5 +1,10 @@
 # Plexica - UX Specifications & Wireframe Guidelines
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
 ## Document Overview
 
 This document defines the user experience architecture and interface specifications for the Plexica platform. It outlines the layout structure, navigation patterns, extension points for plugins, and interaction principles to ensure a consistent, intuitive, and extensible user interface.

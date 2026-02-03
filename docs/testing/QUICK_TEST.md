@@ -1,5 +1,10 @@
 # Quick Test Guide (5-10 Minutes)
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Testing Guide
+
 ## Overview
 
 This is the express version of the comprehensive testing guides. Use this when you need to quickly verify that the core Plexica features work correctly.

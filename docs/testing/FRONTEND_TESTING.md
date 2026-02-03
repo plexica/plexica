@@ -1,5 +1,10 @@
 # Frontend Testing Guide
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Testing Guide
+
 ## Overview
 
 This guide covers testing for the Plexica frontend application built with React, TanStack Router, and Keycloak authentication. It includes authentication testing, component testing, multi-tenant URL verification, and end-to-end user flows.

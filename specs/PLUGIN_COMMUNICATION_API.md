@@ -1,5 +1,10 @@
 # Plugin Communication API Reference
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: API Specification
+
 **Version**: 1.0 (M2.3)  
 **Base URL**: `/api/plugin-gateway`  
 **Authentication**: Required (X-Tenant-Slug header)

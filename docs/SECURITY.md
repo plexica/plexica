@@ -1,5 +1,15 @@
 # 🔒 Security Guidelines for Plexica Development
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Security Guidelines
+
 This document provides security best practices and guidelines for developing secure code in the Plexica platform.
 
 ---

@@ -1,5 +1,15 @@
 # Plexica - Architectural Decision Records (ADR)
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Architectural Decisions
+
 Log of important architectural decisions made during project development.
 
 ---

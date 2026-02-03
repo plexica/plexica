@@ -1,5 +1,10 @@
 # Plugin Developer Guide: Plugin-to-Plugin Communication
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
 **Version**: 1.0 (M2.3)  
 **Last Updated**: January 22, 2026  
 **Target Audience**: Plugin developers

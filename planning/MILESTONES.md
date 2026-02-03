@@ -1,5 +1,15 @@
 # Plexica - Milestones
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Project Milestones
+
 Tracking of project's main milestones with target dates and completion criteria.
 
 ---

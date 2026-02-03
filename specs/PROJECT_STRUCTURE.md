@@ -1,6 +1,9 @@
 # Plexica - Project Structure
 
-> **Note**: This document describes the structure of the **code monorepo** for the Plexica platform (the repository that will contain the source code), not this specifications repository. For the structure of this documentation repository, see [README.md](../README.md).
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: DevOps & Architecture Team  
+**Document Type**: Technical Specifications
 
 ## Recommendation: Monorepo
 

@@ -1,5 +1,15 @@
 # Plugin Development Guide
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
 Complete guide for developing, building, and deploying plugins for the Plexica platform.
 
 ## Table of Contents

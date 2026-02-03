@@ -1,6 +1,13 @@
 # Plexica Documentation
 
-Welcome to the Plexica documentation hub. This directory contains all technical documentation, guides, and specifications for the Plexica platform.
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Documentation Index
+
+Welcome to the Plexica documentation hub. This directory contains all developer guides, implementation documentation, and best practices for the Plexica platform.
+
+**Note**: For technical specifications and architectural details, see the [specs/](../specs/README.md) directory. For project planning and roadmap, see the [planning/](../planning/README.md) directory.
 
 ---
 
@@ -29,8 +36,8 @@ Welcome to the Plexica documentation hub. This directory contains all technical 
 
 **Design Specifications:**
 
-- **[UX Specifications](./design/UX_SPECIFICATIONS.md)** - Complete UX/UI specifications and wireframes
-- **[shadcn/ui Guide](./design/SHADCN_UI_GUIDE.md)** - Component library setup and customization guide
+- **[UX Specifications](../specs/UX_SPECIFICATIONS.md)** _(moved to specs/)_ - Complete UX/UI specifications and wireframes
+- **[shadcn/ui Guide](./guides/UI_COMPONENTS_SHADCN_GUIDE.md)** _(moved to guides/)_ - Component library setup and customization guide
 
 ---
 
@@ -58,9 +65,13 @@ Quick Test (5 min) → Frontend Testing → E2E Testing → Backend Testing
 
 **For developers working on Plexica:**
 
+- **[Getting Started Guide](./GETTING_STARTED.md)** - Setup instructions and first steps
 - **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute to the project
-- **[Prisma 7 Migration Guide](./PRISMA_7_MIGRATION.md)** - Database troubleshooting and best practices
-- **[Agent Guidelines](../AGENTS.md)** - Guidelines for AI coding agents
+- **[Plugin Development Guide](./PLUGIN_DEVELOPMENT.md)** - Building and deploying plugins
+- **[Plugin Developer Guide: P2P Communication](./guides/plugin-development.md)** - Plugin-to-plugin communication
+- **[Plugin Migration Guide](./guides/plugin-migration.md)** - Migrating between plugin versions
+- **[Prisma 7 Migration Guide](./guides/PRISMA_7_MIGRATION.md)** - Database troubleshooting and best practices
+- **[Agent Guidelines](../AGENTS.md)** - Guidelines for AI coding agents (including documentation management standards)
 
 ---
 
@@ -68,13 +79,16 @@ Quick Test (5 min) → Frontend Testing → E2E Testing → Backend Testing
 
 **Detailed technical specifications:**
 
-Located in the `../specs/` directory:
+Located in the `../specs/` directory. See [specs/README.md](../specs/README.md) for complete overview:
 
 - **[Functional Specifications](../specs/FUNCTIONAL_SPECIFICATIONS.md)** - Business requirements and features
 - **[Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md)** - Detailed architecture and implementation
 - **[Project Structure](../specs/PROJECT_STRUCTURE.md)** - Monorepo organization and structure
 - **[Plugin Strategy](../specs/PLUGIN_STRATEGY.md)** - Plugin system design and architecture
 - **[Workspace Specifications](../specs/WORKSPACE_SPECIFICATIONS.md)** - Workspace feature specifications
+- **[UX Specifications](../specs/UX_SPECIFICATIONS.md)** - UI/UX design specifications
+- **[Plugin Ecosystem Architecture](../specs/PLUGIN_ECOSYSTEM_ARCHITECTURE.md)** - Plugin system architecture
+- **[Plugin Communication API](../specs/PLUGIN_COMMUNICATION_API.md)** - Plugin API reference
 
 ---
 
@@ -82,17 +96,12 @@ Located in the `../specs/` directory:
 
 **Project planning and progress tracking:**
 
-Located in the `../planning/` directory:
+Located in the `../planning/` directory. See [planning/README.md](../planning/README.md) for complete overview:
 
 - **[Roadmap](../planning/ROADMAP.md)** - Phase 1-5 timeline and milestones
-- **[Development Plan](../planning/DEVELOPMENT_PLAN.md)** - Detailed MVP development plan
 - **[Milestones](../planning/MILESTONES.md)** - Milestone tracking and completion status
 - **[Decisions](../planning/DECISIONS.md)** - Architectural Decision Records (ADR)
-- **[Task Breakdown](../planning/tasks/phase-1-mvp.md)** - Granular task lists for Phase 1
-
-**Current Status:**
-
-- See **[STATUS.md](../STATUS.md)** for real-time project status and progress
+- **[Task Breakdown](../planning/tasks/)** - Phase-specific and detailed task lists
 
 ---
 
@@ -113,18 +122,34 @@ docs/
 ├── GETTING_STARTED.md             # Setup and first steps
 ├── ARCHITECTURE.md                # Frontend architecture guide
 ├── CONTRIBUTING.md                # Contribution guidelines
-├── PRISMA_7_MIGRATION.md          # Database guide
+├── PLUGIN_DEVELOPMENT.md          # Plugin development overview
+├── SECURITY.md                    # Security guidelines
 │
-├── design/                        # Design specifications
-│   ├── UX_SPECIFICATIONS.md       # UX/UI specifications
-│   └── SHADCN_UI_GUIDE.md         # Component library guide
+├── guides/                        # Developer guides
+│   ├── PRISMA_7_MIGRATION.md      # Database guide
+│   ├── plugin-development.md      # Plugin-to-plugin communication
+│   ├── plugin-migration.md        # Plugin version migration
+│   └── UI_COMPONENTS_SHADCN_GUIDE.md    # Component library guide
 │
-└── testing/                       # Testing documentation
-    ├── README.md                  # Testing overview
-    ├── QUICK_TEST.md              # Quick smoke test
-    ├── FRONTEND_TESTING.md        # Frontend testing guide
-    ├── E2E_TESTING.md             # E2E testing workflows
-    └── BACKEND_TESTING.md         # Backend testing guide
+├── design/                        # Design-related docs (deprecated)
+│   ├── NOTE: UX_SPECIFICATIONS moved to specs/
+│   └── NOTE: SHADCN_UI_GUIDE moved to guides/
+│
+├── testing/                       # Testing documentation
+│   ├── README.md                  # Testing overview
+│   ├── QUICK_TEST.md              # Quick smoke test
+│   ├── FRONTEND_TESTING.md        # Frontend testing guide
+│   ├── E2E_TESTING.md             # E2E testing workflows
+│   └── BACKEND_TESTING.md         # Backend testing guide
+│
+├── api/                           # API docs (deprecated)
+│   └── NOTE: plugin-communication-api moved to specs/
+│
+├── architecture/                  # Architecture docs (deprecated)
+│   └── NOTE: plugin-ecosystem moved to specs/
+│
+└── examples/                      # Examples (deprecated)
+    └── NOTE: crm-analytics-integration moved to specs/
 ```
 
 ---
@@ -141,14 +166,14 @@ docs/
 ### For Frontend Developers
 
 1. [Frontend Architecture](./ARCHITECTURE.md)
-2. [UX Specifications](./design/UX_SPECIFICATIONS.md)
-3. [shadcn/ui Guide](./design/SHADCN_UI_GUIDE.md)
+2. [UX Specifications](../specs/UX_SPECIFICATIONS.md)
+3. [shadcn/ui Guide](./guides/UI_COMPONENTS_SHADCN_GUIDE.md)
 4. [Frontend Testing](./testing/FRONTEND_TESTING.md)
 
 ### For Backend Developers
 
 1. [Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md)
-2. [Prisma 7 Guide](./PRISMA_7_MIGRATION.md)
+2. [Prisma 7 Guide](./guides/PRISMA_7_MIGRATION.md)
 3. [Backend Testing](./testing/BACKEND_TESTING.md)
 4. [Plugin Strategy](../specs/PLUGIN_STRATEGY.md)
 
@@ -197,9 +222,9 @@ See **[AGENTS.md](../AGENTS.md)** for detailed documentation standards and guide
 - **Multi-tenancy**: [Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md), [Frontend Architecture](./ARCHITECTURE.md)
 - **Plugin System**: [Plugin Strategy](../specs/PLUGIN_STRATEGY.md), [Frontend Architecture](./ARCHITECTURE.md)
 - **Workspaces**: [Workspace Specifications](../specs/WORKSPACE_SPECIFICATIONS.md)
-- **Database**: [Prisma 7 Guide](./PRISMA_7_MIGRATION.md), [Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md)
+- **Database**: [Prisma 7 Guide](./guides/PRISMA_7_MIGRATION.md), [Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md)
 - **Testing**: [Testing Overview](./testing/README.md)
-- **Deployment**: [Development Plan](../planning/DEVELOPMENT_PLAN.md), [STATUS.md](../STATUS.md)
+- **Deployment**: [Milestones](../planning/MILESTONES.md), [Roadmap](../planning/ROADMAP.md)
 
 ### Search by Feature
 
@@ -207,7 +232,7 @@ See **[AGENTS.md](../AGENTS.md)** for detailed documentation standards and guide
 - **Module Federation**: [Frontend Architecture - Plugin System](./ARCHITECTURE.md)
 - **RBAC/Permissions**: [Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md)
 - **Tenant Provisioning**: [Technical Specifications](../specs/TECHNICAL_SPECIFICATIONS.md)
-- **UI Components**: [shadcn/ui Guide](./design/SHADCN_UI_GUIDE.md), [UX Specifications](./design/UX_SPECIFICATIONS.md)
+- **UI Components**: [shadcn/ui Guide](./guides/UI_COMPONENTS_SHADCN_GUIDE.md), [UX Specifications](../specs/UX_SPECIFICATIONS.md)
 
 ---
 
@@ -215,20 +240,21 @@ See **[AGENTS.md](../AGENTS.md)** for detailed documentation standards and guide
 
 If you can't find what you're looking for:
 
-1. **Check [STATUS.md](../STATUS.md)** for current project status
-2. **Search the documentation** using your IDE or `grep`
-3. **Review the [Roadmap](../planning/ROADMAP.md)** to see if the feature is planned
-4. **Check [Architectural Decisions](../planning/DECISIONS.md)** for design rationale
-5. **See [Contributing Guide](./CONTRIBUTING.md)** for how to ask questions or contribute
+1. **Check the [specs/ directory](../specs/README.md)** for technical specifications
+2. **Check the [planning/ directory](../planning/README.md)** for roadmap and decisions
+3. **Search the documentation** using your IDE or `grep`
+4. **Review the [Roadmap](../planning/ROADMAP.md)** to see if the feature is planned
+5. **Check [Architectural Decisions](../planning/DECISIONS.md)** for design rationale
+6. **See [Contributing Guide](./CONTRIBUTING.md)** for how to ask questions or contribute
 
 ---
 
 ## 📊 Documentation Stats
 
-- **Total Documentation Files**: 1,281+ markdown files
-- **Core Documentation**: 15+ key documents
+- **Core Documentation Files**: 25+ key documents
 - **Testing Guides**: 5 comprehensive guides
-- **Specifications**: 5 detailed spec documents
+- **Specifications**: 8 detailed spec documents
+- **Total Documentation Lines**: 20,000+
 - **Planning Documents**: 5+ planning and tracking documents
 
 ---

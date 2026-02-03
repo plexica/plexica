@@ -1,5 +1,15 @@
 # Plexica - Getting Started Guide
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Getting Started Guide
+
 This guide will help you set up the Plexica development environment on your local machine.
 
 ## Prerequisites

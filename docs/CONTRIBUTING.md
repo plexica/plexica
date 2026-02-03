@@ -1,5 +1,15 @@
 # Contributing to Plexica
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Contributing Guide
+
 Thank you for your interest in contributing to Plexica! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct

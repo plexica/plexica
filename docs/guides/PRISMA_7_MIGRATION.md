@@ -1,5 +1,15 @@
 # Prisma 7 Migration Guide & Troubleshooting
 
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Developer Guide
+
+**Last Updated**: 2025-02-03  
+**Status**: Complete  
+**Owner**: Engineering Team  
+**Document Type**: Migration Guide
+
 ## Overview
 
 This document provides detailed information about Plexica's migration to Prisma 7.2.0 and common troubleshooting steps.
