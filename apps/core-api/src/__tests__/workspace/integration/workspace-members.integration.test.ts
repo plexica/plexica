@@ -41,7 +41,7 @@ describe('Workspace Members Integration', () => {
     const superAdminToken = superAdminResp.access_token;
 
     // Create test tenant
-    const tenantResponse = await app.inject({
+    let tenantResponse = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
       headers: {
@@ -56,7 +56,8 @@ describe('Workspace Members Integration', () => {
       },
     });
 
-    if (tenantResponse.statusCode !== 201) {
+    // If tenant already exists (409), that's OK - it was created by another test
+    if (tenantResponse.statusCode !== 201 && tenantResponse.statusCode !== 409) {
       throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
     }
 

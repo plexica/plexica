@@ -124,39 +124,102 @@ describe('Permission Service Integration', () => {
   });
 
   beforeEach(async () => {
-    // Recreate demo schema and tables if they don't exist (they may have been dropped by testContext.resetAll)
-    await db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS tenant_demo_company`);
+    // Recreate schemas and tables if they don't exist
+    // First, try to drop and recreate to ensure clean state
+    try {
+      await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS tenant_demo_company CASCADE`);
+    } catch (err) {
+      // Ignore errors, schema might not exist
+    }
+
+    try {
+      await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS tenant_acme_corp CASCADE`);
+    } catch (err) {
+      // Ignore errors
+    }
+
+    // Create fresh schemas
+    await db.$executeRawUnsafe(`CREATE SCHEMA tenant_acme_corp`);
     await db.$executeRawUnsafe(`
-       CREATE TABLE IF NOT EXISTS tenant_demo_company.users (
+      CREATE TABLE tenant_acme_corp.users (
+        id TEXT PRIMARY KEY,
+        keycloak_id TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        avatar TEXT,
+        locale TEXT NOT NULL DEFAULT 'en',
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.$executeRawUnsafe(`
+       CREATE TABLE tenant_acme_corp.roles (
          id TEXT PRIMARY KEY,
-         keycloak_id TEXT UNIQUE NOT NULL,
-         email TEXT UNIQUE NOT NULL,
-         username TEXT UNIQUE NOT NULL,
-         first_name TEXT,
-         last_name TEXT,
-         avatar TEXT,
-         locale TEXT NOT NULL DEFAULT 'en',
+         name TEXT UNIQUE NOT NULL,
+         description TEXT,
+         permissions JSONB NOT NULL DEFAULT '[]',
          created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
          updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
        )
      `);
     await db.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS tenant_demo_company.roles (
+      CREATE TABLE tenant_acme_corp.user_roles (
+        user_id TEXT NOT NULL,
+        role_id TEXT NOT NULL,
+        assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, role_id)
+      )
+    `);
+
+    // Insert acme user
+    await db.$executeRawUnsafe(`
+      INSERT INTO tenant_acme_corp.users (id, keycloak_id, email, username)
+      VALUES ('test-acme-user-1', 'keycloak-acme-1', 'test@acme.test', 'testuser')
+      ON CONFLICT (keycloak_id) DO NOTHING
+    `);
+
+    // Create demo schema
+    await db.$executeRawUnsafe(`CREATE SCHEMA tenant_demo_company`);
+    await db.$executeRawUnsafe(`
+        CREATE TABLE tenant_demo_company.users (
           id TEXT PRIMARY KEY,
-          name TEXT UNIQUE NOT NULL,
-          description TEXT,
-          permissions JSONB NOT NULL DEFAULT '[]',
+          keycloak_id TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          username TEXT UNIQUE NOT NULL,
+          first_name TEXT,
+          last_name TEXT,
+          avatar TEXT,
+          locale TEXT NOT NULL DEFAULT 'en',
           created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
     await db.$executeRawUnsafe(`
-       CREATE TABLE IF NOT EXISTS tenant_demo_company.user_roles (
-         user_id TEXT NOT NULL,
-         role_id TEXT NOT NULL,
-         assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-         PRIMARY KEY (user_id, role_id)
-       )
+         CREATE TABLE tenant_demo_company.roles (
+           id TEXT PRIMARY KEY,
+           name TEXT UNIQUE NOT NULL,
+           description TEXT,
+           permissions JSONB NOT NULL DEFAULT '[]',
+           created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+         )
+       `);
+    await db.$executeRawUnsafe(`
+        CREATE TABLE tenant_demo_company.user_roles (
+          user_id TEXT NOT NULL,
+          role_id TEXT NOT NULL,
+          assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, role_id)
+        )
+      `);
+
+    // Insert demo user for this test run
+    await db.$executeRawUnsafe(`
+       INSERT INTO tenant_demo_company.users (id, keycloak_id, email, username)
+       VALUES ('test-demo-user-1', 'keycloak-demo-1', 'test@demo.test', 'testuser')
+       ON CONFLICT (keycloak_id) DO NOTHING
      `);
 
     // Clear roles and user_roles tables before each test to avoid UNIQUE constraint violations
