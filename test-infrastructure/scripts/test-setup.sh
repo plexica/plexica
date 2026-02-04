@@ -23,11 +23,21 @@ fi
 echo "📁 Root directory: $ROOT_DIR"
 echo "🐳 Docker directory: $DOCKER_DIR"
 
+# Detect docker compose command (v2 uses 'docker compose', v1 uses 'docker-compose')
+if docker compose version &> /dev/null; then
+  DOCKER_COMPOSE="docker compose"
+elif command -v docker-compose &> /dev/null; then
+  DOCKER_COMPOSE="docker-compose"
+else
+  echo "❌ Neither 'docker compose' nor 'docker-compose' found"
+  exit 1
+fi
+
 # Start Docker containers
 echo ""
 echo "🐳 Starting Docker containers..."
 cd "$DOCKER_DIR"
-docker-compose -f docker-compose.test.yml up -d
+$DOCKER_COMPOSE -f docker-compose.test.yml up -d
 
 # Wait for services to be healthy
 echo ""
