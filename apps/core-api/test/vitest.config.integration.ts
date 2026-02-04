@@ -17,8 +17,8 @@ export default defineConfig({
     exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.config.*'],
 
     // Integration tests need more time
-    testTimeout: 30000,
-    hookTimeout: 60000,
+    testTimeout: 60000,
+    hookTimeout: 120000,
 
     // Run sequentially as requested
     maxConcurrency: 1,

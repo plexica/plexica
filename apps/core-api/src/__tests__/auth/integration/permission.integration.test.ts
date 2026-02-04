@@ -124,6 +124,41 @@ describe('Permission Service Integration', () => {
   });
 
   beforeEach(async () => {
+    // Recreate demo schema and tables if they don't exist (they may have been dropped by testContext.resetAll)
+    await db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS tenant_demo_company`);
+    await db.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS tenant_demo_company.users (
+         id TEXT PRIMARY KEY,
+         keycloak_id TEXT UNIQUE NOT NULL,
+         email TEXT UNIQUE NOT NULL,
+         username TEXT UNIQUE NOT NULL,
+         first_name TEXT,
+         last_name TEXT,
+         avatar TEXT,
+         locale TEXT NOT NULL DEFAULT 'en',
+         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )
+     `);
+    await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS tenant_demo_company.roles (
+          id TEXT PRIMARY KEY,
+          name TEXT UNIQUE NOT NULL,
+          description TEXT,
+          permissions JSONB NOT NULL DEFAULT '[]',
+          created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    await db.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS tenant_demo_company.user_roles (
+         user_id TEXT NOT NULL,
+         role_id TEXT NOT NULL,
+         assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         PRIMARY KEY (user_id, role_id)
+       )
+     `);
+
     // Clear roles and user_roles tables before each test to avoid UNIQUE constraint violations
     await db.$executeRawUnsafe(`TRUNCATE TABLE tenant_acme_corp.user_roles CASCADE`);
     await db.$executeRawUnsafe(`TRUNCATE TABLE tenant_acme_corp.roles CASCADE`);
