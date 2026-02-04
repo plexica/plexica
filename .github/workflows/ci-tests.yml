@@ -49,12 +49,13 @@ jobs:
         run: pnpm type-check || echo "Type check skipped if not configured"
 
   # =============================================================================
-  # UNIT TESTS (Fast, no external dependencies)
+  # TESTS (Unit → Integration → E2E with sequential execution)
+  # Uses test infrastructure scripts for setup, reset, and teardown
   # =============================================================================
-  test-unit:
-    name: Unit Tests
+  tests:
+    name: All Tests (Sequential)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -77,8 +78,23 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      # =============================================================================
+      # PRE-FLIGHT CHECKS
+      # =============================================================================
+      - name: Check prerequisites (test-check.sh)
+        run: ./test-infrastructure/scripts/test-check.sh
+
+      # =============================================================================
+      # INFRASTRUCTURE SETUP (Done once for all test types)
+      # =============================================================================
+      - name: Setup test infrastructure (test-setup.sh)
+        run: ./test-infrastructure/scripts/test-setup.sh
+
+      # =============================================================================
+      # UNIT TESTS
+      # =============================================================================
       - name: Run unit tests
-        run: pnpm test:unit
+        run: cd apps/core-api && pnpm test:unit
         env:
           NODE_ENV: test
           CI: true
@@ -89,131 +105,24 @@ jobs:
         with:
           name: unit-test-results
           path: |
-            **/coverage/
-            **/test-results/
+            apps/core-api/coverage/
+            apps/core-api/test-results/
           retention-days: 7
 
-  # =============================================================================
-  # INTEGRATION TESTS (With database and services)
-  # =============================================================================
-  test-integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+      # =============================================================================
+      # RESET DATABASE FOR INTEGRATION TESTS
+      # =============================================================================
+      - name: Reset database for integration tests (test-reset.sh)
+        run: ./test-infrastructure/scripts/test-reset.sh
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: plexica_test
-          POSTGRES_PASSWORD: plexica_test_password
-          POSTGRES_DB: plexica_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-      keycloak:
-        image: quay.io/keycloak/keycloak:23.0
-        env:
-          KEYCLOAK_ADMIN: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          KC_HTTP_ENABLED: 'true'
-          KC_HOSTNAME_STRICT: 'false'
-          KC_HOSTNAME_STRICT_HTTPS: 'false'
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 10
-          --health-start-period 90s
-        ports:
-          - 8080:8080
-
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin_test
-          MINIO_ROOT_PASSWORD: minioadmin_test
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 9000:9000
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: pnpm db:generate
-
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting for Keycloak..."
-          timeout 180 bash -c 'until curl -f http://localhost:8080/health/ready; do sleep 5; done'
-          echo "Keycloak is ready!"
-
-          echo "Waiting for MinIO..."
-          timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
-          echo "MinIO is ready!"
-
-      - name: Run database migrations
-        run: pnpm db:migrate:deploy
-        env:
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-
-      - name: Seed test database
-        run: pnpm db:seed:test || echo "Seed skipped if not configured"
-        env:
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-
+      # =============================================================================
+      # INTEGRATION TESTS
+      # =============================================================================
       - name: Run integration tests
-        run: pnpm test:integration
+        run: cd apps/core-api && pnpm test:integration
         env:
           NODE_ENV: test
           CI: true
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          KEYCLOAK_URL: http://localhost:8080
-          KEYCLOAK_REALM: plexica
-          KEYCLOAK_ADMIN_USER: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          MINIO_ENDPOINT: localhost
-          MINIO_PORT: 9000
-          MINIO_ACCESS_KEY: minioadmin_test
-          MINIO_SECRET_KEY: minioadmin_test
-          MINIO_USE_SSL: false
 
       - name: Upload integration test results
         if: always()
@@ -221,131 +130,24 @@ jobs:
         with:
           name: integration-test-results
           path: |
-            **/coverage/
-            **/test-results/
+            apps/core-api/coverage/
+            apps/core-api/test-results/
           retention-days: 7
 
-  # =============================================================================
-  # E2E TESTS (Full stack scenarios)
-  # =============================================================================
-  test-e2e:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+      # =============================================================================
+      # RESET DATABASE FOR E2E TESTS
+      # =============================================================================
+      - name: Reset database for E2E tests (test-reset.sh)
+        run: ./test-infrastructure/scripts/test-reset.sh
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: plexica_test
-          POSTGRES_PASSWORD: plexica_test_password
-          POSTGRES_DB: plexica_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-      keycloak:
-        image: quay.io/keycloak/keycloak:23.0
-        env:
-          KEYCLOAK_ADMIN: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          KC_HTTP_ENABLED: 'true'
-          KC_HOSTNAME_STRICT: 'false'
-          KC_HOSTNAME_STRICT_HTTPS: 'false'
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 10
-          --health-start-period 90s
-        ports:
-          - 8080:8080
-
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin_test
-          MINIO_ROOT_PASSWORD: minioadmin_test
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 9000:9000
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: pnpm db:generate
-
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting for Keycloak..."
-          timeout 180 bash -c 'until curl -f http://localhost:8080/health/ready; do sleep 5; done'
-          echo "Keycloak is ready!"
-
-          echo "Waiting for MinIO..."
-          timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
-          echo "MinIO is ready!"
-
-      - name: Run database migrations
-        run: pnpm db:migrate:deploy
-        env:
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-
-      - name: Seed test database
-        run: pnpm db:seed:test || echo "Seed skipped if not configured"
-        env:
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-
+      # =============================================================================
+      # E2E TESTS
+      # =============================================================================
       - name: Run E2E tests
-        run: pnpm test:e2e
+        run: cd apps/core-api && pnpm test:e2e
         env:
           NODE_ENV: test
           CI: true
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          KEYCLOAK_URL: http://localhost:8080
-          KEYCLOAK_REALM: plexica
-          KEYCLOAK_ADMIN_USER: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          MINIO_ENDPOINT: localhost
-          MINIO_PORT: 9000
-          MINIO_ACCESS_KEY: minioadmin_test
-          MINIO_SECRET_KEY: minioadmin_test
-          MINIO_USE_SSL: false
 
       - name: Upload E2E test results
         if: always()
@@ -353,10 +155,38 @@ jobs:
         with:
           name: e2e-test-results
           path: |
-            **/coverage/
-            **/test-results/
-            **/screenshots/
-            **/videos/
+            apps/core-api/coverage/
+            apps/core-api/test-results/
+            apps/core-api/screenshots/
+            apps/core-api/videos/
+          retention-days: 7
+
+      # =============================================================================
+      # INFRASTRUCTURE TEARDOWN (Always run, even if tests fail)
+      # =============================================================================
+      - name: Cleanup test infrastructure (test-teardown.sh)
+        if: always()
+        run: ./test-infrastructure/scripts/test-teardown.sh
+
+      # =============================================================================
+      # DEBUG: Capture logs if tests failed
+      # =============================================================================
+      - name: Capture Docker logs on failure
+        if: failure()
+        run: |
+          echo "=== Capturing Docker logs for debugging ===" >> docker-logs.txt
+          docker ps -a >> docker-logs.txt 2>&1
+          docker logs plexica-postgres-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-keycloak-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-redis-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-minio-test >> docker-logs.txt 2>&1 || true
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs
+          path: docker-logs.txt
           retention-days: 7
 
   # =============================================================================
@@ -407,7 +237,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test-unit, test-integration, test-e2e, build]
+    needs: [tests, build]
     if: always()
 
     steps:
@@ -418,24 +248,32 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: test-results
+        continue-on-error: true
 
       - name: Generate test summary
         run: |
           echo "## 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.test-unit.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.test-integration.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Tests | ${{ needs.test-e2e.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| All Tests (Unit, Integration, E2E) | ${{ needs.tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pipeline Flow" >> $GITHUB_STEP_SUMMARY
+          echo "1. Lint & Type Check" >> $GITHUB_STEP_SUMMARY
+          echo "2. Setup infrastructure (test-setup.sh)" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run Unit Tests" >> $GITHUB_STEP_SUMMARY
+          echo "4. Reset database (test-reset.sh)" >> $GITHUB_STEP_SUMMARY
+          echo "5. Run Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "6. Reset database (test-reset.sh)" >> $GITHUB_STEP_SUMMARY
+          echo "7. Run E2E Tests" >> $GITHUB_STEP_SUMMARY
+          echo "8. Cleanup infrastructure (test-teardown.sh)" >> $GITHUB_STEP_SUMMARY
+          echo "9. Build packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Check quality gate
         run: |
-          if [ "${{ needs.test-unit.result }}" != "success" ] || \
-             [ "${{ needs.test-integration.result }}" != "success" ] || \
-             [ "${{ needs.test-e2e.result }}" != "success" ] || \
+          if [ "${{ needs.tests.result }}" != "success" ] || \
              [ "${{ needs.build.result }}" != "success" ]; then
             echo "❌ Quality gate failed - not all checks passed"
             exit 1

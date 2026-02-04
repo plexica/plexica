@@ -12,110 +12,109 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 10
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Run linters
         run: pnpm lint
 
   test:
     name: Test
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: plexica
-          POSTGRES_PASSWORD: plexica_password
-          POSTGRES_DB: plexica
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-    
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 10
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Generate Prisma Client
         run: pnpm db:generate
-      
-      - name: Run database migrations
-        run: pnpm db:migrate:deploy
-        env:
-          DATABASE_URL: postgresql://plexica:plexica_password@localhost:5432/plexica?schema=core
-      
-      - name: Run tests
+
+      - name: Check prerequisites (test-check.sh)
+        run: ./test-infrastructure/scripts/test-check.sh
+
+      - name: Setup test infrastructure (test-setup.sh)
+        run: ./test-infrastructure/scripts/test-setup.sh
+
+      - name: Run tests (all types sequentially)
         run: pnpm test
+        working-directory: apps/core-api
         env:
-          DATABASE_URL: postgresql://plexica:plexica_password@localhost:5432/plexica?schema=core
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
+          NODE_ENV: test
+          CI: true
+
+      - name: Cleanup test infrastructure (test-teardown.sh)
+        if: always()
+        run: ./test-infrastructure/scripts/test-teardown.sh
+
+      - name: Capture Docker logs on failure
+        if: failure()
+        run: |
+          echo "=== Capturing Docker logs for debugging ===" >> docker-logs.txt
+          docker ps -a >> docker-logs.txt 2>&1
+          docker logs plexica-postgres-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-keycloak-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-redis-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-minio-test >> docker-logs.txt 2>&1 || true
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs
+          path: docker-logs.txt
+          retention-days: 7
 
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 10
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Generate Prisma Client
         run: pnpm db:generate
-      
+
       - name: Build all packages
         run: pnpm build
-      
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

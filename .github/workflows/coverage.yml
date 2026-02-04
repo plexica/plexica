@@ -19,62 +19,7 @@ jobs:
   coverage:
     name: Generate Coverage Report
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: plexica_test
-          POSTGRES_PASSWORD: plexica_test_password
-          POSTGRES_DB: plexica_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-      keycloak:
-        image: quay.io/keycloak/keycloak:23.0
-        env:
-          KEYCLOAK_ADMIN: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          KC_HTTP_ENABLED: 'true'
-          KC_HOSTNAME_STRICT: 'false'
-          KC_HOSTNAME_STRICT_HTTPS: 'false'
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 10
-          --health-start-period 90s
-        ports:
-          - 8080:8080
-
-      minio:
-        image: minio/minio:latest
-        env:
-          MINIO_ROOT_USER: minioadmin_test
-          MINIO_ROOT_PASSWORD: minioadmin_test
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 9000:9000
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -99,44 +44,28 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
-      - name: Wait for services
-        run: |
-          echo "Waiting for Keycloak..."
-          timeout 180 bash -c 'until curl -f http://localhost:8080/health/ready; do sleep 5; done'
-          echo "Keycloak ready!"
+      - name: Check prerequisites (test-check.sh)
+        run: ./test-infrastructure/scripts/test-check.sh
 
-          echo "Waiting for MinIO..."
-          timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
-          echo "MinIO ready!"
-
-      - name: Run database migrations
-        run: pnpm db:migrate:deploy
-        env:
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
+      - name: Setup test infrastructure (test-setup.sh)
+        run: ./test-infrastructure/scripts/test-setup.sh
 
       - name: Run all tests with coverage
         run: pnpm test:coverage
+        working-directory: apps/core-api
         env:
           NODE_ENV: test
           CI: true
-          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5432/plexica_test?schema=core
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          KEYCLOAK_URL: http://localhost:8080
-          KEYCLOAK_REALM: plexica
-          KEYCLOAK_ADMIN_USER: admin
-          KEYCLOAK_ADMIN_PASSWORD: admin
-          MINIO_ENDPOINT: localhost
-          MINIO_PORT: 9000
-          MINIO_ACCESS_KEY: minioadmin_test
-          MINIO_SECRET_KEY: minioadmin_test
-          MINIO_USE_SSL: false
+
+      - name: Cleanup test infrastructure (test-teardown.sh)
+        if: always()
+        run: ./test-infrastructure/scripts/test-teardown.sh
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/lcov.info
+          files: ./apps/core-api/coverage/lcov.info
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
@@ -146,11 +75,11 @@ jobs:
           echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ -f coverage/coverage-summary.json ]; then
+          if [ -f apps/core-api/coverage/coverage-summary.json ]; then
             echo "### Overall Coverage" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            cat coverage/coverage-summary.json | jq '.total' >> $GITHUB_STEP_SUMMARY || echo "Unable to parse coverage" >> $GITHUB_STEP_SUMMARY
+            cat apps/core-api/coverage/coverage-summary.json | jq '.total' >> $GITHUB_STEP_SUMMARY || echo "Unable to parse coverage" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "Coverage summary not found" >> $GITHUB_STEP_SUMMARY
@@ -164,8 +93,8 @@ jobs:
         with:
           name: coverage-report
           path: |
-            coverage/
-            **/coverage/
+            apps/core-api/coverage/
+            apps/core-api/test-results/
           retention-days: 30
 
       - name: Check coverage thresholds
@@ -173,8 +102,8 @@ jobs:
           echo "Checking coverage thresholds..."
           # This will fail if coverage is below thresholds set in vitest config
           # You can customize this based on your needs
-          if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          if [ -f apps/core-api/coverage/coverage-summary.json ]; then
+            COVERAGE=$(cat apps/core-api/coverage/coverage-summary.json | jq '.total.lines.pct')
             echo "Overall line coverage: ${COVERAGE}%"
             
             if (( $(echo "$COVERAGE < 80" | bc -l) )); then
@@ -185,3 +114,21 @@ jobs:
               echo "✅ Coverage meets threshold (≥80%)"
             fi
           fi
+
+      - name: Capture Docker logs on failure
+        if: failure()
+        run: |
+          echo "=== Capturing Docker logs for debugging ===" >> docker-logs.txt
+          docker ps -a >> docker-logs.txt 2>&1
+          docker logs plexica-postgres-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-keycloak-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-redis-test >> docker-logs.txt 2>&1 || true
+          docker logs plexica-minio-test >> docker-logs.txt 2>&1 || true
+
+      - name: Upload Docker logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs-coverage
+          path: docker-logs.txt
+          retention-days: 7
