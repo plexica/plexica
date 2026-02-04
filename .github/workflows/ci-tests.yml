@@ -1,4 +1,4 @@
-name: CI - Tests
+name: CI - Tests & Coverage
 
 on:
   push:
@@ -49,17 +49,19 @@ jobs:
         run: pnpm type-check || echo "Type check skipped if not configured"
 
   # =============================================================================
-  # TESTS (Unit → Integration → E2E with sequential execution)
+  # TESTS (Unit → Integration → E2E with sequential execution + Coverage)
   # Uses test infrastructure scripts for setup, reset, and teardown
   # =============================================================================
   tests:
-    name: All Tests (Sequential)
+    name: All Tests (Sequential + Coverage)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for better coverage diffs
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -162,6 +164,67 @@ jobs:
           retention-days: 7
 
       # =============================================================================
+      # CODE COVERAGE ANALYSIS (Run all tests with coverage instrumentation)
+      # =============================================================================
+      - name: Run all tests with coverage instrumentation
+        run: cd apps/core-api && pnpm test:coverage
+        env:
+          NODE_ENV: test
+          CI: true
+
+      # =============================================================================
+      # COVERAGE REPORTING
+      # =============================================================================
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./apps/core-api/coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Generate coverage summary
+        run: |
+          echo "## 📊 Code Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f apps/core-api/coverage/coverage-summary.json ]; then
+            echo "### Overall Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat apps/core-api/coverage/coverage-summary.json | jq '.total' >> $GITHUB_STEP_SUMMARY || echo "Unable to parse coverage" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Coverage summary not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📈 [View detailed coverage report in artifacts]" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            apps/core-api/coverage/
+          retention-days: 30
+
+      - name: Check coverage thresholds
+        run: |
+          echo "Checking coverage thresholds..."
+          if [ -f apps/core-api/coverage/coverage-summary.json ]; then
+            COVERAGE=$(cat apps/core-api/coverage/coverage-summary.json | jq '.total.lines.pct')
+            echo "Overall line coverage: ${COVERAGE}%"
+            
+            if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+              echo "⚠️  Warning: Coverage is below 80% threshold"
+            else
+              echo "✅ Coverage meets threshold (≥80%)"
+            fi
+          fi
+
+      # =============================================================================
       # INFRASTRUCTURE TEARDOWN (Always run, even if tests fail)
       # =============================================================================
       - name: Cleanup test infrastructure (test-teardown.sh)
@@ -235,7 +298,7 @@ jobs:
   # TEST SUMMARY & QUALITY GATE
   # =============================================================================
   test-summary:
-    name: Test Summary
+    name: Test Summary & Quality Gate
     runs-on: ubuntu-latest
     needs: [tests, build]
     if: always()
@@ -257,6 +320,7 @@ jobs:
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| All Tests (Unit, Integration, E2E) | ${{ needs.tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Coverage Report | ${{ needs.tests.result == 'success' && '✅ Generated' || '⏭️ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Pipeline Flow" >> $GITHUB_STEP_SUMMARY
@@ -267,8 +331,10 @@ jobs:
           echo "5. Run Integration Tests" >> $GITHUB_STEP_SUMMARY
           echo "6. Reset database (test-reset.sh)" >> $GITHUB_STEP_SUMMARY
           echo "7. Run E2E Tests" >> $GITHUB_STEP_SUMMARY
-          echo "8. Cleanup infrastructure (test-teardown.sh)" >> $GITHUB_STEP_SUMMARY
-          echo "9. Build packages" >> $GITHUB_STEP_SUMMARY
+          echo "8. Run All Tests with Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "9. Upload Coverage to Codecov" >> $GITHUB_STEP_SUMMARY
+          echo "10. Cleanup infrastructure (test-teardown.sh)" >> $GITHUB_STEP_SUMMARY
+          echo "11. Build packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Check quality gate
