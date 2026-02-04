@@ -79,6 +79,8 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm db:generate
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=core'
 
       # =============================================================================
       # PRE-FLIGHT CHECKS
@@ -281,6 +283,8 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm db:generate
+        env:
+          DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=core'
 
       - name: Build all packages
         run: pnpm build
