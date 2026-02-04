@@ -82,6 +82,39 @@ All services use different ports to avoid conflicts with production:
 
 All services use **tmpfs** for maximum performance (data is stored in RAM).
 
+## 🔧 Environment Configuration
+
+### Development Environment
+
+For local development, copy `.env.example` to `.env`:
+
+```bash
+cd apps/core-api
+cp .env.example .env
+```
+
+Then update values as needed for your local setup.
+
+### Test Environment
+
+Tests automatically use `.env.test` which is configured for the Docker test infrastructure:
+
+- **Database**: `postgresql://plexica_test:plexica_test_password@localhost:5433/plexica_test`
+- **Keycloak**: `http://localhost:8081`
+- **Redis**: `localhost:6380`
+- **MinIO**: `localhost:9010`
+- **Redpanda**: `localhost:9095`
+
+This configuration is automatically loaded by the test runner:
+
+```typescript
+// test/vitest.config.integration.ts
+import { config } from 'dotenv';
+config({ path: path.resolve(__dirname, '../.env.test'), override: true });
+```
+
+**Note**: Never modify `.env.test` to add secrets - it's committed to the repository for CI/CD pipeline use.
+
 ## 🔑 Test Credentials
 
 ### Keycloak Users
