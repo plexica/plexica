@@ -1,8 +1,22 @@
 import { Button, Badge } from '@plexica/ui';
 import { X } from 'lucide-react';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  status?: string;
+  createdAt?: string;
+  lastLogin?: string;
+  tenantName?: string;
+  tenantSlug?: string;
+  roles?: string[];
+  tenant?: { name: string };
+}
+
 interface UserDetailModalProps {
-  user: any;
+  user: User;
   onClose: () => void;
 }
 
@@ -52,7 +66,7 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-1">Roles</p>
               <div className="flex gap-1 flex-wrap">
-                {user.roles.map((role: string) => (
+                {user.roles?.map((role: string) => (
                   <Badge key={role} variant="secondary" className="text-xs">
                     {role}
                   </Badge>
@@ -67,11 +81,15 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Created:</span>
-                <span className="text-foreground">{new Date(user.createdAt).toLocaleString()}</span>
+                <span className="text-foreground">
+                  {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}
+                </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Last Login:</span>
-                <span className="text-foreground">{new Date(user.lastLogin).toLocaleString()}</span>
+                <span className="text-foreground">
+                  {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
+                </span>
               </div>
             </div>
           </div>

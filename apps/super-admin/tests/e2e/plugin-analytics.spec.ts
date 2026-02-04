@@ -240,7 +240,7 @@ test.describe('Plugin Analytics Dashboard E2E', () => {
 
     // Scroll to Top Tenants section
     await page.evaluate(() => {
-      // @ts-ignore - document is available in browser context
+      // @ts-expect-error - document is available in browser context
       const modal = document.querySelector('[role="dialog"]');
       if (modal) modal.scrollTop = modal.scrollHeight / 2;
     });
@@ -288,7 +288,7 @@ test.describe('Plugin Analytics Dashboard E2E', () => {
 
     // Scroll to Rating Distribution section
     await page.evaluate(() => {
-      // @ts-ignore - document is available in browser context
+      // @ts-expect-error - document is available in browser context
       const modal = document.querySelector('[role="dialog"]');
       if (modal) modal.scrollTop = modal.scrollHeight;
     });

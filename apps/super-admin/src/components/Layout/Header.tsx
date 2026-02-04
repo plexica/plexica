@@ -115,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                       <span className="text-yellow-500">⚠️</span>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">
-                          High API usage detected for tenant "acme-corp"
+                          High API usage detected for tenant &quot;acme-corp&quot;
                         </p>
                         <p className="text-xs text-muted-foreground">5 minutes ago</p>
                       </div>
@@ -126,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
                       <span className="text-green-500">✅</span>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">
-                          New tenant "techstart" provisioned successfully
+                          New tenant &quot;techstart&quot; provisioned successfully
                         </p>
                         <p className="text-xs text-muted-foreground">1 hour ago</p>
                       </div>

@@ -68,8 +68,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (tokenParsed && userInfo && token) {
         const userData: User = {
           id: tokenParsed.sub || '',
-          email: (userInfo as any).email || tokenParsed.email || '',
-          name: (userInfo as any).name || tokenParsed.name || 'Super Admin',
+          email: ((userInfo as Record<string, unknown>).email as string) || tokenParsed.email || '',
+          name:
+            ((userInfo as Record<string, unknown>).name as string) ||
+            tokenParsed.name ||
+            'Super Admin',
           roles: tokenParsed.realm_access?.roles || [],
         };
 
