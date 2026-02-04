@@ -341,7 +341,7 @@ describe('Token Refresh Flow E2E', () => {
       // Due to Keycloak's token rotation, only the first request might succeed
       // or all might succeed depending on Keycloak's config
       const successfulResponses = results.filter((r) => r.statusCode === 200);
-      const failedResponses = results.filter((r) => r.statusCode !== 200);
+      const _failedResponses = results.filter((r) => r.statusCode !== 200);
 
       // At least one should succeed
       expect(successfulResponses.length).toBeGreaterThanOrEqual(1);

@@ -317,7 +317,9 @@ describe('PermissionService', () => {
 
       // Should have created 3 roles
       const executeCalls = vi.mocked(db.$executeRawUnsafe).mock.calls;
-      const insertCalls = executeCalls.filter((call) => call[0].toString().includes('INSERT INTO'));
+      const insertCalls = executeCalls.filter((call: any) =>
+        call[0].toString().includes('INSERT INTO')
+      );
 
       expect(insertCalls.length).toBeGreaterThanOrEqual(3);
     });

@@ -180,7 +180,7 @@ describe('Auth Flow Integration', () => {
     it('should extract tenant ID from token', async () => {
       const tokenResponse = await testContext.auth.getRealTenantAdminToken('acme');
 
-      const tenantId = testContext.auth.extractTenantId(tokenResponse.access_token);
+      testContext.auth.extractTenantId(tokenResponse.access_token);
 
       // Tenant ID extraction from Keycloak tokens depends on configuration
       // The realm name is 'acme', not 'acme-corp'
