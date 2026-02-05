@@ -1,5 +1,5 @@
 // Unit tests for tenant-context middleware
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
   tenantContextMiddleware,
@@ -17,7 +17,9 @@ vi.mock('../../../services/tenant.service', () => ({
   },
 }));
 
-describe('Tenant Context Middleware', () => {
+// Mark this test suite as sequential to prevent AsyncLocalStorage context pollution
+// when running tests in parallel in CI environments
+describe.sequential('Tenant Context Middleware', () => {
   let mockRequest: Partial<FastifyRequest>;
   let mockReply: Partial<FastifyReply>;
 
@@ -36,6 +38,11 @@ describe('Tenant Context Middleware', () => {
       code: vi.fn().mockReturnThis(),
       send: vi.fn().mockReturnThis(),
     };
+  });
+
+  afterEach(() => {
+    // Clear any context to prevent test pollution in parallel execution
+    // This is critical for AsyncLocalStorage to not leak between tests
   });
 
   describe('tenantContextMiddleware', () => {
