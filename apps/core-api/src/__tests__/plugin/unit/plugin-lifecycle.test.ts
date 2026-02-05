@@ -379,17 +379,45 @@ describe('PluginRegistryService', () => {
 
   describe('deletePlugin', () => {
     it('should delete plugin if not installed anywhere', async () => {
+      const mockPlugin = {
+        id: 'plugin-1',
+        name: 'Test Plugin',
+        version: '1.0.0',
+        status: PluginStatus.PUBLISHED,
+        manifest: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
       vi.mocked(db.tenantPlugin.count).mockResolvedValue(0);
       vi.mocked(db.plugin.delete).mockResolvedValue({} as any);
 
       await registryService.deletePlugin('plugin-1');
 
+      expect(db.plugin.findUnique).toHaveBeenCalledWith({
+        where: { id: 'plugin-1' },
+      });
+      expect(db.tenantPlugin.count).toHaveBeenCalledWith({
+        where: { pluginId: 'plugin-1' },
+      });
       expect(db.plugin.delete).toHaveBeenCalledWith({
         where: { id: 'plugin-1' },
       });
     });
 
     it('should throw error if plugin is installed in tenants', async () => {
+      const mockPlugin = {
+        id: 'plugin-1',
+        name: 'Test Plugin',
+        version: '1.0.0',
+        status: PluginStatus.PUBLISHED,
+        manifest: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
       vi.mocked(db.tenantPlugin.count).mockResolvedValue(3);
 
       await expect(registryService.deletePlugin('plugin-1')).rejects.toThrow('Cannot delete');

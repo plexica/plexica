@@ -70,7 +70,15 @@ export class TenantService {
       });
     } catch (error: any) {
       // Handle unique constraint violation
-      if (error.code === 'P2002') {
+      // Prisma error code P2002 indicates unique constraint failure
+      const errorMessage = error?.message?.toString() || '';
+      const errorString = error?.toString?.() || '';
+
+      if (
+        error.code === 'P2002' ||
+        errorMessage.includes('Unique constraint failed') ||
+        errorString.includes('Unique constraint failed')
+      ) {
         throw new Error(`Tenant with slug '${slug}' already exists`);
       }
       throw error;
