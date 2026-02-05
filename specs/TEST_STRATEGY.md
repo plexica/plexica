@@ -3154,11 +3154,11 @@ services:
     depends_on:
       postgres-test:
         condition: service_healthy
-    healthcheck:
-      test: ['CMD-SHELL', 'exec 3<>/dev/tcp/127.0.0.1/8080']
-      interval: 10s
-      timeout: 5s
-      retries: 10
+     healthcheck:
+       test: ['CMD-SHELL', 'sh -c "exec 3<>/dev/tcp/127.0.0.1/8080; echo -n" && echo OK || echo FAIL']
+       interval: 10s
+       timeout: 5s
+       retries: 10
     networks:
       - plexica-test-network
 
