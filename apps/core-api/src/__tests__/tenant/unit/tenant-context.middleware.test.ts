@@ -217,7 +217,9 @@ describe.sequential('Tenant Context Middleware', () => {
     });
   });
 
-  describe('getTenantContext', () => {
+  // These tests interact with AsyncLocalStorage directly and must run sequentially
+  // to avoid context pollution across tests
+  describe.sequential('getTenantContext', () => {
     it('should return undefined when no context is set', () => {
       const context = getTenantContext();
       expect(context).toBeUndefined();
@@ -237,7 +239,9 @@ describe.sequential('Tenant Context Middleware', () => {
     });
   });
 
-  describe('getCurrentTenantSchema', () => {
+  // These tests interact with AsyncLocalStorage directly and must run sequentially
+  // to avoid context pollution across tests
+  describe.sequential('getCurrentTenantSchema', () => {
     it('should return undefined when no context is set', () => {
       const schema = getCurrentTenantSchema();
       expect(schema).toBeUndefined();
