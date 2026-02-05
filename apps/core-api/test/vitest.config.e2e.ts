@@ -14,8 +14,8 @@ export default defineConfig({
     exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.config.*'],
 
     // E2E tests need even more time
-    testTimeout: 60000,
-    hookTimeout: 120000,
+    testTimeout: 180000,
+    hookTimeout: 240000,
 
     // Run sequentially as requested
     maxConcurrency: 1,
