@@ -203,6 +203,15 @@ export class PluginRegistryService {
    * Delete a plugin from the registry
    */
   async deletePlugin(pluginId: string): Promise<void> {
+    // Check if plugin exists
+    const plugin = await db.plugin.findUnique({
+      where: { id: pluginId },
+    });
+
+    if (!plugin) {
+      throw new Error(`Plugin '${pluginId}' not found`);
+    }
+
     // Check if plugin is installed in any tenant
     const installations = await db.tenantPlugin.count({
       where: { pluginId },
