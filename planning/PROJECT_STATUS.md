@@ -554,28 +554,37 @@ Develop a comprehensive plugin marketplace and registry system for Plexica's plu
    - [ ] Plugin version management UI
    - Effort: ~20h
 
-2. **Plugin Registry Enhancement** (⏳ Planned)
+2. **Multi-Tenant Permissions Review** (🔴 URGENT)
+   - [ ] Review and audit multi-tenant permission system
+   - [ ] Fix cross-tenant plugin installation permissions
+   - [ ] Re-enable "should return plugin installation statistics" test
+   - [ ] Ensure tenant-scoped operations cannot access other tenants
+   - [ ] Document permission model for multi-tenant scenarios
+   - Effort: ~8h
+   - **Why**: Integration test "should return plugin installation statistics" is currently skipped due to permission issues when installing plugins in multiple tenants with single user token
+
+3. **Plugin Registry Enhancement** (⏳ Planned)
    - [ ] Plugin versioning system
    - [ ] Plugin update mechanism
    - [ ] Plugin deprecation and EOL management
    - [ ] Plugin compatibility matrix
    - Effort: ~16h
 
-3. **Marketplace Features** (⏳ Planned)
+4. **Marketplace Features** (⏳ Planned)
    - [ ] Plugin ratings and reviews
    - [ ] Plugin screenshots and videos
    - [ ] Plugin documentation integration
    - [ ] Plugin discovery recommendations
    - Effort: ~12h
 
-4. **Developer Experience** (⏳ Planned)
+5. **Developer Experience** (⏳ Planned)
    - [ ] Plugin submission workflow
    - [ ] Plugin validation and certification
    - [ ] Plugin analytics dashboard
    - [ ] Plugin support tools
    - Effort: ~16h
 
-**Total Estimated Effort**: ~64 hours (~3 weeks)
+**Total Estimated Effort**: ~72 hours (~3-4 weeks)
 
 ---
 
