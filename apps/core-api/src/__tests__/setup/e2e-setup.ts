@@ -6,7 +6,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
-import { beforeAll, afterAll, beforeEach } from 'vitest';
+import { beforeAll, afterAll } from 'vitest';
 import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
 
 // Load test environment variables (override any existing .env values)
@@ -29,12 +29,6 @@ beforeAll(async () => {
   await testContext.resetAll();
   console.log('✅ Test environment ready\n');
 }, 120000); // 2 minute timeout
-
-// Reset between each test file for isolation
-beforeEach(async () => {
-  console.log('🔄 Resetting data between tests...');
-  await testContext.resetAll();
-});
 
 // Global cleanup - runs once after all test files
 afterAll(async () => {

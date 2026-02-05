@@ -32,10 +32,7 @@ describe('Workspace Collaboration E2E', () => {
   let viewerUserId: string;
 
   beforeAll(async () => {
-    // Reset all state
-    await testContext.resetAll();
-
-    // Build test app
+    // Build test app (environment already reset in setup)
     app = await buildTestApp();
     await app.ready();
 

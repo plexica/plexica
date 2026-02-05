@@ -24,7 +24,6 @@ describe('Plugin Concurrent Operations E2E Tests', () => {
   let tenant2Id: string;
 
   beforeAll(async () => {
-    await testContext.resetAll();
     app = await buildTestApp();
     await app.ready();
 

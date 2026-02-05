@@ -61,62 +61,132 @@ export class TestKeycloakHelper {
 
   /**
    * Authenticate as admin
+   * Includes retry logic for Keycloak availability
    */
   async authenticateAdmin(): Promise<void> {
-    await this.adminClient.auth({
-      username: process.env.KEYCLOAK_ADMIN_USERNAME || 'admin',
-      password: process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin',
-      grantType: 'password',
-      clientId: 'admin-cli',
-    });
+    let lastError: Error | null = null;
+    const maxRetries = 5;
+    const baseDelay = 1000; // 1 second
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const authPromise = this.adminClient.auth({
+          username: process.env.KEYCLOAK_ADMIN_USERNAME || 'admin',
+          password: process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin',
+          grantType: 'password',
+          clientId: 'admin-cli',
+        });
+
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Keycloak admin auth timeout')), 10000);
+        });
+
+        await Promise.race([authPromise, timeoutPromise]);
+        return; // Success
+      } catch (error) {
+        lastError = error as Error;
+
+        // If this is not the last attempt, wait before retrying
+        if (attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw lastError || new Error(`Failed to authenticate as admin after ${maxRetries} attempts`);
   }
 
   /**
    * Get access token for a user using password grant
+   * Includes retry logic for Keycloak availability
    */
   async getUserToken(username: string, password: string): Promise<TokenResponse> {
     const tokenUrl = `${this.baseUrl}/realms/${this.realm}/protocol/openid-connect/token`;
 
-    const response = await axios.post(
-      tokenUrl,
-      new URLSearchParams({
-        grant_type: 'password',
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        username,
-        password,
-      }).toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }
-    );
+    let lastError: Error | null = null;
+    const maxRetries = 5;
+    const baseDelay = 1000; // 1 second
 
-    return response.data;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await axios.post(
+          tokenUrl,
+          new URLSearchParams({
+            grant_type: 'password',
+            client_id: this.clientId,
+            client_secret: this.clientSecret,
+            username,
+            password,
+          }).toString(),
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            timeout: 5000,
+          }
+        );
+
+        return response.data;
+      } catch (error) {
+        lastError = error as Error;
+
+        // If this is not the last attempt, wait before retrying
+        if (attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw (
+      lastError ||
+      new Error(`Failed to get user token for ${username} after ${maxRetries} attempts`)
+    );
   }
 
   /**
    * Get access token using client credentials
+   * Includes retry logic for Keycloak availability
    */
   async getClientToken(): Promise<TokenResponse> {
     const tokenUrl = `${this.baseUrl}/realms/${this.realm}/protocol/openid-connect/token`;
 
-    const response = await axios.post(
-      tokenUrl,
-      new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-      }).toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      }
-    );
+    let lastError: Error | null = null;
+    const maxRetries = 5;
+    const baseDelay = 1000; // 1 second
 
-    return response.data;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response = await axios.post(
+          tokenUrl,
+          new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: this.clientId,
+            client_secret: this.clientSecret,
+          }).toString(),
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            timeout: 5000,
+          }
+        );
+
+        return response.data;
+      } catch (error) {
+        lastError = error as Error;
+
+        // If this is not the last attempt, wait before retrying
+        if (attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    throw lastError || new Error(`Failed to get client token after ${maxRetries} attempts`);
   }
 
   /**

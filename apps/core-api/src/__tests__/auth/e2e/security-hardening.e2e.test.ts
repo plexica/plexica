@@ -23,7 +23,6 @@ describe('Security Hardening E2E', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    await testContext.resetAll();
     app = await buildTestApp();
   });
 

@@ -58,18 +58,25 @@ export class TestContext {
   async resetAll(): Promise<void> {
     console.log('🔄 Resetting test environment...');
 
-    // Clean up Keycloak test realms
-    await this.keycloak.deleteAllTestRealms();
+    // NOTE: Skipping Keycloak realm deletion as it causes hangs.
+    // Tests use pre-created realms (plexica-test, etc.) and don't create new ones
+    // that need cleanup. If needed, delete via deleteAllTestRealms() explicitly.
 
     // Reset database
+    console.log('  - Resetting database...');
     await this.db.reset();
+    console.log('    ✓ Database reset');
 
     // Clean up MinIO buckets
+    console.log('  - Cleaning MinIO buckets...');
     await this.minio.cleanupAllBuckets();
+    console.log('    ✓ MinIO cleaned');
 
     // Clean up Redpanda topics and consumer groups
+    console.log('  - Cleaning Redpanda topics...');
     await this.redpanda.cleanupAllTopics();
     await this.redpanda.cleanupAllConsumerGroups();
+    console.log('    ✓ Redpanda cleaned');
 
     console.log('✅ Test environment reset complete');
   }

@@ -24,7 +24,6 @@ describe('Tenant Provisioning E2E', () => {
   let superAdminToken: string;
 
   beforeAll(async () => {
-    await testContext.resetAll();
     app = await buildTestApp();
     await app.ready();
 

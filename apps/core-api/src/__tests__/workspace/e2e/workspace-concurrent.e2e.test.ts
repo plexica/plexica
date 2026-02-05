@@ -24,10 +24,7 @@ describe('Workspace Concurrent Operations E2E', () => {
   let adminUserId: string;
 
   beforeAll(async () => {
-    // Reset all state
-    await testContext.resetAll();
-
-    // Build test app
+    // Build test app (environment already reset in setup)
     app = await buildTestApp();
     await app.ready();
 

@@ -28,7 +28,6 @@ describe('Tenant Isolation E2E', () => {
   let tenant2AdminToken: string;
 
   beforeAll(async () => {
-    await testContext.resetAll();
     app = await buildTestApp();
     await app.ready();
 
