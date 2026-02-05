@@ -3,7 +3,7 @@ version: '3.9'
 services:
   # PostgreSQL - Multi-tenant database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18.1-alpine
     container_name: plexica-postgres
     environment:
       POSTGRES_USER: plexica
@@ -25,7 +25,7 @@ services:
 
   # Redis - Caching and sessions
   redis:
-    image: redis:7-alpine
+    image: redis:8.4-alpine
     container_name: plexica-redis
     command: redis-server --appendonly yes --requirepass ""
     ports:
@@ -42,7 +42,7 @@ services:
 
   # Keycloak - Identity and Access Management
   keycloak:
-    image: quay.io/keycloak/keycloak:23.0
+    image: quay.io/keycloak/keycloak:26.5
     container_name: plexica-keycloak
     command: start-dev
     environment:

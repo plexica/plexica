@@ -1331,7 +1331,7 @@ services:
       REDPANDA_BROKERS: redpanda:9092
 
   postgres:
-    image: postgres:15
+    image: postgres:18.1-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -1340,7 +1340,7 @@ services:
       POSTGRES_PASSWORD: pass
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.4-alpine
     volumes:
       - redis_data:/data
 
@@ -1353,7 +1353,7 @@ services:
       - --overprovisioned
 
   keycloak:
-    image: quay.io/keycloak/keycloak:22.0
+    image: quay.io/keycloak/keycloak:26.5
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin

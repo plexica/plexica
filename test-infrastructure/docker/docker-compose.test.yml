@@ -3,7 +3,7 @@ version: '3.9'
 services:
   # PostgreSQL - Test database with tmpfs for speed
   postgres-test:
-    image: postgres:15-alpine
+    image: postgres:18.1-alpine
     container_name: plexica-postgres-test
     environment:
       POSTGRES_USER: plexica_test
@@ -26,7 +26,7 @@ services:
 
   # Keycloak - Test IAM with auto-import realm
   keycloak-test:
-    image: quay.io/keycloak/keycloak:23.0
+    image: quay.io/keycloak/keycloak:26.5
     container_name: plexica-keycloak-test
     command: start-dev --import-realm
     environment:
@@ -64,7 +64,7 @@ services:
 
   # Redis - Test cache with tmpfs
   redis-test:
-    image: redis:7-alpine
+    image: redis:8.4-alpine
     container_name: plexica-redis-test
     command: redis-server --appendonly no --save ""
     ports:

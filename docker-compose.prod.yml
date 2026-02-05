@@ -4,7 +4,7 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.1-alpine
     container_name: plexica-postgres-prod
     restart: unless-stopped
     environment:
@@ -31,7 +31,7 @@ services:
 
   # Redis Cache
   redis:
-    image: redis:7-alpine
+    image: redis:8.4-alpine
     container_name: plexica-redis-prod
     restart: unless-stopped
     command: redis-server --requirepass ${REDIS_PASSWORD}
@@ -52,7 +52,7 @@ services:
 
   # Keycloak SSO
   keycloak:
-    image: quay.io/keycloak/keycloak:23.0
+    image: quay.io/keycloak/keycloak:26.5
     container_name: plexica-keycloak-prod
     restart: unless-stopped
     environment:

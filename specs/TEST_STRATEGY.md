@@ -3114,7 +3114,7 @@ version: '3.9'
 
 services:
   postgres-test:
-    image: postgres:15-alpine
+    image: postgres:18.1-alpine
     container_name: plexica-test-postgres
     environment:
       POSTGRES_USER: plexica_test
@@ -3135,7 +3135,7 @@ services:
       - plexica-test-network
 
   keycloak-test:
-    image: quay.io/keycloak/keycloak:23.0
+    image: quay.io/keycloak/keycloak:26.5
     container_name: plexica-test-keycloak
     command: start-dev --import-realm
     environment:
@@ -3163,7 +3163,7 @@ services:
       - plexica-test-network
 
   redis-test:
-    image: redis:7-alpine
+    image: redis:8.4-alpine
     container_name: plexica-test-redis
     command: redis-server --appendonly no
     ports:

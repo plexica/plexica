@@ -3581,7 +3581,7 @@ version: '3.8'
 services:
   # Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18.1-alpine
     environment:
       POSTGRES_DB: plexica
       POSTGRES_USER: plexica
@@ -3598,7 +3598,7 @@ services:
 
   # Cache
   redis:
-    image: redis:7-alpine
+    image: redis:8.4-alpine
     ports:
       - '6379:6379'
     volumes:
@@ -3630,7 +3630,7 @@ services:
 
   # Identity Provider
   keycloak:
-    image: quay.io/keycloak/keycloak:23.0
+    image: quay.io/keycloak/keycloak:26.5
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
@@ -4508,7 +4508,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:18.1
         env:
           POSTGRES_DB: plexica_test
           POSTGRES_USER: test
@@ -4520,7 +4520,7 @@ jobs:
           --health-retries 5
 
       redis:
-        image: redis:7
+        image: redis:8.4
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
