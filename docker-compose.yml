@@ -51,8 +51,8 @@ services:
       KC_DB_USERNAME: plexica
       KC_DB_PASSWORD: plexica_password
       KC_DB_SCHEMA: keycloak
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HEALTH_ENABLED: 'true'
       KC_METRICS_ENABLED: 'true'
     ports:

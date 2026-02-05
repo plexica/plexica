@@ -63,11 +63,11 @@ services:
       KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-keycloak.plexica.com}
       KC_HOSTNAME_STRICT: 'false'
       KC_HTTP_ENABLED: 'true'
-      KC_HEALTH_ENABLED: 'true'
-      KC_METRICS_ENABLED: 'true'
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-    command: start --optimized
+       KC_HEALTH_ENABLED: 'true'
+       KC_METRICS_ENABLED: 'true'
+       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+     command: start --optimized
     depends_on:
       postgres:
         condition: service_healthy

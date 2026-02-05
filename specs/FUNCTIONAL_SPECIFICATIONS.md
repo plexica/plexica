@@ -1355,8 +1355,8 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.5
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     command: start-dev
 
   minio:

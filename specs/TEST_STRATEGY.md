@@ -3144,8 +3144,8 @@ services:
       KC_DB_USERNAME: plexica_test
       KC_DB_PASSWORD: test_password
       KC_DB_SCHEMA: keycloak_test
-      KEYCLOAK_ADMIN: test-admin
-      KEYCLOAK_ADMIN_PASSWORD: test-admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: test-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: test-admin
       KC_HEALTH_ENABLED: 'true'
     ports:
       - '8081:8080'
