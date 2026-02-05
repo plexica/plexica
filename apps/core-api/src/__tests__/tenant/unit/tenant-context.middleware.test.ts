@@ -41,11 +41,24 @@ describe.sequential('Tenant Context Middleware', () => {
   });
 
   afterEach(() => {
-    // Explicitly clear AsyncLocalStorage context to prevent leakage between tests
-    // Use run() with an empty object to reset the context in the current async scope
-    const emptyContext = {} as any;
-    tenantContextStorage.run(emptyContext, () => {
-      // Context is reset for the next test
+    // Note: AsyncLocalStorage context cleanup is not straightforward
+    // enterWith() sets context globally and cannot be easily reset
+    // These tests are marked as sequential to minimize pollution
+  });
+
+  // IMPORTANT: These tests MUST run FIRST before any test that sets context
+  // Tests that verify "no context" state must execute before enterWith() is called
+  describe.sequential('getTenantContext - No Context', () => {
+    it('should return undefined when no context is set', () => {
+      const context = getTenantContext();
+      expect(context).toBeUndefined();
+    });
+  });
+
+  describe.sequential('getCurrentTenantSchema - No Context', () => {
+    it('should return undefined when no context is set', () => {
+      const schema = getCurrentTenantSchema();
+      expect(schema).toBeUndefined();
     });
   });
 
@@ -223,12 +236,7 @@ describe.sequential('Tenant Context Middleware', () => {
 
   // These tests interact with AsyncLocalStorage directly and must run sequentially
   // to avoid context pollution across tests
-  describe.sequential('getTenantContext', () => {
-    it('should return undefined when no context is set', () => {
-      const context = getTenantContext();
-      expect(context).toBeUndefined();
-    });
-
+  describe.sequential('getTenantContext - With Context', () => {
     it('should return context when running inside tenantContextStorage', () => {
       const mockContext = {
         tenantId: 'tenant-123',
@@ -245,12 +253,7 @@ describe.sequential('Tenant Context Middleware', () => {
 
   // These tests interact with AsyncLocalStorage directly and must run sequentially
   // to avoid context pollution across tests
-  describe.sequential('getCurrentTenantSchema', () => {
-    it('should return undefined when no context is set', () => {
-      const schema = getCurrentTenantSchema();
-      expect(schema).toBeUndefined();
-    });
-
+  describe.sequential('getCurrentTenantSchema - With Context', () => {
     it('should return schema name when context is set', () => {
       const mockContext = {
         tenantId: 'tenant-123',
