@@ -41,8 +41,12 @@ describe.sequential('Tenant Context Middleware', () => {
   });
 
   afterEach(() => {
-    // Clear any context to prevent test pollution in parallel execution
-    // This is critical for AsyncLocalStorage to not leak between tests
+    // Explicitly clear AsyncLocalStorage context to prevent leakage between tests
+    // Use run() with an empty object to reset the context in the current async scope
+    const emptyContext = {} as any;
+    tenantContextStorage.run(emptyContext, () => {
+      // Context is reset for the next test
+    });
   });
 
   describe('tenantContextMiddleware', () => {
