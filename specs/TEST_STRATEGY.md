@@ -3124,8 +3124,8 @@ services:
       - '5433:5432'
     volumes:
       - ./postgres-test-init.sql:/docker-entrypoint-initdb.d/init.sql
-    tmpfs:
-      - /var/lib/postgresql/data
+     tmpfs:
+       - /var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U plexica_test']
       interval: 5s
