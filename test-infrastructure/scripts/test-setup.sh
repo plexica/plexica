@@ -50,7 +50,7 @@ echo "✅ PostgreSQL is ready"
 
 echo ""
 echo "⏳ Waiting for Keycloak to be ready..."
-timeout 120 bash -c 'until curl -sf http://localhost:8081/health/ready > /dev/null 2>&1; do sleep 2; done' || {
+timeout 120 bash -c 'until curl -sf http://localhost:9000/health/ready > /dev/null 2>&1; do sleep 2; done' || {
   echo "❌ Keycloak failed to start"
   exit 1
 }
