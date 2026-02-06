@@ -174,11 +174,11 @@ async function seedMinimalData() {
     console.log('📦 Creating tenants...');
 
     const tenant1 = await prisma.tenant.upsert({
-      where: { slug: 'acme-corp' },
+      where: { slug: 'acme' },
       update: {},
       create: {
-        id: 'tenant-acme-corp',
-        slug: 'acme-corp',
+        id: 'tenant-acme',
+        slug: 'acme',
         name: 'Acme Corporation',
         status: TenantStatus.ACTIVE,
         settings: {
@@ -195,11 +195,11 @@ async function seedMinimalData() {
     console.log(`  ✅ Created tenant: ${tenant1.name} (${tenant1.slug})`);
 
     const tenant2 = await prisma.tenant.upsert({
-      where: { slug: 'demo-company' },
+      where: { slug: 'demo' },
       update: {},
       create: {
-        id: 'tenant-demo-company',
-        slug: 'demo-company',
+        id: 'tenant-demo',
+        slug: 'demo',
         name: 'Demo Company',
         status: TenantStatus.ACTIVE,
         settings: {
@@ -217,72 +217,72 @@ async function seedMinimalData() {
 
     // 2. Create tenant schemas
     console.log('\n🏗️  Creating tenant schemas...');
-    await createTenantSchema('acme-corp');
-    await createTenantSchema('demo-company');
+    await createTenantSchema('acme');
+    await createTenantSchema('demo');
 
     // 3. Create MinIO buckets for tenants
     console.log('\n🪣 Creating MinIO buckets...');
-    await createTenantBucket('acme-corp');
-    await createTenantBucket('demo-company');
+    await createTenantBucket('acme');
+    await createTenantBucket('demo');
 
     // 4. Create users in tenant schemas
     console.log('\n👥 Creating users...');
 
-    // Acme Corp users
+    // Acme users
     await prisma.$executeRawUnsafe(`
-      INSERT INTO "tenant_acme_corp"."users" (id, keycloak_id, email, first_name, last_name, locale)
+      INSERT INTO "tenant_acme"."users" (id, keycloak_id, email, first_name, last_name, locale)
       VALUES 
         ('user-acme-admin', '${KEYCLOAK_USERS.acmeAdmin}', 'admin@acme.test', 'Admin', 'Acme', 'en'),
         ('user-acme-member', '${KEYCLOAK_USERS.acmeMember}', 'member@acme.test', 'Member', 'Acme', 'en')
       ON CONFLICT (keycloak_id) DO NOTHING
     `);
-    console.log('  ✅ Created users for acme-corp');
+    console.log('  ✅ Created users for acme');
 
-    // Demo Company users
+    // Demo users
     await prisma.$executeRawUnsafe(`
-      INSERT INTO "tenant_demo_company"."users" (id, keycloak_id, email, first_name, last_name, locale)
+      INSERT INTO "tenant_demo"."users" (id, keycloak_id, email, first_name, last_name, locale)
       VALUES 
         ('user-demo-admin', '${KEYCLOAK_USERS.demoAdmin}', 'admin@demo.test', 'Admin', 'Demo', 'en')
       ON CONFLICT (keycloak_id) DO NOTHING
     `);
-    console.log('  ✅ Created users for demo-company');
+    console.log('  ✅ Created users for demo');
 
     // 5. Create workspaces
     console.log('\n🏢 Creating workspaces...');
 
-    // Acme Corp workspace
+    // Acme workspace
     await prisma.$executeRawUnsafe(`
-      INSERT INTO "tenant_acme_corp"."workspaces" (id, tenant_id, slug, name, description, settings)
+      INSERT INTO "tenant_acme"."workspaces" (id, tenant_id, slug, name, description, settings)
       VALUES 
-        ('workspace-acme-default', 'tenant-acme-corp', 'default', 'Default Workspace', 'Main workspace for Acme Corp', '{"visibility": "private"}')
+        ('workspace-acme-default', 'tenant-acme', 'default', 'Default Workspace', 'Main workspace for Acme', '{"visibility": "private"}')
       ON CONFLICT (tenant_id, slug) DO NOTHING
     `);
 
     // Add workspace members
     await prisma.$executeRawUnsafe(`
-      INSERT INTO "tenant_acme_corp"."workspace_members" (workspace_id, user_id, role, invited_by)
+      INSERT INTO "tenant_acme"."workspace_members" (workspace_id, user_id, role, invited_by)
       VALUES 
         ('workspace-acme-default', 'user-acme-admin', 'ADMIN', 'user-acme-admin'),
         ('workspace-acme-default', 'user-acme-member', 'MEMBER', 'user-acme-admin')
       ON CONFLICT (workspace_id, user_id) DO NOTHING
     `);
-    console.log('  ✅ Created workspace for acme-corp');
+    console.log('  ✅ Created workspace for acme');
 
-    // Demo Company workspace
+    // Demo workspace
     await prisma.$executeRawUnsafe(`
-      INSERT INTO "tenant_demo_company"."workspaces" (id, tenant_id, slug, name, description, settings)
+      INSERT INTO "tenant_demo"."workspaces" (id, tenant_id, slug, name, description, settings)
       VALUES 
-        ('workspace-demo-default', 'tenant-demo-company', 'default', 'Default Workspace', 'Main workspace for Demo Company', '{"visibility": "private"}')
+        ('workspace-demo-default', 'tenant-demo', 'default', 'Default Workspace', 'Main workspace for Demo', '{"visibility": "private"}')
       ON CONFLICT (tenant_id, slug) DO NOTHING
     `);
 
     await prisma.$executeRawUnsafe(`
-      INSERT INTO "tenant_demo_company"."workspace_members" (workspace_id, user_id, role, invited_by)
+      INSERT INTO "tenant_demo"."workspace_members" (workspace_id, user_id, role, invited_by)
       VALUES 
         ('workspace-demo-default', 'user-demo-admin', 'ADMIN', 'user-demo-admin')
       ON CONFLICT (workspace_id, user_id) DO NOTHING
     `);
-    console.log('  ✅ Created workspace for demo-company');
+    console.log('  ✅ Created workspace for demo');
 
     // 6. Create super admin
     console.log('\n🔐 Creating super admin...');
@@ -303,7 +303,7 @@ async function seedMinimalData() {
     console.log('  - 2 tenants created');
     console.log('  - 2 tenant schemas created');
     console.log('  - 2 MinIO buckets created');
-    console.log('  - 3 users created (2 in acme-corp, 1 in demo-company)');
+    console.log('  - 3 users created (2 in acme, 1 in demo)');
     console.log('  - 2 workspaces created');
     console.log('  - 1 super admin created');
     console.log();

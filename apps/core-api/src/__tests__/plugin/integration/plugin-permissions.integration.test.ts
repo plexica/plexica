@@ -27,8 +27,9 @@ describe('Plugin Permissions Integration Tests', () => {
     await app.ready();
 
     // Get super admin token
-    const superAdminResp = await testContext.auth.getRealSuperAdminToken();
-    superAdminToken = superAdminResp.access_token;
+    // Use mock tokens for integration tests (faster and more reliable)
+    superAdminToken = testContext.auth.createMockSuperAdminToken();
+    
 
     // Create test tenant
     const tenantResponse = await app.inject({

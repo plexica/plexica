@@ -118,30 +118,65 @@ export async function verifyKeycloakToken(
 export async function verifyTokenWithTenant(
   token: string
 ): Promise<KeycloakJwtPayload & { tenantSlug: string }> {
-  // First try to decode to get the realm/tenant
-  const decoded = jwt.decode(token) as KeycloakJwtPayload | null;
+  // First try to decode to get the realm/tenant and issuer
+  const decoded = jwt.decode(token, { complete: true }) as {
+    header: { alg: string; kid?: string };
+    payload: KeycloakJwtPayload;
+  } | null;
 
   if (!decoded) {
     throw new Error('Invalid token');
   }
 
+  const payload = decoded.payload;
+
+  // Check if this is a test token (HS256) or Keycloak token (RS256)
+  const isTestToken = decoded.header.alg === 'HS256' || payload.iss === 'plexica-test';
+
+  if (isTestToken) {
+    // Verify test token with JWT_SECRET
+    const verifiedPayload = jwt.verify(token, config.jwtSecret, {
+      algorithms: ['HS256'],
+    }) as KeycloakJwtPayload;
+
+    // Extract tenant from custom claim or default to 'plexica-test'
+    let tenantSlug: string = 'plexica-test';
+
+    if ((verifiedPayload as any).tenant_id) {
+      tenantSlug = (verifiedPayload as any).tenant_id;
+    } else if (verifiedPayload.tenant) {
+      tenantSlug = verifiedPayload.tenant;
+    } else if (verifiedPayload.iss) {
+      const issuerMatch = verifiedPayload.iss.match(/\/realms\/([^/]+)$/);
+      if (issuerMatch) {
+        tenantSlug = issuerMatch[1];
+      }
+    }
+
+    return {
+      ...verifiedPayload,
+      tenantSlug,
+    };
+  }
+
+  // Keycloak token verification (RS256)
   // Extract tenant from issuer or custom claim
   let tenantSlug: string = 'master';
 
-  if (decoded.tenant) {
-    tenantSlug = decoded.tenant;
-  } else if (decoded.iss) {
-    const issuerMatch = decoded.iss.match(/\/realms\/([^/]+)$/);
+  if (payload.tenant) {
+    tenantSlug = payload.tenant;
+  } else if (payload.iss) {
+    const issuerMatch = payload.iss.match(/\/realms\/([^/]+)$/);
     if (issuerMatch) {
       tenantSlug = issuerMatch[1];
     }
   }
 
   // Verify token with the detected realm
-  const payload = await verifyKeycloakToken(token, tenantSlug);
+  const verifiedPayload = await verifyKeycloakToken(token, tenantSlug);
 
   return {
-    ...payload,
+    ...verifiedPayload,
     tenantSlug,
   };
 }

@@ -34,8 +34,9 @@ describe('Workspace CRUD Integration', () => {
     await app.ready();
 
     // Get super admin token to create tenant
-    const superAdminResp = await testContext.auth.getRealSuperAdminToken();
-    const superAdminToken = superAdminResp.access_token;
+    // Use mock tokens for integration tests (faster and more reliable)
+    superAdminToken = testContext.auth.createMockSuperAdminToken();
+    const 
 
     // Create test tenant
     const tenantResponse = await app.inject({

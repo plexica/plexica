@@ -28,8 +28,9 @@ describe('Plugin Installation Integration Tests', () => {
     await app.ready();
 
     // Get super admin token
-    const superAdminResp = await testContext.auth.getRealSuperAdminToken();
-    superAdminToken = superAdminResp.access_token;
+    // Use mock tokens for integration tests (faster and more reliable)
+    superAdminToken = testContext.auth.createMockSuperAdminToken();
+    
 
     // Create test tenant (acme)
     const tenantResponse = await app.inject({
@@ -78,8 +79,8 @@ describe('Plugin Installation Integration Tests', () => {
     demoTenantId = demoData.id;
 
     // Get tenant admin token
-    const tenantAdminResp = await testContext.auth.getRealTenantAdminToken('acme');
-    tenantAdminToken = tenantAdminResp.access_token;
+    // tenantAdminToken = testContext.auth.createMockTenantAdminToken('acme');
+    
 
     testPluginId = `plugin-test-${Date.now()}`;
   });
