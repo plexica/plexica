@@ -40,9 +40,30 @@ redis.on('close', () => {
   // Connection closed - handle gracefully in shutdown
 });
 
-// Graceful shutdown
-process.on('beforeExit', async () => {
-  await redis.quit();
-});
+// Graceful shutdown (idempotent – safe to call after tests already quit)
+let shuttingDown = false;
+
+async function safeQuitRedis() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  try {
+    // ioredis exposes a `.status` property; skip if already closed
+    const status = (redis as any).status as string | undefined;
+    if (status === 'end' || status === 'close') return;
+
+    await redis.quit();
+  } catch (err) {
+    // Swallow "Connection is closed" races that surface in CI / test teardown
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.toLowerCase().includes('connection is closed')) {
+      console.error('Redis quit error:', msg);
+    }
+  }
+}
+
+process.once('beforeExit', () => void safeQuitRedis());
+process.once('SIGTERM', () => void safeQuitRedis());
+process.once('SIGINT', () => void safeQuitRedis());
 
 export default redis;

@@ -27,7 +27,11 @@ describe('Token Refresh Flow E2E', () => {
   afterAll(async () => {
     await app.close();
     await db.$disconnect();
-    await redis.quit();
+    try {
+      await redis.quit();
+    } catch {
+      /* ignore already-closed */
+    }
   });
 
   beforeEach(async () => {

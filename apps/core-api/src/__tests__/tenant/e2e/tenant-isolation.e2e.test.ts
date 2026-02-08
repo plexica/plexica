@@ -98,7 +98,11 @@ describe('Tenant Isolation E2E', () => {
     }
     await app.close();
     await db.$disconnect();
-    await redis.quit();
+    try {
+      await redis.quit();
+    } catch {
+      /* ignore already-closed */
+    }
   });
 
   beforeEach(async () => {

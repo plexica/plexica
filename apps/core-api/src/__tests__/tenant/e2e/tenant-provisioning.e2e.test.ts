@@ -24,6 +24,54 @@ function slugToSchema(slug: string): string {
   return `tenant_${slug.replace(/-/g, '_')}`;
 }
 
+/**
+ * Retry tenant creation via app.inject to tolerate Keycloak not-ready-yet
+ * windows in CI.  Only retries on 400/500-level responses – validation
+ * errors (e.g. invalid slug) are returned immediately.
+ */
+async function createTenantWithRetry(
+  app: FastifyInstance,
+  token: string,
+  payload: Record<string, unknown>,
+  { attempts = 10, delayMs = 1_000 } = {}
+) {
+  let last: Awaited<ReturnType<FastifyInstance['inject']>> | undefined;
+
+  for (let i = 0; i < attempts; i++) {
+    last = await app.inject({
+      method: 'POST',
+      url: '/api/tenants',
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+    });
+
+    if (last.statusCode === 201) return last;
+
+    // Don't retry obvious client validation errors (bad slug, missing name, …)
+    // Only retry when the server itself is not ready (5xx / transient 400 from
+    // upstream services like Keycloak).
+    if (last.statusCode >= 400 && last.statusCode < 500) {
+      // Check if it's a validation error vs. a transient upstream error
+      try {
+        const body = JSON.parse(last.body);
+        // If there's a clear validation error message, don't retry
+        if (body.error && /invalid|required|too short|too long|already exists/i.test(body.error)) {
+          return last;
+        }
+      } catch {
+        // If body isn't JSON, fall through to retry
+      }
+    }
+
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+
+  throw new Error(
+    `Tenant creation never returned 201 after ${attempts} attempts. ` +
+      `Last: ${last?.statusCode} – ${last?.body}`
+  );
+}
+
 describe('Tenant Provisioning E2E', () => {
   let app: FastifyInstance;
   let superAdminToken: string;
@@ -40,7 +88,11 @@ describe('Tenant Provisioning E2E', () => {
   afterAll(async () => {
     await app.close();
     await db.$disconnect();
-    await redis.quit();
+    try {
+      await redis.quit();
+    } catch {
+      /* ignore already-closed */
+    }
   });
 
   beforeEach(async () => {
@@ -52,19 +104,12 @@ describe('Tenant Provisioning E2E', () => {
       const tenantSlug = `e2e-provision-${ts}`;
       const schemaName = slugToSchema(tenantSlug);
 
-      // Step 1: Create tenant via API
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: tenantSlug,
-          name: 'E2E Provision Test',
-          settings: { testMode: true },
-          theme: { color: 'blue' },
-        },
+      // Step 1: Create tenant via API (with retry for Keycloak readiness)
+      const createResponse = await createTenantWithRetry(app, superAdminToken, {
+        slug: tenantSlug,
+        name: 'E2E Provision Test',
+        settings: { testMode: true },
+        theme: { color: 'blue' },
       });
 
       expect(createResponse.statusCode).toBe(201);
@@ -133,18 +178,11 @@ describe('Tenant Provisioning E2E', () => {
     it('should maintain data integrity across provisioning steps', async () => {
       const tenantSlug = `integrity-${ts}`;
 
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: tenantSlug,
-          name: 'Integrity Test',
-          settings: { key1: 'value1', nested: { key2: 'value2' } },
-          theme: { primaryColor: '#ff0000', logo: 'test.png' },
-        },
+      const response = await createTenantWithRetry(app, superAdminToken, {
+        slug: tenantSlug,
+        name: 'Integrity Test',
+        settings: { key1: 'value1', nested: { key2: 'value2' } },
+        theme: { primaryColor: '#ff0000', logo: 'test.png' },
       });
 
       expect(response.statusCode).toBe(201);
@@ -181,31 +219,17 @@ describe('Tenant Provisioning E2E', () => {
       const schema2 = slugToSchema(tenant2);
 
       // Create first tenant
-      const response1 = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: tenant1,
-          name: 'Isolated Tenant 1',
-        },
+      const response1 = await createTenantWithRetry(app, superAdminToken, {
+        slug: tenant1,
+        name: 'Isolated Tenant 1',
       });
 
       expect(response1.statusCode).toBe(201);
 
       // Create second tenant
-      const response2 = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: tenant2,
-          name: 'Isolated Tenant 2',
-        },
+      const response2 = await createTenantWithRetry(app, superAdminToken, {
+        slug: tenant2,
+        name: 'Isolated Tenant 2',
       });
 
       expect(response2.statusCode).toBe(201);
@@ -276,16 +300,9 @@ describe('Tenant Provisioning E2E', () => {
       // results in proper status update (tested in unit tests)
 
       // Instead, verify that a successfully created tenant is ACTIVE
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Provisioning Test',
-        },
+      const response = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Provisioning Test',
       });
 
       if (response.statusCode === 201) {
@@ -298,16 +315,9 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `dup-e2e-${ts}`;
 
       // Create first tenant
-      const response1 = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'First Tenant',
-        },
+      const response1 = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'First Tenant',
       });
 
       expect(response1.statusCode).toBe(201);
@@ -346,16 +356,9 @@ describe('Tenant Provisioning E2E', () => {
       // Verify that a valid tenant creation succeeds with realm
       const slug = `kc-success-${ts}`;
 
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Keycloak Test',
-        },
+      const response = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Keycloak Test',
       });
 
       expect(response.statusCode).toBe(201);
@@ -371,18 +374,12 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `deletion-${ts}`;
 
       // Create tenant
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Deletion Test',
-        },
+      const createResponse = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Deletion Test',
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenant = JSON.parse(createResponse.body);
 
       // Delete tenant
@@ -410,18 +407,12 @@ describe('Tenant Provisioning E2E', () => {
       const schemaName = slugToSchema(slug);
 
       // Create tenant
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Soft Delete Schema Test',
-        },
+      const createResponse = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Soft Delete Schema Test',
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenant = JSON.parse(createResponse.body);
 
       // Soft delete
@@ -448,18 +439,12 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `soft-del-realm-${ts}`;
 
       // Create tenant
-      const createResponse = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Soft Delete Realm Test',
-        },
+      const createResponse = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Soft Delete Realm Test',
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenant = JSON.parse(createResponse.body);
 
       // Soft delete
@@ -482,17 +467,11 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `admin-role-${ts}`;
       const schemaName = slugToSchema(slug);
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Admin Role Test',
-        },
+      const createResp = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Admin Role Test',
       });
+      expect(createResp.statusCode).toBe(201);
 
       // Query admin role
       const adminRoles = await db.$queryRawUnsafe<
@@ -519,17 +498,11 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `user-role-${ts}`;
       const schemaName = slugToSchema(slug);
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'User Role Test',
-        },
+      const createResp = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'User Role Test',
       });
+      expect(createResp.statusCode).toBe(201);
 
       // Query user role
       const userRoles = await db.$queryRawUnsafe<
@@ -553,17 +526,11 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `guest-role-${ts}`;
       const schemaName = slugToSchema(slug);
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Guest Role Test',
-        },
+      const createResp = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Guest Role Test',
       });
+      expect(createResp.statusCode).toBe(201);
 
       // Query guest role
       const guestRoles = await db.$queryRawUnsafe<
@@ -583,17 +550,11 @@ describe('Tenant Provisioning E2E', () => {
       const slug = `all-roles-${ts}`;
       const schemaName = slugToSchema(slug);
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'All Roles Test',
-        },
+      const createResp = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'All Roles Test',
       });
+      expect(createResp.statusCode).toBe(201);
 
       // Query all roles
       const roles = await db.$queryRawUnsafe<Array<{ name: string }>>(
@@ -612,17 +573,11 @@ describe('Tenant Provisioning E2E', () => {
     it('should create realm with correct name', async () => {
       const slug = `realm-name-${ts}`;
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug,
-          name: 'Realm Name Test',
-        },
+      const createResp = await createTenantWithRetry(app, superAdminToken, {
+        slug,
+        name: 'Realm Name Test',
       });
+      expect(createResp.statusCode).toBe(201);
 
       const realmExists = await keycloakService.realmExists(slug);
       expect(realmExists).toBe(true);
@@ -632,29 +587,17 @@ describe('Tenant Provisioning E2E', () => {
       const slug1 = `realm-ind-1-${ts}`;
       const slug2 = `realm-ind-2-${ts}`;
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: slug1,
-          name: 'Realm Independent 1',
-        },
+      const resp1 = await createTenantWithRetry(app, superAdminToken, {
+        slug: slug1,
+        name: 'Realm Independent 1',
       });
+      expect(resp1.statusCode).toBe(201);
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: slug2,
-          name: 'Realm Independent 2',
-        },
+      const resp2 = await createTenantWithRetry(app, superAdminToken, {
+        slug: slug2,
+        name: 'Realm Independent 2',
       });
+      expect(resp2.statusCode).toBe(201);
 
       const realm1Exists = await keycloakService.realmExists(slug1);
       const realm2Exists = await keycloakService.realmExists(slug2);
@@ -666,18 +609,13 @@ describe('Tenant Provisioning E2E', () => {
 
   describe('Performance and Timing', () => {
     it('should complete provisioning within reasonable time', async () => {
+      // Use retry to tolerate Keycloak not-yet-ready in CI;
+      // the helper still measures wallclock of successful attempt.
       const startTime = Date.now();
 
-      await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: `performance-${ts}`,
-          name: 'Performance Test',
-        },
+      await createTenantWithRetry(app, superAdminToken, {
+        slug: `performance-${ts}`,
+        name: 'Performance Test',
       });
 
       const endTime = Date.now();
@@ -703,17 +641,10 @@ describe('Tenant Provisioning E2E', () => {
         list: Array.from({ length: 50 }, (_, i) => ({ id: i, value: `item-${i}` })),
       };
 
-      const response = await app.inject({
-        method: 'POST',
-        url: '/api/tenants',
-        headers: {
-          authorization: `Bearer ${superAdminToken}`,
-        },
-        payload: {
-          slug: `large-settings-${ts}`,
-          name: 'Large Settings Test',
-          settings: largeSettings,
-        },
+      const response = await createTenantWithRetry(app, superAdminToken, {
+        slug: `large-settings-${ts}`,
+        name: 'Large Settings Test',
+        settings: largeSettings,
       });
 
       expect(response.statusCode).toBe(201);

@@ -56,34 +56,36 @@ describe('Tenant API Integration', () => {
       },
     });
 
-    // Delete Keycloak realms and PostgreSQL schemas for test tenants
-    for (const tenant of tenantsToDelete) {
-      // Delete Keycloak realm
-      try {
-        await keycloakService.deleteRealm(tenant.slug);
-      } catch (error) {
-        // Ignore errors if realm doesn't exist
-        console.log(
-          `Note: Could not delete Keycloak realm for ${tenant.slug}:`,
-          error instanceof Error ? error.message : 'Unknown error'
-        );
-      }
+    // Delete Keycloak realms and PostgreSQL schemas for test tenants (in parallel)
+    await Promise.allSettled(
+      tenantsToDelete.map(async (tenant) => {
+        // Delete Keycloak realm
+        try {
+          await keycloakService.deleteRealm(tenant.slug);
+        } catch (error) {
+          // Ignore errors if realm doesn't exist
+          console.log(
+            `Note: Could not delete Keycloak realm for ${tenant.slug}:`,
+            error instanceof Error ? error.message : 'Unknown error'
+          );
+        }
 
-      // Drop PostgreSQL schema
-      // Note: Schema names cannot be parameterized in PostgreSQL, but we sanitize the tenant slug
-      // which is already validated to contain only lowercase letters, numbers, and hyphens
-      const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
-      try {
-        // Safe because tenant.slug is validated to match /^[a-z0-9-]+$/ pattern
-        await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
-      } catch (error) {
-        // Ignore errors if schema doesn't exist
-        console.log(
-          `Note: Could not drop schema ${schemaName}:`,
-          error instanceof Error ? error.message : 'Unknown error'
-        );
-      }
-    }
+        // Drop PostgreSQL schema
+        // Note: Schema names cannot be parameterized in PostgreSQL, but we sanitize the tenant slug
+        // which is already validated to contain only lowercase letters, numbers, and hyphens
+        const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
+        try {
+          // Safe because tenant.slug is validated to match /^[a-z0-9-]+$/ pattern
+          await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+        } catch (error) {
+          // Ignore errors if schema doesn't exist
+          console.log(
+            `Note: Could not drop schema ${schemaName}:`,
+            error instanceof Error ? error.message : 'Unknown error'
+          );
+        }
+      })
+    );
 
     // Delete all test tenants from database
     await db.tenant.deleteMany({
