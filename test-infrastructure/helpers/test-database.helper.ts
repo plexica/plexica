@@ -88,6 +88,32 @@ export class TestDatabaseHelper {
   }
 
   /**
+   * Begin a test transaction useful for speeding up test teardown.
+   * Note: Not all tests can use transactions (e.g. tests that rely on DB session-level effects
+   * across connections). Use only where appropriate and when tests share the same DB connection.
+   */
+  async beginTestTransaction(): Promise<void> {
+    try {
+      await this.prisma.$executeRaw`BEGIN`;
+      await this.prisma.$executeRaw`SAVEPOINT vitest_before_each`;
+    } catch (error: any) {
+      console.warn('Could not begin test transaction:', error.message);
+    }
+  }
+
+  /**
+   * Rollback to savepoint created by beginTestTransaction
+   */
+  async rollbackTestTransaction(): Promise<void> {
+    try {
+      await this.prisma.$executeRaw`ROLLBACK TO SAVEPOINT vitest_before_each`;
+      await this.prisma.$executeRaw`RELEASE SAVEPOINT vitest_before_each`;
+    } catch (error: any) {
+      console.warn('Could not rollback test transaction:', error.message);
+    }
+  }
+
+  /**
    * Drop all tenant schemas
    */
   async dropTenantSchemas(): Promise<void> {
@@ -374,6 +400,18 @@ export class TestDatabaseHelper {
    * This truncates the core schema and drops/recreates tenant schemas
    */
   async reset(): Promise<void> {
+    // Prefer lightweight reset where possible: truncate core only
+    // and avoid dropping tenant schemas every run which is expensive.
+    // Full schema cleanup may still be required occasionally; expose an
+    // explicit method `fullReset()` for that.
+    await this.truncateCore();
+  }
+
+  /**
+   * Full reset: truncate core and drop tenant schemas (expensive)
+   * Use in CI job setup/teardown when a truly clean DB is required.
+   */
+  async fullReset(): Promise<void> {
     await this.truncateCore();
     await this.dropTenantSchemas();
 

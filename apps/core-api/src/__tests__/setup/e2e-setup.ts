@@ -26,7 +26,12 @@ console.log(`  - API: ${process.env.API_HOST}:${process.env.API_PORT}`);
 // Global setup - runs once before all test files
 beforeAll(async () => {
   console.log('\n🔄 Resetting test environment before E2E tests...');
-  await testContext.resetAll();
+  // E2E requires a full clean environment; use fullReset if available
+  if (typeof testContext.db.fullReset === 'function') {
+    await testContext.db.fullReset();
+  } else {
+    await testContext.resetAll();
+  }
   console.log('✅ Test environment ready\n');
 }, 120000); // 2 minute timeout
 

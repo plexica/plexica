@@ -25,7 +25,13 @@ console.log(`  - MinIO: ${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`
 // Global setup - runs once before all test files
 beforeAll(async () => {
   console.log('\n🔄 Resetting test environment before integration tests...');
-  await testContext.resetAll();
+  // Use a full reset on integration test runs to ensure a clean DB state
+  // (this is more expensive but safer for integration suites)
+  if (typeof testContext.db.fullReset === 'function') {
+    await testContext.db.fullReset();
+  } else {
+    await testContext.resetAll();
+  }
   console.log('✅ Integration test setup ready\n');
 }, 120000); // 2 minute timeout for reset
 

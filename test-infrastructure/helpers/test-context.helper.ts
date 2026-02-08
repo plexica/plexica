@@ -62,8 +62,8 @@ export class TestContext {
     // Tests use pre-created realms (plexica-test, etc.) and don't create new ones
     // that need cleanup. If needed, delete via deleteAllTestRealms() explicitly.
 
-    // Reset database
-    console.log('  - Resetting database...');
+    // Reset database (lightweight)
+    console.log('  - Resetting database (lightweight)...');
     await this.db.reset();
     console.log('    ✓ Database reset');
 
