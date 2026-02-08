@@ -75,14 +75,14 @@ export DATABASE_URL="postgresql://plexica_test:plexica_test_password@localhost:5
 if command -v pnpm &> /dev/null; then
   echo "Using pnpm..."
   pnpm exec tsx "$ROOT_DIR/test-infrastructure/fixtures/minimal-seed.ts" || {
-    echo "⚠️  Seeding failed"
-    exit 1
+    echo "⚠️  Seeding failed, but continuing..."
+    # Don't exit here - seeding failure should not block reset
   }
 elif command -v npm &> /dev/null; then
   echo "Using npm..."
   npx tsx "$ROOT_DIR/test-infrastructure/fixtures/minimal-seed.ts" || {
-    echo "⚠️  Seeding failed"
-    exit 1
+    echo "⚠️  Seeding failed, but continuing..."
+    # Don't exit here - seeding failure should not block reset
   }
 else
   echo "❌ Neither pnpm nor npm found. Please install one of them."

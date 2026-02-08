@@ -22,13 +22,12 @@ console.log(`  - Keycloak: ${process.env.KEYCLOAK_URL}`);
 console.log(`  - Redis: ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`);
 console.log(`  - MinIO: ${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`);
 
-// Global setup - runs before each test file (setupFiles run per-file in vitest)
-// Note: resetAll() is NOT called here because each test file handles its own
-// reset in its own beforeAll. Calling it here would cause double-resets and
-// race conditions when running the full suite sequentially.
+// Global setup - runs once before all test files
 beforeAll(async () => {
-  console.log('\n✅ Integration test setup ready\n');
-}, 30000);
+  console.log('\n🔄 Resetting test environment before integration tests...');
+  await testContext.resetAll();
+  console.log('✅ Integration test setup ready\n');
+}, 120000); // 2 minute timeout for reset
 
 // Global cleanup - runs once after all test files
 afterAll(async () => {

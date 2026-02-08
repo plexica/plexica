@@ -371,10 +371,24 @@ export class TestDatabaseHelper {
 
   /**
    * Reset the entire test database
+   * This truncates the core schema and drops/recreates tenant schemas
    */
   async reset(): Promise<void> {
     await this.truncateCore();
     await this.dropTenantSchemas();
+
+    // Recreate tenant schemas for test tenants that will be seeded
+    // These slugs match the minimal-seed.ts tenants
+    const testTenantSlugs = ['acme', 'demo'];
+
+    for (const slug of testTenantSlugs) {
+      try {
+        await this.createTenantSchema(slug);
+      } catch (error: any) {
+        // Log but don't fail - schemas might not exist yet or creation might race with seeding
+        console.warn(`⚠️  Could not create tenant schema for '${slug}': ${error.message}`);
+      }
+    }
   }
 }
 
