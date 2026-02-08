@@ -164,6 +164,8 @@ export function getCSRFExemptRoutes(): string[] {
     '/health',
     '/docs',
     '/api/auth/login', // CORS preflight may be POST
+    '/api/auth/refresh', // Token refresh uses refresh_token in body, not Bearer header
+    '/api/auth/logout', // Logout uses refresh_token in body, not Bearer header
     '/api/tenants/register', // Initial tenant registration
   ];
 }

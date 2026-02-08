@@ -36,8 +36,8 @@ describe('Tenant API Integration', () => {
 
   afterAll(async () => {
     await app.close();
-    await db.$disconnect();
-    await redis.quit();
+    // Note: Do not disconnect db or redis here - they are shared resources
+    // managed by the global test setup
   });
 
   beforeEach(async () => {

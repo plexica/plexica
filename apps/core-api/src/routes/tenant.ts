@@ -51,6 +51,20 @@ const updateTenantSchema = {
     properties: {
       name: { type: 'string' },
       slug: { type: 'string' },
+      status: {
+        type: 'string',
+        enum: ['PROVISIONING', 'ACTIVE', 'SUSPENDED', 'PENDING_DELETION', 'DELETED'],
+      },
+      settings: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Tenant-specific settings',
+      },
+      theme: {
+        type: 'object',
+        additionalProperties: true,
+        description: 'Tenant theme configuration',
+      },
     },
   },
 };

@@ -591,6 +591,80 @@ export class WorkspaceService {
   }
 
   /**
+   * Check workspace exists in tenant and get user membership in a single transaction.
+   * Used by workspace guard to avoid two separate transactions per request.
+   * Returns { exists: true, membership } or { exists: false, membership: null }.
+   */
+  async checkAccessAndGetMembership(
+    workspaceId: string,
+    userId: string,
+    tenantCtx?: TenantContext
+  ): Promise<{
+    exists: boolean;
+    membership: {
+      workspaceId: string;
+      userId: string;
+      role: string;
+      invitedBy: string;
+      joinedAt: Date;
+    } | null;
+  }> {
+    const tenantContext = tenantCtx || getTenantContext();
+    if (!tenantContext) {
+      throw new Error('No tenant context available');
+    }
+
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
+
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+
+      // Check workspace exists and get membership in one query via LEFT JOIN
+      const results = await tx.$queryRaw<any[]>`
+        SELECT 
+          w.id as workspace_id,
+          wm.user_id,
+          wm.role,
+          wm.invited_by,
+          wm.joined_at
+        FROM ${workspacesTable} w
+        LEFT JOIN ${membersTable} wm 
+          ON w.id = wm.workspace_id AND wm.user_id = ${userId}
+        WHERE w.id = ${workspaceId} AND w.tenant_id = ${tenantId}
+      `;
+
+      if (!results || results.length === 0) {
+        return { exists: false, membership: null };
+      }
+
+      const row = results[0];
+      if (!row.user_id) {
+        // Workspace exists but user is not a member
+        return { exists: true, membership: null };
+      }
+
+      return {
+        exists: true,
+        membership: {
+          workspaceId: row.workspace_id,
+          userId: row.user_id,
+          role: row.role,
+          invitedBy: row.invited_by,
+          joinedAt: row.joined_at,
+        },
+      };
+    });
+  }
+
+  /**
    * Add a member to a workspace
    */
   async addMember(
@@ -611,6 +685,25 @@ export class WorkspaceService {
     if (!/^[a-z0-9_]+$/.test(schemaName)) {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
+
+    // Pre-fetch core user BEFORE opening the transaction to avoid holding
+    // a second connection from the pool inside the transaction (connection leak)
+    const coreUser = await this.db.user.findUnique({
+      where: { id: dto.userId },
+      select: {
+        id: true,
+        keycloakId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!coreUser) {
+      throw new Error(`User ${dto.userId} not found`);
+    }
+
+    const role = dto.role || WorkspaceRole.MEMBER;
 
     return await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
@@ -641,26 +734,6 @@ export class WorkspaceService {
 
       if (existingCheck && existingCheck.length > 0) {
         throw new Error('User is already a member of this workspace');
-      }
-
-      // Insert the new member
-      const role = dto.role || WorkspaceRole.MEMBER;
-
-      // First, ensure the user exists in the tenant schema
-      // Get user from core schema and sync to tenant schema
-      const coreUser = await this.db.user.findUnique({
-        where: { id: dto.userId },
-        select: {
-          id: true,
-          keycloakId: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-        },
-      });
-
-      if (!coreUser) {
-        throw new Error(`User ${dto.userId} not found`);
       }
 
       // Sync user to tenant schema with parameterized values
@@ -1116,31 +1189,59 @@ export class WorkspaceService {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(
-      this.db,
-      async (client) => {
-        return client.team.findMany({
-          where: { workspaceId },
-          include: {
-            owner: {
-              select: {
-                id: true,
-                email: true,
-                firstName: true,
-                lastName: true,
-              },
-            },
-            _count: {
-              select: {
-                members: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-      },
-      tenantContext
-    );
+    const schemaName = tenantContext.schemaName;
+
+    // Validate schema name to prevent SQL injection
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    return await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
+      const usersTable = Prisma.raw(`"${schemaName}"."users"`);
+      const teamMembersTable = Prisma.raw(`"${schemaName}"."TeamMember"`);
+
+      const teams = await tx.$queryRaw<any[]>`
+        SELECT 
+          t.id,
+          t.workspace_id,
+          t.name,
+          t.description,
+          t.owner_id,
+          t.created_at,
+          t.updated_at,
+          u.id AS owner_user_id,
+          u.email AS owner_email,
+          u.first_name AS owner_first_name,
+          u.last_name AS owner_last_name,
+          (SELECT COUNT(*)::int FROM ${teamMembersTable} tm WHERE tm."teamId" = t.id) AS member_count
+        FROM ${teamsTable} t
+        LEFT JOIN ${usersTable} u ON t.owner_id = u.id
+        WHERE t.workspace_id = ${workspaceId}
+        ORDER BY t.created_at DESC
+      `;
+
+      return teams.map((t: any) => ({
+        id: t.id,
+        workspaceId: t.workspace_id,
+        name: t.name,
+        description: t.description,
+        ownerId: t.owner_id,
+        createdAt: t.created_at,
+        updatedAt: t.updated_at,
+        owner: {
+          id: t.owner_user_id,
+          email: t.owner_email,
+          firstName: t.owner_first_name,
+          lastName: t.owner_last_name,
+        },
+        _count: {
+          members: t.member_count || 0,
+        },
+      }));
+    });
   }
 
   /**
@@ -1160,54 +1261,83 @@ export class WorkspaceService {
       throw new Error('No tenant context available');
     }
 
-    return executeInTenantSchema(
-      this.db,
-      async (client) => {
-        // Verify workspace exists and belongs to tenant
-        const workspace = await client.workspace.findFirst({
-          where: {
-            id: workspaceId,
-            tenantId: tenantContext.tenantId,
-          },
-        });
+    const schemaName = tenantContext.schemaName;
 
-        if (!workspace) {
-          throw new Error(
-            `Workspace not found or does not belong to tenant ${tenantContext.tenantId}`
-          );
-        }
+    // Validate schema name to prevent SQL injection
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
 
-        // Create the team
-        const team = await client.team.create({
-          data: {
-            workspaceId,
-            name: data.name,
-            description: data.description,
-            ownerId: data.ownerId,
-          },
-          include: {
-            owner: {
-              select: {
-                id: true,
-                email: true,
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        });
+    return await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-        // TODO: Publish event
-        // await this.eventBus.publish({
-        //   type: 'core.workspace.team.created',
-        //   aggregateId: workspaceId,
-        //   data: { workspaceId, teamId: team.id, name: data.name }
-        // });
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
+      const usersTable = Prisma.raw(`"${schemaName}"."users"`);
 
-        return team;
-      },
-      tenantContext
-    );
+      // Verify workspace exists and belongs to tenant
+      const workspaces = await tx.$queryRaw<any[]>`
+        SELECT id FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantContext.tenantId}
+      `;
+
+      if (!workspaces || workspaces.length === 0) {
+        throw new Error(
+          `Workspace not found or does not belong to tenant ${tenantContext.tenantId}`
+        );
+      }
+
+      // Create the team
+      const teamId = crypto.randomUUID();
+      await tx.$executeRaw`
+        INSERT INTO ${teamsTable} (id, workspace_id, name, description, owner_id, created_at, updated_at)
+        VALUES (${teamId}, ${workspaceId}, ${data.name}, ${data.description || null}, ${data.ownerId}, NOW(), NOW())
+      `;
+
+      // Fetch the created team with owner info
+      const teams = await tx.$queryRaw<any[]>`
+        SELECT 
+          t.id,
+          t.workspace_id,
+          t.name,
+          t.description,
+          t.owner_id,
+          t.created_at,
+          t.updated_at,
+          u.id AS owner_user_id,
+          u.email AS owner_email,
+          u.first_name AS owner_first_name,
+          u.last_name AS owner_last_name
+        FROM ${teamsTable} t
+        LEFT JOIN ${usersTable} u ON t.owner_id = u.id
+        WHERE t.id = ${teamId}
+      `;
+
+      const t = teams[0];
+
+      // TODO: Publish event
+      // await this.eventBus.publish({
+      //   type: 'core.workspace.team.created',
+      //   aggregateId: workspaceId,
+      //   data: { workspaceId, teamId: t.id, name: data.name }
+      // });
+
+      return {
+        id: t.id,
+        workspaceId: t.workspace_id,
+        name: t.name,
+        description: t.description,
+        ownerId: t.owner_id,
+        createdAt: t.created_at,
+        updatedAt: t.updated_at,
+        owner: {
+          id: t.owner_user_id,
+          email: t.owner_email,
+          firstName: t.owner_first_name,
+          lastName: t.owner_last_name,
+        },
+      };
+    });
   }
 }
 

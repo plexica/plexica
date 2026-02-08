@@ -100,14 +100,24 @@ export class KeycloakService {
   async getRealm(tenantSlug: string): Promise<RealmRepresentation | undefined> {
     await this.ensureAuth();
 
-    try {
-      return await this.client.realms.findOne({ realm: tenantSlug });
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return undefined;
+    return this.withRetry(async () => {
+      try {
+        return await this.client.realms.findOne({ realm: tenantSlug });
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          return undefined;
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
+  }
+
+  /**
+   * Check if a realm exists for a tenant
+   */
+  async realmExists(tenantSlug: string): Promise<boolean> {
+    const realm = await this.getRealm(tenantSlug);
+    return realm !== undefined;
   }
 
   /**
@@ -116,7 +126,9 @@ export class KeycloakService {
   async updateRealm(tenantSlug: string, updates: Partial<RealmRepresentation>): Promise<void> {
     await this.ensureAuth();
 
-    await this.client.realms.update({ realm: tenantSlug }, updates);
+    await this.withRetry(async () => {
+      await this.client.realms.update({ realm: tenantSlug }, updates);
+    });
   }
 
   /**

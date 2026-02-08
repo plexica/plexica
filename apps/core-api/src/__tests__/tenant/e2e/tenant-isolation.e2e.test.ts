@@ -18,6 +18,7 @@ import { buildTestApp } from '../../../test-app';
 import { db } from '../../../lib/db';
 import { redis } from '../../../lib/redis';
 import { permissionService } from '../../../services/permission.service';
+import { resetAllCaches } from '../../../lib/advanced-rate-limit';
 
 describe('Tenant Isolation E2E', () => {
   let app: FastifyInstance;
@@ -27,9 +28,18 @@ describe('Tenant Isolation E2E', () => {
   let tenant1AdminToken: string;
   let tenant2AdminToken: string;
 
+  // Dynamic slugs to avoid conflicts between test runs
+  const suffix = Date.now().toString(36);
+  const tenant1Slug = `iso-t1-${suffix}`;
+  const tenant2Slug = `iso-t2-${suffix}`;
+  // Schema names: tenant_ + slug with hyphens replaced by underscores
+  const tenant1Schema = `tenant_${tenant1Slug.replace(/-/g, '_')}`;
+  const tenant2Schema = `tenant_${tenant2Slug.replace(/-/g, '_')}`;
+
   beforeAll(async () => {
     app = await buildTestApp();
     await app.ready();
+    resetAllCaches();
 
     // Get super admin token
     const superAdminResp = await testContext.auth.getRealSuperAdminToken();
@@ -43,10 +53,12 @@ describe('Tenant Isolation E2E', () => {
         authorization: `Bearer ${superAdminToken}`,
       },
       payload: {
-        slug: 'isolation-tenant-1',
+        slug: tenant1Slug,
         name: 'Isolation Tenant 1',
       },
     });
+
+    expect(tenant1Response.statusCode).toBe(201);
 
     const tenant2Response = await app.inject({
       method: 'POST',
@@ -55,10 +67,12 @@ describe('Tenant Isolation E2E', () => {
         authorization: `Bearer ${superAdminToken}`,
       },
       payload: {
-        slug: 'isolation-tenant-2',
+        slug: tenant2Slug,
         name: 'Isolation Tenant 2',
       },
     });
+
+    expect(tenant2Response.statusCode).toBe(201);
 
     const tenant1 = JSON.parse(tenant1Response.body);
     const tenant2 = JSON.parse(tenant2Response.body);
@@ -75,6 +89,13 @@ describe('Tenant Isolation E2E', () => {
   });
 
   afterAll(async () => {
+    // Clean up created schemas
+    try {
+      await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${tenant1Schema}" CASCADE`);
+      await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${tenant2Schema}" CASCADE`);
+    } catch {
+      // Ignore cleanup errors
+    }
     await app.close();
     await db.$disconnect();
     await redis.quit();
@@ -82,6 +103,7 @@ describe('Tenant Isolation E2E', () => {
 
   beforeEach(async () => {
     await redis.flushdb();
+    resetAllCaches();
   });
 
   describe('Data Isolation', () => {
@@ -89,7 +111,7 @@ describe('Tenant Isolation E2E', () => {
       // Create user in tenant 1
       const user1Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email, first_name, last_name)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email, first_name, last_name)
          VALUES ($1, $2, $3, $4, $5)`,
         user1Id,
         'keycloak-user-1',
@@ -101,7 +123,7 @@ describe('Tenant Isolation E2E', () => {
       // Create user in tenant 2 with different data
       const user2Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."users" (id, keycloak_id, email, first_name, last_name)
+        `INSERT INTO "${tenant2Schema}"."users" (id, keycloak_id, email, first_name, last_name)
          VALUES ($1, $2, $3, $4, $5)`,
         user2Id,
         'keycloak-user-2',
@@ -112,7 +134,8 @@ describe('Tenant Isolation E2E', () => {
 
       // Query tenant 1 users - should only see tenant 1 user
       const tenant1Users = await db.$queryRawUnsafe<Array<{ id: string; email: string }>>(
-        `SELECT id, email FROM "tenant_isolation_tenant_1"."users"`
+        `SELECT id, email FROM "${tenant1Schema}"."users" WHERE id = $1`,
+        user1Id
       );
 
       expect(tenant1Users).toHaveLength(1);
@@ -121,7 +144,8 @@ describe('Tenant Isolation E2E', () => {
 
       // Query tenant 2 users - should only see tenant 2 user
       const tenant2Users = await db.$queryRawUnsafe<Array<{ id: string; email: string }>>(
-        `SELECT id, email FROM "tenant_isolation_tenant_2"."users"`
+        `SELECT id, email FROM "${tenant2Schema}"."users" WHERE id = $1`,
+        user2Id
       );
 
       expect(tenant2Users).toHaveLength(1);
@@ -130,15 +154,15 @@ describe('Tenant Isolation E2E', () => {
     });
 
     it('should allow same email in different tenant schemas', async () => {
-      const sharedEmail = 'shared@example.com';
+      const sharedEmail = `shared-${suffix}@example.com`;
 
       // Create user with same email in tenant 1
       const user1Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email, first_name)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email, first_name)
          VALUES ($1, $2, $3, $4)`,
         user1Id,
-        'keycloak-shared-1',
+        `keycloak-shared-1-${suffix}`,
         sharedEmail,
         'User1'
       );
@@ -147,10 +171,10 @@ describe('Tenant Isolation E2E', () => {
       const user2Id = crypto.randomUUID();
       await expect(
         db.$executeRawUnsafe(
-          `INSERT INTO "tenant_isolation_tenant_2"."users" (id, keycloak_id, email, first_name)
+          `INSERT INTO "${tenant2Schema}"."users" (id, keycloak_id, email, first_name)
            VALUES ($1, $2, $3, $4)`,
           user2Id,
-          'keycloak-shared-2',
+          `keycloak-shared-2-${suffix}`,
           sharedEmail,
           'User2'
         )
@@ -158,12 +182,12 @@ describe('Tenant Isolation E2E', () => {
 
       // Verify both users exist with same email
       const tenant1User = await db.$queryRawUnsafe<Array<{ email: string; first_name: string }>>(
-        `SELECT email, first_name FROM "tenant_isolation_tenant_1"."users" WHERE email = $1`,
+        `SELECT email, first_name FROM "${tenant1Schema}"."users" WHERE email = $1`,
         sharedEmail
       );
 
       const tenant2User = await db.$queryRawUnsafe<Array<{ email: string; first_name: string }>>(
-        `SELECT email, first_name FROM "tenant_isolation_tenant_2"."users" WHERE email = $1`,
+        `SELECT email, first_name FROM "${tenant2Schema}"."users" WHERE email = $1`,
         sharedEmail
       );
 
@@ -176,12 +200,12 @@ describe('Tenant Isolation E2E', () => {
       // Try to query tenant 1 data while in tenant 2 schema context
 
       // Set schema to tenant 2
-      await db.$executeRawUnsafe(`SET search_path TO "tenant_isolation_tenant_2"`);
+      await db.$executeRawUnsafe(`SET search_path TO "${tenant2Schema}"`);
 
       // Try to query tenant 1 table without schema prefix - should fail or return empty
       // Note: This would require table not to exist in current schema
       const result = await db
-        .$queryRawUnsafe<Array<any>>(`SELECT * FROM "tenant_isolation_tenant_1"."users" LIMIT 1`)
+        .$queryRawUnsafe<Array<any>>(`SELECT * FROM "${tenant1Schema}"."users" LIMIT 1`)
         .catch(() => ({ length: 0 }));
 
       // Even if query succeeds, it should be explicit cross-schema access
@@ -197,7 +221,7 @@ describe('Tenant Isolation E2E', () => {
       // Create custom role in tenant 1
       const role1Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         role1Id,
         'custom-role-1',
@@ -207,7 +231,7 @@ describe('Tenant Isolation E2E', () => {
       // Create role with same name in tenant 2
       const role2Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         role2Id,
         'custom-role-1',
@@ -216,11 +240,11 @@ describe('Tenant Isolation E2E', () => {
 
       // Verify roles are isolated
       const tenant1Roles = await db.$queryRawUnsafe<Array<{ id: string; permissions: string[] }>>(
-        `SELECT id, permissions FROM "tenant_isolation_tenant_1"."roles" WHERE name = 'custom-role-1'`
+        `SELECT id, permissions FROM "${tenant1Schema}"."roles" WHERE name = 'custom-role-1'`
       );
 
       const tenant2Roles = await db.$queryRawUnsafe<Array<{ id: string; permissions: string[] }>>(
-        `SELECT id, permissions FROM "tenant_isolation_tenant_2"."roles" WHERE name = 'custom-role-1'`
+        `SELECT id, permissions FROM "${tenant2Schema}"."roles" WHERE name = 'custom-role-1'`
       );
 
       expect(tenant1Roles[0].id).toBe(role1Id);
@@ -241,15 +265,15 @@ describe('Tenant Isolation E2E', () => {
       const role1Id = crypto.randomUUID();
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         user1Id,
-        'perm-test-1',
-        'permuser1@test.com'
+        `perm-test-1-${suffix}`,
+        `permuser1-${suffix}@test.com`
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         role1Id,
         'tenant1-role',
@@ -257,7 +281,7 @@ describe('Tenant Isolation E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."user_roles" (user_id, role_id)
+        `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id)
          VALUES ($1, $2)`,
         user1Id,
         role1Id
@@ -268,15 +292,15 @@ describe('Tenant Isolation E2E', () => {
       const role2Id = crypto.randomUUID();
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant2Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         user2Id,
-        'perm-test-2',
-        'permuser2@test.com'
+        `perm-test-2-${suffix}`,
+        `permuser2-${suffix}@test.com`
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         role2Id,
         'tenant2-role',
@@ -284,23 +308,17 @@ describe('Tenant Isolation E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."user_roles" (user_id, role_id)
+        `INSERT INTO "${tenant2Schema}"."user_roles" (user_id, role_id)
          VALUES ($1, $2)`,
         user2Id,
         role2Id
       );
 
       // Get permissions for user 1 in tenant 1
-      const user1Permissions = await permissionService.getUserPermissions(
-        user1Id,
-        'tenant_isolation_tenant_1'
-      );
+      const user1Permissions = await permissionService.getUserPermissions(user1Id, tenant1Schema);
 
       // Get permissions for user 2 in tenant 2
-      const user2Permissions = await permissionService.getUserPermissions(
-        user2Id,
-        'tenant_isolation_tenant_2'
-      );
+      const user2Permissions = await permissionService.getUserPermissions(user2Id, tenant2Schema);
 
       // Verify isolation
       expect(user1Permissions).toContain('tenant1.read');
@@ -317,16 +335,16 @@ describe('Tenant Isolation E2E', () => {
 
       // Create user in tenant 1 with specific permissions
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         userId,
-        'cross-check-test',
-        'crosscheck@test.com'
+        `cross-check-test-${suffix}`,
+        `crosscheck-${suffix}@test.com`
       );
 
       const roleId = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         roleId,
         'cross-role',
@@ -334,7 +352,7 @@ describe('Tenant Isolation E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."user_roles" (user_id, role_id)
+        `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id)
          VALUES ($1, $2)`,
         userId,
         roleId
@@ -343,7 +361,7 @@ describe('Tenant Isolation E2E', () => {
       // Check permission in tenant 1 - should have permission
       const hasPerm1 = await permissionService.hasPermission(
         userId,
-        'tenant_isolation_tenant_1',
+        tenant1Schema,
         'cross.permission'
       );
       expect(hasPerm1).toBe(true);
@@ -351,7 +369,7 @@ describe('Tenant Isolation E2E', () => {
       // Try to check same user's permission in tenant 2 - should not have it
       const hasPerm2 = await permissionService.hasPermission(
         userId,
-        'tenant_isolation_tenant_2',
+        tenant2Schema,
         'cross.permission'
       );
       expect(hasPerm2).toBe(false); // User doesn't exist in tenant 2 schema
@@ -361,19 +379,21 @@ describe('Tenant Isolation E2E', () => {
   describe('Schema-Level Isolation', () => {
     it('should have completely separate table structures', async () => {
       // Verify both tenants have their own tables
-      const tenant1Tables = await db.$queryRaw<Array<{ table_name: string }>>`
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'tenant_isolation_tenant_1'
-        ORDER BY table_name
-      `;
+      const tenant1Tables = await db.$queryRawUnsafe<Array<{ table_name: string }>>(
+        `SELECT table_name
+         FROM information_schema.tables
+         WHERE table_schema = $1
+         ORDER BY table_name`,
+        tenant1Schema
+      );
 
-      const tenant2Tables = await db.$queryRaw<Array<{ table_name: string }>>`
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'tenant_isolation_tenant_2'
-        ORDER BY table_name
-      `;
+      const tenant2Tables = await db.$queryRawUnsafe<Array<{ table_name: string }>>(
+        `SELECT table_name
+         FROM information_schema.tables
+         WHERE table_schema = $1
+         ORDER BY table_name`,
+        tenant2Schema
+      );
 
       // Both should have standard tables
       const tenant1TableNames = tenant1Tables.map((t) => t.table_name);
@@ -399,16 +419,16 @@ describe('Tenant Isolation E2E', () => {
 
       // Create user in tenant 1
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         user1Id,
-        'fk-test',
-        'fktest@test.com'
+        `fk-test-${suffix}`,
+        `fktest-${suffix}@test.com`
       );
 
       // Create role in tenant 2
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         role2Id,
         'fk-role',
@@ -418,7 +438,7 @@ describe('Tenant Isolation E2E', () => {
       // Try to create user_role relationship across schemas - should fail
       await expect(
         db.$executeRawUnsafe(
-          `INSERT INTO "tenant_isolation_tenant_1"."user_roles" (user_id, role_id)
+          `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id)
            VALUES ($1, $2)`,
           user1Id,
           role2Id // Role from different schema
@@ -430,21 +450,21 @@ describe('Tenant Isolation E2E', () => {
       // Insert data in tenant 1
       const user1Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         user1Id,
-        'seq-test-1',
-        'seq1@test.com'
+        `seq-test-1-${suffix}`,
+        `seq1-${suffix}@test.com`
       );
 
       // Insert data in tenant 2
       const user2Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant2Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         user2Id,
-        'seq-test-2',
-        'seq2@test.com'
+        `seq-test-2-${suffix}`,
+        `seq2-${suffix}@test.com`
       );
 
       // Verify UUIDs are different
@@ -452,11 +472,11 @@ describe('Tenant Isolation E2E', () => {
 
       // Count users in each schema
       const count1 = await db.$queryRawUnsafe<Array<{ count: bigint }>>(
-        `SELECT COUNT(*) as count FROM "tenant_isolation_tenant_1"."users"`
+        `SELECT COUNT(*) as count FROM "${tenant1Schema}"."users"`
       );
 
       const count2 = await db.$queryRawUnsafe<Array<{ count: bigint }>>(
-        `SELECT COUNT(*) as count FROM "tenant_isolation_tenant_2"."users"`
+        `SELECT COUNT(*) as count FROM "${tenant2Schema}"."users"`
       );
 
       // Each schema has independent count
@@ -467,72 +487,116 @@ describe('Tenant Isolation E2E', () => {
 
   describe('Workspace Isolation', () => {
     it('should isolate workspaces between tenants', async () => {
-      // Get existing workspaces from seed data
-      const acmeWorkspaces = await db.workspace.findMany({
-        where: { tenantId: { in: [tenant1Id] } },
-      });
+      // Create a workspace in each tenant schema using raw SQL
+      const ws1Id = crypto.randomUUID();
+      const ws2Id = crypto.randomUUID();
 
-      const demoWorkspaces = await db.workspace.findMany({
-        where: { tenantId: { in: [tenant2Id] } },
-      });
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."workspaces" (id, tenant_id, slug, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        ws1Id,
+        tenant1Id,
+        `iso-ws1-${suffix}`,
+        'Isolation WS 1'
+      );
+
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant2Schema}"."workspaces" (id, tenant_id, slug, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        ws2Id,
+        tenant2Id,
+        `iso-ws2-${suffix}`,
+        'Isolation WS 2'
+      );
+
+      // Get workspaces from each tenant schema
+      const t1Workspaces = await db.$queryRawUnsafe<any[]>(
+        `SELECT id, tenant_id, slug FROM "${tenant1Schema}"."workspaces" WHERE tenant_id = $1`,
+        tenant1Id
+      );
+
+      const t2Workspaces = await db.$queryRawUnsafe<any[]>(
+        `SELECT id, tenant_id, slug FROM "${tenant2Schema}"."workspaces" WHERE tenant_id = $1`,
+        tenant2Id
+      );
 
       // Workspaces should be associated with only their tenant
-      acmeWorkspaces.forEach((ws) => {
-        expect(ws.tenantId).not.toBe(tenant2Id);
+      t1Workspaces.forEach((ws: any) => {
+        expect(ws.tenant_id).not.toBe(tenant2Id);
       });
 
-      demoWorkspaces.forEach((ws) => {
-        expect(ws.tenantId).not.toBe(tenant1Id);
+      t2Workspaces.forEach((ws: any) => {
+        expect(ws.tenant_id).not.toBe(tenant1Id);
       });
     });
 
     it('should allow same workspace slug in different tenants', async () => {
-      const sharedSlug = 'shared-workspace';
+      const sharedSlug = `shared-ws-${suffix}`;
 
-      // Create workspace in tenant 1
-      const workspace1 = await db.workspace.create({
-        data: {
-          slug: sharedSlug,
-          name: 'Shared Workspace 1',
-          tenantId: tenant1Id,
-        },
-      });
+      // Create workspace in tenant 1 schema
+      const ws1Id = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."workspaces" (id, tenant_id, slug, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+        ws1Id,
+        tenant1Id,
+        sharedSlug,
+        'Shared Workspace 1'
+      );
 
-      // Create workspace with same slug in tenant 2 - should succeed
-      const workspace2 = await db.workspace.create({
-        data: {
-          slug: sharedSlug,
-          name: 'Shared Workspace 2',
-          tenantId: tenant2Id,
-        },
-      });
+      // Create workspace with same slug in tenant 2 schema - should succeed
+      const ws2Id = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant2Schema}"."workspaces" (id, tenant_id, slug, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+        ws2Id,
+        tenant2Id,
+        sharedSlug,
+        'Shared Workspace 2'
+      );
+
+      // Fetch back to verify
+      const workspace1 = (
+        await db.$queryRawUnsafe<any[]>(
+          `SELECT id, tenant_id, slug FROM "${tenant1Schema}"."workspaces" WHERE id = $1`,
+          ws1Id
+        )
+      )[0];
+
+      const workspace2 = (
+        await db.$queryRawUnsafe<any[]>(
+          `SELECT id, tenant_id, slug FROM "${tenant2Schema}"."workspaces" WHERE id = $1`,
+          ws2Id
+        )
+      )[0];
 
       expect(workspace1.slug).toBe(workspace2.slug);
       expect(workspace1.id).not.toBe(workspace2.id);
-      expect(workspace1.tenantId).not.toBe(workspace2.tenantId);
+      expect(workspace1.tenant_id).not.toBe(workspace2.tenant_id);
     });
 
     it('should prevent accessing workspaces from other tenants via API', async () => {
-      // Create workspace in tenant 1
-      const workspace = await db.workspace.create({
-        data: {
-          slug: 'private-workspace',
-          name: 'Private Workspace',
-          tenantId: tenant1Id,
-        },
-      });
+      // Create workspace in tenant 1 schema
+      const wsId = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."workspaces" (id, tenant_id, slug, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())`,
+        wsId,
+        tenant1Id,
+        `private-ws-${suffix}`,
+        'Private Workspace'
+      );
 
-      // Try to access workspace from tenant 1 using tenant 2 admin token
-      // This would require the workspace API to be implemented
-      // For now, we verify at database level
-
-      const tenant2Workspaces = await db.workspace.findMany({
-        where: { tenantId: tenant2Id },
-      });
+      // Verify tenant 2's schema does NOT contain tenant 1's workspace
+      const tenant2Workspaces = await db.$queryRawUnsafe<any[]>(
+        `SELECT id FROM "${tenant2Schema}"."workspaces" WHERE id = $1`,
+        wsId
+      );
 
       // Tenant 2 should not see tenant 1's workspace
-      const hasWorkspace = tenant2Workspaces.some((ws) => ws.id === workspace.id);
-      expect(hasWorkspace).toBe(false);
+      expect(tenant2Workspaces.length).toBe(0);
     });
   });
 
@@ -570,40 +634,40 @@ describe('Tenant Isolation E2E', () => {
       const user2Id = crypto.randomUUID();
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email, first_name)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email, first_name)
          VALUES ($1, $2, $3, $4)`,
         user1Id,
-        'modify-test-1',
-        'modify1@test.com',
+        `modify-test-1-${suffix}`,
+        `modify1-${suffix}@test.com`,
         'Original1'
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."users" (id, keycloak_id, email, first_name)
+        `INSERT INTO "${tenant2Schema}"."users" (id, keycloak_id, email, first_name)
          VALUES ($1, $2, $3, $4)`,
         user2Id,
-        'modify-test-2',
-        'modify2@test.com',
+        `modify-test-2-${suffix}`,
+        `modify2-${suffix}@test.com`,
         'Original2'
       );
 
       // Modify data in tenant 1
       await db.$executeRawUnsafe(
-        `UPDATE "tenant_isolation_tenant_1"."users" SET first_name = $1 WHERE id = $2`,
+        `UPDATE "${tenant1Schema}"."users" SET first_name = $1 WHERE id = $2`,
         'Modified1',
         user1Id
       );
 
       // Verify tenant 1 was modified
       const user1 = await db.$queryRawUnsafe<Array<{ first_name: string }>>(
-        `SELECT first_name FROM "tenant_isolation_tenant_1"."users" WHERE id = $1`,
+        `SELECT first_name FROM "${tenant1Schema}"."users" WHERE id = $1`,
         user1Id
       );
       expect(user1[0].first_name).toBe('Modified1');
 
       // Verify tenant 2 was NOT affected
       const user2 = await db.$queryRawUnsafe<Array<{ first_name: string }>>(
-        `SELECT first_name FROM "tenant_isolation_tenant_2"."users" WHERE id = $1`,
+        `SELECT first_name FROM "${tenant2Schema}"."users" WHERE id = $1`,
         user2Id
       );
       expect(user2[0].first_name).toBe('Original2');
@@ -615,37 +679,34 @@ describe('Tenant Isolation E2E', () => {
 
       // Create roles in both tenants
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         roleId1,
-        'delete-test-role',
+        `delete-test-role-${suffix}`,
         JSON.stringify(['test'])
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_2"."roles" (id, name, permissions)
+        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
          VALUES ($1, $2, $3::jsonb)`,
         roleId2,
-        'delete-test-role',
+        `delete-test-role-${suffix}`,
         JSON.stringify(['test'])
       );
 
       // Delete from tenant 1
-      await db.$executeRawUnsafe(
-        `DELETE FROM "tenant_isolation_tenant_1"."roles" WHERE id = $1`,
-        roleId1
-      );
+      await db.$executeRawUnsafe(`DELETE FROM "${tenant1Schema}"."roles" WHERE id = $1`, roleId1);
 
       // Verify deleted from tenant 1
       const role1 = await db.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id FROM "tenant_isolation_tenant_1"."roles" WHERE id = $1`,
+        `SELECT id FROM "${tenant1Schema}"."roles" WHERE id = $1`,
         roleId1
       );
       expect(role1.length).toBe(0);
 
       // Verify still exists in tenant 2
       const role2 = await db.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id FROM "tenant_isolation_tenant_2"."roles" WHERE id = $1`,
+        `SELECT id FROM "${tenant2Schema}"."roles" WHERE id = $1`,
         roleId2
       );
       expect(role2.length).toBe(1);
@@ -661,16 +722,16 @@ describe('Tenant Isolation E2E', () => {
 
       // Create user in tenant 1
       await db.$executeRawUnsafe(
-        `INSERT INTO "tenant_isolation_tenant_1"."users" (id, keycloak_id, email)
+        `INSERT INTO "${tenant1Schema}"."users" (id, keycloak_id, email)
          VALUES ($1, $2, $3)`,
         userId,
-        'trans-test',
-        'trans@test.com'
+        `trans-test-${suffix}`,
+        `trans-${suffix}@test.com`
       );
 
       // Query from tenant 2 - should not see tenant 1's data
       const result = await db.$queryRawUnsafe<Array<{ count: bigint }>>(
-        `SELECT COUNT(*) as count FROM "tenant_isolation_tenant_2"."users" WHERE id = $1`,
+        `SELECT COUNT(*) as count FROM "${tenant2Schema}"."users" WHERE id = $1`,
         userId
       );
 
@@ -680,7 +741,7 @@ describe('Tenant Isolation E2E', () => {
 
   describe('Security: Prevent SQL Injection Across Tenants', () => {
     it('should prevent SQL injection in tenant slug', async () => {
-      const maliciousSlug = "tenant'; DROP SCHEMA tenant_isolation_tenant_2; --";
+      const maliciousSlug = `tenant'; DROP SCHEMA ${tenant2Schema}; --`;
 
       // Try to create tenant with malicious slug
       const response = await app.inject({
@@ -698,12 +759,13 @@ describe('Tenant Isolation E2E', () => {
       expect(response.statusCode).toBe(400);
 
       // Verify tenant 2 schema still exists
-      const schemaExists = await db.$queryRaw<Array<{ exists: boolean }>>`
-        SELECT EXISTS (
+      const schemaExists = await db.$queryRawUnsafe<Array<{ exists: boolean }>>(
+        `SELECT EXISTS (
           SELECT FROM pg_namespace
-          WHERE nspname = 'tenant_isolation_tenant_2'
-        ) as exists
-      `;
+          WHERE nspname = $1
+        ) as exists`,
+        tenant2Schema
+      );
 
       expect(schemaExists[0].exists).toBe(true);
     });

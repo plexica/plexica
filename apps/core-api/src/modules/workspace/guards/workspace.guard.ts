@@ -45,21 +45,19 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
-    // First check if workspace exists and belongs to tenant
-    try {
-      await workspaceService.findOne(workspaceId, tenantContext);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return reply.code(404).send({
-          error: 'Not Found',
-          message: 'Workspace not found or does not belong to this tenant',
-        });
-      }
-      throw error;
-    }
+    // Check workspace exists and get membership in a single transaction
+    const { exists, membership } = await workspaceService.checkAccessAndGetMembership(
+      workspaceId,
+      userId,
+      tenantContext
+    );
 
-    // Then verify user has membership
-    const membership = await workspaceService.getMembership(workspaceId, userId, tenantContext);
+    if (!exists) {
+      return reply.code(404).send({
+        error: 'Not Found',
+        message: 'Workspace not found or does not belong to this tenant',
+      });
+    }
 
     if (!membership) {
       return reply.code(403).send({

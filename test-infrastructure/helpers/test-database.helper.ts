@@ -173,6 +173,19 @@ export class TestDatabaseHelper {
       )
     `);
 
+    // Create TeamMember table (for team membership)
+    await this.prisma.$executeRawUnsafe(`
+       CREATE TABLE IF NOT EXISTS "${schemaName}"."TeamMember" (
+         "teamId" TEXT NOT NULL,
+         "user_id" TEXT NOT NULL,
+         "role" TEXT NOT NULL DEFAULT 'MEMBER',
+         "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         PRIMARY KEY ("teamId", "user_id"),
+         FOREIGN KEY ("teamId") REFERENCES "${schemaName}"."teams"("id") ON DELETE CASCADE,
+         FOREIGN KEY ("user_id") REFERENCES "${schemaName}"."users"("id") ON DELETE CASCADE
+       )
+     `);
+
     // Create workspace_resources table
     await this.prisma.$executeRawUnsafe(`
        CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
@@ -367,3 +380,14 @@ export class TestDatabaseHelper {
 
 // Export singleton instance
 export const testDb = TestDatabaseHelper.getInstance();
+
+/**
+ * Generate a unique tenant slug for test isolation.
+ * Uses timestamp + random suffix to ensure uniqueness across parallel test runs.
+ *
+ * @param prefix - Optional prefix for the slug (default: 'test')
+ * @returns A unique slug like 'test-1707317234567-a3b4c5'
+ */
+export function generateUniqueTenantSlug(prefix: string = 'test'): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+}

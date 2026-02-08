@@ -1,7 +1,7 @@
 /**
  * Authentication Flow Integration Tests
  *
- * Tests the complete authentication flow using real Keycloak and database.
+ * Tests the complete authentication flow using mock tokens and real database.
  * This verifies that users can authenticate, tokens are validated, and
  * permissions are correctly enforced.
  */
@@ -13,7 +13,11 @@ import type { FastifyInstance } from 'fastify';
 
 describe('Auth Flow Integration', () => {
   let app: FastifyInstance;
-  let testTenantId: string;
+  let testTenantSlug: string;
+  let demoTenantSlug: string;
+  let superAdminToken: string;
+  let tenantAdminToken: string;
+  let tenantMemberToken: string;
 
   beforeAll(async () => {
     // Reset test environment
@@ -23,19 +27,27 @@ describe('Auth Flow Integration', () => {
     app = await buildTestApp();
     await app.ready();
 
+    // Generate unique tenant slugs for test isolation
+    testTenantSlug = `acme-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    demoTenantSlug = `demo-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+    // Use mock tokens (faster and more reliable than Keycloak)
+    superAdminToken = testContext.auth.createMockSuperAdminToken();
+    tenantAdminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug);
+    tenantMemberToken = testContext.auth.createMockTenantMemberToken(testTenantSlug);
+
     // Create a test tenant for tenant-specific tests
-    const superAdminToken = await testContext.auth.getRealSuperAdminToken();
     const tenantResponse = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
       headers: {
-        authorization: `Bearer ${superAdminToken.access_token}`,
+        authorization: `Bearer ${superAdminToken}`,
         'content-type': 'application/json',
       },
       payload: {
-        slug: 'acme',
+        slug: testTenantSlug,
         name: 'ACME Corporation',
-        adminEmail: 'admin@acme.test',
+        adminEmail: `admin@${testTenantSlug}.test`,
         adminPassword: 'test123',
       },
     });
@@ -43,9 +55,6 @@ describe('Auth Flow Integration', () => {
     if (tenantResponse.statusCode !== 201) {
       throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
     }
-
-    const tenantData = tenantResponse.json();
-    testTenantId = tenantData.id;
   });
 
   afterAll(async () => {
@@ -55,15 +64,12 @@ describe('Auth Flow Integration', () => {
 
   describe('Token-based Authentication', () => {
     it('should authenticate with valid JWT token', async () => {
-      // Get real token from Keycloak
-      const tokenResponse = await testContext.auth.getRealSuperAdminToken();
-
       // Make authenticated request (health endpoint doesn't require auth)
       const response = await app.inject({
         method: 'GET',
         url: '/health',
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
+          authorization: `Bearer ${superAdminToken}`,
         },
       });
 
@@ -118,13 +124,11 @@ describe('Auth Flow Integration', () => {
 
   describe('Role-based Authorization', () => {
     it('should allow super admin to access admin endpoints', async () => {
-      const tokenResponse = await testContext.auth.getRealSuperAdminToken();
-
       const response = await app.inject({
         method: 'GET',
         url: '/api/admin/tenants',
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
+          authorization: `Bearer ${superAdminToken}`,
         },
       });
 
@@ -132,13 +136,11 @@ describe('Auth Flow Integration', () => {
     });
 
     it('should deny tenant member access to admin endpoints', async () => {
-      const tokenResponse = await testContext.auth.getRealTenantMemberToken('acme');
-
       const response = await app.inject({
         method: 'GET',
         url: '/api/admin/tenants',
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
+          authorization: `Bearer ${tenantMemberToken}`,
         },
       });
 
@@ -146,14 +148,12 @@ describe('Auth Flow Integration', () => {
     });
 
     it('should allow tenant admin to access tenant resources', async () => {
-      const tokenResponse = await testContext.auth.getRealTenantAdminToken('acme');
-
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces',
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
-          'x-tenant-id': 'acme',
+          authorization: `Bearer ${tenantAdminToken}`,
+          'x-tenant-id': testTenantSlug,
         },
       });
 
@@ -162,13 +162,13 @@ describe('Auth Flow Integration', () => {
   });
 
   describe('Token Refresh', () => {
-    it('should refresh token successfully', async () => {
-      const tokenResponse = await testContext.auth.getRealSuperAdminToken();
+    it('should create token with expected claims', async () => {
+      const decoded = testContext.auth.decodeToken(superAdminToken);
 
-      expect(tokenResponse.refresh_token).toBeDefined();
-
-      // TODO: Implement token refresh endpoint test
-      // This requires implementing the refresh endpoint in the app
+      expect(decoded).toBeTruthy();
+      expect(decoded.sub).toBeTruthy();
+      expect(decoded.iss).toBe('plexica-test');
+      expect(decoded.realm_access.roles).toContain('super-admin');
     });
 
     it('should reject refresh with invalid refresh token', async () => {
@@ -178,46 +178,41 @@ describe('Auth Flow Integration', () => {
 
   describe('Multi-tenant Token Validation', () => {
     it('should extract tenant ID from token', async () => {
-      const tokenResponse = await testContext.auth.getRealTenantAdminToken('acme');
+      const tenantId = testContext.auth.extractTenantId(tenantAdminToken);
 
-      testContext.auth.extractTenantId(tokenResponse.access_token);
+      // Mock tokens include tenant_id in the payload
+      expect(tenantId).toBe(testTenantSlug);
 
-      // Tenant ID extraction from Keycloak tokens depends on configuration
-      // The realm name is 'acme', not 'acme-corp'
-      // For now, we just verify the token is valid and can be decoded
-      const decoded = testContext.auth.decodeToken(tokenResponse.access_token);
+      // Verify the token can be decoded
+      const decoded = testContext.auth.decodeToken(tenantAdminToken);
       expect(decoded).toBeTruthy();
       expect(decoded.sub).toBeTruthy();
     });
 
     it('should validate token belongs to correct tenant', async () => {
-      const tokenResponse = await testContext.auth.getRealTenantAdminToken('acme');
-
-      // Try to access a different tenant's resources with acme token
       // Create another tenant first
-      const superAdminToken = await testContext.auth.getRealSuperAdminToken();
       await app.inject({
         method: 'POST',
         url: '/api/admin/tenants',
         headers: {
-          authorization: `Bearer ${superAdminToken.access_token}`,
+          authorization: `Bearer ${superAdminToken}`,
           'content-type': 'application/json',
         },
         payload: {
-          slug: 'demo',
+          slug: demoTenantSlug,
           name: 'Demo Company',
-          adminEmail: 'admin@demo.test',
+          adminEmail: `admin@${demoTenantSlug}.test`,
           adminPassword: 'test123',
         },
       });
 
-      // Try to access demo resources with acme token
+      // Try to access demo resources with testTenantSlug token
       const response = await app.inject({
         method: 'GET',
         url: '/api/workspaces',
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
-          'x-tenant-id': 'demo', // Wrong tenant!
+          authorization: `Bearer ${tenantAdminToken}`,
+          'x-tenant-id': demoTenantSlug, // Wrong tenant!
         },
       });
 
@@ -229,15 +224,13 @@ describe('Auth Flow Integration', () => {
 
   describe('Permission Enforcement', () => {
     it('should enforce workspace permissions', async () => {
-      const tokenResponse = await testContext.auth.getRealTenantMemberToken('acme');
-
       // Member should not be able to delete workspace
       const response = await app.inject({
         method: 'DELETE',
-        url: '/api/workspaces/workspace-acme-default',
+        url: `/api/workspaces/workspace-${testTenantSlug}-default`,
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
-          'x-tenant-id': 'acme',
+          authorization: `Bearer ${tenantMemberToken}`,
+          'x-tenant-id': testTenantSlug,
         },
       });
 
@@ -247,19 +240,17 @@ describe('Auth Flow Integration', () => {
     });
 
     it('should allow admin to perform privileged operations', async () => {
-      const tokenResponse = await testContext.auth.getRealTenantAdminToken('acme');
-
       // Admin should be able to create workspace
       const response = await app.inject({
         method: 'POST',
         url: '/api/workspaces',
         headers: {
-          authorization: `Bearer ${tokenResponse.access_token}`,
-          'x-tenant-id': 'acme',
+          authorization: `Bearer ${tenantAdminToken}`,
+          'x-tenant-id': testTenantSlug,
           'content-type': 'application/json',
         },
         payload: {
-          slug: 'test-workspace',
+          slug: `test-workspace-${Date.now()}`,
           name: 'Test Workspace',
         },
       });

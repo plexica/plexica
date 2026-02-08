@@ -1,6 +1,7 @@
 // apps/core-api/src/lib/advanced-rate-limit.ts
 
 import { LRUCache } from 'lru-cache';
+import { clearUserSyncCache } from '../middleware/tenant-context.js';
 
 /**
  * Advanced Rate Limiting Module
@@ -340,6 +341,18 @@ export function checkAllRateLimits(
     remaining: 0,
     resetTime: Date.now(),
   };
+}
+
+/**
+ * Reset all rate limit caches
+ * Useful for testing to ensure clean state between tests
+ */
+export function resetAllCaches(): void {
+  ipLimitCache.clear();
+  userLimitCache.clear();
+  endpointLimitCache.clear();
+  tenantLimitCache.clear();
+  clearUserSyncCache();
 }
 
 /**

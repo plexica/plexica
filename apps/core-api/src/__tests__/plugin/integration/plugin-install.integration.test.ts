@@ -18,6 +18,8 @@ describe('Plugin Installation Integration Tests', () => {
   let testPluginId: string;
   let testTenantId: string;
   let demoTenantId: string;
+  let testTenantSlug: string;
+  let demoTenantSlug: string;
 
   beforeAll(async () => {
     // Reset test environment
@@ -30,9 +32,12 @@ describe('Plugin Installation Integration Tests', () => {
     // Get super admin token
     // Use mock tokens for integration tests (faster and more reliable)
     superAdminToken = testContext.auth.createMockSuperAdminToken();
-    
 
-    // Create test tenant (acme)
+    // Generate unique tenant slugs for test isolation
+    testTenantSlug = `acme-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    demoTenantSlug = `demo-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+    // Create test tenant
     const tenantResponse = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
@@ -41,9 +46,9 @@ describe('Plugin Installation Integration Tests', () => {
         'content-type': 'application/json',
       },
       payload: {
-        slug: 'acme',
+        slug: testTenantSlug,
         name: 'ACME Corporation',
-        adminEmail: 'admin@acme.test',
+        adminEmail: `admin@${testTenantSlug}.test`,
         adminPassword: 'test123',
       },
     });
@@ -64,9 +69,9 @@ describe('Plugin Installation Integration Tests', () => {
         'content-type': 'application/json',
       },
       payload: {
-        slug: 'demo',
+        slug: demoTenantSlug,
         name: 'Demo Company',
-        adminEmail: 'admin@demo.test',
+        adminEmail: `admin@${demoTenantSlug}.test`,
         adminPassword: 'test123',
       },
     });
@@ -79,8 +84,7 @@ describe('Plugin Installation Integration Tests', () => {
     demoTenantId = demoData.id;
 
     // Get tenant admin token
-    // tenantAdminToken = testContext.auth.createMockTenantAdminToken('acme');
-    
+    tenantAdminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug);
 
     testPluginId = `plugin-test-${Date.now()}`;
   });

@@ -118,6 +118,18 @@ async function createTenantSchema(tenantSlug: string) {
   `);
 
   await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${schemaName}"."TeamMember" (
+      "teamId" TEXT NOT NULL,
+      "user_id" TEXT NOT NULL,
+      "role" TEXT NOT NULL DEFAULT 'MEMBER',
+      "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY ("teamId", "user_id"),
+      FOREIGN KEY ("teamId") REFERENCES "${schemaName}"."teams"("id") ON DELETE CASCADE,
+      FOREIGN KEY ("user_id") REFERENCES "${schemaName}"."users"("id") ON DELETE CASCADE
+    )
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
       "id" TEXT PRIMARY KEY,
       "workspace_id" TEXT NOT NULL,

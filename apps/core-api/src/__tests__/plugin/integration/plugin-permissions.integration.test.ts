@@ -15,8 +15,10 @@ describe('Plugin Permissions Integration Tests', () => {
   let app: FastifyInstance;
   let superAdminToken: string;
   let tenantAdminToken: string;
-  let tenantMemberToken: string;
+
   let testTenantId: string;
+  let testTenantSlug: string;
+  let demoTenantSlug: string;
 
   beforeAll(async () => {
     // Reset test environment
@@ -29,7 +31,10 @@ describe('Plugin Permissions Integration Tests', () => {
     // Get super admin token
     // Use mock tokens for integration tests (faster and more reliable)
     superAdminToken = testContext.auth.createMockSuperAdminToken();
-    
+
+    // Generate unique tenant slugs for test isolation
+    testTenantSlug = `acme-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    demoTenantSlug = `demo-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
     // Create test tenant
     const tenantResponse = await app.inject({
@@ -40,9 +45,9 @@ describe('Plugin Permissions Integration Tests', () => {
         'content-type': 'application/json',
       },
       payload: {
-        slug: 'acme',
+        slug: testTenantSlug,
         name: 'ACME Corporation',
-        adminEmail: 'admin@acme.test',
+        adminEmail: `admin@${testTenantSlug}.test`,
         adminPassword: 'test123',
       },
     });
@@ -63,19 +68,15 @@ describe('Plugin Permissions Integration Tests', () => {
         'content-type': 'application/json',
       },
       payload: {
-        slug: 'demo',
+        slug: demoTenantSlug,
         name: 'Demo Company',
-        adminEmail: 'admin@demo.test',
+        adminEmail: `admin@${demoTenantSlug}.test`,
         adminPassword: 'test123',
       },
     });
 
-    // Get tokens for different user roles
-    const adminResp = await testContext.auth.getRealTenantAdminToken('acme');
-    tenantAdminToken = adminResp.access_token;
-
-    const memberResp = await testContext.auth.getRealTenantMemberToken('acme');
-    tenantMemberToken = memberResp.access_token;
+    // Use mock tokens for integration tests (faster and more reliable)
+    tenantAdminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug);
   });
 
   afterAll(async () => {
@@ -404,14 +405,14 @@ describe('Plugin Permissions Integration Tests', () => {
         method: 'POST',
         url: `/api/tenants/${testTenantId}/plugins/${isolationPluginId}/install`,
         headers: { authorization: `Bearer ${tenantAdminToken}` },
-        payload: { configuration: { scope: 'tenant-acme' } },
+        payload: { configuration: { scope: `tenant-${testTenantSlug}` } },
       });
     });
 
     it('should have separate installations per tenant', async () => {
       // Get demo tenant
       const demoTenant = await db.tenant.findUnique({
-        where: { slug: 'demo' },
+        where: { slug: demoTenantSlug },
       });
 
       // Install in second tenant
@@ -419,7 +420,7 @@ describe('Plugin Permissions Integration Tests', () => {
         method: 'POST',
         url: `/api/tenants/${demoTenant!.id}/plugins/${isolationPluginId}/install`,
         headers: { authorization: `Bearer ${tenantAdminToken}` },
-        payload: { configuration: { scope: 'tenant-demo' } },
+        payload: { configuration: { scope: `tenant-${demoTenantSlug}` } },
       });
 
       // Verify separate installations
@@ -445,7 +446,7 @@ describe('Plugin Permissions Integration Tests', () => {
       });
 
       const demoTenant = await db.tenant.findUnique({
-        where: { slug: 'demo' },
+        where: { slug: demoTenantSlug },
       });
       const demoInstallation = await db.tenantPlugin.findFirst({
         where: { tenantId: demoTenant!.id, pluginId: isolationPluginId },

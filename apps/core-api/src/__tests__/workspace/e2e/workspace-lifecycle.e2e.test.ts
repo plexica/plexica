@@ -4,6 +4,7 @@ import { WorkspaceService } from '../../../modules/workspace/workspace.service.j
 import { db } from '../../../lib/db.js';
 import { WorkspaceRole } from '@plexica/database';
 import { tenantContextStorage, type TenantContext } from '../../../middleware/tenant-context.js';
+import { testDb } from '../../../../../../test-infrastructure/helpers/test-database.helper.js';
 
 /**
  * E2E Tests for Workspace Service
@@ -22,6 +23,9 @@ describe('Workspace E2E Tests', () => {
   let workspaceService: WorkspaceService;
   let testTenantId: string;
   let testUserId: string;
+  let secondUserId: string;
+  let tenantSlug: string;
+  let schemaName: string;
   const createdWorkspaceIds: string[] = [];
   let tenantContext: TenantContext;
 
@@ -33,44 +37,74 @@ describe('Workspace E2E Tests', () => {
   beforeAll(async () => {
     workspaceService = new WorkspaceService();
 
-    // Get test tenant from seeded data (acme-corp)
-    const tenant = await db.tenant.findFirst({
-      where: { slug: 'acme-corp' },
-    });
+    const suffix = Date.now();
+    tenantSlug = `ws-lifecycle-${suffix}`;
 
-    if (!tenant) {
-      throw new Error('Test tenant not found. Please run: pnpm db:seed');
-    }
+    // Create test tenant dynamically (seed data is wiped by e2e-setup)
+    const tenant = await db.tenant.create({
+      data: {
+        slug: tenantSlug,
+        name: 'Workspace Lifecycle Test Tenant',
+        status: 'ACTIVE',
+      },
+    });
 
     testTenantId = tenant.id;
 
-    // Get test user from seeded data
-    const user = await db.user.findFirst({
-      select: { id: true },
-    });
+    // Create the tenant schema with all tables (workspaces, workspace_members, users, teams, etc.)
+    schemaName = await testDb.createTenantSchema(tenantSlug);
 
-    if (!user) {
-      throw new Error('Test user not found. Please run: pnpm db:seed');
-    }
+    // Create test user in core schema
+    const user = await db.user.create({
+      data: {
+        email: `ws-lifecycle-user-${suffix}@example.com`,
+        firstName: 'Test',
+        lastName: 'User',
+        keycloakId: `kc-ws-lifecycle-${suffix}`,
+      },
+    });
 
     testUserId = user.id;
 
-    // Set tenant context
+    // Also insert user into the tenant schema's users table
+    // (required because WorkspaceService joins against the tenant schema users table)
+    await db.$executeRawUnsafe(
+      `INSERT INTO "${schemaName}"."users" (id, keycloak_id, email, first_name, last_name)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING`,
+      user.id,
+      user.keycloakId,
+      user.email,
+      user.firstName,
+      user.lastName
+    );
+
+    // Create a second test user for the add-member test
+    const user2 = await db.user.create({
+      data: {
+        email: `ws-lifecycle-user2-${suffix}@example.com`,
+        firstName: 'Second',
+        lastName: 'User',
+        keycloakId: `kc-ws-lifecycle2-${suffix}`,
+      },
+    });
+
+    secondUserId = user2.id;
+
+    // Set tenant context — use the real tenant schema (which has tenant_id column)
     tenantContext = {
       tenantId: testTenantId,
-      tenantSlug: 'acme-corp',
-      schemaName: 'core', // All data is in core schema with tenantId isolation
+      tenantSlug: tenant.slug,
+      schemaName,
     };
   });
 
   afterAll(async () => {
-    // Cleanup: Delete test workspaces
-    if (createdWorkspaceIds.length > 0) {
-      await db.workspace.deleteMany({
-        where: {
-          id: { in: createdWorkspaceIds },
-        },
-      });
+    // Cleanup: drop the tenant schema (removes all workspace data within it)
+    try {
+      await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+    } catch {
+      // Ignore cleanup errors
     }
 
     await db.$disconnect();
@@ -99,9 +133,10 @@ describe('Workspace E2E Tests', () => {
       createdWorkspaceIds.push(workspace.id);
 
       // Verify in database using raw query to check tenantId
-      const dbWorkspace = await db.$queryRaw<any[]>`
-        SELECT tenant_id, slug, name FROM core.workspaces WHERE id = ${workspace.id}
-      `;
+      const dbWorkspace = await db.$queryRawUnsafe<any[]>(
+        `SELECT tenant_id, slug, name FROM "${schemaName}"."workspaces" WHERE id = $1`,
+        workspace.id
+      );
 
       expect(dbWorkspace[0].tenant_id).toBe(testTenantId);
       expect(dbWorkspace[0].name).toBe('E2E Test Workspace');
@@ -211,9 +246,10 @@ describe('Workspace E2E Tests', () => {
       expect(updated.description).toBe('Updated description');
 
       // Verify in database
-      const dbWorkspace = await db.$queryRaw<any[]>`
-        SELECT name, description FROM core.workspaces WHERE id = ${created.id}
-      `;
+      const dbWorkspace = await db.$queryRawUnsafe<any[]>(
+        `SELECT name, description FROM "${schemaName}"."workspaces" WHERE id = $1`,
+        created.id
+      );
 
       expect(dbWorkspace[0].name).toBe('Updated Name');
       expect(dbWorkspace[0].description).toBe('Updated description');
@@ -222,22 +258,6 @@ describe('Workspace E2E Tests', () => {
 
   describe('Workspace Members', () => {
     it('should add member to workspace', async () => {
-      // Get second user
-      const users = await db.user.findMany({
-        where: {
-          id: { not: testUserId },
-        },
-        select: { id: true },
-        take: 1,
-      });
-
-      if (!users || users.length === 0) {
-        console.warn('Skipping test: need at least 2 users in database');
-        return;
-      }
-
-      const secondUserId = users[0].id;
-
       // Create workspace
       const workspace = await runInContext(async () =>
         workspaceService.create(
@@ -263,16 +283,16 @@ describe('Workspace E2E Tests', () => {
       expect(member.userId).toBe(secondUserId);
       expect(member.role).toBe(WorkspaceRole.MEMBER);
 
-      // Verify in database
-      const dbMember = await db.workspaceMember.findFirst({
-        where: {
-          workspaceId: workspace.id,
-          userId: secondUserId,
-        },
-      });
+      // Verify in database (tenant schema)
+      const dbMembers = await db.$queryRawUnsafe<any[]>(
+        `SELECT * FROM "${schemaName}"."workspace_members"
+         WHERE "workspace_id" = $1 AND "user_id" = $2`,
+        workspace.id,
+        secondUserId
+      );
 
-      expect(dbMember).toBeDefined();
-      expect(dbMember?.role).toBe(WorkspaceRole.MEMBER);
+      expect(dbMembers.length).toBe(1);
+      expect(dbMembers[0].role).toBe(WorkspaceRole.MEMBER);
     });
 
     it('should prevent removing last admin', async () => {
@@ -312,11 +332,12 @@ describe('Workspace E2E Tests', () => {
       await runInContext(async () => workspaceService.delete(workspaceId));
 
       // Verify it's gone from database
-      const dbWorkspace = await db.workspace.findUnique({
-        where: { id: workspaceId },
-      });
+      const dbWorkspace = await db.$queryRawUnsafe<any[]>(
+        `SELECT id FROM "${schemaName}"."workspaces" WHERE id = $1`,
+        workspaceId
+      );
 
-      expect(dbWorkspace).toBeNull();
+      expect(dbWorkspace.length).toBe(0);
     });
 
     it('should prevent deleting workspace with teams', async () => {
@@ -360,9 +381,10 @@ describe('Workspace E2E Tests', () => {
       createdWorkspaceIds.push(workspace.id);
 
       // Verify tenant_id is set in database
-      const dbWorkspace = await db.$queryRaw<any[]>`
-        SELECT tenant_id FROM core.workspaces WHERE id = ${workspace.id}
-      `;
+      const dbWorkspace = await db.$queryRawUnsafe<any[]>(
+        `SELECT tenant_id FROM "${schemaName}"."workspaces" WHERE id = $1`,
+        workspace.id
+      );
 
       expect(dbWorkspace[0].tenant_id).toBe(testTenantId);
     });
@@ -384,9 +406,10 @@ describe('Workspace E2E Tests', () => {
 
       // All workspaces should have correct tenant_id in database
       for (const ws of workspaces) {
-        const dbWs = await db.$queryRaw<any[]>`
-          SELECT tenant_id FROM core.workspaces WHERE id = ${ws.id}
-        `;
+        const dbWs = await db.$queryRawUnsafe<any[]>(
+          `SELECT tenant_id FROM "${schemaName}"."workspaces" WHERE id = $1`,
+          ws.id
+        );
         if (dbWs.length > 0) {
           expect(dbWs[0].tenant_id).toBe(testTenantId);
         }

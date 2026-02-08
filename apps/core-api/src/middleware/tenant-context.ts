@@ -17,6 +17,12 @@ export interface TenantContext {
 // AsyncLocalStorage instance for tenant context
 export const tenantContextStorage = new AsyncLocalStorage<TenantContext>();
 
+// In-memory cache for user-tenant sync to avoid redundant UPSERT queries.
+// Key: `${schemaName}:${userId}`, Value: timestamp of last sync.
+// Entries expire after SYNC_CACHE_TTL_MS to pick up user profile changes.
+const SYNC_CACHE_TTL_MS = 60_000; // 1 minute
+const userSyncCache = new Map<string, number>();
+
 /**
  * Get current tenant context from AsyncLocalStorage
  */
@@ -259,6 +265,13 @@ export async function executeInTenantSchema<T>(
  */
 async function syncUserToTenantSchema(schemaName: string, userInfo: any): Promise<void> {
   try {
+    // Check in-memory cache to avoid redundant UPSERT under concurrent requests
+    const cacheKey = `${schemaName}:${userInfo.id}`;
+    const lastSync = userSyncCache.get(cacheKey);
+    if (lastSync && Date.now() - lastSync < SYNC_CACHE_TTL_MS) {
+      return; // Already synced recently
+    }
+
     // Validate schema name to prevent SQL injection
     if (!/^[a-z0-9_]+$/.test(schemaName)) {
       throw new Error(`Invalid schema name: ${schemaName}`);
@@ -292,8 +305,18 @@ async function syncUserToTenantSchema(schemaName: string, userInfo: any): Promis
          "last_name" = EXCLUDED."last_name",
          "updated_at" = NOW()
      `;
+
+    // Mark as synced
+    userSyncCache.set(cacheKey, Date.now());
   } catch (error) {
     // Log error but don't fail the request
     console.error('Failed to sync user to tenant schema:', error);
   }
+}
+
+/**
+ * Clear the user sync cache. Useful for tests that need fresh sync behavior.
+ */
+export function clearUserSyncCache(): void {
+  userSyncCache.clear();
 }
