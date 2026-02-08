@@ -48,7 +48,7 @@ describe('Workspace Members Integration', () => {
     schemaName = `tenant_${testTenantSlug.replace(/-/g, '_')}`;
 
     // Create test tenant
-    let tenantResponse = await app.inject({
+    const tenantResponse = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
       headers: {

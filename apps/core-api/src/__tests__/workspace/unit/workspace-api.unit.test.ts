@@ -478,13 +478,26 @@ describe('Workspace Integration Tests', () => {
 
     it('should reject adding duplicate member', async () => {
       const mockDb = createMockDb({
+        user: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'user-2',
+            keycloakId: 'kc-user-2',
+            email: 'user2@test.com',
+            firstName: 'User',
+            lastName: 'Two',
+          }),
+          findMany: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
         $transaction: vi.fn(async (callback: any) => {
           const mockTx = {
             $executeRaw: vi.fn().mockResolvedValue(undefined),
             $queryRaw: vi
               .fn()
               .mockResolvedValueOnce([{ id: 'workspace-1' }]) // get workspace
-              .mockResolvedValueOnce([{ user_id: 'user-2', role: WorkspaceRole.MEMBER }]), // user is already a member
+              .mockResolvedValueOnce([{ workspace_id: 'workspace-1' }]), // user is already a member
           };
           return await callback(mockTx);
         }),
@@ -694,19 +707,27 @@ describe('Workspace Integration Tests', () => {
 
   describe('Team Management', () => {
     it('should get teams in workspace', async () => {
-      const mockDb = {
-        team: {
-          findMany: vi.fn().mockResolvedValue([
-            {
-              id: 'team-1',
-              name: 'Engineering',
-              description: 'Engineering team',
-              owner: { id: 'user-1', email: 'owner@test.com' },
-              _count: { members: 3 },
-            },
-          ]),
-        },
-      };
+      const mockDb = createMockDb({
+        $transaction: vi.fn(async (callback: any) => {
+          const mockTx = {
+            $executeRaw: vi.fn().mockResolvedValue(undefined),
+            $queryRaw: vi.fn().mockResolvedValueOnce([
+              {
+                id: 'team-1',
+                workspace_id: 'workspace-1',
+                name: 'Engineering',
+                description: 'Engineering team',
+                owner_id: 'user-1',
+                created_at: new Date(),
+                updated_at: new Date(),
+                owner_user_id: 'user-1',
+                owner_email: 'owner@test.com',
+              },
+            ]),
+          };
+          return await callback(mockTx);
+        }),
+      });
 
       vi.spyOn(workspaceService as any, 'db', 'get').mockReturnValue(mockDb);
 
@@ -718,31 +739,31 @@ describe('Workspace Integration Tests', () => {
 
     it('should create team in workspace', async () => {
       const mockDb = createMockDb({
-        workspace: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'workspace-1', tenantId: 'test-tenant-123' }),
-          findMany: vi.fn(),
-          create: vi.fn(),
-          update: vi.fn(),
-          delete: vi.fn(),
-          updateMany: vi.fn(),
-          deleteMany: vi.fn(),
-          count: vi.fn(),
-        },
-        team: {
-          create: vi.fn().mockResolvedValue({
-            id: 'team-1',
-            workspaceId: 'workspace-1',
-            name: 'Product',
-            description: 'Product team',
-            ownerId: 'user-1',
-            owner: { id: 'user-1', email: 'owner@test.com', firstName: 'Owner', lastName: 'User' },
-          }),
-          findMany: vi.fn(),
-          findFirst: vi.fn(),
-          update: vi.fn(),
-          delete: vi.fn(),
-          count: vi.fn(),
-        },
+        $transaction: vi.fn(async (callback: any) => {
+          const mockTx = {
+            $executeRaw: vi.fn().mockResolvedValue(undefined),
+            $queryRaw: vi
+              .fn()
+              .mockResolvedValueOnce([{ id: 'workspace-1' }]) // verify workspace exists
+              .mockResolvedValueOnce([
+                // fetch the created team
+                {
+                  id: 'team-1',
+                  workspace_id: 'workspace-1',
+                  name: 'Product',
+                  description: 'Product team',
+                  owner_id: 'user-1',
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                  owner_user_id: 'user-1',
+                  owner_email: 'owner@test.com',
+                  owner_first_name: 'Owner',
+                  owner_last_name: 'User',
+                },
+              ]),
+          };
+          return await callback(mockTx);
+        }),
       });
 
       vi.spyOn(workspaceService as any, 'db', 'get').mockReturnValue(mockDb);
@@ -758,11 +779,15 @@ describe('Workspace Integration Tests', () => {
     });
 
     it('should throw error creating team in non-existent workspace', async () => {
-      const mockDb = {
-        workspace: {
-          findFirst: vi.fn().mockResolvedValue(null),
-        },
-      };
+      const mockDb = createMockDb({
+        $transaction: vi.fn(async (callback: any) => {
+          const mockTx = {
+            $executeRaw: vi.fn().mockResolvedValue(undefined),
+            $queryRaw: vi.fn().mockResolvedValueOnce([]), // workspace not found
+          };
+          return await callback(mockTx);
+        }),
+      });
 
       vi.spyOn(workspaceService as any, 'db', 'get').mockReturnValue(mockDb);
 
