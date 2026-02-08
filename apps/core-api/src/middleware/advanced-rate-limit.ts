@@ -24,7 +24,11 @@ export async function advancedRateLimitMiddleware(
     // Add rate limit headers to all responses
     reply.header('RateLimit-Limit', limitStatus.limit.toString());
     reply.header('RateLimit-Remaining', limitStatus.remaining.toString());
-    reply.header('RateLimit-Reset', Math.ceil(limitStatus.resetTime / 1000).toString());
+    // Ensure Reset header is non-negative and expressed in seconds
+    reply.header(
+      'RateLimit-Reset',
+      Math.max(0, Math.ceil(limitStatus.resetTime / 1000)).toString()
+    );
 
     // If rate limit exceeded, return 429
     if (!limitStatus.allowed) {
@@ -35,10 +39,12 @@ export async function advancedRateLimitMiddleware(
         `[RateLimit] Request denied: ${limitStatus.reason} (IP: ${ip}, User: ${userId || 'anonymous'})`
       );
 
+      // Compute a non-negative retryAfter value (seconds)
+      const retryAfterSec = Math.max(0, Math.ceil((limitStatus.resetTime - Date.now()) / 1000));
       return reply.code(429).send({
         error: 'Too Many Requests',
         message: limitStatus.reason || 'Rate limit exceeded',
-        retryAfter: Math.ceil((limitStatus.resetTime - Date.now()) / 1000),
+        retryAfter: retryAfterSec,
       });
     }
   } catch (error) {

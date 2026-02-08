@@ -9,6 +9,52 @@
  */
 
 import { Kafka, Producer, Consumer, Admin, IHeaders } from 'kafkajs';
+import { sanitizeTimeoutMs } from './safe-timeout.helper';
+
+// Workaround: kafkajs RequestQueue may schedule a setTimeout with a negative
+// delay when throttledUntil is far in the past. That causes Node to emit
+// TimeoutNegativeWarning. Patch the prototype in test environment to ensure
+// scheduled delays are non-negative. This keeps tests quiet and avoids noise
+// during integration/E2E runs.
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const RequestQueue = require('kafkajs/src/network/requestQueue');
+  if (RequestQueue && RequestQueue.prototype && !RequestQueue.prototype.__patchedForTests) {
+    const original = RequestQueue.prototype.scheduleCheckPendingRequests;
+    RequestQueue.prototype.scheduleCheckPendingRequests = function patchedSchedule() {
+      try {
+        let scheduleAt = this.throttledUntil - Date.now();
+        if (!this.throttleCheckTimeoutId) {
+          if (this.pending.length > 0) {
+            // prefer a short delay when there are pending requests
+            scheduleAt = scheduleAt > 0 ? scheduleAt : 10; // CHECK_PENDING_REQUESTS_INTERVAL
+          } else {
+            // fallback to a small non-negative delay
+            scheduleAt = scheduleAt > 0 ? scheduleAt : 10;
+          }
+
+          // sanitize and clamp schedule to safe integer range before scheduling
+          const delayMs = Math.max(1, sanitizeTimeoutMs(scheduleAt));
+
+          this.throttleCheckTimeoutId = setTimeout(() => {
+            this.throttleCheckTimeoutId = null;
+            this.checkPendingRequests();
+          }, delayMs);
+        }
+      } catch (err) {
+        // If anything goes wrong, fallback to original implementation
+        try {
+          return original.call(this);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    };
+    RequestQueue.prototype.__patchedForTests = true;
+  }
+} catch (e) {
+  // Best-effort only; if require fails (e.g., different install layout) ignore.
+}
 
 export interface TopicConfig {
   partitions?: number;
@@ -273,9 +319,10 @@ export class TestRedpandaHelper {
     });
 
     return new Promise((resolve, reject) => {
+      const safeTimeout = sanitizeTimeoutMs(timeout);
       const timeoutId = setTimeout(() => {
         consumer.stop().then(() => resolve(messages));
-      }, timeout);
+      }, safeTimeout);
 
       consumer
         .run({
@@ -343,6 +390,7 @@ export class TestRedpandaHelper {
       return await new Promise((resolve, reject) => {
         let resolved = false;
 
+        const safeTimeout = sanitizeTimeoutMs(timeout);
         const timeoutId = setTimeout(async () => {
           if (!resolved) {
             resolved = true;
@@ -351,7 +399,7 @@ export class TestRedpandaHelper {
             } catch {}
             resolve(messages);
           }
-        }, timeout);
+        }, safeTimeout);
 
         consumer
           .run({
