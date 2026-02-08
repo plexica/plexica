@@ -102,6 +102,21 @@ jobs:
         env:
           NODE_ENV: test
           CI: true
+          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5433/plexica_test?schema=core
+          DATABASE_USER: plexica_test
+          KEYCLOAK_URL: http://localhost:8081
+          KEYCLOAK_REALM: plexica-test
+          KEYCLOAK_CLIENT_ID: plexica-test-api
+          KEYCLOAK_CLIENT_SECRET: test-client-secret
+          KEYCLOAK_ADMIN_USERNAME: admin
+          KEYCLOAK_ADMIN_PASSWORD: admin
+          REDIS_HOST: localhost
+          REDIS_PORT: '6380'
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: '9010'
+          MINIO_ACCESS_KEY: minioadmin_test
+          MINIO_SECRET_KEY: minioadmin_test
+          MINIO_USE_SSL: 'false'
 
       - name: Upload unit test results
         if: always()
@@ -127,6 +142,21 @@ jobs:
         env:
           NODE_ENV: test
           CI: true
+          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5433/plexica_test?schema=core
+          DATABASE_USER: plexica_test
+          KEYCLOAK_URL: http://localhost:8081
+          KEYCLOAK_REALM: plexica-test
+          KEYCLOAK_CLIENT_ID: plexica-test-api
+          KEYCLOAK_CLIENT_SECRET: test-client-secret
+          KEYCLOAK_ADMIN_USERNAME: admin
+          KEYCLOAK_ADMIN_PASSWORD: admin
+          REDIS_HOST: localhost
+          REDIS_PORT: '6380'
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: '9010'
+          MINIO_ACCESS_KEY: minioadmin_test
+          MINIO_SECRET_KEY: minioadmin_test
+          MINIO_USE_SSL: 'false'
 
       - name: Upload integration test results
         if: always()
@@ -152,6 +182,21 @@ jobs:
         env:
           NODE_ENV: test
           CI: true
+          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5433/plexica_test?schema=core
+          DATABASE_USER: plexica_test
+          KEYCLOAK_URL: http://localhost:8081
+          KEYCLOAK_REALM: plexica-test
+          KEYCLOAK_CLIENT_ID: plexica-test-api
+          KEYCLOAK_CLIENT_SECRET: test-client-secret
+          KEYCLOAK_ADMIN_USERNAME: admin
+          KEYCLOAK_ADMIN_PASSWORD: admin
+          REDIS_HOST: localhost
+          REDIS_PORT: '6380'
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: '9010'
+          MINIO_ACCESS_KEY: minioadmin_test
+          MINIO_SECRET_KEY: minioadmin_test
+          MINIO_USE_SSL: 'false'
 
       - name: Upload E2E test results
         if: always()
@@ -173,6 +218,21 @@ jobs:
         env:
           NODE_ENV: test
           CI: true
+          DATABASE_URL: postgresql://plexica_test:plexica_test_password@localhost:5433/plexica_test?schema=core
+          DATABASE_USER: plexica_test
+          KEYCLOAK_URL: http://localhost:8081
+          KEYCLOAK_REALM: plexica-test
+          KEYCLOAK_CLIENT_ID: plexica-test-api
+          KEYCLOAK_CLIENT_SECRET: test-client-secret
+          KEYCLOAK_ADMIN_USERNAME: admin
+          KEYCLOAK_ADMIN_PASSWORD: admin
+          REDIS_HOST: localhost
+          REDIS_PORT: '6380'
+          MINIO_ENDPOINT: localhost
+          MINIO_PORT: '9010'
+          MINIO_ACCESS_KEY: minioadmin_test
+          MINIO_SECRET_KEY: minioadmin_test
+          MINIO_USE_SSL: 'false'
 
       # =============================================================================
       # COVERAGE REPORTING
