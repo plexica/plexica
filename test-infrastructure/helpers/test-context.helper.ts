@@ -62,10 +62,21 @@ export class TestContext {
     // Tests use pre-created realms (plexica-test, etc.) and don't create new ones
     // that need cleanup. If needed, delete via deleteAllTestRealms() explicitly.
 
-    // Reset database (lightweight)
-    console.log('  - Resetting database (lightweight)...');
-    await this.db.reset();
-    console.log('    ✓ Database reset');
+    // Reset database
+    // By default we do a lightweight reset (truncate core) for speed. In some
+    // failing integration scenarios (schema/permission leftovers between runs)
+    // a full reset (drop and recreate tenant schemas) is more reliable but
+    // expensive. Toggle with TEST_FULL_RESET=true in your environment when
+    // debugging provisioning failures.
+    if (process.env.TEST_FULL_RESET === 'true') {
+      console.log('  - Performing FULL database reset (drop tenant schemas)...');
+      await this.db.fullReset();
+      console.log('    ✓ Full database reset complete');
+    } else {
+      console.log('  - Resetting database (lightweight)...');
+      await this.db.reset();
+      console.log('    ✓ Database reset');
+    }
 
     // Clean up MinIO buckets
     console.log('  - Cleaning MinIO buckets...');
