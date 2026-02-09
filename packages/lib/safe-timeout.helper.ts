@@ -1,4 +1,4 @@
-// Utility to sanitize timeout durations before passing to setTimeout
+// Shared utility used across packages to sanitize timeout durations
 export const MAX_NODE_TIMEOUT_MS = 0x7fffffff; // 2^31-1
 
 export function sanitizeTimeoutMs(ms: number | undefined | null): number {

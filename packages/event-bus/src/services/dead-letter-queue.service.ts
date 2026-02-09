@@ -4,7 +4,7 @@ import { TopicManager } from './topic-manager';
 import { RedpandaClient } from './redpanda-client';
 import type { Producer } from 'kafkajs';
 import { eventMetrics } from '../metrics/event-metrics';
-import { sanitizeTimeoutMs } from '../lib/safe-timeout.helper';
+import { sanitizeTimeoutMs } from '../../../lib/safe-timeout.helper';
 
 /**
  * Failed event record stored in DLQ

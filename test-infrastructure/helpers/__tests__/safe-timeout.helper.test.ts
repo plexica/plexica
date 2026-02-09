@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeTimeoutMs, MAX_NODE_TIMEOUT_MS } from '../safe-timeout.helper';
+import { sanitizeTimeoutMs, MAX_NODE_TIMEOUT_MS } from '../../../packages/lib/safe-timeout.helper';
 
 describe('sanitizeTimeoutMs', () => {
   it('returns 0 for undefined or null', () => {

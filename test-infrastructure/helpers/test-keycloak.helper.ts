@@ -10,7 +10,7 @@
 
 import KcAdminClient from '@keycloak/keycloak-admin-client';
 import axios from 'axios';
-import { sanitizeTimeoutMs } from './safe-timeout.helper';
+import { sanitizeTimeoutMs } from '../../packages/lib/safe-timeout.helper';
 
 export interface TestUser {
   username: string;

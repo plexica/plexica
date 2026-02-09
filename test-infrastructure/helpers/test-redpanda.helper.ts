@@ -9,7 +9,7 @@
  */
 
 import { Kafka, Producer, Consumer, Admin, IHeaders } from 'kafkajs';
-import { sanitizeTimeoutMs } from './safe-timeout.helper';
+import { sanitizeTimeoutMs } from '../../packages/lib/safe-timeout.helper';
 
 // Workaround: kafkajs RequestQueue may schedule a setTimeout with a negative
 // delay when throttledUntil is far in the past. That causes Node to emit
@@ -18,39 +18,81 @@ import { sanitizeTimeoutMs } from './safe-timeout.helper';
 // during integration/E2E runs.
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const RequestQueue = require('kafkajs/src/network/requestQueue');
-  if (RequestQueue && RequestQueue.prototype && !RequestQueue.prototype.__patchedForTests) {
-    const original = RequestQueue.prototype.scheduleCheckPendingRequests;
-    RequestQueue.prototype.scheduleCheckPendingRequests = function patchedSchedule() {
-      try {
-        let scheduleAt = this.throttledUntil - Date.now();
-        if (!this.throttleCheckTimeoutId) {
-          if (this.pending.length > 0) {
-            // prefer a short delay when there are pending requests
-            scheduleAt = scheduleAt > 0 ? scheduleAt : 10; // CHECK_PENDING_REQUESTS_INTERVAL
-          } else {
-            // fallback to a small non-negative delay
-            scheduleAt = scheduleAt > 0 ? scheduleAt : 10;
+  const path = require('path');
+  const resolvedCandidates = [];
+
+  try {
+    const pkgRoot = path.dirname(require.resolve('kafkajs/package.json'));
+    resolvedCandidates.push(path.join(pkgRoot, 'src', 'network', 'requestQueue'));
+    resolvedCandidates.push(path.join(pkgRoot, 'dist', 'src', 'network', 'requestQueue'));
+  } catch (e) {
+    // ignore
+  }
+
+  // common package-relative path fallback
+  resolvedCandidates.push('kafkajs/src/network/requestQueue');
+  resolvedCandidates.push('kafkajs/dist/src/network/requestQueue');
+
+  let patched = false;
+  for (const candidate of resolvedCandidates) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const RequestQueue = require(candidate);
+      if (RequestQueue && RequestQueue.prototype && !RequestQueue.prototype.__patchedForTests) {
+        const original = RequestQueue.prototype.scheduleCheckPendingRequests;
+        RequestQueue.prototype.scheduleCheckPendingRequests = function patchedSchedule() {
+          try {
+            let scheduleAt = this.throttledUntil - Date.now();
+            if (!this.throttleCheckTimeoutId) {
+              // prefer a small positive delay when scheduleAt would be negative
+              scheduleAt = scheduleAt > 0 ? scheduleAt : 10;
+
+              // sanitize and clamp schedule to safe integer range before scheduling
+              const delayMs = Math.max(1, sanitizeTimeoutMs(scheduleAt));
+
+              this.throttleCheckTimeoutId = setTimeout(() => {
+                this.throttleCheckTimeoutId = null;
+                this.checkPendingRequests();
+              }, delayMs);
+            }
+          } catch (err) {
+            // If anything goes wrong, fallback to original implementation
+            try {
+              return original.call(this);
+            } catch (_) {
+              /* ignore */
+            }
           }
-
-          // sanitize and clamp schedule to safe integer range before scheduling
-          const delayMs = Math.max(1, sanitizeTimeoutMs(scheduleAt));
-
-          this.throttleCheckTimeoutId = setTimeout(() => {
-            this.throttleCheckTimeoutId = null;
-            this.checkPendingRequests();
-          }, delayMs);
-        }
-      } catch (err) {
-        // If anything goes wrong, fallback to original implementation
-        try {
-          return original.call(this);
-        } catch (_) {
-          /* ignore */
-        }
+        };
+        RequestQueue.prototype.__patchedForTests = true;
+        patched = true;
+        // eslint-disable-next-line no-console
+        console.log(`🔧 Patched kafkajs RequestQueue via: ${candidate}`);
+        break;
       }
-    };
-    RequestQueue.prototype.__patchedForTests = true;
+    } catch (err) {
+      // require failed for this candidate — try next
+    }
+  }
+
+  if (!patched) {
+    // As a last-resort: listen for negative timeout warnings and suppress them in tests
+    // This is only a safety-net for flaky environments where the internal module path differs.
+    // eslint-disable-next-line no-console
+    console.warn('⚠️ Could not patch kafkajs RequestQueue; installing warning filter as fallback');
+    process.on('warning', (warning) => {
+      if (
+        warning &&
+        typeof warning.message === 'string' &&
+        warning.name === 'TimeoutNegativeWarning'
+      ) {
+        // swallow the specific TimeoutNegativeWarning originating from kafkajs scheduling
+        return;
+      }
+      // re-emit other warnings
+      // eslint-disable-next-line no-console
+      console.warn(warning);
+    });
   }
 } catch (e) {
   // Best-effort only; if require fails (e.g., different install layout) ignore.
@@ -199,6 +241,26 @@ export class TestRedpandaHelper {
       waitForLeaders: true,
       timeout: 10000,
     });
+
+    // Ensure metadata is propagated and leader is assigned for each partition.
+    // Some Redpanda/Kafka setups take a short moment before topic-partition leaders are available.
+    const maxWaitMs = 5000;
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      try {
+        const metadata = await admin.fetchTopicMetadata({ topics: [topicName] });
+        const topic = metadata.topics && metadata.topics[0];
+        if (topic && topic.partitions && topic.partitions.length > 0) {
+          const allHaveLeader = topic.partitions.every(
+            (p: any) => typeof p.leader === 'number' && p.leader >= 0
+          );
+          if (allHaveLeader) return;
+        }
+      } catch (err) {
+        // ignore and retry
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
   }
 
   /**
