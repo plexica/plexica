@@ -116,17 +116,28 @@ export class TenantService {
 
       return activeTenant;
     } catch (error) {
-      // If provisioning fails, update status to indicate failure
-      await this.db.tenant.update({
-        where: { id: tenant.id },
-        data: {
-          status: TenantStatus.SUSPENDED,
-          settings: {
-            ...settings,
-            provisioningError: error instanceof Error ? error.message : 'Unknown error',
+      // If provisioning fails, attempt to update tenant status to indicate failure.
+      // It's possible the tenant record was removed concurrently (tests/cleanup), so
+      // guard the update and log if the record no longer exists instead of throwing
+      // an additional error that masks the original provisioning failure.
+      try {
+        await this.db.tenant.update({
+          where: { id: tenant.id },
+          data: {
+            status: TenantStatus.SUSPENDED,
+            settings: {
+              ...settings,
+              provisioningError: error instanceof Error ? error.message : 'Unknown error',
+            },
           },
-        },
-      });
+        });
+      } catch (updateErr) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `Could not update tenant status for id=${tenant?.id}:`,
+          updateErr instanceof Error ? updateErr.message : String(updateErr)
+        );
+      }
 
       throw new Error(
         `Failed to provision tenant: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -148,8 +159,23 @@ export class TenantService {
 
     // Grant privileges to the current database user
     // In production: plexica, in test: plexica_test
+    // Quote the identifier to avoid SQL errors if the username contains special chars
     const dbUser = process.env.DATABASE_USER || 'plexica';
-    await this.db.$executeRawUnsafe(`GRANT ALL PRIVILEGES ON SCHEMA "${schemaName}" TO ${dbUser}`);
+    try {
+      await this.db.$executeRawUnsafe(
+        `GRANT ALL PRIVILEGES ON SCHEMA "${schemaName}" TO "${dbUser}"`
+      );
+    } catch (err) {
+      // Surface helpful debugging information for CI/local debugging
+      // Re-throw after logging so provisioning fails loudly instead of producing cryptic downstream errors
+      // (e.g. missing privileges causing later CREATE TABLE to silently fail)
+      // eslint-disable-next-line no-console
+      console.error(
+        `Failed granting privileges on schema ${schemaName} to user ${dbUser}:`,
+        err instanceof Error ? err.message : String(err)
+      );
+      throw err;
+    }
 
     // Create initial tables for tenant (users, roles, etc.)
     // This will be expanded with actual tenant-specific tables
