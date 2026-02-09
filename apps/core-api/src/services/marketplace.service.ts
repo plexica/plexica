@@ -11,7 +11,7 @@
  */
 
 import { db } from '../lib/db.js';
-import { PluginStatus, type PrismaClient } from '@plexica/database';
+import { PluginStatus, Prisma, type PrismaClient } from '@plexica/database';
 import type {
   PublishPluginDto,
   PublishVersionDto,
@@ -184,7 +184,7 @@ export class MarketplaceService {
         id: dto.id,
         name: dto.name,
         version: dto.version,
-        manifest: dto.manifest,
+        manifest: dto.manifest as Prisma.InputJsonValue,
         status: PluginStatus.DRAFT,
         description: dto.description,
         longDescription: dto.longDescription,
@@ -202,7 +202,7 @@ export class MarketplaceService {
           create: {
             version: dto.version,
             changelog: dto.changelog || 'Initial release',
-            manifest: dto.manifest,
+            manifest: dto.manifest as Prisma.InputJsonValue,
             assetUrl: dto.assetUrl,
             isLatest: true,
           },
@@ -271,7 +271,7 @@ export class MarketplaceService {
         pluginId,
         version: dto.version,
         changelog: dto.changelog,
-        manifest: dto.manifest,
+        manifest: dto.manifest as Prisma.InputJsonValue,
         assetUrl: dto.assetUrl,
         isLatest: dto.setAsLatest,
       },
@@ -283,7 +283,7 @@ export class MarketplaceService {
         where: { id: pluginId },
         data: {
           version: dto.version,
-          manifest: dto.manifest,
+          manifest: dto.manifest as Prisma.InputJsonValue,
         },
       });
     }
@@ -627,7 +627,7 @@ export class MarketplaceService {
         tenantId,
         pluginId,
         enabled: true,
-        configuration: dto.configuration || {},
+        configuration: (dto.configuration || {}) as Prisma.InputJsonValue,
       },
     });
 

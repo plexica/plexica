@@ -1,6 +1,35 @@
-// @ts-nocheck
 import { FastifyPluginAsync } from 'fastify';
-import type { DeadLetterQueueService } from '@plexica/event-bus';
+import type { DeadLetterQueueService, EventBusService } from '@plexica/event-bus';
+import { requireSuperAdmin } from '../middleware/auth.js';
+
+/**
+ * Augment FastifyInstance with the eventBus property.
+ * The eventBus is registered via server.decorate() in the application setup.
+ */
+declare module 'fastify' {
+  interface FastifyInstance {
+    eventBus?: EventBusService;
+  }
+}
+
+/**
+ * Helper to get the DLQ service from the server instance.
+ * Returns undefined if eventBus is not registered or DLQ is unavailable.
+ */
+function getDLQServiceFrom(server: {
+  eventBus?: EventBusService;
+}): DeadLetterQueueService | undefined {
+  return server.eventBus?.getDLQService();
+}
+
+/** Shared error response schema for 503 / 500 */
+const errorResponseSchema = {
+  type: 'object' as const,
+  properties: {
+    error: { type: 'string' as const },
+    message: { type: 'string' as const },
+  },
+};
 
 /**
  * DLQ Routes
@@ -8,9 +37,6 @@ import type { DeadLetterQueueService } from '@plexica/event-bus';
  * REST API endpoints for managing Dead Letter Queue
  */
 const dlqRoutes: FastifyPluginAsync = async (server) => {
-  // Note: In production, this would be injected via dependency injection
-  // For now, we assume it's available in server.eventBus.getDLQService()
-
   /**
    * GET /api/dlq/stats
    * Get DLQ statistics
@@ -18,6 +44,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
   server.get(
     '/stats',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         tags: ['dlq'],
         summary: 'Get DLQ statistics',
@@ -34,12 +61,14 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
               byReason: { type: 'object' },
             },
           },
+          500: errorResponseSchema,
+          503: errorResponseSchema,
         },
       },
     },
     async (_request, reply) => {
       try {
-        const dlqService = (server as any).eventBus?.getDLQService() as DeadLetterQueueService;
+        const dlqService = getDLQServiceFrom(server);
 
         if (!dlqService) {
           return reply.code(503).send({
@@ -50,7 +79,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
         const stats = dlqService.getStats();
         return stats;
       } catch (error) {
-        server.log.error({ error }, 'Error getting DLQ stats:');
+        server.log.error({ err: error }, 'Error getting DLQ stats');
         return reply.code(500).send({
           error: 'Failed to get DLQ statistics',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -74,6 +103,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
   }>(
     '/events',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         tags: ['dlq'],
         summary: 'List failed events',
@@ -102,12 +132,14 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
               offset: { type: 'number' },
             },
           },
+          500: errorResponseSchema,
+          503: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       try {
-        const dlqService = (server as any).eventBus?.getDLQService() as DeadLetterQueueService;
+        const dlqService = getDLQServiceFrom(server);
 
         if (!dlqService) {
           return reply.status(503).send({
@@ -133,7 +165,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
           offset,
         };
       } catch (error) {
-        server.log.error('Error listing DLQ events:', error);
+        server.log.error({ err: error }, 'Error listing DLQ events');
         return reply.status(500).send({
           error: 'Failed to list DLQ events',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -153,6 +185,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
   }>(
     '/events/:id',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         tags: ['dlq'],
         summary: 'Get failed event details',
@@ -174,12 +207,14 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
               error: { type: 'string' },
             },
           },
+          500: errorResponseSchema,
+          503: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       try {
-        const dlqService = (server as any).eventBus?.getDLQService() as DeadLetterQueueService;
+        const dlqService = getDLQServiceFrom(server);
 
         if (!dlqService) {
           return reply.status(503).send({
@@ -198,7 +233,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
 
         return failedEvent;
       } catch (error) {
-        server.log.error('Error getting DLQ event:', error);
+        server.log.error({ err: error }, 'Error getting DLQ event');
         return reply.status(500).send({
           error: 'Failed to get DLQ event',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -218,6 +253,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
   }>(
     '/events/:id/retry',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         tags: ['dlq'],
         summary: 'Retry failed event',
@@ -243,12 +279,14 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
               error: { type: 'string' },
             },
           },
+          500: errorResponseSchema,
+          503: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       try {
-        const dlqService = (server as any).eventBus?.getDLQService() as DeadLetterQueueService;
+        const dlqService = getDLQServiceFrom(server);
 
         if (!dlqService) {
           return reply.status(503).send({
@@ -268,7 +306,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
             : 'Event retry failed, check DLQ for details',
         };
       } catch (error) {
-        server.log.error('Error retrying DLQ event:', error);
+        server.log.error({ err: error }, 'Error retrying DLQ event');
 
         if (error instanceof Error && error.message.includes('not found')) {
           return reply.status(404).send({
@@ -295,6 +333,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
   }>(
     '/retry/topic/:topic',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         tags: ['dlq'],
         summary: 'Retry all events for topic',
@@ -314,12 +353,14 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
               failed: { type: 'number' },
             },
           },
+          500: errorResponseSchema,
+          503: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       try {
-        const dlqService = (server as any).eventBus?.getDLQService() as DeadLetterQueueService;
+        const dlqService = getDLQServiceFrom(server);
 
         if (!dlqService) {
           return reply.status(503).send({
@@ -332,7 +373,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
 
         return result;
       } catch (error) {
-        server.log.error('Error retrying events for topic:', error);
+        server.log.error({ err: error }, 'Error retrying events for topic');
         return reply.status(500).send({
           error: 'Failed to retry events',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -352,6 +393,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
   }>(
     '/events/:id',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         tags: ['dlq'],
         summary: 'Delete failed event',
@@ -377,12 +419,14 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
               error: { type: 'string' },
             },
           },
+          500: errorResponseSchema,
+          503: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       try {
-        const dlqService = (server as any).eventBus?.getDLQService() as DeadLetterQueueService;
+        const dlqService = getDLQServiceFrom(server);
 
         if (!dlqService) {
           return reply.status(503).send({
@@ -398,7 +442,7 @@ const dlqRoutes: FastifyPluginAsync = async (server) => {
           message: 'Failed event deleted successfully',
         };
       } catch (error) {
-        server.log.error('Error deleting DLQ event:', error);
+        server.log.error({ err: error }, 'Error deleting DLQ event');
 
         if (error instanceof Error && error.message.includes('not found')) {
           return reply.status(404).send({

@@ -3,6 +3,10 @@ import axios from 'axios';
 import { config } from '../config/index.js';
 import { verifyKeycloakToken, extractUserInfo } from '../lib/jwt.js';
 
+// SECURITY: Regex to validate tenant slugs before interpolating into Keycloak URLs.
+// Prevents SSRF by ensuring the slug cannot contain path traversal characters.
+const TENANT_SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
+
 // Token response from Keycloak
 interface TokenResponse {
   access_token: string;
@@ -107,6 +111,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       try {
         const { username, password, tenant } = request.body;
 
+        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
+        if (!TENANT_SLUG_REGEX.test(tenant)) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Invalid tenant slug format',
+          });
+        }
+
         // Get token from Keycloak
         const tokenUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/token`;
 
@@ -199,6 +211,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       try {
         const { refreshToken, tenant } = request.body;
 
+        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
+        if (!TENANT_SLUG_REGEX.test(tenant)) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Invalid tenant slug format',
+          });
+        }
+
         // Refresh token with Keycloak
         const tokenUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/token`;
 
@@ -277,6 +297,14 @@ export async function authRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const { refreshToken, tenant } = request.body;
+
+        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
+        if (!TENANT_SLUG_REGEX.test(tenant)) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Invalid tenant slug format',
+          });
+        }
 
         // Logout from Keycloak
         const logoutUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/logout`;

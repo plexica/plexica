@@ -64,19 +64,29 @@ export class TestDatabaseHelper {
    */
   async truncateCore(): Promise<void> {
     try {
-      await this.prisma.$executeRawUnsafe(`
-        DO $$
-        DECLARE
-            r RECORD;
-        BEGIN
-            SET session_replication_role = replica;
-            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'core')
-            LOOP
-                EXECUTE 'TRUNCATE TABLE core.' || quote_ident(r.tablename) || ' CASCADE';
-            END LOOP;
-            SET session_replication_role = DEFAULT;
-        END $$;
-      `);
+      // Fetch all table names in the 'core' schema and truncate them individually.
+      // Using multiple single-statement calls avoids issues with multi-statement
+      // blocks and keeps the queries visible to Prisma's query runner.
+      // Use the native pg pool for read queries to avoid Prisma raw query limitations
+      const res = await this.pool.query(`SELECT tablename FROM pg_tables WHERE schemaname = $1`, [
+        'core',
+      ]);
+      const tables: Array<{ tablename: string }> = res.rows || [];
+
+      if (!tables || tables.length === 0) return;
+
+      // Temporarily disable triggers/foreign key checks by setting replication role
+      await this.prisma.$executeRawUnsafe(`SET session_replication_role = 'replica'`);
+
+      for (const row of tables) {
+        const table = row.tablename;
+        // Quote the identifier to be safe against reserved words
+        await this.prisma.$executeRawUnsafe(
+          `TRUNCATE TABLE core."${table.replace(/"/g, '""')}" CASCADE`
+        );
+      }
+
+      await this.prisma.$executeRawUnsafe(`SET session_replication_role = DEFAULT`);
     } catch (error: any) {
       console.error('❌ truncateCore failed:');
       console.error('  Message:', error.message);

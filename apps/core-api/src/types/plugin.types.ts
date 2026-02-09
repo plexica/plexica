@@ -53,7 +53,7 @@ export interface PluginConfigField {
   label: string;
   description?: string;
   required?: boolean;
-  default?: any;
+  default?: unknown;
   options?: Array<{ value: string; label: string }>;
   validation?: {
     min?: number;
@@ -104,10 +104,10 @@ export interface PluginApiService {
     /** Required permissions to call this endpoint */
     permissions?: string[];
     /** Custom metadata for the endpoint */
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }>;
   /** Service-level metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -233,7 +233,7 @@ export interface PluginInstallation {
   pluginId: string;
   status: PluginLifecycleStatus;
   version: string;
-  configuration: Record<string, any>;
+  configuration: Record<string, unknown>;
   enabled: boolean;
   installedAt: Date;
   lastActivated?: Date;
@@ -249,7 +249,7 @@ export interface PluginHookContext {
   workspaceId?: string;
   userId?: string;
   pluginId: string;
-  data: any;
+  data: unknown;
 
   // Event capabilities (added in M2.1)
   events?: {
@@ -265,7 +265,7 @@ export interface PluginHookContext {
 
     subscribe: (
       eventName: string,
-      handler: (event: any) => Promise<void>,
+      handler: (event: unknown) => Promise<void>,
       options?: {
         workspaceId?: string;
         fromBeginning?: boolean;
@@ -279,7 +279,7 @@ export interface PluginHookContext {
 /**
  * Plugin hook handler
  */
-export type PluginHookHandler = (context: PluginHookContext) => Promise<any>;
+export type PluginHookHandler = (context: PluginHookContext) => Promise<unknown>;
 
 /**
  * Plugin registry entry

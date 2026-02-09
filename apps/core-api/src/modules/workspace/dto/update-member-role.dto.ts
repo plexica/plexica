@@ -1,12 +1,21 @@
-/**
- * DTO for updating a workspace member's role
- */
-export interface UpdateMemberRoleDto {
-  role: 'ADMIN' | 'MEMBER' | 'VIEWER';
-}
+import { z } from 'zod';
+
+const WORKSPACE_ROLES = ['ADMIN', 'MEMBER', 'VIEWER'] as const;
 
 /**
- * Validation schema for UpdateMemberRoleDto
+ * Zod schema for updating a workspace member's role
+ */
+export const UpdateMemberRoleSchema = z.object({
+  role: z.enum(WORKSPACE_ROLES, { error: 'role must be one of: ADMIN, MEMBER, VIEWER' }),
+});
+
+/**
+ * DTO type for updating a member's role (inferred from Zod schema)
+ */
+export type UpdateMemberRoleDto = z.infer<typeof UpdateMemberRoleSchema>;
+
+/**
+ * Fastify JSON Schema for request validation (used in route schema definitions)
  */
 export const updateMemberRoleSchema = {
   type: 'object',
@@ -22,16 +31,13 @@ export const updateMemberRoleSchema = {
 };
 
 /**
- * Validate UpdateMemberRoleDto
+ * Validate UpdateMemberRoleDto using Zod
+ * Returns an array of error messages (empty if valid)
  */
-export function validateUpdateMemberRole(data: any): string[] {
-  const errors: string[] = [];
-
-  if (!data.role) {
-    errors.push('role is required');
-  } else if (!['ADMIN', 'MEMBER', 'VIEWER'].includes(data.role)) {
-    errors.push('role must be one of: ADMIN, MEMBER, VIEWER');
+export function validateUpdateMemberRole(data: unknown): string[] {
+  const result = UpdateMemberRoleSchema.safeParse(data);
+  if (result.success) {
+    return [];
   }
-
-  return errors;
+  return result.error.issues.map((issue) => issue.message);
 }

@@ -5,13 +5,18 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { ServiceRegistryService, ServiceRegistration } from '../services/service-registry.service';
-import { PluginApiGateway, PluginApiCallRequest } from '../services/plugin-api-gateway.service';
-import { SharedDataService, SetDataOptions } from '../services/shared-data.service';
+import {
+  ServiceRegistryService,
+  ServiceRegistration,
+} from '../services/service-registry.service.js';
+import { PluginApiGateway, PluginApiCallRequest } from '../services/plugin-api-gateway.service.js';
+import { SharedDataService, SetDataOptions } from '../services/shared-data.service.js';
 import {
   DependencyResolutionService,
   DependencyDefinition,
-} from '../services/dependency-resolution.service';
+} from '../services/dependency-resolution.service.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { ServiceStatus } from '@plexica/database';
 
 // ===== Helper Functions =====
 
@@ -128,7 +133,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.post<{ Body: ServiceRegistration }>(
     '/api/plugin-gateway/services/register',
-    { schema: serviceRegistrationSchema },
+    { preHandler: [authMiddleware], schema: serviceRegistrationSchema },
     async (request: FastifyRequest<{ Body: ServiceRegistration }>, reply: FastifyReply) => {
       // Get tenant slug from header
       const tenantSlug = request.headers['x-tenant-slug'];
@@ -166,6 +171,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.delete<{ Params: { pluginId: string; serviceName: string } }>(
     '/api/plugin-gateway/services/:pluginId/:serviceName',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -196,6 +202,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.get<{ Params: { serviceName: string } }>(
     '/api/plugin-gateway/services/discover/:serviceName',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -228,8 +235,9 @@ export async function pluginGatewayRoutes(
    * GET /api/plugin-gateway/services
    * List all services for tenant
    */
-  fastify.get<{ Querystring: { pluginId?: string; status?: string } }>(
+  fastify.get<{ Querystring: { pluginId?: string; status?: ServiceStatus } }>(
     '/api/plugin-gateway/services',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -240,7 +248,7 @@ export async function pluginGatewayRoutes(
         const { pluginId, status } = request.query;
         const services = await serviceRegistry.listServices(tenantSlug, {
           pluginId,
-          status: status as any,
+          status,
         });
 
         reply.send({ services, count: services.length });
@@ -260,6 +268,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.post<{ Params: { serviceId: string } }>(
     '/api/plugin-gateway/services/:serviceId/heartbeat',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -288,7 +297,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.post<{ Body: PluginApiCallRequest & { callerPluginId: string } }>(
     '/api/plugin-gateway/call',
-    { schema: apiCallSchema },
+    { preHandler: [authMiddleware], schema: apiCallSchema },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -323,28 +332,32 @@ export async function pluginGatewayRoutes(
    * Set shared data
    */
   fastify.post<{
-    Body: { namespace: string; key: string; value: any; ownerId: string; ttl?: number };
-  }>('/api/plugin-gateway/shared-data', { schema: sharedDataSetSchema }, async (request, reply) => {
-    const tenantSlug = getTenantSlugFromHeaders(request);
-    if (!tenantSlug) {
-      return reply.status(401).send({ error: 'X-Tenant-Slug header required' });
+    Body: { namespace: string; key: string; value: unknown; ownerId: string; ttl?: number };
+  }>(
+    '/api/plugin-gateway/shared-data',
+    { preHandler: [authMiddleware], schema: sharedDataSetSchema },
+    async (request, reply) => {
+      const tenantSlug = getTenantSlugFromHeaders(request);
+      if (!tenantSlug) {
+        return reply.status(401).send({ error: 'X-Tenant-Slug header required' });
+      }
+
+      try {
+        const { namespace, key, value, ownerId, ttl } = request.body;
+        const options: SetDataOptions = ttl ? { ttl } : {};
+
+        await sharedData.set(tenantSlug, namespace, key, value, ownerId, options);
+
+        reply.status(201).send({ success: true, message: 'Data stored successfully' });
+      } catch (error) {
+        fastify.log.error({ error }, 'Failed to set shared data');
+        reply.status(500).send({
+          error: 'Failed to set shared data',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     }
-
-    try {
-      const { namespace, key, value, ownerId, ttl } = request.body;
-      const options: SetDataOptions = ttl ? { ttl } : {};
-
-      await sharedData.set(tenantSlug, namespace, key, value, ownerId, options);
-
-      reply.status(201).send({ success: true, message: 'Data stored successfully' });
-    } catch (error) {
-      fastify.log.error({ error }, 'Failed to set shared data');
-      reply.status(500).send({
-        error: 'Failed to set shared data',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  });
+  );
 
   /**
    * GET /api/plugin-gateway/shared-data/:namespace/:key
@@ -352,6 +365,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.get<{ Params: { namespace: string; key: string } }>(
     '/api/plugin-gateway/shared-data/:namespace/:key',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -383,6 +397,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.delete<{ Params: { namespace: string; key: string } }>(
     '/api/plugin-gateway/shared-data/:namespace/:key',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -414,6 +429,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.get<{ Params: { namespace: string }; Querystring: { ownerId?: string } }>(
     '/api/plugin-gateway/shared-data/:namespace',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -445,7 +461,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.post<{ Body: { dependencies: DependencyDefinition[] } }>(
     '/api/plugin-gateway/dependencies',
-    { schema: dependenciesSchema },
+    { preHandler: [authMiddleware], schema: dependenciesSchema },
     async (request, reply) => {
       try {
         const { dependencies } = request.body;
@@ -468,6 +484,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.post<{ Params: { pluginId: string } }>(
     '/api/plugin-gateway/dependencies/:pluginId/resolve',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {
@@ -503,6 +520,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.get<{ Params: { pluginId: string }; Querystring: { recursive?: string } }>(
     '/api/plugin-gateway/dependencies/:pluginId',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
         const { pluginId } = request.params;
@@ -527,6 +545,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.get<{ Params: { pluginId: string } }>(
     '/api/plugin-gateway/dependencies/:pluginId/dependents',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       try {
         const { pluginId } = request.params;
@@ -549,6 +568,7 @@ export async function pluginGatewayRoutes(
    */
   fastify.post<{ Params: { pluginId: string } }>(
     '/api/plugin-gateway/dependencies/:pluginId/can-uninstall',
+    { preHandler: [authMiddleware] },
     async (request, reply) => {
       const tenantSlug = getTenantSlugFromHeaders(request);
       if (!tenantSlug) {

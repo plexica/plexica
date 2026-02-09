@@ -1,13 +1,22 @@
-// @ts-nocheck
 import { db } from '../lib/db.js';
 import type { PluginManifest } from '../types/plugin.types.js';
-import { PluginStatus } from '@plexica/database';
+import {
+  PluginStatus,
+  Prisma,
+  type Plugin,
+  type TenantPlugin,
+  type Tenant,
+} from '@plexica/database';
 import { validatePluginManifest } from '../schemas/plugin-manifest.schema.js';
 import { ServiceRegistryService } from './service-registry.service.js';
 import { DependencyResolutionService } from './dependency-resolution.service.js';
 import { redis } from '../lib/redis.js';
 import semver from 'semver';
 import { TENANT_STATUS } from '../constants/index.js';
+
+// Type for TenantPlugin with related Plugin record
+type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
+type TenantPluginWithPluginAndTenant = TenantPlugin & { plugin: Plugin; tenant: Tenant };
 
 /**
  * Plugin Registry Service
@@ -22,20 +31,22 @@ export class PluginRegistryService {
     // Debug logging disabled in production
     const isProduction = process.env.NODE_ENV === 'production';
     const silentLogger = {
-      info: isProduction ? () => {} : (...args: any[]) => console.log('[INFO]', ...args),
-      error: (...args: any[]) => console.error('[ERROR]', ...args),
-      warn: (...args: any[]) => console.warn('[WARN]', ...args),
-      debug: isProduction ? () => {} : (...args: any[]) => console.debug('[DEBUG]', ...args),
-    } as any;
+      info: isProduction ? () => {} : (...args: unknown[]) => console.log('[INFO]', ...args),
+      error: (...args: unknown[]) => console.error('[ERROR]', ...args),
+      warn: (...args: unknown[]) => console.warn('[WARN]', ...args),
+      debug: isProduction ? () => {} : (...args: unknown[]) => console.debug('[DEBUG]', ...args),
+    };
 
-    this.serviceRegistry = new ServiceRegistryService(db as any, redis, silentLogger);
-    this.dependencyResolver = new DependencyResolutionService(db as any, silentLogger);
+    // @ts-expect-error ServiceRegistryService expects a full PrismaClient but we pass our db instance
+    this.serviceRegistry = new ServiceRegistryService(db, redis, silentLogger);
+    // @ts-expect-error DependencyResolutionService expects a full PrismaClient but we pass our db instance
+    this.dependencyResolver = new DependencyResolutionService(db, silentLogger);
   }
 
   /**
    * Register a new plugin in the global registry
    */
-  async registerPlugin(manifest: PluginManifest): Promise<any> {
+  async registerPlugin(manifest: PluginManifest): Promise<Plugin> {
     // Validate manifest using Zod schema (M2.3)
     const validation = validatePluginManifest(manifest);
     if (!validation.valid) {
@@ -61,7 +72,8 @@ export class PluginRegistryService {
         id: manifest.id,
         name: manifest.name,
         version: manifest.version,
-        manifest: manifest as any,
+        // Prisma JsonValue requires casting from typed manifest
+        manifest: manifest as unknown as Prisma.InputJsonValue,
         status: PluginStatus.PUBLISHED,
       },
     });
@@ -85,9 +97,10 @@ export class PluginRegistryService {
             })),
             metadata: service.metadata,
           });
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Log errors but continue with other services
-          console.error(`Failed to register service '${service.name}':`, error.message);
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error(`Failed to register service '${service.name}':`, errorMsg);
           // Continue with other services, don't fail the entire registration
         }
       }
@@ -111,7 +124,7 @@ export class PluginRegistryService {
   /**
    * Update an existing plugin
    */
-  async updatePlugin(pluginId: string, manifest: PluginManifest): Promise<any> {
+  async updatePlugin(pluginId: string, manifest: PluginManifest): Promise<Plugin> {
     this.validateManifest(manifest);
 
     const plugin = await db.plugin.findUnique({
@@ -128,7 +141,7 @@ export class PluginRegistryService {
       data: {
         name: manifest.name,
         version: manifest.version,
-        manifest: manifest as any,
+        manifest: manifest as unknown as Prisma.InputJsonValue,
       },
     });
 
@@ -138,7 +151,7 @@ export class PluginRegistryService {
   /**
    * Get plugin by ID
    */
-  async getPlugin(pluginId: string): Promise<any> {
+  async getPlugin(pluginId: string): Promise<Plugin> {
     const plugin = await db.plugin.findUnique({
       where: { id: pluginId },
     });
@@ -159,14 +172,14 @@ export class PluginRegistryService {
     search?: string;
     skip?: number;
     take?: number;
-  }): Promise<{ plugins: any[]; total: number }> {
+  }): Promise<{ plugins: Plugin[]; total: number }> {
     const { status, category, search, skip = 0, take = 50 } = options || {};
 
     // Enforce bounds on pagination
     const validatedSkip = Math.max(0, skip);
     const validatedTake = Math.max(1, Math.min(take, 500)); // Max 500 results per page
 
-    const where: any = {};
+    const where: Record<string, unknown> = {};
 
     if (status) {
       where.status = status;
@@ -231,7 +244,7 @@ export class PluginRegistryService {
   /**
    * Mark plugin as deprecated
    */
-  async deprecatePlugin(pluginId: string): Promise<any> {
+  async deprecatePlugin(pluginId: string): Promise<Plugin> {
     const plugin = await db.plugin.update({
       where: { id: pluginId },
       data: { status: PluginStatus.DEPRECATED },
@@ -327,14 +340,16 @@ export class PluginLifecycleService {
     // SECURITY: Use silent logger to prevent sensitive data leaks
     const isProduction = process.env.NODE_ENV === 'production';
     const silentLogger = {
-      info: isProduction ? () => {} : (...args: any[]) => console.log('[INFO]', ...args),
-      error: (...args: any[]) => console.error('[ERROR]', ...args),
-      warn: (...args: any[]) => console.warn('[WARN]', ...args),
-      debug: isProduction ? () => {} : (...args: any[]) => console.debug('[DEBUG]', ...args),
-    } as any;
+      info: isProduction ? () => {} : (...args: unknown[]) => console.log('[INFO]', ...args),
+      error: (...args: unknown[]) => console.error('[ERROR]', ...args),
+      warn: (...args: unknown[]) => console.warn('[WARN]', ...args),
+      debug: isProduction ? () => {} : (...args: unknown[]) => console.debug('[DEBUG]', ...args),
+    };
 
-    this.serviceRegistry = new ServiceRegistryService(db as any, redis, silentLogger);
-    this.dependencyResolver = new DependencyResolutionService(db as any, silentLogger);
+    // @ts-expect-error ServiceRegistryService expects a full PrismaClient but we pass our db instance
+    this.serviceRegistry = new ServiceRegistryService(db, redis, silentLogger);
+    // @ts-expect-error DependencyResolutionService expects a full PrismaClient but we pass our db instance
+    this.dependencyResolver = new DependencyResolutionService(db, silentLogger);
   }
 
   /**
@@ -343,8 +358,8 @@ export class PluginLifecycleService {
   async installPlugin(
     tenantId: string,
     pluginId: string,
-    configuration: Record<string, any> = {}
-  ): Promise<any> {
+    configuration: Record<string, unknown> = {}
+  ): Promise<TenantPluginWithPluginAndTenant> {
     // Get plugin from registry
     const plugin = await this.registry.getPlugin(pluginId);
 
@@ -367,7 +382,7 @@ export class PluginLifecycleService {
     const manifest = plugin.manifest as unknown as PluginManifest;
 
     // Apply default configuration values
-    const finalConfiguration = { ...configuration };
+    const finalConfiguration: Record<string, unknown> = { ...configuration };
     if (manifest.config) {
       for (const field of manifest.config) {
         if (field.default !== undefined && finalConfiguration[field.key] === undefined) {
@@ -423,7 +438,7 @@ export class PluginLifecycleService {
             tenantId,
             pluginId,
             enabled: false, // Start disabled, must be explicitly activated
-            configuration: finalConfiguration,
+            configuration: finalConfiguration as Prisma.InputJsonValue,
           },
           include: {
             plugin: true,
@@ -450,8 +465,9 @@ export class PluginLifecycleService {
                 })),
                 metadata: service.metadata,
               });
-            } catch (error: any) {
-              console.error(`Failed to register service '${service.name}':`, error.message);
+            } catch (error: unknown) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              console.error(`Failed to register service '${service.name}':`, errorMsg);
             }
           }
         }
@@ -464,15 +480,16 @@ export class PluginLifecycleService {
               pluginId,
               configuration: finalConfiguration,
             });
-          } catch (error: any) {
+          } catch (error: unknown) {
             // Transaction will automatically rollback on error
-            throw new Error(`Plugin installation lifecycle hook failed: ${error.message}`);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            throw new Error(`Plugin installation lifecycle hook failed: ${errorMsg}`);
           }
         }
 
         return installation;
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(
         `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -482,7 +499,7 @@ export class PluginLifecycleService {
   /**
    * Activate a plugin for a tenant
    */
-  async activatePlugin(tenantId: string, pluginId: string): Promise<any> {
+  async activatePlugin(tenantId: string, pluginId: string): Promise<TenantPluginWithPlugin> {
     const installation = await db.tenantPlugin.findUnique({
       where: {
         tenantId_pluginId: { tenantId, pluginId },
@@ -515,12 +532,7 @@ export class PluginLifecycleService {
         tenantId_pluginId: { tenantId, pluginId },
       },
       data: { enabled: true },
-      select: {
-        tenantId: true,
-        pluginId: true,
-        enabled: true,
-        configuration: true,
-        installedAt: true,
+      include: {
         plugin: true,
       },
     });
@@ -531,7 +543,7 @@ export class PluginLifecycleService {
   /**
    * Deactivate a plugin for a tenant
    */
-  async deactivatePlugin(tenantId: string, pluginId: string): Promise<any> {
+  async deactivatePlugin(tenantId: string, pluginId: string): Promise<TenantPluginWithPlugin> {
     const installation = await db.tenantPlugin.findUnique({
       where: {
         tenantId_pluginId: { tenantId, pluginId },
@@ -564,12 +576,7 @@ export class PluginLifecycleService {
         tenantId_pluginId: { tenantId, pluginId },
       },
       data: { enabled: false },
-      select: {
-        tenantId: true,
-        pluginId: true,
-        enabled: true,
-        configuration: true,
-        installedAt: true,
+      include: {
         plugin: true,
       },
     });
@@ -622,8 +629,8 @@ export class PluginLifecycleService {
   async updateConfiguration(
     tenantId: string,
     pluginId: string,
-    configuration: Record<string, any>
-  ): Promise<any> {
+    configuration: Record<string, unknown>
+  ): Promise<TenantPluginWithPlugin> {
     const installation = await db.tenantPlugin.findUnique({
       where: {
         tenantId_pluginId: { tenantId, pluginId },
@@ -642,13 +649,8 @@ export class PluginLifecycleService {
       where: {
         tenantId_pluginId: { tenantId, pluginId },
       },
-      data: { configuration },
-      select: {
-        tenantId: true,
-        pluginId: true,
-        enabled: true,
-        configuration: true,
-        installedAt: true,
+      data: { configuration: configuration as Prisma.InputJsonValue },
+      include: {
         plugin: true,
       },
     });
@@ -659,7 +661,7 @@ export class PluginLifecycleService {
   /**
    * Get installed plugins for a tenant
    */
-  async getInstalledPlugins(tenantId: string): Promise<any[]> {
+  async getInstalledPlugins(tenantId: string): Promise<TenantPluginWithPlugin[]> {
     const installations = await db.tenantPlugin.findMany({
       where: { tenantId },
       include: { plugin: true },
@@ -674,7 +676,7 @@ export class PluginLifecycleService {
    */
   private validateConfiguration(
     manifest: PluginManifest,
-    configuration: Record<string, any>
+    configuration: Record<string, unknown>
   ): void {
     if (!manifest.config) return;
 
@@ -715,8 +717,9 @@ export class PluginLifecycleService {
                     `Configuration field '${field.key}' does not match required pattern`
                 );
               }
-            } catch (error: any) {
-              if (error.message.includes('ReDoS') || error.message.includes('pattern')) {
+            } catch (error: unknown) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              if (errorMsg.includes('ReDoS') || errorMsg.includes('pattern')) {
                 throw error;
               }
               throw new Error(
@@ -726,13 +729,21 @@ export class PluginLifecycleService {
             }
           }
 
-          if (field.validation.min !== undefined && value < field.validation.min) {
+          if (
+            field.validation.min !== undefined &&
+            typeof value === 'number' &&
+            value < field.validation.min
+          ) {
             throw new Error(
               `Configuration field '${field.key}' must be at least ${field.validation.min}`
             );
           }
 
-          if (field.validation.max !== undefined && value > field.validation.max) {
+          if (
+            field.validation.max !== undefined &&
+            typeof value === 'number' &&
+            value > field.validation.max
+          ) {
             throw new Error(
               `Configuration field '${field.key}' must be at most ${field.validation.max}`
             );
@@ -788,7 +799,7 @@ export class PluginLifecycleService {
   private async runLifecycleHook(
     _manifest: PluginManifest,
     _hook: string,
-    _context: any
+    _context: Record<string, unknown>
   ): Promise<void> {
     // TODO: Implement actual hook execution
     // This would load the plugin code and execute the lifecycle function

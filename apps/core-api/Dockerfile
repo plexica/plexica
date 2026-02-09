@@ -12,7 +12,7 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Build stage - build the application
 FROM base AS build
-ARG DATABASE_URL=postgresql://plexica:plexica_password@postgres:5432/plexica
+ARG DATABASE_URL=postgresql://build:build@localhost:5432/build
 ENV DATABASE_URL=$DATABASE_URL
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/core-api/package.json ./apps/core-api/
@@ -35,7 +35,7 @@ FROM node:20-alpine AS production
 RUN corepack enable pnpm
 
 # Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init curl
+RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
@@ -68,7 +68,7 @@ ENV NODE_ENV=production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]

@@ -3,6 +3,45 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 /**
+ * Known error name patterns that are safe to expose to clients.
+ * Anything not matching is replaced with a generic label in production.
+ */
+const SAFE_ERROR_NAMES = new Set([
+  'Error',
+  'BadRequestError',
+  'UnauthorizedError',
+  'ForbiddenError',
+  'NotFoundError',
+  'ConflictError',
+  'ValidationError',
+  'FST_ERR_VALIDATION',
+]);
+
+/**
+ * Detect database / ORM errors by checking the error constructor chain
+ * rather than fragile keyword matching on the message string.
+ */
+function isDatabaseError(error: FastifyError): boolean {
+  // Prisma errors always have a `code` starting with "P"
+  if (typeof error.code === 'string' && /^P\d{4}$/.test(error.code)) {
+    return true;
+  }
+
+  // Check the constructor name for Prisma client errors
+  const ctorName = error.constructor?.name ?? '';
+  if (
+    ctorName.startsWith('PrismaClient') ||
+    ctorName === 'PrismaClientKnownRequestError' ||
+    ctorName === 'PrismaClientUnknownRequestError' ||
+    ctorName === 'PrismaClientValidationError'
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Error sanitization middleware
  * Prevents sensitive database/system information from leaking to clients
  * In production, returns generic error messages
@@ -22,19 +61,16 @@ export function setupErrorHandler(server: FastifyInstance) {
 
       // Sanitize error message
       let message = error.message || 'An error occurred';
-
-      // Detect if this is a database error that should be sanitized
-      const isDatabaseError =
-        error.message?.includes('Prisma') ||
-        error.message?.includes('postgres') ||
-        error.message?.includes('database') ||
-        error.message?.toLowerCase().includes('sql');
-
-      const isValidationError = (error as any).validation;
+      // Fastify attaches a `validation` array on schema validation failures
+      const validationArray =
+        'validation' in error
+          ? (error as unknown as Record<string, unknown>).validation
+          : undefined;
+      const isValidationError = Array.isArray(validationArray);
 
       // In production, sanitize sensitive errors
       if (isProduction) {
-        if (isDatabaseError) {
+        if (isDatabaseError(error)) {
           statusCode = 500;
           message = 'An internal server error occurred. Please contact support.';
         } else if (isValidationError) {
@@ -46,13 +82,17 @@ export function setupErrorHandler(server: FastifyInstance) {
         }
       }
 
+      // Sanitize the error name in production to avoid leaking internal class names
+      const errorName =
+        isProduction && !SAFE_ERROR_NAMES.has(error.name) ? 'Error' : error.name || 'Error';
+
       // Send error response
       return reply.status(statusCode).send({
-        error: error.name || 'Error',
+        error: errorName,
         message,
         // Only include validation errors in response if present
         ...(isValidationError && {
-          validation: (error as any).validation,
+          validation: validationArray,
         }),
         // Request ID for debugging (user can provide this to support)
         requestId: request.id,

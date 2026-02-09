@@ -46,12 +46,12 @@ const PluginIdSchema = z
  */
 export const PluginApiEndpointSchema = z.object({
   method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
-  path: z.string().regex(/^\/[a-zA-Z0-9\-_\/:\*]*/, {
+  path: z.string().regex(/^\/[a-zA-Z0-9\-_\/:\*]*$/, {
     message: 'Path must start with / and contain valid URL characters',
   }),
   description: z.string().optional(),
   permissions: z.array(z.string()).optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -67,7 +67,7 @@ export const PluginApiServiceSchema = z
     endpoints: z
       .array(PluginApiEndpointSchema)
       .min(1, { message: 'Service must have at least one endpoint' }),
-    metadata: z.record(z.string(), z.any()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 
@@ -102,14 +102,14 @@ const PluginConfigFieldSchema = z.object({
   key: z.string(),
   label: z.string().optional(),
   type: z.enum(['string', 'number', 'boolean', 'select', 'text', 'password', 'json']),
-  default: z.any().optional(),
-  defaultValue: z.any().optional(),
+  default: z.unknown().optional(),
+  defaultValue: z.unknown().optional(),
   required: z.boolean().optional(),
   description: z.string().optional(),
   options: z
     .array(
       z.object({
-        value: z.any(),
+        value: z.union([z.string(), z.number(), z.boolean()]),
         label: z.string(),
       })
     )
@@ -138,69 +138,71 @@ const PluginNavigationItemSchema = z.object({
 /**
  * Complete Plugin Manifest Schema
  */
-export const PluginManifestSchema = z.object({
-  // Basic Info
-  id: PluginIdSchema,
-  name: z.string().min(1).max(100),
-  version: SemverVersionSchema,
-  description: z.string().max(1000),
-  category: z.string().optional(),
+export const PluginManifestSchema = z
+  .object({
+    // Basic Info
+    id: PluginIdSchema,
+    name: z.string().min(1).max(100),
+    version: SemverVersionSchema,
+    description: z.string().max(1000),
+    category: z.string().optional(),
 
-  // Author can be string or nested in metadata
-  author: z.string().max(200).optional(),
-  license: z.string().max(50).optional(),
-  homepage: z.string().url().optional(),
-  repository: z.string().url().optional(),
+    // Author can be string or nested in metadata
+    author: z.string().max(200).optional(),
+    license: z.string().max(50).optional(),
+    homepage: z.string().url().optional(),
+    repository: z.string().url().optional(),
 
-  // NEW: API Communication (M2.3)
-  api: PluginManifestApiSchema.optional(),
+    // NEW: API Communication (M2.3)
+    api: PluginManifestApiSchema.optional(),
 
-  // Plugin Configuration (both 'config' and 'configuration' supported)
-  config: z.array(PluginConfigFieldSchema).optional(),
-  configuration: z.array(PluginConfigFieldSchema).optional(),
+    // Plugin Configuration (both 'config' and 'configuration' supported)
+    config: z.array(PluginConfigFieldSchema).optional(),
+    configuration: z.array(PluginConfigFieldSchema).optional(),
 
-  // Permissions
-  permissions: z.array(PluginPermissionSchema).optional(),
+    // Permissions
+    permissions: z.array(PluginPermissionSchema).optional(),
 
-  // UI Integration
-  navigation: z.array(PluginNavigationItemSchema).optional(),
+    // UI Integration
+    navigation: z.array(PluginNavigationItemSchema).optional(),
 
-  // Entry Points (both flat and nested formats supported)
-  backend: z.any().optional(), // Can be string or complex object
-  frontend: z.any().optional(), // Can be string or complex object
-  entryPoints: z
-    .object({
-      backend: z.any().optional(),
-      frontend: z.any().optional(),
-    })
-    .optional(),
+    // Entry Points (both flat and nested formats supported)
+    backend: z.unknown().optional(), // Can be string or complex object
+    frontend: z.unknown().optional(), // Can be string or complex object
+    entryPoints: z
+      .object({
+        backend: z.unknown().optional(),
+        frontend: z.unknown().optional(),
+      })
+      .optional(),
 
-  // Dependencies (npm packages, not plugins)
-  dependencies: z.record(z.string(), z.string()).optional(),
+    // Dependencies (npm packages, not plugins)
+    dependencies: z.record(z.string(), z.string()).optional(),
 
-  // Lifecycle hooks
-  lifecycle: z
-    .object({
-      install: z.string().optional(),
-      uninstall: z.string().optional(),
-      activate: z.string().optional(),
-      deactivate: z.string().optional(),
-      update: z.string().optional(),
-    })
-    .optional(),
-  hooks: z
-    .object({
-      onInstall: z.string().optional(),
-      onUninstall: z.string().optional(),
-      onEnable: z.string().optional(),
-      onDisable: z.string().optional(),
-      onUpdate: z.string().optional(),
-    })
-    .optional(),
+    // Lifecycle hooks
+    lifecycle: z
+      .object({
+        install: z.string().optional(),
+        uninstall: z.string().optional(),
+        activate: z.string().optional(),
+        deactivate: z.string().optional(),
+        update: z.string().optional(),
+      })
+      .optional(),
+    hooks: z
+      .object({
+        onInstall: z.string().optional(),
+        onUninstall: z.string().optional(),
+        onEnable: z.string().optional(),
+        onDisable: z.string().optional(),
+        onUpdate: z.string().optional(),
+      })
+      .optional(),
 
-  // Metadata
-  metadata: z.record(z.string(), z.any()).optional(),
-});
+    // Metadata
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
 
 /**
  * Type exports for TypeScript usage
@@ -219,25 +221,18 @@ export function validatePluginManifest(manifest: unknown): {
   data?: PluginManifest;
   errors?: Array<{ path: string; message: string }>;
 } {
-  try {
-    const result = PluginManifestSchema.safeParse(manifest);
+  const result = PluginManifestSchema.safeParse(manifest);
 
-    if (result.success) {
-      return { valid: true, data: result.data };
-    }
-
-    const errors = result.error.issues.map((err: z.ZodIssue) => ({
-      path: err.path.join('.'),
-      message: err.message,
-    }));
-
-    return { valid: false, errors };
-  } catch {
-    return {
-      valid: false,
-      errors: [{ path: 'manifest', message: 'Invalid manifest format' }],
-    };
+  if (result.success) {
+    return { valid: true, data: result.data };
   }
+
+  const errors = result.error.issues.map((err: z.ZodIssue) => ({
+    path: err.path.join('.'),
+    message: err.message,
+  }));
+
+  return { valid: false, errors };
 }
 
 /**
@@ -248,23 +243,16 @@ export function validatePluginApiSection(api: unknown): {
   data?: PluginManifestApi;
   errors?: Array<{ path: string; message: string }>;
 } {
-  try {
-    const result = PluginManifestApiSchema.safeParse(api);
+  const result = PluginManifestApiSchema.safeParse(api);
 
-    if (result.success) {
-      return { valid: true, data: result.data };
-    }
-
-    const errors = result.error.issues.map((err: z.ZodIssue) => ({
-      path: err.path.join('.'),
-      message: err.message,
-    }));
-
-    return { valid: false, errors };
-  } catch {
-    return {
-      valid: false,
-      errors: [{ path: 'api', message: 'Invalid API section format' }],
-    };
+  if (result.success) {
+    return { valid: true, data: result.data };
   }
+
+  const errors = result.error.issues.map((err: z.ZodIssue) => ({
+    path: err.path.join('.'),
+    message: err.message,
+  }));
+
+  return { valid: false, errors };
 }

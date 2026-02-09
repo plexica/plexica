@@ -173,7 +173,8 @@ export async function requireSuperAdmin(
   reply: FastifyReply
 ): Promise<void> {
   // DEVELOPMENT MODE: Bypass authentication if BYPASS_AUTH is enabled
-  if (process.env.BYPASS_AUTH === 'true' && process.env.NODE_ENV === 'development') {
+  // SECURITY: Only allow bypass when NODE_ENV is NOT production (covers development, test, etc.)
+  if (process.env.BYPASS_AUTH === 'true' && process.env.NODE_ENV !== 'production') {
     request.log.warn('⚠️  BYPASS_AUTH enabled - skipping authentication (DEVELOPMENT ONLY)');
 
     // Mock a super-admin user
@@ -203,8 +204,12 @@ export async function requireSuperAdmin(
     });
   }
 
-  // Super admins should be from master realm, plexica-admin realm, or plexica-test realm (for tests)
-  const validRealms = [MASTER_TENANT_SLUG, 'plexica-admin', 'plexica-test'];
+  // Super admins should be from master realm or plexica-admin realm.
+  // plexica-test is only valid in non-production environments (for tests).
+  const validRealms: string[] = [MASTER_TENANT_SLUG, 'plexica-admin'];
+  if (process.env.NODE_ENV !== 'production') {
+    validRealms.push('plexica-test');
+  }
   if (!validRealms.includes(request.user.tenantSlug)) {
     request.log.warn(
       { userId: request.user.id, tenantSlug: request.user.tenantSlug },

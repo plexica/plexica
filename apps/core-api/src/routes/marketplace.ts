@@ -49,37 +49,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         const query = SearchPluginsSchema.parse(request.query);
         const result = await marketplaceService.searchPlugins(query);
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
-      }
-    }
-  );
-
-  /**
-   * Get plugin details
-   * GET /marketplace/plugins/:id
-   */
-  fastify.get<{
-    Params: { id: string };
-  }>(
-    '/marketplace/plugins/:id',
-    {
-      preHandler: [authMiddleware],
-    },
-    async (request, reply) => {
-      try {
-        const includeAllVersions: boolean = !!(
-          request.query && (request.query as any).includeAllVersions === 'true'
-        );
-        const plugin = await marketplaceService.getPluginById(
-          request.params.id,
-          includeAllVersions
-        );
-        return reply.send(plugin);
-      } catch (error: any) {
-        request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -97,9 +71,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
       try {
         const stats = await marketplaceService.getMarketplaceStats();
         return reply.send(stats);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -120,16 +96,18 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const dto = PublishPluginSchema.parse(request.body);
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({ error: 'User not authenticated' });
         }
 
         const plugin = await marketplaceService.publishPlugin(dto, userId);
         return reply.code(201).send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -150,9 +128,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         const dto = UpdatePluginMetadataSchema.parse(request.body);
         const plugin = await marketplaceService.updatePluginMetadata(request.params.id, dto);
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -173,9 +153,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         const dto = PublishVersionSchema.parse(request.body);
         const version = await marketplaceService.publishVersion(request.params.id, dto);
         return reply.code(201).send(version);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -196,9 +178,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         SubmitForReviewSchema.parse(request.body); // Validate
         const plugin = await marketplaceService.submitForReview(request.params.id);
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -219,9 +203,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         const dto = ReviewPluginSchema.parse(request.body);
         const plugin = await marketplaceService.reviewPlugin(request.params.id, dto);
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -241,9 +227,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
       try {
         const plugin = await marketplaceService.deprecatePlugin(request.params.id);
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -268,9 +256,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         const options = GetRatingsSchema.parse(request.query);
         const result = await marketplaceService.getPluginRatings(request.params.id, options);
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -294,7 +284,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           return reply.code(400).send({ error: 'No tenant context available' });
         }
 
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({ error: 'User not authenticated' });
         }
@@ -306,9 +296,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           dto
         );
         return reply.code(201).send(rating);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -332,7 +324,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           return reply.code(400).send({ error: 'No tenant context available' });
         }
 
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({ error: 'User not authenticated' });
         }
@@ -344,9 +336,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           dto
         );
         return reply.send(rating);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -369,16 +363,18 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           return reply.code(400).send({ error: 'No tenant context available' });
         }
 
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({ error: 'User not authenticated' });
         }
 
         await marketplaceService.deleteRating(request.params.id, tenantContext.tenantId, userId);
         return reply.code(204).send();
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -399,9 +395,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
         const dto = VoteRatingSchema.parse(request.body);
         const rating = await marketplaceService.voteRating(request.params.ratingId, dto.helpful);
         return reply.send(rating);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -429,7 +427,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           return reply.code(400).send({ error: 'No tenant context available' });
         }
 
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({ error: 'User not authenticated' });
         }
@@ -441,9 +439,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           dto
         );
         return reply.code(201).send(tenantPlugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -469,9 +469,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
 
         await marketplaceService.uninstallPlugin(request.params.id, tenantContext.tenantId);
         return reply.code(204).send();
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -499,9 +501,11 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
           query.timeRange
         );
         return reply.send(analytics);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );

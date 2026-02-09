@@ -1,13 +1,27 @@
-/**
- * DTO for adding a member to a workspace
- */
-export interface AddMemberDto {
-  userId: string;
-  role?: 'ADMIN' | 'MEMBER' | 'VIEWER';
-}
+import { z } from 'zod';
+
+const WORKSPACE_ROLES = ['ADMIN', 'MEMBER', 'VIEWER'] as const;
 
 /**
- * Validation schema for AddMemberDto
+ * Zod schema for adding a member to a workspace
+ */
+export const AddMemberSchema = z.object({
+  userId: z
+    .string({ error: 'userId is required and must be a string' })
+    .regex(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      'userId must be a valid UUID'
+    ),
+  role: z.enum(WORKSPACE_ROLES, { error: 'role must be one of: ADMIN, MEMBER, VIEWER' }).optional(),
+});
+
+/**
+ * DTO type for adding a member (inferred from Zod schema)
+ */
+export type AddMemberDto = z.infer<typeof AddMemberSchema>;
+
+/**
+ * Fastify JSON Schema for request validation (used in route schema definitions)
  */
 export const addMemberSchema = {
   type: 'object',
@@ -28,22 +42,13 @@ export const addMemberSchema = {
 };
 
 /**
- * Validate AddMemberDto
+ * Validate AddMemberDto using Zod
+ * Returns an array of error messages (empty if valid)
  */
-export function validateAddMember(data: any): string[] {
-  const errors: string[] = [];
-
-  if (!data.userId || typeof data.userId !== 'string') {
-    errors.push('userId is required and must be a string');
-  } else if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.userId)) {
-    errors.push('userId must be a valid UUID');
+export function validateAddMember(data: unknown): string[] {
+  const result = AddMemberSchema.safeParse(data);
+  if (result.success) {
+    return [];
   }
-
-  if (data.role !== undefined) {
-    if (!['ADMIN', 'MEMBER', 'VIEWER'].includes(data.role)) {
-      errors.push('role must be one of: ADMIN, MEMBER, VIEWER');
-    }
-  }
-
-  return errors;
+  return result.error.issues.map((issue) => issue.message);
 }

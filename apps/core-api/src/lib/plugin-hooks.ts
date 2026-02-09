@@ -46,23 +46,24 @@ export class PluginHookSystem {
    * Trigger a hook and execute all registered handlers
    * Handlers are executed sequentially
    */
-  async trigger(hookName: HookName, context: PluginHookContext): Promise<any[]> {
+  async trigger(hookName: HookName, context: PluginHookContext): Promise<unknown[]> {
     const hookMap = this.hooks.get(hookName);
     if (!hookMap) {
       return [];
     }
 
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     for (const [pluginId, handlers] of hookMap.entries()) {
       for (const handler of handlers) {
         try {
           const result = await handler(context);
           results.push({ pluginId, result });
-        } catch (error: any) {
+        } catch (error: unknown) {
           // Log error but don't stop execution
+          const errorMsg = error instanceof Error ? error.message : String(error);
           console.error(`Error in plugin ${pluginId} hook ${hookName}:`, error);
-          results.push({ pluginId, error: error.message });
+          results.push({ pluginId, error: errorMsg });
         }
       }
     }
@@ -74,19 +75,19 @@ export class PluginHookSystem {
    * Trigger a hook and allow handlers to modify data
    * Each handler receives the output of the previous handler
    */
-  async chain(hookName: HookName, context: PluginHookContext): Promise<any> {
+  async chain(hookName: HookName, context: PluginHookContext): Promise<unknown> {
     const hookMap = this.hooks.get(hookName);
     if (!hookMap) {
       return context.data;
     }
 
-    let data = context.data;
+    let data: unknown = context.data;
 
     for (const [pluginId, handlers] of hookMap.entries()) {
       for (const handler of handlers) {
         try {
           data = await handler({ ...context, data });
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Error in plugin ${pluginId} hook ${hookName}:`, error);
           // Continue with previous data
         }
@@ -167,9 +168,9 @@ export const SystemHooks = {
 export async function triggerHook(
   hookName: string,
   tenantId: string,
-  data: any,
+  data: unknown,
   userId?: string
-): Promise<any[]> {
+): Promise<unknown[]> {
   return pluginHookSystem.trigger(hookName, {
     tenantId,
     userId,
@@ -184,9 +185,9 @@ export async function triggerHook(
 export async function chainHook(
   hookName: string,
   tenantId: string,
-  data: any,
+  data: unknown,
   userId?: string
-): Promise<any> {
+): Promise<unknown> {
   return pluginHookSystem.chain(hookName, {
     tenantId,
     userId,

@@ -1,9 +1,9 @@
 // File: apps/core-api/src/routes/plugin-upload.ts
 
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { minioClient } from '../services/minio-client';
-import { authMiddleware } from '../middleware/auth.js';
-import { validatePluginId, validatePluginVersion } from '../lib/plugin-validator';
+import { minioClient } from '../services/minio-client.js';
+import { authMiddleware, requireSuperAdmin } from '../middleware/auth.js';
+import { validatePluginId, validatePluginVersion } from '../lib/plugin-validator.js';
 
 /**
  * Plugin Upload Routes
@@ -112,10 +112,14 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
 
   /**
    * List plugin versions
+   * SECURITY: Requires authentication
    */
-  server.get(
+  server.get<{
+    Params: { pluginId: string };
+  }>(
     '/plugins/:pluginId/versions',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'List all versions of a plugin',
         tags: ['plugins'],
@@ -170,10 +174,14 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
 
   /**
    * Delete a plugin version
+   * SECURITY: Requires super-admin to prevent unauthorized deletion
    */
-  server.delete(
+  server.delete<{
+    Params: { pluginId: string; version: string };
+  }>(
     '/plugins/:pluginId/versions/:version',
     {
+      preHandler: [authMiddleware, requireSuperAdmin],
       schema: {
         description: 'Delete a specific version of a plugin',
         tags: ['plugins'],
@@ -237,10 +245,14 @@ export async function pluginUploadRoutes(server: FastifyInstance) {
 
   /**
    * Get plugin remote entry URL
+   * SECURITY: Requires authentication
    */
-  server.get(
+  server.get<{
+    Params: { pluginId: string; version: string };
+  }>(
     '/plugins/:pluginId/versions/:version/remote-entry',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Get the remote entry URL for a specific plugin version',
         tags: ['plugins'],

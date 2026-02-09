@@ -21,7 +21,30 @@ export const tenantContextStorage = new AsyncLocalStorage<TenantContext>();
 // Key: `${schemaName}:${userId}`, Value: timestamp of last sync.
 // Entries expire after SYNC_CACHE_TTL_MS to pick up user profile changes.
 const SYNC_CACHE_TTL_MS = 60_000; // 1 minute
+const SYNC_CACHE_MAX_SIZE = 10_000; // Maximum entries before eviction
 const userSyncCache = new Map<string, number>();
+
+/**
+ * Evict expired entries from the user sync cache.
+ * Called when the cache exceeds SYNC_CACHE_MAX_SIZE.
+ * Falls back to clearing the entire cache if eviction is insufficient.
+ */
+function evictExpiredSyncCacheEntries(): void {
+  const now = Date.now();
+  for (const [key, timestamp] of userSyncCache) {
+    if (now - timestamp >= SYNC_CACHE_TTL_MS) {
+      userSyncCache.delete(key);
+    }
+  }
+  // If still too large after evicting expired entries, clear the oldest half
+  if (userSyncCache.size > SYNC_CACHE_MAX_SIZE) {
+    const entries = [...userSyncCache.entries()].sort((a, b) => a[1] - b[1]);
+    const toRemove = Math.floor(entries.length / 2);
+    for (let i = 0; i < toRemove; i++) {
+      userSyncCache.delete(entries[i][0]);
+    }
+  }
+}
 
 /**
  * Get current tenant context from AsyncLocalStorage
@@ -244,14 +267,11 @@ export async function executeInTenantSchema<T>(
   // Set the schema for this query using parameterized query
   // Note: This is a simplified approach. In production, you might want to use
   // Prisma's multi-schema support or create separate Prisma clients per tenant
-  console.log('[EXECUTE_IN_TENANT] Setting search_path to:', schemaName);
   const setSearchPath = Prisma.raw(`"${schemaName}"`);
   await prismaClient.$executeRaw`SET search_path TO ${setSearchPath}`;
-  console.log('[EXECUTE_IN_TENANT] Search path set successfully');
 
   try {
     const result = await callback(prismaClient);
-    console.log('[EXECUTE_IN_TENANT] Query completed successfully');
     return result;
   } finally {
     // Reset to default schema
@@ -306,11 +326,26 @@ async function syncUserToTenantSchema(schemaName: string, userInfo: any): Promis
          "updated_at" = NOW()
      `;
 
+    // Evict stale entries if cache has grown too large
+    if (userSyncCache.size >= SYNC_CACHE_MAX_SIZE) {
+      evictExpiredSyncCacheEntries();
+    }
+
     // Mark as synced
     userSyncCache.set(cacheKey, Date.now());
-  } catch (error) {
+  } catch (error: unknown) {
     // Log error but don't fail the request
-    console.error('Failed to sync user to tenant schema:', error);
+    // Note: No request.log available here; using process.stderr for structured output
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    process.stderr.write(
+      JSON.stringify({
+        level: 'error',
+        msg: 'Failed to sync user to tenant schema',
+        schemaName,
+        userId: userInfo.id,
+        error: errorMessage,
+      }) + '\n'
+    );
   }
 }
 

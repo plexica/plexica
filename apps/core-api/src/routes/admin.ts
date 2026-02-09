@@ -543,14 +543,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // GET /admin/plugins/:id/installs - Get installation statistics
 
   // Placeholder for plugin registry
-  fastify.get('/admin/plugins', async (_request, reply) => {
-    // TODO: Implement with plugin service
-    return reply.send({
-      plugins: [],
-      total: 0,
-      message: 'Plugin registry endpoints not yet implemented',
-    });
-  });
+  // SECURITY: Requires super-admin even for placeholder endpoints
+  fastify.get(
+    '/admin/plugins',
+    {
+      preHandler: [requireSuperAdmin],
+    },
+    async (_request, reply) => {
+      // TODO: Implement with plugin service
+      return reply.send({
+        plugins: [],
+        total: 0,
+        message: 'Plugin registry endpoints not yet implemented',
+      });
+    }
+  );
 
   // ===== USER MANAGEMENT (Cross-Tenant) =====
   // TODO: Implement user management endpoints
@@ -560,14 +567,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // DELETE /admin/users/:id - Delete user
 
   // Placeholder for user management
-  fastify.get('/admin/users', async (_request, reply) => {
-    // TODO: Implement with user service
-    return reply.send({
-      users: [],
-      total: 0,
-      message: 'User management endpoints not yet implemented',
-    });
-  });
+  // SECURITY: Requires super-admin even for placeholder endpoints
+  fastify.get(
+    '/admin/users',
+    {
+      preHandler: [requireSuperAdmin],
+    },
+    async (_request, reply) => {
+      // TODO: Implement with user service
+      return reply.send({
+        users: [],
+        total: 0,
+        message: 'User management endpoints not yet implemented',
+      });
+    }
+  );
 
   // ===== ANALYTICS =====
 
@@ -594,6 +608,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
               totalWorkspaces: { type: 'number' },
             },
           },
+          500: {
+            description: 'Internal server error',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
         },
       },
     },
@@ -603,7 +625,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return reply.send(overview);
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch analytics overview');
-        return (reply as any).code(500).send({
+        return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'Failed to fetch analytics overview',
         });
@@ -700,6 +722,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
               },
             },
           },
+          500: {
+            description: 'Internal server error',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
         },
       },
     },
@@ -709,7 +739,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return reply.send({ plugins });
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch plugin usage data');
-        return (reply as any).code(500).send({
+        return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'Failed to fetch plugin usage data',
         });
@@ -763,6 +793,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 type: 'string',
                 description: 'Implementation status note',
               },
+            },
+          },
+          500: {
+            description: 'Internal server error',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
             },
           },
         },
