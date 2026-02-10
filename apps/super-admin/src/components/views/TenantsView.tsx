@@ -31,11 +31,11 @@ export function TenantsView() {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return 'default';
-      case 'suspended':
+      case 'SUSPENDED':
         return 'danger';
-      case 'provisioning':
+      case 'PROVISIONING':
         return 'secondary';
       default:
         return 'outline';
@@ -105,9 +105,9 @@ export function TenantsView() {
               className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-              <option value="provisioning">Provisioning</option>
+              <option value="ACTIVE">Active</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="PROVISIONING">Provisioning</option>
             </select>
 
             {/* Clear Filters */}
@@ -168,7 +168,7 @@ export function TenantsView() {
                         <Button variant="ghost" size="sm">
                           Edit
                         </Button>
-                        {tenant.status === 'active' ? (
+                        {tenant.status === 'ACTIVE' ? (
                           <Button
                             variant="danger"
                             size="sm"
@@ -181,7 +181,7 @@ export function TenantsView() {
                           >
                             {isSuspending ? '...' : 'Suspend'}
                           </Button>
-                        ) : tenant.status === 'suspended' ? (
+                        ) : tenant.status === 'SUSPENDED' ? (
                           <Button
                             variant="outline"
                             size="sm"

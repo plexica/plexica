@@ -1,42 +1,16 @@
 // File: apps/web/src/lib/plugin-loader.ts
 
-import type { TenantPlugin } from '@/types';
+import type { TenantPlugin } from '@plexica/types';
+import type {
+  PluginLoaderManifest as PluginManifest,
+  PluginLoaderRoute as PluginRoute,
+  PluginLoaderMenuItem as PluginMenuItem,
+  LoadedPlugin,
+  PluginLoadError,
+} from '@plexica/types';
 
-export interface PluginManifest {
-  id: string;
-  name: string;
-  version: string;
-  remoteEntry: string; // URL to remoteEntry.js
-  routes?: PluginRoute[];
-  menuItems?: PluginMenuItem[];
-}
-
-export interface PluginRoute {
-  path: string;
-  component: string; // Name of the exported component from the plugin
-}
-
-export interface PluginMenuItem {
-  label: string;
-  path: string;
-  icon?: string;
-  order?: number;
-}
-
-export interface LoadedPlugin {
-  manifest: PluginManifest;
-  module: any;
-  routes: PluginRoute[];
-  menuItems: PluginMenuItem[];
-}
-
-// HIGH FIX #6: Add error object for failed plugin loads
-export interface PluginLoadError {
-  pluginId: string;
-  pluginName: string;
-  error: Error;
-  timestamp: Date;
-}
+// Re-export for consumers that import from this file
+export type { PluginManifest, PluginRoute, PluginMenuItem, LoadedPlugin, PluginLoadError };
 
 // CRITICAL FIX #3: List of trusted domains for plugin loading
 // Only plugins from these origins are allowed to load
@@ -251,7 +225,7 @@ class PluginLoaderService {
     loaded: LoadedPlugin[];
     errors: PluginLoadError[];
   }> {
-    const activePlugins = tenantPlugins.filter((tp) => tp.status === 'active');
+    const activePlugins = tenantPlugins.filter((tp) => tp.status === 'ACTIVE');
 
     console.log(`[PluginLoader] Loading ${activePlugins.length} active plugins`);
 

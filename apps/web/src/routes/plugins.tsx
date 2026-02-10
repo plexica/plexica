@@ -71,7 +71,7 @@ function PluginsPage() {
       currentStatus: string;
     }) => {
       if (!tenant?.id) throw new Error('No tenant selected');
-      if (currentStatus === 'active') {
+      if (currentStatus === 'ACTIVE') {
         return await apiClient.deactivatePlugin(tenant.id, pluginId);
       } else {
         return await apiClient.activatePlugin(tenant.id, pluginId);
@@ -93,7 +93,7 @@ function PluginsPage() {
           ...old,
           plugins: old.plugins.map((p: TenantPlugin) =>
             p.plugin.id === pluginId
-              ? { ...p, status: currentStatus === 'active' ? 'inactive' : 'active' }
+              ? { ...p, status: currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }
               : p
           ),
         };
@@ -139,7 +139,7 @@ function PluginsPage() {
   });
 
   const plugins: TenantPlugin[] = pluginsData?.plugins || [];
-  const activeCount = plugins.filter((p) => p.status === 'active').length;
+  const activeCount = plugins.filter((p) => p.status === 'ACTIVE').length;
 
   return (
     <ProtectedRoute>
@@ -328,7 +328,7 @@ function PluginsTableView({
       header: 'Actions',
       cell: (info) => {
         const tenantPlugin = info.row.original;
-        const isActive = tenantPlugin.status === 'active';
+        const isActive = tenantPlugin.status === 'ACTIVE';
         return (
           <div className="flex items-center gap-2">
             <Button
@@ -386,7 +386,7 @@ function PluginCard({
   isUninstalling: boolean;
 }) {
   const { plugin, status, installedAt, configuration } = tenantPlugin;
-  const isActive = status === 'active';
+  const isActive = status === 'ACTIVE';
 
   if (viewMode === 'list') {
     return (
@@ -513,8 +513,8 @@ function PluginCard({
 // Status Badge Component
 function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge variant={status === 'active' ? 'default' : 'secondary'}>
-      {status === 'active' ? '● Active' : '○ Inactive'}
+    <Badge variant={status === 'ACTIVE' ? 'default' : 'secondary'}>
+      {status === 'ACTIVE' ? '● Active' : '○ Inactive'}
     </Badge>
   );
 }

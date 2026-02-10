@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware';
 import { jwtDecode } from 'jwt-decode';
 import * as keycloak from '@/lib/keycloak';
 import { saveToken, getToken, clearToken } from '@/lib/secure-storage';
+import type { User } from '@plexica/types';
 
 /**
  * Super Admin Authentication Store
@@ -16,13 +17,6 @@ import { saveToken, getToken, clearToken } from '@/lib/secure-storage';
  * - Super-admin role required
  * - Simpler state management
  */
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  roles: string[];
-}
 
 interface AuthStore {
   user: User | null;

@@ -31,7 +31,7 @@ function Index() {
   });
 
   const installedPlugins = pluginsData?.plugins || [];
-  const activePlugins = installedPlugins.filter((p: any) => p.status === 'active');
+  const activePlugins = installedPlugins.filter((p: any) => p.status === 'ACTIVE');
 
   return (
     <ProtectedRoute>

@@ -1,6 +1,6 @@
 // File: apps/plugin-crm/src/routes/index.ts
 
-import type { PluginRoute } from '../manifest';
+import type { PluginRoute } from '@plexica/types';
 
 /**
  * Export plugin routes for dynamic registration

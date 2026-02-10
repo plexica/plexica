@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Tenant } from '@/types';
 
-export type TenantStatus = 'all' | 'active' | 'suspended' | 'provisioning';
+export type TenantStatus = 'all' | 'ACTIVE' | 'SUSPENDED' | 'PROVISIONING';
 
 export function useTenants() {
   const queryClient = useQueryClient();
@@ -55,9 +55,9 @@ export function useTenants() {
   // Statistics
   const stats = {
     total: allTenants.length,
-    active: allTenants.filter((t) => t.status === 'active').length,
-    suspended: allTenants.filter((t) => t.status === 'suspended').length,
-    provisioning: allTenants.filter((t) => t.status === 'provisioning').length,
+    active: allTenants.filter((t) => t.status === 'ACTIVE').length,
+    suspended: allTenants.filter((t) => t.status === 'SUSPENDED').length,
+    provisioning: allTenants.filter((t) => t.status === 'PROVISIONING').length,
   };
 
   const clearFilters = () => {

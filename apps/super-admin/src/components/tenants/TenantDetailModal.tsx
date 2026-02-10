@@ -10,11 +10,11 @@ interface TenantDetailModalProps {
 export function TenantDetailModal({ tenant, onClose }: TenantDetailModalProps) {
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return 'default';
-      case 'suspended':
+      case 'SUSPENDED':
         return 'danger';
-      case 'provisioning':
+      case 'PROVISIONING':
         return 'secondary';
       default:
         return 'outline';
@@ -127,11 +127,11 @@ export function TenantDetailModal({ tenant, onClose }: TenantDetailModalProps) {
               <Button variant="outline" size="sm">
                 Manage Settings
               </Button>
-              {tenant.status === 'active' ? (
+              {tenant.status === 'ACTIVE' ? (
                 <Button variant="danger" size="sm">
                   Suspend Tenant
                 </Button>
-              ) : tenant.status === 'suspended' ? (
+              ) : tenant.status === 'SUSPENDED' ? (
                 <Button variant="outline" size="sm">
                   Activate Tenant
                 </Button>

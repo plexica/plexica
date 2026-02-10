@@ -15,11 +15,11 @@ export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'published':
+      case 'PUBLISHED':
         return 'default';
-      case 'draft':
+      case 'DRAFT':
         return 'secondary';
-      case 'deprecated':
+      case 'DEPRECATED':
         return 'danger';
       default:
         return 'outline';

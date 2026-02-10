@@ -1,12 +1,7 @@
 // File: apps/plugin-crm/src/components/HomePage.tsx
 
 import React from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
 
 /**
  * CRM Dashboard - Overview of key metrics

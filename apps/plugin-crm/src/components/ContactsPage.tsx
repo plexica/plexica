@@ -1,12 +1,7 @@
 // File: apps/plugin-crm/src/components/ContactsPage.tsx
 
 import React, { useState } from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
 
 /**
  * Contacts Page - View and manage customer contacts

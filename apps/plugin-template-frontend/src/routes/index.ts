@@ -1,10 +1,13 @@
 // File: apps/plugin-template-frontend/src/routes/index.ts
 
-import type { PluginRoute } from '../manifest';
+import type { PluginRoute } from '@plexica/types';
 
 /**
- * Export plugin routes for dynamic registration
- * The host app will import this to register routes
+ * Export plugin routes for dynamic registration.
+ * The host app imports this to register routes via Module Federation.
+ *
+ * Each route's `componentName` must match a named export from `Plugin.tsx`
+ * (e.g. "HomePage" → `export { HomePage }` in Plugin.tsx).
  */
 export const routes: PluginRoute[] = [
   {

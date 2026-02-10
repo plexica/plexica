@@ -12,6 +12,7 @@
     "clean": "rm -rf dist node_modules .turbo"
   },
   "dependencies": {
+    "@plexica/types": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "@tanstack/react-router": "^1.153.2",
@@ -33,5 +34,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
     "vite": "^7.3.1"
+  },
+  "peerDependencies": {
+    "@plexica/ui": "workspace:*"
   }
 }

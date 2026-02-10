@@ -1,12 +1,7 @@
 // File: apps/plugin-crm/src/components/DealsPage.tsx
 
 import React, { useState } from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
 
 interface Deal {
   id: number;

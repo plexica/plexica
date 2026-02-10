@@ -1,12 +1,7 @@
 // File: apps/plugin-analytics/src/components/DashboardPage.tsx
 
 import React from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
 
 /**
  * Analytics Dashboard - Overview of key metrics and charts

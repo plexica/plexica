@@ -53,7 +53,7 @@ export function useAnalytics() {
 
   const stats: AnalyticsStats = {
     totalTenants: tenants.length,
-    activeTenants: tenants.filter((t: any) => t.status === 'active').length,
+    activeTenants: tenants.filter((t: any) => t.status === 'ACTIVE').length,
     totalUsers: 5, // From mock users
     totalPlugins: plugins.length,
     apiCalls24h: 12543,
