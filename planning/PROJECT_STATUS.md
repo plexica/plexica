@@ -1,6 +1,6 @@
 # Plexica - Project Status
 
-**Last Updated**: February 3, 2026  
+**Last Updated**: February 10, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem  
 **Current Milestone**: **M2.4 - Plugin Registry & Marketplace** 🟡 In Progress  
 **Previous Milestone**: M2.3 - Plugin-to-Plugin Communication ✅ (Completed Jan 23)  
@@ -10,19 +10,19 @@
 
 ## 📊 Quick Overview
 
-| Metric                       | Value                                 | Status                |
-| ---------------------------- | ------------------------------------- | --------------------- |
-| **Current Phase**            | Phase 2 - Plugin Ecosystem            | 🟢 67% Complete       |
-| **Current Milestone**        | M2.4 - Plugin Registry & Marketplace  | 🟡 In Progress        |
-| **Phase 2 Overall Progress** | 3/6 milestones + 1 in progress        | 🟢 67% (4 of 6 total) |
-| **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity      |
-| **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing            |
-| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete      |
-| **Frontend MVP**             | Tenant App + Super-Admin Panel        | ✅ 100% Complete      |
-| **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete      |
-| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6) |
-| **Test Coverage**            | Core API Lines Coverage               | ✅ **80% ACHIEVED**   |
-| **Team Size**                | 1 developer (AI-assisted)             | -                     |
+| Metric                       | Value                                 | Status                   |
+| ---------------------------- | ------------------------------------- | ------------------------ |
+| **Current Phase**            | Phase 2 - Plugin Ecosystem            | 🟢 67% Complete          |
+| **Current Milestone**        | M2.4 - Plugin Registry & Marketplace  | 🟡 In Progress           |
+| **Phase 2 Overall Progress** | 3/6 milestones + 1 in progress        | 🟢 67% (4 of 6 total)    |
+| **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
+| **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
+| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
+| **Frontend MVP**             | Tenant App + Super-Admin Panel        | ✅ 100% Complete         |
+| **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete         |
+| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)    |
+| **Test Coverage**            | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
+| **Team Size**                | 1 developer (AI-assisted)             | -                        |
 
 ---
 
@@ -793,7 +793,7 @@ The core plugin system is complete (M1.4). Phase 2 will focus on:
 
 ## 🧪 Testing Status
 
-- **Unit tests**: ✅ **COMPLETE** (Vitest - 1047 tests, 80% coverage)
+- **Unit tests**: ✅ **COMPLETE** (Vitest - 1047 tests)
 - **Integration tests**: ✅ **COMPLETE** (API, DB, Keycloak, multi-tenant)
 - **E2E tests**: ⏳ Planned (Playwright framework ready)
 - **Load tests**: ✅ **Created** (Load test suite in `/load-tests`)
@@ -802,24 +802,40 @@ The core plugin system is complete (M1.4). Phase 2 will focus on:
 
 **Coverage Details**:
 
-- **Lines Coverage**: 80.00% ✅ **ACHIEVED TARGET**
-- **Functions Coverage**: 82.04%
-- **Statements Coverage**: 80.01%
+- **Lines Coverage**: 63.16% 🟡 (threshold: 60%, target: 80%)
+- **Functions Coverage**: 64.11% 🟡 (threshold: 60%, target: 80%)
+- **Statements Coverage**: 63.09% 🟡 (threshold: 60%, target: 80%)
+- **Branches Coverage**: 56.93% 🟡 (threshold: 54%, target: 75%)
 - **Test Pass Rate**: 100% (1047/1047 tests)
 
-**CI/CD Performance**:
+> **Note**: Coverage was previously reported as 80% based on per-type config
+> thresholds (unit tests only). The unified coverage run (`pnpm test:coverage`)
+> now measures all source files against all test types, revealing the actual
+> overall coverage. CI thresholds have been temporarily lowered to match reality.
 
-- **Total Runtime**: ~8 minutes (down from ~25 minutes)
-- **Infrastructure Setup**: 120s (1× vs 3× previously)
-- **Database Resets**: 10s each (between test types)
-- **Success Rate**: 98%+ (excellent reliability)
+### 📋 Coverage Improvement Plan
 
-**Test Execution**:
+**Goal**: Bring overall test coverage back to 80% lines / 75% branches.
 
-```
-Setup (120s) → Unit (30s) → Reset (10s) → Integration (90s) →
-Reset (10s) → E2E (120s) → Coverage (120s) → Teardown (5s)
-```
+**Current gap**: ~17 percentage points for lines, ~18 for branches.
+
+**Priority areas** (highest impact modules to cover first):
+
+| Priority  | Area                         | Action                                       |
+| --------- | ---------------------------- | -------------------------------------------- |
+| 🔴 High   | Modules with 0% coverage     | Identify and add basic unit tests            |
+| 🔴 High   | Service layer business logic | Add unit tests for uncovered service methods |
+| 🟡 Medium | API endpoint error paths     | Add integration tests for error/edge cases   |
+| 🟡 Medium | Plugin system                | Expand unit + integration coverage           |
+| 🟢 Low    | Utility/helper functions     | Add unit tests for lib/ utilities            |
+
+**Milestone thresholds** (raise gradually in `vitest.config.mts`):
+
+1. **60%** ← current CI threshold (passing)
+2. **65%** — after covering zero-coverage modules
+3. **70%** — after covering service layer gaps
+4. **75%** — after covering error paths
+5. **80%** — final target
 
 ---
 
@@ -1130,12 +1146,12 @@ pnpm clean                    # Clean build artifacts
 
 ## ⚠️ Known Issues
 
+- **Test Coverage Gap**: Overall coverage is ~63% (target 80%); CI thresholds temporarily lowered — see Coverage Improvement Plan above
 - **Plugin Hook Execution**: Hook handlers currently log only; actual plugin code execution not yet implemented
-- **Tests Missing**: Unit/integration/E2E tests not yet written (M2.3 in progress)
 - **Rate Limiting**: Basic rate limiting configured but not plugin-specific
 - **Caching**: Redis available but not yet used for permission/plugin caching
 - **Plugin Migrations**: Defined in manifest but execution not implemented
-- **Production Deployment**: Production deployment configuration not yet complete (M2.3)
+- **Production Deployment**: Production deployment configuration not yet complete (M2.5)
 
 ---
 

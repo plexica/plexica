@@ -24,7 +24,7 @@ services:
 
   # Keycloak - Test IAM with auto-import realm
   keycloak-test:
-    image: quay.io/keycloak/keycloak:26.5
+    image: quay.io/keycloak/keycloak:26.5.3
     container_name: plexica-keycloak-test
     command: start-dev --import-realm
     environment:
