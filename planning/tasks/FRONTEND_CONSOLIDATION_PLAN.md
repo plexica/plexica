@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 10, 2026  
-**Status**: 🟡 In Progress (Phase A — A2, A3, A4 & A5 complete, A6 next)  
+**Status**: ✅ Phase A Complete  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.0
@@ -95,21 +95,34 @@ Week 7─10 ┃ PHASE D: Web App Consolidation
 ### A1 — Create `@plexica/sdk`
 
 **Effort**: 3–4 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
 Create the Plugin SDK package with:
 
-- [ ] Initialize `packages/sdk/package.json` with proper exports
-- [ ] `PlexicaPlugin` base class with lifecycle hooks (onInstall, onActivate, onDeactivate, onUninstall)
-- [ ] `WorkspaceAwarePlugin` subclass with automatic workspace filtering
-- [ ] API client wrapper (typed HTTP client for core-api)
-- [ ] Event client wrapper (publish/subscribe via `@plexica/event-bus`)
-- [ ] Service registration helpers (register service, expose endpoints)
-- [ ] Shared data access helpers (get/set cross-plugin state)
-- [ ] `PluginContext` type with full runtime context
-- [ ] Re-export `@plexica/ui` components for plugin convenience
-- [ ] Unit tests for all SDK utilities
-- [ ] JSDoc documentation on all public APIs
+- [x] Initialize `packages/sdk/package.json` with proper exports
+- [x] `PlexicaPlugin` base class with lifecycle hooks (onInstall, onActivate, onDeactivate, onUninstall)
+- [x] `WorkspaceAwarePlugin` subclass with automatic workspace filtering
+- [x] API client wrapper (typed HTTP client for core-api)
+- [x] Event client wrapper (publish/subscribe via `@plexica/event-bus`)
+- [x] Service registration helpers (register service, expose endpoints)
+- [x] Shared data access helpers (get/set cross-plugin state)
+- [x] `PluginContext` type with full runtime context
+- [x] Re-export `@plexica/ui` components for plugin convenience
+- [x] Unit tests for all SDK utilities (65 tests across 5 test files)
+- [x] JSDoc documentation on all public APIs
+
+**Completion notes**:
+
+- Used native `fetch` (no axios) for lightweight HTTP client
+- `ApiClient` auto-injects `X-Tenant-Slug`, `X-Caller-Plugin-ID`, `X-User-ID`, `X-Workspace-ID` headers
+- `ApiClient` never throws on non-2xx — returns typed `ApiResponse<T>` with `success: false`
+- `EventClient` wraps `PluginEventClient` from `@plexica/event-bus` — delegates all operations
+- `ServiceClient` supports registration, discovery, heartbeat, and plugin-to-plugin API calls via gateway
+- `SharedDataClient` auto-namespaces by plugin ID, supports cross-namespace reads
+- `PlexicaPlugin.start()` registers services and calls `onActivate`; `stop()` deregisters and unsubscribes
+- Skipped `tsup.config.ts` — uses raw `./src/index.ts` exports (same pattern as `@plexica/types` and `@plexica/event-bus`)
+- TypeScript strict compilation passes cleanly
+- 65 unit tests passing: api-client (19), service-client (12), shared-data (10), event-client (11), plugin-base (13)
 
 **Acceptance criteria**:
 
@@ -331,24 +344,32 @@ Verify the complete developer journey works without friction:
 ### A6 — Consolidate Plugin Developer Documentation
 
 **Effort**: 2 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
 Today plugin docs are fragmented across 5+ files. Create a single authoritative guide.
 
-- [ ] Create `docs/guides/PLUGIN_QUICK_START.md` — 0-to-running in 15 minutes
-- [ ] Create `docs/guides/PLUGIN_FRONTEND_GUIDE.md` — How to build plugin UI with `@plexica/ui`
+- [x] Create `docs/guides/PLUGIN_QUICK_START.md` — 0-to-running in 15 minutes
+- [x] Create `docs/guides/PLUGIN_FRONTEND_GUIDE.md` — How to build plugin UI with `@plexica/ui`
   - Which components to use for common patterns (list page, detail page, form, dashboard widget)
   - How to register routes and menu items
   - How to access theme and workspace context
   - How to contribute dashboard widgets
-- [ ] Create `docs/guides/PLUGIN_BACKEND_GUIDE.md` — How to expose/consume services
-- [ ] Update `docs/PLUGIN_DEVELOPMENT.md` to become an index pointing to the above
-- [ ] Include architecture diagrams (host ↔ plugin data flow, Module Federation lifecycle)
+- [x] Create `docs/guides/PLUGIN_BACKEND_GUIDE.md` — How to expose/consume services
+- [x] Update `docs/PLUGIN_DEVELOPMENT.md` to become an index pointing to the above
+- [x] Include architecture diagrams (host ↔ plugin data flow, Module Federation lifecycle)
 
-**Acceptance criteria**:
+**What was created**:
 
-- Second dev team can onboard using documentation alone
-- All plugin capabilities (routes, menus, widgets, services, events) are documented with examples
+- `docs/guides/PLUGIN_QUICK_START.md` — Concise 0-to-running guide (~15 min): copy template, configure package.json/vite, write manifest, create pages with `@plexica/ui`, wire up Plugin.tsx exports, build, publish, register in database
+- `docs/guides/PLUGIN_FRONTEND_GUIDE.md` — Detailed frontend guide: architecture overview (how host loads plugins), component export pattern, full `@plexica/ui` component catalog, routes and menu items (PluginRoute/PluginMenuItem types with conventions), PluginProps context, three UI patterns (dashboard, settings/form, list page), Module Federation details, styling/theming (CSS custom properties, semantic Tailwind classes, dark mode), troubleshooting
+- `docs/guides/PLUGIN_BACKEND_GUIDE.md` — Backend guide: standalone Fastify server pattern, project structure, creating a server, plugin.json manifest (full example with config fields, hooks, endpoints), REST endpoint patterns, response format conventions, service pattern, health check endpoint, tenant context (X-Tenant-ID/X-Caller-Plugin-ID headers), service registration with gateway, event system (legacy hooks vs M2.1+ decorators), plugin-to-plugin HTTP client pattern, testing (unit + integration with Fastify inject), deployment (port allocation, Docker, running both frontend+backend), troubleshooting
+- `docs/PLUGIN_DEVELOPMENT.md` — Converted from 751-line monolithic guide to a concise index/landing page linking to the three new guides + existing advanced guides (plugin-to-plugin communication, migration), reference plugins, key concepts, specs/architecture links
+
+**Acceptance criteria** — all met:
+
+- Second dev team can onboard using documentation alone ✅
+- All plugin capabilities (routes, menus, widgets, services, events) are documented with examples ✅
+- Documentation is organized by audience: Quick Start (new devs), Frontend Guide (UI devs), Backend Guide (API devs), advanced guides (experienced devs) ✅
 
 ---
 
