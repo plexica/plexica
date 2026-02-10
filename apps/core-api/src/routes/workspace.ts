@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { workspaceService } from '../modules/workspace/workspace.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { authMiddleware } from '../middleware/auth.js';
