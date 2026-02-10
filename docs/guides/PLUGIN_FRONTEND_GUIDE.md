@@ -715,13 +715,13 @@ If your build output contains `@plexica/ui` code (check bundle size), verify:
 
 ## Reference: Example Plugins
 
-| Plugin          | Location                         | Features                                                                          |
-| --------------- | -------------------------------- | --------------------------------------------------------------------------------- |
-| Plugin Template | `apps/plugin-template-frontend/` | Dashboard + Settings using `@plexica/ui`                                          |
-| CRM             | `apps/plugin-crm/`               | Contacts table, Deals pipeline, Dashboard (raw Tailwind -- Phase B6 will migrate) |
-| Analytics       | `apps/plugin-analytics/`         | Dashboard, Reports table (raw Tailwind -- Phase B6 will migrate)                  |
+| Plugin          | Location                         | Features                                                                                 |
+| --------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
+| Plugin Template | `apps/plugin-template-frontend/` | Dashboard + Settings using `@plexica/ui`                                                 |
+| CRM             | `apps/plugin-crm/`               | Contacts table, Deals pipeline, Dashboard — all using `@plexica/ui` components           |
+| Analytics       | `apps/plugin-analytics/`         | Dashboard with StatCards, Reports table with export — all using `@plexica/ui` components |
 
-The plugin template is the recommended starting point. The CRM and Analytics plugins demonstrate more complex patterns but currently use raw Tailwind instead of `@plexica/ui` components (scheduled for migration in Phase B6).
+The plugin template is the recommended starting point. The CRM and Analytics plugins demonstrate more complex patterns using `@plexica/ui` components — see the [Plugin UI Patterns](./PLUGIN_UI_PATTERNS.md) guide for copy-pasteable page layouts extracted from these plugins.
 
 ---
 
@@ -730,6 +730,7 @@ The plugin template is the recommended starting point. The CRM and Analytics plu
 | Topic                                 | Guide                                                     |
 | ------------------------------------- | --------------------------------------------------------- |
 | 0-to-running quick start              | [Quick Start](./PLUGIN_QUICK_START.md)                    |
+| Copy-pasteable page patterns          | [Plugin UI Patterns](./PLUGIN_UI_PATTERNS.md)             |
 | Backend services, APIs, events        | [Backend Guide](./PLUGIN_BACKEND_GUIDE.md)                |
 | Plugin-to-plugin communication (M2.3) | [Plugin-to-Plugin Communication](./plugin-development.md) |
 | UI component library reference        | [UI Components Guide](./UI_COMPONENTS_SHADCN_GUIDE.md)    |

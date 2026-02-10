@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 10, 2026  
-**Status**: 🟡 Phase B In Progress (B1-B6 Complete)  
+**Status**: 🟡 Phase B In Progress (B1-B7 Complete)  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.0
@@ -668,16 +668,18 @@ as the reference implementation for the second dev team.
 ### B7 — Plugin UI patterns documentation
 
 **Effort**: 1–2 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete
 
-- [ ] Create `docs/guides/PLUGIN_UI_PATTERNS.md` with copy-pasteable examples:
-  - **List page pattern**: Header + search + filters + DataTable + pagination
-  - **Detail page pattern**: Breadcrumbs + Card with tabs + action buttons
-  - **Form page pattern**: Card + form fields + validation + submit
-  - **Dashboard widget pattern**: StatCard or Card with custom content
-  - **Settings page pattern**: Tabs + form sections
-- [ ] Each pattern includes full working code using `@plexica/ui` components
-- [ ] Reference the sample plugins (CRM, Analytics) as living examples
+- [x] Create `docs/guides/PLUGIN_UI_PATTERNS.md` with copy-pasteable examples:
+  - **Dashboard page pattern**: StatCard grid, tabbed charts, activity feed, Select filtering
+  - **List page pattern**: DataTable with ColumnDef, Avatar, Badge status mapping, EmptyState, search/sort/pagination
+  - **Detail / Kanban page pattern**: Horizontal scroll Kanban board, Card columns, Progress bars, inline metadata
+  - **Form / Settings page pattern**: Input, Label, Select, Switch toggles, Card sections, Alert feedback
+  - **Report / Export page pattern**: Template cards grid, DataTable, export config with multi-column Select
+- [x] Each pattern includes full working code using `@plexica/ui` components
+- [x] Reference the sample plugins (CRM, Analytics) as living examples
+- [x] Common Building Blocks section with reusable snippets (page header, stat grid, card with action, status badge mapping, row actions, toggle row, context footer)
+- [x] Updated `PLUGIN_FRONTEND_GUIDE.md` reference plugins table (B6 migration complete) and added link to patterns guide
 
 **Acceptance criteria**:
 
