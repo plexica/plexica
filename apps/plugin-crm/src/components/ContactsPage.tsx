@@ -2,13 +2,45 @@
 
 import React, { useState } from 'react';
 import type { PluginProps } from '@plexica/types';
+import type { ColumnDef } from '@plexica/ui';
+import {
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  DataTable,
+  EmptyState,
+  StatCard,
+} from '@plexica/ui';
+import { Plus, Search, Users } from 'lucide-react';
+// Note: Input is used internally by DataTable's enableGlobalFilter
+
+interface Contact {
+  id: number;
+  name: string;
+  email: string;
+  company: string;
+  phone: string;
+  status: 'Active' | 'Lead';
+  deals: number;
+  value: string;
+}
+
+const STATUS_VARIANT: Record<Contact['status'], 'success' | 'warning'> = {
+  Active: 'success',
+  Lead: 'warning',
+};
 
 /**
  * Contacts Page - View and manage customer contacts
  */
 const ContactsPage: React.FC<PluginProps> = ({ tenantId }) => {
   // Mock contacts data
-  const [contacts] = useState([
+  const [contacts] = useState<Contact[]>([
     {
       id: 1,
       name: 'John Smith',
@@ -61,149 +93,137 @@ const ContactsPage: React.FC<PluginProps> = ({ tenantId }) => {
     },
   ]);
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const columns: ColumnDef<Contact, unknown>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => {
+        const name = row.getValue<string>('name');
+        const initials = name
+          .split(' ')
+          .map((n) => n[0])
+          .join('');
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+            </Avatar>
+            <span className="font-medium">{name}</span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'company',
+      header: 'Company',
+    },
+    {
+      accessorKey: 'email',
+      header: 'Contact Info',
+      cell: ({ row }) => (
+        <div>
+          <div className="text-sm">{row.original.email}</div>
+          <div className="text-xs text-muted-foreground">{row.original.phone}</div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.getValue<Contact['status']>('status');
+        return <Badge variant={STATUS_VARIANT[status]}>{status}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'deals',
+      header: 'Deals',
+    },
+    {
+      accessorKey: 'value',
+      header: 'Value',
+      cell: ({ row }) => <span className="font-medium">{row.getValue<string>('value')}</span>,
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: () => (
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm">
+            View
+          </Button>
+          <Button variant="ghost" size="sm">
+            Edit
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
-  const filteredContacts = contacts.filter(
-    (contact) =>
-      contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.company.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const activeCount = contacts.filter((c) => c.status === 'Active').length;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Contacts</h1>
-        <p className="text-gray-600 mt-1">Manage your customer relationships</p>
-      </div>
-
-      {/* Search and Actions */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex-1 max-w-md">
-          <input
-            type="text"
-            placeholder="Search contacts..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+    <div className="space-y-6 p-6">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Contacts</h1>
+          <p className="text-sm text-muted-foreground">Manage your customer relationships</p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium whitespace-nowrap">
-          + Add Contact
-        </button>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Contact
+        </Button>
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Total Contacts</p>
-          <p className="text-2xl font-bold text-gray-900">{contacts.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Active Customers</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {contacts.filter((c) => c.status === 'Active').length}
-          </p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Total Pipeline Value</p>
-          <p className="text-2xl font-bold text-gray-900">$830K</p>
-        </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <StatCard
+          label="Total Contacts"
+          value={contacts.length}
+          icon={<Users className="h-5 w-5" />}
+        />
+        <StatCard label="Active Customers" value={activeCount} />
+        <StatCard label="Total Pipeline Value" value="$830K" />
       </div>
 
       {/* Contacts Table */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Company
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Contact Info
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Deals
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Value
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredContacts.map((contact) => (
-              <tr key={contact.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="h-10 w-10 flex-shrink-0">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <span className="text-blue-600 font-medium">
-                          {contact.name
-                            .split(' ')
-                            .map((n) => n[0])
-                            .join('')}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{contact.name}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{contact.company}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{contact.email}</div>
-                  <div className="text-sm text-gray-500">{contact.phone}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      contact.status === 'Active'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {contact.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {contact.deals}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {contact.value}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button className="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                  <button className="text-gray-600 hover:text-gray-900">Edit</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {filteredContacts.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow border border-gray-200 mt-6">
-          <p className="text-gray-500">No contacts found matching &quot;{searchTerm}&quot;</p>
-        </div>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Contacts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {contacts.length === 0 ? (
+            <EmptyState
+              icon={<Search className="h-10 w-10" />}
+              title="No contacts found"
+              description="Get started by adding your first contact."
+              action={{ label: 'Add Contact', onClick: () => {} }}
+            />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={contacts}
+              enableSorting
+              enableGlobalFilter
+              enablePagination
+              pageSize={10}
+            />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Context Info */}
-      <div className="mt-8 p-4 bg-gray-100 rounded text-xs text-gray-600">
-        <strong>Plugin Context:</strong> Tenant: {tenantId} | Showing {filteredContacts.length} of{' '}
-        {contacts.length} contacts
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-3">
+            <Badge variant="outline">Tenant: {tenantId}</Badge>
+            <Badge variant="outline">
+              Showing {contacts.length} of {contacts.length} contacts
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

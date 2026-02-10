@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import type { PluginProps } from '@plexica/types';
+import { Badge, Button, Card, CardContent, Progress, Separator, StatCard } from '@plexica/ui';
+import { Calendar, DollarSign, Handshake, Plus, Trophy, User } from 'lucide-react';
 
 interface Deal {
   id: number;
@@ -102,42 +104,47 @@ const DealsPage: React.FC<PluginProps> = ({ tenantId }) => {
     .filter((d) => d.stage !== 'Closed Won')
     .reduce((sum, deal) => sum + parseInt(deal.value.replace(/[$K,]/g, '')), 0);
 
+  const STAGE_VARIANT: Record<string, 'secondary' | 'warning' | 'default' | 'success' | 'outline'> =
+    {
+      Lead: 'secondary',
+      Qualified: 'warning',
+      Proposal: 'default',
+      Negotiation: 'default',
+      'Closed Won': 'success',
+    };
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Sales Pipeline</h1>
-        <p className="text-gray-600 mt-1">Track and manage your deals</p>
+    <div className="space-y-6 p-6">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Sales Pipeline</h1>
+          <p className="text-sm text-muted-foreground">Track and manage your deals</p>
+        </div>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Deal
+        </Button>
       </div>
 
       {/* Pipeline Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Total Deals</p>
-          <p className="text-2xl font-bold text-gray-900">{deals.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Pipeline Value</p>
-          <p className="text-2xl font-bold text-gray-900">${totalPipelineValue}K</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">In Negotiation</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {getDealsByStage('Negotiation').length}
-          </p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Closed This Month</p>
-          <p className="text-2xl font-bold text-green-600">
-            {getDealsByStage('Closed Won').length}
-          </p>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="mb-6">
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-          + Add Deal
-        </button>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <StatCard
+          label="Total Deals"
+          value={deals.length}
+          icon={<Handshake className="h-5 w-5" />}
+        />
+        <StatCard
+          label="Pipeline Value"
+          value={`$${totalPipelineValue}K`}
+          icon={<DollarSign className="h-5 w-5" />}
+        />
+        <StatCard label="In Negotiation" value={getDealsByStage('Negotiation').length} />
+        <StatCard
+          label="Closed This Month"
+          value={getDealsByStage('Closed Won').length}
+          icon={<Trophy className="h-5 w-5" />}
+        />
       </div>
 
       {/* Kanban Board */}
@@ -150,76 +157,71 @@ const DealsPage: React.FC<PluginProps> = ({ tenantId }) => {
           );
 
           return (
-            <div key={stage} className="flex-shrink-0 w-80">
+            <div key={stage} className="w-80 flex-shrink-0">
               {/* Stage Header */}
-              <div className="bg-gray-100 rounded-t-lg p-4 border-b-2 border-gray-300">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-semibold text-gray-900">{stage}</h3>
-                  <span className="bg-gray-200 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">
-                    {stageDeals.length}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-1">${stageValue}K</p>
-              </div>
+              <Card className="rounded-b-none">
+                <CardContent className="flex items-center justify-between p-4">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{stage}</h3>
+                    <p className="text-sm text-muted-foreground">${stageValue}K</p>
+                  </div>
+                  <Badge variant={STAGE_VARIANT[stage] ?? 'outline'}>{stageDeals.length}</Badge>
+                </CardContent>
+              </Card>
 
               {/* Stage Deals */}
-              <div className="bg-gray-50 rounded-b-lg p-2 min-h-[400px] space-y-2">
+              <div className="min-h-[400px] space-y-2 rounded-b-lg border border-t-0 border-border bg-muted/30 p-2">
                 {stageDeals.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-sm">No deals</div>
+                  <div className="py-8 text-center text-sm text-muted-foreground">No deals</div>
                 ) : (
                   stageDeals.map((deal) => (
-                    <div
+                    <Card
                       key={deal.id}
-                      className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                      className="cursor-pointer transition-shadow hover:shadow-md"
                     >
-                      <h4 className="font-medium text-gray-900 mb-2">{deal.name}</h4>
-                      <p className="text-lg font-bold text-blue-600 mb-2">{deal.value}</p>
+                      <CardContent className="p-4">
+                        <h4 className="mb-2 font-medium text-foreground">{deal.name}</h4>
+                        <p className="mb-3 text-lg font-bold text-primary">{deal.value}</p>
 
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <p>
-                          <span className="font-medium">Contact:</span> {deal.contact}
-                        </p>
-                        <p>
-                          <span className="font-medium">Company:</span> {deal.company}
-                        </p>
-                        <p>
-                          <span className="font-medium">Close Date:</span>{' '}
-                          {new Date(deal.closeDate).toLocaleDateString()}
-                        </p>
-                      </div>
-
-                      {/* Probability Bar */}
-                      <div className="mt-3">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs text-gray-600">Probability</span>
-                          <span className="text-xs font-medium text-gray-900">
-                            {deal.probability}%
-                          </span>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          <p className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5" />
+                            {deal.contact}
+                          </p>
+                          <p className="flex items-center gap-1.5">
+                            <Handshake className="h-3.5 w-3.5" />
+                            {deal.company}
+                          </p>
+                          <p className="flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {new Date(deal.closeDate).toLocaleDateString()}
+                          </p>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              deal.probability >= 75
-                                ? 'bg-green-500'
-                                : deal.probability >= 50
-                                  ? 'bg-yellow-500'
-                                  : 'bg-orange-500'
-                            }`}
-                            style={{ width: `${deal.probability}%` }}
-                          />
-                        </div>
-                      </div>
 
-                      {/* Actions */}
-                      <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
-                        <button className="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                          View
-                        </button>
-                        <button className="text-xs text-gray-600 hover:text-gray-800 font-medium">
-                          Edit
-                        </button>
-                      </div>
-                    </div>
+                        {/* Probability */}
+                        <div className="mt-3">
+                          <div className="mb-1 flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Probability</span>
+                            <span className="text-xs font-medium text-foreground">
+                              {deal.probability}%
+                            </span>
+                          </div>
+                          <Progress value={deal.probability} className="h-2" />
+                        </div>
+
+                        <Separator className="my-3" />
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs">
+                            View
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs">
+                            Edit
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))
                 )}
               </div>
@@ -229,10 +231,16 @@ const DealsPage: React.FC<PluginProps> = ({ tenantId }) => {
       </div>
 
       {/* Context Info */}
-      <div className="mt-8 p-4 bg-gray-100 rounded text-xs text-gray-600">
-        <strong>Plugin Context:</strong> Tenant: {tenantId} | Showing {deals.length} deals across{' '}
-        {stages.length} stages
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-3">
+            <Badge variant="outline">Tenant: {tenantId}</Badge>
+            <Badge variant="outline">
+              {deals.length} deals across {stages.length} stages
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

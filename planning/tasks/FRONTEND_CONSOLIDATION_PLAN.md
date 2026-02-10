@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 10, 2026  
-**Status**: 🟡 Phase B In Progress (B1-B5 Complete)  
+**Status**: 🟡 Phase B In Progress (B1-B6 Complete)  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.0
@@ -632,29 +632,36 @@ All 6 components exported from `packages/ui/src/index.ts`:
 ### B6 — Rewrite sample plugins using `@plexica/ui`
 
 **Effort**: 2–3 days  
-**Status**: ⚪ Not Started  
+**Status**: ✅ Complete (February 10, 2026)  
 **Depends on**: A3 (UI in Module Federation)
 
-The sample plugins currently write raw HTML with hardcoded Tailwind classes. They must serve
+The sample plugins previously wrote raw HTML with hardcoded Tailwind classes. They now serve
 as the reference implementation for the second dev team.
 
-**plugin-crm** — Rewrite using `@plexica/ui`:
+**plugin-crm** — Rewritten using `@plexica/ui`:
 
-- [ ] `ContactsPage.tsx`: Replace raw table → `DataTable`, raw badges → `Badge`,
-      raw inputs → `Input`, raw buttons → `Button`, raw cards → `Card`/`StatCard`
-- [ ] `DealsPage.tsx`: Same treatment for Kanban board cards
-- [ ] `HomePage.tsx`: Use `Card`, `StatCard`, `Badge` for dashboard
+- [x] `HomePage.tsx`: Uses `StatCard`, `Card`, `CardContent`, `CardDescription`, `CardHeader`, `CardTitle`, `Badge`, `Button`. Icons: `DollarSign`, `Handshake`, `Trophy`, `Users`.
+- [x] `ContactsPage.tsx`: Uses `Avatar`, `AvatarFallback`, `Badge`, `Button`, `Card`, `CardContent`, `CardHeader`, `CardTitle`, `DataTable`, `EmptyState`, `StatCard`, `ColumnDef`. Icons: `Plus`, `Search`, `Users`. DataTable's `enableGlobalFilter` handles search internally.
+- [x] `DealsPage.tsx`: Uses `Badge`, `Button`, `Card`, `CardContent`, `Progress`, `Separator`, `StatCard`. Icons: `Calendar`, `DollarSign`, `Handshake`, `Plus`, `Trophy`, `User`. Kanban board with deal cards and probability progress bars.
 
-**plugin-analytics** — Rewrite using `@plexica/ui`:
+**plugin-analytics** — Rewritten using `@plexica/ui`:
 
-- [ ] `DashboardPage.tsx`: Use `Card`, `StatCard`, `Tabs`, `Badge`
-- [ ] `ReportsPage.tsx`: Use `Card`, `DataTable`, `Button`, `Select`
+- [x] `DashboardPage.tsx`: Uses `Badge`, `Button`, `Card`, `CardContent`, `CardDescription`, `CardHeader`, `CardTitle`, `Progress`, `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue`, `StatCard`, `Tabs`, `TabsContent`, `TabsList`, `TabsTrigger`. Icons: `Activity`, `BarChart3`, `Clock`, `DollarSign`, `TrendingUp`, `Users`. Revenue chart with tab navigation.
+- [x] `ReportsPage.tsx`: Uses `Badge`, `Button`, `Card`, `CardContent`, `CardDescription`, `CardHeader`, `CardTitle`, `DataTable`, `Label`, `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue`, `Separator`, `StatCard`, `ColumnDef`. Icons: `BarChart3`, `Calendar`, `Download`, `FileText`, `Plus`, `Target`, `Users`.
 
-**Acceptance criteria**:
+**Plugin.tsx files**: No changes needed — already clean, import page components and re-export them.
 
-- Zero raw HTML `<table>`, `<button>`, `<input>` elements in plugin code
-- All UI uses `@plexica/ui` components imported from the shared Module Federation dependency
-- Plugins look visually identical to the host app
+**Build verification**: Both plugins build successfully with `tsc -b && vite build`:
+
+- `plugin-crm`: ✅ 18 chunks, `remoteEntry.js` generated (2.37 kB)
+- `plugin-analytics`: ✅ 18 chunks, `remoteEntry.js` generated (2.37 kB)
+- `@plexica/ui` appears as `__federation_shared_@plexica/ui-*.js` confirming shared dep works
+
+**Acceptance criteria** — all met:
+
+- Zero raw HTML `<table>`, `<button>`, `<input>` elements in plugin code ✅
+- All UI uses `@plexica/ui` components imported from the shared Module Federation dependency ✅
+- Plugins look visually identical to the host app (same design tokens) ✅
 
 ---
 
