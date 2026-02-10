@@ -74,7 +74,7 @@ function validateConfig(): Config {
     },
     keycloak: {
       url: keycloakUrl || 'http://localhost:8080',
-      realm: 'plexica-admin', // Fixed realm for super-admin (not tenant-specific)
+      realm: import.meta.env.VITE_KEYCLOAK_REALM || 'plexica-admin', // Configurable, defaults to plexica-admin
       clientId: keycloakClientId || 'super-admin-app',
     },
     isDevelopment: isDev,
@@ -114,7 +114,7 @@ try {
     },
     keycloak: {
       url: 'http://localhost:8080',
-      realm: 'plexica-admin',
+      realm: import.meta.env.VITE_KEYCLOAK_REALM || 'plexica-admin',
       clientId: 'super-admin-app',
     },
     isDevelopment: true,

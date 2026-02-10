@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Button, Badge } from '@plexica/ui';
 import { X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plugin } from '../../types';
+import { apiClient } from '../../lib/api-client';
 import { PluginVersionManager } from '../marketplace/PluginVersionManager';
 import { PluginAnalytics } from '../marketplace/PluginAnalytics';
 
@@ -13,6 +15,41 @@ interface PluginDetailModalProps {
 export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
   const [showVersionManager, setShowVersionManager] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Fetch full plugin details (includes installCount, averageRating, ratingCount)
+  const { data: detail } = useQuery({
+    queryKey: ['plugin', plugin.id],
+    queryFn: () => apiClient.getPlugin(plugin.id),
+  });
+
+  const deprecateMutation = useMutation({
+    mutationFn: () => apiClient.deprecatePlugin(plugin.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+      queryClient.invalidateQueries({ queryKey: ['plugin', plugin.id] });
+      setActionError(null);
+    },
+    onError: (err: any) => {
+      setActionError(err?.response?.data?.error || err.message || 'Failed to deprecate plugin');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiClient.deletePlugin(plugin.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plugins'] });
+      onClose();
+    },
+    onError: (err: any) => {
+      setActionError(err?.response?.data?.error || err.message || 'Failed to delete plugin');
+    },
+  });
+
+  // Use detail data if available, fallback to passed plugin
+  const pluginData = detail || plugin;
+
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'PUBLISHED':
@@ -111,25 +148,31 @@ export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-muted/50 rounded-lg p-3">
                 <p className="text-xs text-muted-foreground mb-1">Installs</p>
-                <p className="text-xl font-bold text-foreground">-</p>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-xs text-muted-foreground mb-1">Active Users</p>
-                <p className="text-xl font-bold text-foreground">-</p>
+                <p className="text-xl font-bold text-foreground">{pluginData.installCount ?? 0}</p>
               </div>
               <div className="bg-muted/50 rounded-lg p-3">
                 <p className="text-xs text-muted-foreground mb-1">Rating</p>
-                <p className="text-xl font-bold text-foreground">-</p>
+                <p className="text-xl font-bold text-foreground">
+                  {pluginData.averageRating != null
+                    ? `${Number(pluginData.averageRating).toFixed(1)}/5`
+                    : 'N/A'}
+                </p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground mb-1">Reviews</p>
+                <p className="text-xl font-bold text-foreground">{pluginData.ratingCount ?? 0}</p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Detailed statistics coming in future release
-            </p>
           </div>
 
           {/* Actions */}
           <div className="border-t border-border pt-4">
             <h3 className="text-sm font-semibold text-foreground mb-3">Actions</h3>
+            {actionError && (
+              <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                {actionError}
+              </div>
+            )}
             <div className="flex gap-3 flex-wrap">
               <Button variant="outline" size="sm" onClick={() => setShowVersionManager(true)}>
                 Manage Versions
@@ -137,15 +180,30 @@ export function PluginDetailModal({ plugin, onClose }: PluginDetailModalProps) {
               <Button variant="outline" size="sm" onClick={() => setShowAnalytics(true)}>
                 View Analytics
               </Button>
-              <Button variant="outline" size="sm">
-                Edit Plugin
-              </Button>
-              <Button variant="outline" size="sm">
-                View Installations
-              </Button>
-              {plugin.status === 'PUBLISHED' && (
-                <Button variant="danger" size="sm">
-                  Deprecate
+              {pluginData.status === 'PUBLISHED' && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => deprecateMutation.mutate()}
+                  disabled={deprecateMutation.isPending}
+                >
+                  {deprecateMutation.isPending ? 'Deprecating...' : 'Deprecate'}
+                </Button>
+              )}
+              {(pluginData.status === 'DRAFT' || pluginData.status === 'DEPRECATED') && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    if (
+                      confirm('Are you sure you want to delete this plugin? This cannot be undone.')
+                    ) {
+                      deleteMutation.mutate();
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? 'Deleting...' : 'Delete Plugin'}
                 </Button>
               )}
             </div>

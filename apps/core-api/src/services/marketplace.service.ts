@@ -37,7 +37,7 @@ export class MarketplaceService {
     const {
       query: searchQuery,
       category,
-      status = 'PUBLISHED',
+      status,
       minRating,
       page = 1,
       limit = 20,
@@ -48,9 +48,12 @@ export class MarketplaceService {
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: any = {
-      status,
-    };
+    // When status is provided, filter by it; when undefined, show all statuses (for admin views)
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
 
     if (category) {
       where.category = category;

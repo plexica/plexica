@@ -246,7 +246,7 @@ class ApiClient {
       demoUrl?: string;
     }
   ) {
-    const response = await this.client.put(`/api/marketplace/plugins/${pluginId}/metadata`, data);
+    const response = await this.client.patch(`/api/marketplace/plugins/${pluginId}`, data);
     return response.data;
   }
 
@@ -290,6 +290,11 @@ class ApiClient {
 
   async getAnalyticsPlugins(params?: { period?: string }) {
     const response = await this.client.get('/api/admin/analytics/plugins', { params });
+    return response.data;
+  }
+
+  async getAnalyticsApiCalls(params?: { hours?: number }) {
+    const response = await this.client.get('/api/admin/analytics/api-calls', { params });
     return response.data;
   }
 

@@ -3,6 +3,7 @@ import { tenantService } from '../services/tenant.service.js';
 import { analyticsService } from '../services/analytics.service.js';
 import { marketplaceService } from '../services/marketplace.service.js';
 import { adminService } from '../services/admin.service.js';
+import { pluginRegistryService } from '../services/plugin.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
 
@@ -537,6 +538,125 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // ===== PLUGIN MANAGEMENT (Global Registry) =====
 
+  // Update tenant (partial update for name, settings, theme)
+  fastify.patch<{
+    Params: { id: string };
+    Body: {
+      name?: string;
+      settings?: Record<string, any>;
+      theme?: Record<string, any>;
+    };
+  }>(
+    '/admin/tenants/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Update tenant details (super-admin only)',
+        tags: ['admin', 'tenants'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        body: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 255,
+              description: 'Tenant display name',
+            },
+            settings: {
+              type: 'object',
+              description: 'Tenant settings (JSON object)',
+            },
+            theme: {
+              type: 'object',
+              description: 'Tenant theme configuration (JSON object)',
+            },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          200: {
+            description: 'Tenant updated successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              status: { type: 'string' },
+              settings: { type: 'object' },
+              theme: { type: 'object' },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          404: {
+            description: 'Tenant not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: {
+          name?: string;
+          settings?: Record<string, any>;
+          theme?: Record<string, any>;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { name, settings, theme } = request.body;
+        const updateData: Record<string, any> = {};
+
+        if (name !== undefined) updateData.name = name;
+        if (settings !== undefined) updateData.settings = settings;
+        if (theme !== undefined) updateData.theme = theme;
+
+        if (Object.keys(updateData).length === 0) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'At least one field (name, settings, theme) must be provided',
+          });
+        }
+
+        const tenant = await tenantService.updateTenant(request.params.id, updateData);
+
+        request.log.info({ tenantId: tenant.id }, 'Tenant updated successfully');
+
+        return reply.send(tenant);
+      } catch (error: any) {
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to update tenant');
+
+        if (error.message === 'Tenant not found') {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to update tenant',
+        });
+      }
+    }
+  );
+
+  // ===== PLUGIN MANAGEMENT continued =====
+
   // List all plugins in registry
   fastify.get<{
     Querystring: {
@@ -710,6 +830,282 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'Failed to retrieve plugin details',
+        });
+      }
+    }
+  );
+
+  // Create a new plugin in registry (admin shortcut, bypasses marketplace review)
+  fastify.post<{
+    Body: {
+      name: string;
+      version: string;
+      description: string;
+      category: string;
+      author: string;
+    };
+  }>(
+    '/admin/plugins',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Create a new plugin in registry (super-admin only)',
+        tags: ['admin', 'plugins'],
+        body: {
+          type: 'object',
+          required: ['name', 'version', 'description', 'category', 'author'],
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 255 },
+            version: { type: 'string', minLength: 1 },
+            description: { type: 'string', minLength: 1 },
+            category: { type: 'string', minLength: 1 },
+            author: { type: 'string', minLength: 1 },
+          },
+        },
+        response: {
+          201: {
+            description: 'Plugin created',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              version: { type: 'string' },
+              status: { type: 'string' },
+              description: { type: 'string' },
+              category: { type: 'string' },
+              author: { type: 'string' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{
+        Body: {
+          name: string;
+          version: string;
+          description: string;
+          category: string;
+          author: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { name, version, description, category, author } = request.body;
+        // Use marketplace publishPlugin with admin as publisher
+        const plugin = await marketplaceService.publishPlugin(
+          {
+            id: `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+            name,
+            version,
+            description,
+            category: category as any,
+            author,
+            authorEmail: 'admin@plexica.io',
+            manifest: {},
+            license: 'MIT',
+            screenshots: [],
+          },
+          'super-admin'
+        );
+
+        request.log.info({ pluginId: plugin.id }, 'Plugin created by admin');
+        return reply.code(201).send(plugin);
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to create plugin');
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: error.message,
+        });
+      }
+    }
+  );
+
+  // Update plugin (admin)
+  fastify.patch<{
+    Params: { id: string };
+    Body: {
+      name?: string;
+      version?: string;
+      description?: string;
+      status?: string;
+    };
+  }>(
+    '/admin/plugins/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Update plugin details (super-admin only)',
+        tags: ['admin', 'plugins'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        body: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 255 },
+            version: { type: 'string', minLength: 1 },
+            description: { type: 'string', minLength: 1 },
+            status: {
+              type: 'string',
+              enum: ['DRAFT', 'PUBLISHED', 'DEPRECATED'],
+            },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          200: {
+            description: 'Plugin updated',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              name: { type: 'string' },
+              version: { type: 'string' },
+              status: { type: 'string' },
+              description: { type: 'string' },
+              category: { type: 'string' },
+              author: { type: 'string' },
+            },
+          },
+          404: {
+            description: 'Plugin not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: {
+          name?: string;
+          version?: string;
+          description?: string;
+          status?: string;
+        };
+      }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { name, version, description, status } = request.body;
+        const updateData: Record<string, string> = {};
+
+        if (name !== undefined) updateData.name = name;
+        if (version !== undefined) updateData.version = version;
+        if (description !== undefined) updateData.description = description;
+        if (status !== undefined) updateData.status = status;
+
+        if (Object.keys(updateData).length === 0) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'At least one field must be provided',
+          });
+        }
+
+        // Use marketplace updatePluginMetadata for description changes,
+        // or direct update for status/version changes
+        const plugin = await marketplaceService.updatePluginMetadata(request.params.id, updateData);
+
+        request.log.info({ pluginId: request.params.id }, 'Plugin updated by admin');
+        return reply.send(plugin);
+      } catch (error: any) {
+        request.log.error({ error, pluginId: request.params.id }, 'Failed to update plugin');
+
+        if (error.message.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to update plugin',
+        });
+      }
+    }
+  );
+
+  // Delete plugin from registry (admin only)
+  fastify.delete<{
+    Params: { id: string };
+  }>(
+    '/admin/plugins/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Delete a plugin from registry (super-admin only)',
+        tags: ['admin', 'plugins'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            description: 'Plugin deleted',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+            },
+          },
+          404: {
+            description: 'Plugin not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          409: {
+            description: 'Plugin has active installations',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        await pluginRegistryService.deletePlugin(request.params.id);
+
+        request.log.info({ pluginId: request.params.id }, 'Plugin deleted by admin');
+        return reply.send({ message: 'Plugin deleted successfully' });
+      } catch (error: any) {
+        request.log.error({ error, pluginId: request.params.id }, 'Failed to delete plugin');
+
+        if (error.message.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        if (error.message.includes('Cannot delete')) {
+          return reply.code(409).send({
+            error: 'Conflict',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to delete plugin',
         });
       }
     }

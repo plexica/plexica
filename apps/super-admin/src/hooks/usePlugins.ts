@@ -22,7 +22,7 @@ export function usePlugins() {
     queryFn: () => apiClient.getPlugins(),
   });
 
-  const allPlugins: Plugin[] = pluginsData?.plugins || [];
+  const allPlugins: Plugin[] = pluginsData?.data || [];
 
   // Get unique categories
   const categories = Array.from(new Set(allPlugins.map((p) => p.category)));
