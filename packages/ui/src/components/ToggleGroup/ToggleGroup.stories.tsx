@@ -1,20 +1,18 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ToggleGroup, ToggleGroupItem } from './ToggleGroup';
 import { Bold, Italic, Underline } from 'lucide-react';
 
 const meta = {
   title: 'Components/ToggleGroup',
-  component: ToggleGroup,
   parameters: {
     layout: 'centered',
   },
   tags: ['autodocs'],
-} satisfies Meta<typeof ToggleGroup>;
+} satisfies Meta;
 
 export default meta;
-type Story = StoryObj<typeof meta>;
 
-export const Single: Story = {
+export const Single: StoryObj = {
   render: () => (
     <ToggleGroup type="single">
       <ToggleGroupItem value="bold" aria-label="Toggle bold">
@@ -30,7 +28,7 @@ export const Single: Story = {
   ),
 };
 
-export const Multiple: Story = {
+export const Multiple: StoryObj = {
   render: () => (
     <ToggleGroup type="multiple">
       <ToggleGroupItem value="bold" aria-label="Toggle bold">
@@ -46,7 +44,7 @@ export const Multiple: Story = {
   ),
 };
 
-export const WithText: Story = {
+export const WithText: StoryObj = {
   render: () => (
     <ToggleGroup type="single">
       <ToggleGroupItem value="all">All</ToggleGroupItem>

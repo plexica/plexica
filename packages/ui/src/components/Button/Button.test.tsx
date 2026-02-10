@@ -19,19 +19,19 @@ describe('Button', () => {
   it('renders with secondary variant', () => {
     render(<Button variant="secondary">Secondary</Button>);
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('bg-background-primary');
+    expect(button).toHaveClass('bg-background');
   });
 
   it('renders with danger variant', () => {
     render(<Button variant="danger">Danger</Button>);
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('bg-red-600');
+    expect(button).toHaveClass('bg-destructive');
   });
 
   it('renders with ghost variant', () => {
     render(<Button variant="ghost">Ghost</Button>);
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('hover:bg-background-secondary');
+    expect(button).toHaveClass('hover:bg-accent');
   });
 
   it('renders with link variant', () => {

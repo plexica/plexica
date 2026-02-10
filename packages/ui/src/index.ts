@@ -3,11 +3,15 @@ export * from './components/Button/Button';
 export * from './components/Card/Card';
 export * from './components/Avatar/Avatar';
 export * from './components/Badge/Badge';
+export * from './components/Skeleton/Skeleton';
+export * from './components/StatusBadge/StatusBadge';
+export * from './components/StatCard/StatCard';
 
 // Navigation Components
 export * from './components/Tabs/Tabs';
 export * from './components/Breadcrumbs/Breadcrumbs';
 export * from './components/Dropdown/Dropdown';
+export * from './components/Pagination/Pagination';
 
 // Form Components
 export * from './components/Label/Label';
@@ -19,6 +23,7 @@ export * from './components/Checkbox/Checkbox';
 export * from './components/RadioGroup/RadioGroup';
 export * from './components/Switch/Switch';
 export * from './components/Slider/Slider';
+export * from './components/Form/Form';
 
 // Feedback Components
 export * from './components/Alert/Alert';
@@ -28,6 +33,7 @@ export * from './components/Spinner/Spinner';
 export * from './components/Tooltip/Tooltip';
 export * from './components/Progress/Progress';
 export * from './components/ToggleGroup/ToggleGroup';
+export * from './components/ConfirmDialog/ConfirmDialog';
 
 // Data Display Components
 export * from './components/DataTable/DataTable';

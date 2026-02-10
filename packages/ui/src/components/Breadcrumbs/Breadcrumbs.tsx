@@ -16,7 +16,7 @@ export interface BreadcrumbsProps {
 
 const Breadcrumbs = React.forwardRef<HTMLElement, BreadcrumbsProps>(
   ({ items, separator, className }, ref) => {
-    const defaultSeparator = <ChevronRight className="h-4 w-4 text-text-secondary" />;
+    const defaultSeparator = <ChevronRight className="h-4 w-4 text-muted-foreground" />;
 
     return (
       <nav
@@ -37,13 +37,13 @@ const Breadcrumbs = React.forwardRef<HTMLElement, BreadcrumbsProps>(
                   </span>
                 )}
                 {isCurrent ? (
-                  <span className="text-sm font-medium text-text-primary" aria-current="page">
+                  <span className="text-sm font-medium text-foreground" aria-current="page">
                     {item.label}
                   </span>
                 ) : (
                   <a
                     href={item.href || '#'}
-                    className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+                    className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {item.label}
                   </a>

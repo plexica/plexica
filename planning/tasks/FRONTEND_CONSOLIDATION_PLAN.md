@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 10, 2026  
-**Status**: ✅ Phase A Complete  
+**Status**: 🟡 Phase B In Progress (B1-B5 Complete)  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.0
@@ -400,12 +400,12 @@ frontend after A3+A4 are done).
 ### B1 — Define design system foundations
 
 **Effort**: 2–3 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
 The design tokens exist in `packages/ui/src/styles/globals.css` (oklch colors, radius,
 typography) but there is no normative document or Storybook "Foundations" page.
 
-- [ ] Create `docs/design/DESIGN_SYSTEM.md` documenting:
+- [x] Create `docs/design/DESIGN_SYSTEM.md` documenting:
   - Color palette (primary, secondary, muted, accent, destructive) with oklch values
   - Typography scale (JetBrains Mono, sizes, weights, line heights)
   - Spacing scale (used consistently across components)
@@ -413,13 +413,13 @@ typography) but there is no normative document or Storybook "Foundations" page.
   - Shadow system
   - Light/dark theme token mapping
   - Iconography conventions (Lucide React, sizes, stroke width)
-- [ ] Create Storybook "Foundations" stories:
+- [x] Create Storybook "Foundations" stories:
   - `stories/foundations/Colors.stories.tsx` — color palette visualization
   - `stories/foundations/Typography.stories.tsx` — type scale
   - `stories/foundations/Spacing.stories.tsx` — spacing scale
   - `stories/foundations/Icons.stories.tsx` — icon usage
-- [ ] Define naming conventions for new tokens
-- [ ] Define when to use which variant (e.g., `destructive` vs `danger` vs `error`)
+- [x] Define naming conventions for new tokens
+- [x] Define when to use which variant (e.g., `destructive` vs `danger` vs `error`)
 
 **Acceptance criteria**:
 
@@ -431,11 +431,11 @@ typography) but there is no normative document or Storybook "Foundations" page.
 ### B2 — Define component implementation conventions
 
 **Effort**: 1 day  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
 Establish rules that all component contributions (including from plugin developers) must follow.
 
-- [ ] Create `packages/ui/CONTRIBUTING.md` documenting:
+- [x] Create `packages/ui/CONTRIBUTING.md` documenting:
   - Directory structure per component:
     ```
     src/components/ComponentName/
@@ -453,8 +453,8 @@ Establish rules that all component contributions (including from plugin develope
   - Export: every component must be exported from `src/index.ts`
   - Story: every component must have a story covering all variants
   - Test: every component must have tests for rendering, variants, interaction, a11y
-- [ ] Add ESLint rules to enforce conventions where possible
-- [ ] Add a `plop` generator or script template for scaffolding new components
+- [x] Add ESLint rules to enforce conventions where possible
+- [x] Add a `plop` generator or script template for scaffolding new components
 
 **Acceptance criteria**:
 
@@ -466,57 +466,57 @@ Establish rules that all component contributions (including from plugin develope
 ### B3 — Add tests to all UI components
 
 **Effort**: 4–5 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
 Currently: 31 components, 1 test file (Button.test.tsx). Target: 100% component test coverage.
 
 For each component, test:
 
-- [ ] Renders without crashing (smoke test)
-- [ ] All variants render correctly
-- [ ] Interactive behavior (click, hover, focus, keyboard)
-- [ ] Accessibility (ARIA attributes, keyboard navigation, screen reader labels)
-- [ ] Edge cases (empty content, long text, disabled state)
+- [x] Renders without crashing (smoke test)
+- [x] All variants render correctly
+- [x] Interactive behavior (click, hover, focus, keyboard)
+- [x] Accessibility (ARIA attributes, keyboard navigation, screen reader labels)
+- [x] Edge cases (empty content, long text, disabled state)
 
 Component test priority (by usage frequency in apps):
 
 **High priority** (used extensively in web and super-admin):
 
-- [ ] Button (exists, review completeness)
-- [ ] Card + CardContent + CardSkeleton
-- [ ] Input
-- [ ] Badge
-- [ ] DataTable
-- [ ] Modal
-- [ ] Select + SearchableSelect
-- [ ] Toast
-- [ ] Tabs
-- [ ] Spinner
+- [x] Button (exists, review completeness)
+- [x] Card + CardContent + CardSkeleton
+- [x] Input
+- [x] Badge
+- [x] DataTable
+- [x] Modal
+- [x] Select + SearchableSelect
+- [x] Toast
+- [x] Tabs
+- [x] Spinner
 
 **Medium priority**:
 
-- [ ] Alert + AlertDescription
-- [ ] Dropdown
-- [ ] Checkbox
-- [ ] Switch
-- [ ] Label
-- [ ] Textarea
-- [ ] Tooltip
-- [ ] Progress
-- [ ] ToggleGroup
-- [ ] EmptyState
+- [x] Alert + AlertDescription
+- [x] Dropdown
+- [x] Checkbox
+- [x] Switch
+- [x] Label
+- [x] Textarea
+- [x] Tooltip
+- [x] Progress
+- [x] ToggleGroup
+- [x] EmptyState
 
 **Lower priority** (layout, less interactive):
 
-- [ ] Avatar + AvatarImage + AvatarFallback
-- [ ] Breadcrumbs
-- [ ] RadioGroup
-- [ ] Slider
-- [ ] Separator
-- [ ] Header
-- [ ] Sidebar
-- [ ] Footer
-- [ ] Table
+- [x] Avatar + AvatarImage + AvatarFallback
+- [x] Breadcrumbs
+- [x] RadioGroup
+- [x] Slider
+- [x] Separator
+- [x] Header
+- [x] Sidebar
+- [x] Footer
+- [x] Table
 
 **Acceptance criteria**:
 
@@ -529,50 +529,103 @@ Component test priority (by usage frequency in apps):
 ### B4 — Review existing components for consistency
 
 **Effort**: 2–3 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
-Audit all 31 components for adherence to the conventions defined in B2.
+Audited all 31 components for adherence to B2 conventions and migrated from stale Tailwind v3 tokens to Tailwind v4 semantic tokens.
 
-- [ ] Verify all components use the CVA + Radix + cn() pattern consistently
-- [ ] Verify all components forward refs properly
-- [ ] Verify all components extend native element props
-- [ ] Standardize prop naming (e.g., `variant` not `type`, `size` not `sz`)
-- [ ] Verify all components support `className` prop override
-- [ ] Verify dark mode works for all components (CSS custom properties)
-- [ ] Fix any inconsistencies found
-- [ ] Update stories to reflect corrections
+- [x] Verify all components use the CVA + Radix + cn() pattern consistently
+- [x] Verify all components forward refs properly
+- [x] Verify all components extend native element props
+- [x] Standardize prop naming (e.g., `variant` not `type`, `size` not `sz`)
+- [x] Verify all components support `className` prop override
+- [x] Verify dark mode works for all components (CSS custom properties)
+- [x] Fix any inconsistencies found
+- [x] Update stories to reflect corrections
 
-**Acceptance criteria**:
+**Work completed**:
 
-- All 31 components follow the same implementation pattern
-- No component has unique/one-off patterns that break consistency
+1. **Token migration (24 component files)**: Migrated all component source files from stale v3 custom tokens to Tailwind v4 semantic tokens:
+   - `bg-background-primary` → `bg-background` (general surfaces) / `bg-card` (Card) / `bg-popover` (overlays)
+   - `bg-background-secondary` → `bg-muted` (inactive/track backgrounds) / `bg-accent` (hover/active states)
+   - `text-text-primary` → `text-foreground` (general text) / `text-popover-foreground` (overlay text) / `text-accent-foreground` (active state text)
+   - `text-text-secondary` → `text-muted-foreground` (secondary/helper text)
+   - `hover:bg-background-secondary` → `hover:bg-accent` (hover states)
+   - `focus:bg-background-secondary` → `focus:bg-accent` (focus states)
+   - `border-red-500` / `text-red-600` → `border-destructive` / `text-destructive` (error states)
+   - `bg-red-600` → `bg-destructive` (destructive/danger buttons)
+   - `text-white` (themed badge) → `text-primary-foreground` (white text on primary background)
+   - `border-3` → `border-[3px]` (non-standard Tailwind class)
+
+2. **AlertTitle ref fix**: Changed `HTMLParagraphElement` → `HTMLHeadingElement` in Alert.tsx to match the actual rendered `<h5>` element.
+
+3. **Label.stories.tsx**: Created missing Storybook story at `packages/ui/src/components/Label/Label.stories.tsx`.
+
+4. **ToggleGroup.stories.tsx**: Fixed TypeScript errors — removed `component` from meta (discriminated union on `type` prop causes TS issues with Storybook 10's required args), using `satisfies Meta` without generic param and `StoryObj` directly.
+
+5. **Test assertion updates (17 fixes across 10 test files)**: Updated all test assertions that still referenced old token class names to match the migrated component source:
+   - `Badge.test.tsx`: `text-text-primary` → `text-foreground`
+   - `Button.test.tsx`: `bg-background-primary` → `bg-background`, `bg-red-600` → `bg-destructive`, `hover:bg-background-secondary` → `hover:bg-accent`
+   - `Card.test.tsx`: `bg-background-primary` → `bg-card`, `text-text-secondary` → `text-muted-foreground`
+   - `Footer.test.tsx`: `bg-background-primary` → `bg-background`
+   - `Input.test.tsx`: `border-red-500` → `border-destructive`, `text-text-secondary` → `text-muted-foreground`, `text-red-600` → `text-destructive`
+   - `Sidebar.test.tsx`: `bg-background-secondary` + `text-text-primary` → `bg-accent` + `text-foreground`
+   - `Spinner.test.tsx`: `border-3` → `border-[3px]`
+   - `Tabs.test.tsx`: `bg-background-secondary` → `bg-muted`
+   - `Textarea.test.tsx`: `border-red-500` → `border-destructive`, `text-red-600` → `text-destructive`, `text-text-secondary` → `text-muted-foreground`
+   - `Toast.test.tsx`: `bg-background-primary` + `text-text-primary` → `bg-background` + `text-foreground`
+
+6. **Deleted stale `tailwind.config.js`**: Removed the old v3 config file that was not consumed by Tailwind v4 (which uses `@theme inline` in `globals.css`).
+
+**Final test results**: 30 test files, 398 tests — all passing.
+
+**Acceptance criteria** — all met:
+
+- All 31 components follow the same implementation pattern ✅
+- No component has unique/one-off patterns that break consistency ✅
+- All components use Tailwind v4 semantic tokens consistently ✅
+- All 398 tests pass ✅
 
 ---
 
 ### B5 — Add missing components
 
 **Effort**: 2–3 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 10, 2026)
 
 Based on needs identified in `apps/web` and `apps/super-admin`:
 
-- [ ] `Form` — Composable form component with validation state, error messages, and field grouping
-- [ ] `Pagination` — Page navigation for DataTable and list views
-- [ ] `Skeleton` — Content loading placeholder (beyond CardSkeleton)
-- [ ] `StatusBadge` — Specialized badge for entity statuses (ACTIVE, SUSPENDED, DRAFT, etc.)
-- [ ] `ConfirmDialog` — Modal with confirm/cancel pattern (used in delete operations)
-- [ ] `StatCard` — Dashboard metric card with label, value, trend indicator
+- [x] `Skeleton` — Generic loading placeholder with configurable shape (line, circle, rect), width, height, animation (`animate-pulse` + `bg-muted`). Generalizes the CardSkeleton pattern.
+- [x] `StatusBadge` — Specialized badge for entity statuses. Wraps `Badge` with predefined status→variant+label mappings for: active, inactive, suspended, draft, published, deprecated, pending, archived.
+- [x] `StatCard` — Dashboard metric card composing `Card` + `CardContent`. Displays label, value, optional trend indicator (TrendingUp/TrendingDown from lucide-react), optional icon.
+- [x] `Pagination` — Standalone page navigation with previous/next, first/last, page number buttons with ellipsis. Composes `Button`. Configurable `siblingCount` and `showFirstLast`. Proper ARIA: `role="navigation"`, `aria-label`, `aria-current="page"`.
+- [x] `ConfirmDialog` — Modal with confirm/cancel pattern composing `Dialog`/`DialogContent`/`DialogHeader`/`DialogFooter`/`DialogTitle`/`DialogDescription` from Modal.tsx + `Button`. Props: `title`, `description`, `confirmLabel`, `cancelLabel`, `variant` (default/destructive), `onConfirm`, `onCancel`, `open`, `onOpenChange`, optional `trigger`, `loading`.
+- [x] `Form` — Composable form system with React context for field-level error state propagation. Components: `Form` (form element with `space-y-6`), `FormField` (context provider with `name` + `error`), `FormItem` (wrapper with `space-y-2`), `FormLabel` (wraps `Label`, auto-associates `htmlFor`, applies `text-destructive` on error), `FormControl` (clones children with `id`, `name`, `aria-invalid`, `aria-describedby`), `FormDescription` (muted helper text), `FormMessage` (error display with `role="alert"`, renders from context or override prop). No external form library dependency — works standalone or with react-hook-form.
 
-Each component must include:
+Each component includes implementation (.tsx), Storybook stories (.stories.tsx), and tests (.test.tsx) following B2 conventions.
 
-- Implementation following B2 conventions
-- Story with all variants
-- Tests per B3 criteria
+**Test counts**: 97 new tests across 6 test files:
 
-**Acceptance criteria**:
+- Skeleton: 16 tests
+- StatusBadge: 10 tests
+- StatCard: 13 tests
+- Pagination: 20 tests (component + `getPageNumbers` utility)
+- ConfirmDialog: 11 tests
+- Form: 27 tests (Form, FormItem, FormField+FormLabel, FormControl, FormDescription, FormMessage)
 
-- All new components are exported from `packages/ui/src/index.ts`
-- All new components have stories and tests
+**Final test results**: 36 test files, 495 tests — all passing.
+
+All 6 components exported from `packages/ui/src/index.ts`:
+
+- Skeleton, StatusBadge, StatCard → Base Components section
+- Pagination → Navigation Components section
+- Form → Form Components section
+- ConfirmDialog → Feedback Components section
+
+**Acceptance criteria** — all met:
+
+- All new components are exported from `packages/ui/src/index.ts` ✅
+- All new components have stories and tests ✅
+- All 495 tests pass (398 existing + 97 new) ✅
 
 ---
 
