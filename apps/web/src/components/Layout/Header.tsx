@@ -6,6 +6,7 @@ import { useAuth } from '../AuthProvider';
 import { useAuthStore } from '@/stores/auth-store';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
 import { LogOut, Settings, Menu, Search, Bell } from 'lucide-react';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -133,6 +134,9 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             </>
           )}
         </div>
+
+        {/* Theme Toggle */}
+        <ThemeToggle />
 
         {/* Workspace Switcher (Extension Point: header.workspaceMenu) */}
         <div className="hidden md:block">

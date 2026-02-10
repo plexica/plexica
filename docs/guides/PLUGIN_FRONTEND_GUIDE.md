@@ -713,6 +713,68 @@ If your build output contains `@plexica/ui` code (check bundle size), verify:
 
 ---
 
+## Theme Integration
+
+Plugins automatically inherit the host app's theme. No extra configuration is needed.
+
+### How it works
+
+1. The host app (`apps/web`) imports `globals.css` from `@plexica/ui`, which defines 30+ CSS custom properties on `:root` (light mode) and `.dark` (dark mode)
+2. The host's `ThemeProvider` toggles the `.dark` class on `<html>` based on user preference (stored in `localStorage`)
+3. Plugins load via Module Federation into the **same DOM tree** (no iframe, no shadow DOM) — they share the host's `document`
+4. `@plexica/ui` components (shared via Module Federation) use Tailwind classes like `bg-background`, `text-foreground`, `border-border` — which resolve to the host's CSS custom properties
+
+### What you get for free
+
+- **Light/dark mode**: When the user toggles theme, your plugin updates instantly
+- **System preference**: The host detects `prefers-color-scheme` and applies it automatically
+- **Design token consistency**: Your plugin uses the same color palette, typography, and spacing as the host
+
+### Do's and don'ts
+
+```tsx
+// File: my-plugin/src/pages/ExamplePage.tsx
+
+// DO: Use semantic Tailwind classes (resolve to CSS custom properties)
+<div className="bg-background text-foreground border-border">
+<Card className="bg-card text-card-foreground">
+<Button variant="destructive">  {/* uses --destructive */}
+
+// DON'T: Hardcode colors (breaks in dark mode or custom tenant themes)
+<div className="bg-white text-black border-gray-200">
+<div style={{ backgroundColor: '#ffffff' }}>
+```
+
+### Available CSS custom properties
+
+These properties are defined by the host and available to all plugins:
+
+| Token                      | Light mode            | Dark mode               | Usage                    |
+| -------------------------- | --------------------- | ----------------------- | ------------------------ |
+| `--background`             | `oklch(1 0 0)`        | `oklch(0.145 0 0)`      | Page background          |
+| `--foreground`             | `oklch(0.145 0 0)`    | `oklch(0.985 0 0)`      | Primary text             |
+| `--card`                   | `oklch(1 0 0)`        | `oklch(0.205 0 0)`      | Card surfaces            |
+| `--card-foreground`        | `oklch(0.145 0 0)`    | `oklch(0.985 0 0)`      | Card text                |
+| `--primary`                | `oklch(0.205 0 0)`    | `oklch(0.87 0 0)`       | Primary actions/buttons  |
+| `--primary-foreground`     | `oklch(0.985 0 0)`    | `oklch(0.205 0 0)`      | Text on primary          |
+| `--secondary`              | `oklch(0.97 0 0)`     | `oklch(0.269 0 0)`      | Secondary surfaces       |
+| `--muted`                  | `oklch(0.97 0 0)`     | `oklch(0.269 0 0)`      | Muted backgrounds        |
+| `--muted-foreground`       | `oklch(0.556 0 0)`    | `oklch(0.708 0 0)`      | Subtle text              |
+| `--accent`                 | `oklch(0.97 0 0)`     | `oklch(0.371 0 0)`      | Hover states, highlights |
+| `--destructive`            | `oklch(0.58 0.22 27)` | `oklch(0.704 0.191 22)` | Danger actions           |
+| `--border`                 | `oklch(0.922 0 0)`    | `oklch(1 0 0 / 10%)`    | Borders                  |
+| `--input`                  | `oklch(0.922 0 0)`    | `oklch(1 0 0 / 15%)`    | Input borders            |
+| `--ring`                   | `oklch(0.708 0 0)`    | `oklch(0.556 0 0)`      | Focus rings              |
+| `--chart-1` to `--chart-5` | Varied                | Varied                  | Chart colors             |
+
+The full definition is in `packages/ui/src/styles/globals.css`.
+
+### Tenant theme overrides (future)
+
+The `Tenant` model includes a `theme` JSON field (`packages/database/prisma/schema.prisma`). When tenant-specific theming is implemented, the host will override CSS custom properties based on the tenant's stored theme configuration. Since plugins use the same CSS custom properties, they will pick up tenant branding automatically — no plugin code changes needed.
+
+---
+
 ## Reference: Example Plugins
 
 | Plugin          | Location                         | Features                                                                                 |

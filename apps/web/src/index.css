@@ -1,3 +1,4 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@fontsource-variable/jetbrains-mono';
+@import '@plexica/ui/src/styles/globals.css';
