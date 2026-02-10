@@ -39,7 +39,7 @@ export function useTenants() {
     },
   });
 
-  const allTenants: Tenant[] = tenantsData?.tenants || [];
+  const allTenants: Tenant[] = tenantsData?.data || [];
 
   // Filter tenants based on search and status
   const filteredTenants = allTenants.filter((tenant) => {

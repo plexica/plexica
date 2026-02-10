@@ -103,34 +103,26 @@ export function useAnalytics() {
 
   // Build stats from overview data
   const stats: AnalyticsStats = useMemo(() => {
-    const overview = overviewData || {};
-    const metrics = apiCallsResponse?.metrics || [];
+    const overview = overviewData;
+    const metrics = apiCallsResponse ?? [];
 
     // Compute aggregates from API call metrics
-    const totalCalls = metrics.reduce(
-      (sum: number, m: { totalCalls?: number }) => sum + (m.totalCalls || 0),
-      0
-    );
-    const failedCalls = metrics.reduce(
-      (sum: number, m: { failedCalls?: number }) => sum + (m.failedCalls || 0),
-      0
-    );
+    const totalCalls = metrics.reduce((sum, m) => sum + (m.totalCalls || 0), 0);
+    const failedCalls = metrics.reduce((sum, m) => sum + (m.errorCalls || 0), 0);
     const avgResponseTimes = metrics
-      .filter((m: { averageResponseTime?: number }) => m.averageResponseTime != null)
-      .map((m: { averageResponseTime: number }) => m.averageResponseTime);
+      .filter((m) => m.avgLatencyMs != null)
+      .map((m) => m.avgLatencyMs);
     const avgResponseTime =
       avgResponseTimes.length > 0
-        ? Math.round(
-            avgResponseTimes.reduce((a: number, b: number) => a + b, 0) / avgResponseTimes.length
-          )
+        ? Math.round(avgResponseTimes.reduce((a, b) => a + b, 0) / avgResponseTimes.length)
         : 0;
     const errorRate = totalCalls > 0 ? Math.round((failedCalls / totalCalls) * 1000) / 10 : 0;
 
     return {
-      totalTenants: overview.totalTenants ?? 0,
-      activeTenants: overview.activeTenants ?? 0,
-      totalUsers: overview.totalUsers ?? 0,
-      totalPlugins: overview.totalPlugins ?? 0,
+      totalTenants: overview?.totalTenants ?? 0,
+      activeTenants: overview?.activeTenants ?? 0,
+      totalUsers: overview?.totalUsers ?? 0,
+      totalPlugins: overview?.totalPlugins ?? 0,
       apiCalls24h: totalCalls,
       avgResponseTime,
       errorRate,
@@ -139,8 +131,8 @@ export function useAnalytics() {
 
   // Transform tenant growth data to chart format
   const tenantGrowthData: TenantGrowthData[] = useMemo(() => {
-    const rawData = tenantGrowthResponse?.data || [];
-    return rawData.map((d: { date: string; totalTenants: number }) => ({
+    const rawData = tenantGrowthResponse ?? [];
+    return rawData.map((d) => ({
       date: d.date,
       count: d.totalTenants,
     }));
@@ -148,9 +140,9 @@ export function useAnalytics() {
 
   // Transform API calls data to chart format
   const apiCallsData: ApiCallsData[] = useMemo(() => {
-    const rawMetrics = apiCallsResponse?.metrics || [];
-    return rawMetrics.map((m: { period: string; totalCalls: number }) => ({
-      hour: new Date(m.period).toLocaleTimeString('en-US', {
+    const rawMetrics = apiCallsResponse ?? [];
+    return rawMetrics.map((m) => ({
+      hour: new Date(m.date).toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
@@ -161,7 +153,14 @@ export function useAnalytics() {
 
   // Plugin usage data
   const plugins: AnalyticsPlugin[] = useMemo(() => {
-    return pluginUsageResponse?.plugins || [];
+    const rawPlugins = pluginUsageResponse ?? [];
+    return rawPlugins.map((p) => ({
+      pluginId: p.pluginId,
+      pluginName: p.pluginName,
+      version: '',
+      totalInstallations: p.installCount,
+      activeTenants: p.activeInstalls,
+    }));
   }, [pluginUsageResponse]);
 
   // Calculate max values for chart scaling

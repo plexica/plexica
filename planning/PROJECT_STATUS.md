@@ -1,10 +1,10 @@
 # Plexica - Project Status
 
-**Last Updated**: February 10, 2026  
-**Current Phase**: Phase 2 - Plugin Ecosystem  
-**Current Milestone**: **M2.4 - Plugin Registry & Marketplace** 🟡 In Progress  
-**Previous Milestone**: M2.3 - Plugin-to-Plugin Communication ✅ (Completed Jan 23)  
-**Version**: 0.7.0
+**Last Updated**: February 11, 2026  
+**Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
+**Current Milestone**: **Frontend Consolidation C3 — Connect tenant management to real data**  
+**Previous Milestone**: C2 - Backend endpoint alignment ✅ (Completed Feb 11)  
+**Version**: 0.8.0
 
 ---
 
@@ -12,16 +12,18 @@
 
 | Metric                       | Value                                 | Status                   |
 | ---------------------------- | ------------------------------------- | ------------------------ |
-| **Current Phase**            | Phase 2 - Plugin Ecosystem            | 🟢 67% Complete          |
-| **Current Milestone**        | M2.4 - Plugin Registry & Marketplace  | 🟡 In Progress           |
-| **Phase 2 Overall Progress** | 3/6 milestones + 1 in progress        | 🟢 67% (4 of 6 total)    |
+| **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                |
+| **Current Focus**            | Frontend Consolidation (C3 next)      | 🟡 In Progress           |
+| **Frontend Consolidation**   | Phase A, B, C1, C2, D1 complete       | 🟢 65% (C3–C5, D2–D5)    |
 | **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
 | **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
 | **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
 | **Frontend MVP**             | Tenant App + Super-Admin Panel        | ✅ 100% Complete         |
 | **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete         |
 | **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)    |
-| **Test Coverage**            | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
+| **Shared Packages**          | sdk, types, api-client, ui, event-bus | ✅ All operational       |
+| **Total Tests**              | ~1,686 across all packages            | 🟢 Growing               |
+| **Test Coverage (core-api)** | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
 | **Team Size**                | 1 developer (AI-assisted)             | -                        |
 
 ---
@@ -762,16 +764,18 @@ The core plugin system is complete (M1.4). Phase 2 will focus on:
 
 ## 📦 Package Status
 
-| Package              | Status              | Version | Description                               |
-| -------------------- | ------------------- | ------- | ----------------------------------------- |
-| @plexica/core-api    | ✅ Production-ready | 0.7.0   | Core API service with auth & plugins      |
-| @plexica/database    | ✅ Production-ready | 0.7.0   | Prisma schema & migrations                |
-| @plexica/web         | ✅ Production-ready | 0.7.0   | Tenant web frontend application           |
-| @plexica/super-admin | ✅ Production-ready | 0.7.0   | Super-admin panel for platform management |
-| @plexica/sdk         | 📋 Planned          | -       | Plugin SDK                                |
-| @plexica/types       | 📋 Planned          | -       | Shared TypeScript types                   |
-| @plexica/api-client  | 📋 Planned          | -       | Frontend API client                       |
-| @plexica/ui          | 📋 Planned          | -       | Shared UI components                      |
+| Package              | Status              | Version | Description                                |
+| -------------------- | ------------------- | ------- | ------------------------------------------ |
+| @plexica/core-api    | ✅ Production-ready | 0.8.0   | Core API service with auth & plugins       |
+| @plexica/database    | ✅ Production-ready | 0.8.0   | Prisma schema & migrations                 |
+| @plexica/web         | ✅ Production-ready | 0.8.0   | Tenant web frontend application            |
+| @plexica/super-admin | ✅ Production-ready | 0.8.0   | Super-admin panel for platform management  |
+| @plexica/sdk         | ✅ Complete         | 0.1.0   | Plugin SDK (65 tests)                      |
+| @plexica/types       | ✅ Complete         | 0.1.0   | Shared TypeScript types                    |
+| @plexica/api-client  | ✅ Complete         | 0.1.0   | Shared typed HTTP client (79 tests)        |
+| @plexica/ui          | ✅ Complete         | 0.1.0   | UI component library (495 tests)           |
+| @plexica/event-bus   | ✅ Production-ready | 0.8.0   | KafkaJS event bus with DLQ                 |
+| @plexica/cli         | ⚠️ Partial          | 0.1.0   | Plugin CLI (build/publish work, init stub) |
 
 ---
 
@@ -968,6 +972,62 @@ pnpm clean                    # Clean build artifacts
 ---
 
 ## 📝 Recent Updates
+
+### 2026-02-11
+
+**Frontend Consolidation — Phase C1, C2 Complete ✅**:
+
+- ✅ **C1 — Keycloak auth (super-admin)**: Already fully implemented — real PKCE SSO flow with Keycloak, token refresh, ProtectedRoute, MockAuthProvider for E2E only. No work needed.
+- ✅ **C2 — Backend endpoint alignment**: 9 mismatches between `AdminApiClient`/`@plexica/types` and `core-api` route handlers fixed. Response shapes aligned to `PaginatedResponse<T>` format, field names unified, new `GET /admin/plugins/:id/installs` endpoint added. Service layer still returns old shapes; reshape happens at route handler level.
+
+**What's next**: C3 — Connect tenant management to real data (verify provisioning, lifecycle ops, real metrics in detail modal).
+
+---
+
+### 2026-02-10
+
+**Frontend Consolidation Plan — Phase A, B, D1 Complete ✅**:
+
+A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDATION_PLAN.md`) was created and executed across four phases. Phases A, B, and D1 are now complete.
+
+**Phase A — SDK & Plugin Developer Enablement** (Complete):
+
+- ✅ **A1 — `@plexica/sdk`**: Plugin SDK with `PlexicaPlugin` base class, `WorkspaceAwarePlugin`, API client, event client, service registration, shared data access. 65 tests.
+- ✅ **A2 — `@plexica/types`**: Shared TypeScript types extracted from all apps (tenant, workspace, user, plugin, event, auth, analytics). All consumers migrated.
+- ✅ **A3 — Module Federation shared deps**: `@plexica/ui` and `@plexica/types` added to shared config in all 4 vite apps. Plugins no longer bundle their own copies.
+- ✅ **A4 — Plugin template rewrite**: Template uses `@plexica/ui` components (Card, DataTable, Badge, Input, Select, Switch, etc.) with example pages (HomePage, SettingsPage).
+- ✅ **A5 — End-to-end build validation**: All 5 frontend apps build successfully. `remoteEntry.js` generated for all 3 plugins. Stale compiled `.js` files cleaned from all apps.
+- ✅ **A6 — Plugin developer docs**: Created `PLUGIN_QUICK_START.md`, `PLUGIN_FRONTEND_GUIDE.md`, `PLUGIN_BACKEND_GUIDE.md`. Updated `PLUGIN_DEVELOPMENT.md` as index.
+
+**Phase B — Design System & UI Component Library** (Complete):
+
+- ✅ **B1 — Design system foundations**: `DESIGN_SYSTEM.md` with full token reference. 4 Storybook foundation stories (Colors, Typography, Spacing, Icons).
+- ✅ **B2 — Component conventions**: `CONTRIBUTING.md` with component scaffold, CVA+Radix pattern, accessibility requirements, plop generator.
+- ✅ **B3 — Component tests**: All 31 original components now have test files. 398 tests across 30 test files.
+- ✅ **B4 — Consistency audit**: Migrated 24 component files from Tailwind v3 tokens to v4 semantic tokens. Deleted stale `tailwind.config.js`. Fixed 17 test assertions.
+- ✅ **B5 — Missing components**: Added Skeleton, StatusBadge, StatCard, Pagination, ConfirmDialog, Form system. 97 new tests. Total: 495 tests across 36 files.
+- ✅ **B6 — Sample plugin rewrite**: `plugin-crm` (3 pages) and `plugin-analytics` (2 pages) rewritten using `@plexica/ui` components. Zero raw HTML.
+- ✅ **B7 — Plugin UI patterns docs**: `PLUGIN_UI_PATTERNS.md` with 5 copy-pasteable patterns and common building blocks.
+- ✅ **B8 — Theme propagation**: Fixed missing `globals.css` import in both apps. Added ThemeToggle to web app. Verified runtime CSS custom property propagation in light/dark modes. Documented theme integration.
+
+**Phase D1 — `@plexica/api-client`** (Complete):
+
+- ✅ Created `packages/api-client/` — `HttpClient` base (axios), `TenantApiClient`, `AdminApiClient`, `ApiError`. 79 tests.
+- ✅ Migrated `apps/web` — `WebApiClient extends TenantApiClient`. Fixed 3 consumer files (array access).
+- ✅ Migrated `apps/super-admin` — `SuperAdminApiClient extends AdminApiClient`. Fixed 5 consumer files (typed returns).
+- ✅ `pnpm build` passes all 12 workspace tasks.
+
+**Total test counts after this work**:
+
+- `@plexica/ui`: 495 tests
+- `@plexica/api-client`: 79 tests
+- `@plexica/sdk`: 65 tests
+- `@plexica/core-api`: 1047 tests
+- **Grand total**: ~1,686 tests
+
+**What's next**: Phase C3 (Connect tenant management to real data) then C4–C5, D2–D5.
+
+---
 
 ### 2026-02-04
 
@@ -1172,14 +1232,14 @@ pnpm clean                    # Clean build artifacts
 ## 📞 Project Info
 
 **Project**: Plexica - Cloud-native multi-tenant platform  
-**Version**: 0.7.0  
-**Phase**: Phase 2 - Plugin Ecosystem (67% Complete)  
+**Version**: 0.8.0  
+**Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
 **Repository**: https://github.com/[org]/plexica  
 **Documentation**: In repository (specs/ and docs/)
 
 ---
 
-**Plexica v0.7.0**  
-_Last updated: February 3, 2026_  
-_Current milestone: M2.4 - Plugin Registry & Marketplace_  
-_Next milestone: M2.5 - Kubernetes & Production Deploy_
+**Plexica v0.8.0**  
+_Last updated: February 11, 2026_  
+_Current focus: Frontend Consolidation (C3 — tenant management next)_  
+_Next milestone: C3 - Connect tenant management to real data_

@@ -48,7 +48,10 @@ export function PluginAnalytics({ plugin, onClose }: PluginAnalyticsProps) {
     setIsLoading(true);
     try {
       const data = await apiClient.getPluginAnalytics(plugin.id, timeRange);
-      setAnalyticsData(data);
+      // API returns a simplified shape; cast to AnalyticsData for backwards compatibility
+      // Missing fields (downloadsByDay, installsByDay, topTenants, ratingDistribution)
+      // will be undefined and handled gracefully by the rendering logic
+      setAnalyticsData(data as unknown as AnalyticsData);
     } catch (error) {
       console.error('Failed to load analytics:', error);
       toast({

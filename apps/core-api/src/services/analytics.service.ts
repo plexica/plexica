@@ -3,6 +3,8 @@
  *
  * Provides platform-wide analytics for super-admin dashboard.
  * Aggregates data across all tenants for monitoring and insights.
+ *
+ * Interface field names align with @plexica/types analytics types.
  */
 
 import { TenantStatus } from '@plexica/database';
@@ -12,11 +14,9 @@ export interface PlatformOverview {
   totalTenants: number;
   activeTenants: number;
   suspendedTenants: number;
-  provisioningTenants: number;
-  totalPlugins: number;
-  totalPluginInstallations: number;
   totalUsers: number;
-  totalWorkspaces: number;
+  totalPlugins: number;
+  apiCalls24h: number;
 }
 
 export interface TenantGrowthData {
@@ -29,17 +29,18 @@ export interface TenantGrowthData {
 export interface PluginUsageData {
   pluginId: string;
   pluginName: string;
-  version: string;
-  totalInstallations: number;
-  activeTenants: number;
+  installCount: number;
+  activeInstalls: number;
+  category: string;
 }
 
 export interface ApiCallMetrics {
-  period: string; // e.g., "2024-01-15T10:00:00Z"
+  date: string;
+  hour?: number;
   totalCalls: number;
-  successfulCalls: number;
-  failedCalls: number;
-  averageResponseTime: number;
+  successCalls: number;
+  errorCalls: number;
+  avgLatencyMs: number;
 }
 
 class AnalyticsService {
@@ -57,30 +58,20 @@ class AnalyticsService {
     const activeTenants = tenantStats.find((s) => s.status === TenantStatus.ACTIVE)?._count || 0;
     const suspendedTenants =
       tenantStats.find((s) => s.status === TenantStatus.SUSPENDED)?._count || 0;
-    const provisioningTenants =
-      tenantStats.find((s) => s.status === TenantStatus.PROVISIONING)?._count || 0;
 
     // Get total plugins in registry
     const totalPlugins = await db.plugin.count();
 
-    // Get total plugin installations
-    const totalPluginInstallations = await db.tenantPlugin.count();
-
     // Get total users across all tenants
     const totalUsers = await db.user.count();
-
-    // Get total workspaces
-    const totalWorkspaces = await db.workspace.count();
 
     return {
       totalTenants,
       activeTenants,
       suspendedTenants,
-      provisioningTenants,
       totalPlugins,
-      totalPluginInstallations,
       totalUsers,
-      totalWorkspaces,
+      apiCalls24h: 0, // Placeholder until real metrics collection is implemented
     };
   }
 
@@ -163,7 +154,7 @@ class AnalyticsService {
       select: {
         id: true,
         name: true,
-        version: true,
+        category: true,
       },
     });
 
@@ -171,14 +162,14 @@ class AnalyticsService {
 
     for (const plugin of plugins) {
       // Count total installations
-      const totalInstallations = await db.tenantPlugin.count({
+      const installCount = await db.tenantPlugin.count({
         where: {
           pluginId: plugin.id,
         },
       });
 
       // Count active tenant installations (tenant is ACTIVE and plugin is enabled)
-      const activeTenants = await db.tenantPlugin.count({
+      const activeInstalls = await db.tenantPlugin.count({
         where: {
           pluginId: plugin.id,
           enabled: true,
@@ -191,14 +182,14 @@ class AnalyticsService {
       pluginUsage.push({
         pluginId: plugin.id,
         pluginName: plugin.name,
-        version: plugin.version,
-        totalInstallations,
-        activeTenants,
+        installCount,
+        activeInstalls,
+        category: plugin.category,
       });
     }
 
-    // Sort by total installations (most popular first)
-    return pluginUsage.sort((a, b) => b.totalInstallations - a.totalInstallations);
+    // Sort by install count (most popular first)
+    return pluginUsage.sort((a, b) => b.installCount - a.installCount);
   }
 
   /**
@@ -235,11 +226,12 @@ class AnalyticsService {
       // Placeholder: Return zero metrics
       // In production, query from metrics storage
       metrics.push({
-        period: periodStart.toISOString(),
+        date: periodStart.toISOString(),
+        hour: periodStart.getHours(),
         totalCalls: 0,
-        successfulCalls: 0,
-        failedCalls: 0,
-        averageResponseTime: 0,
+        successCalls: 0,
+        errorCalls: 0,
+        avgLatencyMs: 0,
       });
     }
 

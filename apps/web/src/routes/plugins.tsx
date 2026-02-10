@@ -55,7 +55,7 @@ function PluginsPage() {
   } = useQuery({
     queryKey: ['tenant-plugins', tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return { plugins: [] };
+      if (!tenant?.id) return [] as TenantPlugin[];
       return await apiClient.getTenantPlugins(tenant.id);
     },
     enabled: !!tenant?.id,
@@ -89,14 +89,11 @@ function PluginsPage() {
       // Optimistically update the cache
       queryClient.setQueryData(['tenant-plugins', tenant?.id], (old: any) => {
         if (!old) return old;
-        return {
-          ...old,
-          plugins: old.plugins.map((p: TenantPlugin) =>
-            p.plugin.id === pluginId
-              ? { ...p, status: currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }
-              : p
-          ),
-        };
+        return old.map((p: TenantPlugin) =>
+          p.plugin.id === pluginId
+            ? { ...p, status: currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }
+            : p
+        );
       });
 
       return { previousData };
@@ -123,10 +120,7 @@ function PluginsPage() {
 
       queryClient.setQueryData(['tenant-plugins', tenant?.id], (old: any) => {
         if (!old) return old;
-        return {
-          ...old,
-          plugins: old.plugins.filter((p: TenantPlugin) => p.plugin.id !== pluginId),
-        };
+        return old.filter((p: TenantPlugin) => p.plugin.id !== pluginId);
       });
 
       return { previousData };
@@ -138,7 +132,7 @@ function PluginsPage() {
     },
   });
 
-  const plugins: TenantPlugin[] = pluginsData?.plugins || [];
+  const plugins: TenantPlugin[] = pluginsData ?? [];
   const activeCount = plugins.filter((p) => p.status === 'ACTIVE').length;
 
   return (

@@ -36,7 +36,7 @@ function MembersManagementPage() {
   } = useQuery({
     queryKey: ['workspace-members', tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return { members: [] };
+      if (!tenant?.id) return [] as WorkspaceMember[];
       return await apiClient.getWorkspaceMembers(tenant.id);
     },
     enabled: !!tenant?.id,
@@ -72,7 +72,7 @@ function MembersManagementPage() {
     },
   });
 
-  const members: WorkspaceMember[] = membersData?.members || [];
+  const members: WorkspaceMember[] = membersData ?? [];
 
   return (
     <ProtectedRoute>

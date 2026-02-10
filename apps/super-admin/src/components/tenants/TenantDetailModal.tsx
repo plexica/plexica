@@ -21,7 +21,9 @@ export function TenantDetailModal({ tenant, onClose }: TenantDetailModalProps) {
   });
 
   const detail = tenantDetail || tenant;
-  const pluginCount = detail.plugins?.length ?? 0;
+  // The API may include a plugins relation not present in the typed Tenant interface
+  const detailAny = detail as unknown as Record<string, unknown>;
+  const pluginCount = Array.isArray(detailAny.plugins) ? detailAny.plugins.length : 0;
 
   // Suspend mutation
   const suspendMutation = useMutation({

@@ -7,6 +7,7 @@ import { AppLayout } from '../components/Layout';
 import { useAuthStore } from '../stores/auth-store';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
+import type { TenantPlugin } from '@plexica/types';
 import { Card, CardContent } from '@plexica/ui';
 import { Button } from '@plexica/ui';
 import { Badge } from '@plexica/ui';
@@ -24,14 +25,14 @@ function Index() {
   const { data: pluginsData, isLoading } = useQuery({
     queryKey: ['tenant-plugins', tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return { plugins: [] };
+      if (!tenant?.id) return [] as TenantPlugin[];
       return await apiClient.getTenantPlugins(tenant.id);
     },
     enabled: !!tenant?.id,
   });
 
-  const installedPlugins = pluginsData?.plugins || [];
-  const activePlugins = installedPlugins.filter((p: any) => p.status === 'ACTIVE');
+  const installedPlugins = pluginsData ?? [];
+  const activePlugins = installedPlugins.filter((p) => p.status === 'ACTIVE');
 
   return (
     <ProtectedRoute>

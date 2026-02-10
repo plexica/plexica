@@ -6,6 +6,7 @@ import { adminService } from '../services/admin.service.js';
 import { pluginRegistryService } from '../services/plugin.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
+import { db } from '../lib/db.js';
 
 /**
  * Admin Routes for Super Admin Application
@@ -66,10 +67,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
         },
         response: {
           200: {
-            description: 'List of tenants',
+            description: 'Paginated list of tenants',
             type: 'object',
             properties: {
-              tenants: {
+              data: {
                 type: 'array',
                 items: {
                   type: 'object',
@@ -83,10 +84,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
                   },
                 },
               },
-              total: { type: 'number' },
-              page: { type: 'number' },
-              limit: { type: 'number' },
-              totalPages: { type: 'number' },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  total: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
             },
           },
         },
@@ -111,11 +117,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const totalPages = Math.ceil(result.total / limit);
 
         return reply.send({
-          tenants: result.tenants,
-          total: result.total,
-          page,
-          limit,
-          totalPages,
+          data: result.tenants,
+          pagination: {
+            page,
+            limit,
+            total: result.total,
+            totalPages,
+          },
         });
       } catch (error: any) {
         request.log.error(error);
@@ -1111,6 +1119,94 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Get plugin installations (which tenants have this plugin installed)
+  fastify.get<{
+    Params: { id: string };
+  }>(
+    '/admin/plugins/:id/installs',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get plugin installation list (which tenants have installed this plugin)',
+        tags: ['admin', 'plugins'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            description: 'List of tenants that have installed this plugin',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                tenantId: { type: 'string' },
+                installedAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
+          404: {
+            description: 'Plugin not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        // Verify plugin exists
+        const plugin = await pluginRegistryService.getPlugin(request.params.id);
+        if (!plugin) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: `Plugin '${request.params.id}' not found`,
+          });
+        }
+
+        // Get all installations for this plugin
+        const installations = await db.tenantPlugin.findMany({
+          where: { pluginId: request.params.id },
+          select: {
+            tenantId: true,
+            installedAt: true,
+          },
+          orderBy: { installedAt: 'desc' },
+        });
+
+        return reply.send(
+          installations.map((i) => ({
+            tenantId: i.tenantId,
+            installedAt: i.installedAt.toISOString(),
+          }))
+        );
+      } catch (error: any) {
+        request.log.error(
+          { error, pluginId: request.params.id },
+          'Failed to get plugin installations'
+        );
+
+        if (error.message?.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to retrieve plugin installations',
+        });
+      }
+    }
+  );
+
   // ===== USER MANAGEMENT (Cross-Tenant) =====
 
   // List all users across all tenants
@@ -1162,10 +1258,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
         },
         response: {
           200: {
-            description: 'List of users across all tenants',
+            description: 'Paginated list of users across all tenants',
             type: 'object',
             properties: {
-              users: {
+              data: {
                 type: 'array',
                 items: {
                   type: 'object',
@@ -1186,10 +1282,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
                   },
                 },
               },
-              total: { type: 'number' },
-              page: { type: 'number' },
-              limit: { type: 'number' },
-              totalPages: { type: 'number' },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  total: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
             },
           },
         },
@@ -1207,7 +1308,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
           role,
         });
 
-        return reply.send(result);
+        return reply.send({
+          data: result.users,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages,
+          },
+        });
       } catch (error: any) {
         request.log.error(error);
         return reply.code(500).send({ error: error.message });
@@ -1315,11 +1424,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
               totalTenants: { type: 'number' },
               activeTenants: { type: 'number' },
               suspendedTenants: { type: 'number' },
-              provisioningTenants: { type: 'number' },
-              totalPlugins: { type: 'number' },
-              totalPluginInstallations: { type: 'number' },
               totalUsers: { type: 'number' },
-              totalWorkspaces: { type: 'number' },
+              totalPlugins: { type: 'number' },
+              apiCalls24h: { type: 'number' },
             },
           },
           500: {
@@ -1351,6 +1458,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Querystring: {
       days?: number;
+      period?: string;
     };
   }>(
     '/admin/analytics/tenants',
@@ -1366,27 +1474,25 @@ export async function adminRoutes(fastify: FastifyInstance) {
               type: 'number',
               minimum: 1,
               maximum: 365,
-              default: 30,
               description: 'Number of days to look back',
+            },
+            period: {
+              type: 'string',
+              description: 'Number of days as string (alias for days param)',
             },
           },
         },
         response: {
           200: {
-            description: 'Tenant growth data',
-            type: 'object',
-            properties: {
-              data: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    date: { type: 'string', format: 'date' },
-                    totalTenants: { type: 'number' },
-                    activeTenants: { type: 'number' },
-                    newTenants: { type: 'number' },
-                  },
-                },
+            description: 'Tenant growth data as array of data points',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                date: { type: 'string', format: 'date' },
+                totalTenants: { type: 'number' },
+                activeTenants: { type: 'number' },
+                newTenants: { type: 'number' },
               },
             },
           },
@@ -1395,9 +1501,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { days = 30 } = request.query;
+        // Accept either 'days' or 'period' (string alias for days)
+        const days = (request.query.days ?? Number(request.query.period)) || 30;
         const data = await analyticsService.getTenantGrowth(days);
-        return reply.send({ data });
+        return reply.send(data);
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch tenant growth data');
         return reply.code(500).send({
@@ -1418,21 +1525,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
         tags: ['admin', 'analytics'],
         response: {
           200: {
-            description: 'Plugin usage data',
-            type: 'object',
-            properties: {
-              plugins: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    pluginId: { type: 'string' },
-                    pluginName: { type: 'string' },
-                    version: { type: 'string' },
-                    totalInstallations: { type: 'number' },
-                    activeTenants: { type: 'number' },
-                  },
-                },
+            description: 'Plugin usage data as array',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                pluginId: { type: 'string' },
+                pluginName: { type: 'string' },
+                installCount: { type: 'number' },
+                activeInstalls: { type: 'number' },
+                category: { type: 'string' },
               },
             },
           },
@@ -1450,7 +1552,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const plugins = await analyticsService.getPluginUsage();
-        return reply.send({ plugins });
+        return reply.send(plugins);
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch plugin usage data');
         return reply.code(500).send({
@@ -1487,25 +1589,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
         },
         response: {
           200: {
-            description: 'API call metrics',
-            type: 'object',
-            properties: {
-              metrics: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    period: { type: 'string', format: 'date-time' },
-                    totalCalls: { type: 'number' },
-                    successfulCalls: { type: 'number' },
-                    failedCalls: { type: 'number' },
-                    averageResponseTime: { type: 'number' },
-                  },
-                },
-              },
-              note: {
-                type: 'string',
-                description: 'Implementation status note',
+            description: 'API call metrics as array',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                date: { type: 'string', format: 'date-time' },
+                hour: { type: 'number' },
+                totalCalls: { type: 'number' },
+                successCalls: { type: 'number' },
+                errorCalls: { type: 'number' },
+                avgLatencyMs: { type: 'number' },
               },
             },
           },
@@ -1524,10 +1618,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const { hours = 24 } = request.query;
         const metrics = await analyticsService.getApiCallMetrics(hours);
-        return reply.send({
-          metrics,
-          note: 'API metrics collection not yet implemented - showing placeholder data',
-        });
+        return reply.send(metrics);
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch API call metrics');
         return reply.code(500).send({

@@ -28,7 +28,7 @@ export function useUsers() {
     queryFn: () => apiClient.getTenants(),
   });
 
-  const tenants = tenantsData?.tenants || [];
+  const tenants = tenantsData?.data || [];
 
   // Fetch users from real API
   const {
@@ -52,15 +52,15 @@ export function useUsers() {
     },
   });
 
-  const allUsers: User[] = (usersData?.users || []).map((u: any) => ({
+  const allUsers: User[] = (usersData?.data ?? []).map((u) => ({
     id: u.id,
     email: u.email,
-    name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
-    firstName: u.firstName,
-    lastName: u.lastName,
+    name: u.name || u.email,
+    firstName: null,
+    lastName: null,
     tenantId: u.tenantId,
-    tenantName: u.tenantName,
-    tenantSlug: u.tenantSlug,
+    tenantName: u.tenantName ?? '',
+    tenantSlug: u.tenantSlug ?? '',
     roles: u.roles || [],
     createdAt: u.createdAt,
   }));
@@ -84,7 +84,7 @@ export function useUsers() {
 
   // Statistics
   const stats = {
-    total: usersData?.total || allUsers.length,
+    total: usersData?.pagination?.total ?? allUsers.length,
     tenants: tenants.length,
     roles: allRoles.length,
   };
