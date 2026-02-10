@@ -12,7 +12,6 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
-import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
 import { buildTestApp } from '../../../test-app';
 import { db } from '../../../lib/db';
 import { redis } from '../../../lib/redis';
@@ -196,10 +195,10 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Keycloak returns 400 for invalid grant, which falls through to 500 in catch block
-      expect([401, 500]).toContain(response.statusCode);
+      // Keycloak returns 400 for invalid grant, app maps to 401
+      expect(response.statusCode).toBe(401);
       const data = JSON.parse(response.body);
-      expect(data.error).toBeDefined();
+      expect(data.error).toBe('Unauthorized');
       expect(data.message).toBeDefined();
     });
 
@@ -213,8 +212,8 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Keycloak returns 400 for malformed tokens, which may fall through to 500
-      expect([401, 500]).toContain(response.statusCode);
+      // Keycloak returns 400 with invalid_grant for malformed tokens, mapped to 401
+      expect(response.statusCode).toBe(401);
     });
 
     it('should reject refresh with wrong tenant', async () => {
@@ -241,8 +240,8 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Non-existent realm returns 404 from Keycloak, which falls through to 500
-      expect([401, 500]).toContain(refreshResponse.statusCode);
+      // Non-existent realm: Keycloak returns 404, mapped to 404
+      expect(refreshResponse.statusCode).toBe(404);
     });
 
     it('should reject refresh with empty token', async () => {
@@ -296,8 +295,8 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Revoked token: Keycloak returns 400 "invalid grant", which may fall through to 500
-      expect([401, 500]).toContain(refreshResponse.statusCode);
+      // Revoked token: Keycloak returns 400 with invalid_grant, mapped to 401
+      expect(refreshResponse.statusCode).toBe(401);
     });
 
     it('should still allow logout with invalid refresh token', async () => {
@@ -348,7 +347,6 @@ describe('Token Refresh Flow E2E', () => {
       // Due to Keycloak's token rotation, only the first request might succeed
       // or all might succeed depending on Keycloak's config
       const successfulResponses = results.filter((r) => r.statusCode === 200);
-      const _failedResponses = results.filter((r) => r.statusCode !== 200);
 
       // At least one should succeed
       expect(successfulResponses.length).toBeGreaterThanOrEqual(1);
@@ -379,8 +377,8 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Expired/invalid token structure: Keycloak returns 400, falls through to 500
-      expect([401, 500]).toContain(response.statusCode);
+      // Expired/invalid token: Keycloak returns 400 with invalid_grant, mapped to 401
+      expect(response.statusCode).toBe(401);
     });
   });
 
@@ -413,8 +411,8 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Cross-tenant: different realm returns 404 from Keycloak, falls through to 500
-      expect([401, 500]).toContain(refreshResponse.statusCode);
+      // Cross-tenant: different realm returns 404 from Keycloak, mapped to 404
+      expect(refreshResponse.statusCode).toBe(404);
     });
   });
 
@@ -531,14 +529,13 @@ describe('Token Refresh Flow E2E', () => {
         },
       });
 
-      // Invalid token: Keycloak returns 400, which may fall through to 500
-      expect([401, 500]).toContain(response.statusCode);
+      // Invalid token: Keycloak returns 400 with invalid_grant, mapped to 401
+      expect(response.statusCode).toBe(401);
       const data = JSON.parse(response.body);
 
       expect(data).toHaveProperty('error');
       expect(data).toHaveProperty('message');
-      // Error message depends on whether Keycloak returned 401 or 400 (→500)
-      expect(['Unauthorized', 'Internal Server Error']).toContain(data.error);
+      expect(data.error).toBe('Unauthorized');
     });
   });
 });

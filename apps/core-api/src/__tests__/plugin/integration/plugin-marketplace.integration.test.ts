@@ -24,13 +24,12 @@ describe('Plugin Marketplace Integration Tests', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // Get super admin token
-    // Use mock tokens for integration tests (faster and more reliable)
+    // Use mock tokens for integration tests (faster and more reliable than real Keycloak tokens)
     superAdminToken = testContext.auth.createMockSuperAdminToken();
-    
+    regularUserToken = testContext.auth.createMockTenantAdminToken('acme');
 
-    // Create test tenant for regular user
-    await app.inject({
+    // Create test tenants (tenant provisioning includes Keycloak realm + DB schema)
+    const acmeResp = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
       headers: {
@@ -40,13 +39,16 @@ describe('Plugin Marketplace Integration Tests', () => {
       payload: {
         slug: 'acme',
         name: 'ACME Corporation',
-        adminEmail: 'admin@acme.test',
-        adminPassword: 'test123',
       },
     });
 
-    // Create demo tenant for stats tests
-    await app.inject({
+    if (acmeResp.statusCode !== 201) {
+      console.warn(
+        `Warning: Failed to create 'acme' tenant: ${acmeResp.statusCode} ${acmeResp.body}`
+      );
+    }
+
+    const demoResp = await app.inject({
       method: 'POST',
       url: '/api/admin/tenants',
       headers: {
@@ -56,14 +58,14 @@ describe('Plugin Marketplace Integration Tests', () => {
       payload: {
         slug: 'demo',
         name: 'Demo Company',
-        adminEmail: 'admin@demo.test',
-        adminPassword: 'test123',
       },
     });
 
-    // Get regular user (tenant admin) token
-    const userResp = await testContext.auth.getRealTenantAdminToken('acme');
-    regularUserToken = userResp.access_token;
+    if (demoResp.statusCode !== 201) {
+      console.warn(
+        `Warning: Failed to create 'demo' tenant: ${demoResp.statusCode} ${demoResp.body}`
+      );
+    }
   });
 
   afterAll(async () => {

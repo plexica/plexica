@@ -324,15 +324,14 @@ describe('JWT Utilities - Extended Tests', () => {
     });
 
     it('should reject expired token', () => {
-      const token = generateInternalToken({ userId: '123' }, '0'); // 0 seconds = expired
-
-      // Wait a moment to ensure token is expired
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          expect(() => verifyInternalToken(token)).toThrow();
-          resolve(true);
-        }, 100);
-      });
+      vi.useFakeTimers();
+      try {
+        const token = generateInternalToken({ userId: '123' }, '1s');
+        vi.advanceTimersByTime(2000);
+        expect(() => verifyInternalToken(token)).toThrow();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should reject token with different algorithm', () => {
@@ -357,7 +356,7 @@ describe('JWT Utilities - Extended Tests', () => {
 
       expect(verified.userId).toBe(originalClaims.userId);
       expect(verified.email).toBe(originalClaims.email);
-      expect(JSON.stringify(verified.roles)).toBe(JSON.stringify(originalClaims.roles));
+      expect(verified.roles).toEqual(originalClaims.roles);
       expect(verified.customField).toBe(originalClaims.customField);
     });
   });
@@ -374,23 +373,21 @@ describe('JWT Utilities - Extended Tests', () => {
       expect(verified.timestamp).toBe(originalClaims.timestamp);
     });
 
-    it('should generate different tokens for same claims', async () => {
-      const claims = { userId: '123' };
-      const token1 = generateInternalToken(claims);
-
-      // Wait to ensure different iat claim (JWT uses seconds precision)
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-
-      const token2 = generateInternalToken(claims);
-
-      // Different tokens (due to iat claim)
-      expect(token1).not.toBe(token2);
-
-      // But both verify to same claims
-      const verified1 = verifyInternalToken(token1);
-      const verified2 = verifyInternalToken(token2);
-
-      expect(verified1.userId).toBe(verified2.userId);
+    it('should generate different tokens for same claims', () => {
+      vi.useFakeTimers();
+      try {
+        const claims = { userId: '123' };
+        const token1 = generateInternalToken(claims);
+        vi.advanceTimersByTime(2000);
+        const token2 = generateInternalToken(claims);
+        expect(token1).not.toBe(token2);
+        vi.useRealTimers();
+        const verified1 = verifyInternalToken(token1);
+        const verified2 = verifyInternalToken(token2);
+        expect(verified1.userId).toBe(verified2.userId);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should handle complex claim structures', () => {
@@ -411,8 +408,8 @@ describe('JWT Utilities - Extended Tests', () => {
       const verified = verifyInternalToken(token);
 
       expect(verified.userId).toBe('123');
-      expect(JSON.stringify(verified.permissions)).toBe(JSON.stringify(claims.permissions));
-      expect(JSON.stringify(verified.metadata)).toBe(JSON.stringify(claims.metadata));
+      expect(verified.permissions).toEqual(claims.permissions);
+      expect(verified.metadata).toEqual(claims.metadata);
     });
   });
 });

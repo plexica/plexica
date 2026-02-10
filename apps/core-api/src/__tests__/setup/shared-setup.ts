@@ -9,6 +9,7 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { beforeAll, afterAll } from 'vitest';
 import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
+import { testKeycloak } from '../../../../../test-infrastructure/helpers/test-keycloak.helper.js';
 
 export interface TestSetupOptions {
   /** Label for log output (e.g. "Integration", "E2E") */
@@ -41,6 +42,21 @@ export function createTestSetup(options: TestSetupOptions): void {
   // Global setup - runs once before all test files
   beforeAll(async () => {
     console.log(`\nResetting test environment before ${label} tests...`);
+
+    // Clean up stale Keycloak realms from previous test runs.
+    // This prevents "invalid_request" errors when createRealm() tries to
+    // create a realm that already exists (e.g. 'acme', 'demo', or timestamped slugs).
+    try {
+      console.log('  - Deleting stale Keycloak test realms...');
+      await testKeycloak.deleteAllTestRealms();
+      console.log('    ✓ Keycloak realms cleaned');
+    } catch (error) {
+      console.warn(
+        '    ⚠ Could not clean Keycloak realms:',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
     if (typeof testContext.db.fullReset === 'function') {
       await testContext.db.fullReset();
     } else {

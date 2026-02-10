@@ -1,7 +1,7 @@
 /**
- * Plugin-to-Plugin Communication Integration Tests (M2.3 Task 11)
+ * Plugin-to-Plugin Communication Unit Tests (M2.3 Task 11)
  *
- * End-to-end integration tests for the complete plugin communication flow
+ * Unit tests for the plugin communication flow using mocked Prisma/Redis dependencies.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';

@@ -480,14 +480,17 @@ describe('Workspace Members Integration', () => {
     });
 
     it('should return 403 for non-member', async () => {
-      // Get token for user not in workspace
-      const outsiderToken = await testContext.auth.getRealSuperAdminToken();
+      // Get token for user not in workspace — use mock token for reliability
+      const outsiderToken = testContext.auth.createMockSuperAdminToken({
+        sub: 'outsider-keycloak-id',
+        email: 'outsider@test.plexica.local',
+      });
 
       const response = await app.inject({
         method: 'GET',
         url: `/api/workspaces/${workspaceId}/members`,
         headers: {
-          authorization: `Bearer ${outsiderToken.access_token}`,
+          authorization: `Bearer ${outsiderToken}`,
           'x-tenant-slug': testTenantSlug,
         },
       });

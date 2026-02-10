@@ -87,14 +87,8 @@ describe('Plugin Installation E2E Tests', () => {
             license: 'MIT',
             homepage: 'https://example.com',
           },
-          manifest: {
-            permissions: [
-              { resource: 'workspace', action: 'read', description: 'Read workspaces' },
-            ],
-            configFields: [
-              { key: 'apiKey', type: 'string', required: true, description: 'API Key' },
-            ],
-          },
+          permissions: [{ resource: 'workspace', action: 'read', description: 'Read workspaces' }],
+          config: [{ key: 'apiKey', type: 'string', required: true, description: 'API Key' }],
         },
       });
       expect(registerResp.statusCode).toBe(201);
@@ -209,10 +203,8 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Plugin with no required config',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            permissions: [],
-            configFields: [{ key: 'optionalSetting', type: 'string', required: false }],
-          },
+          permissions: [],
+          config: [{ key: 'optionalSetting', type: 'string', required: false }],
         },
       });
 
@@ -283,13 +275,11 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Shared across tenants',
           category: 'integration',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            permissions: [],
-            configFields: [
-              { key: 'environment', type: 'string', required: true },
-              { key: 'timeout', type: 'number', required: false },
-            ],
-          },
+          permissions: [],
+          config: [
+            { key: 'environment', type: 'string', required: true },
+            { key: 'timeout', type: 'number', required: false },
+          ],
         },
       });
 
@@ -355,7 +345,7 @@ describe('Plugin Installation E2E Tests', () => {
         method: 'PATCH',
         url: `/api/tenants/${testTenantId}/plugins/${pluginId}/configuration`,
         headers: { authorization: `Bearer ${tenantAdminToken}` },
-        payload: { configuration: { timeout: 3000 } },
+        payload: { configuration: { environment: 'production', timeout: 3000 } },
       });
 
       // Verify tenant 2 config unchanged
@@ -520,9 +510,7 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Initial version',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [{ key: 'setting1', type: 'string', required: false }],
-          },
+          config: [{ key: 'setting1', type: 'string', required: false }],
         },
       });
 
@@ -553,12 +541,10 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Updated version with new features',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [
-              { key: 'setting1', type: 'string', required: false },
-              { key: 'setting2', type: 'number', required: false },
-            ],
-          },
+          config: [
+            { key: 'setting1', type: 'string', required: false },
+            { key: 'setting2', type: 'number', required: false },
+          ],
         },
       });
 
@@ -609,12 +595,10 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Tests config preservation',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [
-              { key: 'apiUrl', type: 'string', required: true },
-              { key: 'timeout', type: 'number', required: false },
-            ],
-          },
+          config: [
+            { key: 'apiUrl', type: 'string', required: true },
+            { key: 'timeout', type: 'number', required: false },
+          ],
         },
       });
 
@@ -643,15 +627,17 @@ describe('Plugin Installation E2E Tests', () => {
         url: `/api/plugins/${pluginId}`,
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: {
+          id: pluginId,
+          name: 'Config Preserve Plugin',
           version: '2.0.0',
           description: 'Major update but backward compatible',
-          manifest: {
-            configFields: [
-              { key: 'apiUrl', type: 'string', required: true },
-              { key: 'timeout', type: 'number', required: false },
-              { key: 'retries', type: 'number', required: false },
-            ],
-          },
+          category: 'utility',
+          metadata: { author: { name: 'Test' }, license: 'MIT' },
+          config: [
+            { key: 'apiUrl', type: 'string', required: true },
+            { key: 'timeout', type: 'number', required: false },
+            { key: 'retries', type: 'number', required: false },
+          ],
         },
       });
 
@@ -746,8 +732,8 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Depends on plugin 2',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            dependencies: [{ pluginId: plugin2Id, versionConstraint: '^1.0.0' }],
+          api: {
+            dependencies: [{ pluginId: plugin2Id, version: '^1.0.0', required: true }],
           },
         },
       });
@@ -764,8 +750,8 @@ describe('Plugin Installation E2E Tests', () => {
           description: 'Depends on plugin 1 (circular)',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            dependencies: [{ pluginId: plugin1Id, versionConstraint: '^1.0.0' }],
+          api: {
+            dependencies: [{ pluginId: plugin1Id, version: '^1.0.0', required: true }],
           },
         },
       });

@@ -96,12 +96,22 @@ export class KeycloakService {
   }
 
   /**
-   * Create a new realm for a tenant
+   * Create a new realm for a tenant.
+   * If the realm already exists the call is a no-op (idempotent).
    */
   async createRealm(tenantSlug: string, tenantName: string): Promise<void> {
     await this.ensureAuth();
 
     await this.withRetry(async () => {
+      // Check if realm already exists to make the operation idempotent.
+      // This prevents "409 Conflict / invalid_request" errors when a realm
+      // was left over from a previous run (e.g. tests) or when createTenant
+      // is retried after a partial failure.
+      const existing = await this.getRealm(tenantSlug);
+      if (existing) {
+        return; // Realm already exists — nothing to do
+      }
+
       const realmRepresentation: RealmRepresentation = {
         realm: tenantSlug,
         displayName: tenantName,

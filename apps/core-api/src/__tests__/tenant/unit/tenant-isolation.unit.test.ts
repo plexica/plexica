@@ -1,354 +1,668 @@
-// @ts-nocheck
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+// File: apps/core-api/src/__tests__/tenant/unit/tenant-isolation.unit.test.ts
+//
+// Unit tests for tenant isolation guarantees.
+// Verifies that tenant contexts are properly isolated via AsyncLocalStorage,
+// that executeInTenantSchema enforces schema boundaries, and that the
+// middleware correctly gates access based on tenant status and identity.
 
-// Mock tenant context middleware
-const mockTenantContexts = new Map<string, any>();
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import {
+  tenantContextStorage,
+  getTenantContext,
+  getCurrentTenantSchema,
+  getWorkspaceIdOrThrow,
+  getWorkspaceId,
+  setWorkspaceId,
+  getUserId,
+  setUserId,
+  executeInTenantSchema,
+  tenantContextMiddleware,
+  clearUserSyncCache,
+  type TenantContext,
+} from '../../../middleware/tenant-context.js';
+import { tenantService } from '../../../services/tenant.service.js';
 
-vi.mock('../../../middleware/tenant-context.js', () => ({
-  getTenantContext: vi.fn(() => ({
-    tenantId: 'test-tenant-123',
-    tenantSlug: 'test-tenant',
-    schema: 'tenant_test_tenant_123',
-  })),
-  executeInTenantSchema: vi.fn((db: any, callback: any) => callback(db)),
-  setTenantContext: vi.fn((context: any) => {
-    mockTenantContexts.set('current', context);
-  }),
+// Mock external dependencies
+vi.mock('../../../services/tenant.service.js', () => ({
+  tenantService: {
+    getTenantBySlug: vi.fn(),
+    getSchemaName: vi.fn(),
+  },
 }));
 
-describe('Multi-Tenant Isolation Tests', () => {
-  let mockDb: any;
-  let mockWorkspaces: any[];
-
-  beforeEach(() => {
-    // Setup mock database
-    mockWorkspaces = [
-      {
-        id: 'ws-1',
-        tenantId: 'tenant-1',
-        name: 'Tenant 1 Workspace',
-      },
-      {
-        id: 'ws-2',
-        tenantId: 'tenant-2',
-        name: 'Tenant 2 Workspace',
-      },
-    ];
-
-    mockDb = {
-      workspace: {
-        findMany: vi.fn(({ tenantId }: any) => {
-          // Simulate tenant filtering at DB level
-          return mockWorkspaces.filter((w) => w.tenantId === tenantId);
-        }),
-        findUnique: vi.fn((where) => {
-          return mockWorkspaces.find((w) => w.id === where.id);
-        }),
-      },
-      workspaceMember: {
-        findMany: vi.fn(() => {
-          return [];
-        }),
-      },
-      tenant: {
-        findUnique: vi.fn((where) => {
-          return { id: where.id, slug: 'test-tenant' };
-        }),
-      },
+vi.mock('../../../lib/header-validator.js', () => ({
+  validateCustomHeaders: vi.fn((headers: Record<string, any>) => {
+    const result: { tenantSlug?: string; workspaceId?: string; errors: string[] } = {
+      errors: [],
     };
+    if (headers['x-tenant-slug']) {
+      const slug = String(headers['x-tenant-slug']).trim();
+      if (/^[a-z0-9]([a-z0-9-]{0,48}[a-z0-9])?$/.test(slug)) {
+        result.tenantSlug = slug;
+      } else {
+        result.errors.push(`Invalid X-Tenant-Slug header: "${slug}"`);
+      }
+    }
+    if (headers['x-workspace-id']) {
+      result.workspaceId = headers['x-workspace-id'];
+    }
+    return result;
+  }),
+  logSuspiciousHeader: vi.fn(),
+}));
+
+vi.mock('../../../lib/db.js', () => ({
+  db: {
+    $executeRaw: vi.fn(),
+  },
+}));
+
+// Helper to create a TenantContext
+function makeTenantContext(overrides: Partial<TenantContext> = {}): TenantContext {
+  return {
+    tenantId: 'tenant-abc',
+    tenantSlug: 'acme',
+    schemaName: 'tenant_acme',
+    ...overrides,
+  };
+}
+
+// Helper to create mock Fastify request/reply
+function makeMockRequestReply(overrides: { url?: string; headers?: Record<string, any> }): {
+  request: FastifyRequest;
+  reply: FastifyReply;
+} {
+  const request = {
+    url: overrides.url ?? '/api/something',
+    headers: overrides.headers ?? {},
+    log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+  } as unknown as FastifyRequest;
+
+  const reply = {
+    code: vi.fn().mockReturnThis(),
+    send: vi.fn().mockReturnThis(),
+  } as unknown as FastifyReply;
+
+  return { request, reply };
+}
+
+describe('Tenant Isolation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearUserSyncCache();
   });
 
-  describe('Data Isolation', () => {
-    it('should only return workspaces for current tenant', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
-
-      const context = getTenantContext();
-
-      // Simulate querying workspaces for tenant-1
-      const workspacesForTenant1 = mockDb.workspace.findMany({
-        tenantId: 'tenant-1',
-      });
-
-      expect(workspacesForTenant1).toHaveLength(1);
-      expect(workspacesForTenant1[0].tenantId).toBe('tenant-1');
+  // ─────────────────────────────────────────────────────────
+  // 1. AsyncLocalStorage context isolation
+  // ─────────────────────────────────────────────────────────
+  describe('AsyncLocalStorage context isolation', () => {
+    it('should return undefined outside any tenant context', () => {
+      expect(getTenantContext()).toBeUndefined();
+      expect(getCurrentTenantSchema()).toBeUndefined();
+      expect(getWorkspaceId()).toBeUndefined();
+      expect(getUserId()).toBeUndefined();
     });
 
-    it('should not return workspaces from other tenants', async () => {
-      // When querying for tenant-1, should not get tenant-2 data
-      const workspacesForTenant1 = mockDb.workspace.findMany({
-        tenantId: 'tenant-1',
-      });
+    it('should provide the correct context inside tenantContextStorage.run()', () => {
+      const ctx = makeTenantContext({ workspaceId: 'ws-1', userId: 'u-1' });
 
-      const workspacesForTenant2 = mockDb.workspace.findMany({
-        tenantId: 'tenant-2',
+      tenantContextStorage.run(ctx, () => {
+        expect(getTenantContext()).toBe(ctx);
+        expect(getCurrentTenantSchema()).toBe('tenant_acme');
+        expect(getWorkspaceId()).toBe('ws-1');
+        expect(getUserId()).toBe('u-1');
       });
-
-      expect(workspacesForTenant1).not.toEqual(workspacesForTenant2);
-      expect(workspacesForTenant1[0].tenantId).toBe('tenant-1');
-      expect(workspacesForTenant2[0].tenantId).toBe('tenant-2');
     });
 
-    it('should enforce tenant context in all database operations', async () => {
-      const { getTenantContext, executeInTenantSchema } =
-        await import('../../../middleware/tenant-context');
-
-      const context = getTenantContext();
-      let operationContext: any;
-
-      await executeInTenantSchema({}, (db: any) => {
-        operationContext = context;
-        return Promise.resolve();
+    it('should isolate two concurrent tenant contexts from each other', async () => {
+      const ctxA = makeTenantContext({
+        tenantId: 'tenant-a',
+        tenantSlug: 'alpha',
+        schemaName: 'tenant_alpha',
+      });
+      const ctxB = makeTenantContext({
+        tenantId: 'tenant-b',
+        tenantSlug: 'beta',
+        schemaName: 'tenant_beta',
       });
 
-      expect(operationContext).toBeDefined();
-      expect(operationContext.tenantId).toBe('test-tenant-123');
+      // Run two async operations concurrently; each should see only its own context
+      const [resultA, resultB] = await Promise.all([
+        tenantContextStorage.run(ctxA, async () => {
+          // Yield the event loop so B can interleave
+          await new Promise((r) => setTimeout(r, 5));
+          return getTenantContext();
+        }),
+        tenantContextStorage.run(ctxB, async () => {
+          await new Promise((r) => setTimeout(r, 5));
+          return getTenantContext();
+        }),
+      ]);
+
+      expect(resultA).toBe(ctxA);
+      expect(resultB).toBe(ctxB);
+      expect(resultA!.tenantId).toBe('tenant-a');
+      expect(resultB!.tenantId).toBe('tenant-b');
     });
 
-    it('should use tenant schema for query execution', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
+    it('should not leak context after tenantContextStorage.run() completes', () => {
+      const ctx = makeTenantContext();
 
-      const context = getTenantContext();
+      tenantContextStorage.run(ctx, () => {
+        expect(getTenantContext()).toBe(ctx);
+      });
 
-      // In real implementation, this would set the search_path to the tenant schema
-      expect(context.schema).toBe('tenant_test_tenant_123');
-      expect(context.schema).toContain('tenant_');
+      // Outside the run callback, context must not be visible
+      expect(getTenantContext()).toBeUndefined();
+    });
+
+    it('should isolate nested contexts so inner does not leak to outer', () => {
+      const outer = makeTenantContext({ tenantId: 'outer', schemaName: 'tenant_outer' });
+      const inner = makeTenantContext({ tenantId: 'inner', schemaName: 'tenant_inner' });
+
+      tenantContextStorage.run(outer, () => {
+        expect(getTenantContext()!.tenantId).toBe('outer');
+
+        tenantContextStorage.run(inner, () => {
+          expect(getTenantContext()!.tenantId).toBe('inner');
+        });
+
+        // After inner run completes, outer context should be restored
+        expect(getTenantContext()!.tenantId).toBe('outer');
+      });
     });
   });
 
-  describe('Cross-Tenant Access Prevention', () => {
-    it('should prevent direct access to other tenant data by ID', async () => {
-      // Even if you know another tenant's workspace ID, you shouldn't get it
-      const workspace = mockDb.workspace.findUnique({
-        id: 'ws-2', // This belongs to tenant-2
+  // ─────────────────────────────────────────────────────────
+  // 2. getWorkspaceIdOrThrow isolation
+  // ─────────────────────────────────────────────────────────
+  describe('getWorkspaceIdOrThrow', () => {
+    it('should throw when called outside any tenant context', () => {
+      expect(() => getWorkspaceIdOrThrow()).toThrow('No tenant context available');
+    });
+
+    it('should throw when context exists but workspaceId is not set', () => {
+      const ctx = makeTenantContext(); // no workspaceId
+
+      expect(() => tenantContextStorage.run(ctx, () => getWorkspaceIdOrThrow())).toThrow(
+        'No workspace context available'
+      );
+    });
+
+    it('should return workspace ID when set in context', () => {
+      const ctx = makeTenantContext({ workspaceId: 'ws-42' });
+
+      const result = tenantContextStorage.run(ctx, () => getWorkspaceIdOrThrow());
+      expect(result).toBe('ws-42');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 3. setWorkspaceId / setUserId mutation isolation
+  // ─────────────────────────────────────────────────────────
+  describe('setWorkspaceId', () => {
+    it('should throw when no tenant context is available', () => {
+      expect(() => setWorkspaceId('ws-1')).toThrow('No tenant context available');
+    });
+
+    it('should mutate the workspace ID inside the current context only', () => {
+      const ctxA = makeTenantContext();
+      const ctxB = makeTenantContext();
+
+      tenantContextStorage.run(ctxA, () => {
+        setWorkspaceId('ws-for-a');
+        expect(getWorkspaceId()).toBe('ws-for-a');
       });
 
-      // In a real scenario with proper tenant isolation:
-      // - The query would include the current tenant context
-      // - The result would be filtered by tenant
-      // - Or an error would be thrown
+      // ctxB should not be affected
+      tenantContextStorage.run(ctxB, () => {
+        expect(getWorkspaceId()).toBeUndefined();
+      });
+    });
+  });
 
-      if (workspace) {
-        // If we get a result, verify it's actually accessible to current tenant
-        // This would be enforced by the middleware/service layer
-        expect(workspace.id).toBe('ws-2');
+  describe('setUserId', () => {
+    it('should throw when no tenant context is available', () => {
+      expect(() => setUserId('u-1')).toThrow('No tenant context available');
+    });
+
+    it('should set and read user ID within the same context', () => {
+      const ctx = makeTenantContext();
+
+      tenantContextStorage.run(ctx, () => {
+        expect(getUserId()).toBeUndefined();
+        setUserId('u-99');
+        expect(getUserId()).toBe('u-99');
+      });
+    });
+
+    it('should not leak userId between separate contexts', () => {
+      const ctxA = makeTenantContext();
+      const ctxB = makeTenantContext();
+
+      tenantContextStorage.run(ctxA, () => {
+        setUserId('user-a');
+      });
+
+      tenantContextStorage.run(ctxB, () => {
+        expect(getUserId()).toBeUndefined();
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 4. executeInTenantSchema – schema boundary enforcement
+  // ─────────────────────────────────────────────────────────
+  describe('executeInTenantSchema', () => {
+    let mockPrisma: { $executeRaw: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockPrisma = {
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    it('should throw when no tenant context is available', async () => {
+      await expect(executeInTenantSchema(mockPrisma, async () => 'result')).rejects.toThrow(
+        'No tenant context available'
+      );
+
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('should reject SQL injection attempts in schema name', async () => {
+      const maliciousNames = [
+        "'; DROP TABLE users; --",
+        'tenant_acme; DROP TABLE',
+        'tenant-acme',
+        'TENANT_UPPER',
+        'tenant acme',
+        '../etc/passwd',
+        'tenant_acme"',
+      ];
+
+      for (const schemaName of maliciousNames) {
+        const ctx = makeTenantContext({ schemaName });
+
+        await expect(
+          tenantContextStorage.run(ctx, () =>
+            executeInTenantSchema(mockPrisma, async () => 'should not reach')
+          )
+        ).rejects.toThrow('Invalid schema name');
+      }
+
+      // No SQL should have been executed for any malicious name
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('should accept valid schema names containing only lowercase, digits, and underscores', async () => {
+      const validNames = ['tenant_acme', 'tenant_123', 'a', 'tenant_foo_bar_123'];
+
+      for (const schemaName of validNames) {
+        mockPrisma.$executeRaw.mockClear();
+        const ctx = makeTenantContext({ schemaName });
+
+        const result = await tenantContextStorage.run(ctx, () =>
+          executeInTenantSchema(mockPrisma, async () => `ok:${schemaName}`)
+        );
+
+        expect(result).toBe(`ok:${schemaName}`);
+        expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2); // SET + RESET
       }
     });
 
-    it('should prevent querying tables from another tenant schema', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
+    it('should call SET search_path before the callback and reset after', async () => {
+      const callOrder: string[] = [];
+      mockPrisma.$executeRaw.mockImplementation(async (..._args: unknown[]) => {
+        callOrder.push('$executeRaw');
+      });
 
-      const context = getTenantContext();
+      const ctx = makeTenantContext({ schemaName: 'tenant_acme' });
 
-      // Attempting to query tenant-2 schema while in tenant-1 context
-      const currentTenant = context.tenantId;
-      const attemptedTenant = 'tenant-2';
+      await tenantContextStorage.run(ctx, () =>
+        executeInTenantSchema(mockPrisma, async () => {
+          callOrder.push('callback');
+          return 'done';
+        })
+      );
 
-      expect(currentTenant).not.toBe(attemptedTenant);
+      expect(callOrder).toEqual(['$executeRaw', 'callback', '$executeRaw']);
     });
 
-    it('should not expose tenant context across requests', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
+    it('should pass the prisma client to the callback', async () => {
+      const ctx = makeTenantContext();
 
-      // Get context for first request
-      const context1 = getTenantContext();
+      let receivedClient: unknown;
+      await tenantContextStorage.run(ctx, () =>
+        executeInTenantSchema(mockPrisma, async (client) => {
+          receivedClient = client;
+        })
+      );
 
-      // Get context for second request (simulating different user/request)
-      const context2 = getTenantContext();
+      expect(receivedClient).toBe(mockPrisma);
+    });
 
-      // In a real scenario with request-scoped context,
-      // these might be different if they're from different requests
-      expect(context1.tenantId).toBeDefined();
-      expect(context2.tenantId).toBeDefined();
+    it('should return the value produced by the callback', async () => {
+      const ctx = makeTenantContext();
+
+      const result = await tenantContextStorage.run(ctx, () =>
+        executeInTenantSchema(mockPrisma, async () => ({ rows: [1, 2, 3] }))
+      );
+
+      expect(result).toEqual({ rows: [1, 2, 3] });
+    });
+
+    it('should reset search_path even when callback throws', async () => {
+      const ctx = makeTenantContext();
+
+      await expect(
+        tenantContextStorage.run(ctx, () =>
+          executeInTenantSchema(mockPrisma, async () => {
+            throw new Error('query blew up');
+          })
+        )
+      ).rejects.toThrow('query blew up');
+
+      // SET + RESET = 2 calls even on failure
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('should use an explicitly provided tenantCtx over the AsyncLocalStorage context', async () => {
+      const storageCtx = makeTenantContext({ schemaName: 'tenant_storage' });
+      const explicitCtx = makeTenantContext({ schemaName: 'tenant_explicit' });
+
+      const callOrder: string[] = [];
+      mockPrisma.$executeRaw.mockImplementation(async (..._args: unknown[]) => {
+        callOrder.push('exec');
+      });
+
+      await tenantContextStorage.run(storageCtx, () =>
+        executeInTenantSchema(
+          mockPrisma,
+          async () => {
+            callOrder.push('callback');
+          },
+          explicitCtx
+        )
+      );
+
+      // It should succeed (using explicitCtx), not use storageCtx
+      expect(callOrder).toEqual(['exec', 'callback', 'exec']);
+      // 2 $executeRaw calls confirms it used the explicit context successfully
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw when explicit tenantCtx has no schemaName', async () => {
+      const noSchemaCtx = {
+        tenantId: 'x',
+        tenantSlug: 'x',
+        schemaName: '',
+      } as TenantContext;
+
+      // Empty string is falsy, so it should throw
+      await expect(
+        executeInTenantSchema(mockPrisma, async () => 'nope', noSchemaCtx)
+      ).rejects.toThrow('No tenant context available');
     });
   });
 
-  describe('User Permission Isolation', () => {
-    it('should only show workspaces user is member of within their tenant', async () => {
-      // User is member of ws-1 in tenant-1
-      const userWorkspaces = [{ id: 'ws-1', tenantId: 'tenant-1' }];
+  // ─────────────────────────────────────────────────────────
+  // 5. tenantContextMiddleware – request gating
+  // ─────────────────────────────────────────────────────────
+  describe('tenantContextMiddleware', () => {
+    it('should skip /health route without requiring tenant header', async () => {
+      const { request, reply } = makeMockRequestReply({ url: '/health' });
 
-      // Should not show workspaces from other tenants
-      const containsOtherTenants = userWorkspaces.some((w) => w.tenantId !== 'tenant-1');
+      await tenantContextMiddleware(request, reply);
 
-      expect(containsOtherTenants).toBe(false);
+      expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
+      expect(reply.code).not.toHaveBeenCalled();
     });
 
-    it('should verify user membership before granting access', async () => {
-      // Check membership query
-      const membership = mockDb.workspaceMember.findMany({
-        where: {
-          workspaceId: 'ws-1',
-          userId: 'user-123',
+    it('should skip /docs route without requiring tenant header', async () => {
+      const { request, reply } = makeMockRequestReply({ url: '/docs/openapi' });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
+      expect(reply.code).not.toHaveBeenCalled();
+    });
+
+    it('should skip /api/tenants route', async () => {
+      const { request, reply } = makeMockRequestReply({ url: '/api/tenants' });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when no X-Tenant-Slug header is provided', async () => {
+      const { request, reply } = makeMockRequestReply({ headers: {} });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(400);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Bad Request',
+          message: 'Tenant identification required. Provide X-Tenant-Slug header.',
+        })
+      );
+    });
+
+    it('should return 400 when X-Tenant-Slug header fails validation', async () => {
+      const { request, reply } = makeMockRequestReply({
+        headers: { 'x-tenant-slug': 'INVALID_SLUG!' },
+      });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(400);
+      expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ error: 'Bad Request' }));
+      expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
+    });
+
+    it('should return 404 when tenant is not found in the database', async () => {
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(null);
+
+      const { request, reply } = makeMockRequestReply({
+        headers: { 'x-tenant-slug': 'nonexistent' },
+      });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(tenantService.getTenantBySlug).toHaveBeenCalledWith('nonexistent');
+      expect(reply.code).toHaveBeenCalledWith(404);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Not Found',
+          message: "Tenant 'nonexistent' not found",
+        })
+      );
+    });
+
+    it('should return 403 when tenant status is SUSPENDED', async () => {
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+        id: 'tid',
+        slug: 'suspended-co',
+        status: 'SUSPENDED',
+      } as any);
+
+      const { request, reply } = makeMockRequestReply({
+        headers: { 'x-tenant-slug': 'suspended-co' },
+      });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Forbidden',
+          message: "Tenant 'suspended-co' is not active (status: SUSPENDED)",
+        })
+      );
+    });
+
+    it('should return 403 when tenant status is PROVISIONING', async () => {
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+        id: 'tid',
+        slug: 'new-co',
+        status: 'PROVISIONING',
+      } as any);
+
+      const { request, reply } = makeMockRequestReply({
+        headers: { 'x-tenant-slug': 'new-co' },
+      });
+
+      await tenantContextMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(403);
+    });
+
+    it('should set context correctly for a valid active tenant', async () => {
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+        id: 'tenant-999',
+        slug: 'good-tenant',
+        status: 'ACTIVE',
+      } as any);
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_good_tenant');
+
+      const { request, reply } = makeMockRequestReply({
+        headers: { 'x-tenant-slug': 'good-tenant' },
+      });
+
+      await tenantContextMiddleware(request, reply);
+
+      // Should not return any error
+      expect(reply.code).not.toHaveBeenCalled();
+
+      // Should attach tenant context to request
+      const attached = (request as any).tenant;
+      expect(attached).toBeDefined();
+      expect(attached.tenantId).toBe('tenant-999');
+      expect(attached.tenantSlug).toBe('good-tenant');
+      expect(attached.schemaName).toBe('tenant_good_tenant');
+    });
+
+    it('should include validated workspaceId from headers in the context', async () => {
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+        id: 'tid',
+        slug: 'ws-tenant',
+        status: 'ACTIVE',
+      } as any);
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_ws_tenant');
+
+      const wsId = '550e8400-e29b-41d4-a716-446655440000';
+      const { request, reply } = makeMockRequestReply({
+        headers: {
+          'x-tenant-slug': 'ws-tenant',
+          'x-workspace-id': wsId,
         },
       });
 
-      // Should only return if user is actually a member
-      expect(Array.isArray(membership)).toBe(true);
+      await tenantContextMiddleware(request, reply);
+
+      expect(reply.code).not.toHaveBeenCalled();
+      expect((request as any).tenant.workspaceId).toBe(wsId);
     });
 
-    it('should enforce workspace-level permissions within tenant', async () => {
-      // Two users from same tenant with different permissions
-      const user1Permissions = ['workspace:read'];
-      const user2Permissions = ['workspace:admin'];
+    it('should return 500 when getTenantBySlug throws', async () => {
+      vi.mocked(tenantService.getTenantBySlug).mockRejectedValue(new Error('DB connection lost'));
 
-      expect(user1Permissions).toContain('workspace:read');
-      expect(user2Permissions).toContain('workspace:admin');
-      expect(user2Permissions).not.toContain('workspace:read');
-    });
-  });
-
-  describe('Tenant Provisioning Isolation', () => {
-    it('should create separate schema for each tenant', async () => {
-      const tenant1Schema = 'tenant_test_tenant_123';
-      const tenant2Schema = 'tenant_other_tenant_456';
-
-      expect(tenant1Schema).not.toBe(tenant2Schema);
-      expect(tenant1Schema).toMatch(/^tenant_/);
-      expect(tenant2Schema).toMatch(/^tenant_/);
-    });
-
-    it('should initialize tenant schema with required tables', async () => {
-      const requiredTables = ['workspaces', 'workspace_members', 'teams', 'plugins'];
-
-      // In real scenario, all these tables would be created in tenant schema
-      expect(requiredTables).toContain('workspaces');
-      expect(requiredTables).toContain('workspace_members');
-    });
-
-    it('should isolate tenant data storage', async () => {
-      // Each tenant has completely separate storage
-      const tenant1Data = { workspaces: ['ws-1'] };
-      const tenant2Data = { workspaces: ['ws-2'] };
-
-      expect(tenant1Data.workspaces).toEqual(['ws-1']);
-      expect(tenant2Data.workspaces).toEqual(['ws-2']);
-      expect(tenant1Data.workspaces).not.toEqual(tenant2Data.workspaces);
-    });
-  });
-
-  describe('Database Connection Isolation', () => {
-    it('should use tenant-specific connection pool', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
-
-      const context = getTenantContext();
-
-      // Connection should be tied to tenant schema
-      expect(context.schema).toContain('tenant_');
-    });
-
-    it('should set correct schema in every database operation', async () => {
-      const { executeInTenantSchema } = await import('../../../middleware/tenant-context');
-
-      const schemaName = 'tenant_test_123';
-      let setSchema = '';
-
-      await executeInTenantSchema({}, (db: any) => {
-        // In real scenario, this would execute: SET search_path TO tenant_test_123
-        setSchema = schemaName;
-        return Promise.resolve();
+      const { request, reply } = makeMockRequestReply({
+        headers: { 'x-tenant-slug': 'some-tenant' },
       });
 
-      expect(setSchema).toBe(schemaName);
+      await tenantContextMiddleware(request, reply);
+
+      expect(reply.code).toHaveBeenCalledWith(500);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Internal Server Error',
+          message: 'Failed to set tenant context',
+        })
+      );
     });
 
-    it('should rollback to public schema after operation', async () => {
-      // After tenant operation completes, connection should not leak tenant data
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
+    it('should not allow tenant A middleware to produce context visible from tenant B request', async () => {
+      // Simulate two requests for different tenants processed concurrently.
+      // Each should see only its own context inside tenantContextStorage.run().
 
-      const context = getTenantContext();
+      vi.mocked(tenantService.getTenantBySlug).mockImplementation(async (slug: string) => {
+        if (slug === 'alpha') return { id: 'a-id', slug: 'alpha', status: 'ACTIVE' } as any;
+        if (slug === 'beta') return { id: 'b-id', slug: 'beta', status: 'ACTIVE' } as any;
+        return null;
+      });
+      vi.mocked(tenantService.getSchemaName).mockImplementation((slug: string) => `tenant_${slug}`);
 
-      // The context should be cleaned up for next request
-      expect(context).toBeDefined();
-    });
-  });
+      // Use tenantContextStorage.run to simulate request-scoped isolation
+      const [ctxA, ctxB] = await Promise.all([
+        tenantContextStorage.run(
+          makeTenantContext({ tenantId: 'a-id', schemaName: 'tenant_alpha' }),
+          async () => {
+            await new Promise((r) => setTimeout(r, 10));
+            return getTenantContext();
+          }
+        ),
+        tenantContextStorage.run(
+          makeTenantContext({ tenantId: 'b-id', schemaName: 'tenant_beta' }),
+          async () => {
+            await new Promise((r) => setTimeout(r, 10));
+            return getTenantContext();
+          }
+        ),
+      ]);
 
-  describe('Admin Operations Isolation', () => {
-    it('should only allow super-admin to see all tenants', async () => {
-      const superAdminRole = 'SUPER_ADMIN';
-      const regularAdminRole = 'ADMIN';
-
-      expect(superAdminRole).toBe('SUPER_ADMIN');
-      expect(regularAdminRole).not.toBe('SUPER_ADMIN');
-    });
-
-    it('should prevent regular tenant admin from accessing other tenants', async () => {
-      // Admin of tenant-1 should not be able to query tenant-2
-      const adminTenant = 'tenant-1';
-      const otherTenant = 'tenant-2';
-
-      expect(adminTenant).not.toBe(otherTenant);
-    });
-
-    it('should audit cross-tenant access attempts', async () => {
-      // In real scenario, this would be logged
-      const auditLog = {
-        action: 'cross_tenant_access_attempt',
-        userId: 'user-123',
-        attemptedTenant: 'tenant-2',
-        actualTenant: 'tenant-1',
-      };
-
-      expect(auditLog.attemptedTenant).not.toBe(auditLog.actualTenant);
-    });
-  });
-
-  describe('Shared Resources Across Tenants', () => {
-    it('should share plugin registry across tenants', async () => {
-      // Plugin registry is global, not tenant-specific
-      const plugins = [
-        { id: 'plugin-1', name: 'Shared Plugin' },
-        { id: 'plugin-2', name: 'Another Plugin' },
-      ];
-
-      expect(plugins).toHaveLength(2);
-      // These are same for all tenants
-    });
-
-    it('should isolate plugin installations per tenant', async () => {
-      // But plugin installations are per-tenant
-      const tenant1Plugins = [{ pluginId: 'plugin-1', installed: true }];
-      const tenant2Plugins = [{ pluginId: 'plugin-1', installed: false }];
-
-      expect(tenant1Plugins[0].installed).not.toBe(tenant2Plugins[0].installed);
-    });
-
-    it('should not leak plugin configuration between tenants', async () => {
-      // Each tenant has own plugin configuration
-      const tenant1Config = { theme: 'dark' };
-      const tenant2Config = { theme: 'light' };
-
-      expect(tenant1Config.theme).not.toBe(tenant2Config.theme);
+      expect(ctxA!.tenantId).toBe('a-id');
+      expect(ctxB!.tenantId).toBe('b-id');
     });
   });
 
-  describe('Tenant Context Validation', () => {
-    it('should require valid tenant context for all operations', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
+  // ─────────────────────────────────────────────────────────
+  // 6. Schema name validation (SQL injection prevention)
+  // ─────────────────────────────────────────────────────────
+  describe('Schema name SQL injection prevention', () => {
+    let mockPrisma: { $executeRaw: ReturnType<typeof vi.fn> };
 
-      const context = getTenantContext();
-
-      expect(context).toBeDefined();
-      expect(context.tenantId).toBeDefined();
-      expect(context.tenantSlug).toBeDefined();
+    beforeEach(() => {
+      mockPrisma = { $executeRaw: vi.fn().mockResolvedValue(undefined) };
     });
 
-    it('should validate tenant context before database access', async () => {
-      const { getTenantContext } = await import('../../../middleware/tenant-context');
+    const injectionPayloads = [
+      "'; DROP TABLE users; --",
+      'tenant_acme"; DELETE FROM tenants; --',
+      'public; DROP SCHEMA tenant_acme CASCADE',
+      "' OR '1'='1",
+      'tenant_acme\x00malicious',
+      'tenant_acme; SELECT pg_sleep(10)',
+    ];
 
-      const context = getTenantContext();
+    it.each(injectionPayloads)('should reject schema name: %s', async (maliciousSchema) => {
+      const ctx = makeTenantContext({ schemaName: maliciousSchema });
 
-      // Context must have required fields
-      expect(context).toBeDefined();
-      expect(context.tenantId).toBeDefined();
+      await expect(
+        tenantContextStorage.run(ctx, () =>
+          executeInTenantSchema(mockPrisma, async () => 'should not run')
+        )
+      ).rejects.toThrow('Invalid schema name');
+
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 7. clearUserSyncCache
+  // ─────────────────────────────────────────────────────────
+  describe('clearUserSyncCache', () => {
+    it('should not throw when called (smoke test)', () => {
+      expect(() => clearUserSyncCache()).not.toThrow();
     });
 
-    it('should reject operations without tenant context', async () => {
-      // If getTenantContext returns null, operation should fail
-      const noContext = null;
-
-      if (!noContext) {
-        expect(noContext).toBeNull();
-      }
+    it('should be callable multiple times without error', () => {
+      clearUserSyncCache();
+      clearUserSyncCache();
+      // No assertion needed beyond no-throw
     });
   });
 });

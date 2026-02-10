@@ -158,6 +158,14 @@ export async function tenantContextMiddleware(
       await syncUserToTenantSchema(context.schemaName, user);
     }
   } catch (error) {
+    // Handle tenant-not-found separately (getTenantBySlug throws instead of returning null)
+    if (error instanceof Error && error.message === 'Tenant not found') {
+      return reply.code(404).send({
+        error: 'Not Found',
+        message: `Tenant '${(request.headers['x-tenant-slug'] as string) || 'unknown'}' not found`,
+      });
+    }
+
     request.log.error(error, 'Error in tenant context middleware');
     return reply.code(500).send({
       error: 'Internal Server Error',

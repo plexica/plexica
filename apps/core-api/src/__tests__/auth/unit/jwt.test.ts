@@ -1,5 +1,5 @@
 // Unit tests for JWT utilities
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
 import {
   extractBearerToken,
@@ -250,18 +250,15 @@ describe('JWT Utilities', () => {
     });
 
     it('should throw error for expired token', () => {
-      const payload = { data: 'test' };
-
-      // Generate token that expires immediately
-      const token = generateInternalToken(payload, '0s');
-
-      // Wait a bit to ensure expiration
-      return new Promise<void>((resolve) => {
-        setTimeout(() => {
-          expect(() => verifyInternalToken(token)).toThrow();
-          resolve();
-        }, 100);
-      });
+      vi.useFakeTimers();
+      try {
+        const payload = { data: 'test' };
+        const token = generateInternalToken(payload, '1s');
+        vi.advanceTimersByTime(2000);
+        expect(() => verifyInternalToken(token)).toThrow();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should throw error for invalid token', () => {

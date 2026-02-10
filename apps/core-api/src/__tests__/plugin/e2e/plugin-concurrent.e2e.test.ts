@@ -406,18 +406,21 @@ describe('Plugin Concurrent Operations E2E Tests', () => {
           description: 'Tests concurrent config updates',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [{ key: 'value', type: 'number', required: false }],
-          },
+          config: [{ key: 'value', type: 'number', required: false }],
         },
       });
 
-      await app.inject({
+      const installResp = await app.inject({
         method: 'POST',
         url: `/api/tenants/${tenant1Id}/plugins/${pluginId}/install`,
         headers: { authorization: `Bearer ${tenant1AdminToken}` },
         payload: { configuration: { value: 0 } },
       });
+
+      if (installResp.statusCode !== 201) {
+        console.error('Install failed:', installResp.statusCode, installResp.body);
+      }
+      expect(installResp.statusCode).toBe(201);
 
       // Update config 10 times concurrently with different values
       const updatePromises = Array.from({ length: 10 }, (_, i) =>
@@ -458,17 +461,15 @@ describe('Plugin Concurrent Operations E2E Tests', () => {
           description: 'Tests partial config updates',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [
-              { key: 'field1', type: 'string', required: false },
-              { key: 'field2', type: 'number', required: false },
-              { key: 'field3', type: 'boolean', required: false },
-            ],
-          },
+          config: [
+            { key: 'field1', type: 'string', required: false },
+            { key: 'field2', type: 'number', required: false },
+            { key: 'field3', type: 'boolean', required: false },
+          ],
         },
       });
 
-      await app.inject({
+      const installResp = await app.inject({
         method: 'POST',
         url: `/api/tenants/${tenant1Id}/plugins/${pluginId}/install`,
         headers: { authorization: `Bearer ${tenant1AdminToken}` },
@@ -480,6 +481,11 @@ describe('Plugin Concurrent Operations E2E Tests', () => {
           },
         },
       });
+
+      if (installResp.statusCode !== 201) {
+        console.error('Install failed:', installResp.statusCode, installResp.body);
+      }
+      expect(installResp.statusCode).toBe(201);
 
       // Update different fields concurrently
       const [result1, result2, result3] = await Promise.allSettled([
@@ -787,18 +793,21 @@ describe('Plugin Concurrent Operations E2E Tests', () => {
           description: 'Tests data integrity',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [{ key: 'counter', type: 'number', required: false }],
-          },
+          config: [{ key: 'counter', type: 'number', required: false }],
         },
       });
 
-      await app.inject({
+      const installResp = await app.inject({
         method: 'POST',
         url: `/api/tenants/${tenant1Id}/plugins/${pluginId}/install`,
         headers: { authorization: `Bearer ${tenant1AdminToken}` },
         payload: { configuration: { counter: 0 } },
       });
+
+      if (installResp.statusCode !== 201) {
+        console.error('Install failed:', installResp.statusCode, installResp.body);
+      }
+      expect(installResp.statusCode).toBe(201);
 
       // Perform 20 concurrent config updates
       const updatePromises = Array.from({ length: 20 }, (_, i) =>

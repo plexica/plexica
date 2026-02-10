@@ -250,13 +250,11 @@ describe('Plugin Isolation E2E Tests', () => {
           description: 'Tests config isolation',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [
-              { key: 'apiUrl', type: 'string', required: true },
-              { key: 'maxRetries', type: 'number', required: false },
-              { key: 'enableLogging', type: 'boolean', required: false },
-            ],
-          },
+          config: [
+            { key: 'apiUrl', type: 'string', required: true },
+            { key: 'maxRetries', type: 'number', required: false },
+            { key: 'enableLogging', type: 'boolean', required: false },
+          ],
         },
       });
 
@@ -306,13 +304,22 @@ describe('Plugin Isolation E2E Tests', () => {
         enableLogging: false,
       });
 
-      // Update tenant 1 config
-      await app.inject({
+      // Update tenant 1 config (must include all required fields since
+      // updateConfiguration replaces the entire configuration and validates
+      // required fields against the manifest)
+      const updateResp = await app.inject({
         method: 'PATCH',
         url: `/api/tenants/${tenant1Id}/plugins/${pluginId}/configuration`,
         headers: { authorization: `Bearer ${tenant1AdminToken}` },
-        payload: { configuration: { maxRetries: 10 } },
+        payload: {
+          configuration: {
+            apiUrl: 'https://tenant1-api.example.com',
+            maxRetries: 10,
+            enableLogging: true,
+          },
+        },
       });
+      expect(updateResp.statusCode).toBe(200);
 
       // Verify tenant 1 config changed
       const tenant1Updated = await db.tenantPlugin.findFirst({
@@ -343,9 +350,7 @@ describe('Plugin Isolation E2E Tests', () => {
           description: 'Tests same config keys',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [{ key: 'environment', type: 'string', required: true }],
-          },
+          config: [{ key: 'environment', type: 'string', required: true }],
         },
       });
 
@@ -827,9 +832,7 @@ describe('Plugin Isolation E2E Tests', () => {
           description: 'Tests cross-tenant config',
           category: 'utility',
           metadata: { author: { name: 'Test' }, license: 'MIT' },
-          manifest: {
-            configFields: [{ key: 'secret', type: 'string', required: true }],
-          },
+          config: [{ key: 'secret', type: 'string', required: true }],
         },
       });
 
