@@ -6,146 +6,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-
-/**
- * Semver version validation regex
- * Matches: 1.0.0, 1.2.3-beta, 2.0.0-rc.1, 3.0.0-alpha+001
- */
-const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[a-zA-Z0-9\-\.]+)?(\+[a-zA-Z0-9\-\.]+)?$/;
-
-/**
- * Validates if a string is a valid semver version
- */
-function isValidSemverVersion(version: string): boolean {
-  return SEMVER_REGEX.test(version);
-}
-
-/**
- * Parses a semver version into components
- */
-function parseSemverVersion(version: string): {
-  major: number;
-  minor: number;
-  patch: number;
-  prerelease?: string;
-  build?: string;
-} | null {
-  if (!isValidSemverVersion(version)) {
-    return null;
-  }
-
-  const match = version.match(
-    /^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9\-\.]+))?(?:\+([a-zA-Z0-9\-\.]+))?$/
-  );
-  if (!match) {
-    return null;
-  }
-
-  return {
-    major: parseInt(match[1], 10),
-    minor: parseInt(match[2], 10),
-    patch: parseInt(match[3], 10),
-    prerelease: match[4],
-    build: match[5],
-  };
-}
-
-/**
- * Compares two semver versions
- * Returns: -1 if v1 < v2, 0 if v1 === v2, 1 if v1 > v2
- */
-function compareSemverVersions(v1: string, v2: string): number {
-  const parsed1 = parseSemverVersion(v1);
-  const parsed2 = parseSemverVersion(v2);
-
-  if (!parsed1 || !parsed2) {
-    throw new Error('Invalid semver version');
-  }
-
-  // Compare major.minor.patch
-  if (parsed1.major !== parsed2.major) {
-    return parsed1.major > parsed2.major ? 1 : -1;
-  }
-  if (parsed1.minor !== parsed2.minor) {
-    return parsed1.minor > parsed2.minor ? 1 : -1;
-  }
-  if (parsed1.patch !== parsed2.patch) {
-    return parsed1.patch > parsed2.patch ? 1 : -1;
-  }
-
-  // If versions are equal without prerelease, they're equal
-  if (!parsed1.prerelease && !parsed2.prerelease) {
-    return 0;
-  }
-
-  // Versions with prerelease have lower precedence than normal versions
-  if (!parsed1.prerelease) return 1;
-  if (!parsed2.prerelease) return -1;
-
-  // Compare prerelease versions lexicographically
-  if (parsed1.prerelease < parsed2.prerelease) return -1;
-  if (parsed1.prerelease > parsed2.prerelease) return 1;
-
-  return 0;
-}
-
-/**
- * Checks if a version satisfies a semver constraint
- * Supports: ^1.0.0, ~1.2.3, >=2.0.0, >1.0.0, <=3.0.0, <4.0.0, =1.0.0, 1.0.0
- */
-function satisfiesSemverConstraint(version: string, constraint: string): boolean {
-  const parsed = parseSemverVersion(version);
-  if (!parsed) {
-    return false;
-  }
-
-  // Exact match (=1.0.0 or 1.0.0)
-  const exactMatch = constraint.match(/^=?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9\-\.]+)?)$/);
-  if (exactMatch) {
-    return version === exactMatch[1];
-  }
-
-  // Caret (^) - allows changes that do not modify left-most non-zero digit
-  const caretMatch = constraint.match(/^\^(\d+)\.(\d+)\.(\d+)$/);
-  if (caretMatch) {
-    const [, major, minor, patch] = caretMatch.map(Number);
-    if (parsed.major !== major) return false;
-    if (major > 0) return true; // ^1.0.0 allows >=1.0.0 <2.0.0
-    if (parsed.minor !== minor) return false;
-    if (minor > 0) return true; // ^0.1.0 allows >=0.1.0 <0.2.0
-    return parsed.patch === patch; // ^0.0.1 allows only =0.0.1
-  }
-
-  // Tilde (~) - allows patch-level changes
-  const tildeMatch = constraint.match(/^~(\d+)\.(\d+)\.(\d+)$/);
-  if (tildeMatch) {
-    const [, major, minor, patch] = tildeMatch.map(Number);
-    return parsed.major === major && parsed.minor === minor && parsed.patch >= patch;
-  }
-
-  // Comparison operators (>=, >, <=, <)
-  const comparisonMatch = constraint.match(/^(>=|>|<=|<)(\d+\.\d+\.\d+(?:-[a-zA-Z0-9\-\.]+)?)$/);
-  if (comparisonMatch) {
-    const operator = comparisonMatch[1];
-    const targetVersion = comparisonMatch[2];
-    const comparison = compareSemverVersions(version, targetVersion);
-
-    switch (operator) {
-      case '>=':
-        return comparison >= 0;
-      case '>':
-        return comparison > 0;
-      case '<=':
-        return comparison <= 0;
-      case '<':
-        return comparison < 0;
-      default:
-        return false;
-    }
-  }
-
-  return false;
-}
+import {
+  isValidSemverVersion,
+  parseSemverVersion,
+  compareSemverVersions,
+  satisfiesSemverConstraint,
+} from '../../../lib/semver.js';
 
 describe('Plugin Version Validation', () => {
   describe('isValidSemverVersion', () => {
@@ -306,10 +172,27 @@ describe('Plugin Version Validation', () => {
         expect(satisfiesSemverConstraint('2.0.0', '^1.0.0')).toBe(false);
       });
 
+      it('should enforce lower bound for caret constraints', () => {
+        // ^1.2.3 means >=1.2.3 <2.0.0
+        expect(satisfiesSemverConstraint('1.2.3', '^1.2.3')).toBe(true);
+        expect(satisfiesSemverConstraint('1.2.4', '^1.2.3')).toBe(true);
+        expect(satisfiesSemverConstraint('1.3.0', '^1.2.3')).toBe(true);
+        expect(satisfiesSemverConstraint('1.2.2', '^1.2.3')).toBe(false);
+        expect(satisfiesSemverConstraint('1.1.0', '^1.2.3')).toBe(false);
+        expect(satisfiesSemverConstraint('1.0.0', '^1.2.3')).toBe(false);
+      });
+
       it('should allow patch updates for 0.minor.patch', () => {
         expect(satisfiesSemverConstraint('0.1.0', '^0.1.0')).toBe(true);
         expect(satisfiesSemverConstraint('0.1.5', '^0.1.0')).toBe(true);
         expect(satisfiesSemverConstraint('0.2.0', '^0.1.0')).toBe(false);
+      });
+
+      it('should enforce lower bound for 0.minor.patch caret', () => {
+        // ^0.2.3 means >=0.2.3 <0.3.0
+        expect(satisfiesSemverConstraint('0.2.3', '^0.2.3')).toBe(true);
+        expect(satisfiesSemverConstraint('0.2.4', '^0.2.3')).toBe(true);
+        expect(satisfiesSemverConstraint('0.2.2', '^0.2.3')).toBe(false);
       });
 
       it('should allow exact match only for 0.0.patch', () => {

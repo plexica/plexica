@@ -4,6 +4,81 @@ import { getTenantContext, type TenantContext } from '../../middleware/tenant-co
 import type { CreateWorkspaceDto, UpdateWorkspaceDto, AddMemberDto } from './dto/index.js';
 
 /**
+ * Row types for raw SQL query results.
+ * These match the column names returned by the SELECT statements below.
+ */
+
+/** Basic workspace columns */
+interface WorkspaceRow {
+  id: string;
+  tenant_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  settings: unknown;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** Workspace with JSON-aggregated members/teams and counts (used by create/findOne) */
+interface WorkspaceDetailRow extends WorkspaceRow {
+  members: unknown[] | null;
+  teams?: unknown[] | null;
+  member_count: number;
+  team_count: number;
+}
+
+/** Workspace list row with the requesting user's membership info */
+interface WorkspaceListRow extends WorkspaceRow {
+  member_role: string;
+  joined_at: Date;
+  member_count: string | number;
+  team_count: string | number;
+}
+
+/** Row with only an id column */
+interface IdRow {
+  id: string;
+}
+
+/** Row with only a count column */
+interface CountRow {
+  count: number;
+}
+
+/** Workspace member row (raw column names) */
+interface MembershipRow {
+  workspace_id: string;
+  user_id: string;
+  role: string;
+  invited_by: string;
+  joined_at: Date;
+}
+
+/** Member row with joined user profile columns */
+interface MemberWithUserRow extends MembershipRow {
+  user_email: string | null;
+  user_first_name: string | null;
+  user_last_name: string | null;
+}
+
+/** Team row with owner profile and member count */
+interface TeamRow {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string | null;
+  owner_id: string;
+  created_at: Date;
+  updated_at: Date;
+  owner_user_id: string | null;
+  owner_email: string | null;
+  owner_first_name: string | null;
+  owner_last_name: string | null;
+  member_count?: number;
+}
+
+/**
  * Workspace Service
  *
  * Handles all workspace-related operations including:
@@ -92,7 +167,7 @@ export class WorkspaceService {
 
       // Fetch the complete workspace with relations
       const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
-      const workspace = await tx.$queryRaw<any[]>`
+      const workspace = await tx.$queryRaw<WorkspaceDetailRow[]>`
         SELECT 
           w.*,
           json_agg(
@@ -208,7 +283,7 @@ export class WorkspaceService {
       const orderByClause = `${sortColumn} ${sortOrder}`;
 
       // Explicitly select columns to ensure proper mapping
-      const result = await tx.$queryRaw<any[]>`
+      const result = await tx.$queryRaw<WorkspaceListRow[]>`
         SELECT 
           w.id,
           w.tenant_id,
@@ -231,7 +306,7 @@ export class WorkspaceService {
         OFFSET ${offset}
       `;
 
-      return result.map((row: any) => ({
+      return result.map((row: WorkspaceListRow) => ({
         id: row.id,
         tenantId: row.tenant_id,
         slug: row.slug,
@@ -278,7 +353,7 @@ export class WorkspaceService {
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
 
-      const workspaces = await tx.$queryRaw<any[]>`
+      const workspaces = await tx.$queryRaw<WorkspaceDetailRow[]>`
         SELECT 
           w.*,
           json_agg(
@@ -432,7 +507,7 @@ export class WorkspaceService {
         }
 
         // Fetch updated workspace
-        const workspaces = await tx.$queryRaw<any[]>`
+        const workspaces = await tx.$queryRaw<WorkspaceRow[]>`
           SELECT * FROM ${workspacesTable}
           WHERE id = ${id} AND tenant_id = ${tenantId}
         `;
@@ -494,7 +569,7 @@ export class WorkspaceService {
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
 
       // First verify workspace belongs to tenant
-      const workspaces = await tx.$queryRaw<any[]>`
+      const workspaces = await tx.$queryRaw<IdRow[]>`
         SELECT id FROM ${workspacesTable}
         WHERE id = ${id} AND tenant_id = ${tenantId}
       `;
@@ -504,7 +579,7 @@ export class WorkspaceService {
       }
 
       // Check if workspace has teams
-      const teamCounts = await tx.$queryRaw<any[]>`
+      const teamCounts = await tx.$queryRaw<CountRow[]>`
         SELECT COUNT(*) as count FROM ${teamsTable}
         WHERE workspace_id = ${id}
       `;
@@ -559,7 +634,7 @@ export class WorkspaceService {
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
-      const memberships = await tx.$queryRaw<any[]>`
+      const memberships = await tx.$queryRaw<MembershipRow[]>`
         SELECT * FROM ${membersTable}
         WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
       `;
@@ -624,7 +699,7 @@ export class WorkspaceService {
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
 
       // Check workspace exists and get membership in one query via LEFT JOIN
-      const results = await tx.$queryRaw<any[]>`
+      const results = await tx.$queryRaw<MembershipRow[]>`
         SELECT 
           w.id as workspace_id,
           wm.user_id,
@@ -711,7 +786,7 @@ export class WorkspaceService {
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
 
       // Check workspace exists and belongs to tenant
-      const workspaceCheck = await tx.$queryRaw<any[]>`
+      const workspaceCheck = await tx.$queryRaw<IdRow[]>`
         SELECT id FROM ${workspacesTable}
         WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
       `;
@@ -723,7 +798,7 @@ export class WorkspaceService {
       }
 
       // Check if user already member
-      const existingCheck = await tx.$queryRaw<any[]>`
+      const existingCheck = await tx.$queryRaw<IdRow[]>`
         SELECT workspace_id FROM ${membersTable}
         WHERE workspace_id = ${workspaceId} AND user_id = ${dto.userId}
       `;
@@ -766,7 +841,7 @@ export class WorkspaceService {
       `;
 
       // Get the created member with user info
-      const members = await tx.$queryRaw<any[]>`
+      const members = await tx.$queryRaw<MemberWithUserRow[]>`
         SELECT 
           wm.workspace_id,
           wm.user_id,
@@ -840,7 +915,7 @@ export class WorkspaceService {
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
 
       // Get the current member to check their current role
-      const currentMembers = await tx.$queryRaw<any[]>`
+      const currentMembers = await tx.$queryRaw<MembershipRow[]>`
         SELECT * FROM ${membersTable}
         WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
       `;
@@ -853,7 +928,7 @@ export class WorkspaceService {
 
       // Check if demoting the last admin
       if (currentMember.role === 'ADMIN' && role !== 'ADMIN') {
-        const adminCountResult = await tx.$queryRaw<any[]>`
+        const adminCountResult = await tx.$queryRaw<CountRow[]>`
           SELECT COUNT(*)::int as count
           FROM ${membersTable}
           WHERE workspace_id = ${workspaceId} AND role = 'ADMIN'
@@ -874,7 +949,7 @@ export class WorkspaceService {
       `;
 
       // Get the updated member
-      const members = await tx.$queryRaw<any[]>`
+      const members = await tx.$queryRaw<MembershipRow[]>`
         SELECT * FROM ${membersTable}
         WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
       `;
@@ -932,7 +1007,7 @@ export class WorkspaceService {
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
 
       // Check if user is last admin
-      const adminCountResult = await tx.$queryRaw<any[]>`
+      const adminCountResult = await tx.$queryRaw<CountRow[]>`
         SELECT COUNT(*)::int as count
         FROM ${membersTable}
         WHERE workspace_id = ${workspaceId} AND role = 'ADMIN'
@@ -941,7 +1016,7 @@ export class WorkspaceService {
       const adminCount = adminCountResult[0]?.count || 0;
 
       // Get the member to check their role
-      const members = await tx.$queryRaw<any[]>`
+      const members = await tx.$queryRaw<MembershipRow[]>`
         SELECT * FROM ${membersTable}
         WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
       `;
@@ -1012,7 +1087,7 @@ export class WorkspaceService {
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
 
       // Check workspace exists and belongs to tenant
-      const workspaceCheck = await tx.$queryRaw<any[]>`
+      const workspaceCheck = await tx.$queryRaw<IdRow[]>`
         SELECT id FROM ${workspacesTable}
         WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
       `;
@@ -1024,7 +1099,7 @@ export class WorkspaceService {
       }
 
       // Get the member with user info
-      const members = await tx.$queryRaw<any[]>`
+      const members = await tx.$queryRaw<MemberWithUserRow[]>`
         SELECT 
           wm.workspace_id,
           wm.user_id,
@@ -1107,7 +1182,7 @@ export class WorkspaceService {
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
 
       // Check workspace exists
-      const workspaceCheck = await tx.$queryRaw<any[]>`
+      const workspaceCheck = await tx.$queryRaw<IdRow[]>`
         SELECT id FROM ${workspacesTable}
         WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
       `;
@@ -1119,9 +1194,9 @@ export class WorkspaceService {
       }
 
       // Get members with user info (with optional role filter)
-      let members: any[];
+      let members: MemberWithUserRow[];
       if (role) {
-        members = await tx.$queryRaw<any[]>`
+        members = await tx.$queryRaw<MemberWithUserRow[]>`
           SELECT 
             wm.workspace_id,
             wm.user_id,
@@ -1140,7 +1215,7 @@ export class WorkspaceService {
           OFFSET ${offset}
         `;
       } else {
-        members = await tx.$queryRaw<any[]>`
+        members = await tx.$queryRaw<MemberWithUserRow[]>`
           SELECT 
             wm.workspace_id,
             wm.user_id,
@@ -1160,7 +1235,7 @@ export class WorkspaceService {
         `;
       }
 
-      return members.map((member: any) => ({
+      return members.map((member: MemberWithUserRow) => ({
         workspaceId: member.workspace_id,
         userId: member.user_id,
         role: member.role,
@@ -1199,7 +1274,7 @@ export class WorkspaceService {
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
       const teamMembersTable = Prisma.raw(`"${schemaName}"."TeamMember"`);
 
-      const teams = await tx.$queryRaw<any[]>`
+      const teams = await tx.$queryRaw<TeamRow[]>`
         SELECT 
           t.id,
           t.workspace_id,
@@ -1219,7 +1294,7 @@ export class WorkspaceService {
         ORDER BY t.created_at DESC
       `;
 
-      return teams.map((t: any) => ({
+      return teams.map((t: TeamRow) => ({
         id: t.id,
         workspaceId: t.workspace_id,
         name: t.name,
@@ -1272,7 +1347,7 @@ export class WorkspaceService {
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
 
       // Verify workspace exists and belongs to tenant
-      const workspaces = await tx.$queryRaw<any[]>`
+      const workspaces = await tx.$queryRaw<IdRow[]>`
         SELECT id FROM ${workspacesTable}
         WHERE id = ${workspaceId} AND tenant_id = ${tenantContext.tenantId}
       `;
@@ -1291,7 +1366,7 @@ export class WorkspaceService {
       `;
 
       // Fetch the created team with owner info
-      const teams = await tx.$queryRaw<any[]>`
+      const teams = await tx.$queryRaw<TeamRow[]>`
         SELECT 
           t.id,
           t.workspace_id,

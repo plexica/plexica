@@ -6,6 +6,13 @@ import { config } from '../config/index.js';
 export class KeycloakService {
   private client: KcAdminClient;
   private initialized = false;
+  /**
+   * Mutex to serialize realm-scoped operations.
+   * The Keycloak admin client shares a single realm config via setConfig(),
+   * so concurrent operations targeting different tenants would clobber each other.
+   * This promise chain ensures only one realm-scoped operation runs at a time.
+   */
+  private realmMutex: Promise<void> = Promise.resolve();
 
   constructor() {
     this.client = new KcAdminClient({
@@ -53,9 +60,11 @@ export class KeycloakService {
   private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If we get a 401, try to re-authenticate and retry once
-      if (error.response?.status === 401 || error.message?.includes('401')) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      const message = error instanceof Error ? error.message : '';
+      if (status === 401 || message.includes('401')) {
         await this.reAuthenticate();
         return await operation();
       }
@@ -64,12 +73,45 @@ export class KeycloakService {
   }
 
   /**
-   * Create a new realm for a tenant
+   * Execute an operation scoped to a specific tenant realm.
+   * Acquires a mutex to prevent concurrent realm mutations, sets the realm,
+   * runs the operation, and always resets to the master realm.
+   */
+  private async withRealmScope<T>(tenantSlug: string, operation: () => Promise<T>): Promise<T> {
+    // Chain onto the mutex so only one realm-scoped operation runs at a time
+    const result = new Promise<T>((resolve, reject) => {
+      this.realmMutex = this.realmMutex.then(async () => {
+        this.client.setConfig({ realmName: tenantSlug });
+        try {
+          const value = await operation();
+          resolve(value);
+        } catch (error) {
+          reject(error);
+        } finally {
+          this.client.setConfig({ realmName: 'master' });
+        }
+      });
+    });
+    return result;
+  }
+
+  /**
+   * Create a new realm for a tenant.
+   * If the realm already exists the call is a no-op (idempotent).
    */
   async createRealm(tenantSlug: string, tenantName: string): Promise<void> {
     await this.ensureAuth();
 
     await this.withRetry(async () => {
+      // Check if realm already exists to make the operation idempotent.
+      // This prevents "409 Conflict / invalid_request" errors when a realm
+      // was left over from a previous run (e.g. tests) or when createTenant
+      // is retried after a partial failure.
+      const existing = await this.getRealm(tenantSlug);
+      if (existing) {
+        return; // Realm already exists — nothing to do
+      }
+
       const realmRepresentation: RealmRepresentation = {
         realm: tenantSlug,
         displayName: tenantName,
@@ -103,8 +145,9 @@ export class KeycloakService {
     return this.withRetry(async () => {
       try {
         return await this.client.realms.findOne({ realm: tenantSlug });
-      } catch (error: any) {
-        if (error.response?.status === 404) {
+      } catch (error: unknown) {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
           return undefined;
         }
         throw error;
@@ -158,23 +201,21 @@ export class KeycloakService {
   ): Promise<{ id: string }> {
     await this.ensureAuth();
 
-    this.client.setConfig({ realmName: tenantSlug });
+    return this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        const userRepresentation: UserRepresentation = {
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          enabled: user.enabled ?? true,
+          emailVerified: user.emailVerified ?? false,
+        };
 
-    const userRepresentation: UserRepresentation = {
-      username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      enabled: user.enabled ?? true,
-      emailVerified: user.emailVerified ?? false,
-    };
-
-    const result = await this.client.users.create(userRepresentation);
-
-    // Reset to master realm
-    this.client.setConfig({ realmName: 'master' });
-
-    return { id: result.id! };
+        const result = await this.client.users.create(userRepresentation);
+        return { id: result.id! };
+      })
+    );
   }
 
   /**
@@ -183,20 +224,20 @@ export class KeycloakService {
   async getUser(tenantSlug: string, userId: string): Promise<UserRepresentation | undefined> {
     await this.ensureAuth();
 
-    this.client.setConfig({ realmName: tenantSlug });
-
-    try {
-      const user = await this.client.users.findOne({ id: userId });
-      return user;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return undefined;
-      }
-      throw error;
-    } finally {
-      // Reset to master realm
-      this.client.setConfig({ realmName: 'master' });
-    }
+    return this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        try {
+          const user = await this.client.users.findOne({ id: userId });
+          return user;
+        } catch (error: unknown) {
+          const status = (error as { response?: { status?: number } })?.response?.status;
+          if (status === 404) {
+            return undefined;
+          }
+          throw error;
+        }
+      })
+    );
   }
 
   /**
@@ -212,19 +253,16 @@ export class KeycloakService {
   ): Promise<UserRepresentation[]> {
     await this.ensureAuth();
 
-    this.client.setConfig({ realmName: tenantSlug });
-
-    try {
-      const users = await this.client.users.find({
-        first: options?.first,
-        max: options?.max,
-        search: options?.search,
-      });
-      return users;
-    } finally {
-      // Reset to master realm
-      this.client.setConfig({ realmName: 'master' });
-    }
+    return this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        const users = await this.client.users.find({
+          first: options?.first,
+          max: options?.max,
+          search: options?.search,
+        });
+        return users;
+      })
+    );
   }
 
   /**
@@ -233,14 +271,11 @@ export class KeycloakService {
   async deleteUser(tenantSlug: string, userId: string): Promise<void> {
     await this.ensureAuth();
 
-    this.client.setConfig({ realmName: tenantSlug });
-
-    try {
-      await this.client.users.del({ id: userId });
-    } finally {
-      // Reset to master realm
-      this.client.setConfig({ realmName: 'master' });
-    }
+    await this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        await this.client.users.del({ id: userId });
+      })
+    );
   }
 
   /**
@@ -254,21 +289,18 @@ export class KeycloakService {
   ): Promise<void> {
     await this.ensureAuth();
 
-    this.client.setConfig({ realmName: tenantSlug });
-
-    try {
-      await this.client.users.resetPassword({
-        id: userId,
-        credential: {
-          temporary,
-          type: 'password',
-          value: password,
-        },
-      });
-    } finally {
-      // Reset to master realm
-      this.client.setConfig({ realmName: 'master' });
-    }
+    await this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        await this.client.users.resetPassword({
+          id: userId,
+          credential: {
+            temporary,
+            type: 'password',
+            value: password,
+          },
+        });
+      })
+    );
   }
 
   /**

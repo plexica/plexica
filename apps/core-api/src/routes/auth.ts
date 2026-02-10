@@ -3,6 +3,10 @@ import axios from 'axios';
 import { config } from '../config/index.js';
 import { verifyKeycloakToken, extractUserInfo } from '../lib/jwt.js';
 
+// SECURITY: Regex to validate tenant slugs before interpolating into Keycloak URLs.
+// Prevents SSRF by ensuring the slug cannot contain path traversal characters.
+const TENANT_SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
+
 // Token response from Keycloak
 interface TokenResponse {
   access_token: string;
@@ -107,6 +111,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       try {
         const { username, password, tenant } = request.body;
 
+        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
+        if (!TENANT_SLUG_REGEX.test(tenant)) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Invalid tenant slug format',
+          });
+        }
+
         // Get token from Keycloak
         const tokenUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/token`;
 
@@ -142,10 +154,33 @@ export async function authRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error(error, 'Login failed');
 
-        if (error.response?.status === 401) {
+        const keycloakStatus = error.response?.status;
+
+        // Keycloak returns 401 for unauthorized, or 400 with invalid_grant
+        // for bad credentials, disabled accounts, etc.
+        if (
+          keycloakStatus === 401 ||
+          (keycloakStatus === 400 && error.response?.data?.error === 'invalid_grant')
+        ) {
           return reply.code(401).send({
             error: 'Unauthorized',
             message: 'Invalid username or password',
+          });
+        }
+
+        // Keycloak returns 404 when the realm (tenant) doesn't exist
+        if (keycloakStatus === 404) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: 'Tenant not found',
+          });
+        }
+
+        // Keycloak returns 400 for other client errors (bad client config, etc.)
+        if (keycloakStatus === 400) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Authentication request failed',
           });
         }
 
@@ -199,6 +234,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       try {
         const { refreshToken, tenant } = request.body;
 
+        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
+        if (!TENANT_SLUG_REGEX.test(tenant)) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Invalid tenant slug format',
+          });
+        }
+
         // Refresh token with Keycloak
         const tokenUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/token`;
 
@@ -228,10 +271,33 @@ export async function authRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error(error, 'Token refresh failed');
 
-        if (error.response?.status === 401) {
+        const keycloakStatus = error.response?.status;
+
+        // Keycloak returns 401 for unauthorized, or 400 with invalid_grant
+        // for expired/revoked refresh tokens
+        if (
+          keycloakStatus === 401 ||
+          (keycloakStatus === 400 && error.response?.data?.error === 'invalid_grant')
+        ) {
           return reply.code(401).send({
             error: 'Unauthorized',
             message: 'Invalid or expired refresh token',
+          });
+        }
+
+        // Keycloak returns 404 when the realm (tenant) doesn't exist
+        if (keycloakStatus === 404) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: 'Tenant not found',
+          });
+        }
+
+        // Keycloak returns 400 for other client errors
+        if (keycloakStatus === 400) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Token refresh request failed',
           });
         }
 
@@ -277,6 +343,14 @@ export async function authRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const { refreshToken, tenant } = request.body;
+
+        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
+        if (!TENANT_SLUG_REGEX.test(tenant)) {
+          return reply.code(400).send({
+            error: 'Bad Request',
+            message: 'Invalid tenant slug format',
+          });
+        }
 
         // Logout from Keycloak
         const logoutUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/logout`;

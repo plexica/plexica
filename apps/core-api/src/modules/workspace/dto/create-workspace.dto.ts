@@ -1,15 +1,29 @@
-/**
- * DTO for creating a new workspace
- */
-export interface CreateWorkspaceDto {
-  slug: string;
-  name: string;
-  description?: string;
-  settings?: Record<string, any>;
-}
+import { z } from 'zod';
 
 /**
- * Validation schema for CreateWorkspaceDto
+ * Zod schema for creating a new workspace
+ */
+export const CreateWorkspaceSchema = z.object({
+  slug: z
+    .string({ error: 'slug is required and must be a string' })
+    .min(2, 'slug must be between 2 and 50 characters')
+    .max(50, 'slug must be between 2 and 50 characters')
+    .regex(/^[a-z0-9-]+$/, 'slug must contain only lowercase letters, numbers, and hyphens'),
+  name: z
+    .string({ error: 'name is required and must be a string' })
+    .min(2, 'name must be between 2 and 100 characters')
+    .max(100, 'name must be between 2 and 100 characters'),
+  description: z.string().max(500, 'description must not exceed 500 characters').optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * DTO type for creating a new workspace (inferred from Zod schema)
+ */
+export type CreateWorkspaceDto = z.infer<typeof CreateWorkspaceSchema>;
+
+/**
+ * Fastify JSON Schema for request validation (used in route schema definitions)
  */
 export const createWorkspaceSchema = {
   type: 'object',
@@ -42,36 +56,13 @@ export const createWorkspaceSchema = {
 };
 
 /**
- * Validate CreateWorkspaceDto
+ * Validate CreateWorkspaceDto using Zod
+ * Returns an array of error messages (empty if valid)
  */
-export function validateCreateWorkspace(data: any): string[] {
-  const errors: string[] = [];
-
-  if (!data.slug || typeof data.slug !== 'string') {
-    errors.push('slug is required and must be a string');
-  } else if (data.slug.length < 2 || data.slug.length > 50) {
-    errors.push('slug must be between 2 and 50 characters');
-  } else if (!/^[a-z0-9-]+$/.test(data.slug)) {
-    errors.push('slug must contain only lowercase letters, numbers, and hyphens');
+export function validateCreateWorkspace(data: unknown): string[] {
+  const result = CreateWorkspaceSchema.safeParse(data);
+  if (result.success) {
+    return [];
   }
-
-  if (!data.name || typeof data.name !== 'string') {
-    errors.push('name is required and must be a string');
-  } else if (data.name.length < 2 || data.name.length > 100) {
-    errors.push('name must be between 2 and 100 characters');
-  }
-
-  if (data.description !== undefined) {
-    if (typeof data.description !== 'string') {
-      errors.push('description must be a string');
-    } else if (data.description.length > 500) {
-      errors.push('description must not exceed 500 characters');
-    }
-  }
-
-  if (data.settings !== undefined && typeof data.settings !== 'object') {
-    errors.push('settings must be an object');
-  }
-
-  return errors;
+  return result.error.issues.map((issue) => issue.message);
 }

@@ -10,6 +10,7 @@
 
 import KcAdminClient from '@keycloak/keycloak-admin-client';
 import axios from 'axios';
+import { sanitizeTimeoutMs } from '../../packages/lib/safe-timeout.helper';
 
 export interface TestUser {
   username: string;
@@ -79,7 +80,9 @@ export class TestKeycloakHelper {
 
         // Create a timeout promise
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Keycloak admin auth timeout')), 10000);
+          // guard dynamic/constant timeouts
+          const t = sanitizeTimeoutMs(10000);
+          setTimeout(() => reject(new Error('Keycloak admin auth timeout')), t);
         });
 
         await Promise.race([authPromise, timeoutPromise]);
@@ -90,7 +93,9 @@ export class TestKeycloakHelper {
         // If this is not the last attempt, wait before retrying
         if (attempt < maxRetries - 1) {
           const delay = baseDelay * Math.pow(2, attempt); // exponential backoff
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          // sanitize delay to avoid negative/oversized values
+          const safeDelay = sanitizeTimeoutMs(delay);
+          await new Promise((resolve) => setTimeout(resolve, safeDelay));
         }
       }
     }
@@ -135,7 +140,8 @@ export class TestKeycloakHelper {
         // If this is not the last attempt, wait before retrying
         if (attempt < maxRetries - 1) {
           const delay = baseDelay * Math.pow(2, attempt); // exponential backoff
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          const safeDelay = sanitizeTimeoutMs(delay);
+          await new Promise((resolve) => setTimeout(resolve, safeDelay));
         }
       }
     }
@@ -181,7 +187,8 @@ export class TestKeycloakHelper {
         // If this is not the last attempt, wait before retrying
         if (attempt < maxRetries - 1) {
           const delay = baseDelay * Math.pow(2, attempt); // exponential backoff
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          const safeDelay = sanitizeTimeoutMs(delay);
+          await new Promise((resolve) => setTimeout(resolve, safeDelay));
         }
       }
     }

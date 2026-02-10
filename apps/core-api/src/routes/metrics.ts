@@ -1,14 +1,14 @@
-// @ts-nocheck
 /**
  * Event Metrics Routes
  *
  * Expose Prometheus metrics for the event system
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyPluginAsync } from 'fastify';
 import { eventMetrics } from '@plexica/event-bus';
+import { requireSuperAdmin } from '../middleware/auth.js';
 
-export default async function metricsRoutes(fastify: FastifyInstance) {
+const metricsRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/metrics/events
    *
@@ -17,6 +17,7 @@ export default async function metricsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/events',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'Get event system metrics in Prometheus format',
         tags: ['metrics'],
@@ -25,17 +26,23 @@ export default async function metricsRoutes(fastify: FastifyInstance) {
             type: 'string',
             description: 'Prometheus metrics in text format',
           },
+          500: {
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+            },
+          },
         },
       },
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (_request, reply) => {
       try {
         const metrics = await eventMetrics.getMetrics();
 
-        reply.type('text/plain; version=0.0.4').send(metrics);
+        return reply.type('text/plain; version=0.0.4').send(metrics);
       } catch (error) {
-        fastify.log.error('Error getting event metrics:', error);
-        reply.status(500).send({ error: 'Failed to retrieve metrics' });
+        fastify.log.error({ err: error }, 'Error getting event metrics');
+        return reply.status(500).send({ error: 'Failed to retrieve metrics' });
       }
     }
   );
@@ -48,6 +55,7 @@ export default async function metricsRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/events/reset',
     {
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'Reset all event metrics (testing only)',
         tags: ['metrics'],
@@ -59,12 +67,24 @@ export default async function metricsRoutes(fastify: FastifyInstance) {
               message: { type: 'string' },
             },
           },
+          403: {
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+            },
+          },
+          500: {
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+            },
+          },
         },
       },
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (_request, reply) => {
       try {
-        // Only allow in development mode
+        // Only allow in non-production environments
         if (process.env.NODE_ENV === 'production') {
           return reply.status(403).send({
             error: 'Metrics reset is not allowed in production',
@@ -73,14 +93,17 @@ export default async function metricsRoutes(fastify: FastifyInstance) {
 
         eventMetrics.reset();
 
-        reply.send({
+        return reply.send({
           success: true,
           message: 'Event metrics reset successfully',
         });
       } catch (error) {
-        fastify.log.error('Error resetting event metrics:', error);
-        reply.status(500).send({ error: 'Failed to reset metrics' });
+        fastify.log.error({ err: error }, 'Error resetting event metrics');
+        return reply.status(500).send({ error: 'Failed to reset metrics' });
       }
     }
   );
-}
+};
+
+export { metricsRoutes };
+export default metricsRoutes;

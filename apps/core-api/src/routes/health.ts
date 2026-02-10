@@ -1,5 +1,12 @@
 import { FastifyPluginAsync } from 'fastify';
 import { getPrismaClient } from '@plexica/database';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+// Read version from package.json at startup
+// __dirname is available because tsconfig compiles to CommonJS
+const PKG_PATH = resolve(__dirname, '../../package.json');
+const APP_VERSION = (JSON.parse(readFileSync(PKG_PATH, 'utf-8')) as { version: string }).version;
 
 const healthRoutes: FastifyPluginAsync = async (server) => {
   // Liveness probe - is the server running?
@@ -42,13 +49,19 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
         };
       } catch (error) {
         reply.status(503);
+        const errorMessage =
+          process.env.NODE_ENV === 'production'
+            ? 'Database check failed'
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error';
         return {
           status: 'not_ready',
           timestamp: new Date().toISOString(),
           checks: {
             database: 'error',
           },
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: errorMessage,
         };
       }
     }
@@ -90,7 +103,7 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
       return {
         status: allOk ? 'healthy' : 'unhealthy',
         timestamp: new Date().toISOString(),
-        version: '0.1.0',
+        version: APP_VERSION,
         checks,
       };
     }

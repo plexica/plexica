@@ -1,5 +1,6 @@
 // Test setup file
 import { beforeAll, afterAll, afterEach } from 'vitest';
+import { resetAllCaches } from '../lib/advanced-rate-limit.js';
 
 beforeAll(async () => {
   // Setup test environment
@@ -26,5 +27,11 @@ afterAll(async () => {
 });
 
 afterEach(() => {
-  // Reset mocks after each test
+  // Reset mocks and shared in-memory caches after each test to avoid
+  // cross-test interference (rate limits, user sync cache, etc.).
+  try {
+    resetAllCaches();
+  } catch {
+    /* ignore in environments where rate limiter isn't available */
+  }
 });

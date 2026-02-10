@@ -85,7 +85,7 @@ export const PublishPluginSchema = z.object({
   icon: z.string().url().optional(),
   screenshots: z.array(z.string().url()).max(10).optional().default([]),
   demoUrl: z.string().url().optional(),
-  manifest: z.record(z.string(), z.any()), // Plugin manifest JSON
+  manifest: z.record(z.string(), z.unknown()), // Plugin manifest JSON
   changelog: z.string().max(2000).optional(),
   assetUrl: z.string().url().optional(), // CDN URL for plugin bundle
 });
@@ -160,7 +160,7 @@ export type VoteRatingDto = z.infer<typeof VoteRatingSchema>;
  */
 export const InstallPluginSchema = z.object({
   version: SemverSchema.optional(), // Install specific version, or latest
-  configuration: z.record(z.string(), z.any()).default({}),
+  configuration: z.record(z.string(), z.unknown()).default({}),
 });
 
 export type InstallPluginDto = z.infer<typeof InstallPluginSchema>;
@@ -180,7 +180,7 @@ export type UninstallPluginDto = z.infer<typeof UninstallPluginSchema>;
 export const PublishVersionSchema = z.object({
   version: SemverSchema,
   changelog: z.string().min(10).max(2000),
-  manifest: z.record(z.string(), z.any()),
+  manifest: z.record(z.string(), z.unknown()),
   assetUrl: z.string().url().optional(),
   setAsLatest: z.boolean().default(true),
 });
@@ -224,7 +224,7 @@ export const MarketplaceStatsSchema = z.object({
       count: z.number(),
     })
   ),
-  recentlyPublished: z.array(z.any()).optional(),
+  recentlyPublished: z.array(z.unknown()).optional(),
 });
 
 export type MarketplaceStatsDto = z.infer<typeof MarketplaceStatsSchema>;

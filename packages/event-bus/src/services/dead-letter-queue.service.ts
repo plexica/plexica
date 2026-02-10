@@ -4,6 +4,7 @@ import { TopicManager } from './topic-manager';
 import { RedpandaClient } from './redpanda-client';
 import type { Producer } from 'kafkajs';
 import { eventMetrics } from '../metrics/event-metrics';
+import { sanitizeTimeoutMs } from '../../../lib/safe-timeout.helper';
 
 /**
  * Failed event record stored in DLQ
@@ -197,8 +198,9 @@ export class DeadLetterQueueService {
     const delayMs = this.calculateBackoffDelay(failedEvent.retryCount);
 
     if (!manualRetry) {
-      // Wait for backoff period
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      // Wait for backoff period (sanitize and clamp to safe range)
+      const safeDelay = sanitizeTimeoutMs(delayMs);
+      await new Promise((resolve) => setTimeout(resolve, safeDelay));
     }
 
     try {

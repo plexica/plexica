@@ -185,14 +185,14 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // List all tenants
+  // List all tenants (super-admin only)
   fastify.get<{
     Querystring: { skip?: number; take?: number; status?: TenantStatus };
   }>(
     '/tenants',
     {
-      // TODO: Re-enable authMiddleware after implementing Keycloak in super-admin
-      // preHandler: [authMiddleware],
+      // SECURITY: Listing all tenants requires super-admin privileges
+      preHandler: [requireSuperAdmin],
       schema: {
         description: 'List all tenants with pagination',
         tags: ['tenants'],

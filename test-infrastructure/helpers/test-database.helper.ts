@@ -64,19 +64,29 @@ export class TestDatabaseHelper {
    */
   async truncateCore(): Promise<void> {
     try {
-      await this.prisma.$executeRawUnsafe(`
-        DO $$
-        DECLARE
-            r RECORD;
-        BEGIN
-            SET session_replication_role = replica;
-            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'core')
-            LOOP
-                EXECUTE 'TRUNCATE TABLE core.' || quote_ident(r.tablename) || ' CASCADE';
-            END LOOP;
-            SET session_replication_role = DEFAULT;
-        END $$;
-      `);
+      // Fetch all table names in the 'core' schema and truncate them individually.
+      // Using multiple single-statement calls avoids issues with multi-statement
+      // blocks and keeps the queries visible to Prisma's query runner.
+      // Use the native pg pool for read queries to avoid Prisma raw query limitations
+      const res = await this.pool.query(`SELECT tablename FROM pg_tables WHERE schemaname = $1`, [
+        'core',
+      ]);
+      const tables: Array<{ tablename: string }> = res.rows || [];
+
+      if (!tables || tables.length === 0) return;
+
+      // Temporarily disable triggers/foreign key checks by setting replication role
+      await this.prisma.$executeRawUnsafe(`SET session_replication_role = 'replica'`);
+
+      for (const row of tables) {
+        const table = row.tablename;
+        // Quote the identifier to be safe against reserved words
+        await this.prisma.$executeRawUnsafe(
+          `TRUNCATE TABLE core."${table.replace(/"/g, '""')}" CASCADE`
+        );
+      }
+
+      await this.prisma.$executeRawUnsafe(`SET session_replication_role = DEFAULT`);
     } catch (error: any) {
       console.error('❌ truncateCore failed:');
       console.error('  Message:', error.message);
@@ -84,6 +94,32 @@ export class TestDatabaseHelper {
       console.error('  Meta:', error.meta);
       console.error('  DATABASE_URL:', process.env.DATABASE_URL);
       throw error;
+    }
+  }
+
+  /**
+   * Begin a test transaction useful for speeding up test teardown.
+   * Note: Not all tests can use transactions (e.g. tests that rely on DB session-level effects
+   * across connections). Use only where appropriate and when tests share the same DB connection.
+   */
+  async beginTestTransaction(): Promise<void> {
+    try {
+      await this.prisma.$executeRaw`BEGIN`;
+      await this.prisma.$executeRaw`SAVEPOINT vitest_before_each`;
+    } catch (error: any) {
+      console.warn('Could not begin test transaction:', error.message);
+    }
+  }
+
+  /**
+   * Rollback to savepoint created by beginTestTransaction
+   */
+  async rollbackTestTransaction(): Promise<void> {
+    try {
+      await this.prisma.$executeRaw`ROLLBACK TO SAVEPOINT vitest_before_each`;
+      await this.prisma.$executeRaw`RELEASE SAVEPOINT vitest_before_each`;
+    } catch (error: any) {
+      console.warn('Could not rollback test transaction:', error.message);
     }
   }
 
@@ -374,6 +410,18 @@ export class TestDatabaseHelper {
    * This truncates the core schema and drops/recreates tenant schemas
    */
   async reset(): Promise<void> {
+    // Prefer lightweight reset where possible: truncate core only
+    // and avoid dropping tenant schemas every run which is expensive.
+    // Full schema cleanup may still be required occasionally; expose an
+    // explicit method `fullReset()` for that.
+    await this.truncateCore();
+  }
+
+  /**
+   * Full reset: truncate core and drop tenant schemas (expensive)
+   * Use in CI job setup/teardown when a truly clean DB is required.
+   */
+  async fullReset(): Promise<void> {
     await this.truncateCore();
     await this.dropTenantSchemas();
 

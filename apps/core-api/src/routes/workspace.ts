@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { workspaceService } from '../modules/workspace/workspace.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -9,6 +9,10 @@ import {
   validateAddMember,
   validateUpdateMemberRole,
 } from '../modules/workspace/dto/index.js';
+import type { CreateWorkspaceDto } from '../modules/workspace/dto/create-workspace.dto.js';
+import type { UpdateWorkspaceDto } from '../modules/workspace/dto/update-workspace.dto.js';
+import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';
+import type { UpdateMemberRoleDto } from '../modules/workspace/dto/update-member-role.dto.js';
 
 // Request schemas for Fastify validation
 const createWorkspaceRequestSchema = {
@@ -156,7 +160,9 @@ const memberParamsSchema = {
 export async function workspaceRoutes(fastify: FastifyInstance) {
   // Create workspace
   // Requires: tenant context, authenticated user
-  fastify.post(
+  fastify.post<{
+    Body: CreateWorkspaceDto;
+  }>(
     '/workspaces',
     {
       schema: {
@@ -200,9 +206,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       },
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({
             error: 'Unauthorized',
@@ -210,7 +216,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const body = request.body as any;
+        const body = request.body;
         const errors = validateCreateWorkspace(body);
         if (errors.length > 0) {
           return reply.code(400).send({
@@ -220,7 +226,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const workspace = await workspaceService.create(body, userId, (request as any).tenant);
+        const workspace = await workspaceService.create(body, userId, request.tenant);
         return reply.code(201).send(workspace);
       } catch (error) {
         request.log.error(error);
@@ -242,7 +248,14 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   // Requires: tenant context, authenticated user
   // List user workspaces with pagination and sorting
   // Requires: tenant context, authenticated user
-  fastify.get(
+  fastify.get<{
+    Querystring: {
+      limit?: number;
+      offset?: number;
+      sortBy?: 'name' | 'createdAt' | 'joinedAt';
+      sortOrder?: 'asc' | 'desc';
+    };
+  }>(
     '/workspaces',
     {
       schema: {
@@ -305,9 +318,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       },
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const userId = (request as any).user?.id;
+        const userId = request.user?.id;
         if (!userId) {
           return reply.code(401).send({
             error: 'Unauthorized',
@@ -315,15 +328,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const query = request.query as any;
+        const { limit, offset, sortBy, sortOrder } = request.query;
         const options = {
-          limit: query.limit ? parseInt(query.limit, 10) : undefined,
-          offset: query.offset ? parseInt(query.offset, 10) : undefined,
-          sortBy: query.sortBy || undefined,
-          sortOrder: query.sortOrder || undefined,
+          limit,
+          offset,
+          sortBy,
+          sortOrder,
         };
 
-        const workspaces = await workspaceService.findAll(userId, options, (request as any).tenant);
+        const workspaces = await workspaceService.findAll(userId, options, request.tenant);
         return reply.send(workspaces);
       } catch (error) {
         request.log.error(error);
@@ -337,7 +350,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Get workspace details
   // Requires: tenant context, workspace membership
-  fastify.get(
+  fastify.get<{
+    Params: { workspaceId: string };
+  }>(
     '/workspaces/:workspaceId',
     {
       schema: {
@@ -383,13 +398,13 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        const workspace = await workspaceService.findOne(workspaceId, (request as any).tenant);
+        const { workspaceId } = request.params;
+        const workspace = await workspaceService.findOne(workspaceId, request.tenant);
 
         // Add user's role from workspace membership (set by workspaceGuard)
-        const userRole = (request as any).workspaceMembership?.role;
+        const userRole = request.workspaceMembership?.role;
 
         return reply.send({ ...workspace, userRole });
       } catch (error) {
@@ -410,7 +425,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Update workspace
   // Requires: tenant context, workspace membership, ADMIN role
-  fastify.patch(
+  fastify.patch<{
+    Params: { workspaceId: string };
+    Body: UpdateWorkspaceDto;
+  }>(
     '/workspaces/:workspaceId',
     {
       schema: {
@@ -450,10 +468,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         workspaceRoleGuard(['ADMIN']),
       ],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        const body = request.body as any;
+        const { workspaceId } = request.params;
+        const body = request.body;
 
         const errors = validateUpdateWorkspace(body);
         if (errors.length > 0) {
@@ -464,7 +482,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const workspace = await workspaceService.update(workspaceId, body, (request as any).tenant);
+        const workspace = await workspaceService.update(workspaceId, body, request.tenant);
         return reply.send(workspace);
       } catch (error) {
         request.log.error(error);
@@ -484,7 +502,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Delete workspace
   // Requires: tenant context, workspace membership, ADMIN role
-  fastify.delete(
+  fastify.delete<{
+    Params: { workspaceId: string };
+  }>(
     '/workspaces/:workspaceId',
     {
       schema: {
@@ -515,10 +535,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         workspaceRoleGuard(['ADMIN']),
       ],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        await workspaceService.delete(workspaceId, (request as any).tenant);
+        const { workspaceId } = request.params;
+        await workspaceService.delete(workspaceId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
         request.log.error(error);
@@ -538,7 +558,14 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Get workspace members with filtering and pagination
   // Requires: tenant context, workspace membership
-  fastify.get(
+  fastify.get<{
+    Params: { workspaceId: string };
+    Querystring: {
+      role?: 'ADMIN' | 'MEMBER' | 'VIEWER';
+      limit?: number;
+      offset?: number;
+    };
+  }>(
     '/workspaces/:workspaceId/members',
     {
       schema: {
@@ -571,22 +598,18 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        const query = request.query as any;
+        const { workspaceId } = request.params;
+        const { role, limit, offset } = request.query;
 
         const options = {
-          role: query.role || undefined,
-          limit: query.limit ? parseInt(query.limit, 10) : undefined,
-          offset: query.offset ? parseInt(query.offset, 10) : undefined,
+          role,
+          limit,
+          offset,
         };
 
-        const members = await workspaceService.getMembers(
-          workspaceId,
-          options,
-          (request as any).tenant
-        );
+        const members = await workspaceService.getMembers(workspaceId, options, request.tenant);
         return reply.send(members);
       } catch (error) {
         request.log.error(error);
@@ -600,7 +623,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Get specific member details
   // Requires: tenant context, workspace membership
-  fastify.get(
+  fastify.get<{
+    Params: { workspaceId: string; userId: string };
+  }>(
     '/workspaces/:workspaceId/members/:userId',
     {
       schema: {
@@ -641,13 +666,13 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId, userId } = request.params as any;
+        const { workspaceId, userId } = request.params;
         const member = await workspaceService.getMemberWithUser(
           workspaceId,
           userId,
-          (request as any).tenant
+          request.tenant
         );
         return reply.send(member);
       } catch (error) {
@@ -668,7 +693,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Add member to workspace
   // Requires: tenant context, workspace membership, ADMIN role
-  fastify.post(
+  fastify.post<{
+    Params: { workspaceId: string };
+    Body: AddMemberDto;
+  }>(
     '/workspaces/:workspaceId/members',
     {
       schema: {
@@ -714,11 +742,17 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         workspaceRoleGuard(['ADMIN']),
       ],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        const body = request.body as any;
-        const invitedBy = (request as any).user?.id;
+        const { workspaceId } = request.params;
+        const body = request.body;
+        const invitedBy = request.user?.id;
+        if (!invitedBy) {
+          return reply.code(401).send({
+            error: 'Unauthorized',
+            message: 'User not authenticated',
+          });
+        }
 
         const errors = validateAddMember(body);
         if (errors.length > 0) {
@@ -733,7 +767,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           workspaceId,
           body,
           invitedBy,
-          (request as any).tenant
+          request.tenant
         );
         return reply.code(201).send(member);
       } catch (error) {
@@ -760,7 +794,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Update member role
   // Requires: tenant context, workspace membership, ADMIN role
-  fastify.patch(
+  fastify.patch<{
+    Params: { workspaceId: string; userId: string };
+    Body: UpdateMemberRoleDto;
+  }>(
     '/workspaces/:workspaceId/members/:userId',
     {
       schema: {
@@ -776,10 +813,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         workspaceRoleGuard(['ADMIN']),
       ],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId, userId } = request.params as any;
-        const body = request.body as any;
+        const { workspaceId, userId } = request.params;
+        const body = request.body;
 
         const errors = validateUpdateMemberRole(body);
         if (errors.length > 0) {
@@ -794,7 +831,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           workspaceId,
           userId,
           body.role,
-          (request as any).tenant
+          request.tenant
         );
         return reply.send(member);
       } catch (error) {
@@ -821,7 +858,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Remove member from workspace
   // Requires: tenant context, workspace membership, ADMIN role
-  fastify.delete(
+  fastify.delete<{
+    Params: { workspaceId: string; userId: string };
+  }>(
     '/workspaces/:workspaceId/members/:userId',
     {
       schema: {
@@ -852,10 +891,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         workspaceRoleGuard(['ADMIN']),
       ],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId, userId } = request.params as any;
-        await workspaceService.removeMember(workspaceId, userId, (request as any).tenant);
+        const { workspaceId, userId } = request.params;
+        await workspaceService.removeMember(workspaceId, userId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
         request.log.error(error);
@@ -881,7 +920,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Get workspace teams
   // Requires: tenant context, workspace membership
-  fastify.get(
+  fastify.get<{ Params: { workspaceId: string } }>(
     '/workspaces/:workspaceId/teams',
     {
       schema: {
@@ -892,10 +931,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       },
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        const teams = await workspaceService.getTeams(workspaceId, (request as any).tenant);
+        const { workspaceId } = request.params;
+        const teams = await workspaceService.getTeams(workspaceId, request.tenant);
         return reply.send(teams);
       } catch (error) {
         request.log.error(error);
@@ -909,7 +948,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
   // Create team in workspace
   // Requires: tenant context, workspace membership, MEMBER role or higher
-  fastify.post(
+  fastify.post<{
+    Params: { workspaceId: string };
+    Body: { name: string; description?: string };
+  }>(
     '/workspaces/:workspaceId/teams',
     {
       schema: {
@@ -959,11 +1001,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         workspaceRoleGuard(['ADMIN', 'MEMBER']),
       ],
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { workspaceId } = request.params as any;
-        const body = request.body as any;
-        const userId = (request as any).user?.id;
+        const { workspaceId } = request.params;
+        const userId = request.user?.id;
 
         if (!userId) {
           return reply.code(401).send({
@@ -975,11 +1016,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const team = await workspaceService.createTeam(
           workspaceId,
           {
-            name: body.name,
-            description: body.description,
+            name: request.body.name,
+            description: request.body.description,
             ownerId: userId,
           },
-          (request as any).tenant
+          request.tenant
         );
 
         return reply.code(201).send(team);

@@ -1,13 +1,26 @@
 // Unit tests for PermissionService
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionService, Permissions } from '../../../services/permission.service';
-import { db } from '../../../lib/db';
+import { db } from '../../../lib/db.js';
 
-// Mock database
-vi.mock('../../../lib/db', () => ({
+// Use vi.hoisted so mock functions are available when vi.mock factory runs (it's hoisted above imports)
+const { mockExecuteRawUnsafe, mockQueryRawUnsafe } = vi.hoisted(() => ({
+  mockExecuteRawUnsafe: vi.fn(),
+  mockQueryRawUnsafe: vi.fn(),
+}));
+
+// Mock database — $transaction calls its callback with a tx that shares the same mock fns
+vi.mock('../../../lib/db.js', () => ({
   db: {
-    $executeRawUnsafe: vi.fn(),
-    $queryRawUnsafe: vi.fn(),
+    $executeRawUnsafe: mockExecuteRawUnsafe,
+    $queryRawUnsafe: mockQueryRawUnsafe,
+    $transaction: vi.fn(async (fn: (tx: any) => Promise<any>) => {
+      const tx = {
+        $executeRawUnsafe: mockExecuteRawUnsafe,
+        $queryRawUnsafe: mockQueryRawUnsafe,
+      };
+      return fn(tx);
+    }),
   },
 }));
 
@@ -18,6 +31,8 @@ describe('PermissionService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExecuteRawUnsafe.mockReset();
+    mockQueryRawUnsafe.mockReset();
     service = new PermissionService();
   });
 
@@ -38,9 +53,8 @@ describe('PermissionService', () => {
       expect(result).toContain('users.write');
       expect(result).toContain('posts.read');
 
-      // Verify schema was set and reset
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(`SET search_path TO "${testSchema}"`);
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith('SET search_path TO public, core');
+      // Verify SET LOCAL was called inside the transaction
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(`SET LOCAL search_path TO "${testSchema}"`);
     });
 
     it('should return empty array when user has no roles', async () => {
@@ -63,17 +77,13 @@ describe('PermissionService', () => {
       expect(result).toEqual([]);
     });
 
-    it('should reset schema even on error', async () => {
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValueOnce(0 as any); // SET search_path
-      vi.mocked(db.$queryRawUnsafe).mockRejectedValue(new Error('Database error'));
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValueOnce(0 as any); // RESET search_path
+    it('should propagate database errors from transaction', async () => {
+      mockExecuteRawUnsafe.mockResolvedValueOnce(0 as any); // SET LOCAL search_path
+      mockQueryRawUnsafe.mockRejectedValue(new Error('Database error'));
 
       await expect(service.getUserPermissions(testUserId, testSchema)).rejects.toThrow(
         'Database error'
       );
-
-      // Verify schema was reset
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith('SET search_path TO public, core');
     });
   });
 
@@ -179,7 +189,7 @@ describe('PermissionService', () => {
       expect(result.id).toBeDefined();
 
       // Verify SQL execution
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO'),
         expect.any(String), // id (UUID)
         'moderator',
@@ -197,25 +207,25 @@ describe('PermissionService', () => {
       expect(result.description).toBeUndefined();
     });
 
-    it('should reset schema after creating role', async () => {
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0 as any);
+    it('should set LOCAL search path in transaction', async () => {
+      mockExecuteRawUnsafe.mockResolvedValue(0 as any);
 
       await service.createRole(testSchema, 'test', ['test.read']);
 
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith('SET search_path TO public, core');
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(`SET LOCAL search_path TO "${testSchema}"`);
     });
   });
 
   describe('updateRolePermissions', () => {
     it('should update role permissions', async () => {
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0 as any);
+      mockExecuteRawUnsafe.mockResolvedValue(0 as any);
 
       const roleId = 'role-123';
       const newPermissions = ['users.read', 'users.write', 'users.delete'];
 
       await service.updateRolePermissions(testSchema, roleId, newPermissions);
 
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE'),
         JSON.stringify(newPermissions),
         roleId
@@ -258,13 +268,13 @@ describe('PermissionService', () => {
 
   describe('assignRoleToUser', () => {
     it('should assign role to user', async () => {
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0 as any);
+      mockExecuteRawUnsafe.mockResolvedValue(0 as any);
 
       const roleId = 'role-123';
 
       await service.assignRoleToUser(testSchema, testUserId, roleId);
 
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO'),
         testUserId,
         roleId
@@ -274,13 +284,13 @@ describe('PermissionService', () => {
 
   describe('removeRoleFromUser', () => {
     it('should remove role from user', async () => {
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0 as any);
+      mockExecuteRawUnsafe.mockResolvedValue(0 as any);
 
       const roleId = 'role-123';
 
       await service.removeRoleFromUser(testSchema, testUserId, roleId);
 
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('DELETE FROM'),
         testUserId,
         roleId

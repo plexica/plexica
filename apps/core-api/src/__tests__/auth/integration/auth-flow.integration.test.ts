@@ -172,7 +172,22 @@ describe('Auth Flow Integration', () => {
     });
 
     it('should reject refresh with invalid refresh token', async () => {
-      // TODO: Test refresh with invalid token
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/refresh',
+        payload: {
+          refreshToken: 'invalid-refresh-token',
+          tenant: testTenantSlug,
+        },
+      });
+
+      // Invalid refresh token should be rejected (401 from Keycloak invalid_grant mapping)
+      expect(response.statusCode).toBeGreaterThanOrEqual(400);
+      expect(response.statusCode).toBeLessThan(500);
+
+      const data = response.json();
+      expect(data).toHaveProperty('error');
+      expect(data).toHaveProperty('message');
     });
   });
 

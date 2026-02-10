@@ -48,9 +48,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         const plugin = await pluginRegistryService.registerPlugin(request.body);
         return reply.code(201).send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -113,9 +115,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         const result = await pluginRegistryService.listPlugins(request.query);
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -128,6 +132,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/plugins/:pluginId',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Get plugin details from the global registry',
         tags: ['plugins'],
@@ -158,9 +163,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         const plugin = await pluginRegistryService.getPlugin(request.params.pluginId);
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(404)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -204,9 +211,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           request.body
         );
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -242,9 +251,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         await pluginRegistryService.deletePlugin(request.params.pluginId);
         return reply.code(204).send();
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -257,6 +268,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/plugins/:pluginId/stats',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Get plugin installation statistics',
         tags: ['plugins'],
@@ -284,9 +296,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         const stats = await pluginRegistryService.getPluginStats(request.params.pluginId);
         return reply.send(stats);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(404)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -300,7 +314,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
    */
   fastify.post<{
     Params: { id: string; pluginId: string };
-    Body: { configuration?: Record<string, any> };
+    Body: { configuration?: Record<string, unknown> };
   }>(
     '/tenants/:id/plugins/:pluginId/install',
     {
@@ -334,7 +348,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
     async (
       request: FastifyRequest<{
         Params: { id: string; pluginId: string };
-        Body: { configuration?: Record<string, any> };
+        Body: { configuration?: Record<string, unknown> };
       }>,
       reply: FastifyReply
     ) => {
@@ -348,9 +362,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           configuration
         );
         return reply.code(201).send(installation);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -392,9 +408,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         const { id: tenantId, pluginId } = request.params;
         const result = await pluginLifecycleService.activatePlugin(tenantId, pluginId);
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -436,9 +454,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         const { id: tenantId, pluginId } = request.params;
         const result = await pluginLifecycleService.deactivatePlugin(tenantId, pluginId);
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -479,9 +499,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         const { id: tenantId, pluginId } = request.params;
         await pluginLifecycleService.uninstallPlugin(tenantId, pluginId);
         return reply.code(204).send();
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -491,7 +513,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
    */
   fastify.patch<{
     Params: { id: string; pluginId: string };
-    Body: { configuration: Record<string, any> };
+    Body: { configuration: Record<string, unknown> };
   }>(
     '/tenants/:id/plugins/:pluginId/configuration',
     {
@@ -526,7 +548,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
     async (
       request: FastifyRequest<{
         Params: { id: string; pluginId: string };
-        Body: { configuration: Record<string, any> };
+        Body: { configuration: Record<string, unknown> };
       }>,
       reply: FastifyReply
     ) => {
@@ -540,9 +562,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           configuration
         );
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -555,9 +579,9 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Get all installed plugins for a tenant',
-        tags: ['plugins', 'tenants'],
         params: {
           type: 'object',
           required: ['id'],
@@ -577,9 +601,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         const plugins = await pluginLifecycleService.getInstalledPlugins(request.params.id);
         return reply.send(plugins);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );

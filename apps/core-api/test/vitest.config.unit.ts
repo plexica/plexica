@@ -13,9 +13,10 @@ export default defineConfig({
     testTimeout: 5000,
     hookTimeout: 10000,
 
-    // Run sequentially as requested
-    maxConcurrency: 1,
-    fileParallelism: false,
+    // Unit tests are isolated - allow parallelism to speed up runs
+    // Keep a modest concurrency to avoid overwhelming CI machines
+    maxConcurrency: 4,
+    fileParallelism: true,
 
     coverage: {
       provider: 'v8',
@@ -39,6 +40,10 @@ export default defineConfig({
     },
 
     setupFiles: ['./src/__tests__/setup/unit-setup.ts'],
+    // Provide an env var to toggle DB-backed unit tests (default false)
+    env: {
+      UNIT_TEST_USE_DB: process.env.UNIT_TEST_USE_DB || 'false',
+    },
   },
 
   resolve: {

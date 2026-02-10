@@ -1,14 +1,31 @@
-/**
- * DTO for updating a workspace
- */
-export interface UpdateWorkspaceDto {
-  name?: string;
-  description?: string;
-  settings?: Record<string, any>;
-}
+import { z } from 'zod';
 
 /**
- * Validation schema for UpdateWorkspaceDto
+ * Zod schema for updating a workspace
+ */
+export const UpdateWorkspaceSchema = z
+  .object({
+    name: z
+      .string()
+      .min(2, 'name must be between 2 and 100 characters')
+      .max(100, 'name must be between 2 and 100 characters')
+      .optional(),
+    description: z.string().max(500, 'description must not exceed 500 characters').optional(),
+    settings: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine(
+    (data) =>
+      data.name !== undefined || data.description !== undefined || data.settings !== undefined,
+    { message: 'At least one field (name, description, or settings) must be provided' }
+  );
+
+/**
+ * DTO type for updating a workspace (inferred from Zod schema)
+ */
+export type UpdateWorkspaceDto = z.infer<typeof UpdateWorkspaceSchema>;
+
+/**
+ * Fastify JSON Schema for request validation (used in route schema definitions)
  */
 export const updateWorkspaceSchema = {
   type: 'object',
@@ -33,35 +50,13 @@ export const updateWorkspaceSchema = {
 };
 
 /**
- * Validate UpdateWorkspaceDto
+ * Validate UpdateWorkspaceDto using Zod
+ * Returns an array of error messages (empty if valid)
  */
-export function validateUpdateWorkspace(data: any): string[] {
-  const errors: string[] = [];
-
-  if (data.name !== undefined) {
-    if (typeof data.name !== 'string') {
-      errors.push('name must be a string');
-    } else if (data.name.length < 2 || data.name.length > 100) {
-      errors.push('name must be between 2 and 100 characters');
-    }
+export function validateUpdateWorkspace(data: unknown): string[] {
+  const result = UpdateWorkspaceSchema.safeParse(data);
+  if (result.success) {
+    return [];
   }
-
-  if (data.description !== undefined) {
-    if (typeof data.description !== 'string') {
-      errors.push('description must be a string');
-    } else if (data.description.length > 500) {
-      errors.push('description must not exceed 500 characters');
-    }
-  }
-
-  if (data.settings !== undefined && typeof data.settings !== 'object') {
-    errors.push('settings must be an object');
-  }
-
-  // At least one field must be provided
-  if (data.name === undefined && data.description === undefined && data.settings === undefined) {
-    errors.push('At least one field (name, description, or settings) must be provided');
-  }
-
-  return errors;
+  return result.error.issues.map((issue) => issue.message);
 }

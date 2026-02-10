@@ -51,12 +51,12 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    // Set schema
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    return db.$transaction(async (tx) => {
+      // SET LOCAL is scoped to the transaction — automatically reverts on commit/rollback
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
       // Get user roles and their permissions
-      const result = await db.$queryRawUnsafe<Array<{ permissions: any }>>(
+      const result = await tx.$queryRawUnsafe<Array<{ permissions: Permission[] }>>(
         `
         SELECT DISTINCT r.permissions
         FROM "${schemaName}".user_roles ur
@@ -70,17 +70,14 @@ export class PermissionService {
       const permissions = new Set<Permission>();
 
       for (const row of result) {
-        const rolePermissions = row.permissions as Permission[];
+        const rolePermissions = row.permissions;
         if (Array.isArray(rolePermissions)) {
           rolePermissions.forEach((p) => permissions.add(p));
         }
       }
 
       return Array.from(permissions);
-    } finally {
-      // Reset schema
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -131,12 +128,12 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    return db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
       const id = randomUUID();
 
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `
          INSERT INTO "${schemaName}".roles (id, name, description, permissions, created_at, updated_at)
          VALUES ($1, $2, $3, $4::jsonb, NOW(), NOW())
@@ -153,9 +150,7 @@ export class PermissionService {
         description,
         permissions,
       };
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -169,10 +164,10 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `
          UPDATE "${schemaName}".roles
          SET permissions = $1::jsonb, updated_at = NOW()
@@ -181,9 +176,7 @@ export class PermissionService {
         JSON.stringify(permissions),
         roleId
       );
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -193,15 +186,15 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    return db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      const roles = await db.$queryRawUnsafe<
+      const roles = await tx.$queryRawUnsafe<
         Array<{
           id: string;
           name: string;
           description: string | null;
-          permissions: any;
+          permissions: Permission[];
         }>
       >(
         `
@@ -215,11 +208,9 @@ export class PermissionService {
         id: role.id,
         name: role.name,
         description: role.description || undefined,
-        permissions: role.permissions as Permission[],
+        permissions: role.permissions,
       }));
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -229,15 +220,15 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    return db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      const roles = await db.$queryRawUnsafe<
+      const roles = await tx.$queryRawUnsafe<
         Array<{
           id: string;
           name: string;
           description: string | null;
-          permissions: any;
+          permissions: Permission[];
         }>
       >(
         `
@@ -257,11 +248,9 @@ export class PermissionService {
         id: role.id,
         name: role.name,
         description: role.description || undefined,
-        permissions: role.permissions as Permission[],
+        permissions: role.permissions,
       };
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -271,19 +260,17 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `
         DELETE FROM "${schemaName}".roles
         WHERE id = $1
         `,
         roleId
       );
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -293,10 +280,10 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `
         INSERT INTO "${schemaName}".user_roles (user_id, role_id, assigned_at)
         VALUES ($1, $2, NOW())
@@ -305,9 +292,7 @@ export class PermissionService {
         userId,
         roleId
       );
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -317,10 +302,10 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `
         DELETE FROM "${schemaName}".user_roles
         WHERE user_id = $1 AND role_id = $2
@@ -328,9 +313,7 @@ export class PermissionService {
         userId,
         roleId
       );
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**
@@ -340,15 +323,15 @@ export class PermissionService {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
-    await db.$executeRawUnsafe(`SET search_path TO "${schemaName}"`);
+    return db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);
 
-    try {
-      const roles = await db.$queryRawUnsafe<
+      const roles = await tx.$queryRawUnsafe<
         Array<{
           id: string;
           name: string;
           description: string | null;
-          permissions: any;
+          permissions: Permission[];
         }>
       >(
         `
@@ -365,11 +348,9 @@ export class PermissionService {
         id: role.id,
         name: role.name,
         description: role.description || undefined,
-        permissions: role.permissions as Permission[],
+        permissions: role.permissions,
       }));
-    } finally {
-      await db.$executeRawUnsafe(`SET search_path TO public, core`);
-    }
+    });
   }
 
   /**

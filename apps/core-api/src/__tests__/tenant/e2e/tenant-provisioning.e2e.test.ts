@@ -81,9 +81,25 @@ describe('Tenant Provisioning E2E', () => {
     app = await buildTestApp();
     await app.ready();
 
-    const tokenResp = await testContext.auth.getRealSuperAdminToken();
-    superAdminToken = tokenResp.access_token;
-  });
+    // Retry token acquisition — Keycloak may be slow after prior E2E suites
+    // created many realms (especially tenant-concurrent)
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const tokenResp = await testContext.auth.getRealSuperAdminToken();
+        superAdminToken = tokenResp.access_token;
+        lastError = null;
+        break;
+      } catch (err) {
+        lastError = err;
+        console.warn(`  ⚠ Token attempt ${attempt + 1}/5 failed, retrying in ${2 ** attempt}s...`);
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+      }
+    }
+    if (lastError) {
+      throw lastError;
+    }
+  }, 120000);
 
   afterAll(async () => {
     await app.close();
