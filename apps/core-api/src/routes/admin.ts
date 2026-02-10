@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { tenantService } from '../services/tenant.service.js';
 import { analyticsService } from '../services/analytics.service.js';
+import { marketplaceService } from '../services/marketplace.service.js';
+import { adminService } from '../services/admin.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
 
@@ -534,52 +536,368 @@ export async function adminRoutes(fastify: FastifyInstance) {
   );
 
   // ===== PLUGIN MANAGEMENT (Global Registry) =====
-  // TODO: Implement plugin registry endpoints when plugin service is ready
-  // GET /admin/plugins - List all plugins in global registry
-  // GET /admin/plugins/:id - Get plugin details
-  // POST /admin/plugins - Publish new plugin to registry
-  // PATCH /admin/plugins/:id - Update plugin metadata
-  // POST /admin/plugins/:id/unpublish - Unpublish plugin
-  // GET /admin/plugins/:id/installs - Get installation statistics
 
-  // Placeholder for plugin registry
-  // SECURITY: Requires super-admin even for placeholder endpoints
-  fastify.get(
+  // List all plugins in registry
+  fastify.get<{
+    Querystring: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+      category?: string;
+    };
+  }>(
     '/admin/plugins',
     {
       preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'List all plugins in registry with filters (super-admin only)',
+        tags: ['admin', 'plugins'],
+        querystring: {
+          type: 'object',
+          properties: {
+            page: {
+              type: 'number',
+              minimum: 1,
+              default: 1,
+              description: 'Page number (1-based)',
+            },
+            limit: {
+              type: 'number',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+              description: 'Items per page',
+            },
+            search: {
+              type: 'string',
+              description: 'Search by plugin name, description, or author',
+            },
+            status: {
+              type: 'string',
+              enum: ['DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'DEPRECATED', 'REJECTED'],
+              description: 'Filter by plugin status',
+            },
+            category: {
+              type: 'string',
+              description: 'Filter by plugin category',
+            },
+          },
+        },
+        response: {
+          200: {
+            description: 'List of plugins',
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    version: { type: 'string' },
+                    status: { type: 'string' },
+                    description: { type: 'string' },
+                    category: { type: 'string' },
+                    author: { type: 'string' },
+                    averageRating: { type: 'number' },
+                    installCount: { type: 'number' },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  total: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
+            },
+          },
+        },
+      },
     },
-    async (_request, reply) => {
-      // TODO: Implement with plugin service
-      return reply.send({
-        plugins: [],
-        total: 0,
-        message: 'Plugin registry endpoints not yet implemented',
-      });
+    async (request, reply) => {
+      try {
+        const { page = 1, limit = 50, search, status, category } = request.query;
+
+        // Use marketplace service to search plugins
+        // For admin view, show ALL statuses by default (not just PUBLISHED)
+        const result = await marketplaceService.searchPlugins({
+          query: search,
+          status:
+            (status as 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'DEPRECATED' | 'REJECTED') ||
+            undefined,
+          category: category as
+            | 'crm'
+            | 'analytics'
+            | 'billing'
+            | 'marketing'
+            | 'productivity'
+            | 'communication'
+            | 'integration'
+            | 'security'
+            | 'reporting'
+            | 'automation'
+            | 'other'
+            | undefined,
+          page,
+          limit,
+          sortBy: 'publishedAt',
+          sortOrder: 'desc',
+        });
+
+        return reply.send(result);
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // Get plugin details by ID
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { includeAllVersions?: boolean };
+  }>(
+    '/admin/plugins/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get plugin details by ID (super-admin only)',
+        tags: ['admin', 'plugins'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        querystring: {
+          type: 'object',
+          properties: {
+            includeAllVersions: {
+              type: 'boolean',
+              default: false,
+              description: 'Include all versions (not just latest)',
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { includeAllVersions = false } = request.query;
+        const plugin = await marketplaceService.getPluginById(
+          request.params.id,
+          includeAllVersions
+        );
+        return reply.send(plugin);
+      } catch (error: any) {
+        request.log.error({ error, pluginId: request.params.id }, 'Failed to get plugin');
+
+        if (error.message.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to retrieve plugin details',
+        });
+      }
     }
   );
 
   // ===== USER MANAGEMENT (Cross-Tenant) =====
-  // TODO: Implement user management endpoints
-  // GET /admin/users - List all users across all tenants
-  // GET /admin/users/:id - Get user details
-  // PATCH /admin/users/:id - Update user
-  // DELETE /admin/users/:id - Delete user
 
-  // Placeholder for user management
-  // SECURITY: Requires super-admin even for placeholder endpoints
-  fastify.get(
+  // List all users across all tenants
+  fastify.get<{
+    Querystring: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      tenantId?: string;
+      role?: string;
+    };
+  }>(
     '/admin/users',
     {
       preHandler: [requireSuperAdmin],
+      schema: {
+        description:
+          'List all users across all tenants with pagination and filters (super-admin only)',
+        tags: ['admin', 'users'],
+        querystring: {
+          type: 'object',
+          properties: {
+            page: {
+              type: 'number',
+              minimum: 1,
+              default: 1,
+              description: 'Page number (1-based)',
+            },
+            limit: {
+              type: 'number',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+              description: 'Items per page',
+            },
+            search: {
+              type: 'string',
+              description: 'Search by user name, email, or tenant name',
+            },
+            tenantId: {
+              type: 'string',
+              description: 'Filter by tenant ID',
+            },
+            role: {
+              type: 'string',
+              description: 'Filter by role name',
+            },
+          },
+        },
+        response: {
+          200: {
+            description: 'List of users across all tenants',
+            type: 'object',
+            properties: {
+              users: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    email: { type: 'string' },
+                    name: { type: 'string' },
+                    firstName: { type: ['string', 'null'] },
+                    lastName: { type: ['string', 'null'] },
+                    tenantId: { type: 'string' },
+                    tenantName: { type: 'string' },
+                    tenantSlug: { type: 'string' },
+                    roles: {
+                      type: 'array',
+                      items: { type: 'string' },
+                    },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+              total: { type: 'number' },
+              page: { type: 'number' },
+              limit: { type: 'number' },
+              totalPages: { type: 'number' },
+            },
+          },
+        },
+      },
     },
-    async (_request, reply) => {
-      // TODO: Implement with user service
-      return reply.send({
-        users: [],
-        total: 0,
-        message: 'User management endpoints not yet implemented',
-      });
+    async (request, reply) => {
+      try {
+        const { page = 1, limit = 50, search, tenantId, role } = request.query;
+
+        const result = await adminService.listUsers({
+          page,
+          limit,
+          search,
+          tenantId,
+          role,
+        });
+
+        return reply.send(result);
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
+  // Get user details by ID
+  fastify.get<{
+    Params: { id: string };
+  }>(
+    '/admin/users/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get user details by ID with tenant and workspace info (super-admin only)',
+        tags: ['admin', 'users'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            description: 'User details',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              email: { type: 'string' },
+              name: { type: 'string' },
+              firstName: { type: ['string', 'null'] },
+              lastName: { type: ['string', 'null'] },
+              tenantId: { type: 'string' },
+              tenantName: { type: 'string' },
+              tenantSlug: { type: 'string' },
+              roles: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              createdAt: { type: 'string', format: 'date-time' },
+              workspaces: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    slug: { type: 'string' },
+                    role: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'User not found',
+            type: 'object',
+            properties: {
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        const user = await adminService.getUserById(request.params.id);
+        return reply.send(user);
+      } catch (error: any) {
+        request.log.error({ error, userId: request.params.id }, 'Failed to get user');
+
+        if (error.message.includes('not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: error.message,
+          });
+        }
+
+        return reply.code(500).send({
+          error: 'Internal Server Error',
+          message: 'Failed to retrieve user details',
+        });
+      }
     }
   );
 
