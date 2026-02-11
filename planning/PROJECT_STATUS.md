@@ -1269,9 +1269,9 @@ A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDAT
 ### Planning
 
 - **[ROADMAP.md](./planning/ROADMAP.md)** - General timeline Phase 1-5
-- **[DEVELOPMENT_PLAN.md](./planning/DEVELOPMENT_PLAN.md)** - Detailed Phase 1 plan
-- **[MILESTONES.md](./planning/MILESTONES.md)** - Milestone tracking
+- **[MILESTONES.md](./planning/MILESTONES.md)** - Milestone tracking (current single source of truth)
 - **[DECISIONS.md](./planning/DECISIONS.md)** - Architectural Decision Records
+- ~~[DEVELOPMENT_PLAN.md](./.github/docs/deprecated/planning/DEVELOPMENT_PLAN.md)~~ - _Deprecated: archived 2026-02-11, see MILESTONES.md_
 
 ### Specs
 

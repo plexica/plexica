@@ -1,15 +1,27 @@
 # Plexica - Development Plan
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
-**Owner**: Engineering Team  
-**Document Type**: Developer Guide
+⚠️ **DEPRECATED** (as of 2026-02-11)
 
-**Last Updated**: 2025-02-03  
-**Status**: Needs Update (Superseded by MILESTONES.md)  
+This document is no longer maintained and has been superseded by the current project planning documents.
+
+**See instead:**
+
+- **Current Milestones**: [`planning/MILESTONES.md`](../../../../planning/MILESTONES.md)
+- **Project Status**: [`planning/PROJECT_STATUS.md`](../../../../planning/PROJECT_STATUS.md)
+- **Roadmap**: [`planning/ROADMAP.md`](../../../../planning/ROADMAP.md)
+
+**Why Deprecated**: The original development plan structure has been replaced with a more granular milestone-based tracking system that better reflects the project's evolution and current status.
+
+**Migration Guide**: Refer to the documents above for current project planning, status, and roadmap information.
+
+---
+
+## Original Content (For Historical Reference Only)
+
+**Original Last Updated**: 2025-02-03  
+**Original Status**: Complete  
 **Owner**: Engineering Team  
-**Document Type**: Planning  
-**Note**: ⚠️ This document has been superseded by MILESTONES.md - see that document for current project status.
+**Document Type**: Planning (Deprecated)
 
 **Current Phase**: Phase 1 - MVP Core (94% Complete)  
 **Last Updated**: January 21, 2026  

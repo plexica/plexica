@@ -5,10 +5,22 @@
 **Owner**: Engineering Team  
 **Document Type**: Architecture
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
-**Owner**: Engineering Team  
-**Document Type**: Frontend Architecture
+---
+
+## 📋 Documentation Scope
+
+**This document is the authoritative source for:**
+
+- Frontend system architecture (React, Vite, Module Federation)
+- Client-side authentication and authorization (Keycloak integration)
+- Multi-tenant context management on the frontend
+- Plugin system frontend implementation (dynamic loading, routing)
+- State management and component architecture
+- UI/UX patterns and layout components
+
+**For backend/system architecture, see:** [`specs/TECHNICAL_SPECIFICATIONS.md`](../specs/TECHNICAL_SPECIFICATIONS.md) (API design, database, infrastructure, deployment)
+
+---
 
 ## Overview
 

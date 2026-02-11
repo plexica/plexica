@@ -43,6 +43,10 @@ Documents follow a 5-step deprecation process:
 
 ### Superseded by Better Documentation
 
+- **`planning/DEVELOPMENT_PLAN.md`** - Superseded by milestone-based tracking system
+  - Archived: February 11, 2026
+  - Reason: Development planning now tracked in MILESTONES.md with more granular milestone-based approach
+  - Migration Path: See [`planning/MILESTONES.md`](../../../planning/MILESTONES.md), [`planning/PROJECT_STATUS.md`](../../../planning/PROJECT_STATUS.md), [`planning/ROADMAP.md`](../../../planning/ROADMAP.md)
 - `DEVELOPMENT_PLAN_OLD.md` - Superseded by MILESTONES.md
   - Archived: February 2025
   - Reason: Development milestones now tracked in MILESTONES.md
@@ -80,5 +84,5 @@ To archive a document:
 
 ---
 
-**Last Updated**: 2025-02-03  
+**Last Updated**: 2026-02-11  
 **Maintained By**: Engineering Team

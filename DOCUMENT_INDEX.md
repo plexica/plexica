@@ -85,13 +85,12 @@ Detailed architecture, design, and implementation specifications.
 
 Project planning, roadmap, and architectural decisions.
 
-| File                                                  | Purpose                        | Best For                |
-| ----------------------------------------------------- | ------------------------------ | ----------------------- |
-| [PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)     | Current progress & milestones  | Status tracking         |
-| [ROADMAP.md](./planning/ROADMAP.md)                   | Multi-phase roadmap            | High-level planning     |
-| [DEVELOPMENT_PLAN.md](./planning/DEVELOPMENT_PLAN.md) | Detailed MVP plan              | Implementation planning |
-| [MILESTONES.md](./planning/MILESTONES.md)             | Milestone tracking             | Phase management        |
-| [DECISIONS.md](./planning/DECISIONS.md)               | Architectural Decision Records | Design decisions        |
+| File                                              | Purpose                        | Best For            |
+| ------------------------------------------------- | ------------------------------ | ------------------- |
+| [PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) | Current progress & milestones  | Status tracking     |
+| [ROADMAP.md](./planning/ROADMAP.md)               | Multi-phase roadmap            | High-level planning |
+| [MILESTONES.md](./planning/MILESTONES.md)         | Milestone tracking             | Phase management    |
+| [DECISIONS.md](./planning/DECISIONS.md)           | Architectural Decision Records | Design decisions    |
 
 ---
 
@@ -138,7 +137,7 @@ Project planning, roadmap, and architectural decisions.
 
 1. [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) - Current progress & milestones
 2. [planning/ROADMAP.md](./planning/ROADMAP.md) - Phase timeline
-3. [planning/DEVELOPMENT_PLAN.md](./planning/DEVELOPMENT_PLAN.md) - Detailed implementation plan
+3. [planning/MILESTONES.md](./planning/MILESTONES.md) - Detailed milestone tracking
 4. [README.md](./README.md) - Project overview & quick start
 
 ### **🤖 AI Coding Agent**
@@ -244,6 +243,15 @@ Project planning, roadmap, and architectural decisions.
 - **planning/** - Roadmap & milestones (AGENTS.md defines this)
 
 See [AGENTS.md#documentation-management](./AGENTS.md#documentation-management) for documentation guidelines.
+
+### **Deprecated & Archived**
+
+Documentation that is no longer maintained but preserved for historical reference:
+
+- **[.github/docs/deprecated/](./. github/docs/deprecated/)** - Archived documentation directory
+  - [planning/DEVELOPMENT_PLAN.md](./.github/docs/deprecated/planning/DEVELOPMENT_PLAN.md) - Superseded by MILESTONES.md (archived 2026-02-11)
+
+**See:** [.github/docs/deprecated/README.md](./.github/docs/deprecated/README.md) for complete archive index and deprecation policy.
 
 ### **In Development**
 

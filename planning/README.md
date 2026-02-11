@@ -1,7 +1,7 @@
 # Planning Directory
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
+**Last Updated**: 2026-02-11  
+**Status**: Active  
 **Owner**: Engineering Team
 
 This directory contains project planning documents including roadmap, milestones, architectural decisions (ADRs), and detailed task breakdowns.
@@ -37,12 +37,12 @@ Architectural Decision Records (ADRs).
 
 ### Development Planning
 
-**[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)** ⚠️ _Superseded by MILESTONES.md_  
-Historical development plan (kept for reference).
+~~**[DEVELOPMENT_PLAN.md](../.github/docs/deprecated/planning/DEVELOPMENT_PLAN.md)**~~ _**Deprecated** (archived 2026-02-11)_  
+Historical development plan preserved for reference.
 
-- **Status**: Needs Update - Use MILESTONES.md for current status
-- Development phases and team allocation
-- Task organization and priorities
+- **Status**: Archived - See [MILESTONES.md](./MILESTONES.md) and [PROJECT_STATUS.md](./PROJECT_STATUS.md) for current status
+- **Replacement**: Use [MILESTONES.md](./MILESTONES.md) for milestone tracking and [PROJECT_STATUS.md](./PROJECT_STATUS.md) for current progress
+- **Archive Location**: [.github/docs/deprecated/planning/DEVELOPMENT_PLAN.md](../.github/docs/deprecated/planning/DEVELOPMENT_PLAN.md)
 
 ### Task Breakdown by Phase
 

@@ -120,6 +120,11 @@ cd apps/super-admin && pnpm dev
 
 ## 🎯 Key Features
 
+**For detailed architecture documentation:**
+
+- **Backend/System Architecture**: See [`specs/TECHNICAL_SPECIFICATIONS.md`](specs/TECHNICAL_SPECIFICATIONS.md)
+- **Frontend Architecture**: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
 ### ✅ Multi-Tenancy
 
 - Schema-per-tenant on PostgreSQL for complete data isolation
@@ -210,28 +215,20 @@ See **[specs/PROJECT_STRUCTURE.md](./specs/PROJECT_STRUCTURE.md)** for detailed 
 
 ## 🛠️ Technology Stack
 
-### Backend (✅ Complete)
+**Quick Overview**:
 
-| Category   | Technology | Version | Status          |
-| ---------- | ---------- | ------- | --------------- |
-| Runtime    | Node.js    | 20 LTS  | ✅              |
-| Language   | TypeScript | 5.9.3   | ✅              |
-| Framework  | Fastify    | 5.7.1   | ✅              |
-| ORM        | Prisma     | 7.2.0   | ✅              |
-| Validation | Zod        | 3.x     | ✅              |
-| Testing    | Vitest     | 1.x     | ✅ ~1,047 tests |
+| Layer          | Key Technologies                                             |
+| -------------- | ------------------------------------------------------------ |
+| **Backend**    | Node.js 20, TypeScript 5.9, Fastify 5.7, Prisma 7.2          |
+| **Database**   | PostgreSQL 15 (multi-schema), Redis 7                        |
+| **Auth**       | Keycloak 23 (realm-per-tenant)                               |
+| **Events**     | Redpanda (Kafka-compatible)                                  |
+| **Storage**    | MinIO (S3-compatible)                                        |
+| **Frontend**   | React 18, Vite 5, Module Federation, TailwindCSS v4, Zustand |
+| **Testing**    | Vitest 1.x (~1,855 tests, 63% coverage)                      |
+| **Deployment** | Docker Compose (dev), Kubernetes (planned)                   |
 
-### Infrastructure (✅ Complete)
-
-| Service    | Version | Port      | Status     |
-| ---------- | ------- | --------- | ---------- |
-| PostgreSQL | 15      | 5432      | ✅ Running |
-| Redis      | 7       | 6379      | ✅ Running |
-| Keycloak   | 23      | 8080      | ✅ Running |
-| Redpanda   | Latest  | 9092      | ✅ Running |
-| MinIO      | Latest  | 9000/9001 | ✅ Running |
-
-### Frontend (✅ Complete)
+**For complete technology stack details, rationale, and versions**: See [`specs/TECHNICAL_SPECIFICATIONS.md#12-detailed-technology-stack`](specs/TECHNICAL_SPECIFICATIONS.md#12-detailed-technology-stack)
 
 ---
 
@@ -356,9 +353,9 @@ GET /api/tenants/:id/plugins
 
 ### Planning
 
+- **[Project Status](./planning/PROJECT_STATUS.md)** - Current milestones and progress
 - **[Roadmap](./planning/ROADMAP.md)** - Phase 1-5 timeline
-- **[Development Plan](./planning/DEVELOPMENT_PLAN.md)** - Detailed MVP plan
-- **[Milestones](./planning/MILESTONES.md)** - Milestone tracking
+- **[Milestones](./planning/MILESTONES.md)** - Detailed milestone tracking
 - **[Decisions](./planning/DECISIONS.md)** - Architectural Decision Records (ADR)
 
 ### Guides
