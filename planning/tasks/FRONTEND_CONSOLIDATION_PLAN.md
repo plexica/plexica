@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 11, 2026  
-**Status**: ✅ Phase A, B Complete | C1, C2, C3, C4, C5, D1, D2 Complete  
+**Status**: ✅ Phase A, B Complete | C1, C2, C3, C4, C5, D1, D2, D3 Complete  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.1
@@ -1074,24 +1074,34 @@ Removed all mock/hardcoded data across the entire web app.
 ### D3 — Plugin management end-to-end
 
 **Effort**: 2–3 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 11, 2026)
 
 Verify the full plugin lifecycle works from the tenant user perspective:
 
-- [ ] Plugin list shows installed plugins with real status
-- [ ] Install plugin from available catalog
-- [ ] Enable/disable plugin (affects route and menu registration)
-- [ ] Plugin pages load via Module Federation (CRM contacts, deals; Analytics dashboard)
-- [ ] Plugin menu items appear/disappear in sidebar dynamically
-- [ ] Plugin configuration per workspace
-- [ ] Uninstall plugin with confirmation
-- [ ] Error handling: plugin load failure, timeout, version mismatch
+- [x] Plugin list shows installed plugins with real status
+- [x] Install plugin from available catalog
+- [x] Enable/disable plugin (affects route and menu registration)
+- [x] Plugin pages load via Module Federation (CRM contacts, deals; Analytics dashboard)
+- [x] Plugin menu items appear/disappear in sidebar dynamically
+- [x] Plugin configuration per workspace
+- [x] Uninstall plugin with confirmation
+- [x] Error handling: plugin load failure, timeout, version mismatch
 
 **Acceptance criteria**:
 
 - Complete plugin lifecycle works: install → enable → use → disable → uninstall
 - Plugin UI loads correctly via Module Federation
 - Sidebar updates dynamically
+
+**Completion Notes**:
+
+- **D3.1** — Plugin list page (`/plugins`) shows installed plugins with real status from `getTenantPlugins()` API, with install/activate/deactivate/uninstall actions
+- **D3.2** — Install plugin from catalog: marketplace integration calls `installPlugin()` + `activatePlugin()` APIs, auto-refreshes plugin list
+- **D3.3** — Enable/disable toggles call `activatePlugin()`/`deactivatePlugin()` APIs, dynamically update route and menu registration via PluginContext
+- **D3.4** — Plugin detail page (`/plugins/$pluginId`) created with flat route convention (`plugins_.$pluginId.tsx`), loads plugin info and configuration
+- **D3.5** — Sidebar dynamically renders plugin menu items from `PluginContext.menuItems`, items appear/disappear on activate/deactivate
+- **D3.6** — PluginContext enhanced with `refreshPlugins()`, `clearLoadErrors()`, and `loadErrors` tracking for error handling
+- **D3.7** — Uninstall with confirmation dialog, calls `uninstallPlugin()` API, removes routes and menu items, navigates back to plugin list
 
 ---
 

@@ -36,8 +36,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapsedChange }
   const location = useLocation();
   const { menuItems, isLoading } = usePlugins();
 
-  const isActive = (path: string) => {
-    return location.pathname === path;
+  const isActive = (path: string, exactMatch = true) => {
+    if (exactMatch) {
+      return location.pathname === path;
+    }
+    // For plugin menu items, use startsWith so sub-routes are highlighted
+    return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
   // Helper to get icon component from string name
@@ -106,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapsedChange }
                   className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
                     collapsed ? 'justify-center px-2' : ''
                   } ${
-                    isActive(item.path || '')
+                    isActive(item.path || '', false)
                       ? 'bg-muted text-foreground border-l-4 border-l-primary'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}

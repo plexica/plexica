@@ -2,29 +2,29 @@
 
 **Last Updated**: February 11, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
-**Current Milestone**: **Frontend Consolidation D3 — Plugin management end-to-end**  
-**Previous Milestone**: D2 - Connect web app to real data ✅ (Completed Feb 11)  
+**Current Milestone**: **Frontend Consolidation D4 — Workspace flow completion**  
+**Previous Milestone**: D3 - Plugin management end-to-end ✅ (Completed Feb 11)  
 **Version**: 0.8.0
 
 ---
 
 ## 📊 Quick Overview
 
-| Metric                       | Value                                 | Status                   |
-| ---------------------------- | ------------------------------------- | ------------------------ |
-| **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                |
-| **Current Focus**            | Frontend Consolidation (D3 next)      | 🟡 In Progress           |
-| **Frontend Consolidation**   | Phase A, B, C1–C5, D1–D2 complete     | 🟢 80% (D3–D5)           |
-| **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
-| **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
-| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
-| **Frontend MVP**             | Tenant App + Super-Admin Panel        | ✅ 100% Complete         |
-| **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete         |
-| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)    |
-| **Shared Packages**          | sdk, types, api-client, ui, event-bus | ✅ All operational       |
-| **Total Tests**              | ~1,791 across all packages            | 🟢 Growing               |
-| **Test Coverage (core-api)** | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
-| **Team Size**                | 1 developer (AI-assisted)             | -                        |
+| Metric                       | Value                                 | Status                    |
+| ---------------------------- | ------------------------------------- | ------------------------- |
+| **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                 |
+| **Current Focus**            | Frontend Consolidation (D4 next)      | 🟡 In Progress            |
+| **Frontend Consolidation**   | Phase A, B, C1–C5, D1–D3 complete     | 🟢 ~85% (D4–D5 remaining) |
+| **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity          |
+| **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing                |
+| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete          |
+| **Frontend MVP**             | Tenant App + Super-Admin Panel        | ✅ 100% Complete          |
+| **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete          |
+| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)     |
+| **Shared Packages**          | sdk, types, api-client, ui, event-bus | ✅ All operational        |
+| **Total Tests**              | ~1,791 across all packages            | 🟢 Growing                |
+| **Test Coverage (core-api)** | Core API Lines Coverage               | 🟡 **63% (target: 80%)**  |
+| **Team Size**                | 1 developer (AI-assisted)             | -                         |
 
 ---
 
@@ -975,6 +975,24 @@ pnpm clean                    # Clean build artifacts
 
 ### 2026-02-11
 
+**Frontend Consolidation — Phase D3 Complete ✅**:
+
+- ✅ **D3.1** — Plugin list page (`/plugins`) shows installed plugins with real status from `getTenantPlugins()` API, with install/activate/deactivate/uninstall actions
+- ✅ **D3.2** — Install plugin from catalog: marketplace integration calls `installPlugin()` + `activatePlugin()` APIs, auto-refreshes plugin list
+- ✅ **D3.3** — Enable/disable toggles call `activatePlugin()`/`deactivatePlugin()` APIs, dynamically update route and menu registration via PluginContext
+- ✅ **D3.4** — Plugin detail page (`/plugins/$pluginId`) created with flat route convention (`plugins_.$pluginId.tsx`), loads plugin info and configuration
+- ✅ **D3.5** — Sidebar dynamically renders plugin menu items from `PluginContext.menuItems`, items appear/disappear on activate/deactivate
+- ✅ **D3.6** — PluginContext enhanced with `refreshPlugins()`, `clearLoadErrors()`, and `loadErrors` tracking for error handling
+- ✅ **D3.7** — Uninstall with confirmation dialog, calls `uninstallPlugin()` API, removes routes and menu items, navigates back to plugin list
+
+**Full plugin lifecycle operational**: install → activate → use (routes + menus) → deactivate → uninstall. All actions wired to real backend APIs via `TenantApiClient`.
+
+**What's next**: D4 — Workspace flow completion (CRUD, switching, member/team management, settings).
+
+---
+
+### 2026-02-11
+
 **Frontend Consolidation — Phase D2 Complete ✅**:
 
 - ✅ **D2.1** — Dashboard metrics wired to real API (`getWorkspaceMembers()`, `getWorkspaceTeams()`, `getTenantPlugins()`)
@@ -1273,5 +1291,5 @@ A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDAT
 
 **Plexica v0.8.0**  
 _Last updated: February 11, 2026_  
-_Current focus: Frontend Consolidation (D3 — Plugin management end-to-end next)_  
-_Next milestone: D3 - Plugin management end-to-end_
+_Current focus: Frontend Consolidation (D4 — Workspace flow completion next)_  
+_Next milestone: D4 - Workspace flow completion_
