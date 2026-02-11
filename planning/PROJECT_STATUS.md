@@ -2,8 +2,8 @@
 
 **Last Updated**: February 11, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
-**Current Milestone**: **Frontend Consolidation C4 — Plugin marketplace with real data**  
-**Previous Milestone**: C3 - Connect tenant management to real data ✅ (Completed Feb 11)  
+**Current Milestone**: **Frontend Consolidation C5 — E2E tests with Playwright**  
+**Previous Milestone**: C4 - Plugin marketplace with real data ✅ (Completed Feb 11)  
 **Version**: 0.8.0
 
 ---
@@ -13,8 +13,8 @@
 | Metric                       | Value                                 | Status                   |
 | ---------------------------- | ------------------------------------- | ------------------------ |
 | **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                |
-| **Current Focus**            | Frontend Consolidation (C4 next)      | 🟡 In Progress           |
-| **Frontend Consolidation**   | Phase A, B, C1, C2, C3, D1 complete   | 🟢 70% (C4–C5, D2–D5)    |
+| **Current Focus**            | Frontend Consolidation (C5 next)      | 🟡 In Progress           |
+| **Frontend Consolidation**   | Phase A, B, C1–C4, D1 complete        | 🟢 75% (C5, D2–D5)       |
 | **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
 | **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
 | **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
@@ -975,13 +975,24 @@ pnpm clean                    # Clean build artifacts
 
 ### 2026-02-11
 
+**Frontend Consolidation — Phase C4 Complete ✅**:
+
+- ✅ **C4.1** — Rewrote `usePlugins` hook for server-side pagination, search, and filtering (pass `search`, `status`, `category`, `page`, `limit` to API; separate stats/categories queries)
+- ✅ **C4.2** — Added pagination controls to `PluginsView`, wired Edit button to `EditPluginModal`
+- ✅ **C4.3** — Created `EditPluginModal` (editable fields via `updatePlugin()` + `updatePluginMetadata()` in parallel, with change detection)
+- ✅ **C4.4** — Fixed `PluginAnalytics` data shape mismatch (aligned to real API response, added tenant installs list, rating distribution)
+- ✅ **C4.5** — Enhanced `PluginDetailModal` (tenant installs, version history, long description, links, tags, author)
+- ✅ **C4.6** — Removed `window.location.reload()` hack in `PublishPluginModal` (replaced with `queryClient.invalidateQueries()`)
+
+**What's next**: C5 — E2E tests with Playwright (auth flow, tenant lifecycle, plugin marketplace, settings).
+
+---
+
 **Frontend Consolidation — Phase C1, C2, C3 Complete ✅**:
 
 - ✅ **C1 — Keycloak auth (super-admin)**: Already fully implemented — real PKCE SSO flow with Keycloak, token refresh, ProtectedRoute, MockAuthProvider for E2E only. No work needed.
 - ✅ **C2 — Backend endpoint alignment**: 9 mismatches between `AdminApiClient`/`@plexica/types` and `core-api` route handlers fixed. Response shapes aligned to `PaginatedResponse<T>` format, field names unified, new `GET /admin/plugins/:id/installs` endpoint added. Service layer still returns old shapes; reshape happens at route handler level.
 - ✅ **C3 — Connect tenant management to real data**: Fixed `Tenant`/`TenantDetail` types, rewired `useTenants` hook for server-side pagination/search/filter, enhanced `TenantDetailModal` with plugins/settings/theme display, created `EditTenantModal`, added meaningful provisioning error messages. 7 sub-tasks completed.
-
-**What's next**: C4 — Plugin marketplace with real data (connect plugin listing, search, install/uninstall, version display, status management).
 
 ---
 
@@ -1242,5 +1253,5 @@ A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDAT
 
 **Plexica v0.8.0**  
 _Last updated: February 11, 2026_  
-_Current focus: Frontend Consolidation (C4 — plugin marketplace next)_  
-_Next milestone: C4 - Plugin marketplace with real data_
+_Current focus: Frontend Consolidation (C5 — E2E tests with Playwright next)_  
+_Next milestone: C5 - E2E tests with Playwright_

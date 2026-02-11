@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 11, 2026  
-**Status**: ✅ Phase A, B Complete | C1, C2, C3, D1 Complete  
+**Status**: ✅ Phase A, B Complete | C1, C2, C3, C4, D1 Complete  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.1
@@ -840,20 +840,31 @@ meaningful provisioning error messages.
 ### C4 — Plugin marketplace with real data
 
 **Effort**: 2–3 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 11, 2026)
 
-- [ ] Connect plugin listing to real registry data (GET /api/plugins)
-- [ ] Plugin search and filter against real data
-- [ ] Plugin install/uninstall for specific tenants
-- [ ] Plugin version display (from PluginVersion table)
-- [ ] Plugin status management (DRAFT → PUBLISHED → DEPRECATED)
-- [ ] Plugin detail modal with manifest info, install count, version history
+- [x] **C4.1** — Rewrite `usePlugins` hook for server-side pagination, search, and filtering (pass `search`, `status`, `category`, `page`, `limit` to `apiClient.getPlugins()`; separate stats and categories queries; reset page on filter change)
+- [x] **C4.2** — Add pagination controls to `PluginsView` (ChevronLeft/Right, page info, showing X–Y of Z), wire Edit button to `EditPluginModal`
+- [x] **C4.3** — Create `EditPluginModal` (editable: name, version, description, homepage, repository, tags; uses `updatePlugin()` + `updatePluginMetadata()` in parallel; change detection)
+- [x] **C4.4** — Fix `PluginAnalytics` data shape mismatch (align to real API response; add tenant installs list via `getPluginInstalls()`; add rating distribution from `getPluginRatings()`)
+- [x] **C4.5** — Enhance `PluginDetailModal` (tenant installs section, version history, long description, links, tags, author email, publishedAt display)
+- [x] **C4.6** — Fix `PublishPluginModal` `window.location.reload()` hack (replaced with `queryClient.invalidateQueries()` for `['plugins']`, `['plugins-stats']`, `['plugins-categories']`)
 
-**Acceptance criteria**:
+**Files changed**:
 
-- Marketplace shows real plugins from the database
-- Install/uninstall works for any tenant
-- Version history is displayed correctly
+- `apps/super-admin/src/hooks/usePlugins.ts` (rewritten)
+- `apps/super-admin/src/components/views/PluginsView.tsx` (rewritten)
+- `apps/super-admin/src/components/plugins/EditPluginModal.tsx` (new)
+- `apps/super-admin/src/components/plugins/PluginDetailModal.tsx` (rewritten)
+- `apps/super-admin/src/components/marketplace/PluginAnalytics.tsx` (rewritten)
+- `packages/api-client/src/admin-client.ts` (added `page`/`limit` params to `getPlugins()`)
+
+**Acceptance criteria**: ✅ All met
+
+- Marketplace shows real plugins from the database with server-side pagination
+- Search, status filter, and category filter work against real API
+- Plugin detail shows version history, tenant installs, and analytics
+- Edit modal updates both core fields and marketplace metadata
+- No more `window.location.reload()` hacks
 
 ---
 

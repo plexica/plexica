@@ -77,7 +77,13 @@ export class AdminApiClient extends HttpClient {
 
   // ===== PLUGIN MANAGEMENT (GLOBAL REGISTRY) =====
 
-  async getPlugins(params?: { category?: string; status?: string; search?: string }) {
+  async getPlugins(params?: {
+    category?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
     return this.get<PaginatedResponse<PluginEntity>>('/api/admin/plugins', params);
   }
 
