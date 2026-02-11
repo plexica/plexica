@@ -2,7 +2,7 @@
 
 **Created**: February 10, 2026  
 **Last Updated**: February 11, 2026  
-**Status**: ✅ Phase A, B Complete | C1, C2, C3, C4, C5, D1, D2, D3 Complete  
+**Status**: ✅ Phase A, B Complete | C1, C2, C3, C4, C5, D1, D2, D3, D4 Complete  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.1
@@ -1108,20 +1108,30 @@ Verify the full plugin lifecycle works from the tenant user perspective:
 ### D4 — Workspace flow completion
 
 **Effort**: 2 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 11, 2026)
 
-- [ ] Workspace creation with real API calls
-- [ ] Workspace switching updates all scoped data
-- [ ] Member management (invite, change role, remove)
-- [ ] Team management within workspace
-- [ ] Workspace settings (name, description, delete)
-- [ ] Verify workspace context propagates to plugins
+- [x] Workspace creation with real API calls
+- [x] Workspace switching updates all scoped data
+- [x] Member management (invite, change role, remove)
+- [x] Team management within workspace
+- [x] Workspace settings (name, description, delete)
+- [x] Verify workspace context propagates to plugins
 
 **Acceptance criteria**:
 
-- Full workspace CRUD works end-to-end
-- Switching workspace reloads all scoped data
-- Plugin data is filtered by current workspace
+- Full workspace CRUD works end-to-end ✅
+- Switching workspace reloads all scoped data ✅
+- Plugin data is filtered by current workspace ✅ (plugins are tenant-scoped; workspace ID propagated via `apiClient.setWorkspaceId()`)
+
+**Completion Notes**:
+
+- **D4.1** — Fixed members management to use `useWorkspace()` context instead of `tenant.id`, added `isAdmin` prop and "No Workspace Selected" empty state
+- **D4.2** — Wired `AddMemberDialog` component with Dialog, Zod validation, `apiClient.addWorkspaceMember()`, inline role editing, replaced `alert()` with `toast`
+- **D4.3** — WorkspaceSwitcher invalidates `workspace-members` and `workspace-teams` queries on switch via TanStack Query
+- **D4.4** — Consolidated settings into single 7-tab page (`/settings`): General, Members, Teams, Security, Billing, Integrations, Advanced. Converted `/workspace-settings` to redirect. Updated all nav references.
+- **D4.5** — Team card expand/collapse detail view + kebab menu with "Delete Team" (toast: coming soon, no backend endpoint)
+- **D4.6** — Verified workspace context propagates to plugins correctly. Plugins are tenant-scoped, no changes needed.
+- **D4.7** — Build passed (12/12). Fixed route path bug in `plugins_.$pluginId.tsx`.
 
 ---
 

@@ -3,11 +3,10 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
-import { useAuthStore } from '../stores/auth-store';
+import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
-import { useState } from 'react';
-import type { ChangeEvent } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@plexica/ui';
 import { Alert, AlertDescription } from '@plexica/ui';
 import { AlertCircle, Plus } from 'lucide-react';
@@ -24,32 +23,34 @@ export const Route = createFileRoute('/members-management')({
 });
 
 function MembersManagementPage() {
-  const { tenant } = useAuthStore();
+  const { currentWorkspace, isAdmin } = useWorkspace();
   const queryClient = useQueryClient();
   const [showInviteDialog, setShowInviteDialog] = useState(false);
 
-  // Fetch workspace members - using tenant as workspace context
+  const workspaceId = currentWorkspace?.id;
+
+  // Fetch workspace members
   const {
     data: membersData,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['workspace-members', tenant?.id],
+    queryKey: ['workspace-members', workspaceId],
     queryFn: async () => {
-      if (!tenant?.id) return [] as WorkspaceMember[];
-      return await apiClient.getWorkspaceMembers(tenant.id);
+      if (!workspaceId) return [] as WorkspaceMember[];
+      return await apiClient.getWorkspaceMembers(workspaceId);
     },
-    enabled: !!tenant?.id,
+    enabled: !!workspaceId,
   });
 
   // Update member role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: WorkspaceRole }) => {
-      if (!tenant?.id) throw new Error('No workspace selected');
-      return await apiClient.updateWorkspaceMemberRole(tenant.id, userId, { role });
+      if (!workspaceId) throw new Error('No workspace selected');
+      return await apiClient.updateWorkspaceMemberRole(workspaceId, userId, { role });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+      queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
       toast.success('Member role updated');
     },
     onError: () => {
@@ -60,11 +61,11 @@ function MembersManagementPage() {
   // Remove member mutation
   const removeMemberMutation = useMutation({
     mutationFn: async (userId: string) => {
-      if (!tenant?.id) throw new Error('No workspace selected');
-      return await apiClient.removeWorkspaceMember(tenant.id, userId);
+      if (!workspaceId) throw new Error('No workspace selected');
+      return await apiClient.removeWorkspaceMember(workspaceId, userId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+      queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
       toast.success('Member removed');
     },
     onError: () => {
@@ -74,6 +75,37 @@ function MembersManagementPage() {
 
   const members: WorkspaceMember[] = membersData ?? [];
 
+  // Show workspace selection prompt if no workspace selected
+  if (!currentWorkspace) {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center max-w-md">
+              <svg
+                className="w-16 h-16 mx-auto text-muted-foreground mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
+              <p className="text-muted-foreground">
+                Please select a workspace from the switcher in the header to manage members.
+              </p>
+            </div>
+          </div>
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <AppLayout>
@@ -82,12 +114,17 @@ function MembersManagementPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">Members</h1>
-              <p className="text-muted-foreground">Manage workspace members and their roles</p>
+              <p className="text-muted-foreground">
+                Manage members in{' '}
+                <span className="font-medium text-foreground">{currentWorkspace.name}</span>
+              </p>
             </div>
-            <Button onClick={() => setShowInviteDialog(true)} size="lg">
-              <Plus className="h-4 w-4 mr-2" />
-              Invite Member
-            </Button>
+            {isAdmin && (
+              <Button onClick={() => setShowInviteDialog(true)} size="lg">
+                <Plus className="h-4 w-4 mr-2" />
+                Invite Member
+              </Button>
+            )}
           </div>
 
           {/* Stats */}
@@ -126,15 +163,29 @@ function MembersManagementPage() {
         {/* Empty State */}
         {!isLoading && !error && members.length === 0 && (
           <div className="bg-card border border-border rounded-lg p-12 text-center">
-            <div className="text-6xl mb-4">👥</div>
+            <svg
+              className="w-16 h-16 mx-auto text-muted-foreground mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
             <h3 className="text-xl font-semibold text-foreground mb-2">No members yet</h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Invite team members to collaborate in this workspace.
             </p>
-            <Button onClick={() => setShowInviteDialog(true)} size="lg">
-              <Plus className="h-4 w-4 mr-2" />
-              Invite Your First Member
-            </Button>
+            {isAdmin && (
+              <Button onClick={() => setShowInviteDialog(true)} size="lg">
+                <Plus className="h-4 w-4 mr-2" />
+                Invite Your First Member
+              </Button>
+            )}
           </div>
         )}
 
@@ -150,18 +201,19 @@ function MembersManagementPage() {
             }}
             isUpdatingRole={updateRoleMutation.isPending}
             isRemovingMember={removeMemberMutation.isPending}
+            isAdmin={isAdmin}
           />
         )}
 
         {/* Invite Dialog */}
-        {showInviteDialog && tenant?.id && (
+        {showInviteDialog && workspaceId && (
           <InviteDialog
             onClose={() => setShowInviteDialog(false)}
             onInvite={() => {
               setShowInviteDialog(false);
-              queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+              queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
             }}
-            workspaceId={tenant.id}
+            workspaceId={workspaceId}
           />
         )}
       </AppLayout>
@@ -176,12 +228,14 @@ function MembersTable({
   onRemoveMember,
   isUpdatingRole,
   isRemovingMember,
+  isAdmin,
 }: {
   members: WorkspaceMember[];
   onUpdateRole: (userId: string, role: WorkspaceRole) => void;
   onRemoveMember: (userId: string) => void;
   isUpdatingRole: boolean;
   isRemovingMember: boolean;
+  isAdmin: boolean;
 }) {
   const columns: ColumnDef<WorkspaceMember>[] = [
     {
@@ -206,6 +260,9 @@ function MembersTable({
       header: 'Role',
       cell: (info) => {
         const member = info.row.original;
+        if (!isAdmin) {
+          return <span className="text-sm font-medium text-foreground">{member.role}</span>;
+        }
         return (
           <SearchableSelect
             value={member.role}
@@ -226,23 +283,27 @@ function MembersTable({
       id: 'joinedAt',
       header: 'Joined',
     },
-    {
-      id: 'actions',
-      header: 'Actions',
-      cell: (info) => {
-        const member = info.row.original;
-        return (
-          <Button
-            onClick={() => onRemoveMember(member.userId)}
-            disabled={isRemovingMember}
-            variant="destructive"
-            size="sm"
-          >
-            {isRemovingMember ? '...' : 'Remove'}
-          </Button>
-        );
-      },
-    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'actions',
+            header: 'Actions',
+            cell: (info: any) => {
+              const member = info.row.original;
+              return (
+                <Button
+                  onClick={() => onRemoveMember(member.userId)}
+                  disabled={isRemovingMember}
+                  variant="destructive"
+                  size="sm"
+                >
+                  {isRemovingMember ? '...' : 'Remove'}
+                </Button>
+              );
+            },
+          } as ColumnDef<WorkspaceMember>,
+        ]
+      : []),
   ];
 
   return (
@@ -289,7 +350,7 @@ function InviteDialog({
           role: formValues.role,
         });
         toast.success('Member invited successfully');
-        queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+        queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
         onInvite();
       } catch {
         toast.error('Failed to invite member');
@@ -297,7 +358,7 @@ function InviteDialog({
     },
   });
 
-  const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
     handleChange({ target: { name, value } } as any);
   };

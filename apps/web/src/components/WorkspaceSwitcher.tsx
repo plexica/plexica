@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@plexica/ui';
 import { Input } from '@plexica/ui';
 import { Badge } from '@plexica/ui';
@@ -27,14 +28,19 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
 }) => {
   const { workspaces, currentWorkspace, isLoading, selectWorkspace, createWorkspace } =
     useWorkspace();
+  const queryClient = useQueryClient();
 
   const [isCreating, setIsCreating] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleSelectWorkspace = async (workspace: Workspace) => {
+    if (workspace.id === currentWorkspace?.id) return; // Already selected
     try {
       await selectWorkspace(workspace.id);
+      // Invalidate all workspace-scoped queries to force refetch with new workspace context
+      queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+      queryClient.invalidateQueries({ queryKey: ['workspace-teams'] });
     } catch (err: any) {
       console.error('Failed to select workspace:', err);
     }

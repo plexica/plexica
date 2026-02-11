@@ -24,7 +24,7 @@ import { Button } from '@plexica/ui';
 import { Alert, AlertDescription } from '@plexica/ui';
 import { AlertCircle, ArrowLeft, Puzzle } from 'lucide-react';
 
-export const Route = createFileRoute('/plugins_/$pluginId')({
+export const Route = createFileRoute('/plugins/$pluginId')({
   component: PluginPageWrapper,
 });
 

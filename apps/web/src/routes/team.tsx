@@ -259,6 +259,9 @@ interface TeamCardProps {
 }
 
 function TeamCard({ team, onUpdate: _onUpdate }: TeamCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <div className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group">
       <div className="flex items-start justify-between mb-4">
@@ -267,7 +270,9 @@ function TeamCard({ team, onUpdate: _onUpdate }: TeamCardProps) {
             {team.name}
           </h3>
           {team.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{team.description}</p>
+            <p className={`text-sm text-muted-foreground ${expanded ? '' : 'line-clamp-2'}`}>
+              {team.description}
+            </p>
           )}
         </div>
       </div>
@@ -292,19 +297,65 @@ function TeamCard({ team, onUpdate: _onUpdate }: TeamCardProps) {
         Created {new Date(team.createdAt).toLocaleDateString()}
       </div>
 
+      {/* Expanded Detail */}
+      {expanded && (
+        <div className="mb-4 p-3 bg-muted rounded-lg space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Team ID</span>
+            <span className="font-mono text-xs text-foreground">{team.id}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Members</span>
+            <span className="text-foreground">{team._count?.members || 0}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Created</span>
+            <span className="text-foreground">{new Date(team.createdAt).toLocaleString()}</span>
+          </div>
+          {team.description && (
+            <div className="pt-2 border-t border-border">
+              <span className="text-muted-foreground block mb-1">Description</span>
+              <p className="text-foreground">{team.description}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button className="flex-1">View Team</Button>
-        <Button variant="outline" size="icon">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-            />
-          </svg>
+        <Button className="flex-1" onClick={() => setExpanded(!expanded)}>
+          {expanded ? 'Collapse' : 'View Team'}
         </Button>
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowMenu(!showMenu)}
+            onBlur={() => setTimeout(() => setShowMenu(false), 150)}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+              />
+            </svg>
+          </Button>
+          {showMenu && (
+            <div className="absolute right-0 top-full mt-1 w-36 bg-card border border-border rounded-lg shadow-lg z-10 py-1">
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  toast.info('Team deletion is coming soon');
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-muted transition-colors"
+              >
+                Delete Team
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

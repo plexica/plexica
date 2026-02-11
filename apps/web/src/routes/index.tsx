@@ -214,7 +214,7 @@ function Index() {
                   variant="outline"
                   size="sm"
                   className="w-full mt-4"
-                  onClick={() => navigate({ to: '/workspace-settings' })}
+                  onClick={() => navigate({ to: '/settings' })}
                 >
                   Manage Members
                 </Button>
@@ -224,7 +224,7 @@ function Index() {
                 <p className="text-sm text-muted-foreground mb-4">
                   No members in this workspace yet.
                 </p>
-                <Button size="sm" onClick={() => navigate({ to: '/workspace-settings' })}>
+                <Button size="sm" onClick={() => navigate({ to: '/settings' })}>
                   Add Members
                 </Button>
               </div>
@@ -252,7 +252,7 @@ function Index() {
               <QuickActionButton
                 label="Workspace Settings"
                 icon="⚙️"
-                onClick={() => navigate({ to: '/workspace-settings' })}
+                onClick={() => navigate({ to: '/settings' })}
               />
               <QuickActionButton
                 label="View Activity"
