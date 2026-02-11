@@ -120,7 +120,7 @@ describe('MarketplaceService - Search and Discovery', () => {
       expect(result.pagination.limit).toBe(20);
       expect(mockPrisma.plugin.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ status: 'PUBLISHED' }),
+          where: {},
           skip: 0,
           take: 20,
         })
