@@ -242,128 +242,36 @@ See **[specs/PROJECT_STRUCTURE.md](./specs/PROJECT_STRUCTURE.md)** for detailed 
 
 ---
 
-## 📋 Available Commands
+## 📋 Development Commands
 
-### Development
+For complete command reference and development guidelines, see **[AGENTS.md](AGENTS.md#quick-start---essential-commands)**.
+
+### Most Common Commands
 
 ```bash
-# Start all apps in development mode
+# Install dependencies
+pnpm install
+
+# Start development servers
 pnpm dev
 
-# Start specific app
-pnpm dev --filter @plexica/core-api
-pnpm dev --filter @plexica/web        # Frontend ready
-pnpm dev --filter @plexica/super-admin
-
-# Build everything
-pnpm build
-
-# Build specific package
-pnpm build --filter @plexica/core-api
-```
-
-### Infrastructure Management
-
-```bash
-# Start all services
-pnpm infra:start
-# or
-docker-compose up -d
-
-# Stop all services
-pnpm infra:stop
-# or
-docker-compose down
-
-# Check service status
-pnpm infra:status
-
-# View logs for specific service
-pnpm infra:logs postgres
-pnpm infra:logs keycloak
-pnpm infra:logs core-api
-```
-
-### Database Operations
-
-```bash
-# Generate Prisma Client (Prisma 7 - uses npx due to pnpm security policy)
-pnpm db:generate
-# Or manually:
-cd packages/database && npx --yes prisma@7.2.0 generate --config ./prisma/prisma.config.ts
-
-# Run migrations
-pnpm db:migrate
-# Or manually:
-cd packages/database && npx prisma migrate dev --config ./prisma/prisma.config.ts
-
-# Create new migration
-pnpm db:migrate:dev --name "migration_name"
-# Or manually:
-cd packages/database && npx prisma migrate dev --name "migration_name" --config ./prisma/prisma.config.ts
-
-# Open Prisma Studio (database GUI)
-pnpm db:studio
-# Or manually:
-cd packages/database && npx prisma studio --config ./prisma/prisma.config.ts
-
-# Reset database (WARNING: deletes all data)
-pnpm db:reset
-
-# Check migration status
-cd packages/database && npx prisma migrate status --config ./prisma/prisma.config.ts
-```
-
-**⚠️ Important - Prisma 7 Notes:**
-
-- Plexica uses **Prisma 7.2.0** with PostgreSQL adapter (`@prisma/adapter-pg`)
-- Due to pnpm 10+ security policy, Prisma client generation uses `npx` instead of `pnpm exec`
-- The `prisma.config.ts` file manages database connection and environment variables
-- Always use `--config ./prisma/prisma.config.ts` flag when running Prisma CLI commands manually
-- See `packages/database/README.md` for detailed Prisma 7 documentation
-
-### Testing
-
-```bash
-# Run all tests
+# Run tests
 pnpm test
 
-# Run tests for specific package
-pnpm test --filter @plexica/core-api
+# Build all packages
+pnpm build
 
-# Run tests in watch mode
-pnpm test:watch
-
-# Generate coverage report
-pnpm test:coverage
-```
-
-### Code Quality
-
-```bash
-# Lint all packages
+# Lint and format
 pnpm lint
-
-# Fix linting issues
-pnpm lint:fix
-
-# Format code with Prettier
 pnpm format
-
-# Type check
-pnpm typecheck
 ```
 
-### Cleanup
+### Quick Links
 
-```bash
-# Clean build artifacts
-pnpm clean
-
-# Clean and reinstall dependencies
-pnpm clean:all
-pnpm install
-```
+- **Full Command Reference**: [AGENTS.md](AGENTS.md#quick-start---essential-commands)
+- **Testing Commands**: [TESTING.md](docs/TESTING.md#quick-start-5-minutes)
+- **Database Operations**: [Database Package README](packages/database/README.md)
+- **Infrastructure Setup**: [Quick Start Guide](docs/QUICKSTART.md)
 
 ---
 

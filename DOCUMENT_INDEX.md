@@ -8,9 +8,9 @@ Guida rapida per navigare la documentazione di Plexica secondo la struttura defi
 
 ### **I'm getting started** →
 
-1. [docs/QUICKSTART.md](./docs/QUICKSTART.md) - 5-minute setup
-2. [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) - Development environment
-3. [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - System overview
+1. [docs/QUICKSTART.md](./docs/QUICKSTART.md) - 5-15 minute setup (automated or manual)
+2. [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - System overview
+3. [AGENTS.md](./AGENTS.md) - Development guidelines
 
 ### **I need to understand the architecture** →
 
@@ -26,9 +26,10 @@ Guida rapida per navigare la documentazione di Plexica secondo la struttura defi
 
 ### **I need to run tests** →
 
-1. [docs/TESTING.md](./docs/TESTING.md) - Testing quickstart
-2. [docs/testing/README.md](./docs/testing/) - Complete testing guide
-3. [specs/TEST_STRATEGY.md](./specs/TEST_STRATEGY.md) - Test implementation strategy
+1. [docs/TESTING.md](./docs/TESTING.md) - Complete testing guide (unified)
+2. [docs/testing/BACKEND_TESTING.md](./docs/testing/BACKEND_TESTING.md) - Backend testing details
+3. [docs/testing/FRONTEND_TESTING.md](./docs/testing/FRONTEND_TESTING.md) - Frontend E2E testing
+4. [specs/TEST_STRATEGY.md](./specs/TEST_STRATEGY.md) - Test implementation strategy
 
 ### **I'm deploying to production** →
 
@@ -43,24 +44,22 @@ Guida rapida per navigare la documentazione di Plexica secondo la struttura defi
 
 User-facing documentation for developers and operators.
 
-| File                                                  | Purpose                        | Best For              |
-| ----------------------------------------------------- | ------------------------------ | --------------------- |
-| [QUICKSTART.md](./docs/QUICKSTART.md)                 | 5-minute automated setup       | New developers        |
-| [GETTING_STARTED.md](./docs/GETTING_STARTED.md)       | Detailed setup & first steps   | Setup & configuration |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md)             | Frontend architecture & design | Frontend development  |
-| [CONTRIBUTING.md](./docs/CONTRIBUTING.md)             | Contribution guidelines        | Contributors          |
-| [TESTING.md](./docs/TESTING.md)                       | Quick test reference           | Test execution        |
-| [DEPLOYMENT.md](./docs/DEPLOYMENT.md)                 | Production deployment          | DevOps & deployment   |
-| [SECURITY.md](./docs/SECURITY.md)                     | Security best practices        | Security concerns     |
-| [PLUGIN_DEVELOPMENT.md](./docs/PLUGIN_DEVELOPMENT.md) | Plugin creation guide          | Plugin developers     |
+| File                                                  | Purpose                                 | Best For             |
+| ----------------------------------------------------- | --------------------------------------- | -------------------- |
+| [QUICKSTART.md](./docs/QUICKSTART.md)                 | 5-15 minute setup (automated or manual) | New developers       |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md)             | Frontend architecture & design          | Frontend development |
+| [CONTRIBUTING.md](./docs/CONTRIBUTING.md)             | Contribution guidelines                 | Contributors         |
+| [TESTING.md](./docs/TESTING.md)                       | Complete testing guide (unified)        | Test execution       |
+| [DEPLOYMENT.md](./docs/DEPLOYMENT.md)                 | Production deployment                   | DevOps & deployment  |
+| [SECURITY.md](./docs/SECURITY.md)                     | Security best practices                 | Security concerns    |
+| [PLUGIN_DEVELOPMENT.md](./docs/PLUGIN_DEVELOPMENT.md) | Plugin creation guide                   | Plugin developers    |
 
-#### **docs/testing/** - Testing Documentation
+#### **docs/testing/** - Specialized Testing Documentation
 
-- [README.md](./docs/testing/README.md) - Testing overview & strategy
+- [BACKEND_TESTING.md](./docs/testing/BACKEND_TESTING.md) - API & integration tests (Vitest)
+- [FRONTEND_TESTING.md](./docs/testing/FRONTEND_TESTING.md) - Frontend E2E tests (Playwright)
+- [E2E_TESTING.md](./docs/testing/E2E_TESTING.md) - Complete E2E workflows
 - [QUICK_TEST.md](./docs/testing/QUICK_TEST.md) - 5-minute smoke tests
-- [BACKEND_TESTING.md](./docs/testing/BACKEND_TESTING.md) - API & integration tests
-- [FRONTEND_TESTING.md](./docs/testing/FRONTEND_TESTING.md) - React component tests
-- [E2E_TESTING.md](./docs/testing/E2E_TESTING.md) - End-to-end user workflows
 
 ---
 
@@ -101,7 +100,7 @@ Project planning, roadmap, and architectural decisions.
 ### **👨‍💻 Backend Developer**
 
 1. [AGENTS.md](./AGENTS.md) - Code style & guidelines
-2. [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) - Setup
+2. [docs/QUICKSTART.md](./docs/QUICKSTART.md) - Setup
 3. [specs/TECHNICAL_SPECIFICATIONS.md](./specs/TECHNICAL_SPECIFICATIONS.md) - Architecture
 4. [docs/testing/BACKEND_TESTING.md](./docs/testing/BACKEND_TESTING.md) - Testing
 5. [docs/SECURITY.md](./docs/SECURITY.md) - Security practices
@@ -109,9 +108,9 @@ Project planning, roadmap, and architectural decisions.
 ### **🎨 Frontend Developer**
 
 1. [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - Frontend design
-2. [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) - Setup
+2. [docs/QUICKSTART.md](./docs/QUICKSTART.md) - Setup
 3. [specs/UX_SPECIFICATIONS.md](./specs/UX_SPECIFICATIONS.md) - UI specs
-4. [docs/testing/FRONTEND_TESTING.md](./docs/testing/FRONTEND_TESTING.md) - React testing
+4. [docs/testing/FRONTEND_TESTING.md](./docs/testing/FRONTEND_TESTING.md) - Frontend E2E testing
 5. [docs/PLUGIN_DEVELOPMENT.md](./docs/PLUGIN_DEVELOPMENT.md) - Plugin UX
 
 ### **🔌 Plugin Developer**
@@ -124,7 +123,7 @@ Project planning, roadmap, and architectural decisions.
 ### **🏗️ DevOps/Infrastructure**
 
 1. [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) - Deployment
-2. [docs/GETTING_STARTED.md](./docs/GETTING_STARTED.md) - Infrastructure setup
+2. [docs/QUICKSTART.md](./docs/QUICKSTART.md) - Infrastructure setup
 3. [specs/TECHNICAL_SPECIFICATIONS.md](./specs/TECHNICAL_SPECIFICATIONS.md) - Architecture
 4. [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) - Current status
 
@@ -158,10 +157,10 @@ Project planning, roadmap, and architectural decisions.
 
 ```
 1. README.md (5 min) - Overview
-2. docs/QUICKSTART.md (10 min) - Setup
-3. docs/GETTING_STARTED.md (15 min) - First steps
-4. specs/PROJECT_STRUCTURE.md (10 min) - Navigation
-5. docs/ARCHITECTURE.md (20 min) - How it works
+2. docs/QUICKSTART.md (5-15 min) - Setup (automated or manual)
+3. specs/PROJECT_STRUCTURE.md (10 min) - Navigation
+4. docs/ARCHITECTURE.md (20 min) - How it works
+5. AGENTS.md (30 min) - Development guidelines
 ```
 
 ### **Contributing Code?**
@@ -201,17 +200,17 @@ Project planning, roadmap, and architectural decisions.
 
 | Topic                    | Primary Source                    | Secondary                         |
 | ------------------------ | --------------------------------- | --------------------------------- |
-| **Setup & Installation** | docs/QUICKSTART.md                | docs/GETTING_STARTED.md           |
+| **Setup & Installation** | docs/QUICKSTART.md                | AGENTS.md#quick-start             |
 | **Architecture**         | specs/TECHNICAL_SPECIFICATIONS.md | docs/ARCHITECTURE.md              |
 | **Code Style**           | AGENTS.md                         | docs/CONTRIBUTING.md              |
 | **Security**             | docs/SECURITY.md                  | AGENTS.md#security                |
 | **Testing**              | docs/TESTING.md                   | specs/TEST_STRATEGY.md            |
 | **Plugins**              | docs/PLUGIN_DEVELOPMENT.md        | specs/PLUGIN_STRATEGY.md          |
-| **Database**             | docs/GETTING_STARTED.md#database  | specs/TECHNICAL_SPECIFICATIONS.md |
+| **Database**             | packages/database/README.md       | specs/TECHNICAL_SPECIFICATIONS.md |
 | **Frontend**             | docs/ARCHITECTURE.md              | specs/UX_SPECIFICATIONS.md        |
 | **Workspaces**           | specs/WORKSPACE_SPECIFICATIONS.md | specs/TECHNICAL_SPECIFICATIONS.md |
 | **Roadmap**              | planning/ROADMAP.md               | planning/PROJECT_STATUS.md        |
-| **Milestones**           | planning/MILESTONES.md            | planning/DEVELOPMENT_PLAN.md      |
+| **Milestones**           | planning/MILESTONES.md            | planning/PROJECT_STATUS.md        |
 
 ---
 
@@ -267,6 +266,6 @@ See [AGENTS.md#documentation-for-ai-agents](./AGENTS.md#documentation-for-ai-age
 
 ---
 
-**Last Updated**: February 3, 2026  
-**Version**: 1.0  
+**Last Updated**: February 11, 2026  
+**Version**: 2.0 (Updated for Phase 1 documentation consolidation)  
 **Status**: Current & Maintained

@@ -1285,9 +1285,9 @@ A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDAT
 ### Development
 
 - **[Documentation Hub](./docs/README.md)** - Complete documentation index
-- **[Getting Started](./docs/GETTING_STARTED.md)** - Setup guide
+- **[Quick Start Guide](./docs/QUICKSTART.md)** - Setup guide (5-15 min, automated or manual)
 - **[Frontend Architecture](./docs/ARCHITECTURE.md)** - Frontend architecture guide
-- **[Testing Guides](./docs/testing/README.md)** - Testing documentation
+- **[Testing Guide](./docs/TESTING.md)** - Complete testing guide (unified)
 - **[Contributing](./docs/CONTRIBUTING.md)** - Contribution guidelines
 - **[API Docs](http://localhost:3000/docs)** - Swagger/OpenAPI
 

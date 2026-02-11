@@ -21,7 +21,7 @@ Thank you for your interest in contributing to Plexica! This document provides g
 
 ## Development Setup
 
-See [Getting Started Guide](./GETTING_STARTED.md) for detailed setup instructions.
+See [Quick Start Guide](./QUICKSTART.md) for detailed setup instructions (5-15 minutes, automated or manual).
 
 ## How to Contribute
 

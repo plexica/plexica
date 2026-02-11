@@ -143,13 +143,14 @@ The Plexica test suite has evolved significantly and now includes **1,047+ backe
 | Document                                   | Status      | Last Updated |
 | ------------------------------------------ | ----------- | ------------ |
 | `/docs/TESTING.md`                         | ✅ Complete | 2026-02-11   |
-| `/docs/testing/README.md`                  | ✅ Complete | 2026-02-11   |
 | `/docs/testing/BACKEND_TESTING.md`         | ✅ Complete | 2026-02-11   |
 | `/docs/testing/FRONTEND_TESTING.md`        | ✅ Complete | 2026-02-11   |
 | `/docs/testing/E2E_TESTING.md`             | ✅ Complete | 2026-02-11   |
 | `/apps/core-api/src/__tests__/README.md`   | ✅ Complete | 2026-02-11   |
 | `/apps/web/tests/e2e/README.md`            | ✅ Complete | 2026-02-11   |
 | `/specs/TEST_COVERAGE_IMPROVEMENT_PLAN.md` | ✅ Complete | 2026-02-11   |
+
+**Note**: `docs/testing/README.md` was consolidated into `docs/TESTING.md` on 2026-02-11.
 
 ### Key Achievements
 
