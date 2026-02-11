@@ -84,10 +84,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
-            {/* Badge with unread count */}
-            <span className="absolute top-1 right-1 w-4 h-4 bg-primary text-white text-xs rounded-full flex items-center justify-center">
-              3
-            </span>
           </button>
 
           {/* Notifications Dropdown */}
@@ -96,39 +92,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
               <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
               <div className="absolute right-0 mt-2 w-80 bg-background border border-border rounded-lg shadow-lg z-50">
                 <div className="p-4 border-b border-border">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-foreground">Notifications</h3>
-                    <button className="text-xs text-primary hover:underline">
-                      Mark all as read
-                    </button>
-                  </div>
+                  <h3 className="font-semibold text-foreground">Notifications</h3>
                 </div>
-                <div className="max-h-96 overflow-y-auto">
-                  <div className="p-3 hover:bg-muted cursor-pointer border-b border-border">
-                    <div className="flex gap-2">
-                      <span className="text-blue-500">🔵</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">
-                          New comment on Ticket #123
-                        </p>
-                        <p className="text-xs text-muted-foreground">2 minutes ago</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-3 hover:bg-muted cursor-pointer border-b border-border">
-                    <div className="flex gap-2">
-                      <span className="text-green-500">🟢</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">Invoice #456 paid</p>
-                        <p className="text-xs text-muted-foreground">1 hour ago</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-3 border-t border-border text-center">
-                  <a href="/notifications" className="text-sm text-primary hover:underline">
-                    View all →
-                  </a>
+                <div className="p-6 text-center">
+                  <div className="text-3xl mb-2">🔔</div>
+                  <p className="text-sm text-muted-foreground">No notifications yet</p>
                 </div>
               </div>
             </>

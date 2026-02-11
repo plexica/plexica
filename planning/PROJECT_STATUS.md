@@ -2,8 +2,8 @@
 
 **Last Updated**: February 11, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
-**Current Milestone**: **Frontend Consolidation D2 — Connect web app to real data**  
-**Previous Milestone**: C5 - E2E tests with Playwright ✅ (Completed Feb 11)  
+**Current Milestone**: **Frontend Consolidation D3 — Plugin management end-to-end**  
+**Previous Milestone**: D2 - Connect web app to real data ✅ (Completed Feb 11)  
 **Version**: 0.8.0
 
 ---
@@ -13,8 +13,8 @@
 | Metric                       | Value                                 | Status                   |
 | ---------------------------- | ------------------------------------- | ------------------------ |
 | **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                |
-| **Current Focus**            | Frontend Consolidation (C5 next)      | 🟡 In Progress           |
-| **Frontend Consolidation**   | Phase A, B, C1–C4, D1 complete        | 🟢 75% (C5, D2–D5)       |
+| **Current Focus**            | Frontend Consolidation (D3 next)      | 🟡 In Progress           |
+| **Frontend Consolidation**   | Phase A, B, C1–C5, D1–D2 complete     | 🟢 80% (D3–D5)           |
 | **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
 | **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
 | **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
@@ -22,7 +22,7 @@
 | **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete         |
 | **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)    |
 | **Shared Packages**          | sdk, types, api-client, ui, event-bus | ✅ All operational       |
-| **Total Tests**              | ~1,686 across all packages            | 🟢 Growing               |
+| **Total Tests**              | ~1,791 across all packages            | 🟢 Growing               |
 | **Test Coverage (core-api)** | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
 | **Team Size**                | 1 developer (AI-assisted)             | -                        |
 
@@ -975,6 +975,26 @@ pnpm clean                    # Clean build artifacts
 
 ### 2026-02-11
 
+**Frontend Consolidation — Phase D2 Complete ✅**:
+
+- ✅ **D2.1** — Dashboard metrics wired to real API (`getWorkspaceMembers()`, `getWorkspaceTeams()`, `getTenantPlugins()`)
+- ✅ **D2.2** — Replaced fake widgets (My Contacts CRM, Recent Invoices Billing) with Active Plugins widget and Team Members widget showing real data or empty states
+- ✅ **D2.3** — Activity feed replaced with "Coming soon" empty state (no backend endpoint)
+- ✅ **D2.4** — GeneralSettings wired to real `updateWorkspace()` API call
+- ✅ **D2.5** — Settings tabs (Security, Billing, Integrations, Advanced) replaced with "Coming soon" empty states. Deleted unused `PlanFeature`, `UsageMeter`, `BillingItem` components
+- ✅ **D2.6** — Activity Log page fully rewritten: removed all mock data (420→35 lines), replaced with "Coming soon" empty state
+- ✅ **D2.7** — Header notifications: removed hardcoded badge "3" and fake items, replaced with "No notifications yet" empty state
+- ✅ **D2.8** — Build verification: `pnpm build` 12/12 tasks successful
+- ✅ **D2.9** — Planning docs updated
+
+**Zero mock data remaining in web app.** All visible data comes from real backend APIs or shows "Coming soon" empty states for features without backend endpoints (activity log, notifications, billing).
+
+**What's next**: D3 — Plugin management end-to-end (full lifecycle: install → enable → use → disable → uninstall).
+
+---
+
+### 2026-02-11
+
 **Frontend Consolidation — Phase C4 Complete ✅**:
 
 - ✅ **C4.1** — Rewrote `usePlugins` hook for server-side pagination, search, and filtering (pass `search`, `status`, `category`, `page`, `limit` to API; separate stats/categories queries)
@@ -1253,5 +1273,5 @@ A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDAT
 
 **Plexica v0.8.0**  
 _Last updated: February 11, 2026_  
-_Current focus: Frontend Consolidation (C5 — E2E tests with Playwright next)_  
-_Next milestone: C5 - E2E tests with Playwright_
+_Current focus: Frontend Consolidation (D3 — Plugin management end-to-end next)_  
+_Next milestone: D3 - Plugin management end-to-end_
