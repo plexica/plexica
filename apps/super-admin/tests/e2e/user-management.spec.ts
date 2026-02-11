@@ -6,8 +6,9 @@
  */
 
 import { test, expect, Page } from '@playwright/test';
+import { mockAllApis, MockUser, MockTenant } from './helpers/api-mocks';
 
-const MOCK_USERS = [
+const MOCK_USERS: MockUser[] = [
   {
     id: 'user-1',
     email: 'alice@acme.com',
@@ -46,7 +47,7 @@ const MOCK_USERS = [
   },
 ];
 
-const MOCK_TENANTS = [
+const MOCK_TENANTS: MockTenant[] = [
   {
     id: 'tenant-1',
     name: 'Acme Corp',
@@ -64,89 +65,19 @@ const MOCK_TENANTS = [
 ];
 
 async function setupApiMocks(page: Page) {
-  // Mock analytics overview
-  await page.route('**/api/admin/analytics/overview*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        totalTenants: 2,
-        activeTenants: 2,
-        suspendedTenants: 0,
-        provisioningTenants: 0,
-        totalPlugins: 5,
-        totalPluginInstallations: 10,
-        totalUsers: 3,
-        totalWorkspaces: 2,
-      }),
-    });
-  });
-
-  // Mock users list
-  await page.route('**/api/admin/users*', async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          users: MOCK_USERS,
-          total: MOCK_USERS.length,
-          page: 1,
-          limit: 50,
-          totalPages: 1,
-        }),
-      });
-    }
-  });
-
-  // Mock tenants list (used by tenant filter dropdown)
-  await page.route('**/api/admin/tenants*', async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          tenants: MOCK_TENANTS,
-          total: MOCK_TENANTS.length,
-          page: 1,
-          limit: 50,
-          totalPages: 1,
-        }),
-      });
-    }
-  });
-
-  // Mock other endpoints
-  await page.route('**/api/admin/plugins*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-      }),
-    });
-  });
-  await page.route('**/api/admin/analytics/tenants*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: [] }),
-    });
-  });
-  await page.route('**/api/admin/analytics/plugins*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ plugins: [] }),
-    });
-  });
-  await page.route('**/api/admin/analytics/api-calls*', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ metrics: [] }),
-    });
+  await mockAllApis(page, {
+    tenants: MOCK_TENANTS,
+    users: MOCK_USERS,
+    overview: {
+      totalTenants: 2,
+      activeTenants: 2,
+      suspendedTenants: 0,
+      provisioningTenants: 0,
+      totalPlugins: 5,
+      totalPluginInstallations: 10,
+      totalUsers: 3,
+      totalWorkspaces: 2,
+    },
   });
 }
 
@@ -189,10 +120,10 @@ test.describe('User Management', () => {
   });
 
   test('should display user stats', async ({ page }) => {
-    // Stats bar shows totals
+    // Stats bar shows totals — use regex to be specific and avoid matching sidebar/selects
     await expect(page.locator('text=total users')).toBeVisible();
-    await expect(page.locator('text=tenants')).toBeVisible();
-    await expect(page.locator('text=roles')).toBeVisible();
+    await expect(page.getByText(/\d+ tenants/)).toBeVisible();
+    await expect(page.getByText(/\d+ roles/)).toBeVisible();
   });
 
   test('should display table headers correctly', async ({ page }) => {

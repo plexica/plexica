@@ -13,7 +13,7 @@ export const Route = createFileRoute('/login')({
 /**
  * Login Page with Keycloak SSO
  *
- * Redirects authenticated users to /tenants
+ * Redirects authenticated users to the dashboard (/)
  * Shows SSO login button for unauthenticated users
  */
 function LoginPage() {
@@ -23,8 +23,8 @@ function LoginPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('[LoginPage] User already authenticated, redirecting...');
-      navigate({ to: '/tenants' });
+      console.log('[LoginPage] User already authenticated, redirecting to dashboard...');
+      navigate({ to: '/' });
     }
   }, [isAuthenticated, navigate]);
 

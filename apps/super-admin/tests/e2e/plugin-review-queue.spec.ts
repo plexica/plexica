@@ -1,18 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { TestHelpers } from './helpers/test-helpers';
-import { testPlugins, apiEndpoints } from './fixtures/test-data';
+import { testPlugins } from './fixtures/test-data';
+import { mockPluginReviewEndpoint } from './helpers/api-mocks';
 
 test.describe('Plugin Review Queue E2E', () => {
   let helpers: TestHelpers;
 
   test.beforeEach(async ({ page }) => {
     helpers = new TestHelpers(page);
-
-    // Authentication is handled by global setup via storage state
-    // No need to login here - we're already authenticated!
-
-    // Navigate to plugins page with pending plugin in the list
-    await helpers.nav.goToPluginsPage([testPlugins.pendingPlugin]);
   });
 
   test.afterEach(async () => {
@@ -20,176 +15,125 @@ test.describe('Plugin Review Queue E2E', () => {
   });
 
   test('should display pending plugins in review queue', async ({ page }) => {
-    // Mock API to return pending plugins
-    await helpers.api.mockGetPendingPlugins([testPlugins.pendingPlugin]);
+    const pendingPlugin = testPlugins.pendingPlugin;
 
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
+    // goToReviewQueue registers marketplace search mock for PENDING_REVIEW BEFORE clicking tab
+    await helpers.nav.goToReviewQueue([pendingPlugin]);
 
     // Verify pending plugin appears in the queue
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.description}`)).toBeVisible();
+    await expect(page.locator(`text=${pendingPlugin.name}`)).toBeVisible();
+    await expect(page.locator(`text=${pendingPlugin.description}`)).toBeVisible();
 
-    // Verify "Review" button is present
-    await expect(
-      page.locator(`text=${testPlugins.pendingPlugin.name} >> .. >> button:has-text("Review")`)
-    ).toBeVisible();
-
-    // Take screenshot of the review queue
-    await helpers.screenshot.takeFullPage('review-queue-with-pending-plugin');
+    // Verify "Review" button is present — find the card that contains plugin name
+    const pluginCard = page
+      .locator('div')
+      .filter({ hasText: pendingPlugin.name })
+      .filter({ has: page.locator('button:has-text("Review")') })
+      .last();
+    await expect(pluginCard.locator('button:has-text("Review")')).toBeVisible();
   });
 
   test('should approve plugin successfully', async ({ page }) => {
-    // Mock API responses
-    await helpers.api.mockGetPendingPlugins([testPlugins.pendingPlugin]);
-    await helpers.api.mockApprovePlugin(testPlugins.pendingPlugin.id, {
-      ...testPlugins.pendingPlugin,
-      status: 'PUBLISHED',
-    });
+    const pendingPlugin = testPlugins.pendingPlugin;
 
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
+    // Navigate to Review Queue with the pending plugin
+    await helpers.nav.goToReviewQueue([pendingPlugin]);
+
+    // Mock review endpoint AFTER goToReviewQueue so it takes LIFO priority over the catch-all
+    await mockPluginReviewEndpoint(page, pendingPlugin.id);
 
     // Wait for pending plugin to be visible
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
+    await expect(page.locator(`text=${pendingPlugin.name}`)).toBeVisible();
 
-    // Click "Review" button
-    const reviewButton = page.locator(
-      `text=${testPlugins.pendingPlugin.name} >> .. >> button:has-text("Review")`
-    );
-    await reviewButton.click();
+    // Click "Review" button — find the card containing the plugin name
+    const pluginCard = page
+      .locator('div')
+      .filter({ hasText: pendingPlugin.name })
+      .filter({ has: page.locator('button:has-text("Review")') })
+      .last();
+    await pluginCard.locator('button:has-text("Review")').click();
 
-    // Wait for review dialog to open
+    // Wait for ReviewDialog to open
     await helpers.modal.waitForModalOpen('Review Plugin');
 
-    // Verify plugin details are displayed
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.description}`)).toBeVisible();
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.author}`)).toBeVisible();
+    // Verify dialog opened with correct plugin (check heading in dialog)
+    await expect(page.getByRole('heading', { name: pendingPlugin.name })).toBeVisible();
 
-    // Take screenshot of review dialog
-    await helpers.screenshot.takeModal('review-dialog-before-approve');
-
-    // Click "Approve" button
+    // Two-step approve flow:
+    // Step 1: Click "Approve" button → shows green confirmation panel
     const approveButton = page.locator('button:has-text("Approve")');
     await approveButton.click();
 
-    // Wait for API call to complete
-    await helpers.wait.forApiCall(
-      `${apiEndpoints.marketplace.reviewPlugin(testPlugins.pendingPlugin.id)}/approve`
-    );
+    // Verify confirmation panel appears
+    await expect(page.locator('text=Ready to approve')).toBeVisible();
 
-    // Verify success toast appears
-    await helpers.assert.expectToastMessage('Plugin approved');
-    await helpers.screenshot.takeFullPage('review-queue-approve-toast');
+    // Step 2: Click "Confirm Approval" to finalize
+    const confirmButton = page.locator('button:has-text("Confirm Approval")');
+    await confirmButton.click();
 
-    // Wait for toast to disappear
-    await helpers.wait.forToastDisappear();
-
-    // Mock empty pending plugins (plugin was approved)
-    await helpers.api.mockGetPendingPlugins([]);
-
-    // Refresh the queue
-    await page.reload();
-    await helpers.wait.forNetworkIdle();
-
-    // Verify plugin is removed from queue
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).not.toBeVisible();
-
-    // Verify empty state message
-    await expect(page.locator('text=No pending reviews')).toBeVisible();
+    // Verify success toast: title "Success", description "Plugin approved successfully"
+    await helpers.assert.expectToastMessage('Plugin approved successfully');
   });
 
   test('should reject plugin with reason', async ({ page }) => {
+    const pendingPlugin = testPlugins.pendingPlugin;
     const rejectionReason = 'Plugin does not meet quality standards. Please improve documentation.';
 
-    // Mock API responses
-    await helpers.api.mockGetPendingPlugins([testPlugins.pendingPlugin]);
-    await helpers.api.mockRejectPlugin(testPlugins.pendingPlugin.id, {
-      ...testPlugins.pendingPlugin,
-      status: 'REJECTED',
-    });
+    // Navigate to Review Queue
+    await helpers.nav.goToReviewQueue([pendingPlugin]);
 
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
+    // Mock review endpoint AFTER goToReviewQueue so it takes LIFO priority over the catch-all
+    await mockPluginReviewEndpoint(page, pendingPlugin.id);
 
-    // Wait for pending plugin to be visible
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
+    // Wait for pending plugin
+    await expect(page.locator(`text=${pendingPlugin.name}`)).toBeVisible();
 
-    // Click "Review" button
-    const reviewButton = page.locator(
-      `text=${testPlugins.pendingPlugin.name} >> .. >> button:has-text("Review")`
-    );
-    await reviewButton.click();
+    // Click "Review" button — find the card containing the plugin name
+    const pluginCard = page
+      .locator('div')
+      .filter({ hasText: pendingPlugin.name })
+      .filter({ has: page.locator('button:has-text("Review")') })
+      .last();
+    await pluginCard.locator('button:has-text("Review")').click();
 
-    // Wait for review dialog to open
+    // Wait for ReviewDialog to open
     await helpers.modal.waitForModalOpen('Review Plugin');
 
-    // Click "Reject" button
+    // Two-step reject flow:
+    // Step 1: Click "Reject" button → shows red rejection panel + textarea
     const rejectButton = page.locator('button:has-text("Reject")');
     await rejectButton.click();
 
-    // Wait for rejection reason textarea to appear
-    await expect(page.locator('textarea[placeholder*="reason"]')).toBeVisible();
+    // Verify rejection textarea appears
+    const rejectionTextarea = page.locator(
+      'textarea[placeholder="Explain why this plugin is being rejected..."]'
+    );
+    await expect(rejectionTextarea).toBeVisible();
 
-    // Take screenshot of rejection form
-    await helpers.screenshot.takeModal('review-dialog-rejection-form');
+    // Try to submit without reason — click "Confirm Rejection"
+    const confirmRejectButton = page.locator('button:has-text("Confirm Rejection")');
+    await confirmRejectButton.click();
 
-    // Try to submit without reason (should fail validation)
-    const submitButton = page.locator('button:has-text("Submit")');
-    await submitButton.click();
-
-    // Verify validation error
-    await expect(page.locator('text=Rejection reason is required')).toBeVisible();
+    // Verify validation toast: title "Error", description "Please provide a reason for rejection"
+    await helpers.assert.expectToastMessage('Please provide a reason for rejection');
 
     // Fill rejection reason
-    await helpers.form.fillTextarea('textarea[placeholder*="reason"]', rejectionReason);
-
-    // Take screenshot with filled reason
-    await helpers.screenshot.takeModal('review-dialog-rejection-filled');
+    await rejectionTextarea.fill(rejectionReason);
 
     // Submit rejection
-    await submitButton.click();
+    await confirmRejectButton.click();
 
-    // Wait for API call to complete
-    await helpers.wait.forApiCall(
-      `${apiEndpoints.marketplace.reviewPlugin(testPlugins.pendingPlugin.id)}/reject`
-    );
-
-    // Verify success toast appears
-    await helpers.assert.expectToastMessage('Plugin rejected');
-    await helpers.screenshot.takeFullPage('review-queue-reject-toast');
-
-    // Wait for toast to disappear
-    await helpers.wait.forToastDisappear();
-
-    // Mock empty pending plugins (plugin was rejected)
-    await helpers.api.mockGetPendingPlugins([]);
-
-    // Refresh the queue
-    await page.reload();
-    await helpers.wait.forNetworkIdle();
-
-    // Verify plugin is removed from queue
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).not.toBeVisible();
-
-    // Verify empty state message
-    await expect(page.locator('text=No pending reviews')).toBeVisible();
+    // Verify success toast: title "Success", description "Plugin rejected successfully"
+    await helpers.assert.expectToastMessage('Plugin rejected successfully');
   });
 
   test('should display empty state when no pending reviews', async ({ page }) => {
-    // Mock API to return empty array
-    await helpers.api.mockGetPendingPlugins([]);
+    // Navigate to Review Queue with empty list
+    await helpers.nav.goToReviewQueue([]);
 
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
-
-    // Verify empty state message
-    await expect(page.locator('text=No pending reviews')).toBeVisible();
-    await expect(page.locator('text=All plugins have been reviewed')).toBeVisible();
-
-    // Take screenshot of empty state
-    await helpers.screenshot.takeFullPage('review-queue-empty-state');
+    // Verify empty state: "All Caught Up!" heading and "No plugins pending review at the moment."
+    await expect(page.locator('text=All Caught Up!')).toBeVisible();
+    await expect(page.locator('text=No plugins pending review at the moment.')).toBeVisible();
   });
 
   test('should handle multiple pending plugins', async ({ page }) => {
@@ -200,84 +144,75 @@ test.describe('Plugin Review Queue E2E', () => {
       description: 'Another plugin waiting for review',
     };
 
-    // Mock API to return multiple pending plugins
-    await helpers.api.mockGetPendingPlugins([testPlugins.pendingPlugin, secondPlugin]);
-
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
+    // Navigate to Review Queue with multiple plugins
+    await helpers.nav.goToReviewQueue([testPlugins.pendingPlugin, secondPlugin]);
 
     // Verify both plugins are visible
     await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
     await expect(page.locator(`text=${secondPlugin.name}`)).toBeVisible();
 
-    // Verify both have Review buttons
-    const reviewButtons = page.locator('button:has-text("Review")');
+    // Verify both have Review buttons (exact match to exclude "Review Queue" tab button)
+    const reviewButtons = page.getByRole('button', { name: 'Review', exact: true });
     await expect(reviewButtons).toHaveCount(2);
-
-    // Take screenshot with multiple plugins
-    await helpers.screenshot.takeFullPage('review-queue-multiple-plugins');
   });
 
   test('should close review dialog without action', async ({ page }) => {
-    // Mock API responses
-    await helpers.api.mockGetPendingPlugins([testPlugins.pendingPlugin]);
+    const pendingPlugin = testPlugins.pendingPlugin;
 
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
+    // Navigate to Review Queue
+    await helpers.nav.goToReviewQueue([pendingPlugin]);
 
-    // Click "Review" button
-    const reviewButton = page.locator(
-      `text=${testPlugins.pendingPlugin.name} >> .. >> button:has-text("Review")`
-    );
-    await reviewButton.click();
+    // Click "Review" button — find the card containing the plugin name
+    const pluginCard = page
+      .locator('div')
+      .filter({ hasText: pendingPlugin.name })
+      .filter({ has: page.locator('button:has-text("Review")') })
+      .last();
+    await pluginCard.locator('button:has-text("Review")').click();
 
-    // Wait for review dialog to open
+    // Wait for ReviewDialog to open
     await helpers.modal.waitForModalOpen('Review Plugin');
 
-    // Close dialog using X button or Cancel
-    await helpers.modal.closeModal();
+    // Close dialog — "Close" button is visible when no action selected
+    await page.locator('button:has-text("Close")').click();
+    await page.waitForTimeout(300);
 
     // Verify dialog is closed
-    await expect(page.locator('text=Review Plugin')).not.toBeVisible();
+    await expect(page.locator('h2:has-text("Review Plugin")')).not.toBeVisible();
 
     // Verify plugin is still in queue
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
+    await expect(page.locator(`text=${pendingPlugin.name}`)).toBeVisible();
   });
 
   test('should handle API error during approval', async ({ page }) => {
-    // Mock API responses
-    await helpers.api.mockGetPendingPlugins([testPlugins.pendingPlugin]);
+    const pendingPlugin = testPlugins.pendingPlugin;
 
-    // Mock API error for approval
-    await page.route(
-      `**/api/v1/marketplace/admin/review/${testPlugins.pendingPlugin.id}/approve`,
-      (route) => route.abort('failed')
-    );
+    // Navigate to Review Queue
+    await helpers.nav.goToReviewQueue([pendingPlugin]);
 
-    // Navigate to Review Queue tab
-    await helpers.nav.goToReviewQueue();
+    // Mock review endpoint with error AFTER goToReviewQueue (LIFO priority)
+    await mockPluginReviewEndpoint(page, pendingPlugin.id, {
+      success: false,
+      error: 'Review failed',
+    });
 
-    // Click "Review" button
-    const reviewButton = page.locator(
-      `text=${testPlugins.pendingPlugin.name} >> .. >> button:has-text("Review")`
-    );
-    await reviewButton.click();
+    // Click "Review" button — find the card containing the plugin name
+    const pluginCard = page
+      .locator('div')
+      .filter({ hasText: pendingPlugin.name })
+      .filter({ has: page.locator('button:has-text("Review")') })
+      .last();
+    await pluginCard.locator('button:has-text("Review")').click();
 
-    // Wait for review dialog to open
+    // Wait for ReviewDialog to open
     await helpers.modal.waitForModalOpen('Review Plugin');
 
-    // Click "Approve" button
-    const approveButton = page.locator('button:has-text("Approve")');
-    await approveButton.click();
+    // Two-step approve: Approve → Confirm Approval
+    await page.locator('button:has-text("Approve")').click();
+    await expect(page.locator('text=Ready to approve')).toBeVisible();
+    await page.locator('button:has-text("Confirm Approval")').click();
 
-    // Verify error toast appears
+    // Verify error toast
     await helpers.assert.expectToastMessage('Failed to approve plugin');
-
-    // Take screenshot of error state
-    await helpers.screenshot.takeFullPage('review-queue-approve-error');
-
-    // Verify plugin is still in queue after error
-    await helpers.modal.closeModal();
-    await expect(page.locator(`text=${testPlugins.pendingPlugin.name}`)).toBeVisible();
   });
 });

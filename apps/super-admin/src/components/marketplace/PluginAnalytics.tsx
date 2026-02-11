@@ -32,18 +32,21 @@ export function PluginAnalytics({ plugin, onClose }: PluginAnalyticsProps) {
   } = useQuery({
     queryKey: ['plugin-analytics', plugin.id, timeRange],
     queryFn: () => apiClient.getPluginAnalytics(plugin.id, timeRange),
+    retry: false,
   });
 
   // Fetch tenant installs list
   const { data: installs, isLoading: installsLoading } = useQuery({
     queryKey: ['plugin-installs', plugin.id],
     queryFn: () => apiClient.getPluginInstalls(plugin.id),
+    retry: false,
   });
 
   // Fetch ratings for distribution
   const { data: ratingsData } = useQuery({
     queryKey: ['plugin-ratings', plugin.id],
     queryFn: () => apiClient.getPluginRatings(plugin.id, { limit: 100 }),
+    retry: false,
   });
 
   const formatNumber = (num: number): string => {

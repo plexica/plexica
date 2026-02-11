@@ -2,8 +2,8 @@
 
 **Last Updated**: February 11, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
-**Current Milestone**: **Frontend Consolidation C5 — E2E tests with Playwright**  
-**Previous Milestone**: C4 - Plugin marketplace with real data ✅ (Completed Feb 11)  
+**Current Milestone**: **Frontend Consolidation D2 — Connect web app to real data**  
+**Previous Milestone**: C5 - E2E tests with Playwright ✅ (Completed Feb 11)  
 **Version**: 0.8.0
 
 ---

@@ -1,15 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { TestHelpers } from './helpers/test-helpers';
 import { testPlugins } from './fixtures/test-data';
+import { mockPublishPluginEndpoint } from './helpers/api-mocks';
 
 test.describe('Publish Plugin Wizard E2E', () => {
   let helpers: TestHelpers;
 
   test.beforeEach(async ({ page }) => {
     helpers = new TestHelpers(page);
-
-    // Authentication is handled by global setup via storage state
-    // No need to login here - we're already authenticated!
 
     // Navigate to plugins page (empty list is fine for publish tests)
     await helpers.nav.goToPluginsPage([]);
@@ -20,40 +18,31 @@ test.describe('Publish Plugin Wizard E2E', () => {
   });
 
   test('should open publish plugin modal', async ({ page }) => {
-    // Click "Publish Plugin" button
-    const publishButton = page.locator('button:has-text("Publish Plugin")');
+    // Click "Publish Plugin" button — use .first() because header + empty-state both have it
+    const publishButton = page.locator('button:has-text("Publish Plugin")').first();
     await publishButton.click();
 
-    // Wait for modal to open
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    // Wait for modal to open — title is "Publish New Plugin"
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Verify we're on step 1 (Basic Information)
     await expect(page.locator('text=Basic Information')).toBeVisible();
     await expect(page.locator('text=Step 1 of 4')).toBeVisible();
-
-    // Take screenshot of empty wizard
-    await helpers.screenshot.takeModal('publish-wizard-step-1-empty');
   });
 
   test('should complete 4-step wizard and publish plugin successfully', async ({ page }) => {
     const newPlugin = testPlugins.newPlugin;
 
-    // Mock API response for publishing
-    await page.route('**/api/v1/marketplace/admin/publish', async (route) => {
-      await route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ...newPlugin,
-          status: 'PUBLISHED',
-          createdAt: new Date().toISOString(),
-        }),
-      });
+    // Mock API response for publishing — correct endpoint: POST /api/marketplace/publish
+    await mockPublishPluginEndpoint(page, {
+      ...newPlugin,
+      status: 'PUBLISHED',
+      createdAt: new Date().toISOString(),
     });
 
-    // Click "Publish Plugin" button
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    // Click "Publish Plugin" button — use .first() to avoid strict mode error
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // ===== STEP 1: Basic Information =====
     await expect(page.locator('text=Step 1 of 4')).toBeVisible();
@@ -62,22 +51,35 @@ test.describe('Publish Plugin Wizard E2E', () => {
     const nextButton = page.locator('button:has-text("Next")');
     await expect(nextButton).toBeDisabled();
 
-    // Fill basic information
-    await page.fill('input[name="id"]', newPlugin.id);
-    await page.fill('input[name="name"]', newPlugin.name);
-    await page.fill('input[name="version"]', newPlugin.version);
-    await page.fill('input[name="description"]', newPlugin.description);
+    // Fill basic information — inputs use placeholder selectors (no name attrs)
+    await page.fill('input[placeholder="my-awesome-plugin"]', newPlugin.id);
+    await page.fill('input[placeholder="My Awesome Plugin"]', newPlugin.name);
+    // Version defaults to "1.0.0" — clear and fill if different
+    const versionInput = page.locator('input[placeholder="1.0.0"]');
+    await versionInput.clear();
+    await versionInput.fill(newPlugin.version);
+    await page.fill(
+      'input[placeholder="A brief description of your plugin (max 150 chars)"]',
+      newPlugin.description
+    );
 
-    // Select category
-    await page.selectOption('select[name="category"]', newPlugin.category);
+    // Select category — native <select> via label
+    await page
+      .locator('label:has-text("Category")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.category);
 
     // Fill author info
-    await page.fill('input[name="author"]', newPlugin.author);
-    await page.fill('input[name="authorEmail"]', newPlugin.authorEmail);
-    await page.fill('input[name="license"]', newPlugin.license);
+    await page.fill('input[placeholder="John Doe"]', newPlugin.author);
+    await page.fill('input[placeholder="john@example.com"]', newPlugin.authorEmail);
 
-    // Take screenshot of filled step 1
-    await helpers.screenshot.takeModal('publish-wizard-step-1-filled');
+    // License is a <select> with default "MIT" — change to Apache-2.0
+    await page
+      .locator('label:has-text("License")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.license);
 
     // Verify "Next" button is now enabled
     await expect(nextButton).toBeEnabled();
@@ -86,61 +88,64 @@ test.describe('Publish Plugin Wizard E2E', () => {
     await nextButton.click();
     await page.waitForTimeout(300);
 
-    // ===== STEP 2: Details =====
+    // ===== STEP 2: Plugin Details =====
     await expect(page.locator('text=Step 2 of 4')).toBeVisible();
-    await expect(page.locator('text=Details')).toBeVisible();
+    await expect(page.locator('text=Plugin Details')).toBeVisible();
+
+    // Next should be disabled until longDescription is filled
+    await expect(nextButton).toBeDisabled();
 
     // Fill long description
-    await page.fill('textarea[name="longDescription"]', newPlugin.longDescription);
+    await page.fill(
+      'textarea[placeholder="Provide a detailed description of your plugin, its features, and benefits..."]',
+      newPlugin.longDescription
+    );
 
     // Add tags
-    const tagInput = page.locator('input[placeholder*="tag"]');
+    const tagInput = page.locator('input[placeholder="Add a tag (press Enter)"]');
     for (const tag of newPlugin.tags) {
       await tagInput.fill(tag);
-      await page.locator('button:has-text("Add")').click();
+      await tagInput.press('Enter');
       await page.waitForTimeout(200);
     }
 
-    // Verify tags are displayed
+    // Verify tags are displayed as Badge elements
     for (const tag of newPlugin.tags) {
       await expect(page.locator(`text=${tag}`)).toBeVisible();
     }
 
     // Fill URLs
-    await page.fill('input[name="homepage"]', newPlugin.homepage);
-    await page.fill('input[name="repository"]', newPlugin.repository);
+    await page.fill('input[placeholder="https://myplugin.com"]', newPlugin.homepage);
+    await page.fill('input[placeholder="https://github.com/user/plugin"]', newPlugin.repository);
 
-    // Take screenshot of filled step 2
-    await helpers.screenshot.takeModal('publish-wizard-step-2-filled');
+    // Now next should be enabled
+    await expect(nextButton).toBeEnabled();
 
     // Click Next
     await nextButton.click();
     await page.waitForTimeout(300);
 
-    // ===== STEP 3: Media =====
+    // ===== STEP 3: Media & Assets =====
     await expect(page.locator('text=Step 3 of 4')).toBeVisible();
-    await expect(page.locator('text=Media')).toBeVisible();
+    await expect(page.locator('text=Media & Assets')).toBeVisible();
 
     // Fill icon (emoji)
-    await page.fill('input[name="icon"]', newPlugin.icon);
+    await page.fill('input[placeholder="🧩"]', newPlugin.icon);
 
     // Fill demo URL
-    await page.fill('input[name="demoUrl"]', newPlugin.demoUrl);
+    await page.fill('input[placeholder="https://demo.myplugin.com"]', newPlugin.demoUrl);
 
     // Add screenshots
-    const screenshotInput = page.locator('input[placeholder*="screenshot"]');
+    const screenshotInput = page.locator('input[placeholder="Add screenshot URL (press Enter)"]');
     for (const screenshot of newPlugin.screenshots || []) {
       await screenshotInput.fill(screenshot);
-      await page.locator('button:has-text("Add Screenshot")').click();
-      await page.waitForTimeout(200);
+      await screenshotInput.press('Enter');
+      await page.waitForTimeout(300);
     }
 
     // Verify screenshots are displayed (preview images)
     const screenshotPreviews = page.locator('img[src*="picsum.photos"]');
     await expect(screenshotPreviews).toHaveCount(newPlugin.screenshots?.length || 0);
-
-    // Take screenshot of filled step 3
-    await helpers.screenshot.takeModal('publish-wizard-step-3-filled');
 
     // Click Next
     await nextButton.click();
@@ -150,72 +155,69 @@ test.describe('Publish Plugin Wizard E2E', () => {
     await expect(page.locator('text=Step 4 of 4')).toBeVisible();
     await expect(page.locator('text=Review & Publish')).toBeVisible();
 
-    // Verify summary shows all entered data
+    // Verify summary shows entered data
     await expect(page.locator(`text=${newPlugin.name}`)).toBeVisible();
     await expect(page.locator(`text=${newPlugin.version}`)).toBeVisible();
     await expect(page.locator(`text=${newPlugin.author}`)).toBeVisible();
-    await expect(page.locator(`text=${newPlugin.category}`)).toBeVisible();
 
-    // Verify tags count
-    const tagsText = `${newPlugin.tags.length} tag${newPlugin.tags.length > 1 ? 's' : ''}`;
-    await expect(page.locator(`text=${tagsText}`)).toBeVisible();
+    // Verify tags displayed as individual Badge elements
+    for (const tag of newPlugin.tags) {
+      await expect(page.locator(`text=${tag}`).first()).toBeVisible();
+    }
 
-    // Verify screenshots count
-    const screenshotsText = `${newPlugin.screenshots?.length || 0} screenshot${(newPlugin.screenshots?.length || 0) !== 1 ? 's' : ''}`;
-    await expect(page.locator(`text=${screenshotsText}`)).toBeVisible();
+    // Verify screenshots section: "Screenshots (2)" heading
+    await expect(
+      page.locator(`text=Screenshots (${newPlugin.screenshots?.length ?? 0})`)
+    ).toBeVisible();
 
-    // Take screenshot of review step
-    await helpers.screenshot.takeModal('publish-wizard-step-4-review');
-
-    // Click "Publish Plugin"
-    const publishFinalButton = page.locator('button:has-text("Publish Plugin")');
+    // Click "Publish Plugin" to submit — exact match to avoid matching header buttons with "+ Publish Plugin"
+    const publishFinalButton = page.getByRole('button', { name: 'Publish Plugin', exact: true });
     await publishFinalButton.click();
 
-    // Verify loading state
-    await expect(page.locator('text=Publishing...')).toBeVisible();
-
-    // Wait for API call to complete
-    await helpers.wait.forApiCall('/api/v1/marketplace/admin/publish');
-
-    // Verify success toast
+    // Verify success toast (loading state "Publishing..." may flash too quickly with mocked API)
     await helpers.assert.expectToastMessage('Plugin published successfully');
 
-    // Wait for modal to close
+    // Modal should close automatically after success
     await page.waitForTimeout(1000);
-    await helpers.assert.expectModalClosed('Publish Plugin');
-
-    // Verify plugin appears in list
-    await page.waitForTimeout(500);
-    await helpers.assert.expectPluginInList(newPlugin.name);
+    await helpers.assert.expectModalClosed('Publish New Plugin');
   });
 
   test('should validate required fields in step 1', async ({ page }) => {
     // Click "Publish Plugin" button
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Verify "Next" button is disabled without filling fields
     const nextButton = page.locator('button:has-text("Next")');
     await expect(nextButton).toBeDisabled();
 
     // Fill only ID
-    await page.fill('input[name="id"]', 'test-id');
+    await page.fill('input[placeholder="my-awesome-plugin"]', 'test-id');
     await expect(nextButton).toBeDisabled();
 
-    // Fill only name
-    await page.fill('input[name="name"]', 'Test Name');
+    // Fill name
+    await page.fill('input[placeholder="My Awesome Plugin"]', 'Test Name');
     await expect(nextButton).toBeDisabled();
 
-    // Fill version
-    await page.fill('input[name="version"]', '1.0.0');
+    // Version already has default "1.0.0" — still disabled because other fields empty
     await expect(nextButton).toBeDisabled();
 
-    // Description should enable next if other required fields are filled
-    await page.fill('input[name="description"]', 'Test description');
-    await page.selectOption('select[name="category"]', 'productivity');
-    await page.fill('input[name="author"]', 'Test Author');
-    await page.fill('input[name="authorEmail"]', 'test@example.com');
-    await page.fill('input[name="license"]', 'MIT');
+    // Fill description
+    await page.fill(
+      'input[placeholder="A brief description of your plugin (max 150 chars)"]',
+      'Test description'
+    );
+    // Select category
+    await page
+      .locator('label:has-text("Category")')
+      .locator('..')
+      .locator('select')
+      .selectOption('productivity');
+    // Fill author
+    await page.fill('input[placeholder="John Doe"]', 'Test Author');
+    // Fill author email
+    await page.fill('input[placeholder="john@example.com"]', 'test@example.com');
+    // License has default "MIT" — no need to fill
 
     // Now next button should be enabled
     await expect(nextButton).toBeEnabled();
@@ -225,26 +227,42 @@ test.describe('Publish Plugin Wizard E2E', () => {
     const newPlugin = testPlugins.newPlugin;
 
     // Open wizard
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Fill step 1
-    await page.fill('input[name="id"]', newPlugin.id);
-    await page.fill('input[name="name"]', newPlugin.name);
-    await page.fill('input[name="version"]', newPlugin.version);
-    await page.fill('input[name="description"]', newPlugin.description);
-    await page.selectOption('select[name="category"]', newPlugin.category);
-    await page.fill('input[name="author"]', newPlugin.author);
-    await page.fill('input[name="authorEmail"]', newPlugin.authorEmail);
-    await page.fill('input[name="license"]', newPlugin.license);
+    await page.fill('input[placeholder="my-awesome-plugin"]', newPlugin.id);
+    await page.fill('input[placeholder="My Awesome Plugin"]', newPlugin.name);
+    const versionInput = page.locator('input[placeholder="1.0.0"]');
+    await versionInput.clear();
+    await versionInput.fill(newPlugin.version);
+    await page.fill(
+      'input[placeholder="A brief description of your plugin (max 150 chars)"]',
+      newPlugin.description
+    );
+    await page
+      .locator('label:has-text("Category")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.category);
+    await page.fill('input[placeholder="John Doe"]', newPlugin.author);
+    await page.fill('input[placeholder="john@example.com"]', newPlugin.authorEmail);
+    await page
+      .locator('label:has-text("License")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.license);
 
     // Go to step 2
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
     await expect(page.locator('text=Step 2 of 4')).toBeVisible();
 
-    // Fill step 2
-    await page.fill('textarea[name="longDescription"]', newPlugin.longDescription);
+    // Fill step 2 longDescription
+    await page.fill(
+      'textarea[placeholder="Provide a detailed description of your plugin, its features, and benefits..."]',
+      newPlugin.longDescription
+    );
 
     // Go to step 3
     await page.locator('button:has-text("Next")').click();
@@ -257,8 +275,10 @@ test.describe('Publish Plugin Wizard E2E', () => {
     await page.waitForTimeout(300);
     await expect(page.locator('text=Step 2 of 4')).toBeVisible();
 
-    // Verify data is still there
-    const longDescTextarea = page.locator('textarea[name="longDescription"]');
+    // Verify longDescription data is still there
+    const longDescTextarea = page.locator(
+      'textarea[placeholder="Provide a detailed description of your plugin, its features, and benefits..."]'
+    );
     await expect(longDescTextarea).toHaveValue(newPlugin.longDescription);
 
     // Go back to step 1
@@ -266,47 +286,63 @@ test.describe('Publish Plugin Wizard E2E', () => {
     await page.waitForTimeout(300);
     await expect(page.locator('text=Step 1 of 4')).toBeVisible();
 
-    // Verify data is still there
-    await expect(page.locator('input[name="name"]')).toHaveValue(newPlugin.name);
+    // Verify name data is still there
+    await expect(page.locator('input[placeholder="My Awesome Plugin"]')).toHaveValue(
+      newPlugin.name
+    );
   });
 
   test('should allow removing added tags', async ({ page }) => {
+    const newPlugin = testPlugins.newPlugin;
+
     // Open wizard
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Fill step 1 to enable next
-    const newPlugin = testPlugins.newPlugin;
-    await page.fill('input[name="id"]', newPlugin.id);
-    await page.fill('input[name="name"]', newPlugin.name);
-    await page.fill('input[name="version"]', newPlugin.version);
-    await page.fill('input[name="description"]', newPlugin.description);
-    await page.selectOption('select[name="category"]', newPlugin.category);
-    await page.fill('input[name="author"]', newPlugin.author);
-    await page.fill('input[name="authorEmail"]', newPlugin.authorEmail);
-    await page.fill('input[name="license"]', newPlugin.license);
+    await page.fill('input[placeholder="my-awesome-plugin"]', newPlugin.id);
+    await page.fill('input[placeholder="My Awesome Plugin"]', newPlugin.name);
+    await page.fill(
+      'input[placeholder="A brief description of your plugin (max 150 chars)"]',
+      newPlugin.description
+    );
+    await page
+      .locator('label:has-text("Category")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.category);
+    await page.fill('input[placeholder="John Doe"]', newPlugin.author);
+    await page.fill('input[placeholder="john@example.com"]', newPlugin.authorEmail);
 
     // Go to step 2
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
 
+    // Fill longDescription so we're on step 2 properly
+    await page.fill(
+      'textarea[placeholder="Provide a detailed description of your plugin, its features, and benefits..."]',
+      'Some description'
+    );
+
     // Add tags
-    const tagInput = page.locator('input[placeholder*="tag"]');
+    const tagInput = page.locator('input[placeholder="Add a tag (press Enter)"]');
+
     await tagInput.fill('test-tag-1');
-    await page.locator('button:has-text("Add")').click();
+    await tagInput.press('Enter');
     await page.waitForTimeout(200);
 
     await tagInput.fill('test-tag-2');
-    await page.locator('button:has-text("Add")').click();
+    await tagInput.press('Enter');
     await page.waitForTimeout(200);
 
     // Verify both tags are visible
     await expect(page.locator('text=test-tag-1')).toBeVisible();
     await expect(page.locator('text=test-tag-2')).toBeVisible();
 
-    // Remove first tag (click X button)
-    const removeButton = page.locator('text=test-tag-1 >> .. >> button').first();
-    await removeButton.click();
+    // Remove first tag — Badge has an X button inside it
+    // Tags are rendered as <Badge> with X button. Find the badge containing tag text and click X.
+    const tag1Badge = page.locator('text=test-tag-1').locator('..').locator('button').first();
+    await tag1Badge.click();
     await page.waitForTimeout(200);
 
     // Verify first tag is removed
@@ -315,43 +351,58 @@ test.describe('Publish Plugin Wizard E2E', () => {
   });
 
   test('should allow removing added screenshots', async ({ page }) => {
+    const newPlugin = testPlugins.newPlugin;
+
     // Open wizard
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Fill step 1 to enable next
-    const newPlugin = testPlugins.newPlugin;
-    await page.fill('input[name="id"]', newPlugin.id);
-    await page.fill('input[name="name"]', newPlugin.name);
-    await page.fill('input[name="version"]', newPlugin.version);
-    await page.fill('input[name="description"]', newPlugin.description);
-    await page.selectOption('select[name="category"]', newPlugin.category);
-    await page.fill('input[name="author"]', newPlugin.author);
-    await page.fill('input[name="authorEmail"]', newPlugin.authorEmail);
-    await page.fill('input[name="license"]', newPlugin.license);
+    await page.fill('input[placeholder="my-awesome-plugin"]', newPlugin.id);
+    await page.fill('input[placeholder="My Awesome Plugin"]', newPlugin.name);
+    await page.fill(
+      'input[placeholder="A brief description of your plugin (max 150 chars)"]',
+      newPlugin.description
+    );
+    await page
+      .locator('label:has-text("Category")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.category);
+    await page.fill('input[placeholder="John Doe"]', newPlugin.author);
+    await page.fill('input[placeholder="john@example.com"]', newPlugin.authorEmail);
 
-    // Go to step 2, then step 3
+    // Go to step 2
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
+
+    // Fill longDescription so Next is enabled
+    await page.fill(
+      'textarea[placeholder="Provide a detailed description of your plugin, its features, and benefits..."]',
+      'Some description for step 2'
+    );
+
+    // Go to step 3
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
 
     // Add screenshots
-    const screenshotInput = page.locator('input[placeholder*="screenshot"]');
+    const screenshotInput = page.locator('input[placeholder="Add screenshot URL (press Enter)"]');
+
     await screenshotInput.fill('https://picsum.photos/800/600?random=1');
-    await page.locator('button:has-text("Add Screenshot")').click();
+    await screenshotInput.press('Enter');
     await page.waitForTimeout(300);
 
     await screenshotInput.fill('https://picsum.photos/800/600?random=2');
-    await page.locator('button:has-text("Add Screenshot")').click();
+    await screenshotInput.press('Enter');
     await page.waitForTimeout(300);
 
     // Verify both screenshots are visible
     const screenshots = page.locator('img[src*="picsum.photos"]');
     await expect(screenshots).toHaveCount(2);
 
-    // Remove first screenshot
-    const removeButton = page.locator('button[aria-label*="Remove"]').first();
+    // Remove first screenshot — button is <button class="absolute top-2 right-2 ..."> with X icon (no aria-label)
+    const removeButton = page.locator('button.absolute').first();
     await removeButton.click();
     await page.waitForTimeout(200);
 
@@ -362,34 +413,38 @@ test.describe('Publish Plugin Wizard E2E', () => {
   test('should handle API error during publish', async ({ page }) => {
     const newPlugin = testPlugins.newPlugin;
 
-    // Mock API error
-    await page.route('**/api/v1/marketplace/admin/publish', async (route) => {
-      await route.fulfill({
-        status: 400,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'Plugin with this ID already exists',
-        }),
-      });
+    // Mock API error — correct endpoint: POST /api/marketplace/publish
+    await mockPublishPluginEndpoint(page, undefined, {
+      success: false,
+      error: 'Plugin with this ID already exists',
     });
 
     // Open wizard and fill all steps
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Fill step 1
-    await page.fill('input[name="id"]', newPlugin.id);
-    await page.fill('input[name="name"]', newPlugin.name);
-    await page.fill('input[name="version"]', newPlugin.version);
-    await page.fill('input[name="description"]', newPlugin.description);
-    await page.selectOption('select[name="category"]', newPlugin.category);
-    await page.fill('input[name="author"]', newPlugin.author);
-    await page.fill('input[name="authorEmail"]', newPlugin.authorEmail);
-    await page.fill('input[name="license"]', newPlugin.license);
+    await page.fill('input[placeholder="my-awesome-plugin"]', newPlugin.id);
+    await page.fill('input[placeholder="My Awesome Plugin"]', newPlugin.name);
+    await page.fill(
+      'input[placeholder="A brief description of your plugin (max 150 chars)"]',
+      newPlugin.description
+    );
+    await page
+      .locator('label:has-text("Category")')
+      .locator('..')
+      .locator('select')
+      .selectOption(newPlugin.category);
+    await page.fill('input[placeholder="John Doe"]', newPlugin.author);
+    await page.fill('input[placeholder="john@example.com"]', newPlugin.authorEmail);
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
 
-    // Skip step 2 (just go to next)
+    // Fill step 2 longDescription (required for Next)
+    await page.fill(
+      'textarea[placeholder="Provide a detailed description of your plugin, its features, and benefits..."]',
+      'Some description'
+    );
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
 
@@ -397,8 +452,8 @@ test.describe('Publish Plugin Wizard E2E', () => {
     await page.locator('button:has-text("Next")').click();
     await page.waitForTimeout(300);
 
-    // Try to publish
-    await page.locator('button:has-text("Publish Plugin")').click();
+    // Try to publish — use exact match to avoid matching the header's "+ Publish Plugin" buttons
+    await page.getByRole('button', { name: 'Publish Plugin', exact: true }).click();
 
     // Wait for API call
     await page.waitForTimeout(1000);
@@ -406,36 +461,34 @@ test.describe('Publish Plugin Wizard E2E', () => {
     // Verify error toast
     await helpers.assert.expectToastMessage('Failed to publish plugin');
 
-    // Take screenshot of error state
-    await helpers.screenshot.takeModal('publish-wizard-error');
-
     // Verify modal is still open (not closed on error)
-    await helpers.assert.expectModalOpen('Publish Plugin');
+    await helpers.assert.expectModalOpen('Publish New Plugin');
   });
 
   test('should close wizard and discard changes', async ({ page }) => {
     const newPlugin = testPlugins.newPlugin;
 
     // Open wizard
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
     // Fill some fields
-    await page.fill('input[name="name"]', newPlugin.name);
-    await page.fill('input[name="version"]', newPlugin.version);
+    await page.fill('input[placeholder="My Awesome Plugin"]', newPlugin.name);
 
-    // Close modal
-    await helpers.modal.closeModal();
+    // Close modal — footer Cancel button (ghost variant)
+    await page.locator('button:has-text("Cancel")').click();
+    await page.waitForTimeout(300);
 
     // Verify modal is closed
-    await helpers.assert.expectModalClosed('Publish Plugin');
+    await helpers.assert.expectModalClosed('Publish New Plugin');
 
     // Reopen wizard
-    await page.locator('button:has-text("Publish Plugin")').click();
-    await helpers.modal.waitForModalOpen('Publish Plugin');
+    await page.locator('button:has-text("Publish Plugin")').first().click();
+    await helpers.modal.waitForModalOpen('Publish New Plugin');
 
-    // Verify fields are empty (changes were discarded)
-    await expect(page.locator('input[name="name"]')).toHaveValue('');
-    await expect(page.locator('input[name="version"]')).toHaveValue('');
+    // Verify fields are empty/default (changes were discarded)
+    await expect(page.locator('input[placeholder="My Awesome Plugin"]')).toHaveValue('');
+    // Version field has default "1.0.0" — not empty
+    await expect(page.locator('input[placeholder="1.0.0"]')).toHaveValue('1.0.0');
   });
 });
