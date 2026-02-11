@@ -16,17 +16,19 @@ pnpm format                     # Format code with Prettier
 
 ## Current Test Status
 
-- **Total Tests**: 1,047 (64 files)
-- **Coverage**: 63% lines (target: 80%)
-- **Pass Rate**: 100% when infrastructure running
-- **Test Types**: Unit (27 files, ~700 tests), Integration (10 files, ~200 tests), E2E (12 files, ~160 tests)
+**For current test statistics and coverage details, see [docs/TESTING.md](docs/TESTING.md#test-suite-overview)**
+
+Quick summary:
+- 1,855+ total tests (backend + frontend)
+- 63% coverage (target: 80%)
+- 100% pass rate when infrastructure running
 
 ## Quick Test Commands
 
 ```bash
 cd apps/core-api
 
-# Run ALL tests (1,047 tests, ~3-5 min)
+# Run ALL tests (~3-5 min)
 pnpm test
 
 # By test type
@@ -34,7 +36,7 @@ pnpm test:unit                  # Unit tests only (~30s)
 pnpm test:integration           # Integration tests (~90s)
 pnpm test:e2e                   # E2E tests (~2 min)
 
-# Coverage report (current: 63%, target: 80%)
+# Coverage report
 pnpm test:coverage
 
 # Watch mode (for TDD development)
