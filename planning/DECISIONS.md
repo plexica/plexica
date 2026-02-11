@@ -394,5 +394,193 @@ When making a new significant architectural decision:
 
 ---
 
-_Architectural Decision Records - Plexica v1.0_  
-_Last Updated: January 2025_
+## ADR-008: Playwright for Frontend E2E Testing
+
+**Date**: 2026-02-11  
+**Status**: ✅ Accepted  
+**Deciders**: Frontend Team  
+**Tags**: #testing #frontend #e2e
+
+### Context
+
+Frontend application (web and super-admin) required comprehensive E2E test coverage to ensure quality as features grew. Multiple E2E testing frameworks available (Cypress, Playwright, WebDriver).
+
+### Decision
+
+**Use Playwright for E2E testing** with TypeScript support and Chromium browser for development/CI, Firefox for production validation.
+
+### Consequences
+
+#### Positive
+
+- Fast execution (<200ms per test)
+- Excellent TypeScript support
+- Cross-browser testing capability
+- Rich debugging and recording features
+- Native support for mocking API responses
+- Better IDE integration than alternatives
+
+#### Negative
+
+- Learning curve for team new to Playwright
+- Setup/teardown complexity for stateful tests
+- Requires separate test data fixtures
+
+### Alternatives Considered
+
+1. **Cypress**: Better UI but slower, less flexible for complex scenarios
+2. **Selenium/WebDriver**: Legacy, heavier, slower
+3. **Manual testing only**: ❌ No automation, high maintenance cost
+
+### Related Decisions
+
+- ADR-009: TailwindCSS v4 Semantic Tokens
+- ADR-010: @plexica/types Package Creation
+
+---
+
+## ADR-009: TailwindCSS v4 Semantic Tokens
+
+**Date**: 2026-02-11  
+**Status**: ✅ Accepted  
+**Deciders**: Design System Team  
+**Tags**: #design #frontend #theming
+
+### Context
+
+Multiple frontend apps needed consistent theming with easy customization per tenant. TailwindCSS v3 config-based approach becoming unwieldy as complexity increased.
+
+### Decision
+
+**Migrate to TailwindCSS v4 with CSS custom properties for semantic tokens** to enable:
+
+- Runtime theme switching without rebuild
+- Per-tenant color customization
+- Dark mode support
+- Consistent design language across all apps
+
+### Consequences
+
+#### Positive
+
+- Runtime theme customization
+- Single source of truth for tokens
+- CSS cascade advantage for overrides
+- Better dark mode support
+- Smaller Tailwind config files
+
+#### Negative
+
+- Migration work from v3 to v4
+- Requires CSS knowledge alongside Tailwind
+- Slightly higher CSS payload
+
+### Alternatives Considered
+
+1. **Stick with TailwindCSS v3**: ❌ Limited runtime flexibility
+2. **Use Styled Components**: ❌ Larger JS bundle, less performant
+3. **Custom CSS-in-JS**: ❌ More maintenance overhead
+
+### Related Decisions
+
+- ADR-008: Playwright for E2E Testing
+- ADR-010: @plexica/types Package Creation
+
+---
+
+## ADR-010: @plexica/types Shared Package
+
+**Date**: 2026-02-11  
+**Status**: ✅ Accepted  
+**Deciders**: Architecture Team  
+**Tags**: #packages #types #monorepo
+
+### Context
+
+As application grew, type definitions were duplicated across web, super-admin, SDK, and API client packages. Type drift between frontend and backend becoming problematic.
+
+### Decision
+
+**Create @plexica/types package** with shared TypeScript type definitions imported by all consumer packages to ensure single source of truth.
+
+### Consequences
+
+#### Positive
+
+- Single definition of User, Tenant, Workspace, Plugin types
+- Simplified maintenance (update once, propagate everywhere)
+- Type safety across monorepo boundary
+- Reduced duplicated code
+- Easier to add new types (shared location)
+
+#### Negative
+
+- Additional package to maintain
+- Circular dependency risk (requires careful management)
+- Requires coordination across teams
+
+### Alternatives Considered
+
+1. **Define types in each app**: ❌ Leads to drift and duplicates
+2. **API-driven types (OpenAPI)**: ❌ More overhead, less flexible
+3. **Global .d.ts files**: ❌ Not properly scoped
+
+### Related Decisions
+
+- ADR-009: TailwindCSS v4 Semantic Tokens
+- ADR-008: Playwright for E2E Testing
+
+---
+
+## ADR-011: Module Federation for Plugin Frontend Loading
+
+**Date**: 2026-02-11  
+**Status**: ✅ Accepted  
+**Deciders**: Frontend Team  
+**Tags**: #plugins #frontend #module-federation
+
+### Context
+
+Required dynamic loading of frontend plugins without rebuilding the host application. Plugins need to be:
+
+- Independently developed and deployed
+- Dynamically loaded at runtime
+- Share dependencies with host (React, Router, etc.)
+- Provide UI routes and menu items
+
+### Decision
+
+**Use Vite + @originjs/vite-plugin-federation** to implement Module Federation pattern for dynamic plugin loading from MinIO CDN.
+
+### Consequences
+
+#### Positive
+
+- Zero host rebuild for plugin updates
+- Independent plugin development cycle
+- Smaller initial bundle (shared dependencies)
+- Plugin isolation (each runs independently)
+- Production-ready implementation
+
+#### Negative
+
+- Vite Module Federation still maturing (less battle-tested than Webpack)
+- Plugin route registration limited by TanStack Router limitations
+- Requires careful shared dependency management
+
+### Alternatives Considered
+
+1. **Webpack Module Federation**: ❌ Higher build complexity, not Vite-native
+2. **iframes**: ❌ Full isolation but performance overhead
+3. **Monolithic bundle with code splitting**: ❌ Requires rebuild for plugin updates
+4. **Separate routes per plugin**: ❌ Less flexible, more maintenance
+
+### Related Decisions
+
+- ADR-008: Playwright for E2E Testing
+- ADR-010: @plexica/types Package Creation
+
+---
+
+_Architectural Decision Records - Plexica v1.1_  
+_Last Updated: February 11, 2026_

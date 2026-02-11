@@ -1,9 +1,11 @@
 # Plexica - Technical Specifications
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
+**Last Updated**: 2026-02-11  
+**Status**: In Progress  
 **Owner**: Architecture Team  
 **Document Type**: Technical Specifications
+
+**Note**: This document describes core architecture. Additional technical details on Frontend Integration (Vite Module Federation, TailwindCSS v4 tokens, Playwright E2E) documented in `docs/ARCHITECTURE.md` and testing guides.
 
 ## Table of Contents
 

@@ -2,9 +2,9 @@
 
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
-**Version**: 0.7.0  
-**Status**: Phase 2 - Plugin Ecosystem (67% Complete) | M2.3 ✅ Testing & Deployment Complete | M2.4 Plugin Registry & Marketplace  
-**Last Updated**: February 3, 2026
+**Version**: 0.9.0  
+**Status**: Phase 2 - Plugin Ecosystem (67% Complete - M2.1, M2.2, M2.3 ✅, M2.4 in progress) | Frontend Consolidation ✅ Complete | M2.4 Plugin Registry & Marketplace  
+**Last Updated**: February 11, 2026
 
 ---
 
@@ -15,6 +15,11 @@ Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
 - Phase 1: M1.1-M1.4 (Backend Core & Auth) ✅
 - Phase 1: M1.5-M1.6 (Frontend Apps & Workspaces) ✅
+- **Frontend Consolidation: Phase A-D5** ✅ (Feb 11, 2026)
+  - A: SDK & Plugin Developer Enablement
+  - B: Design System & UI Components (495 tests)
+  - C: Backend Endpoint Alignment & Tenant Mgmt
+  - D: End-to-end Frontend Integration (169 E2E tests with Playwright)
 - Phase 2: M2.1 (Event System & Message Bus) ✅
 - Phase 2: M2.2 (Module Federation & CDN) ✅
 - Phase 2: M2.3 (Plugin-to-Plugin Communication) ✅ **80% Code Coverage Achieved**
@@ -214,14 +219,14 @@ See **[specs/PROJECT_STRUCTURE.md](./specs/PROJECT_STRUCTURE.md)** for detailed 
 
 ### Backend (✅ Complete)
 
-| Category   | Technology | Version | Status        |
-| ---------- | ---------- | ------- | ------------- |
-| Runtime    | Node.js    | 20 LTS  | ✅            |
-| Language   | TypeScript | 5.9.3   | ✅            |
-| Framework  | Fastify    | 5.7.1   | ✅            |
-| ORM        | Prisma     | 7.2.0   | ✅            |
-| Validation | Zod        | 3.x     | ✅            |
-| Testing    | Vitest     | 1.x     | ✅ ~870 tests |
+| Category   | Technology | Version | Status          |
+| ---------- | ---------- | ------- | --------------- |
+| Runtime    | Node.js    | 20 LTS  | ✅              |
+| Language   | TypeScript | 5.9.3   | ✅              |
+| Framework  | Fastify    | 5.7.1   | ✅              |
+| ORM        | Prisma     | 7.2.0   | ✅              |
+| Validation | Zod        | 3.x     | ✅              |
+| Testing    | Vitest     | 1.x     | ✅ ~1,047 tests |
 
 ### Infrastructure (✅ Complete)
 
@@ -480,14 +485,18 @@ GET /api/tenants/:id/plugins
 
 ## 🧪 Testing
 
-Plexica has comprehensive testing documentation to ensure quality and reliability.
+Plexica has comprehensive testing documentation to ensure quality and reliability with **1,047+ tests** across all packages.
 
-### Quick Testing Guides
+**Test Statistics**:
 
-- **[Quick Test Guide](./docs/testing/QUICK_TEST.md)** - 5-minute smoke test for essential functionality
-- **[Frontend Testing](./docs/testing/FRONTEND_TESTING.md)** - React component and authentication testing
-- **[E2E Testing](./docs/testing/E2E_TESTING.md)** - Complete user workflows and manual testing checklist
-- **[Backend Testing](./docs/testing/BACKEND_TESTING.md)** - API and integration tests
+- **Backend (core-api)**: 1,047 unit/integration/E2E tests
+- **Frontend (web)**: 64 Playwright E2E tests
+- **Super-Admin**: 105 Playwright E2E tests
+- **UI Components (@plexica/ui)**: 495 component tests
+- **SDK (@plexica/sdk)**: 65 tests
+- **API Client (@plexica/api-client)**: 79 tests
+- **Total**: ~1,855 tests
+- **Coverage**: 63% lines (target: 80%)
 
 ### Running Tests
 
