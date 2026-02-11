@@ -1,35 +1,158 @@
 # End-to-End Testing Guide
 
-**Last Updated**: 2025-02-03  
+**Last Updated**: 2026-02-11  
 **Status**: Complete  
 **Owner**: Engineering Team  
 **Document Type**: Testing Guide
 
 ## Overview
 
-This guide covers comprehensive end-to-end (E2E) testing for the Plexica platform. These tests verify complete user workflows across authentication, workspace management, team collaboration, and multi-tenant isolation.
+This guide covers comprehensive end-to-end (E2E) testing for the Plexica platform. The platform includes both **automated E2E tests** (Playwright) and **manual testing workflows**. These tests verify complete user workflows across authentication, workspace management, team collaboration, and multi-tenant isolation.
 
-**Estimated Time**: 45-60 minutes for complete testing  
+**Test Suite Statistics**:
+
+- **Total E2E Tests**: 329 tests across 21 files
+- **Backend E2E**: ~160 tests (integration tests)
+- **Frontend E2E (Playwright)**: 169 tests (105 super-admin + 64 web app)
+- **Coverage**: Critical user flows and workflows
+
+**Estimated Time**:
+
+- Automated tests: 3-5 minutes
+- Manual testing: 45-60 minutes (if performed alongside automated tests)
+
+**Prerequisites**: Clean database state, all services running
+
+---
+
+## Automated E2E Testing (Playwright)
+
+### Test Suite Overview
+
+Plexica uses **Playwright** for automated E2E testing across the frontend applications.
+
+| Category               | Tests   | Files        | Status          |
+| ---------------------- | ------- | ------------ | --------------- |
+| **Super-Admin E2E**    | 105     | 9 files      | ✅ Active       |
+| **Web App E2E**        | 64      | 6 files      | ✅ Active       |
+| **Total Frontend E2E** | **169** | **15 files** | **✅ Complete** |
+
+### Running Automated E2E Tests
+
+**Run all E2E tests**:
+
+```bash
+cd apps/web
+pnpm test:e2e
+```
+
+**Run specific test file**:
+
+```bash
+pnpm test:e2e auth-flow.spec.ts
+```
+
+**Run with visual UI**:
+
+```bash
+pnpm test:e2e --ui
+```
+
+**Run in headed mode** (see browser):
+
+```bash
+pnpm test:e2e --headed
+```
+
+**Debug mode** (step through tests):
+
+```bash
+pnpm test:e2e --debug
+```
+
+**Generate HTML report**:
+
+```bash
+pnpm test:e2e --reporter=html
+open playwright-report/index.html
+```
+
+### Frontend E2E Test Files
+
+**Super-Admin App** (9 files, 105 tests):
+
+```
+apps/web/tests/e2e/super-admin/
+├── auth.spec.ts                  # Authentication flows
+├── tenant-management.spec.ts      # Tenant CRUD operations
+├── user-management.spec.ts        # User creation, roles, permissions
+├── plugin-management.spec.ts      # Plugin installation & configuration
+├── settings.spec.ts              # Global admin settings
+├── multi-tenancy.spec.ts         # Multi-tenant isolation & switching
+├── workspace-management.spec.ts  # Workspace administration
+├── dashboard.spec.ts             # Super-admin dashboard
+└── plugin-marketplace.spec.ts    # Plugin discovery & marketplace
+```
+
+**Web App** (6 files, 64 tests):
+
+```
+apps/web/tests/e2e/
+├── auth-flow.spec.ts             # User login/logout flows
+├── dashboard.spec.ts             # Dashboard and overview
+├── workspace-management.spec.ts  # Create/edit/delete workspaces
+├── navigation.spec.ts            # Navigation and routing
+├── settings.spec.ts              # User & workspace settings
+└── plugin-lifecycle.spec.ts      # Plugin install/activate/deactivate
+```
+
+### Backend E2E Integration Tests
+
+**Core API** (~160 integration tests):
+
+Backend integration tests verify API endpoints with database interactions:
+
+```bash
+cd apps/core-api
+pnpm test:integration
+```
+
+**Key integration test areas**:
+
+- Authentication flows (login, logout, token refresh)
+- Tenant operations (create, list, update, delete)
+- Workspace management (CRUD, member permissions)
+- Plugin lifecycle (install, activate, deactivate, uninstall)
+- Workspace settings and configuration
+- Team and member management
+- Multi-tenant isolation and data access control
+
+### CI/CD Integration
+
+All E2E tests run automatically on:
+
+- **Push to main**: All E2E tests must pass
+- **Pull requests**: E2E tests run in CI pipeline
+- **Pre-merge**: Full test suite verification
+
+Expected runtime: ~5 minutes for full E2E suite
+
+---
+
+## Manual E2E Testing
+
+For exploratory testing, edge cases, or browser-specific issues, follow the manual testing procedures below.
+
+**Estimated Time**: 45-60 minutes for complete manual testing  
 **Prerequisites**: Clean database state, all services running
 
 ---
 
 ## Table of Contents
 
-1. [Pre-Testing Setup](#pre-testing-setup)
-2. [Phase 1: Authentication & Tenant Setup](#phase-1-authentication--tenant-setup)
-3. [Phase 2: Workspace Creation & Management](#phase-2-workspace-creation--management)
-4. [Phase 3: Workspace Settings & Member Management](#phase-3-workspace-settings--member-management)
-5. [Phase 4: Team Management](#phase-4-team-management)
-6. [Phase 5: Workspace Deletion & Edge Cases](#phase-5-workspace-deletion--edge-cases)
-7. [Phase 6: RBAC & Security Testing](#phase-6-rbac--security-testing)
-8. [Phase 7: Cross-Browser & Responsive Testing](#phase-7-cross-browser--responsive-testing)
-9. [Phase 8: Performance & Error Handling](#phase-8-performance--error-handling)
-10. [Phase 9: Data Persistence & Cleanup](#phase-9-data-persistence--cleanup)
-
----
-
-## Pre-Testing Setup
+1. [Automated E2E Testing (Playwright)](#automated-e2e-testing-playwright)
+2. [Manual E2E Testing](#manual-e2e-testing)
+3. [Pre-Testing Setup](#pre-testing-setup)
 
 ### Step 1: Start Backend Server
 

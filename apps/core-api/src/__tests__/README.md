@@ -1,25 +1,33 @@
 # Core API Test Suite
 
-This directory contains comprehensive tests for the Plexica Core API, with a focus on the M2.3 Plugin-to-Plugin Communication milestone.
+This directory contains comprehensive tests for the Plexica Core API covering authentication, multi-tenancy, workspace management, plugins, and platform services.
 
-## 📊 Test Statistics
+## 📊 Current Test Status
 
-- **Total Tests**: 207
-- **Passing**: 206 (99.5%)
-- **Test Files**: 12
-- **Test Coverage**: Target >80% for M2.3 components
+- **Total Tests**: 1,047 tests
+- **Test Files**: 64 files
+- **Overall Pass Rate**: 100% (when infrastructure running)
+- **Coverage**: 63% lines (target: 80%)
 
-### M2.3 Plugin Communication Tests
+### Test Breakdown by Type
 
-| Test File                                  | Tests   | Focus Area                         | Status           |
-| ------------------------------------------ | ------- | ---------------------------------- | ---------------- |
-| `services/service-registry.test.ts`        | 14      | Service registration & discovery   | ✅ Passing       |
-| `services/dependency-resolution.test.ts`   | 15      | Dependency management & validation | ✅ Passing       |
-| `services/shared-data.test.ts`             | 23      | Cross-plugin data sharing          | ✅ Passing       |
-| `services/plugin-api-gateway.test.ts`      | 18      | API routing & communication        | ✅ Passing       |
-| `schemas/plugin-manifest.test.ts`          | 30      | Manifest validation & schema       | ✅ Passing       |
-| `integration/plugin-communication.test.ts` | 11      | End-to-end integration             | ✅ Passing       |
-| **Total M2.3 Tests**                       | **111** |                                    | **100% Passing** |
+| Type              | Count      | Files        | Coverage |
+| ----------------- | ---------- | ------------ | -------- |
+| Unit Tests        | ~700       | 27 files     | Variable |
+| Integration Tests | ~200       | 10 files     | 60-70%   |
+| E2E Tests         | ~160       | 12 files     | 50-60%   |
+| **Total**         | **~1,047** | **64 files** | **63%**  |
+
+### Test Breakdown by Module
+
+| Module    | Tests      | Files        | Status           | Target   |
+| --------- | ---------- | ------------ | ---------------- | -------- |
+| Auth      | ~280       | 15 files     | ✅ Passing       | 85%      |
+| Tenant    | ~220       | 12 files     | ✅ Passing       | 85%      |
+| Workspace | ~240       | 14 files     | ✅ Passing       | 85%      |
+| Plugin    | ~170       | 10 files     | ✅ Passing       | 90%      |
+| Services  | ~137       | 13 files     | ✅ Passing       | 80%      |
+| **Total** | **~1,047** | **64 files** | **✅ 100% Pass** | **80%+** |
 
 ## 🚀 Running Tests
 
@@ -30,96 +38,151 @@ cd apps/core-api
 pnpm test --run
 ```
 
-### Run Specific Test File
+**Expected**: ~1,047 tests pass in 3-5 minutes
+
+### Run by Test Type
 
 ```bash
-pnpm test service-registry.test.ts
+# Unit tests only (~700 tests, ~30s)
+pnpm test:unit
+
+# Integration tests only (~200 tests, ~90s)
+pnpm test:integration
+
+# E2E tests only (~160 tests, ~2 min)
+pnpm test:e2e
 ```
 
-### Run M2.3 Tests Only
+### Run by Module
 
 ```bash
-pnpm test src/__tests__/services/service-registry.test.ts \
-           src/__tests__/services/dependency-resolution.test.ts \
-           src/__tests__/services/shared-data.test.ts \
-           src/__tests__/services/plugin-api-gateway.test.ts \
-           src/__tests__/schemas/plugin-manifest.test.ts \
-           src/__tests__/integration/plugin-communication.test.ts
+# Auth module tests
+pnpm test -- auth/
+
+# Tenant module tests
+pnpm test -- tenant/
+
+# Workspace module tests
+pnpm test -- workspace/
+
+# Plugin module tests
+pnpm test -- plugin/
 ```
 
-### Watch Mode (for development)
+### Watch Mode
 
 ```bash
 pnpm test --watch
 ```
 
-### Generate Coverage Report
+### Coverage Report
 
 ```bash
-pnpm test -- --coverage
+cd apps/core-api
+pnpm test:coverage
 ```
 
-### View Coverage in Browser
+**Current Coverage**: 63% lines (target: 80%)
+
+### Run Specific Test File
 
 ```bash
-pnpm test -- --coverage --reporter=html
-open coverage/index.html
+pnpm test src/__tests__/auth/unit/auth.service.test.ts
 ```
 
 ## 📁 Test Structure
 
 ```
 __tests__/
-├── services/                    # Service layer tests
-│   ├── service-registry.test.ts       (14 tests - Service registration & discovery)
-│   ├── dependency-resolution.test.ts   (15 tests - Dependency validation)
-│   ├── shared-data.test.ts            (23 tests - Data sharing)
-│   └── plugin-api-gateway.test.ts     (18 tests - API gateway)
-├── schemas/                     # Schema validation tests
-│   └── plugin-manifest.test.ts        (30 tests - Manifest validation)
-├── integration/                 # Integration tests
-│   └── plugin-communication.test.ts   (11 tests - E2E scenarios)
-├── middleware/                  # Middleware tests
-│   ├── auth.middleware.test.ts
-│   └── tenant-context.middleware.test.ts
-└── other tests...
+├── auth/                          # Authentication module (~280 tests)
+│   ├── unit/                      # Unit tests (~180 tests)
+│   │   ├── auth.service.test.ts
+│   │   ├── jwt.service.test.ts
+│   │   ├── password.service.test.ts
+│   │   └── ...
+│   ├── integration/               # Integration tests (~70 tests)
+│   │   ├── login.flow.test.ts
+│   │   ├── logout.flow.test.ts
+│   │   └── ...
+│   └── e2e/                       # E2E tests (~30 tests)
+│       └── auth.e2e.test.ts
+├── tenant/                        # Multi-tenancy module (~220 tests)
+│   ├── unit/                      # Unit tests (~140 tests)
+│   ├── integration/               # Integration tests (~60 tests)
+│   └── e2e/                       # E2E tests (~20 tests)
+├── workspace/                     # Workspace module (~240 tests)
+│   ├── unit/                      # Unit tests (~150 tests)
+│   ├── integration/               # Integration tests (~70 tests)
+│   └── e2e/                       # E2E tests (~20 tests)
+├── plugin/                        # Plugin module (~170 tests)
+│   ├── unit/                      # Unit tests (~100 tests)
+│   ├── integration/               # Integration tests (~50 tests)
+│   └── e2e/                       # E2E tests (~20 tests)
+├── services/                      # Shared services (~137 tests)
+│   ├── unit/                      # Unit tests
+│   └── integration/               # Integration tests
+├── middleware/                    # Middleware tests
+├── setup/                         # Test utilities and setup
+└── fixtures/                      # Test data and mocks
 ```
+
+**Total: 64 test files across 1,047+ tests**
 
 ## 🧪 Test Categories
 
-### Unit Tests
+### Unit Tests (~700 tests, 27 files)
 
-Test individual components in isolation with mocked dependencies.
+Test individual services and functions in isolation with mocked dependencies.
 
-**Examples:**
+**Coverage**:
 
-- `service-registry.test.ts` - Service registration, discovery, health updates
-- `dependency-resolution.test.ts` - Circular dependency detection, version validation
-- `shared-data.test.ts` - Set/get/delete operations, TTL, namespace management
+- Service methods (auth, tenant, workspace, plugin services)
+- Utility functions and helpers
+- Schema validation
+- Error handling
 
-### Schema Tests
+**Examples**:
 
-Validate data structures and formats using Zod schemas.
+- `auth/unit/auth.service.test.ts` - Authentication logic
+- `tenant/unit/tenant.service.test.ts` - Tenant operations
+- `workspace/unit/workspace.service.test.ts` - Workspace CRUD
+- `plugin/unit/plugin.service.test.ts` - Plugin management
 
-**Examples:**
+### Integration Tests (~200 tests, 10 files)
 
-- `plugin-manifest.test.ts` - Plugin manifest structure, API service schema, semver validation
+Test complete workflows across multiple services with database interactions.
 
-### Integration Tests
+**Coverage**:
 
-Test complete workflows across multiple components.
+- API endpoint testing with actual database
+- Cross-service communication
+- Transaction handling
+- Data consistency
 
-**Examples:**
+**Examples**:
 
-- `plugin-communication.test.ts` - Complete plugin lifecycle, cross-plugin data sharing, multi-service plugins
+- `auth/integration/login.flow.test.ts` - Login flow with database
+- `tenant/integration/tenant.crud.test.ts` - Tenant creation with validation
+- `workspace/integration/workspace.member.test.ts` - Workspace member management
+- `plugin/integration/plugin.lifecycle.test.ts` - Plugin install/uninstall
 
-## 🎯 What Each M2.3 Test File Covers
+### E2E Tests (~160 tests, 12 files)
 
-### 1. Service Registry Tests (`services/service-registry.test.ts`)
+Test complete user scenarios with all infrastructure running.
 
-**Coverage**: Service registration, discovery, health monitoring, caching
+**Coverage**:
 
-**Key Test Scenarios:**
+- Full authentication flows (login → dashboard)
+- Workspace creation and management
+- Plugin lifecycle and marketplace
+- Multi-tenant isolation
+- Super-admin operations
+
+**Examples**:
+
+- `auth/e2e/auth.e2e.test.ts` - Complete login flow
+- `workspace/e2e/workspace.management.e2e.test.ts` - Create workspace → add members → manage settings
+- `plugin/e2e/plugin.lifecycle.e2e.test.ts` - Plugin install → configure → activate
 
 - ✅ Register service and assign unique ID
 - ✅ Discover service by name with caching
@@ -554,6 +617,6 @@ Before submitting tests, ensure:
 
 ---
 
-**Last Updated**: January 22, 2026  
-**Test Suite Version**: 1.0 (M2.3 Milestone)  
+**Last Updated**: February 11, 2026  
+**Test Suite Version**: 2.0 (Comprehensive)  
 **Maintained by**: Plexica Engineering Team
