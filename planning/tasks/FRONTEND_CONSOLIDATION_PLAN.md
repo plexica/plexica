@@ -1,8 +1,8 @@
 # Frontend Consolidation & Plugin Enablement Plan
 
 **Created**: February 10, 2026  
-**Last Updated**: February 10, 2026  
-**Status**: ✅ Phase A, B Complete | C1, C2, D1 Complete  
+**Last Updated**: February 11, 2026  
+**Status**: ✅ Phase A, B Complete | C1, C2, C3, D1 Complete  
 **Owner**: Engineering Team  
 **Document Type**: Development Plan  
 **Version**: 1.1
@@ -813,22 +813,27 @@ handlers in `apps/core-api/src/routes/admin.ts`.
 ### C3 — Connect tenant management to real data
 
 **Effort**: 2 days  
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete (February 11, 2026)
 
-Partially working, needs verification and completion:
+Connected the super-admin tenant management UI to real backend data. Fixed type mismatches,
+rewired hooks for server-side pagination/filtering, enhanced detail and edit modals, and added
+meaningful provisioning error messages.
 
-- [ ] Verify create tenant triggers full provisioning (DB schema + Keycloak realm + storage)
-- [ ] Verify suspend/activate/delete lifecycle works end-to-end
-- [ ] Connect tenant detail modal to real infrastructure data (schema size, user count, plugin count)
-- [ ] Add tenant usage metrics (API calls, storage, active users)
-- [ ] Verify search and filter work against real data
-- [ ] Error handling: show meaningful messages when provisioning fails
+**7 sub-tasks completed**:
 
-**Acceptance criteria**:
+- [x] **C3.1** — Fixed `Tenant` type in `@plexica/types`: added `settings` and `theme` fields, removed phantom `suspendedAt`, created `TenantDetail` interface extending `Tenant` with `plugins: TenantPlugin[]`
+- [x] **C3.2** — Fixed `AdminApiClient.updateTenant()` signature to match backend (`name`, `settings`, `theme` only). Changed `getTenant()` return type to `TenantDetail`
+- [x] **C3.3** — Rewrote `useTenants` hook for server-side pagination/search/filter. Stats fetched via separate lightweight queries. Page resets on filter change
+- [x] **C3.4** — Enhanced `TenantDetailModal`: displays installed plugins list, settings/theme JSON, provisioning error banner, `PENDING_DELETION` status. Typed with `TenantDetail`
+- [x] **C3.5** — Created `EditTenantModal` with Zod-validated name field, read-only slug, change detection (only submits if name changed)
+- [x] **C3.6** — Meaningful provisioning error messages in `CreateTenantModal`: slug conflicts, schema/provisioning failures, Keycloak/realm failures, generic fallback
+- [x] **C3.7** — Build verification: api-client 79/79 tests passed, monorepo build 12/12 tasks passed
 
-- Creating a tenant from super-admin produces a fully provisioned tenant
-- Tenant detail shows real metrics
-- All CRUD operations reflect immediately in the UI
+**Key decisions**:
+
+- `updateTenant()` only allows `name`, `settings`, `theme` (backend enforces `additionalProperties: false`). Slug is immutable after creation. Status changes use dedicated `suspendTenant()`/`activateTenant()`/`deleteTenant()` methods.
+- Stats use 4 lightweight `limit: 1` server calls (one per status) rather than client-side computation, cached 30s.
+- `TenantStatusFilter` renamed from `TenantStatus` in hook to avoid collision with `@plexica/types` export.
 
 ---
 

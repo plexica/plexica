@@ -3,31 +3,74 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { Tenant } from '@/types';
+import type { Tenant } from '@/types';
 
-export type TenantStatus = 'all' | 'ACTIVE' | 'SUSPENDED' | 'PROVISIONING';
+export type TenantStatusFilter = 'all' | 'ACTIVE' | 'SUSPENDED' | 'PROVISIONING';
+
+const DEFAULT_PAGE_SIZE = 20;
 
 export function useTenants() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<TenantStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<TenantStatusFilter>('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  // Fetch tenants
+  // Debounced search is handled via queryKey — React Query deduplicates rapid changes.
+  // For a better UX a debounce wrapper could be added later.
+
+  // Fetch tenants — delegates filtering, search, and pagination to the server
   const {
     data: tenantsData,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: () => apiClient.getTenants(),
+    queryKey: ['tenants', { search: searchQuery, status: statusFilter, page, limit: pageSize }],
+    queryFn: () =>
+      apiClient.getTenants({
+        search: searchQuery || undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        page,
+        limit: pageSize,
+      }),
   });
+
+  const tenants: Tenant[] = tenantsData?.data ?? [];
+  const pagination = tenantsData?.pagination ?? {
+    page: 1,
+    limit: pageSize,
+    total: 0,
+    totalPages: 1,
+  };
+
+  // Fetch stats separately (a single lightweight request with no pagination)
+  const { data: statsData } = useQuery({
+    queryKey: ['tenants-stats'],
+    queryFn: async () => {
+      // Fetch minimal data to compute aggregate stats
+      const all = await apiClient.getTenants({ limit: 1 });
+      const active = await apiClient.getTenants({ status: 'ACTIVE', limit: 1 });
+      const suspended = await apiClient.getTenants({ status: 'SUSPENDED', limit: 1 });
+      const provisioning = await apiClient.getTenants({ status: 'PROVISIONING', limit: 1 });
+      return {
+        total: all.pagination.total,
+        active: active.pagination.total,
+        suspended: suspended.pagination.total,
+        provisioning: provisioning.pagination.total,
+      };
+    },
+    staleTime: 30_000, // Cache stats for 30s to avoid excessive requests
+  });
+
+  const stats = statsData ?? { total: 0, active: 0, suspended: 0, provisioning: 0 };
 
   // Suspend tenant mutation
   const suspendMutation = useMutation({
     mutationFn: (tenantId: string) => apiClient.suspendTenant(tenantId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
     },
   });
 
@@ -36,52 +79,45 @@ export function useTenants() {
     mutationFn: (tenantId: string) => apiClient.activateTenant(tenantId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
     },
   });
-
-  const allTenants: Tenant[] = tenantsData?.data || [];
-
-  // Filter tenants based on search and status
-  const filteredTenants = allTenants.filter((tenant) => {
-    const matchesSearch =
-      tenant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tenant.slug.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || tenant.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  // Statistics
-  const stats = {
-    total: allTenants.length,
-    active: allTenants.filter((t) => t.status === 'ACTIVE').length,
-    suspended: allTenants.filter((t) => t.status === 'SUSPENDED').length,
-    provisioning: allTenants.filter((t) => t.status === 'PROVISIONING').length,
-  };
 
   const clearFilters = () => {
     setSearchQuery('');
     setStatusFilter('all');
+    setPage(1);
   };
 
   const hasActiveFilters = searchQuery !== '' || statusFilter !== 'all';
 
   return {
     // Data
-    tenants: filteredTenants,
-    allTenants,
+    tenants,
+    pagination,
     stats,
     isLoading,
     error,
 
     // Filters
     searchQuery,
-    setSearchQuery,
+    setSearchQuery: (q: string) => {
+      setSearchQuery(q);
+      setPage(1); // Reset to first page on search change
+    },
     statusFilter,
-    setStatusFilter,
+    setStatusFilter: (s: TenantStatusFilter) => {
+      setStatusFilter(s);
+      setPage(1); // Reset to first page on filter change
+    },
     clearFilters,
     hasActiveFilters,
+
+    // Pagination
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
 
     // Mutations
     suspendTenant: suspendMutation.mutate,

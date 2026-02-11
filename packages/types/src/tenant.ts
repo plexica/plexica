@@ -23,9 +23,18 @@ export interface Tenant {
   name: string;
   slug: string;
   status: TenantStatus;
+  settings: Record<string, unknown>;
+  theme: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
-  suspendedAt?: string;
+}
+
+/**
+ * Tenant with resolved plugin relations.
+ * Returned by GET /admin/tenants/:id which includes the `plugins` join.
+ */
+export interface TenantDetail extends Tenant {
+  plugins: import('./plugin.js').TenantPlugin[];
 }
 
 /**

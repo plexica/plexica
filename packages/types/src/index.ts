@@ -8,7 +8,7 @@
  */
 
 // Tenant
-export type { Tenant, TenantStatus, TenantContext } from './tenant.js';
+export type { Tenant, TenantDetail, TenantStatus, TenantContext } from './tenant.js';
 export { TENANT_STATUSES } from './tenant.js';
 
 // User

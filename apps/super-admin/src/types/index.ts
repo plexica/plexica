@@ -4,7 +4,7 @@
 // Aliases preserve the names that super-admin consumers already use.
 
 // Tenant — status is now UPPERCASE ('ACTIVE' | 'PROVISIONING' | 'SUSPENDED' | …)
-export type { Tenant, TenantStatus } from '@plexica/types';
+export type { Tenant, TenantDetail, TenantStatus } from '@plexica/types';
 
 // Plugin — PluginDetail has all marketplace fields the super-admin needs.
 // Aliased as "Plugin" so every existing `import { Plugin } from '@/types'` keeps working.

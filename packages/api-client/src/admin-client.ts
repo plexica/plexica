@@ -12,6 +12,7 @@ import { HttpClient } from './client.js';
 import type { AdminClientConfig, PaginatedResponse } from './types.js';
 import type {
   Tenant,
+  TenantDetail,
   AdminUser,
   PluginEntity,
   PluginDetail,
@@ -44,14 +45,21 @@ export class AdminApiClient extends HttpClient {
   }
 
   async getTenant(id: string) {
-    return this.get<Tenant>(`/api/admin/tenants/${id}`);
+    return this.get<TenantDetail>(`/api/admin/tenants/${id}`);
   }
 
   async createTenant(data: { name: string; slug: string }) {
     return this.post<Tenant>('/api/admin/tenants', data);
   }
 
-  async updateTenant(id: string, data: Partial<{ name: string; slug: string; status: string }>) {
+  async updateTenant(
+    id: string,
+    data: Partial<{
+      name: string;
+      settings: Record<string, unknown>;
+      theme: Record<string, unknown>;
+    }>
+  ) {
     return this.patch<Tenant>(`/api/admin/tenants/${id}`, data);
   }
 

@@ -54,7 +54,21 @@ export function CreateTenantModal({ onClose, onSuccess }: CreateTenantModalProps
       onSuccess();
     },
     onError: (error: Error) => {
-      setErrors({ name: `Failed to create tenant: ${error.message}` });
+      // Surface provisioning-specific errors with context
+      const message = error.message || 'Unknown error';
+      if (message.includes('slug') || message.includes('already exists')) {
+        setErrors({ slug: `Tenant with this slug already exists` });
+      } else if (message.includes('provision') || message.includes('schema')) {
+        setErrors({
+          name: `Provisioning failed: ${message}. The tenant may have been partially created.`,
+        });
+      } else if (message.includes('Keycloak') || message.includes('realm')) {
+        setErrors({
+          name: `Authentication setup failed: ${message}. Please check Keycloak availability.`,
+        });
+      } else {
+        setErrors({ name: `Failed to create tenant: ${message}` });
+      }
     },
   });
 
