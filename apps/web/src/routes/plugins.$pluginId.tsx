@@ -1,8 +1,8 @@
-// apps/web/src/routes/plugins_.$pluginId.tsx
+// apps/web/src/routes/plugins.$pluginId.tsx
 //
 // Dynamic catch-all route for rendering plugin pages.
-// Uses TanStack Router flat-route convention (plugins_.$pluginId)
-// to create /plugins/$pluginId without nesting under plugins.tsx layout.
+// Uses TanStack Router flat-route convention (plugins.$pluginId)
+// to create /plugins/$pluginId.
 //
 // Flow:
 // 1. Extract pluginId from URL params

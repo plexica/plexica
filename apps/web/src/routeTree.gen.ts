@@ -13,7 +13,7 @@ import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settin
 import { Route as TeamRouteImport } from './routes/team';
 import { Route as SettingsRouteImport } from './routes/settings';
 import { Route as PluginsRouteImport } from './routes/plugins';
-import { Route as PluginsPluginIdRouteImport } from './routes/plugins_.$pluginId';
+import { Route as PluginsPluginIdRouteImport } from './routes/plugins.$pluginId';
 import { Route as MembersManagementRouteImport } from './routes/members-management';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as ActivityLogRouteImport } from './routes/activity-log';

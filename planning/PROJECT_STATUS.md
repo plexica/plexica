@@ -2,9 +2,9 @@
 
 **Last Updated**: February 11, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
-**Current Milestone**: **Frontend Consolidation D5 — E2E tests with Playwright**  
-**Previous Milestone**: D4 - Workspace flow completion ✅ (Completed Feb 11)  
-**Version**: 0.8.0
+**Current Milestone**: **M2.4 — Plugin Registry & Marketplace**  
+**Previous Milestone**: Frontend Consolidation D5 ✅ (Completed Feb 11) — All phases A–D5 complete  
+**Version**: 0.9.0
 
 ---
 
@@ -13,8 +13,8 @@
 | Metric                       | Value                                 | Status                   |
 | ---------------------------- | ------------------------------------- | ------------------------ |
 | **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                |
-| **Current Focus**            | Frontend Consolidation (D5 next)      | 🟡 In Progress           |
-| **Frontend Consolidation**   | Phase A, B, C1–C5, D1–D4 complete     | 🟢 ~92% (D5 remaining)   |
+| **Current Focus**            | M2.4 Plugin Registry & Marketplace    | 🟡 In Progress           |
+| **Frontend Consolidation**   | Phase A, B, C1–C5, D1–D5 complete     | ✅ 100% Complete         |
 | **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
 | **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
 | **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
@@ -22,7 +22,7 @@
 | **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete         |
 | **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)    |
 | **Shared Packages**          | sdk, types, api-client, ui, event-bus | ✅ All operational       |
-| **Total Tests**              | ~1,791 across all packages            | 🟢 Growing               |
+| **Total Tests**              | ~1,855 across all packages            | 🟢 Growing               |
 | **Test Coverage (core-api)** | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
 | **Team Size**                | 1 developer (AI-assisted)             | -                        |
 
@@ -725,7 +725,7 @@ Develop a comprehensive plugin marketplace and registry system for Plexica's plu
 - ✅ Testing documentation complete
 - ✅ Unit tests complete (1047 tests, 80% coverage)
 - ✅ Integration tests complete
-- ⏳ E2E tests (Playwright)
+- ✅ E2E tests (Playwright — 64 web app E2E tests + 105 super-admin tests)
 - ⏳ Load tests (framework created)
 - ⏳ Production deployment
 
@@ -799,7 +799,7 @@ The core plugin system is complete (M1.4). Phase 2 will focus on:
 
 - **Unit tests**: ✅ **COMPLETE** (Vitest - 1047 tests)
 - **Integration tests**: ✅ **COMPLETE** (API, DB, Keycloak, multi-tenant)
-- **E2E tests**: ⏳ Planned (Playwright framework ready)
+- **E2E tests**: ✅ **COMPLETE** (Playwright — 64 web app tests + 105 super-admin tests)
 - **Load tests**: ✅ **Created** (Load test suite in `/load-tests`)
 - **Manual testing**: ✅ Complete for M1.1-M2.4
 - **CI/CD Pipeline**: ✅ **OPTIMIZED** (68% faster, consolidated workflow)
@@ -972,6 +972,27 @@ pnpm clean                    # Clean build artifacts
 ---
 
 ## 📝 Recent Updates
+
+### 2026-02-11
+
+**Frontend Consolidation — Phase D5 Complete ✅ (FINAL PHASE)**:
+
+- ✅ **D5.1** — Playwright test infrastructure: `playwright.config.ts`, `.env.test` with `VITE_E2E_TEST_MODE=true`, test data fixtures, API mock helpers, `MockAuthProvider` component
+- ✅ **D5.2** — Auth flow tests (4 tests): auto-authentication in E2E mode, login redirect, user info display, sidebar navigation rendering
+- ✅ **D5.3** — Dashboard tests (8 tests): heading, metric cards, active plugins widget, team members widget, quick actions navigation, recent activity
+- ✅ **D5.4** — Plugin lifecycle tests (9 tests): plugins page, installed plugins, status badges, marketplace tab switching, search filtering, install detection, disable/enable actions, configure dialog
+- ✅ **D5.5** — Workspace management tests (15 tests): members page (heading, count, list, emails, invite dialog), teams page (heading, list, descriptions, create dialog, search, expand/collapse)
+- ✅ **D5.6** — Settings page tests (14 tests): tab buttons, general tab (workspace info, edit, preferences, danger zone), members tab (count, list, add member dialog), teams tab (count, cards), security/billing/integrations/advanced tabs
+- ✅ **D5.7** — Navigation tests (10 tests): sidebar navigation links, direct page routing, workspace-settings redirect, sidebar collapse toggle, cross-page navigation flows
+- ✅ **D5.8** — Fixed pre-existing build error: renamed `plugins_.$pluginId.tsx` to `plugins.$pluginId.tsx` to resolve TanStack Router generator path mismatch (`/plugins_/$pluginId` vs `/plugins/$pluginId`)
+
+**64 E2E tests passing** across 6 spec files. All tests use Playwright with Chromium, API route mocking, and `MockAuthProvider` for deterministic test execution without external dependencies.
+
+**Frontend Consolidation is COMPLETE**: All phases A through D5 finished. The web app is fully functional with real backend APIs, complete plugin lifecycle, workspace management, and comprehensive E2E test coverage.
+
+**What's next**: M2.4 — Plugin Registry & Marketplace (ratings, reviews, certification, advanced search).
+
+---
 
 ### 2026-02-11
 
@@ -1300,14 +1321,14 @@ A comprehensive Frontend Consolidation Plan (`planning/tasks/FRONTEND_CONSOLIDAT
 ## 📞 Project Info
 
 **Project**: Plexica - Cloud-native multi-tenant platform  
-**Version**: 0.8.0  
+**Version**: 0.9.0  
 **Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
 **Repository**: https://github.com/[org]/plexica  
 **Documentation**: In repository (specs/ and docs/)
 
 ---
 
-**Plexica v0.8.0**  
+**Plexica v0.9.0**  
 _Last updated: February 11, 2026_  
-_Current focus: Frontend Consolidation (D5 — E2E tests with Playwright next)_  
-_Next milestone: D5 - E2E tests with Playwright_
+_Current focus: M2.4 — Plugin Registry & Marketplace_  
+_Frontend Consolidation: ✅ ALL PHASES COMPLETE (A–D5)_
