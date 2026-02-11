@@ -35,10 +35,11 @@ export interface TenantClientConfig extends HttpClientConfig {
 
 /**
  * Configuration for the admin client.
+ * Extends HttpClientConfig but adds no additional properties.
+ * Admin client has no tenant/workspace scope.
  */
-export interface AdminClientConfig extends HttpClientConfig {
-  // Admin client has no tenant/workspace scope
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface AdminClientConfig extends HttpClientConfig {}
 
 // ---------------------------------------------------------------------------
 // Auth provider

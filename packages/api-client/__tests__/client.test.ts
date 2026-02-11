@@ -1,7 +1,6 @@
 // File: packages/api-client/__tests__/client.test.ts
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { InternalAxiosRequestConfig } from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import { HttpClient } from '../src/client.js';
 import { ApiError } from '../src/types.js';
