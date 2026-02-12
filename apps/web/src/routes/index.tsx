@@ -5,8 +5,10 @@ import { useNavigate } from '@tanstack/react-router';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
 import { useAuthStore } from '../stores/auth-store';
+import { useWorkspace } from '../contexts/WorkspaceContext';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
+import type { TenantPlugin } from '@plexica/types';
 import { Card, CardContent } from '@plexica/ui';
 import { Button } from '@plexica/ui';
 import { Badge } from '@plexica/ui';
@@ -18,30 +20,58 @@ export const Route = createFileRoute('/')({
 
 function Index() {
   const { tenant } = useAuthStore();
+  const { currentWorkspace } = useWorkspace();
   const navigate = useNavigate();
 
+  const workspaceId = currentWorkspace?.id;
+
   // Fetch tenant plugins
-  const { data: pluginsData, isLoading } = useQuery({
+  const { data: pluginsData, isLoading: pluginsLoading } = useQuery({
     queryKey: ['tenant-plugins', tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return { plugins: [] };
+      if (!tenant?.id) return [] as TenantPlugin[];
       return await apiClient.getTenantPlugins(tenant.id);
     },
     enabled: !!tenant?.id,
   });
 
-  const installedPlugins = pluginsData?.plugins || [];
-  const activePlugins = installedPlugins.filter((p: any) => p.status === 'active');
+  // Fetch workspace members
+  const { data: membersData, isLoading: membersLoading } = useQuery({
+    queryKey: ['workspace-members', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      return await apiClient.getWorkspaceMembers(workspaceId);
+    },
+    enabled: !!workspaceId,
+  });
+
+  // Fetch workspace teams
+  const { data: teamsData, isLoading: teamsLoading } = useQuery({
+    queryKey: ['workspace-teams', workspaceId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      return await apiClient.getWorkspaceTeams(workspaceId);
+    },
+    enabled: !!workspaceId,
+  });
+
+  const installedPlugins = pluginsData ?? [];
+  const activePlugins = installedPlugins.filter((p) => p.status === 'ACTIVE');
+  const members = membersData ?? [];
+  const teams = teamsData ?? [];
+  const isLoading = pluginsLoading || membersLoading || teamsLoading;
 
   return (
     <ProtectedRoute>
       <AppLayout>
         {/* Dashboard Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <Button variant="outline" size="sm">
-            Customize ⚙️
-          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            {currentWorkspace && (
+              <p className="text-sm text-muted-foreground mt-1">{currentWorkspace.name}</p>
+            )}
+          </div>
         </div>
 
         {/* Metrics Row - Top level stats */}
@@ -61,52 +91,144 @@ function Index() {
                 icon="🧩"
                 subtitle={`${installedPlugins.length} installed`}
               />
-              <MetricCard title="Team Members" value="12" icon="👥" subtitle="3 active today" />
               <MetricCard
-                title="Workspace Storage"
-                value="2.4 GB"
-                icon="💾"
-                subtitle="24% of 10 GB"
+                title="Team Members"
+                value={members.length}
+                icon="👥"
+                subtitle={`in ${currentWorkspace?.name || 'workspace'}`}
               />
-              <MetricCard title="Recent Activity" value="47" icon="📊" subtitle="Last 7 days" />
+              <MetricCard
+                title="Teams"
+                value={teams.length}
+                icon="👥"
+                subtitle={`in ${currentWorkspace?.name || 'workspace'}`}
+              />
+              <MetricCard
+                title="Workspaces"
+                value={tenant ? 1 : 0}
+                icon="🏢"
+                subtitle={tenant?.name || 'No tenant'}
+              />
             </>
           )}
         </div>
 
-        {/* Widget Grid - Plugin-contributed widgets */}
+        {/* Widget Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Widget: My Contacts (simulated CRM plugin widget) */}
-          <WidgetCard title="My Contacts" subtitle="CRM" icon="👥" isEmpty={false}>
-            <div className="space-y-3">
-              <ContactItem name="Alice Johnson" company="Acme Corp" status="active" />
-              <ContactItem name="Bob Smith" company="Tech Inc" status="active" />
-              <ContactItem name="Carol Davis" company="StartupXYZ" status="inactive" />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-4"
-              onClick={() => navigate({ to: '/plugins' })}
-            >
-              View All Contacts
-            </Button>
-          </WidgetCard>
+          {/* Widget: Plugin Widgets Area */}
+          {activePlugins.length > 0 ? (
+            <WidgetCard title="Active Plugins" subtitle="Installed" icon="🧩" isEmpty={false}>
+              <div className="space-y-3">
+                {activePlugins.slice(0, 4).map((plugin) => (
+                  <div
+                    key={plugin.id}
+                    className="flex items-center justify-between p-2 hover:bg-background-secondary rounded"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        <span className="text-sm">🧩</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {plugin.plugin?.name || plugin.pluginId}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          v{plugin.plugin?.version || '1.0.0'}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="default" className="text-xs">
+                      Active
+                    </Badge>
+                  </div>
+                ))}
+                {activePlugins.length > 4 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    +{activePlugins.length - 4} more
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-4"
+                onClick={() => navigate({ to: '/plugins' })}
+              >
+                Manage Plugins
+              </Button>
+            </WidgetCard>
+          ) : (
+            <WidgetCard title="Plugins" subtitle="Get started" icon="🧩" isEmpty={false}>
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  No plugins installed yet. Browse the marketplace to extend your workspace.
+                </p>
+                <Button size="sm" onClick={() => navigate({ to: '/plugins' })}>
+                  Browse Plugins
+                </Button>
+              </div>
+            </WidgetCard>
+          )}
 
-          {/* Widget: Recent Invoices (simulated Billing plugin widget) */}
-          <WidgetCard title="Recent Invoices" subtitle="Billing" icon="💰" isEmpty={false}>
-            <div className="space-y-3">
-              <InvoiceItem number="#INV-1234" amount="$1,250" status="paid" date="2 days ago" />
-              <InvoiceItem number="#INV-1233" amount="$850" status="pending" date="5 days ago" />
-              <InvoiceItem number="#INV-1232" amount="$2,100" status="paid" date="1 week ago" />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-4"
-              onClick={() => navigate({ to: '/plugins' })}
-            >
-              View All Invoices
-            </Button>
+          {/* Widget: Team Overview */}
+          <WidgetCard
+            title="Team Members"
+            subtitle={currentWorkspace?.name || 'Workspace'}
+            icon="👥"
+            isEmpty={members.length === 0}
+          >
+            {members.length > 0 ? (
+              <>
+                <div className="space-y-3">
+                  {members.slice(0, 4).map((member) => (
+                    <div
+                      key={member.userId}
+                      className="flex items-center justify-between p-2 hover:bg-background-secondary rounded"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                          <span className="text-sm">
+                            {member.user?.firstName?.[0]?.toUpperCase() ||
+                              member.user?.email?.[0]?.toUpperCase() ||
+                              '?'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {member.user?.firstName
+                              ? `${member.user.firstName} ${member.user.lastName || ''}`
+                              : member.user?.email || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{member.role}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {members.length > 4 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      +{members.length - 4} more
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-4"
+                  onClick={() => navigate({ to: '/settings' })}
+                >
+                  Manage Members
+                </Button>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  No members in this workspace yet.
+                </p>
+                <Button size="sm" onClick={() => navigate({ to: '/settings' })}>
+                  Add Members
+                </Button>
+              </div>
+            )}
           </WidgetCard>
 
           {/* Widget: Quick Actions */}
@@ -130,7 +252,7 @@ function Index() {
               <QuickActionButton
                 label="Workspace Settings"
                 icon="⚙️"
-                onClick={() => navigate({ to: '/workspace-settings' })}
+                onClick={() => navigate({ to: '/settings' })}
               />
               <QuickActionButton
                 label="View Activity"
@@ -141,55 +263,22 @@ function Index() {
           </WidgetCard>
         </div>
 
-        {/* Recent Activity - Workspace scoped */}
+        {/* Recent Activity - Empty state (no backend endpoint yet) */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-foreground">
-                Recent Activity ({tenant?.name || 'Workspace'})
-              </h2>
+              <h2 className="text-xl font-semibold text-foreground">Recent Activity</h2>
               <Badge variant="secondary" className="text-xs">
-                Last 24 hours
+                {currentWorkspace?.name || 'Workspace'}
               </Badge>
             </div>
-            <div className="space-y-4">
-              <ActivityItem
-                icon="🔧"
-                title="Plugin activated"
-                description="CRM plugin enabled by Admin"
-                time="2 hours ago"
-                workspace={tenant?.name}
-              />
-              <ActivityItem
-                icon="👤"
-                title="Team member added"
-                description="Alice Johnson invited to workspace"
-                time="5 hours ago"
-                workspace={tenant?.name}
-              />
-              <ActivityItem
-                icon="💾"
-                title="Data exported"
-                description="Contact list exported by Bob Smith"
-                time="1 day ago"
-                workspace={tenant?.name}
-              />
-              <ActivityItem
-                icon="⚙️"
-                title="Settings updated"
-                description="Workspace preferences changed"
-                time="2 days ago"
-                workspace={tenant?.name}
-              />
+            <div className="text-center py-8">
+              <div className="text-4xl mb-3">📋</div>
+              <p className="text-sm text-muted-foreground mb-1">Activity tracking coming soon</p>
+              <p className="text-xs text-muted-foreground">
+                Workspace events and changes will appear here automatically.
+              </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full mt-4"
-              onClick={() => navigate({ to: '/activity-log' })}
-            >
-              View Full Activity Log →
-            </Button>
           </CardContent>
         </Card>
       </AppLayout>
@@ -263,62 +352,6 @@ function WidgetCard({
   );
 }
 
-// Contact Item - for CRM widget
-function ContactItem({
-  name,
-  company,
-  status,
-}: {
-  name: string;
-  company: string;
-  status: 'active' | 'inactive';
-}) {
-  return (
-    <div className="flex items-center justify-between p-2 hover:bg-background-secondary rounded">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-          <span className="text-sm">👤</span>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">{name}</p>
-          <p className="text-xs text-muted-foreground">{company}</p>
-        </div>
-      </div>
-      <Badge variant={status === 'active' ? 'default' : 'secondary'} className="text-xs">
-        {status}
-      </Badge>
-    </div>
-  );
-}
-
-// Invoice Item - for Billing widget
-function InvoiceItem({
-  number,
-  amount,
-  status,
-  date,
-}: {
-  number: string;
-  amount: string;
-  status: 'paid' | 'pending';
-  date: string;
-}) {
-  return (
-    <div className="flex items-center justify-between p-2 hover:bg-background-secondary rounded">
-      <div>
-        <p className="text-sm font-medium text-foreground">{number}</p>
-        <p className="text-xs text-muted-foreground">{date}</p>
-      </div>
-      <div className="text-right">
-        <p className="text-sm font-bold text-foreground">{amount}</p>
-        <Badge variant={status === 'paid' ? 'default' : 'secondary'} className="text-xs">
-          {status}
-        </Badge>
-      </div>
-    </div>
-  );
-}
-
 // Quick Action Button - for quick actions widget
 function QuickActionButton({
   label,
@@ -337,40 +370,5 @@ function QuickActionButton({
       <span className="text-lg">{icon}</span>
       <span className="text-sm font-medium text-foreground">{label}</span>
     </button>
-  );
-}
-
-// Activity Item - for activity feed
-function ActivityItem({
-  icon,
-  title,
-  description,
-  time,
-  workspace,
-}: {
-  icon: string;
-  title: string;
-  description: string;
-  time: string;
-  workspace?: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 pb-4 border-b border-border last:border-0 last:pb-0">
-      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-        <span className="text-xl">{icon}</span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        {workspace && (
-          <p className="text-xs text-muted-foreground mt-1">
-            <Badge variant="secondary" className="text-xs">
-              {workspace}
-            </Badge>
-          </p>
-        )}
-      </div>
-      <span className="text-xs text-muted-foreground flex-shrink-0">{time}</span>
-    </div>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { LogOut, Settings, Menu, Search, Bell, Activity } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -12,14 +13,13 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Get user from localStorage (temporary, will be replaced with auth store)
-  const userEmail = localStorage.getItem('super-admin-email') || 'admin@plexica.com';
-  const userName = 'Super Admin';
+  // Get user from auth context (Keycloak SSO or MockAuth for E2E tests)
+  const { user, logout } = useAuth();
+  const userEmail = user?.email || 'admin@plexica.com';
+  const userName = user?.name || 'Super Admin';
 
   const handleLogout = () => {
-    localStorage.removeItem('super-admin-auth');
-    localStorage.removeItem('super-admin-email');
-    window.location.href = '/login';
+    logout();
   };
 
   // User initials for avatar

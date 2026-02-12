@@ -1,12 +1,27 @@
 // File: apps/plugin-analytics/src/components/ReportsPage.tsx
 
 import React, { useState } from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
+import type { ColumnDef } from '@plexica/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  DataTable,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Separator,
+  StatCard,
+} from '@plexica/ui';
+import { BarChart3, Calendar, Download, FileText, Plus, Target, Users } from 'lucide-react';
 
 interface Report {
   id: number;
@@ -16,6 +31,12 @@ interface Report {
   status: 'completed' | 'running' | 'failed';
   size: string;
 }
+
+const STATUS_VARIANT: Record<Report['status'], 'success' | 'default' | 'danger'> = {
+  completed: 'success',
+  running: 'default',
+  failed: 'danger',
+};
 
 /**
  * Reports Page - Generate and manage analytics reports
@@ -68,183 +89,208 @@ const ReportsPage: React.FC<PluginProps> = ({ tenantId }) => {
     {
       name: 'Revenue Analysis',
       description: 'Comprehensive revenue breakdown and trends',
-      icon: '💰',
+      icon: <BarChart3 className="h-6 w-6 text-muted-foreground" />,
     },
-    { name: 'User Insights', description: 'User behavior and engagement analytics', icon: '👥' },
+    {
+      name: 'User Insights',
+      description: 'User behavior and engagement analytics',
+      icon: <Users className="h-6 w-6 text-muted-foreground" />,
+    },
     {
       name: 'Conversion Funnel',
       description: 'Track user journey and conversion rates',
-      icon: '🎯',
+      icon: <Target className="h-6 w-6 text-muted-foreground" />,
     },
-    { name: 'Custom Report', description: 'Build a custom report with your metrics', icon: '📊' },
+    {
+      name: 'Custom Report',
+      description: 'Build a custom report with your metrics',
+      icon: <FileText className="h-6 w-6 text-muted-foreground" />,
+    },
   ];
 
-  const getStatusColor = (status: Report['status']) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'running':
-        return 'bg-blue-100 text-blue-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-    }
-  };
+  const columns: ColumnDef<Report, unknown>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Report Name',
+      cell: ({ row }) => <span className="font-medium">{row.getValue<string>('name')}</span>,
+    },
+    {
+      accessorKey: 'type',
+      header: 'Type',
+      cell: ({ row }) => <Badge variant="outline">{row.getValue<string>('type')}</Badge>,
+    },
+    {
+      accessorKey: 'lastRun',
+      header: 'Last Run',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.getValue<string>('lastRun')}</span>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.getValue<Report['status']>('status');
+        return (
+          <Badge variant={STATUS_VARIANT[status]}>
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'size',
+      header: 'Size',
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.getValue<string>('size')}</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: () => (
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm">
+            View
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Download className="mr-1 h-3.5 w-3.5" />
+            Download
+          </Button>
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-600 mt-1">Generate, schedule, and export analytics reports</p>
+    <div className="space-y-6 p-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Reports</h1>
+        <p className="text-sm text-muted-foreground">
+          Generate, schedule, and export analytics reports
+        </p>
       </div>
 
       {/* Report Templates */}
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Create New Report</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div>
+        <h2 className="mb-4 text-lg font-semibold text-foreground">Create New Report</h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {reportTemplates.map((template) => (
-            <button
+            <Card
               key={template.name}
-              className="bg-white p-4 rounded-lg shadow border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+              className="cursor-pointer transition-all hover:border-primary hover:shadow-md"
             >
-              <div className="text-3xl mb-2">{template.icon}</div>
-              <h3 className="font-semibold text-gray-900 mb-1">{template.name}</h3>
-              <p className="text-sm text-gray-600">{template.description}</p>
-            </button>
+              <CardContent className="p-4">
+                <div className="mb-2">{template.icon}</div>
+                <h3 className="mb-1 font-semibold text-foreground">{template.name}</h3>
+                <p className="text-sm text-muted-foreground">{template.description}</p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Total Reports</p>
-          <p className="text-2xl font-bold text-gray-900">{reports.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Reports This Month</p>
-          <p className="text-2xl font-bold text-gray-900">24</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <p className="text-sm text-gray-600">Scheduled Reports</p>
-          <p className="text-2xl font-bold text-gray-900">8</p>
-        </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <StatCard
+          label="Total Reports"
+          value={reports.length}
+          icon={<FileText className="h-5 w-5" />}
+        />
+        <StatCard label="Reports This Month" value={24} icon={<Calendar className="h-5 w-5" />} />
+        <StatCard label="Scheduled Reports" value={8} />
       </div>
 
-      {/* Recent Reports */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Reports</h2>
-            <div className="flex gap-2">
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                Filter
-              </button>
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                Sort
-              </button>
+      {/* Recent Reports Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Reports</CardTitle>
+          <CardDescription>View, download, and manage your generated reports</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            columns={columns}
+            data={reports}
+            enableSorting
+            enableGlobalFilter
+            enablePagination
+            pageSize={10}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Export Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Export Settings</CardTitle>
+          <CardDescription>Configure and generate a new report</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Export Format</Label>
+              <Select defaultValue="pdf">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pdf">PDF</SelectItem>
+                  <SelectItem value="xlsx">Excel (XLSX)</SelectItem>
+                  <SelectItem value="csv">CSV</SelectItem>
+                  <SelectItem value="json">JSON</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Date Range</Label>
+              <Select defaultValue="30days">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7days">Last 7 days</SelectItem>
+                  <SelectItem value="30days">Last 30 days</SelectItem>
+                  <SelectItem value="90days">Last 90 days</SelectItem>
+                  <SelectItem value="custom">Custom range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Schedule</Label>
+              <Select defaultValue="once">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="once">One-time</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
-
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Report Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Type
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Run
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Size
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {reports.map((report) => (
-              <tr key={report.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="text-sm font-medium text-gray-900">{report.name}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{report.type}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-600">{report.lastRun}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                      report.status
-                    )}`}
-                  >
-                    {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{report.size}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button className="text-blue-600 hover:text-blue-900 mr-3">View</button>
-                  <button className="text-blue-600 hover:text-blue-900 mr-3">Download</button>
-                  <button className="text-gray-600 hover:text-gray-900">Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Export Options */}
-      <div className="mt-8 bg-white p-6 rounded-lg shadow border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Settings</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Export Format</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <option>PDF</option>
-              <option>Excel (XLSX)</option>
-              <option>CSV</option>
-              <option>JSON</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <option>Last 7 days</option>
-              <option>Last 30 days</option>
-              <option>Last 90 days</option>
-              <option>Custom range</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Schedule</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-              <option>One-time</option>
-              <option>Daily</option>
-              <option>Weekly</option>
-              <option>Monthly</option>
-            </select>
-          </div>
-        </div>
-        <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-          Generate Report
-        </button>
-      </div>
+          <Separator className="my-4" />
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Generate Report
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Context Info */}
-      <div className="mt-8 p-4 bg-gray-100 rounded text-xs text-gray-600">
-        <strong>Plugin Context:</strong> Tenant: {tenantId} | Showing {reports.length} reports
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-3">
+            <Badge variant="outline">Tenant: {tenantId}</Badge>
+            <Badge variant="outline">Showing {reports.length} reports</Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

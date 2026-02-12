@@ -27,9 +27,11 @@ const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
           className
         )}
       >
-        {icon && <div className="mb-4 text-text-secondary opacity-50">{icon}</div>}
-        <h3 className="text-lg font-semibold text-text-primary mb-2">{title}</h3>
-        {description && <p className="text-sm text-text-secondary mb-6 max-w-sm">{description}</p>}
+        {icon && <div className="mb-4 text-muted-foreground opacity-50">{icon}</div>}
+        <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
+        {description && (
+          <p className="text-sm text-muted-foreground mb-6 max-w-sm">{description}</p>
+        )}
         {action && (
           <div className="flex flex-col items-center gap-2">
             <Button onClick={action.onClick}>{action.label}</Button>

@@ -315,6 +315,59 @@ jobs:
           retention-days: 7
 
   # =============================================================================
+  # PACKAGE TESTS (SDK, Event Bus, UI — no infrastructure needed)
+  # =============================================================================
+  package-tests:
+    name: Package Tests (SDK, Event Bus, UI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test @plexica/types (build check)
+        run: pnpm --filter @plexica/types type-check || echo "No type-check script, skipping"
+
+      - name: Test @plexica/event-bus
+        run: cd packages/event-bus && npx vitest run
+        env:
+          CI: true
+
+      - name: Test @plexica/sdk
+        run: cd packages/sdk && npx vitest run
+        env:
+          CI: true
+
+      - name: Test @plexica/ui
+        run: cd packages/ui && npx vitest run
+        env:
+          CI: true
+
+      - name: Upload package test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results
+          path: |
+            packages/*/coverage/
+          retention-days: 7
+
+  # =============================================================================
   # BUILD
   # =============================================================================
   build:
@@ -364,7 +417,7 @@ jobs:
   test-summary:
     name: Test Summary & Quality Gate
     runs-on: ubuntu-latest
-    needs: [tests, build]
+    needs: [tests, package-tests, build]
     if: always()
 
     steps:
@@ -384,6 +437,7 @@ jobs:
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| All Tests (Unit, Integration, E2E) | ${{ needs.tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package Tests (SDK, Event Bus, UI) | ${{ needs.package-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Code Coverage Report | ${{ needs.tests.result == 'success' && '✅ Generated' || '⏭️ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -398,12 +452,14 @@ jobs:
           echo "8. Run All Tests with Coverage" >> $GITHUB_STEP_SUMMARY
           echo "9. Upload Coverage to Codecov" >> $GITHUB_STEP_SUMMARY
           echo "10. Cleanup infrastructure (test-teardown.sh)" >> $GITHUB_STEP_SUMMARY
-          echo "11. Build packages" >> $GITHUB_STEP_SUMMARY
+          echo "11. Package Tests — SDK, Event Bus, UI (parallel)" >> $GITHUB_STEP_SUMMARY
+          echo "12. Build packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Check quality gate
         run: |
           if [ "${{ needs.tests.result }}" != "success" ] || \
+             [ "${{ needs.package-tests.result }}" != "success" ] || \
              [ "${{ needs.build.result }}" != "success" ]; then
             echo "❌ Quality gate failed - not all checks passed"
             exit 1

@@ -17,8 +17,8 @@ Welcome to the Plexica documentation hub. This directory contains all developer 
 
 **New to Plexica?** Start here:
 
-- **[Getting Started Guide](./GETTING_STARTED.md)** - Setup instructions and first steps
-- **[Quick Test Guide](./testing/QUICK_TEST.md)** - 5-minute smoke test to verify your installation
+- **[Quick Start Guide](./QUICKSTART.md)** - 5-15 minute setup (automated or manual)
+- **[Testing Guide](./TESTING.md)** - Complete testing guide with quick start
 - **[Main README](../README.md)** - Project overview, tech stack, and quick reference
 
 ---
@@ -45,11 +45,11 @@ Welcome to the Plexica documentation hub. This directory contains all developer 
 
 **Quality assurance and testing strategies:**
 
-- **[Testing Overview](./testing/README.md)** - Complete testing strategy and approach
-- **[Quick Test Guide](./testing/QUICK_TEST.md)** - 5-minute smoke test for essential functionality
-- **[Frontend Testing](./testing/FRONTEND_TESTING.md)** - React component and authentication testing
-- **[E2E Testing](./testing/E2E_TESTING.md)** - 39-test manual testing checklist and workflows
+- **[Testing Guide](./TESTING.md)** - Complete testing guide (unified)
+- **[Frontend Testing](./testing/FRONTEND_TESTING.md)** - Playwright E2E testing
 - **[Backend Testing](./testing/BACKEND_TESTING.md)** - API and integration tests
+- **[E2E Testing](./testing/E2E_TESTING.md)** - Complete E2E workflows
+- **[Quick Test](./testing/QUICK_TEST.md)** - 5-minute smoke test for essential functionality
 
 **Testing Hierarchy:**
 
@@ -65,7 +65,7 @@ Quick Test (5 min) → Frontend Testing → E2E Testing → Backend Testing
 
 **For developers working on Plexica:**
 
-- **[Getting Started Guide](./GETTING_STARTED.md)** - Setup instructions and first steps
+- **[Quick Start Guide](./QUICKSTART.md)** - Setup instructions (automated or manual)
 - **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute to the project
 - **[Plugin Development Guide](./PLUGIN_DEVELOPMENT.md)** - Building and deploying plugins
 - **[Plugin Developer Guide: P2P Communication](./guides/plugin-development.md)** - Plugin-to-plugin communication
@@ -119,7 +119,8 @@ Located in the `../planning/` directory. See [planning/README.md](../planning/RE
 ```
 docs/
 ├── README.md                      # This file - Documentation index
-├── GETTING_STARTED.md             # Setup and first steps
+├── QUICKSTART.md                  # Quick setup guide (5-15 min, automated or manual)
+├── TESTING.md                     # Complete testing guide (unified)
 ├── ARCHITECTURE.md                # Frontend architecture guide
 ├── CONTRIBUTING.md                # Contribution guidelines
 ├── PLUGIN_DEVELOPMENT.md          # Plugin development overview
@@ -135,12 +136,11 @@ docs/
 │   ├── NOTE: UX_SPECIFICATIONS moved to specs/
 │   └── NOTE: SHADCN_UI_GUIDE moved to guides/
 │
-├── testing/                       # Testing documentation
-│   ├── README.md                  # Testing overview
-│   ├── QUICK_TEST.md              # Quick smoke test
-│   ├── FRONTEND_TESTING.md        # Frontend testing guide
-│   ├── E2E_TESTING.md             # E2E testing workflows
-│   └── BACKEND_TESTING.md         # Backend testing guide
+├── testing/                       # Specialized testing guides
+│   ├── BACKEND_TESTING.md         # Backend testing details
+│   ├── FRONTEND_TESTING.md        # Frontend E2E testing
+│   ├── E2E_TESTING.md             # Complete E2E workflows
+│   └── QUICK_TEST.md              # Quick smoke test (5 min)
 │
 ├── api/                           # API docs (deprecated)
 │   └── NOTE: plugin-communication-api moved to specs/
@@ -158,10 +158,10 @@ docs/
 
 ### For New Developers
 
-1. [Getting Started](./GETTING_STARTED.md)
+1. [Quick Start Guide](./QUICKSTART.md)
 2. [Frontend Architecture](./ARCHITECTURE.md)
-3. [Contributing Guide](./CONTRIBUTING.md)
-4. [Quick Test](./testing/QUICK_TEST.md)
+3. [Testing Guide](./TESTING.md)
+4. [Contributing Guide](./CONTRIBUTING.md)
 
 ### For Frontend Developers
 

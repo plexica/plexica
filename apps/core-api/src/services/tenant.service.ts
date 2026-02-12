@@ -132,7 +132,6 @@ export class TenantService {
           },
         });
       } catch (updateErr) {
-        // eslint-disable-next-line no-console
         console.warn(
           `Could not update tenant status for id=${tenant?.id}:`,
           updateErr instanceof Error ? updateErr.message : String(updateErr)
@@ -169,7 +168,6 @@ export class TenantService {
       // Surface helpful debugging information for CI/local debugging
       // Re-throw after logging so provisioning fails loudly instead of producing cryptic downstream errors
       // (e.g. missing privileges causing later CREATE TABLE to silently fail)
-      // eslint-disable-next-line no-console
       console.error(
         `Failed granting privileges on schema ${schemaName} to user ${dbUser}:`,
         err instanceof Error ? err.message : String(err)

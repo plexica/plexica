@@ -1,34 +1,6 @@
 // File: apps/plugin-template-frontend/src/manifest.ts
 
-export interface PluginManifest {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  author: string;
-  icon?: string;
-  routes: PluginRoute[];
-  menuItems: PluginMenuItem[];
-  permissions?: string[];
-}
-
-export interface PluginRoute {
-  path: string;
-  componentName: string;
-  title: string;
-  layout?: 'default' | 'fullscreen' | 'minimal';
-  permissions?: string[];
-}
-
-export interface PluginMenuItem {
-  id: string;
-  label: string;
-  icon?: string;
-  path?: string;
-  children?: PluginMenuItem[];
-  permissions?: string[];
-  order?: number;
-}
+import type { PluginManifest } from '@plexica/types';
 
 export const manifest: PluginManifest = {
   id: 'plugin-template',

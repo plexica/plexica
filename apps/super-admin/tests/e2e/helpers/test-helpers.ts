@@ -5,6 +5,12 @@
  */
 
 import { Page, expect } from '@playwright/test';
+import {
+  mockAllApis,
+  MockPlugin,
+  mockMarketplaceSearch,
+  mockPluginReviewEndpoint,
+} from './api-mocks';
 
 /**
  * Authentication Helpers
@@ -74,31 +80,19 @@ export class NavigationHelpers {
       }
     });
 
-    // Mock the plugins list API call that happens on page load
-    await this.page.route('**/api/admin/plugins*', async (route) => {
-      console.log('Mocking plugins API:', route.request().url());
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          plugins: plugins,
-          total: plugins.length,
-        }),
-      });
-    });
-
-    // Also mock tenants API to prevent errors
-    await this.page.route('**/api/admin/tenants*', async (route) => {
-      console.log('Mocking tenants API:', route.request().url());
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          tenants: [],
-          total: 0,
-        }),
-      });
-    });
+    // Mock all admin API endpoints with correct PaginatedResponse shapes
+    const mockPlugins: MockPlugin[] = plugins.map((p) => ({
+      id: p.id ?? 'unknown',
+      name: p.name ?? 'Unknown Plugin',
+      version: p.version ?? '1.0.0',
+      status: p.status ?? 'PUBLISHED',
+      description: p.description ?? '',
+      category: p.category ?? 'other',
+      author: p.author ?? 'Unknown',
+      createdAt: p.createdAt ?? new Date().toISOString(),
+      ...p,
+    }));
+    await mockAllApis(this.page, { plugins: mockPlugins });
 
     // Alternative approach: go to root first, then click sidebar link
     // This works better with client-side routing
@@ -130,10 +124,24 @@ export class NavigationHelpers {
     });
   }
 
-  async goToReviewQueue() {
+  /**
+   * Navigate to Review Queue tab.
+   * @param pendingPlugins - Plugins to return for the PENDING_REVIEW marketplace search.
+   *   The mock MUST be registered BEFORE clicking the tab because PluginReviewQueue
+   *   fetches immediately on mount via useEffect.
+   */
+  async goToReviewQueue(pendingPlugins: Record<string, unknown>[] = []) {
+    // First navigate to plugins page (this sets up all admin API mocks including catch-all)
     await this.goToPluginsPage();
+
+    // Register marketplace search mock for PENDING_REVIEW plugins AFTER goToPluginsPage
+    // In Playwright, routes registered LATER take priority (LIFO order), so this will
+    // intercept requests to /api/marketplace/plugins BEFORE the catch-all registered by mockAllApis
+    await mockMarketplaceSearch(this.page, pendingPlugins, { filterByStatus: true });
+
+    // Now click the Review Queue tab — PluginReviewQueue will fetch and hit our mock
     await this.page.click('button:has-text("Review Queue")');
-    await this.page.waitForTimeout(500); // Wait for tab switch
+    await this.page.waitForTimeout(500); // Wait for tab switch + fetch
   }
 
   async openPluginDetail(pluginName: string) {
@@ -206,7 +214,11 @@ export class ApiMockHelpers {
   constructor(private page: Page) {}
 
   async mockMarketplaceSearch(response: any) {
-    await this.page.route('**/api/marketplace/plugins*', async (route) => {
+    await this.page.route('**/api/marketplace/plugins', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback();
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -226,57 +238,78 @@ export class ApiMockHelpers {
   }
 
   async mockPluginReview(pluginId: string, success = true) {
-    await this.page.route(`**/api/marketplace/plugins/${pluginId}/review`, async (route) => {
-      if (success) {
+    await mockPluginReviewEndpoint(this.page, pluginId, { success });
+  }
+
+  /**
+   * Mock GET /api/marketplace/plugins with status=PENDING_REVIEW filtering.
+   * Returns { data: [...], pagination: {...} }.
+   */
+  async mockGetPendingPlugins(plugins: any[]) {
+    await this.page.route('**/api/marketplace/plugins*', async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+
+      if (method !== 'GET') {
+        await route.fallback();
+        return;
+      }
+
+      // Check if this is a PENDING_REVIEW status query
+      if (url.includes('status=PENDING_REVIEW') || url.includes('status=pending_review')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ success: true, status: 'PUBLISHED' }),
+          body: JSON.stringify({
+            data: plugins,
+            pagination: {
+              page: 1,
+              limit: 100,
+              total: plugins.length,
+              totalPages: Math.ceil(plugins.length / 100) || 1,
+            },
+          }),
         });
-      } else {
-        await route.fulfill({
-          status: 400,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'Review failed' }),
-        });
+        return;
       }
+
+      // For non-PENDING_REVIEW queries, fall through to other handlers
+      await route.fallback();
     });
   }
 
-  async mockGetPendingPlugins(plugins: any[]) {
-    await this.page.route('**/api/v1/marketplace/admin/review*', async (route) => {
+  /**
+   * Mock POST /api/marketplace/plugins/:id/review with action=approve
+   */
+  async mockApprovePlugin(pluginId: string, updatedPlugin: any) {
+    await this.page.route(`**/api/marketplace/plugins/${pluginId}/review`, async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ plugins }),
+        body: JSON.stringify(updatedPlugin),
       });
     });
   }
 
-  async mockApprovePlugin(pluginId: string, updatedPlugin: any) {
-    await this.page.route(
-      `**/api/v1/marketplace/admin/review/${pluginId}/approve`,
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(updatedPlugin),
-        });
-      }
-    );
-  }
-
+  /**
+   * Mock POST /api/marketplace/plugins/:id/review with action=reject
+   */
   async mockRejectPlugin(pluginId: string, updatedPlugin: any) {
-    await this.page.route(
-      `**/api/v1/marketplace/admin/review/${pluginId}/reject`,
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(updatedPlugin),
-        });
+    await this.page.route(`**/api/marketplace/plugins/${pluginId}/review`, async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
       }
-    );
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(updatedPlugin),
+      });
+    });
   }
 
   async clearMocks() {

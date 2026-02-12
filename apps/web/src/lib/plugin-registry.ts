@@ -5,7 +5,7 @@ import { pluginLoader } from './plugin-loader';
 import { apiClient } from './api-client';
 
 export interface PluginFilter {
-  status?: 'active' | 'inactive' | 'installing' | 'error';
+  status?: 'ACTIVE' | 'INACTIVE' | 'installing' | 'error';
   category?: string;
   search?: string;
 }
@@ -101,7 +101,7 @@ class PluginRegistryService {
 
       // Register each plugin
       for (const tenantPlugin of tenantPlugins) {
-        if (tenantPlugin.status === 'active' && tenantPlugin.plugin) {
+        if (tenantPlugin.status === 'ACTIVE' && tenantPlugin.plugin) {
           const manifest: PluginManifest = {
             id: tenantPlugin.plugin.id,
             name: tenantPlugin.plugin.name,

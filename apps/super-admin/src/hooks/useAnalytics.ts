@@ -1,6 +1,6 @@
 // apps/super-admin/src/hooks/useAnalytics.ts
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 
@@ -26,65 +26,150 @@ export interface ApiCallsData {
   calls: number;
 }
 
+export interface AnalyticsPlugin {
+  pluginId: string;
+  pluginName: string;
+  version: string;
+  totalInstallations: number;
+  activeTenants: number;
+}
+
+/** Map UI time period to API days parameter */
+function timePeriodToDays(period: TimePeriod): number {
+  switch (period) {
+    case '24h':
+      return 1;
+    case '7d':
+      return 7;
+    case '30d':
+      return 30;
+  }
+}
+
+/** Map UI time period to API hours parameter */
+function timePeriodToHours(period: TimePeriod): number {
+  switch (period) {
+    case '24h':
+      return 24;
+    case '7d':
+      return 168;
+    case '30d':
+      return 168; // API max is 168 (7 days)
+  }
+}
+
 export function useAnalytics() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('7d');
 
-  // Fetch tenants
-  const { data: tenantsData } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: () => apiClient.getTenants(),
+  // Fetch platform overview statistics
+  const {
+    data: overviewData,
+    isLoading: overviewLoading,
+    error: overviewError,
+  } = useQuery({
+    queryKey: ['analytics', 'overview'],
+    queryFn: () => apiClient.getAnalyticsOverview(),
   });
 
-  // Fetch plugins
-  const { data: pluginsData } = useQuery({
-    queryKey: ['plugins'],
-    queryFn: () => apiClient.getPlugins(),
+  // Fetch tenant growth data (reactive to timePeriod)
+  const {
+    data: tenantGrowthResponse,
+    isLoading: tenantGrowthLoading,
+    error: tenantGrowthError,
+  } = useQuery({
+    queryKey: ['analytics', 'tenants', timePeriod],
+    queryFn: () => apiClient.getAnalyticsTenants({ period: String(timePeriodToDays(timePeriod)) }),
   });
 
-  const tenants = tenantsData?.tenants || [];
-  const plugins = pluginsData?.plugins || [];
+  // Fetch plugin usage statistics
+  const {
+    data: pluginUsageResponse,
+    isLoading: pluginUsageLoading,
+    error: pluginUsageError,
+  } = useQuery({
+    queryKey: ['analytics', 'plugins'],
+    queryFn: () => apiClient.getAnalyticsPlugins(),
+  });
 
-  // NOTE: Using mock data for analytics
-  // In production, these would be separate API endpoints:
-  // - /api/admin/analytics/overview
-  // - /api/admin/analytics/tenants
-  // - /api/admin/analytics/api-calls
-  // - /api/admin/analytics/plugins
+  // Fetch API call metrics (reactive to timePeriod)
+  const {
+    data: apiCallsResponse,
+    isLoading: apiCallsLoading,
+    error: apiCallsError,
+  } = useQuery({
+    queryKey: ['analytics', 'api-calls', timePeriod],
+    queryFn: () => apiClient.getAnalyticsApiCalls({ hours: timePeriodToHours(timePeriod) }),
+  });
 
-  const stats: AnalyticsStats = {
-    totalTenants: tenants.length,
-    activeTenants: tenants.filter((t: any) => t.status === 'active').length,
-    totalUsers: 5, // From mock users
-    totalPlugins: plugins.length,
-    apiCalls24h: 12543,
-    avgResponseTime: 45, // ms
-    errorRate: 0.2, // %
-  };
+  // Build stats from overview data
+  const stats: AnalyticsStats = useMemo(() => {
+    const overview = overviewData;
+    const metrics = apiCallsResponse ?? [];
 
-  // Mock tenant growth data
-  const tenantGrowthData: TenantGrowthData[] = [
-    { date: '2026-01-08', count: 1 },
-    { date: '2026-01-09', count: 2 },
-    { date: '2026-01-10', count: 3 },
-    { date: '2026-01-11', count: 3 },
-    { date: '2026-01-12', count: 4 },
-    { date: '2026-01-13', count: 4 },
-    { date: '2026-01-14', count: 4 },
-  ];
+    // Compute aggregates from API call metrics
+    const totalCalls = metrics.reduce((sum, m) => sum + (m.totalCalls || 0), 0);
+    const failedCalls = metrics.reduce((sum, m) => sum + (m.errorCalls || 0), 0);
+    const avgResponseTimes = metrics
+      .filter((m) => m.avgLatencyMs != null)
+      .map((m) => m.avgLatencyMs);
+    const avgResponseTime =
+      avgResponseTimes.length > 0
+        ? Math.round(avgResponseTimes.reduce((a, b) => a + b, 0) / avgResponseTimes.length)
+        : 0;
+    const errorRate = totalCalls > 0 ? Math.round((failedCalls / totalCalls) * 1000) / 10 : 0;
 
-  // Mock API calls data
-  const apiCallsData: ApiCallsData[] = [
-    { hour: '00:00', calls: 450 },
-    { hour: '04:00', calls: 320 },
-    { hour: '08:00', calls: 890 },
-    { hour: '12:00', calls: 1250 },
-    { hour: '16:00', calls: 1680 },
-    { hour: '20:00', calls: 980 },
-  ];
+    return {
+      totalTenants: overview?.totalTenants ?? 0,
+      activeTenants: overview?.activeTenants ?? 0,
+      totalUsers: overview?.totalUsers ?? 0,
+      totalPlugins: overview?.totalPlugins ?? 0,
+      apiCalls24h: totalCalls,
+      avgResponseTime,
+      errorRate,
+    };
+  }, [overviewData, apiCallsResponse]);
+
+  // Transform tenant growth data to chart format
+  const tenantGrowthData: TenantGrowthData[] = useMemo(() => {
+    const rawData = tenantGrowthResponse ?? [];
+    return rawData.map((d) => ({
+      date: d.date,
+      count: d.totalTenants,
+    }));
+  }, [tenantGrowthResponse]);
+
+  // Transform API calls data to chart format
+  const apiCallsData: ApiCallsData[] = useMemo(() => {
+    const rawMetrics = apiCallsResponse ?? [];
+    return rawMetrics.map((m) => ({
+      hour: new Date(m.date).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }),
+      calls: m.totalCalls || 0,
+    }));
+  }, [apiCallsResponse]);
+
+  // Plugin usage data
+  const plugins: AnalyticsPlugin[] = useMemo(() => {
+    const rawPlugins = pluginUsageResponse ?? [];
+    return rawPlugins.map((p) => ({
+      pluginId: p.pluginId,
+      pluginName: p.pluginName,
+      version: '',
+      totalInstallations: p.installCount,
+      activeTenants: p.activeInstalls,
+    }));
+  }, [pluginUsageResponse]);
 
   // Calculate max values for chart scaling
-  const maxTenantGrowth = Math.max(...tenantGrowthData.map((d) => d.count));
-  const maxApiCalls = Math.max(...apiCallsData.map((d) => d.calls));
+  const maxTenantGrowth =
+    tenantGrowthData.length > 0 ? Math.max(...tenantGrowthData.map((d) => d.count)) : 1;
+  const maxApiCalls = apiCallsData.length > 0 ? Math.max(...apiCallsData.map((d) => d.calls)) : 1;
+
+  const isLoading = overviewLoading || tenantGrowthLoading || pluginUsageLoading || apiCallsLoading;
+  const error = overviewError || tenantGrowthError || pluginUsageError || apiCallsError;
 
   return {
     // Data
@@ -102,7 +187,7 @@ export function useAnalytics() {
     maxApiCalls,
 
     // Loading state
-    isLoading: false, // Mock data, no loading
-    error: null,
+    isLoading,
+    error,
   };
 }

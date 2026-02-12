@@ -80,6 +80,38 @@ export async function marketplaceRoutes(fastify: FastifyInstance) {
     }
   );
 
+  /**
+   * Get plugin details by ID
+   * GET /marketplace/plugins/:id
+   */
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { includeAllVersions?: boolean };
+  }>(
+    '/marketplace/plugins/:id',
+    {
+      preHandler: [authMiddleware],
+    },
+    async (request, reply) => {
+      try {
+        const includeAllVersions = request.query.includeAllVersions === true;
+        const plugin = await marketplaceService.getPluginById(
+          request.params.id,
+          includeAllVersions
+        );
+        return reply.send(plugin);
+      } catch (error: unknown) {
+        request.log.error(error);
+        if (error instanceof Error && error.message.includes('not found')) {
+          return reply.code(404).send({ error: error.message });
+        }
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
   // =====================================
   // Plugin Publishing Routes
   // =====================================

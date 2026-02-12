@@ -1,12 +1,7 @@
 // File: apps/plugin-crm/src/Plugin.tsx
 
 import React from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
 
 /**
  * Main Plugin component - CRM

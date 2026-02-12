@@ -13,6 +13,7 @@ import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settin
 import { Route as TeamRouteImport } from './routes/team';
 import { Route as SettingsRouteImport } from './routes/settings';
 import { Route as PluginsRouteImport } from './routes/plugins';
+import { Route as PluginsPluginIdRouteImport } from './routes/plugins.$pluginId';
 import { Route as MembersManagementRouteImport } from './routes/members-management';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as ActivityLogRouteImport } from './routes/activity-log';
@@ -36,6 +37,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const PluginsRoute = PluginsRouteImport.update({
   id: '/plugins',
   path: '/plugins',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PluginsPluginIdRoute = PluginsPluginIdRouteImport.update({
+  id: '/plugins/$pluginId',
+  path: '/plugins/$pluginId',
   getParentRoute: () => rootRouteImport,
 } as any);
 const MembersManagementRoute = MembersManagementRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
+  '/plugins/$pluginId': typeof PluginsPluginIdRoute;
   '/settings': typeof SettingsRoute;
   '/team': typeof TeamRoute;
   '/workspace-settings': typeof WorkspaceSettingsRoute;
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
+  '/plugins/$pluginId': typeof PluginsPluginIdRoute;
   '/settings': typeof SettingsRoute;
   '/team': typeof TeamRoute;
   '/workspace-settings': typeof WorkspaceSettingsRoute;
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
+  '/plugins/$pluginId': typeof PluginsPluginIdRoute;
   '/settings': typeof SettingsRoute;
   '/team': typeof TeamRoute;
   '/workspace-settings': typeof WorkspaceSettingsRoute;
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/members-management'
     | '/plugins'
+    | '/plugins/$pluginId'
     | '/settings'
     | '/team'
     | '/workspace-settings';
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/members-management'
     | '/plugins'
+    | '/plugins/$pluginId'
     | '/settings'
     | '/team'
     | '/workspace-settings';
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/members-management'
     | '/plugins'
+    | '/plugins/$pluginId'
     | '/settings'
     | '/team'
     | '/workspace-settings';
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute;
   MembersManagementRoute: typeof MembersManagementRoute;
   PluginsRoute: typeof PluginsRoute;
+  PluginsPluginIdRoute: typeof PluginsPluginIdRoute;
   SettingsRoute: typeof SettingsRoute;
   TeamRoute: typeof TeamRoute;
   WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute;
@@ -162,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/plugins';
       fullPath: '/plugins';
       preLoaderRoute: typeof PluginsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/plugins/$pluginId': {
+      id: '/plugins/$pluginId';
+      path: '/plugins/$pluginId';
+      fullPath: '/plugins/$pluginId';
+      preLoaderRoute: typeof PluginsPluginIdRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/members-management': {
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MembersManagementRoute: MembersManagementRoute,
   PluginsRoute: PluginsRoute,
+  PluginsPluginIdRoute: PluginsPluginIdRoute,
   SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,
   WorkspaceSettingsRoute: WorkspaceSettingsRoute,

@@ -10,7 +10,7 @@ const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
     const sizeClasses = {
       sm: 'h-4 w-4 border-2',
       md: 'h-8 w-8 border-2',
-      lg: 'h-12 w-12 border-3',
+      lg: 'h-12 w-12 border-[3px]',
     };
 
     return (
@@ -42,7 +42,7 @@ const PageSpinner = React.forwardRef<HTMLDivElement, Omit<SpinnerProps, 'size'>>
     >
       <div className="text-center">
         <Spinner size="lg" className="mx-auto mb-4" />
-        <p className="text-sm text-text-secondary">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     </div>
   )

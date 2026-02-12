@@ -120,7 +120,7 @@ export function UsersView() {
                 Roles
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                Last Login
+                Joined
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
                 Actions
@@ -152,7 +152,7 @@ export function UsersView() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">
-                  {new Date(user.lastLogin).toLocaleString()}
+                  {new Date(user.createdAt).toLocaleString()}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <Button variant="ghost" size="sm" onClick={() => setSelectedUser(user)}>

@@ -1,18 +1,14 @@
 // File: apps/super-admin/src/contexts/AuthContext.tsx
 
 import { createContext, useContext } from 'react';
+import type { User } from '@plexica/types';
 
 /**
  * Shared Authentication Context
  * Used by both AuthProvider (real Keycloak) and MockAuthProvider (E2E tests)
  */
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  roles: string[];
-}
+export type { User };
 
 export interface AuthContextType {
   isLoading: boolean;

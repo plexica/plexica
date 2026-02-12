@@ -18,6 +18,8 @@
     "test:e2e:auth": "npx tsx tests/e2e/test-auth.ts"
   },
   "dependencies": {
+    "@plexica/api-client": "workspace:*",
+    "@plexica/types": "workspace:*",
     "@plexica/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.19",
     "@tanstack/react-router": "^1.153.2",

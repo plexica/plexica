@@ -8,7 +8,7 @@ const Footer = React.forwardRef<HTMLElement, FooterProps>(
     return (
       <footer
         ref={ref}
-        className={cn('border-t bg-background-primary', 'h-12 flex items-center px-4', className)}
+        className={cn('border-t bg-background', 'h-12 flex items-center px-4', className)}
         {...props}
       >
         {children}

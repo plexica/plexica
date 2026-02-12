@@ -31,9 +31,17 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
     setLoading,
   } = useAuthStore();
 
-  const initMockAuth = () => {
+  // CRITICAL: Set loading=true synchronously BEFORE the first render so that
+  // ProtectedRoute shows a loading spinner instead of redirecting to /login.
+  // The useEffect below will then set the auth state and clear loading.
+  if (!isAuthenticated && !isLoading) {
+    useAuthStore.setState({ isLoading: true });
+  }
+
+  useEffect(() => {
+    if (isAuthenticated) return; // Already initialized (e.g. re-render)
+
     console.log('[MockAuthProvider] Initializing mock authentication for E2E tests...');
-    setLoading(true);
 
     // Mock super-admin user
     const mockUser: User = {
@@ -51,11 +59,6 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
     console.log('[MockAuthProvider] Mock user authenticated:', mockUser);
 
     setLoading(false);
-  };
-
-  useEffect(() => {
-    // Immediately set mock authenticated user
-    initMockAuth();
   }, []);
 
   const login = () => {

@@ -21,6 +21,9 @@ export const testPlugins = {
     repository: 'https://github.com/test/plugin',
     tags: ['test', 'automation'],
     icon: '🧪',
+    status: 'PENDING_REVIEW',
+    createdAt: '2026-01-15T10:00:00Z',
+    submittedAt: '2026-01-15T10:00:00Z',
     manifest: {
       version: '1.0.0',
       permissions: ['read:users', 'write:data'],
@@ -63,21 +66,31 @@ export const testPlugins = {
     authorEmail: 'publisher@example.com',
     license: 'MIT',
     status: 'PUBLISHED',
+    createdAt: '2026-01-01T10:00:00Z',
     versions: [
       {
+        id: 'ver-210',
         version: '2.1.0',
         changelog: 'Bug fixes and performance improvements',
         isLatest: true,
+        publishedAt: '2026-01-28T10:00:00Z',
+        downloadCount: 1234,
       },
       {
+        id: 'ver-200',
         version: '2.0.0',
         changelog: 'Major update with breaking changes',
         isLatest: false,
+        publishedAt: '2026-01-15T10:00:00Z',
+        downloadCount: 5678,
       },
       {
+        id: 'ver-100',
         version: '1.0.0',
         changelog: 'Initial release',
         isLatest: false,
+        publishedAt: '2026-01-01T10:00:00Z',
+        downloadCount: 2345,
       },
     ],
   },
@@ -109,44 +122,66 @@ export const testUsers = {
   },
 };
 
+/**
+ * Mock analytics data matching the REAL API shape returned by
+ * AdminApiClient.getPluginAnalytics(): { downloads, installs, ratings, averageRating }
+ */
 export const mockAnalyticsData = {
-  totalDownloads: 15234,
-  totalInstalls: 487,
-  activeInstalls: 423,
-  growthRate: 23.5,
-  downloadsByDay: [
-    { date: '2026-01-21', count: 145 },
-    { date: '2026-01-22', count: 167 },
-    { date: '2026-01-23', count: 189 },
-    { date: '2026-01-24', count: 203 },
-    { date: '2026-01-25', count: 178 },
-    { date: '2026-01-26', count: 221 },
-    { date: '2026-01-27', count: 245 },
-    { date: '2026-01-28', count: 267 },
+  downloads: 15234,
+  installs: 487,
+  ratings: 43,
+  averageRating: 4.2,
+};
+
+/**
+ * Mock installs data from AdminApiClient.getPluginInstalls()
+ * Returns an array of { tenantId, installedAt, ... }
+ */
+export const mockInstallsData = [
+  { tenantId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', installedAt: '2026-01-25T10:00:00Z' },
+  { tenantId: 'b2c3d4e5-f6a7-8901-bcde-f12345678901', installedAt: '2026-01-22T10:00:00Z' },
+  { tenantId: 'c3d4e5f6-a7b8-9012-cdef-123456789012', installedAt: '2026-01-20T10:00:00Z' },
+  { tenantId: 'd4e5f6a7-b8c9-0123-defa-234567890123', installedAt: '2026-01-18T10:00:00Z' },
+  { tenantId: 'e5f6a7b8-c9d0-1234-efab-345678901234', installedAt: '2026-01-15T10:00:00Z' },
+];
+
+/**
+ * Mock ratings data from AdminApiClient.getPluginRatings()
+ * Returns { data: [...], pagination: {...} }
+ */
+export const mockRatingsData = {
+  data: [
+    {
+      rating: 5,
+      userId: 'user-1',
+      comment: 'Excellent plugin!',
+      createdAt: '2026-01-25T10:00:00Z',
+    },
+    { rating: 5, userId: 'user-2', comment: 'Great work', createdAt: '2026-01-24T10:00:00Z' },
+    { rating: 4, userId: 'user-3', comment: 'Very good', createdAt: '2026-01-23T10:00:00Z' },
+    { rating: 5, userId: 'user-4', comment: 'Love it', createdAt: '2026-01-22T10:00:00Z' },
+    { rating: 3, userId: 'user-5', comment: 'Decent', createdAt: '2026-01-21T10:00:00Z' },
+    { rating: 4, userId: 'user-6', comment: 'Good plugin', createdAt: '2026-01-20T10:00:00Z' },
+    { rating: 5, userId: 'user-7', comment: 'Best in class', createdAt: '2026-01-19T10:00:00Z' },
+    {
+      rating: 2,
+      userId: 'user-8',
+      comment: 'Needs improvement',
+      createdAt: '2026-01-18T10:00:00Z',
+    },
+    { rating: 5, userId: 'user-9', comment: 'Perfect', createdAt: '2026-01-17T10:00:00Z' },
+    {
+      rating: 1,
+      userId: 'user-10',
+      comment: 'Did not work for me',
+      createdAt: '2026-01-16T10:00:00Z',
+    },
   ],
-  installsByDay: [
-    { date: '2026-01-21', count: 12 },
-    { date: '2026-01-22', count: 15 },
-    { date: '2026-01-23', count: 18 },
-    { date: '2026-01-24', count: 22 },
-    { date: '2026-01-25', count: 19 },
-    { date: '2026-01-26', count: 25 },
-    { date: '2026-01-27', count: 28 },
-    { date: '2026-01-28', count: 31 },
-  ],
-  topTenants: [
-    { tenantName: 'Acme Corporation', installDate: '2026-01-15' },
-    { tenantName: 'TechStart Inc', installDate: '2026-01-18' },
-    { tenantName: 'Global Enterprises', installDate: '2026-01-20' },
-    { tenantName: 'Innovation Labs', installDate: '2026-01-22' },
-    { tenantName: 'Digital Solutions', installDate: '2026-01-25' },
-  ],
-  ratingDistribution: {
-    5: 312,
-    4: 98,
-    3: 45,
-    2: 18,
-    1: 14,
+  pagination: {
+    page: 1,
+    limit: 100,
+    total: 10,
+    totalPages: 1,
   },
 };
 
@@ -156,10 +191,15 @@ export const apiEndpoints = {
     getPlugin: (id: string) => `/api/marketplace/plugins/${id}`,
     stats: '/api/marketplace/stats',
     review: (id: string) => `/api/marketplace/plugins/${id}/review`,
-    reviewPlugin: (id: string) => `/api/v1/marketplace/admin/review/${id}`,
     publish: '/api/marketplace/publish',
     publishVersion: (id: string) => `/api/marketplace/plugins/${id}/versions`,
     analytics: (id: string) => `/api/marketplace/plugins/${id}/analytics`,
+    ratings: (id: string) => `/api/marketplace/plugins/${id}/ratings`,
+  },
+  admin: {
+    plugins: '/api/admin/plugins',
+    pluginDetail: (id: string) => `/api/admin/plugins/${id}`,
+    pluginInstalls: (id: string) => `/api/admin/plugins/${id}/installs`,
   },
   auth: {
     login: '/auth/login',

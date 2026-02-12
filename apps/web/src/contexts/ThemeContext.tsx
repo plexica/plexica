@@ -1,6 +1,6 @@
 // apps/web/src/contexts/ThemeContext.tsx
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -19,30 +19,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return stored || 'system';
   });
 
-  const [isDark, setIsDark] = useState(false);
+  // Track system preference changes to force re-computation of isDark
+  const [, forceUpdate] = useState(0);
+
+  // Compute isDark based on theme (derived state)
+  const isDark = useMemo(() => {
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    // system theme
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }, [theme]);
 
   useEffect(() => {
-    // Determine if we should use dark mode
-    let shouldBeDark = false;
-
-    if (theme === 'dark') {
-      shouldBeDark = true;
-    } else if (theme === 'light') {
-      shouldBeDark = false;
-    } else {
-      // system theme
-      shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-
-    setIsDark(shouldBeDark);
-
     // Apply theme to DOM
-    if (shouldBeDark) {
+    if (isDark) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [theme]);
+  }, [isDark]);
 
   // Listen to system theme changes
   useEffect(() => {
@@ -50,13 +45,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-    const handleChange = (e: MediaQueryListEvent) => {
-      setIsDark(e.matches);
-      if (e.matches) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+    const handleChange = () => {
+      // Force re-computation of isDark by triggering state update
+      forceUpdate((n) => n + 1);
     };
 
     mediaQuery.addEventListener('change', handleChange);

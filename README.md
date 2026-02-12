@@ -2,27 +2,25 @@
 
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
-**Version**: 0.7.0  
-**Status**: Phase 2 - Plugin Ecosystem (67% Complete) | M2.3 ✅ Testing & Deployment Complete | M2.4 Plugin Registry & Marketplace  
-**Last Updated**: February 3, 2026
+**Version**: 0.9.0  
+**Status**: Phase 2 - Plugin Ecosystem (67% Complete - M2.1, M2.2, M2.3 ✅, M2.4 in progress) | Frontend Consolidation ✅ Complete | M2.4 Plugin Registry & Marketplace  
+**Last Updated**: February 11, 2026
 
 ---
 
 ## 📊 Project Status
 
 **Current Phase**: Phase 2 - Plugin Ecosystem (67% complete)  
-**Completed Milestones**:
+**Current Milestone**: M2.4 - Plugin Registry & Marketplace (20% complete)  
+**Last Updated**: February 11, 2026
 
-- Phase 1: M1.1-M1.4 (Backend Core & Auth) ✅
-- Phase 1: M1.5-M1.6 (Frontend Apps & Workspaces) ✅
-- Phase 2: M2.1 (Event System & Message Bus) ✅
-- Phase 2: M2.2 (Module Federation & CDN) ✅
-- Phase 2: M2.3 (Plugin-to-Plugin Communication) ✅ **80% Code Coverage Achieved**
+**Recent Achievements:**
 
-**Current**: M2.4 (Plugin Registry & Marketplace)  
-**Next**: Kubernetes deployment (M2.5) and official plugins (M2.6)
+- ✅ Phase 1 MVP Complete (97.5%) + Frontend Consolidation (A-D5)
+- ✅ M2.3: Plugin-to-Plugin Communication with 80% Code Coverage
+- ✅ 1,855+ tests (1,047 backend, 808 frontend) with 63% overall coverage
 
-👉 **See [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) for detailed progress tracking**
+👉 **For detailed progress tracking, see [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)**
 
 ---
 
@@ -122,6 +120,11 @@ cd apps/super-admin && pnpm dev
 
 ## 🎯 Key Features
 
+**For detailed architecture documentation:**
+
+- **Backend/System Architecture**: See [`specs/TECHNICAL_SPECIFICATIONS.md`](specs/TECHNICAL_SPECIFICATIONS.md)
+- **Frontend Architecture**: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
 ### ✅ Multi-Tenancy
 
 - Schema-per-tenant on PostgreSQL for complete data isolation
@@ -212,153 +215,53 @@ See **[specs/PROJECT_STRUCTURE.md](./specs/PROJECT_STRUCTURE.md)** for detailed 
 
 ## 🛠️ Technology Stack
 
-### Backend (✅ Complete)
+**Quick Overview**:
 
-| Category   | Technology | Version | Status        |
-| ---------- | ---------- | ------- | ------------- |
-| Runtime    | Node.js    | 20 LTS  | ✅            |
-| Language   | TypeScript | 5.9.3   | ✅            |
-| Framework  | Fastify    | 5.7.1   | ✅            |
-| ORM        | Prisma     | 7.2.0   | ✅            |
-| Validation | Zod        | 3.x     | ✅            |
-| Testing    | Vitest     | 1.x     | ✅ ~870 tests |
+| Layer          | Key Technologies                                             |
+| -------------- | ------------------------------------------------------------ |
+| **Backend**    | Node.js 20, TypeScript 5.9, Fastify 5.7, Prisma 7.2          |
+| **Database**   | PostgreSQL 15 (multi-schema), Redis 7                        |
+| **Auth**       | Keycloak 23 (realm-per-tenant)                               |
+| **Events**     | Redpanda (Kafka-compatible)                                  |
+| **Storage**    | MinIO (S3-compatible)                                        |
+| **Frontend**   | React 18, Vite 5, Module Federation, TailwindCSS v4, Zustand |
+| **Testing**    | Vitest 1.x (~1,855 tests, 63% coverage)                      |
+| **Deployment** | Docker Compose (dev), Kubernetes (planned)                   |
 
-### Infrastructure (✅ Complete)
-
-| Service    | Version | Port      | Status     |
-| ---------- | ------- | --------- | ---------- |
-| PostgreSQL | 15      | 5432      | ✅ Running |
-| Redis      | 7       | 6379      | ✅ Running |
-| Keycloak   | 23      | 8080      | ✅ Running |
-| Redpanda   | Latest  | 9092      | ✅ Running |
-| MinIO      | Latest  | 9000/9001 | ✅ Running |
-
-### Frontend (✅ Complete)
+**For complete technology stack details, rationale, and versions**: See [`specs/TECHNICAL_SPECIFICATIONS.md#12-detailed-technology-stack`](specs/TECHNICAL_SPECIFICATIONS.md#12-detailed-technology-stack)
 
 ---
 
-## 📋 Available Commands
+## 📋 Development Commands
 
-### Development
+For complete command reference and development guidelines, see **[AGENTS.md](AGENTS.md#quick-start---essential-commands)**.
+
+### Most Common Commands
 
 ```bash
-# Start all apps in development mode
+# Install dependencies
+pnpm install
+
+# Start development servers
 pnpm dev
 
-# Start specific app
-pnpm dev --filter @plexica/core-api
-pnpm dev --filter @plexica/web        # Frontend ready
-pnpm dev --filter @plexica/super-admin
-
-# Build everything
-pnpm build
-
-# Build specific package
-pnpm build --filter @plexica/core-api
-```
-
-### Infrastructure Management
-
-```bash
-# Start all services
-pnpm infra:start
-# or
-docker-compose up -d
-
-# Stop all services
-pnpm infra:stop
-# or
-docker-compose down
-
-# Check service status
-pnpm infra:status
-
-# View logs for specific service
-pnpm infra:logs postgres
-pnpm infra:logs keycloak
-pnpm infra:logs core-api
-```
-
-### Database Operations
-
-```bash
-# Generate Prisma Client (Prisma 7 - uses npx due to pnpm security policy)
-pnpm db:generate
-# Or manually:
-cd packages/database && npx --yes prisma@7.2.0 generate --config ./prisma/prisma.config.ts
-
-# Run migrations
-pnpm db:migrate
-# Or manually:
-cd packages/database && npx prisma migrate dev --config ./prisma/prisma.config.ts
-
-# Create new migration
-pnpm db:migrate:dev --name "migration_name"
-# Or manually:
-cd packages/database && npx prisma migrate dev --name "migration_name" --config ./prisma/prisma.config.ts
-
-# Open Prisma Studio (database GUI)
-pnpm db:studio
-# Or manually:
-cd packages/database && npx prisma studio --config ./prisma/prisma.config.ts
-
-# Reset database (WARNING: deletes all data)
-pnpm db:reset
-
-# Check migration status
-cd packages/database && npx prisma migrate status --config ./prisma/prisma.config.ts
-```
-
-**⚠️ Important - Prisma 7 Notes:**
-
-- Plexica uses **Prisma 7.2.0** with PostgreSQL adapter (`@prisma/adapter-pg`)
-- Due to pnpm 10+ security policy, Prisma client generation uses `npx` instead of `pnpm exec`
-- The `prisma.config.ts` file manages database connection and environment variables
-- Always use `--config ./prisma/prisma.config.ts` flag when running Prisma CLI commands manually
-- See `packages/database/README.md` for detailed Prisma 7 documentation
-
-### Testing
-
-```bash
-# Run all tests
+# Run tests
 pnpm test
 
-# Run tests for specific package
-pnpm test --filter @plexica/core-api
+# Build all packages
+pnpm build
 
-# Run tests in watch mode
-pnpm test:watch
-
-# Generate coverage report
-pnpm test:coverage
-```
-
-### Code Quality
-
-```bash
-# Lint all packages
+# Lint and format
 pnpm lint
-
-# Fix linting issues
-pnpm lint:fix
-
-# Format code with Prettier
 pnpm format
-
-# Type check
-pnpm typecheck
 ```
 
-### Cleanup
+### Quick Links
 
-```bash
-# Clean build artifacts
-pnpm clean
-
-# Clean and reinstall dependencies
-pnpm clean:all
-pnpm install
-```
+- **Full Command Reference**: [AGENTS.md](AGENTS.md#quick-start---essential-commands)
+- **Testing Commands**: [TESTING.md](docs/TESTING.md#quick-start-5-minutes)
+- **Database Operations**: [Database Package README](packages/database/README.md)
+- **Infrastructure Setup**: [Quick Start Guide](docs/QUICKSTART.md)
 
 ---
 
@@ -450,9 +353,9 @@ GET /api/tenants/:id/plugins
 
 ### Planning
 
+- **[Project Status](./planning/PROJECT_STATUS.md)** - Current milestones and progress
 - **[Roadmap](./planning/ROADMAP.md)** - Phase 1-5 timeline
-- **[Development Plan](./planning/DEVELOPMENT_PLAN.md)** - Detailed MVP plan
-- **[Milestones](./planning/MILESTONES.md)** - Milestone tracking
+- **[Milestones](./planning/MILESTONES.md)** - Detailed milestone tracking
 - **[Decisions](./planning/DECISIONS.md)** - Architectural Decision Records (ADR)
 
 ### Guides
@@ -480,14 +383,18 @@ GET /api/tenants/:id/plugins
 
 ## 🧪 Testing
 
-Plexica has comprehensive testing documentation to ensure quality and reliability.
+Plexica has comprehensive testing documentation to ensure quality and reliability with **1,047+ tests** across all packages.
 
-### Quick Testing Guides
+**Test Statistics**:
 
-- **[Quick Test Guide](./docs/testing/QUICK_TEST.md)** - 5-minute smoke test for essential functionality
-- **[Frontend Testing](./docs/testing/FRONTEND_TESTING.md)** - React component and authentication testing
-- **[E2E Testing](./docs/testing/E2E_TESTING.md)** - Complete user workflows and manual testing checklist
-- **[Backend Testing](./docs/testing/BACKEND_TESTING.md)** - API and integration tests
+- **Backend (core-api)**: 1,047 unit/integration/E2E tests
+- **Frontend (web)**: 64 Playwright E2E tests
+- **Super-Admin**: 105 Playwright E2E tests
+- **UI Components (@plexica/ui)**: 495 component tests
+- **SDK (@plexica/sdk)**: 65 tests
+- **API Client (@plexica/api-client)**: 79 tests
+- **Total**: ~1,855 tests
+- **Coverage**: 63% lines (target: 80%)
 
 ### Running Tests
 

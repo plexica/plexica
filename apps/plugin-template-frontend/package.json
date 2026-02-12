@@ -12,6 +12,8 @@
     "clean": "rm -rf dist node_modules .turbo"
   },
   "dependencies": {
+    "@plexica/types": "workspace:*",
+    "@plexica/ui": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "@tanstack/react-router": "^1.153.2",

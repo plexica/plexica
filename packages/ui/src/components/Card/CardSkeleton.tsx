@@ -1,6 +1,7 @@
 // File: packages/ui/src/components/Card/CardSkeleton.tsx
 
 import * as React from 'react';
+import { cn } from '@/lib/utils';
 import { Card, CardContent } from './Card';
 
 export interface CardSkeletonProps {
@@ -14,15 +15,15 @@ export interface CardSkeletonProps {
 export const CardSkeleton = React.forwardRef<HTMLDivElement, CardSkeletonProps>(
   ({ className }, ref) => {
     return (
-      <Card ref={ref} className={className}>
+      <Card ref={ref} className={cn(className)}>
         <CardContent className="pt-6">
           <div className="animate-pulse space-y-3">
             {/* Title skeleton */}
-            <div className="h-4 bg-background-secondary rounded w-1/3"></div>
+            <div className="h-4 bg-muted rounded w-1/3"></div>
             {/* Value skeleton */}
-            <div className="h-8 bg-background-secondary rounded w-1/2"></div>
+            <div className="h-8 bg-muted rounded w-1/2"></div>
             {/* Footer skeleton */}
-            <div className="h-3 bg-background-secondary rounded w-2/3"></div>
+            <div className="h-3 bg-muted rounded w-2/3"></div>
           </div>
         </CardContent>
       </Card>

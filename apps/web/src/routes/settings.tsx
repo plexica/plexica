@@ -1,28 +1,71 @@
 // apps/web/src/routes/settings.tsx
 
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
 import { useAuthStore } from '../stores/auth-store';
+import { useWorkspace } from '../contexts/WorkspaceContext';
+import { apiClient } from '../lib/api-client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@plexica/ui';
 import { Switch } from '@plexica/ui';
 import { Input } from '@plexica/ui';
 import { Label } from '@plexica/ui';
 import { Textarea } from '@plexica/ui';
 import { Button } from '@plexica/ui';
+import { Badge } from '@plexica/ui';
 import { Alert, AlertDescription } from '@plexica/ui';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@plexica/ui';
 import { AlertCircle } from 'lucide-react';
 import { useForm } from '@/hooks/useForm';
 import { toast } from '@/components/ToastProvider';
 import { z } from 'zod';
+import type { WorkspaceMember, Team } from '../types';
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage,
 });
 
 function SettingsPage() {
-  const { tenant } = useAuthStore();
+  const { user } = useAuthStore();
+  const { currentWorkspace, updateWorkspace, deleteWorkspace, isAdmin } = useWorkspace();
+
+  if (!currentWorkspace) {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <svg
+                className="w-16 h-16 mx-auto text-muted-foreground mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                />
+              </svg>
+              <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
+              <p className="text-muted-foreground">
+                Please select a workspace from the switcher above.
+              </p>
+            </div>
+          </div>
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
@@ -31,35 +74,69 @@ function SettingsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Workspace Settings</h1>
           <p className="text-muted-foreground">
-            Manage your workspace preferences and configuration
+            Manage {currentWorkspace.name} workspace settings and configuration
           </p>
         </div>
 
         {/* Tabs */}
         <Tabs defaultValue="general" className="max-w-4xl">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="general">⚙️ General</TabsTrigger>
-            <TabsTrigger value="security">🔒 Security</TabsTrigger>
-            <TabsTrigger value="billing">💳 Billing</TabsTrigger>
-            <TabsTrigger value="integrations">🔗 Integrations</TabsTrigger>
-            <TabsTrigger value="advanced">🔧 Advanced</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="teams">Teams</TabsTrigger>
+            <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
           </TabsList>
 
           {/* Tab Content */}
           <TabsContent value="general" className="mt-6">
-            <GeneralSettings tenant={tenant} />
+            <GeneralTab
+              workspace={currentWorkspace}
+              onUpdate={updateWorkspace}
+              onDelete={deleteWorkspace}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+          <TabsContent value="members" className="mt-6">
+            <MembersTab
+              workspaceId={currentWorkspace.id}
+              currentUserId={user?.id || ''}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+          <TabsContent value="teams" className="mt-6">
+            <TeamsTab workspaceId={currentWorkspace.id} />
           </TabsContent>
           <TabsContent value="security" className="mt-6">
-            <SecuritySettings tenant={tenant} />
+            <ComingSoonTab
+              icon="lock"
+              title="Security Settings"
+              description="Two-factor authentication, password policies, access control, and API key management."
+              note="Security is currently managed through your identity provider (Keycloak)."
+            />
           </TabsContent>
           <TabsContent value="billing" className="mt-6">
-            <BillingSettings tenant={tenant} />
+            <ComingSoonTab
+              icon="card"
+              title="Billing & Subscription"
+              description="Plan management, usage tracking, payment methods, and billing history."
+            />
           </TabsContent>
           <TabsContent value="integrations" className="mt-6">
-            <IntegrationsSettings tenant={tenant} />
+            <ComingSoonTab
+              icon="link"
+              title="Integrations"
+              description="Connect your workspace with external services like Slack, GitHub, Google Workspace, and more."
+            />
           </TabsContent>
           <TabsContent value="advanced" className="mt-6">
-            <AdvancedSettings tenant={tenant} />
+            <ComingSoonTab
+              icon="wrench"
+              title="Advanced Settings"
+              description="Data export, workspace transfer, debug mode, and developer options."
+            />
           </TabsContent>
         </Tabs>
       </AppLayout>
@@ -67,124 +144,163 @@ function SettingsPage() {
   );
 }
 
-// Validation schema for General Settings
-const generalSettingsSchema = z.object({
-  workspaceName: z
+// ─── General Tab ──────────────────────────────────────────────────────────────
+
+interface GeneralTabProps {
+  workspace: any;
+  onUpdate: (workspaceId: string, data: any) => Promise<void>;
+  onDelete: (workspaceId: string) => Promise<void>;
+  isAdmin: boolean;
+}
+
+const workspaceSettingsSchema = z.object({
+  name: z
     .string()
     .min(1, 'Workspace name is required')
     .max(100, 'Name must be 100 characters or less'),
-  workspaceSlug: z
-    .string()
-    .min(1, 'Workspace slug is required')
-    .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(500, 'Description must be 500 characters or less').optional(),
 });
 
-// General Settings Tab
-function GeneralSettings({ tenant }: { tenant: any }) {
+function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const { values, errors, isSubmitting, handleChange, handleSubmit } = useForm({
     initialValues: {
-      workspaceName: tenant?.name || '',
-      workspaceSlug: tenant?.slug || '',
-      description: tenant?.description || '',
+      name: workspace.name,
+      description: workspace.description || '',
     },
-    validationSchema: generalSettingsSchema,
+    validationSchema: workspaceSettingsSchema,
     onSubmit: async (_formValues) => {
       try {
-        // TODO: Implement API call to update workspace
-        // await apiClient.updateWorkspace(tenant.id, {
-        //   name: formValues.workspaceName,
-        //   slug: formValues.workspaceSlug,
-        //   description: formValues.description,
-        // });
-
-        // Simulate delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        toast.success('Workspace settings saved successfully!');
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to save workspace settings');
+        await onUpdate(workspace.id, values);
+        toast.success('Workspace updated successfully!');
+        setIsEditing(false);
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to update workspace');
       }
     },
   });
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Workspace Information */}
+    <div className="space-y-6">
+      {/* Workspace Info */}
       <div className="bg-card border border-border rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Workspace Information</h2>
-        <div className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name */}
           <div>
-            <Label htmlFor="workspaceName">Workspace Name</Label>
-            <Input
-              type="text"
-              id="workspaceName"
-              name="workspaceName"
-              value={values.workspaceName}
-              onChange={handleChange}
-              disabled={isSubmitting}
-              className="mt-2"
-            />
-            {errors.workspaceName && (
-              <Alert variant="destructive" className="mt-2 py-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">{errors.workspaceName}</AlertDescription>
-              </Alert>
+            <Label htmlFor="name">Workspace Name</Label>
+            {isEditing && isAdmin ? (
+              <>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  value={values.name}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  className="mt-2"
+                />
+                {errors.name && (
+                  <Alert variant="destructive" className="mt-2 py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">{errors.name}</AlertDescription>
+                  </Alert>
+                )}
+              </>
+            ) : (
+              <p className="text-muted-foreground mt-2">{workspace.name}</p>
             )}
           </div>
 
+          {/* Description */}
           <div>
-            <Label htmlFor="workspaceSlug">Workspace Slug</Label>
-            <Input
-              type="text"
-              id="workspaceSlug"
-              name="workspaceSlug"
-              value={values.workspaceSlug}
-              onChange={handleChange}
-              disabled={isSubmitting}
-              className="mt-2"
-            />
-            {errors.workspaceSlug ? (
-              <Alert variant="destructive" className="mt-2 py-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">{errors.workspaceSlug}</AlertDescription>
-              </Alert>
+            <Label htmlFor="description">Description</Label>
+            {isEditing && isAdmin ? (
+              <>
+                <Textarea
+                  id="description"
+                  name="description"
+                  value={values.description || ''}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  rows={3}
+                  className="mt-2"
+                />
+                {errors.description && (
+                  <Alert variant="destructive" className="mt-2 py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">{errors.description}</AlertDescription>
+                  </Alert>
+                )}
+              </>
             ) : (
-              <p className="text-xs text-muted-foreground mt-1">
-                This is used in your workspace URL: plexica.app/{values.workspaceSlug}
+              <p className="text-muted-foreground mt-2">
+                {workspace.description || 'No description'}
               </p>
             )}
           </div>
 
+          {/* Slug (read-only) */}
           <div>
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea
-              id="description"
-              name="description"
-              value={values.description || ''}
-              onChange={handleChange}
-              placeholder="A brief description of your workspace..."
-              disabled={isSubmitting}
-              rows={3}
-              className="mt-2"
-            />
-            {errors.description && (
-              <Alert variant="destructive" className="mt-2 py-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">{errors.description}</AlertDescription>
-              </Alert>
-            )}
+            <Label>Slug</Label>
+            <p className="text-muted-foreground font-mono text-sm">{workspace.slug}</p>
           </div>
-        </div>
 
-        <div className="mt-6 pt-6 border-t border-border">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
+          {/* Created Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Created</Label>
+              <p className="text-muted-foreground text-sm">
+                {new Date(workspace.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div>
+              <Label>Your Role</Label>
+              <Badge
+                variant={
+                  workspace.memberRole === 'ADMIN'
+                    ? 'default'
+                    : workspace.memberRole === 'MEMBER'
+                      ? 'secondary'
+                      : 'outline'
+                }
+              >
+                {workspace.memberRole}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Edit Actions */}
+          {isAdmin && (
+            <div className="flex gap-2 pt-4">
+              {!isEditing ? (
+                <Button onClick={() => setIsEditing(true)} type="button">
+                  Edit Workspace
+                </Button>
+              ) : (
+                <>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSubmitting}
+                    type="button"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+        </form>
       </div>
 
-      {/* Workspace Preferences */}
+      {/* Preferences */}
       <div className="bg-card border border-border rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Preferences</h2>
         <div className="space-y-4">
@@ -205,371 +321,431 @@ function GeneralSettings({ tenant }: { tenant: any }) {
           />
         </div>
       </div>
-    </form>
+
+      {/* Danger Zone */}
+      {isAdmin && (
+        <div className="bg-card border border-destructive/50 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-destructive mb-2">Danger Zone</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Deleting a workspace is permanent and cannot be undone. All teams and data will be lost.
+          </p>
+
+          {!showDeleteConfirm ? (
+            <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)} type="button">
+              Delete Workspace
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-foreground">
+                Are you absolutely sure? This action cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    try {
+                      await onDelete(workspace.id);
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to delete workspace');
+                      setShowDeleteConfirm(false);
+                    }
+                  }}
+                  type="button"
+                >
+                  Yes, Delete Workspace
+                </Button>
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} type="button">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
-// Validation schema for Security Settings
-const securitySettingsSchema = z.object({
-  twoFactorAuth: z.boolean(),
-  strongPasswords: z.boolean(),
-  sessionTimeout: z.boolean(),
-  emailDomains: z.string().optional(),
-  ipRestriction: z.boolean(),
+// ─── Members Tab ──────────────────────────────────────────────────────────────
+
+interface MembersTabProps {
+  workspaceId: string;
+  currentUserId: string;
+  isAdmin: boolean;
+}
+
+function MembersTab({ workspaceId, currentUserId, isAdmin }: MembersTabProps) {
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showAddMember, setShowAddMember] = useState(false);
+
+  const loadMembers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await apiClient.getWorkspaceMembers(workspaceId);
+      setMembers(data);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load members');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!isAdmin || !confirm('Are you sure you want to remove this member?')) return;
+
+    try {
+      await apiClient.removeWorkspaceMember(workspaceId, userId);
+      toast.success('Member removed');
+      await loadMembers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to remove member');
+    }
+  };
+
+  const handleUpdateRole = async (userId: string, role: string) => {
+    if (!isAdmin) return;
+
+    try {
+      await apiClient.updateWorkspaceMemberRole(workspaceId, userId, {
+        role: role as 'ADMIN' | 'MEMBER' | 'VIEWER',
+      });
+      toast.success('Member role updated');
+      await loadMembers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to update role');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-4 border-border border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-foreground">Members ({members.length})</h2>
+        {isAdmin && <Button onClick={() => setShowAddMember(true)}>Add Member</Button>}
+      </div>
+
+      <div className="space-y-2">
+        {members.map((member) => (
+          <div
+            key={member.userId}
+            className="flex items-center justify-between p-3 hover:bg-muted rounded-lg transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-medium">
+                {member.user?.firstName?.[0] || member.user?.email[0].toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {member.user?.firstName} {member.user?.lastName}
+                  {member.userId === currentUserId && (
+                    <span className="ml-2 text-xs text-muted-foreground">(You)</span>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">{member.user?.email}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isAdmin && member.userId !== currentUserId ? (
+                <select
+                  value={member.role}
+                  onChange={(e) => handleUpdateRole(member.userId, e.target.value)}
+                  className="text-xs px-2 py-1 border border-border rounded bg-background text-foreground"
+                >
+                  <option value="ADMIN">Admin</option>
+                  <option value="MEMBER">Member</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+              ) : (
+                <Badge
+                  variant={
+                    member.role === 'ADMIN'
+                      ? 'default'
+                      : member.role === 'MEMBER'
+                        ? 'secondary'
+                        : 'outline'
+                  }
+                >
+                  {member.role}
+                </Badge>
+              )}
+
+              {isAdmin && member.userId !== currentUserId && (
+                <button
+                  onClick={() => handleRemoveMember(member.userId)}
+                  className="text-destructive hover:text-destructive/80 text-sm"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {members.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">No members found</p>
+        )}
+      </div>
+
+      {/* Add Member Dialog */}
+      <AddMemberDialog
+        open={showAddMember}
+        onOpenChange={setShowAddMember}
+        workspaceId={workspaceId}
+        onSuccess={loadMembers}
+      />
+    </div>
+  );
+}
+
+// ─── Add Member Dialog ────────────────────────────────────────────────────────
+
+const addMemberSchema = z.object({
+  email: z.string().email('Valid email address is required'),
+  role: z.enum(['ADMIN', 'MEMBER', 'VIEWER']),
 });
 
-// Security Settings Tab
-function SecuritySettings({ tenant: _tenant }: { tenant: any }) {
+interface AddMemberDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workspaceId: string;
+  onSuccess: () => void;
+}
+
+function AddMemberDialog({ open, onOpenChange, workspaceId, onSuccess }: AddMemberDialogProps) {
   const { values, errors, isSubmitting, handleChange, handleSubmit } = useForm({
     initialValues: {
-      twoFactorAuth: false,
-      strongPasswords: true,
-      sessionTimeout: true,
-      emailDomains: '',
-      ipRestriction: false,
+      email: '',
+      role: 'MEMBER' as 'ADMIN' | 'MEMBER' | 'VIEWER',
     },
-    validationSchema: securitySettingsSchema,
-    onSubmit: async (_formValues) => {
+    validationSchema: addMemberSchema,
+    onSubmit: async (formValues) => {
       try {
-        // TODO: Implement API call to update security settings
-        // await apiClient.updateSecuritySettings(tenant.id, formValues);
-
-        // Simulate delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        toast.success('Security settings saved successfully!');
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to save security settings');
+        await apiClient.addWorkspaceMember(workspaceId, {
+          userId: formValues.email,
+          role: formValues.role,
+        });
+        toast.success('Member added successfully!');
+        onSuccess();
+        onOpenChange(false);
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || 'Failed to add member');
       }
     },
   });
 
-  const handleToggle = (fieldName: string, value: boolean) => {
-    handleChange({ target: { name: fieldName, value } } as any);
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Authentication */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Authentication</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">
-                Require two-factor authentication
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                All workspace members must enable 2FA
-              </p>
-            </div>
-            <Switch
-              checked={values.twoFactorAuth}
-              onCheckedChange={(val) => handleToggle('twoFactorAuth', val)}
-              disabled={isSubmitting}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Enforce strong passwords</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Require passwords with minimum 12 characters
-              </p>
-            </div>
-            <Switch
-              checked={values.strongPasswords}
-              onCheckedChange={(val) => handleToggle('strongPasswords', val)}
-              disabled={isSubmitting}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Session timeout</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Automatically log out users after 8 hours of inactivity
-              </p>
-            </div>
-            <Switch
-              checked={values.sessionTimeout}
-              onCheckedChange={(val) => handleToggle('sessionTimeout', val)}
-              disabled={isSubmitting}
-            />
-          </div>
-        </div>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Member</DialogTitle>
+          <DialogDescription>Invite a user to this workspace by email address</DialogDescription>
+        </DialogHeader>
 
-      {/* Access Control */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Access Control</h2>
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="emailDomains">Allowed email domains</Label>
+            <Label htmlFor="add-email">Email Address</Label>
             <Input
-              id="emailDomains"
-              name="emailDomains"
-              type="text"
-              value={values.emailDomains}
+              id="add-email"
+              name="email"
+              type="email"
+              value={values.email}
               onChange={handleChange}
-              placeholder="example.com, company.org"
+              placeholder="member@example.com"
               disabled={isSubmitting}
               className="mt-2"
             />
-            {errors.emailDomains && (
+            {errors.email && (
               <Alert variant="destructive" className="mt-2 py-2">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">{errors.emailDomains}</AlertDescription>
+                <AlertDescription className="text-sm">{errors.email}</AlertDescription>
               </Alert>
             )}
-            {!errors.emailDomains && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Only users with these email domains can join (comma-separated)
-              </p>
-            )}
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Restrict workspace access by IP</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Only allow access from whitelisted IP addresses
-              </p>
-            </div>
-            <Switch
-              checked={values.ipRestriction}
-              onCheckedChange={(val) => handleToggle('ipRestriction', val)}
+
+          <div>
+            <Label htmlFor="add-role">Role</Label>
+            <select
+              id="add-role"
+              name="role"
+              value={values.role}
+              onChange={(e) =>
+                handleChange({ target: { name: 'role', value: e.target.value } } as any)
+              }
               disabled={isSubmitting}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* API Keys */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">API Keys</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Manage API keys for programmatic access to your workspace
-        </p>
-        <Button type="button" disabled={isSubmitting}>
-          Generate New API Key
-        </Button>
-      </div>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-// Billing Settings Tab
-function BillingSettings({ tenant: _tenant }: { tenant: any }) {
-  return (
-    <div className="space-y-6">
-      {/* Current Plan */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Current Plan</h2>
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <p className="text-2xl font-bold text-foreground mb-2">Enterprise</p>
-            <p className="text-sm text-muted-foreground">Billed annually</p>
-          </div>
-          <div className="text-right">
-            <p className="text-3xl font-bold text-foreground">$99</p>
-            <p className="text-sm text-muted-foreground">/month</p>
-          </div>
-        </div>
-        <div className="space-y-2 mb-6">
-          <PlanFeature text="Unlimited plugins" />
-          <PlanFeature text="50 team members" />
-          <PlanFeature text="Priority support" />
-          <PlanFeature text="Custom integrations" />
-          <PlanFeature text="Advanced analytics" />
-        </div>
-        <Button className="w-full">Upgrade Plan</Button>
-      </div>
-
-      {/* Usage Stats */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Usage</h2>
-        <div className="space-y-4">
-          <UsageMeter label="Team Members" current={12} max={50} />
-          <UsageMeter label="Storage" current={2.4} max={10} unit="GB" />
-          <UsageMeter label="API Calls" current={1247} max={10000} suffix="/mo" />
-        </div>
-      </div>
-
-      {/* Payment Method */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Payment Method</h2>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-400 rounded flex items-center justify-center text-white text-xs font-bold">
-            VISA
-          </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">•••• •••• •••• 4242</p>
-            <p className="text-xs text-muted-foreground">Expires 12/2026</p>
-          </div>
-        </div>
-        <Button variant="link" className="p-0">
-          Update Payment Method
-        </Button>
-      </div>
-
-      {/* Billing History */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Billing History</h2>
-        <div className="space-y-3">
-          <BillingItem date="Jan 1, 2025" amount="$99.00" status="Paid" />
-          <BillingItem date="Dec 1, 2024" amount="$99.00" status="Paid" />
-          <BillingItem date="Nov 1, 2024" amount="$99.00" status="Paid" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Integrations Settings Tab
-function IntegrationsSettings({ tenant: _tenant }: { tenant: any }) {
-  const integrations = [
-    {
-      name: 'Slack',
-      icon: '💬',
-      description: 'Send notifications to Slack channels',
-      connected: true,
-    },
-    {
-      name: 'GitHub',
-      icon: '🐙',
-      description: 'Connect your GitHub repositories',
-      connected: false,
-    },
-    {
-      name: 'Google Workspace',
-      icon: '📧',
-      description: 'Sync with Google Calendar and Gmail',
-      connected: true,
-    },
-    {
-      name: 'Zapier',
-      icon: '⚡',
-      description: 'Automate workflows with 5000+ apps',
-      connected: false,
-    },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Available Integrations</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Connect your workspace with external services
-        </p>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          {integrations.map((integration) => (
-            <div
-              key={integration.name}
-              className="border border-border rounded-lg p-4 hover:shadow-md transition-shadow"
+              className="w-full mt-2 px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <div className="flex items-start gap-3 mb-3">
-                <div className="text-3xl">{integration.icon}</div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-foreground mb-1">{integration.name}</h3>
-                  <p className="text-xs text-muted-foreground">{integration.description}</p>
-                </div>
-              </div>
-              {integration.connected ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-green-600 font-medium">✓ Connected</span>
-                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800">
-                    Disconnect
-                  </Button>
-                </div>
-              ) : (
-                <Button className="w-full" size="sm">
-                  Connect
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
+              <option value="MEMBER">Member</option>
+              <option value="ADMIN">Admin</option>
+              <option value="VIEWER">Viewer</option>
+            </select>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Add Member'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Teams Tab ────────────────────────────────────────────────────────────────
+
+interface TeamsTabProps {
+  workspaceId: string;
+}
+
+function TeamsTab({ workspaceId }: TeamsTabProps) {
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTeams = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await apiClient.getWorkspaceTeams(workspaceId);
+      setTeams(data);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setError(error.response?.data?.message || 'Failed to load teams');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    loadTeams();
+  }, [loadTeams]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-4 border-border border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-destructive/10 border border-destructive rounded-lg text-destructive">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-foreground">Teams ({teams.length})</h2>
       </div>
 
-      {/* Webhooks */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Webhooks</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Configure webhooks to receive real-time events
-        </p>
-        <Button>Add Webhook</Button>
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        {teams.map((team) => (
+          <div
+            key={team.id}
+            className="p-4 border border-border rounded-lg hover:border-primary transition-colors"
+          >
+            <h3 className="font-medium text-foreground mb-1">{team.name}</h3>
+            {team.description && (
+              <p className="text-sm text-muted-foreground mb-2">{team.description}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {team._count?.members || 0} member{team._count?.members !== 1 ? 's' : ''}
+            </p>
+          </div>
+        ))}
+
+        {teams.length === 0 && (
+          <div className="col-span-2 text-center py-8">
+            <p className="text-muted-foreground">No teams in this workspace yet</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// Advanced Settings Tab
-function AdvancedSettings({ tenant: _tenant }: { tenant: any }) {
+// ─── Coming Soon Placeholder ──────────────────────────────────────────────────
+
+const ICONS: Record<string, string> = {
+  lock: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
+  card: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+  link: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+  wrench:
+    'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+};
+
+function ComingSoonTab({
+  icon,
+  title,
+  description,
+  note,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+  note?: string;
+}) {
   return (
     <div className="space-y-6">
-      {/* Data Export */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Data Export</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Export all your workspace data in JSON format
-        </p>
-        <Button>Export Data</Button>
-      </div>
-
-      {/* Danger Zone */}
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-red-800 mb-4">Danger Zone</h2>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-red-800">Transfer Ownership</p>
-              <p className="text-xs text-red-700">Transfer workspace to another admin</p>
-            </div>
-            <Button variant="outline">Transfer</Button>
-          </div>
-
-          <div className="border-t border-red-200 pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-red-800">Delete Workspace</p>
-                <p className="text-xs text-red-700">
-                  Permanently delete this workspace and all data
-                </p>
-              </div>
-              <Button variant="destructive">Delete</Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Developer Options */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Developer Options</h2>
-        <div className="space-y-4">
-          <ToggleSetting
-            label="Enable debug mode"
-            description="Show detailed error messages and logs"
-            defaultChecked={false}
+      <div className="bg-card border border-border rounded-lg p-12 text-center">
+        <svg
+          className="w-12 h-12 mx-auto text-muted-foreground mb-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d={ICONS[icon] || ICONS.wrench}
           />
-          <ToggleSetting
-            label="API rate limit bypass"
-            description="Remove API rate limits for this workspace"
-            defaultChecked={false}
-          />
-        </div>
+        </svg>
+        <h2 className="text-xl font-semibold text-foreground mb-2">{title}</h2>
+        <p className="text-sm text-muted-foreground mb-1">{description}</p>
+        <p className="text-xs text-muted-foreground">{note || 'This feature is coming soon.'}</p>
       </div>
     </div>
   );
 }
 
-// Helper Components
+// ─── Helper Components ────────────────────────────────────────────────────────
+
 function ToggleSetting({
   label,
   description,
@@ -588,70 +764,6 @@ function ToggleSetting({
         <p className="text-xs text-muted-foreground mt-1">{description}</p>
       </div>
       <Switch checked={checked} onCheckedChange={setChecked} />
-    </div>
-  );
-}
-
-function PlanFeature({ text }: { text: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-green-600">✓</span>
-      <span className="text-sm text-foreground">{text}</span>
-    </div>
-  );
-}
-
-function UsageMeter({
-  label,
-  current,
-  max,
-  unit = '',
-  suffix = '',
-}: {
-  label: string;
-  current: number;
-  max: number;
-  unit?: string;
-  suffix?: string;
-}) {
-  const percentage = (current / max) * 100;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-foreground">{label}</span>
-        <span className="text-sm text-muted-foreground">
-          {current}
-          {unit} / {max}
-          {unit}
-          {suffix}
-        </span>
-      </div>
-      <div className="h-2 bg-muted rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${
-            percentage > 80 ? 'bg-red-600' : percentage > 60 ? 'bg-orange-600' : 'bg-primary'
-          }`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function BillingItem({ date, amount, status }: { date: string; amount: string; status: string }) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
-      <div>
-        <p className="text-sm font-medium text-foreground">{date}</p>
-        <p className="text-xs text-muted-foreground">{status}</p>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-semibold text-foreground">{amount}</span>
-        <Button variant="link" size="sm">
-          Download
-        </Button>
-      </div>
     </div>
   );
 }

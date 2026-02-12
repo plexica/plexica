@@ -16,27 +16,126 @@ This guide covers testing strategies for the Plexica backend API, including unit
 
 ---
 
+## 📊 Current Status
+
+### Test Statistics
+
+- **Total Backend Tests**: 1,047 tests
+- **Test Files**: 64 files
+- **Test Pass Rate**: 100% (when infrastructure running)
+- **Overall Coverage**: 63.16% lines (target: 80%)
+
+### Test Distribution by Module
+
+| Module        | Unit | Integration | E2E | Total Files | Coverage |
+| ------------- | ---- | ----------- | --- | ----------- | -------- |
+| **Auth**      | 5    | 2           | 3   | 10          | ~75%     |
+| **Tenant**    | 6    | 1           | 3   | 10          | ~70%     |
+| **Workspace** | 6    | 2           | 3   | 11          | ~65%     |
+| **Plugin**    | 7    | 3           | 3   | 13          | 87.65%   |
+| **Services**  | -    | -           | -   | 4           | ~50%     |
+| **Other**     | -    | -           | -   | 16          | Varies   |
+| **TOTAL**     | ~27  | ~10         | ~12 | 64          | **63%**  |
+
+### Test Execution Performance
+
+| Test Type             | Count  | Duration | Performance  |
+| --------------------- | ------ | -------- | ------------ |
+| **Unit Tests**        | ~700   | <30s     | ⚡ Very Fast |
+| **Integration Tests** | ~200   | ~90s     | 🟡 Medium    |
+| **E2E Tests**         | ~160   | ~2 min   | 🔵 Slow      |
+| **All Tests**         | ~1,047 | ~3-5 min | 🟢 Good      |
+
+---
+
 ## Test Structure
 
 ```
 apps/core-api/src/__tests__/
-├── setup.ts                              # Global test setup
-├── fixtures/                             # Test data fixtures
-│   ├── tenants.ts
-│   ├── users.ts
-│   └── plugins.ts
-├── unit/                                 # Unit tests
-│   ├── services/
-│   │   ├── tenant-provisioning.test.ts
-│   │   ├── plugin.service.test.ts
-│   │   └── auth.service.test.ts
-│   └── lib/
-│       └── jwt-utils.test.ts
-└── integration/                          # Integration tests
-    ├── tenant.api.test.ts
-    ├── auth.api.test.ts
-    ├── workspace.api.test.ts
-    └── plugin.api.test.ts
+├── setup/                              # Test setup & configuration (6 files)
+│   ├── unit-setup.ts
+│   ├── integration-setup.ts
+│   ├── e2e-setup.ts
+│   ├── coverage-setup.ts
+│   ├── shared-setup.ts
+│   └── ...
+├── auth/                               # Auth Module (10 test files)
+│   ├── unit/                           # 5 files
+│   │   ├── auth.middleware.test.ts
+│   │   ├── jwt.test.ts
+│   │   ├── jwt-extended.test.ts
+│   │   ├── keycloak-jwt.test.ts
+│   │   └── permission.service.test.ts
+│   ├── integration/                    # 2 files
+│   │   ├── auth-flow.integration.test.ts
+│   │   └── permission.integration.test.ts
+│   └── e2e/                            # 3 files
+│       ├── cross-tenant-security.e2e.test.ts
+│       ├── security-hardening.e2e.test.ts
+│       └── token-refresh.e2e.test.ts
+├── tenant/                             # Tenant Module (10 test files)
+│   ├── unit/                           # 6 files
+│   │   ├── tenant.service.test.ts
+│   │   ├── tenant-context.middleware.test.ts
+│   │   ├── tenant-context-helpers.test.ts
+│   │   ├── tenant-isolation.unit.test.ts
+│   │   ├── tenant-lifecycle.test.ts
+│   │   └── tenant-provisioning.service.test.ts
+│   ├── integration/                    # 1 file
+│   │   └── tenant-api.integration.test.ts
+│   └── e2e/                            # 3 files
+│       ├── tenant-concurrent.e2e.test.ts
+│       ├── tenant-isolation.e2e.test.ts
+│       └── tenant-provisioning.e2e.test.ts
+├── workspace/                          # Workspace Module (11 test files)
+│   ├── unit/                           # 6 files
+│   │   ├── workspace-api.unit.test.ts
+│   │   ├── workspace-isolation.test.ts
+│   │   ├── workspace-logic.test.ts
+│   │   ├── workspace-permissions.test.ts
+│   │   ├── workspace-tenant.unit.test.ts
+│   │   └── workspace-validation.test.ts
+│   ├── integration/                    # 2 files
+│   │   ├── workspace-crud.integration.test.ts
+│   │   └── workspace-members.integration.test.ts
+│   └── e2e/                            # 3 files
+│       ├── workspace-collaboration.e2e.test.ts
+│       ├── workspace-concurrent.e2e.test.ts
+│       └── workspace-lifecycle.e2e.test.ts
+├── plugin/                             # Plugin Module (13 test files)
+│   ├── unit/                           # 7 files
+│   │   ├── plugin-api-gateway.test.ts
+│   │   ├── plugin-communication.unit.test.ts
+│   │   ├── plugin-lifecycle.test.ts
+│   │   ├── plugin-manifest.test.ts
+│   │   ├── plugin-registry.test.ts
+│   │   ├── plugin-validation.test.ts
+│   │   └── plugin-version.test.ts
+│   ├── integration/                    # 3 files
+│   │   ├── plugin-install.integration.test.ts
+│   │   ├── plugin-marketplace.integration.test.ts
+│   │   └── plugin-permissions.integration.test.ts
+│   └── e2e/                            # 3 files
+│       ├── plugin-concurrent.e2e.test.ts
+│       ├── plugin-installation.e2e.test.ts
+│       └── plugin-isolation.e2e.test.ts
+├── services/                           # Service Tests (4 files)
+│   ├── dependency-resolution.test.ts
+│   ├── service-registry.test.ts
+│   ├── shared-data.test.ts
+│   └── tenant-service-extended.test.ts
+├── lib/                                # Library Tests
+│   └── validators.test.ts
+├── integration/                        # Integration Tests
+│   ├── admin-api.integration.test.ts
+│   └── marketplace-api.integration.test.ts
+├── unit/                               # Other Unit Tests
+│   ├── admin.service.test.ts
+│   ├── error-handling.unit.test.ts
+│   └── marketplace.service.test.ts
+└── examples/                           # Example Tests
+    ├── redpanda-event-driven.example.test.ts
+    └── redpanda-simple.test.ts
 ```
 
 ---

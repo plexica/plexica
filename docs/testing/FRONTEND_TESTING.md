@@ -1,6 +1,6 @@
 # Frontend Testing Guide
 
-**Last Updated**: 2025-02-03  
+**Last Updated**: 2026-02-11  
 **Status**: Complete  
 **Owner**: Engineering Team  
 **Document Type**: Testing Guide
@@ -860,6 +860,106 @@ const mockWorkspace = {
 
 ---
 
+## E2E Testing
+
+### Playwright E2E Tests
+
+Plexica uses **Playwright** for end-to-end testing with comprehensive coverage of critical user flows.
+
+**Test Suite Statistics**:
+
+| Category               | Count         | Files        | Status          |
+| ---------------------- | ------------- | ------------ | --------------- |
+| **Super-Admin E2E**    | 105 tests     | 9 files      | ✅ Active       |
+| **Web App E2E**        | 64 tests      | 6 files      | ✅ Active       |
+| **Total Frontend E2E** | **169 tests** | **15 files** | **✅ Complete** |
+
+### E2E Test Files
+
+**Super-Admin App** (9 files, 105 tests):
+
+- `apps/web/tests/e2e/super-admin/auth.spec.ts` - Authentication flows
+- `apps/web/tests/e2e/super-admin/tenant-management.spec.ts` - Tenant CRUD
+- `apps/web/tests/e2e/super-admin/user-management.spec.ts` - User operations
+- `apps/web/tests/e2e/super-admin/plugin-management.spec.ts` - Plugin installation
+- `apps/web/tests/e2e/super-admin/settings.spec.ts` - Global settings
+- `apps/web/tests/e2e/super-admin/multi-tenancy.spec.ts` - Multi-tenant isolation
+- `apps/web/tests/e2e/super-admin/workspace-management.spec.ts` - Workspace administration
+- `apps/web/tests/e2e/super-admin/dashboard.spec.ts` - Super-admin dashboard
+- `apps/web/tests/e2e/super-admin/plugin-marketplace.spec.ts` - Plugin discovery
+
+**Web App** (6 files, 64 tests):
+
+- `apps/web/tests/e2e/auth-flow.spec.ts` - User login/logout flows
+- `apps/web/tests/e2e/dashboard.spec.ts` - Dashboard and overview
+- `apps/web/tests/e2e/workspace-management.spec.ts` - Workspace operations
+- `apps/web/tests/e2e/navigation.spec.ts` - Navigation and routing
+- `apps/web/tests/e2e/settings.spec.ts` - User and workspace settings
+- `apps/web/tests/e2e/plugin-lifecycle.spec.ts` - Plugin installation/activation
+
+### Running E2E Tests
+
+```bash
+# Run all E2E tests
+cd apps/web
+pnpm test:e2e
+
+# Run specific E2E file
+pnpm test:e2e auth-flow.spec.ts
+
+# Run with UI (visual test runner)
+pnpm test:e2e --ui
+
+# Run in headed mode (see browser)
+pnpm test:e2e --headed
+
+# Debug mode
+pnpm test:e2e --debug
+
+# Generate report
+pnpm test:e2e --reporter=html
+open playwright-report/index.html
+```
+
+### E2E Test Structure
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Feature Name', () => {
+  test.beforeEach(async ({ page }) => {
+    // Setup: Navigate, login, etc.
+    await page.goto('http://localhost:5173');
+    await page.fill('input[name="email"]', 'user@example.com');
+    await page.fill('input[name="password"]', 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForNavigation();
+  });
+
+  test('should complete user flow', async ({ page }) => {
+    // Act: User interactions
+    await page.click('text=Create Workspace');
+    await page.fill('input[name="name"]', 'New Workspace');
+    await page.click('button:has-text("Create")');
+
+    // Assert: Verify result
+    await expect(page).toHaveURL(/.*workspace-settings/);
+    await expect(page.locator('text=New Workspace')).toBeVisible();
+  });
+});
+```
+
+### E2E Best Practices
+
+- **Avoid hardcoding delays**: Use `waitForNavigation()`, `waitForSelector()`
+- **Test critical flows**: Login, create workspace, plugin installation
+- **Clean up test data**: Delete test resources after each test
+- **Use fixtures**: Reuse setup code with `beforeEach()` or custom fixtures
+- **Test in multiple browsers**: Configure Playwright for Chrome, Firefox, Safari
+- **Isolate tests**: Each test should be independent
+
+---
+
 ## Coverage Targets
 
 ### Unit Tests
@@ -882,11 +982,14 @@ const mockWorkspace = {
 
 ### E2E Tests
 
-**Target**: Critical paths only
+**Status**: ✅ 169 tests across 15 files
 
-- Complete login → create workspace → create team flow
-- Multi-tenant isolation
-- Permission enforcement
+- ✅ Complete login → create workspace → create team flow
+- ✅ Multi-tenant isolation and switching
+- ✅ Permission enforcement
+- ✅ Plugin lifecycle (install, activate, deactivate, uninstall)
+- ✅ Super-admin tenant and user management
+- ✅ Workspace settings and configuration
 
 ---
 

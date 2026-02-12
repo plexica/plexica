@@ -24,6 +24,8 @@ export default defineConfig({
         '@tanstack/react-query',
         'axios',
         'zustand',
+        '@plexica/ui',
+        '@plexica/types',
       ],
     }),
   ],

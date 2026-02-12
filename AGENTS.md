@@ -4,7 +4,7 @@ This file provides essential guidelines for AI coding agents working in the Plex
 
 ## Quick Start - Essential Commands
 
-```bash
+````bash
 # Setup and development
 pnpm install                    # Install dependencies
 pnpm dev                        # Start development servers (all packages)
@@ -13,21 +13,79 @@ pnpm lint                       # Run linting across all packages
 pnpm format                     # Format code with Prettier
 
 # Testing - Core API (main package)
-cd apps/core-api
-pnpm test                       # Run all tests (vitest)
-pnpm test:unit                  # Unit tests only
-pnpm test:integration           # Integration tests only
-pnpm test:e2e                   # E2E tests only
-pnpm test:coverage              # All tests with coverage
-pnpm test path/to/specific.test.ts  # Run single test file
-pnpm test --watch              # Watch mode (TDD)
-pnpm test --ui                 # Interactive UI dashboard
 
-# Database
+## Current Test Status
+
+**For current test statistics and coverage details, see [docs/TESTING.md](docs/TESTING.md#test-suite-overview)**
+
+Quick summary:
+- 1,855+ total tests (backend + frontend)
+- 63% coverage (target: 80%)
+- 100% pass rate when infrastructure running
+
+## Quick Test Commands
+
+```bash
+cd apps/core-api
+
+# Run ALL tests (~3-5 min)
+pnpm test
+
+# By test type
+pnpm test:unit                  # Unit tests only (~30s)
+pnpm test:integration           # Integration tests (~90s)
+pnpm test:e2e                   # E2E tests (~2 min)
+
+# Coverage report
+pnpm test:coverage
+
+# Watch mode (for TDD development)
+pnpm test --watch
+
+# Interactive UI dashboard
+pnpm test --ui
+
+# Single test file
+pnpm test path/to/specific.test.ts
+
+# Specific module
+pnpm test -- auth/              # Auth module only
+pnpm test -- tenant/            # Tenant module only
+pnpm test -- workspace/         # Workspace module only
+pnpm test -- plugin/            # Plugin module only
+````
+
+## Test Infrastructure Setup
+
+```bash
+# Start test services (PostgreSQL, Keycloak, Redis, MinIO)
+cd test-infrastructure
+./scripts/test-setup.sh
+
+# Check services are running
+./scripts/test-check.sh
+
+# Reset test data between runs
+./scripts/test-reset.sh
+
+# Stop services
+./scripts/test-teardown.sh
+```
+
+## Database Operations
+
+```bash
 pnpm db:migrate                # Apply migrations
 pnpm db:generate               # Generate Prisma client
 pnpm db:seed                   # Seed test data
 ```
+
+## Testing Resources
+
+- **Quick Start**: [`docs/TESTING.md`](docs/TESTING.md)
+- **Backend Testing**: [`docs/testing/BACKEND_TESTING.md`](docs/testing/BACKEND_TESTING.md)
+- **Coverage Improvement Plan**: [`specs/TEST_COVERAGE_IMPROVEMENT_PLAN.md`](specs/TEST_COVERAGE_IMPROVEMENT_PLAN.md)
+- **Test Directory**: [`apps/core-api/src/__tests__/README.md`](apps/core-api/src/__tests__/README.md)
 
 ## Code Style Guidelines
 

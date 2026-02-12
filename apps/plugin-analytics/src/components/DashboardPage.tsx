@@ -1,12 +1,28 @@
 // File: apps/plugin-analytics/src/components/DashboardPage.tsx
 
 import React from 'react';
-
-export interface PluginProps {
-  tenantId: string;
-  userId: string;
-  workspaceId?: string;
-}
+import type { PluginProps } from '@plexica/types';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Progress,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  StatCard,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@plexica/ui';
+import { Activity, BarChart3, Clock, DollarSign, TrendingUp, Users } from 'lucide-react';
 
 /**
  * Analytics Dashboard - Overview of key metrics and charts
@@ -14,10 +30,30 @@ export interface PluginProps {
 const DashboardPage: React.FC<PluginProps> = ({ tenantId, userId }) => {
   // Mock data for analytics
   const metrics = [
-    { label: 'Total Revenue', value: '$2.4M', change: '+18.2%', trend: 'up' },
-    { label: 'Active Users', value: '12,482', change: '+12.5%', trend: 'up' },
-    { label: 'Conversion Rate', value: '24.8%', change: '+3.1%', trend: 'up' },
-    { label: 'Avg. Session Time', value: '4m 32s', change: '-5.3%', trend: 'down' },
+    {
+      label: 'Total Revenue',
+      value: '$2.4M',
+      trend: 18.2,
+      icon: <DollarSign className="h-5 w-5" />,
+    },
+    {
+      label: 'Active Users',
+      value: '12,482',
+      trend: 12.5,
+      icon: <Users className="h-5 w-5" />,
+    },
+    {
+      label: 'Conversion Rate',
+      value: '24.8%',
+      trend: 3.1,
+      icon: <TrendingUp className="h-5 w-5" />,
+    },
+    {
+      label: 'Avg. Session Time',
+      value: '4m 32s',
+      trend: -5.3,
+      icon: <Clock className="h-5 w-5" />,
+    },
   ];
 
   const revenueByMonth = [
@@ -37,156 +73,175 @@ const DashboardPage: React.FC<PluginProps> = ({ tenantId, userId }) => {
     { name: 'Referral', users: 1772, percentage: 14 },
   ];
 
+  const recentActivity = [
+    { event: 'New user registration spike', time: '2 hours ago', type: 'positive' as const },
+    { event: 'Page load time increased', time: '5 hours ago', type: 'warning' as const },
+    { event: 'Revenue goal achieved', time: '1 day ago', type: 'positive' as const },
+    { event: 'Weekly report generated', time: '2 days ago', type: 'neutral' as const },
+  ];
+
+  const ACTIVITY_VARIANT: Record<string, 'success' | 'warning' | 'secondary'> = {
+    positive: 'success',
+    warning: 'warning',
+    neutral: 'secondary',
+  };
+
   const maxRevenue = Math.max(...revenueByMonth.map((d) => d.value));
 
+  const SOURCE_COLORS = ['bg-primary', 'bg-green-600', 'bg-yellow-500', 'bg-purple-600'];
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
-        <p className="text-gray-600 mt-1">
+    <div className="space-y-6 p-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Analytics Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
           Track performance metrics and insights across your platform
         </p>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric) => (
-          <div key={metric.label} className="bg-white p-6 rounded-lg shadow border border-gray-200">
-            <p className="text-sm font-medium text-gray-600">{metric.label}</p>
-            <p className="text-3xl font-bold text-gray-900 mt-2">{metric.value}</p>
-            <p
-              className={`text-sm mt-2 font-medium ${
-                metric.trend === 'up' ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {metric.change} from last month
-            </p>
-          </div>
+          <StatCard
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+            trend={metric.trend}
+            icon={metric.icon}
+          />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Revenue Chart */}
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Revenue Trend</h2>
-            <select className="text-sm border border-gray-300 rounded px-3 py-1">
-              <option>Last 7 months</option>
-              <option>Last 12 months</option>
-              <option>This year</option>
-            </select>
-          </div>
+      {/* Charts Section with Tabs */}
+      <Tabs defaultValue="revenue" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="revenue">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Revenue
+          </TabsTrigger>
+          <TabsTrigger value="sources">
+            <Activity className="mr-2 h-4 w-4" />
+            Traffic Sources
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Simple Bar Chart */}
-          <div className="space-y-3">
-            {revenueByMonth.map((data) => (
-              <div key={data.month} className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-600 w-12">{data.month}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-8 relative overflow-hidden">
-                  <div
-                    className="bg-blue-600 h-full rounded-full flex items-center justify-end pr-3 transition-all"
-                    style={{ width: `${(data.value / maxRevenue) * 100}%` }}
-                  >
-                    <span className="text-xs font-medium text-white">${data.value}K</span>
-                  </div>
-                </div>
+        <TabsContent value="revenue">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Revenue Trend</CardTitle>
+                <CardDescription>Monthly revenue over the selected period</CardDescription>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Traffic Sources */}
-        <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Top Traffic Sources</h2>
-          <div className="space-y-4">
-            {topSources.map((source, index) => (
-              <div key={source.name}>
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        index === 0
-                          ? 'bg-blue-600'
-                          : index === 1
-                            ? 'bg-green-600'
-                            : index === 2
-                              ? 'bg-yellow-600'
-                              : 'bg-purple-600'
-                      }`}
-                    />
-                    <span className="text-sm font-medium text-gray-900">{source.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-bold text-gray-900">
-                      {source.users.toLocaleString()}
+              <Select defaultValue="7months">
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7months">Last 7 months</SelectItem>
+                  <SelectItem value="12months">Last 12 months</SelectItem>
+                  <SelectItem value="year">This year</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {revenueByMonth.map((data) => (
+                  <div key={data.month} className="flex items-center gap-3">
+                    <span className="w-12 text-sm font-medium text-muted-foreground">
+                      {data.month}
                     </span>
-                    <span className="text-xs text-gray-600 ml-2">{source.percentage}%</span>
+                    <div className="relative flex-1 overflow-hidden rounded-full bg-muted h-8">
+                      <div
+                        className="flex h-full items-center justify-end rounded-full bg-primary pr-3 transition-all"
+                        style={{ width: `${(data.value / maxRevenue) * 100}%` }}
+                      >
+                        <span className="text-xs font-medium text-primary-foreground">
+                          ${data.value}K
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full ${
-                      index === 0
-                        ? 'bg-blue-600'
-                        : index === 1
-                          ? 'bg-green-600'
-                          : index === 2
-                            ? 'bg-yellow-600'
-                            : 'bg-purple-600'
-                    }`}
-                    style={{ width: `${source.percentage}%` }}
-                  />
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sources">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Traffic Sources</CardTitle>
+              <CardDescription>User acquisition breakdown by source</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {topSources.map((source, index) => (
+                  <div key={source.name}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-3 w-3 rounded-full ${SOURCE_COLORS[index]}`} />
+                        <span className="text-sm font-medium text-foreground">{source.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-foreground">
+                          {source.users.toLocaleString()}
+                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {source.percentage}%
+                        </span>
+                      </div>
+                    </div>
+                    <Progress value={source.percentage} className="h-2" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
-          <a
-            href="/plugins/analytics/reports"
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-          >
-            View All Reports →
-          </a>
-        </div>
-        <div className="space-y-3">
-          {[
-            { event: 'New user registration spike', time: '2 hours ago', type: 'positive' },
-            { event: 'Page load time increased', time: '5 hours ago', type: 'warning' },
-            { event: 'Revenue goal achieved', time: '1 day ago', type: 'positive' },
-            { event: 'Weekly report generated', time: '2 days ago', type: 'neutral' },
-          ].map((activity, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    activity.type === 'positive'
-                      ? 'bg-green-500'
-                      : activity.type === 'warning'
-                        ? 'bg-yellow-500'
-                        : 'bg-gray-400'
-                  }`}
-                />
-                <span className="text-sm text-gray-900">{activity.event}</span>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest events and alerts</CardDescription>
+          </div>
+          <Button variant="link" size="sm" asChild>
+            <a href="/plugins/analytics/reports">View All Reports &rarr;</a>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {recentActivity.map((activity, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between rounded-lg bg-muted/50 p-3"
+              >
+                <div className="flex items-center gap-3">
+                  <Badge
+                    variant={ACTIVITY_VARIANT[activity.type]}
+                    className="h-2 w-2 rounded-full p-0"
+                  />
+                  <span className="text-sm text-foreground">{activity.event}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{activity.time}</span>
               </div>
-              <span className="text-xs text-gray-500">{activity.time}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Context Info */}
-      <div className="mt-8 p-4 bg-gray-100 rounded text-xs text-gray-600">
-        <strong>Plugin Context:</strong> Tenant: {tenantId} | User: {userId}
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-3">
+            <Badge variant="outline">Tenant: {tenantId}</Badge>
+            <Badge variant="outline">User: {userId}</Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

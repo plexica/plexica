@@ -13,7 +13,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
       <aside
         ref={ref}
         className={cn(
-          'sticky top-16 h-[calc(100vh-4rem)] border-r bg-background-primary transition-all duration-300',
+          'sticky top-16 h-[calc(100vh-4rem)] border-r bg-background transition-all duration-300',
           collapsed ? 'w-16' : 'w-60',
           className
         )}
@@ -25,7 +25,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
             <div className="border-t p-2">
               <button
                 onClick={() => onCollapsedChange(!collapsed)}
-                className="w-full flex items-center justify-center p-2 rounded hover:bg-background-secondary transition-colors"
+                className="w-full flex items-center justify-center p-2 rounded hover:bg-accent transition-colors"
               >
                 {collapsed ? (
                   <ChevronRight className="h-4 w-4" />
@@ -50,7 +50,7 @@ const SidebarSection = React.forwardRef<HTMLDivElement, SidebarSectionProps>(
   ({ className, title, children, ...props }, ref) => (
     <div ref={ref} className={cn('px-3 py-2', className)} {...props}>
       {title && (
-        <h3 className="mb-2 px-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">
+        <h3 className="mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           {title}
         </h3>
       )}
@@ -73,10 +73,10 @@ const SidebarItem = React.forwardRef<HTMLAnchorElement, SidebarItemProps>(
       ref={ref}
       className={cn(
         'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-        'hover:bg-background-secondary hover:text-text-primary',
+        'hover:bg-accent hover:text-foreground',
         active
-          ? 'bg-background-secondary text-text-primary border-l-3 border-l-primary'
-          : 'text-text-secondary',
+          ? 'bg-accent text-foreground border-l-[3px] border-l-primary'
+          : 'text-muted-foreground',
         collapsed && 'justify-center px-2',
         className
       )}
@@ -87,7 +87,7 @@ const SidebarItem = React.forwardRef<HTMLAnchorElement, SidebarItemProps>(
         <>
           <span className="flex-1">{children}</span>
           {badge && (
-            <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-xs text-white">
+            <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
               {badge}
             </span>
           )}

@@ -1,9 +1,25 @@
 # Plexica - Technical Specifications
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
+**Last Updated**: 2026-02-11  
+**Status**: In Progress  
 **Owner**: Architecture Team  
 **Document Type**: Technical Specifications
+
+---
+
+## 📋 Documentation Scope
+
+**This document is the authoritative source for:**
+
+- Backend system architecture and API design
+- Database architecture and multi-tenancy implementation
+- Infrastructure and deployment configuration
+- Plugin system backend implementation
+- Technology stack decisions
+
+**For frontend architecture, see:** [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) (React, Module Federation, routing, state management)
+
+**Note**: This document describes core backend architecture. Additional technical details on Frontend Integration (Vite Module Federation, TailwindCSS v4 tokens, Playwright E2E) documented in `docs/ARCHITECTURE.md` and testing guides.
 
 ## Table of Contents
 

@@ -1,5 +1,6 @@
 import { Card } from '@plexica/ui';
 import { useAnalytics } from '@/hooks';
+import type { AnalyticsPlugin } from '@/hooks/useAnalytics';
 import { StatCard } from '../tenants/StatCard';
 
 export function AnalyticsView() {
@@ -12,7 +13,29 @@ export function AnalyticsView() {
     setTimePeriod,
     maxTenantGrowth,
     maxApiCalls,
+    isLoading,
+    error,
   } = useAnalytics();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading analytics...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card className="p-4 bg-red-50 border-red-200">
+          <p className="text-sm text-red-800">
+            <strong>Error:</strong> Failed to load analytics data. Please try again later.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -114,18 +137,22 @@ export function AnalyticsView() {
       <Card className="p-6 mb-6">
         <h3 className="text-lg font-semibold text-foreground mb-4">Plugin Usage</h3>
         <div className="space-y-3">
-          {plugins.slice(0, 5).map((plugin: any) => (
-            <div key={plugin.id} className="flex items-center justify-between">
+          {(plugins as AnalyticsPlugin[]).slice(0, 5).map((plugin) => (
+            <div key={plugin.pluginId} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{plugin.icon || '🧩'}</span>
+                <span className="text-2xl">🧩</span>
                 <div>
-                  <p className="text-sm font-medium text-foreground">{plugin.name}</p>
-                  <p className="text-xs text-muted-foreground">{plugin.category}</p>
+                  <p className="text-sm font-medium text-foreground">{plugin.pluginName}</p>
+                  <p className="text-xs text-muted-foreground">v{plugin.version}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-medium text-foreground">- installs</p>
-                <p className="text-xs text-muted-foreground">No data</p>
+                <p className="text-sm font-medium text-foreground">
+                  {plugin.totalInstallations} installs
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {plugin.activeTenants} active tenants
+                </p>
               </div>
             </div>
           ))}
@@ -133,28 +160,6 @@ export function AnalyticsView() {
             <p className="text-sm text-muted-foreground text-center py-4">No plugins available</p>
           )}
         </div>
-      </Card>
-
-      {/* Note about mock data */}
-      <Card className="p-4 bg-blue-50 border-blue-200">
-        <p className="text-sm text-blue-800 mb-2">
-          <strong>Note:</strong> This analytics dashboard displays mock data for demonstration
-          purposes. In production, these metrics would be fetched from the backend API endpoints:
-        </p>
-        <ul className="text-xs text-blue-700 ml-4 list-disc space-y-1">
-          <li>
-            <code>/api/admin/analytics/overview</code> - Platform-wide statistics
-          </li>
-          <li>
-            <code>/api/admin/analytics/tenants</code> - Tenant growth data
-          </li>
-          <li>
-            <code>/api/admin/analytics/api-calls</code> - API usage metrics
-          </li>
-          <li>
-            <code>/api/admin/analytics/plugins</code> - Plugin installation stats
-          </li>
-        </ul>
       </Card>
     </div>
   );

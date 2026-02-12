@@ -63,7 +63,7 @@ export function createTestSetup(options: TestSetupOptions): void {
       await testContext.resetAll();
     }
     console.log(`${label} test setup ready\n`);
-  }, 120000); // 2 minute timeout for reset
+  }, 240000); // 4 minute timeout for reset (matches vitest hookTimeout for E2E tests)
 
   // Global cleanup - runs once after all test files
   afterAll(async () => {

@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { Button, Input, Badge, Card } from '@plexica/ui';
-import { Search } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTenants } from '@/hooks';
-import { Tenant } from '@/types';
+import type { Tenant } from '@/types';
 import { StatCard } from '../tenants/StatCard';
 import { CreateTenantModal } from '../tenants/CreateTenantModal';
 import { TenantDetailModal } from '../tenants/TenantDetailModal';
+import { EditTenantModal } from '../tenants/EditTenantModal';
 
 export function TenantsView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
 
   const {
     tenants,
+    pagination,
     stats,
     isLoading,
     error,
@@ -26,16 +29,18 @@ export function TenantsView() {
     activateTenant,
     isSuspending,
     isActivating,
+    page,
+    setPage,
     refetch,
   } = useTenants();
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'active':
+      case 'ACTIVE':
         return 'default';
-      case 'suspended':
+      case 'SUSPENDED':
         return 'danger';
-      case 'provisioning':
+      case 'PROVISIONING':
         return 'secondary';
       default:
         return 'outline';
@@ -105,9 +110,9 @@ export function TenantsView() {
               className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-              <option value="provisioning">Provisioning</option>
+              <option value="ACTIVE">Active</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="PROVISIONING">Provisioning</option>
             </select>
 
             {/* Clear Filters */}
@@ -120,10 +125,10 @@ export function TenantsView() {
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <StatCard title="Total Tenants" value={stats.total} icon="🏢" />
-            <StatCard title="Active" value={stats.active} icon="✅" />
-            <StatCard title="Suspended" value={stats.suspended} icon="⏸️" />
-            <StatCard title="Provisioning" value={stats.provisioning} icon="⚙️" />
+            <StatCard title="Total Tenants" value={stats.total} icon="building" />
+            <StatCard title="Active" value={stats.active} icon="check" />
+            <StatCard title="Suspended" value={stats.suspended} icon="pause" />
+            <StatCard title="Provisioning" value={stats.provisioning} icon="gear" />
           </div>
 
           {/* Tenants Table */}
@@ -165,10 +170,10 @@ export function TenantsView() {
                         <Button variant="ghost" size="sm" onClick={() => setSelectedTenant(tenant)}>
                           View
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => setEditingTenant(tenant)}>
                           Edit
                         </Button>
-                        {tenant.status === 'active' ? (
+                        {tenant.status === 'ACTIVE' ? (
                           <Button
                             variant="danger"
                             size="sm"
@@ -181,7 +186,7 @@ export function TenantsView() {
                           >
                             {isSuspending ? '...' : 'Suspend'}
                           </Button>
-                        ) : tenant.status === 'suspended' ? (
+                        ) : tenant.status === 'SUSPENDED' ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -202,10 +207,41 @@ export function TenantsView() {
               </tbody>
             </table>
 
+            {/* Pagination Controls */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-3 border-t border-border">
+                <p className="text-sm text-muted-foreground">
+                  Showing {(page - 1) * pagination.limit + 1}–
+                  {Math.min(page * pagination.limit, pagination.total)} of {pagination.total}{' '}
+                  tenants
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(page - 1)}
+                    disabled={page <= 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-foreground">
+                    Page {page} of {pagination.totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(page + 1)}
+                    disabled={page >= pagination.totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Empty State - No Tenants */}
             {stats.total === 0 && !isLoading && !error && (
               <div className="text-center py-12">
-                <div className="text-6xl mb-4">🏢</div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">No tenants yet</h3>
                 <p className="text-muted-foreground">Create your first tenant to get started</p>
               </div>
@@ -214,7 +250,6 @@ export function TenantsView() {
             {/* No Results State - Filtered */}
             {stats.total > 0 && tenants.length === 0 && (
               <div className="text-center py-12">
-                <div className="text-6xl mb-4">🔍</div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">No tenants found</h3>
                 <p className="text-muted-foreground">Try adjusting your search or filters</p>
               </div>
@@ -229,6 +264,18 @@ export function TenantsView() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Edit Tenant Modal */}
+      {editingTenant && (
+        <EditTenantModal
+          tenant={editingTenant}
+          onClose={() => setEditingTenant(null)}
+          onSuccess={() => {
+            setEditingTenant(null);
             refetch();
           }}
         />
