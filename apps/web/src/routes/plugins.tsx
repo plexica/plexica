@@ -161,7 +161,7 @@ function PluginsPage() {
     },
   });
 
-  const plugins: TenantPlugin[] = pluginsData ?? [];
+  const plugins = useMemo(() => pluginsData ?? [], [pluginsData]);
   const catalog: Plugin[] = catalogData ?? [];
   const activeCount = plugins.filter((p) => p.status === 'ACTIVE').length;
 

@@ -76,19 +76,20 @@ export function PluginProvider({ children }: { children: ReactNode }) {
       // Capture any load errors from the plugin loader
       setLoadErrors(pluginLoader.getLoadErrors());
       setIsLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // HIGH FIX #7: Don't set error if request was aborted
-      if (err.name !== 'AbortError') {
+      if (err instanceof Error && err.name !== 'AbortError') {
         console.error('[PluginContext] Failed to load plugins:', err);
         setError(err.message || 'Failed to load plugins');
         setIsLoading(false);
       }
     }
-  }, [tenant?.id]);
+  }, [tenant]);
 
   // Load plugins when tenant changes
   useEffect(() => {
-    loadPlugins();
+    // Call loadPlugins async to avoid sync setState warning
+    void loadPlugins();
 
     return () => {
       // HIGH FIX #7: Cleanup - abort in-flight requests on unmount

@@ -633,22 +633,23 @@ function TeamsTab({ workspaceId }: TeamsTabProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadTeams();
-  }, [workspaceId]);
-
-  const loadTeams = async () => {
+  const loadTeams = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const data = await apiClient.getWorkspaceTeams(workspaceId);
       setTeams(data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load teams');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setError(error.response?.data?.message || 'Failed to load teams');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    loadTeams();
+  }, [loadTeams]);
 
   if (isLoading) {
     return (

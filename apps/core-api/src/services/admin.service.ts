@@ -188,7 +188,6 @@ export class AdminService {
         }
       } catch (error) {
         // Log but don't fail if a single tenant schema has issues
-        // eslint-disable-next-line no-console
         console.warn(
           `Failed to query users from tenant schema ${schemaName}:`,
           error instanceof Error ? error.message : String(error)

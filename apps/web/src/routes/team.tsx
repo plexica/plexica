@@ -1,10 +1,8 @@
-// apps/web/src/routes/team.tsx
-
 import { createFileRoute } from '@tanstack/react-router';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
 import { useWorkspace } from '../contexts/WorkspaceContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../lib/api-client';
 import { Button } from '@plexica/ui';
 import { Input } from '@plexica/ui';
@@ -43,6 +41,23 @@ function TeamPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const loadTeams = useCallback(async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await apiClient.getWorkspaceTeams(currentWorkspace.id);
+      setTeams(data);
+    } catch (err: unknown) {
+      console.error('Failed to load teams:', err);
+      const error = err as { response?: { data?: { message?: string } } };
+      setError(error.response?.data?.message || 'Failed to load teams');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentWorkspace]);
+
   // Load teams when workspace changes
   useEffect(() => {
     if (currentWorkspace) {
@@ -51,23 +66,7 @@ function TeamPage() {
       setTeams([]);
       setIsLoading(false);
     }
-  }, [currentWorkspace]);
-
-  const loadTeams = async () => {
-    if (!currentWorkspace) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await apiClient.getWorkspaceTeams(currentWorkspace.id);
-      setTeams(data);
-    } catch (err: any) {
-      console.error('Failed to load teams:', err);
-      setError(err.response?.data?.message || 'Failed to load teams');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [currentWorkspace, loadTeams]);
 
   // Filter teams
   const filteredTeams = teams.filter(

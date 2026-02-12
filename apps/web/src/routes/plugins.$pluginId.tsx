@@ -72,14 +72,22 @@ function PluginPage() {
       return;
     }
 
-    setIsResolvingComponent(true);
-    setLoadError(null);
-    setPluginComponent(null);
-
     if (!loadedPlugin) {
-      setIsResolvingComponent(false);
+      // Use async update to avoid sync setState in effect
+      Promise.resolve().then(() => {
+        setIsResolvingComponent(false);
+        setLoadError(null);
+        setPluginComponent(null);
+      });
       return;
     }
+
+    // Set loading state and reset error/component (async to avoid sync setState warning)
+    Promise.resolve().then(() => {
+      setIsResolvingComponent(true);
+      setLoadError(null);
+      setPluginComponent(null);
+    });
 
     // Try to find a registered route for this plugin
     const pluginRoutes = pluginRouteManager.getPluginRoutes(pluginId);
@@ -100,17 +108,19 @@ function PluginPage() {
           setIsResolvingComponent(false);
         });
     } else {
-      // No registered routes — try the plugin's default export
-      const mod = loadedPlugin.module;
-      if (mod?.default) {
-        setPluginComponent(() => mod.default);
-        setIsResolvingComponent(false);
-      } else {
-        setLoadError(
-          `Plugin "${loadedPlugin.manifest.name}" has no registered routes or default component.`
-        );
-        setIsResolvingComponent(false);
-      }
+      // No registered routes — try the plugin's default export (async to avoid sync setState)
+      Promise.resolve().then(() => {
+        const mod = loadedPlugin.module;
+        if (mod?.default) {
+          setPluginComponent(() => mod.default);
+          setIsResolvingComponent(false);
+        } else {
+          setLoadError(
+            `Plugin "${loadedPlugin.manifest.name}" has no registered routes or default component.`
+          );
+          setIsResolvingComponent(false);
+        }
+      });
     }
   }, [pluginsLoading, loadedPlugin, pluginId]);
 

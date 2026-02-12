@@ -119,7 +119,7 @@ describe('DataTable', () => {
 
     // First page: 2 data rows
     const table = screen.getByRole('table');
-    let dataRows = within(table).getAllByRole('row');
+    const dataRows = within(table).getAllByRole('row');
     // 1 header + 2 data rows
     expect(dataRows).toHaveLength(3);
     expect(screen.getByText('User 1')).toBeInTheDocument();
