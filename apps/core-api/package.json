@@ -35,7 +35,7 @@
     "@plexica/event-bus": "workspace:*",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
-    "fastify": "^5.7.1",
+    "fastify": "^5.7.3",
     "ioredis": "^5.9.2",
     "jsonwebtoken": "^9.0.3",
     "jwks-rsa": "^3.2.1",
