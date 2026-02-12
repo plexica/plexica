@@ -23,7 +23,7 @@
     "@plexica/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.19",
     "@tanstack/react-router": "^1.153.2",
-    "axios": "^1.13.2",
+    "axios": "^1.13.5",
     "clsx": "^2.1.1",
     "keycloak-js": "^26.2.2",
     "react": "^19.2.3",
