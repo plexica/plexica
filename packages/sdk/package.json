@@ -26,15 +26,8 @@
   },
   "dependencies": {
     "@plexica/types": "workspace:*",
-    "@plexica/event-bus": "workspace:*"
-  },
-  "peerDependencies": {
+    "@plexica/event-bus": "workspace:*",
     "@plexica/ui": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@plexica/ui": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
