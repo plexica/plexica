@@ -215,6 +215,14 @@ export interface PluginManifest {
     dependencies?: PluginApiDependency[];
   };
 
+  // Translations (Spec 006 - i18n Support)
+  translations?: {
+    /** Translation namespaces provided by this plugin (e.g., ['crm', 'crm-reports']) */
+    namespaces: string[];
+    /** Locales supported by this plugin (e.g., ['en', 'it', 'es', 'de']) */
+    supportedLocales: string[];
+  };
+
   // Lifecycle hooks
   lifecycle?: {
     install?: string;

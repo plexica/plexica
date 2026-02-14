@@ -118,6 +118,7 @@ model Tenant {
   non-sensitive content; explicit Art. 5.1 exemption per spec)
 - **Rate Limit**: Standard public rate limit (100 req/s per IP)
 - **Request**:
+
   ```
   GET /api/v1/translations/en/crm HTTP/1.1
   Accept: application/json
@@ -130,7 +131,9 @@ model Tenant {
   - **Query params**:
     - `tenant` (string, optional): Tenant slug — if provided, tenant overrides
       are merged into the response
+
 - **Response (200)**:
+
   ```json
   {
     "locale": "en",
@@ -150,6 +153,7 @@ model Tenant {
     - `Cache-Control: public, immutable, max-age=31536000`
     - `ETag: "a1b2c3d4"` (content hash)
     - `Content-Type: application/json; charset=utf-8`
+
 - **Response (304)**: Not Modified (when `If-None-Match` matches current hash)
 - **Error Responses**:
 
@@ -275,7 +279,7 @@ model Tenant {
 
 - **Purpose**: Core backend service for translation resolution, caching,
   tenant override merging, and content hash generation.
-- **Location**: `apps/core-api/src/modules/i18n/translation.service.ts`
+- **Location**: `apps/core-api/src/modules/i18n/i18n.service.ts`
 - **Responsibilities**:
   - Load translation files from disk (file-based structure)
   - Merge tenant overrides from database onto plugin translations
@@ -308,7 +312,7 @@ model Tenant {
 ### 4.2 TranslationRoutes
 
 - **Purpose**: Fastify route handlers for the 4 translation API endpoints.
-- **Location**: `apps/core-api/src/modules/i18n/translation.routes.ts`
+- **Location**: `apps/core-api/src/modules/i18n/i18n.controller.ts`
 - **Responsibilities**:
   - Register routes with Fastify JSON Schema validation
   - Apply auth middleware selectively (public for GET translations/locales;
@@ -325,7 +329,7 @@ model Tenant {
 
 - **Purpose**: Zod validation schemas for translation keys and override
   payloads (FR-011, Art. 5.3).
-- **Location**: `apps/core-api/src/modules/i18n/translation.schemas.ts`
+- **Location**: `apps/core-api/src/modules/i18n/i18n.schemas.ts`
 - **Responsibilities**:
   - Validate individual translation key format: max 128 chars, `[a-zA-Z0-9._]`,
     max 5 nesting levels, no `_system.` prefix
@@ -435,24 +439,24 @@ model Tenant {
 
 ### 5.1 New Files
 
-| Path                                                          | Action | Purpose                                                    |
-| ------------------------------------------------------------- | ------ | ---------------------------------------------------------- |
-| `packages/i18n/package.json`                                  | Create | Package manifest for `@plexica/i18n`                       |
-| `packages/i18n/tsconfig.json`                                 | Create | TypeScript configuration                                   |
-| `packages/i18n/src/index.ts`                                  | Create | Package entry — re-exports all public APIs                 |
-| `packages/i18n/src/flatten.ts`                                | Create | `flattenMessages` and `unflattenMessages` utilities        |
-| `packages/i18n/src/hash.ts`                                   | Create | `generateContentHash` (SHA-256 → 8-char hex)               |
-| `packages/i18n/src/locale.ts`                                 | Create | `resolveLocale` fallback chain logic                       |
-| `packages/i18n/src/merge.ts`                                  | Create | `mergeOverrides` — tenant overrides onto base translations |
-| `packages/i18n/src/intl.ts`                                   | Create | `createNamespacedIntl` FormatJS wrapper                    |
-| `packages/i18n/src/types.ts`                                  | Create | Shared types: `TranslationBundle`, `TenantOverrides`, etc. |
-| `apps/core-api/src/modules/i18n/translation.service.ts`       | Create | Core translation service (see §4.1)                        |
-| `apps/core-api/src/modules/i18n/translation.routes.ts`        | Create | Fastify route handlers (see §4.2)                          |
-| `apps/core-api/src/modules/i18n/translation.schemas.ts`       | Create | Zod validation schemas (see §4.3)                          |
-| `apps/core-api/src/modules/i18n/translation-cache.service.ts` | Create | Redis caching layer (see §4.6)                             |
-| `apps/core-api/src/modules/i18n/index.ts`                     | Create | Module barrel export                                       |
-| `apps/core-api/translations/en/core.json`                     | Create | Core platform English translations (seed)                  |
-| `apps/core-api/translations/en/README.md`                     | Create | Translation file structure documentation                   |
+| Path                                                   | Action | Purpose                                                    |
+| ------------------------------------------------------ | ------ | ---------------------------------------------------------- |
+| `packages/i18n/package.json`                           | Create | Package manifest for `@plexica/i18n`                       |
+| `packages/i18n/tsconfig.json`                          | Create | TypeScript configuration                                   |
+| `packages/i18n/src/index.ts`                           | Create | Package entry — re-exports all public APIs                 |
+| `packages/i18n/src/flatten.ts`                         | Create | `flattenMessages` and `unflattenMessages` utilities        |
+| `packages/i18n/src/hash.ts`                            | Create | `generateContentHash` (SHA-256 → 8-char hex)               |
+| `packages/i18n/src/locale.ts`                          | Create | `resolveLocale` fallback chain logic                       |
+| `packages/i18n/src/merge.ts`                           | Create | `mergeOverrides` — tenant overrides onto base translations |
+| `packages/i18n/src/intl.ts`                            | Create | `createNamespacedIntl` FormatJS wrapper                    |
+| `packages/i18n/src/types.ts`                           | Create | Shared types: `TranslationBundle`, `TenantOverrides`, etc. |
+| `apps/core-api/src/modules/i18n/i18n.service.ts`       | Create | Core translation service (see §4.1)                        |
+| `apps/core-api/src/modules/i18n/i18n.controller.ts`    | Create | Fastify route handlers (see §4.2)                          |
+| `apps/core-api/src/modules/i18n/i18n.schemas.ts`       | Create | Zod validation schemas (see §4.3)                          |
+| `apps/core-api/src/modules/i18n/i18n-cache.service.ts` | Create | Redis caching layer (see §4.6)                             |
+| `apps/core-api/src/modules/i18n/index.ts`              | Create | Module barrel export                                       |
+| `apps/core-api/translations/en/core.json`              | Create | Core platform English translations (seed)                  |
+| `apps/core-api/translations/en/README.md`              | Create | Translation file structure documentation                   |
 
 ### 5.2 Modified Files
 
@@ -467,20 +471,20 @@ model Tenant {
 
 ### 5.3 Test Files
 
-| Path                                                                      | Action | Purpose                                                |
-| ------------------------------------------------------------------------- | ------ | ------------------------------------------------------ |
-| `packages/i18n/src/__tests__/flatten.test.ts`                             | Create | Unit: flatten/unflatten                                |
-| `packages/i18n/src/__tests__/hash.test.ts`                                | Create | Unit: content hash generation                          |
-| `packages/i18n/src/__tests__/locale.test.ts`                              | Create | Unit: locale fallback chain resolution                 |
-| `packages/i18n/src/__tests__/merge.test.ts`                               | Create | Unit: tenant override merging                          |
-| `packages/i18n/src/__tests__/intl.test.ts`                                | Create | Unit: FormatJS wrapper, ICU plural formatting          |
-| `apps/core-api/src/__tests__/i18n/unit/translation.service.test.ts`       | Create | Unit: TranslationService business logic                |
-| `apps/core-api/src/__tests__/i18n/unit/translation.schemas.test.ts`       | Create | Unit: Zod schema validation                            |
-| `apps/core-api/src/__tests__/i18n/unit/translation-cache.service.test.ts` | Create | Unit: Redis cache operations (mocked)                  |
-| `apps/core-api/src/__tests__/i18n/integration/translation.routes.test.ts` | Create | Integration: API endpoint tests with DB                |
-| `apps/core-api/src/__tests__/i18n/integration/tenant-overrides.test.ts`   | Create | Integration: tenant override CRUD + cache invalidation |
-| `apps/core-api/src/__tests__/i18n/e2e/locale-switching.test.ts`           | Create | E2E: full locale switch flow with fallback             |
-| `apps/core-api/src/__tests__/i18n/e2e/plugin-translations.test.ts`        | Create | E2E: plugin enable → namespace available → translate   |
+| Path                                                                    | Action | Purpose                                                |
+| ----------------------------------------------------------------------- | ------ | ------------------------------------------------------ |
+| `packages/i18n/src/__tests__/flatten.test.ts`                           | Create | Unit: flatten/unflatten                                |
+| `packages/i18n/src/__tests__/hash.test.ts`                              | Create | Unit: content hash generation                          |
+| `packages/i18n/src/__tests__/locale.test.ts`                            | Create | Unit: locale fallback chain resolution                 |
+| `packages/i18n/src/__tests__/merge.test.ts`                             | Create | Unit: tenant override merging                          |
+| `packages/i18n/src/__tests__/intl.test.ts`                              | Create | Unit: FormatJS wrapper, ICU plural formatting          |
+| `apps/core-api/src/__tests__/i18n/unit/i18n.service.test.ts`            | Create | Unit: TranslationService business logic                |
+| `apps/core-api/src/__tests__/i18n/unit/i18n.schemas.test.ts`            | Create | Unit: Zod schema validation                            |
+| `apps/core-api/src/__tests__/i18n/unit/i18n-cache.service.test.ts`      | Create | Unit: Redis cache operations (mocked)                  |
+| `apps/core-api/src/__tests__/i18n/integration/i18n.controller.test.ts`  | Create | Integration: API endpoint tests with DB                |
+| `apps/core-api/src/__tests__/i18n/integration/tenant-overrides.test.ts` | Create | Integration: tenant override CRUD + cache invalidation |
+| `apps/core-api/src/__tests__/i18n/e2e/locale-switching.test.ts`         | Create | E2E: full locale switch flow with fallback             |
+| `apps/core-api/src/__tests__/i18n/e2e/plugin-translations.test.ts`      | Create | E2E: plugin enable → namespace available → translate   |
 
 ---
 
@@ -600,27 +604,27 @@ model Tenant {
 
 ## 9. Requirement Traceability
 
-| Requirement | Plan Section     | Implementation Path                                                                         |
-| ----------- | ---------------- | ------------------------------------------------------------------------------------------- |
-| FR-001      | §4.1, §4.4       | `TranslationService.getTranslations()`, `@plexica/i18n` namespace loading                   |
-| FR-002      | §4.1, §5.1       | File structure `translations/{locale}/{namespace}.json`, `loadNamespaceFile()`              |
-| FR-003      | §4.4             | `resolveLocale()` in `@plexica/i18n/locale.ts` — fallback to `en`                           |
-| FR-004      | §4.5             | `PluginManifest.translations` type + Zod schema extension                                   |
-| FR-005      | §4.1             | `TranslationService.getEnabledNamespaces()` filters by enabled plugins                      |
-| FR-006      | §2.2, §3.3, §3.4 | `translation_overrides` JSONB column on `Tenant`; PUT API endpoint                          |
-| FR-007      | §4.1, §4.4       | `mergeOverrides()` in `@plexica/i18n/merge.ts`; `TranslationService.getTranslations()`      |
-| FR-008      | §4.4             | `createNamespacedIntl()` — React `IntlProvider` context re-render (frontend phase)          |
-| FR-009      | §4.4, §2.2       | `resolveLocale()` chain: browser → `User.locale` → `Tenant.defaultLocale` → `"en"`          |
-| FR-010      | §4.4             | `flattenMessages()` produces `{namespace}:{dotted.key}` format                              |
-| FR-011      | §4.3             | `TranslationKeySchema` Zod validation (max 128, allowed chars, no `_system.`, max 5 levels) |
-| FR-012      | §4.1             | `loadNamespaceFile()` checks file size; plugin registration rejects > 200KB                 |
-| FR-013      | §4.4, §6.1       | FormatJS `@formatjs/intl` (ADR-012); `createNamespacedIntl()` wraps ICU API                 |
-| FR-014      | §3.3, §3.4       | Override keys compared against current plugin translations; orphans preserved with metadata |
-| NFR-001     | §4.6, §4.4       | Redis caching (< 50ms cached reads); compile-time message compilation                       |
-| NFR-002     | §4.1, §4.6       | Parallel namespace loading; Redis cache; only enabled plugin namespaces loaded              |
-| NFR-003     | §4.1             | Only active locale loaded per request; 10+ locales registered without loading all           |
-| NFR-004     | §4.4             | `createNamespacedIntl()` returns key path as fallback; unit tests verify all fallback paths |
-| NFR-005     | §3.1, §4.6       | Content-hashed URLs; `Cache-Control: immutable, max-age=31536000`; ETag support             |
+| Requirement | Plan Section     | Implementation Path                                                                                                      |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| FR-001      | §4.1, §4.4       | `TranslationService.getTranslations()`, `@plexica/i18n` namespace loading                                                |
+| FR-002      | §4.1, §5.1       | File structure `translations/{locale}/{namespace}.json`, `loadNamespaceFile()`                                           |
+| FR-003      | §4.4             | `resolveLocale()` in `@plexica/i18n/locale.ts` — fallback to `en`                                                        |
+| FR-004      | §4.5             | `PluginManifest.translations` type + Zod schema extension                                                                |
+| FR-005      | §4.1             | `TranslationService.getEnabledNamespaces()` filters by enabled plugins                                                   |
+| FR-006      | §2.2, §3.3, §3.4 | `translation_overrides` JSONB column on `Tenant`; PUT API endpoint                                                       |
+| FR-007      | §4.1, §4.4       | `mergeOverrides()` in `@plexica/i18n/merge.ts`; `TranslationService.getTranslations()`                                   |
+| FR-008      | §4.4             | `createNamespacedIntl()` — React `IntlProvider` context re-render (frontend phase)                                       |
+| FR-009      | §4.4, §2.2       | `resolveLocale()` chain: browser → `User.locale` → `Tenant.defaultLocale` → `"en"`                                       |
+| FR-010      | §4.4             | `flattenMessages()` produces dotted path format (e.g., `contacts.title`); namespace prefix applied by TranslationService |
+| FR-011      | §4.3             | `TranslationKeySchema` Zod validation (max 128, allowed chars, no `_system.`, max 5 levels)                              |
+| FR-012      | §4.1             | `loadNamespaceFile()` checks file size; plugin registration rejects > 200KB                                              |
+| FR-013      | §4.4, §6.1       | FormatJS `@formatjs/intl` (ADR-012); `createNamespacedIntl()` wraps ICU API                                              |
+| FR-014      | §3.3, §3.4       | Override keys compared against current plugin translations; orphans preserved with metadata                              |
+| NFR-001     | §4.6, §4.4       | Redis caching (< 50ms cached reads); compile-time message compilation                                                    |
+| NFR-002     | §4.1, §4.6       | Parallel namespace loading; Redis cache; only enabled plugin namespaces loaded                                           |
+| NFR-003     | §4.1             | Only active locale loaded per request; 10+ locales registered without loading all                                        |
+| NFR-004     | §4.4             | `createNamespacedIntl()` returns key path as fallback; unit tests verify all fallback paths                              |
+| NFR-005     | §3.1, §4.6       | Content-hashed URLs; `Cache-Control: immutable, max-age=31536000`; ETag support                                          |
 
 ---
 
@@ -634,7 +638,7 @@ model Tenant {
 | Art. 4  | ✅     | Coverage targets: ≥85% for i18n module, ≥90% for shared package, 100% for schemas. Unit + integration + E2E tests planned (Art. 4.1). Performance: < 200ms API (Art. 4.3).                                                                           |
 | Art. 5  | ✅     | Translation GET endpoints explicitly public (Art. 5.1 exemption documented in spec). Override endpoints require Bearer + RBAC (Art. 5.1). Zod validation on all inputs (Art. 5.3). No PII in translation data (Art. 5.2).                            |
 | Art. 6  | ✅     | Standard error format `{ error: { code, message, details } }` (Art. 6.2). Error codes: `LOCALE_NOT_FOUND`, `NAMESPACE_NOT_FOUND`, `INVALID_TRANSLATION_KEY`, etc. Pino structured logging (Art. 6.3).                                                |
-| Art. 7  | ✅     | Files: kebab-case (`translation.service.ts`). Classes: PascalCase (`TranslationService`). DB columns: snake_case (`translation_overrides`, `default_locale`). API: REST kebab-case (`/translations/locales`).                                        |
+| Art. 7  | ✅     | Files: kebab-case (`i18n.service.ts`, `i18n.controller.ts`). Classes: PascalCase (`TranslationService`). DB columns: snake_case (`translation_overrides`, `default_locale`). API: REST kebab-case (`/translations/locales`).                         |
 | Art. 8  | ✅     | Unit tests for all business logic. Integration tests for all API endpoints. E2E tests for locale switching + plugin translations. Contract tests for plugin manifest validation. AAA pattern. Descriptive names.                                     |
 | Art. 9  | ✅     | Migration is backward compatible (default values, no breaking changes) (Art. 9.1). Content-hashed URLs with immutable cache for zero-downtime translation updates (Art. 9.1). Feature flag recommended for gradual rollout. Health check unaffected. |
 

@@ -33,6 +33,7 @@
     "@keycloak/keycloak-admin-client": "^26.5.1",
     "@plexica/database": "workspace:*",
     "@plexica/event-bus": "workspace:*",
+    "@plexica/i18n": "workspace:*",
     "axios": "^1.13.5",
     "dotenv": "^17.2.3",
     "fastify": "^5.7.3",

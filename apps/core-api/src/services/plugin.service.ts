@@ -13,6 +13,10 @@ import { DependencyResolutionService } from './dependency-resolution.service.js'
 import { redis } from '../lib/redis.js';
 import semver from 'semver';
 import { TENANT_STATUS } from '../constants/index.js';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { TranslationKeySchema } from '../modules/i18n/i18n.schemas.js';
+import { flattenMessages } from '@plexica/i18n';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -55,7 +59,7 @@ export class PluginRegistryService {
     }
 
     // Additional basic validation
-    this.validateManifest(manifest);
+    await this.validateManifest(manifest);
 
     // Check if plugin already exists
     const existing = await db.plugin.findUnique({
@@ -125,7 +129,7 @@ export class PluginRegistryService {
    * Update an existing plugin
    */
   async updatePlugin(pluginId: string, manifest: PluginManifest): Promise<Plugin> {
-    this.validateManifest(manifest);
+    await this.validateManifest(manifest);
 
     const plugin = await db.plugin.findUnique({
       where: { id: pluginId },
@@ -290,7 +294,7 @@ export class PluginRegistryService {
   /**
    * Validate plugin manifest
    */
-  private validateManifest(manifest: PluginManifest): void {
+  private async validateManifest(manifest: PluginManifest): Promise<void> {
     if (!manifest.id || !/^[a-z0-9-]{1,64}$/.test(manifest.id)) {
       throw new Error('Plugin ID must be 1-64 chars, lowercase alphanumeric with hyphens');
     }
@@ -321,6 +325,107 @@ export class PluginRegistryService {
 
     if (!manifest.metadata?.author?.name) {
       throw new Error('Plugin author name is required');
+    }
+
+    // NEW: Validate translation files if translations section is declared (FR-004, FR-011, FR-012)
+    if (manifest.translations) {
+      await this.validateTranslationFiles(manifest);
+    }
+  }
+
+  /**
+   * Validate translation files for a plugin (FR-004, FR-011, FR-012)
+   *
+   * Checks that:
+   * - All declared translation files exist
+   * - Each file is ≤ 200KB
+   * - All translation keys are valid (max 128 chars, [a-zA-Z0-9._] only)
+   *
+   * @throws Error if validation fails with actionable message
+   */
+  private async validateTranslationFiles(manifest: PluginManifest): Promise<void> {
+    if (!manifest.translations) {
+      return;
+    }
+
+    const { namespaces, supportedLocales } = manifest.translations;
+    const pluginBasePath = path.resolve(process.cwd(), 'plugins', manifest.id);
+    const MAX_FILE_SIZE = 200 * 1024; // 200KB in bytes (FR-012)
+
+    // Re-validate namespace and locale formats for defense-in-depth (path traversal protection)
+    const namespaceRegex = /^[a-z0-9\-]+$/;
+    const localeRegex = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+    for (const locale of supportedLocales) {
+      // Defense-in-depth: re-validate locale format at filesystem boundary
+      if (!localeRegex.test(locale)) {
+        throw new Error(
+          `Invalid locale format: "${locale}". Must be BCP 47 format (e.g., "en", "en-US").`
+        );
+      }
+
+      for (const namespace of namespaces) {
+        // Defense-in-depth: re-validate namespace format at filesystem boundary
+        if (!namespaceRegex.test(namespace)) {
+          throw new Error(
+            `Invalid namespace format: "${namespace}". Must be lowercase alphanumeric with hyphens.`
+          );
+        }
+
+        const translationFilePath = path.join(
+          pluginBasePath,
+          'translations',
+          locale,
+          `${namespace}.json`
+        );
+
+        // Path traversal protection: verify resolved path stays within plugin directory
+        const resolvedPath = path.resolve(translationFilePath);
+        if (!resolvedPath.startsWith(pluginBasePath)) {
+          throw new Error(
+            `Path traversal detected: Translation file path "${translationFilePath}" ` +
+              `resolves outside plugin directory. This is a security violation.`
+          );
+        }
+
+        try {
+          // Check if file exists
+          const fileStats = await fs.stat(resolvedPath);
+
+          // Validate file size (FR-012)
+          if (fileStats.size > MAX_FILE_SIZE) {
+            throw new Error(
+              `Translation file too large: ${resolvedPath} (${(fileStats.size / 1024).toFixed(2)}KB > 200KB limit). ` +
+                `Split into multiple namespaces or reduce translation count.`
+            );
+          }
+
+          // Read and parse file
+          const fileContent = await fs.readFile(resolvedPath, 'utf8');
+          const translations = JSON.parse(fileContent);
+
+          // Flatten to get all keys
+          const flattenedKeys = flattenMessages(translations);
+
+          // Validate each key (FR-011)
+          for (const key of Object.keys(flattenedKeys)) {
+            const validation = TranslationKeySchema.safeParse(key);
+            if (!validation.success) {
+              throw new Error(
+                `Invalid translation key "${key}" in ${resolvedPath}: ${validation.error.issues[0].message}`
+              );
+            }
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(
+              `Missing translation file: ${resolvedPath}. ` +
+                `Plugin declares namespace "${namespace}" for locale "${locale}" but file does not exist.`
+            );
+          }
+          throw error; // Re-throw validation errors or other errors
+        }
+      }
     }
   }
 }
@@ -429,11 +534,12 @@ export class PluginLifecycleService {
     // Check old-style dependencies
     await this.checkDependencies(tenantId, manifest);
 
-    // Create installation within transaction
+    // Create installation within transaction (without service registration to maintain atomicity)
+    let installation: TenantPluginWithPluginAndTenant;
     try {
-      return await db.$transaction(async (tx) => {
+      installation = await db.$transaction(async (tx) => {
         // Create installation
-        const installation = await tx.tenantPlugin.create({
+        const newInstallation = await tx.tenantPlugin.create({
           data: {
             tenantId,
             pluginId,
@@ -446,33 +552,8 @@ export class PluginLifecycleService {
           },
         });
 
-        // M2.3: Register services for this tenant
-        if (manifest.api?.services) {
-          for (const service of manifest.api.services) {
-            try {
-              await this.serviceRegistry.registerService({
-                pluginId,
-                tenantId,
-                serviceName: service.name,
-                version: service.version,
-                baseUrl: service.baseUrl || `http://plugin-${pluginId}:8080`,
-                endpoints: service.endpoints?.map((ep) => ({
-                  method: ep.method,
-                  path: ep.path,
-                  description: ep.description,
-                  permissions: ep.permissions,
-                  metadata: ep.metadata,
-                })),
-                metadata: service.metadata,
-              });
-            } catch (error: unknown) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
-              console.error(`Failed to register service '${service.name}':`, errorMsg);
-            }
-          }
-        }
-
         // Run installation lifecycle hook if defined
+        // NOTE: Lifecycle hook runs INSIDE transaction. If it fails, installation rolls back.
         if (manifest.lifecycle?.install) {
           try {
             await this.runLifecycleHook(manifest, 'install', {
@@ -487,13 +568,45 @@ export class PluginLifecycleService {
           }
         }
 
-        return installation;
+        return newInstallation;
       });
     } catch (error: unknown) {
       throw new Error(
         `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+
+    // AFTER transaction succeeds: Register services for this tenant
+    // This is done outside the transaction to avoid orphaned service registrations
+    // if the transaction rolls back. If service registration fails here, the installation
+    // is complete but without services (better than having services without installation).
+    if (manifest.api?.services) {
+      for (const service of manifest.api.services) {
+        try {
+          await this.serviceRegistry.registerService({
+            pluginId,
+            tenantId,
+            serviceName: service.name,
+            version: service.version,
+            baseUrl: service.baseUrl || `http://plugin-${pluginId}:8080`,
+            endpoints: service.endpoints?.map((ep) => ({
+              method: ep.method,
+              path: ep.path,
+              description: ep.description,
+              permissions: ep.permissions,
+              metadata: ep.metadata,
+            })),
+            metadata: service.metadata,
+          });
+        } catch (error: unknown) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error(`Failed to register service '${service.name}':`, errorMsg);
+          // Log but don't fail the installation - service registration is supplementary
+        }
+      }
+    }
+
+    return installation;
   }
 
   /**

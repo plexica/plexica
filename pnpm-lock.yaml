@@ -72,6 +72,9 @@ importers:
       '@plexica/event-bus':
         specifier: workspace:*
         version: link:../../packages/event-bus
+      '@plexica/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       axios:
         specifier: ^1.13.5
         version: 1.13.5

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { pluginRegistryService, pluginLifecycleService } from '../services/plugin.service.js';
 import type { PluginManifest } from '../types/plugin.types.js';
-import { requireSuperAdmin, authMiddleware } from '../middleware/auth.js';
+import { requireSuperAdmin, authMiddleware, requireTenantAccess } from '../middleware/auth.js';
 import { PluginStatus } from '@plexica/database';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
@@ -318,7 +318,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins/:pluginId/install',
     {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, requireTenantAccess],
       schema: {
         description: 'Install a plugin for a tenant',
         tags: ['plugins', 'tenants'],
@@ -379,7 +379,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins/:pluginId/activate',
     {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, requireTenantAccess],
       schema: {
         description: 'Activate a plugin for a tenant',
         tags: ['plugins', 'tenants'],
@@ -425,7 +425,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins/:pluginId/deactivate',
     {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, requireTenantAccess],
       schema: {
         description: 'Deactivate a plugin for a tenant',
         tags: ['plugins', 'tenants'],
@@ -471,7 +471,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins/:pluginId',
     {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, requireTenantAccess],
       schema: {
         description: 'Uninstall a plugin from a tenant',
         tags: ['plugins', 'tenants'],
@@ -517,7 +517,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins/:pluginId/configuration',
     {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, requireTenantAccess],
       schema: {
         description: 'Update plugin configuration for a tenant',
         tags: ['plugins', 'tenants'],
@@ -579,7 +579,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
   }>(
     '/tenants/:id/plugins',
     {
-      preHandler: [authMiddleware],
+      preHandler: [authMiddleware, requireTenantAccess],
       schema: {
         description: 'Get all installed plugins for a tenant',
         params: {

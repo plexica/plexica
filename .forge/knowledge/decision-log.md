@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 13, 2026
+**Last Updated**: February 14, 2026
 
 ---
 
@@ -81,24 +81,148 @@ shared package to be created.
 
 ---
 
+### Milestone 4 Security Fixes (February 14, 2026)
+
+Following adversarial code review (`/forge-review`) of Milestone 4 implementation, three CRITICAL security vulnerabilities were identified and immediately fixed before continuing with Milestone 5.
+
+#### CRITICAL #1: Cross-Tenant Authorization Bypass
+
+**Vulnerability**: Any authenticated user could manage plugins on ANY tenant (install, activate, configure, uninstall) by manipulating the `tenantId` parameter in the URL.
+
+**Files Modified**:
+
+- `apps/core-api/src/middleware/auth.ts` - Created `requireTenantAccess()` middleware
+- `apps/core-api/src/routes/plugin.ts` - Applied middleware to 6 tenant plugin routes
+
+**Fix Implementation**:
+
+```typescript
+// New middleware validates tenant ownership before plugin operations
+export async function requireTenantAccess(request: FastifyRequest, reply: FastifyReply) {
+  const tenantId = (request.params as { id: string }).id;
+  const userTenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
+
+  if (userTenant.id !== tenantId && !isSuperAdmin(request.user)) {
+    reply.code(403).send({ error: 'Access denied to this tenant' });
+  }
+}
+```
+
+**Impact**: **HIGH** - Prevented complete multi-tenant isolation violation  
+**Constitution Violation**: Article 1.2 (Multi-Tenancy Isolation), Article 5.1 (Tenant Validation)  
+**Status**: ✅ Fixed (Feb 14, 2026)
+
+---
+
+#### CRITICAL #2: Path Traversal Risk in Translation Validation
+
+**Vulnerability**: Translation file validation didn't re-validate locale/namespace at filesystem boundary despite Zod validation upstream. Potential for directory traversal attacks via crafted manifest.
+
+**File Modified**: `apps/core-api/src/services/plugin.service.ts` (lines 346-403)
+
+**Fix Implementation** (Defense-in-Depth):
+
+1. **Layer 1**: Zod schema validates namespace/locale format at manifest parsing
+2. **Layer 2**: Re-validate formats at filesystem boundary with strict regex
+3. **Layer 3**: Path resolution + `startsWith()` check ensures path stays within plugin directory
+
+```typescript
+// Re-validate at filesystem boundary
+const namespaceRegex = /^[a-z0-9\-]+$/;
+const localeRegex = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+if (!localeRegex.test(locale) || !namespaceRegex.test(namespace)) {
+  throw new Error('SECURITY_VIOLATION: Invalid locale or namespace format');
+}
+
+// Path resolution check
+const resolvedPath = path.resolve(filePath);
+if (!resolvedPath.startsWith(pluginBasePath)) {
+  throw new Error('SECURITY_VIOLATION: Path traversal attempt detected');
+}
+```
+
+**Impact**: **HIGH** - Prevented potential filesystem access outside plugin boundaries  
+**Constitution Violation**: Article 5.3 (Input Validation)  
+**Status**: ✅ Fixed (Feb 14, 2026)
+
+---
+
+#### CRITICAL #3: Transaction Integrity Violation
+
+**Vulnerability**: Service registrations happened outside Prisma transaction, causing orphaned registry entries if lifecycle hooks failed. This violated ACID properties.
+
+**File Modified**: `apps/core-api/src/services/plugin.service.ts` (lines 534-607)
+
+**Fix Implementation**:
+
+- **Before**: Service registration inside transaction → orphaned if hook failed
+- **After**: Lifecycle hooks inside transaction, service registration after commit
+
+```typescript
+// Transaction now contains ONLY:
+const installation = await db.$transaction(async (tx) => {
+  const inst = await tx.tenantPlugin.create({ ... });
+
+  // Lifecycle hook INSIDE transaction
+  if (manifest.lifecycle?.install) {
+    await executeHook(manifest.lifecycle.install);
+  }
+
+  return inst;
+});
+
+// Service registration AFTER successful commit
+if (manifest.api?.services) {
+  await serviceRegistry.registerServices(manifest.api.services);
+}
+```
+
+**Impact**: **HIGH** - Prevented database inconsistency and orphaned records  
+**Constitution Violation**: Article 3.2 (Service Layer Encapsulation)  
+**Trade-off**: If service registration fails after commit, plugin is installed but without services (acceptable - can be re-registered manually)  
+**Status**: ✅ Fixed (Feb 14, 2026)
+
+---
+
 ## Recent Changes
 
-| Date       | Change                             | Reason                                                           | Impact                                                                                    |
-| ---------- | ---------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 2026-02-13 | Milestone 2 (i18n) completed       | @plexica/i18n shared package created with FormatJS wrapper       | High - 8 tasks complete; 115 tests passing; 94.9% coverage; ready for backend integration |
-| 2026-02-13 | Milestone 1 (i18n) completed       | Database schema and migration for i18n support implemented       | High - All 3 tasks complete; migration tested with 11 passing tests                       |
-| 2026-02-13 | Spec 006 clarification (session 2) | Resolved /forge-analyze findings: data model, NFR measurability  | Medium - Fixed `tenant_settings` ref, added `default_locale`, made NFR-004/005 measurable |
-| 2026-02-13 | Architecture: i18n module added    | Added i18n module to core-api structure for Spec 006             | Low - Documents future Phase 3 module                                                     |
-| 2026-02-13 | Architecture: public endpoints     | Documented unauthenticated request flow pattern                  | Medium - Enables public translation/asset endpoints                                       |
-| 2026-02-13 | Architecture: i18next → FormatJS   | Updated system-architecture.md per ADR-012                       | High - Aligns architecture with accepted ADR-012 decision                                 |
-| 2026-02-13 | ADR-012: FormatJS for i18n         | ICU MessageFormat library selection for Spec 006-i18n            | Medium - New dependencies; system architecture doc updated                                |
-| 2026-02-13 | FORGE documentation conversion     | Convert all docs/specs/planning to FORGE format                  | High - All documentation centralized under .forge/                                        |
-| 2026-02-13 | 11 ADRs created in FORGE format    | Migrate from planning/DECISIONS.md to individual ADR files       | Medium - Better navigability and cross-referencing                                        |
-| 2026-02-13 | 8 modular specs created            | Break monolithic FUNCTIONAL_SPECIFICATIONS.md into modular specs | High - Specs are now traceable and independently maintainable                             |
-| 2026-02-13 | Architecture docs created          | Synthesize system, deployment, and security architecture docs    | High - Architecture decisions are now documented with Mermaid diagrams                    |
-| 2026-02-13 | Product brief and roadmap created  | Extract from functional specs into FORGE product docs            | Medium - Product vision and roadmap centralized                                           |
-| 2026-02-13 | FORGE methodology initialized      | Improve structured development workflow                          | High - All future work follows FORGE                                                      |
-| 2026-02-13 | Constitution created (v1.0)        | Define non-negotiable project standards                          | High - Governs all development decisions                                                  |
+| Date       | Change                             | Reason                                                            | Impact                                                                                                             |
+| ---------- | ---------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 2026-02-14 | Transaction integrity fix (M4)     | /forge-review found orphaned service registrations                | High - Moved service registration outside transaction, lifecycle hooks inside transaction                          |
+| 2026-02-14 | Cross-tenant auth bypass fix (M4)  | /forge-review found tenant authorization bypass                   | High - Created requireTenantAccess middleware, applied to 6 plugin routes, prevents cross-tenant access            |
+| 2026-02-14 | Path traversal fix (M4 security)   | /forge-review found path traversal risk in translation validation | High - Added defense-in-depth: re-validate locale/namespace, path.resolve() + startsWith() check                   |
+| 2026-02-14 | Milestone 4 (i18n) completed       | Plugin manifest integration with translation validation           | High - 5 tasks complete; manifest schema extended; file validation at registration; PLUGIN_TRANSLATIONS.md created |
+| 2026-02-14 | Milestone 3 (i18n) completed       | Backend i18n Service with TranslationService, API routes, caching | High - 8 tasks complete; 4 API endpoints; Redis caching; 179 core translations; ready for plugin integration       |
+| 2026-02-13 | Milestone 2 (i18n) completed       | @plexica/i18n shared package created with FormatJS wrapper        | High - 8 tasks complete; 115 tests passing; 94.9% coverage; ready for backend integration                          |
+| 2026-02-13 | Milestone 1 (i18n) completed       | Database schema and migration for i18n support implemented        | High - All 3 tasks complete; migration tested with 11 passing tests                                                |
+| 2026-02-13 | Spec 006 clarification (session 2) | Resolved /forge-analyze findings: data model, NFR measurability   | Medium - Fixed `tenant_settings` ref, added `default_locale`, made NFR-004/005 measurable                          |
+| 2026-02-13 | Architecture: i18n module added    | Added i18n module to core-api structure for Spec 006              | Low - Documents future Phase 3 module                                                                              |
+| 2026-02-13 | Architecture: public endpoints     | Documented unauthenticated request flow pattern                   | Medium - Enables public translation/asset endpoints                                                                |
+| 2026-02-13 | Architecture: i18next → FormatJS   | Updated system-architecture.md per ADR-012                        | High - Aligns architecture with accepted ADR-012 decision                                                          |
+| 2026-02-13 | ADR-012: FormatJS for i18n         | ICU MessageFormat library selection for Spec 006-i18n             | Medium - New dependencies; system architecture doc updated                                                         |
+| 2026-02-13 | FORGE documentation conversion     | Convert all docs/specs/planning to FORGE format                   | High - All documentation centralized under .forge/                                                                 |
+| 2026-02-13 | 11 ADRs created in FORGE format    | Migrate from planning/DECISIONS.md to individual ADR files        | Medium - Better navigability and cross-referencing                                                                 |
+| 2026-02-13 | 8 modular specs created            | Break monolithic FUNCTIONAL_SPECIFICATIONS.md into modular specs  | High - Specs are now traceable and independently maintainable                                                      |
+| 2026-02-13 | Architecture docs created          | Synthesize system, deployment, and security architecture docs     | High - Architecture decisions are now documented with Mermaid diagrams                                             |
+| 2026-02-13 | Product brief and roadmap created  | Extract from functional specs into FORGE product docs             | Medium - Product vision and roadmap centralized                                                                    |
+| 2026-02-13 | FORGE methodology initialized      | Improve structured development workflow                           | High - All future work follows FORGE                                                                               |
+| 2026-02-13 | Constitution created (v1.0)        | Define non-negotiable project standards                           | High - Governs all development decisions                                                                           |
+
+---
+
+## Security Warnings Tracked
+
+Following Milestone 4 code review (`/forge-review`), 6 security and code quality issues were identified and documented for future resolution:
+
+- **5 WARNING issues**: ReDoS vulnerability, unbounded query, duplicate validation, code duplication, unimplemented version check
+- **1 INFO issue**: Non-compliant logging (console.log vs Pino)
+
+**Full details**: See [`.forge/knowledge/security-warnings.md`](./security-warnings.md)
+
+**Status**: Issues documented, awaiting GitHub issue creation  
+**Target Sprint**: Sprint 2 (post-i18n cleanup)  
+**Estimated Effort**: 11-17 hours total
 
 ---
 

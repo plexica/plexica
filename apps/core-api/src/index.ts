@@ -17,6 +17,7 @@ import { marketplaceRoutes } from './routes/marketplace';
 // import { dlqRoutes } from './routes/dlq';
 // import metricsRoutes from './routes/metrics';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
+import { translationRoutes } from './modules/i18n/i18n.controller.js';
 import { minioClient } from './services/minio-client';
 import { db } from './lib/db';
 import { redis } from './lib/redis';
@@ -124,6 +125,7 @@ async function registerPlugins() {
           { name: 'plugins', description: 'Plugin management' },
           { name: 'marketplace', description: 'Plugin marketplace (M2.4)' },
           { name: 'auth', description: 'Authentication & authorization' },
+          { name: 'translations', description: 'Translation management' },
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
           { name: 'plugin-gateway', description: 'Plugin-to-plugin communication (M2.3)' },
@@ -156,6 +158,7 @@ async function registerRoutes() {
   await server.register(pluginRoutes, { prefix: '/api' });
   await server.register(pluginUploadRoutes, { prefix: '/api' });
   await server.register(marketplaceRoutes, { prefix: '/api' }); // Marketplace routes (M2.4)
+  await server.register(translationRoutes, { prefix: '/api/v1' }); // Translation routes (i18n system)
   await server.register(adminRoutes, { prefix: '/api' }); // Super-admin routes
   // TODO: Fix TypeScript errors in DLQ and Metrics routes before enabling
   // await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });

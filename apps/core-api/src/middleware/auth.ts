@@ -272,3 +272,104 @@ export async function requireTenantOwner(
     });
   }
 }
+
+/**
+ * Tenant access middleware
+ * Verifies that the authenticated user belongs to the tenant specified in the URL path
+ *
+ * CRITICAL SECURITY: Prevents cross-tenant data access by validating that
+ * request.params.id (tenant ID from URL) matches the user's tenant context.
+ *
+ * Super admins from master realm can access any tenant.
+ *
+ * Usage:
+ * fastify.get('/tenants/:id/resources',
+ *   { preHandler: [authMiddleware, requireTenantAccess] },
+ *   handler
+ * )
+ *
+ * Constitution Compliance: Article 1.2 (Multi-Tenancy Isolation), Article 5.1 (Tenant Validation)
+ */
+export async function requireTenantAccess(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  if (!request.user) {
+    return reply.code(401).send({
+      error: 'Unauthorized',
+      message: 'Authentication required',
+    });
+  }
+
+  // Extract tenant ID from URL path parameter
+  const requestedTenantId = request.params.id;
+
+  if (!requestedTenantId) {
+    request.log.error({ params: request.params }, 'Missing tenant ID in path parameters');
+    return reply.code(400).send({
+      error: 'Bad Request',
+      message: 'Tenant ID is required in the URL path',
+    });
+  }
+
+  // Super admins from master realm can access any tenant
+  if (
+    request.user.tenantSlug === MASTER_TENANT_SLUG &&
+    request.user.roles.includes(USER_ROLES.SUPER_ADMIN)
+  ) {
+    request.log.info(
+      { userId: request.user.id, requestedTenantId },
+      'Super admin accessing tenant resource'
+    );
+    return;
+  }
+
+  // Fetch the user's tenant to get the UUID
+  let userTenant;
+  try {
+    userTenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
+  } catch (error) {
+    request.log.error(
+      { error, tenantSlug: request.user.tenantSlug },
+      'Failed to fetch user tenant'
+    );
+    return reply.code(500).send({
+      error: 'Internal Server Error',
+      message: 'Failed to verify tenant access',
+    });
+  }
+
+  if (!userTenant) {
+    request.log.error(
+      { tenantSlug: request.user.tenantSlug },
+      'User tenant not found - possible data inconsistency'
+    );
+    return reply.code(403).send({
+      error: 'Forbidden',
+      message: 'User tenant not found',
+    });
+  }
+
+  // Verify the requested tenant ID matches the user's tenant UUID
+  if (userTenant.id !== requestedTenantId) {
+    request.log.warn(
+      {
+        userId: request.user.id,
+        userTenantId: userTenant.id,
+        requestedTenantId,
+        path: request.url,
+      },
+      '[SECURITY] Cross-tenant access attempt detected'
+    );
+    return reply.code(403).send({
+      error: 'Forbidden',
+      message: 'You do not have access to this tenant',
+    });
+  }
+
+  // Access granted - user belongs to the requested tenant
+  request.log.debug(
+    { userId: request.user.id, tenantId: requestedTenantId },
+    'Tenant access verified'
+  );
+}

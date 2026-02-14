@@ -96,6 +96,30 @@ export const PluginManifestApiSchema = z
   .strict();
 
 /**
+ * Plugin Translations Schema (Spec 006 - i18n)
+ * Declares translation namespaces and supported locales for a plugin
+ */
+export const PluginTranslationsSchema = z
+  .object({
+    namespaces: z
+      .array(
+        z.string().regex(/^[a-z0-9\-]+$/, {
+          message:
+            'Namespace must be lowercase alphanumeric with hyphens only (e.g., "crm", "crm-reports")',
+        })
+      )
+      .min(1, { message: 'At least one namespace is required' }),
+    supportedLocales: z
+      .array(
+        z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/, {
+          message: 'Locale code must be BCP 47 format (e.g., "en", "it", "en-US", "pt-BR")',
+        })
+      )
+      .min(1, { message: 'At least one locale is required' }),
+  })
+  .strict();
+
+/**
  * Plugin Configuration Field Schema
  */
 const PluginConfigFieldSchema = z.object({
@@ -156,6 +180,9 @@ export const PluginManifestSchema = z
     // NEW: API Communication (M2.3)
     api: PluginManifestApiSchema.optional(),
 
+    // NEW: Translations (Spec 006 - i18n)
+    translations: PluginTranslationsSchema.optional(),
+
     // Plugin Configuration (both 'config' and 'configuration' supported)
     config: z.array(PluginConfigFieldSchema).optional(),
     configuration: z.array(PluginConfigFieldSchema).optional(),
@@ -211,6 +238,7 @@ export type PluginApiEndpoint = z.infer<typeof PluginApiEndpointSchema>;
 export type PluginApiService = z.infer<typeof PluginApiServiceSchema>;
 export type PluginApiDependency = z.infer<typeof PluginApiDependencySchema>;
 export type PluginManifestApi = z.infer<typeof PluginManifestApiSchema>;
+export type PluginTranslations = z.infer<typeof PluginTranslationsSchema>;
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
 
 /**

@@ -213,6 +213,14 @@ apps/core-api/src/
 └── index.ts                    # Entry point
 ```
 
+**Module File Naming Convention:**
+
+- `{module}.controller.ts` - Fastify route handlers (HTTP layer)
+- `{module}.service.ts` - Business logic and data access
+- `dto/` - Data Transfer Objects and validation schemas
+
+The term "controller" refers to the file containing Fastify route handlers. This follows the MVC pattern where controllers handle HTTP requests/responses and delegate business logic to services.
+
 ---
 
 ## Request Flow

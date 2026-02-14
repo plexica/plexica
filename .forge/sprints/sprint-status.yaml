@@ -28,30 +28,33 @@ current_sprint:
       description: 'Create shared i18n utilities package wrapping FormatJS APIs for backend and frontend'
       milestone: 'M2: Shared Package'
       estimated_hours: '16-24'
+      completed_date: '2026-02-13'
 
     - id: 'E01-S003'
       title: 'Backend i18n Service'
-      status: pending
+      status: done
       points: 7
       blocked_reason: ''
       description: 'Implement TranslationService, API routes, and Redis caching in core-api'
       milestone: 'M3: Backend Service'
       estimated_hours: '24-32'
+      completed_date: '2026-02-14'
       dependencies: ['E01-S001', 'E01-S002']
 
     - id: 'E01-S004'
       title: 'Plugin Manifest Integration'
-      status: pending
+      status: done
       points: 3
       blocked_reason: ''
       description: 'Extend plugin system to support translation namespace declarations'
       milestone: 'M4: Plugin Integration'
       estimated_hours: '8-16'
+      completed_date: '2026-02-14'
       dependencies: ['E01-S003']
 
     - id: 'E01-S005'
       title: 'Testing & Quality Assurance'
-      status: pending
+      status: in_progress
       points: 7
       blocked_reason: ''
       description: 'Comprehensive unit, integration, and E2E tests for 85% coverage target'
@@ -71,7 +74,7 @@ current_sprint:
 
   velocity:
     planned: 28
-    completed: 1
+    completed: 16
 
   notes: |
     Sprint 1 focuses on implementing Spec 006 (i18n System) from start to finish.

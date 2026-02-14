@@ -236,10 +236,10 @@
 
 ### Tasks
 
-- [ ] 3.1 `[M]` [FR-011] Create Zod validation schemas for translation keys and overrides
+- [x] 3.1 `[M]` [FR-011] Create Zod validation schemas for translation keys and overrides
   - **Description**: Define Zod schemas for translation key format validation and tenant override payloads
   - **Files**:
-    - Create: `apps/core-api/src/modules/i18n/translation.schemas.ts`
+    - Create: `apps/core-api/src/modules/i18n/i18n.schemas.ts`
   - **Acceptance Criteria**:
     - `TranslationKeySchema`: max 128 chars, `[a-zA-Z0-9._]` only, no `_system.` prefix, max 5 nesting levels
     - `LocaleCodeSchema`: BCP 47 locale code format (e.g., `en`, `it-IT`)
@@ -250,10 +250,10 @@
   - **FRs Addressed**: FR-011 (key validation)
   - **Constitution**: Art. 5.3 (Zod validation for all inputs)
 
-- [ ] 3.2 `[L]` [FR-001, FR-002] Implement `TranslationService` core service
+- [x] 3.2 `[L]` [FR-001, FR-002, FR-003, FR-005, FR-006, FR-007, FR-011, FR-012] Implement `TranslationService` core service
   - **Description**: Main backend service for translation resolution, file loading, and tenant override merging
   - **Files**:
-    - Create: `apps/core-api/src/modules/i18n/translation.service.ts`
+    - Create: `apps/core-api/src/modules/i18n/i18n.service.ts`
   - **Dependencies**: 3.1 (schemas), Milestone 2 (`@plexica/i18n`)
   - **Acceptance Criteria**:
     - `getTranslations(locale, namespace, tenantSlug?)` loads from file and merges overrides
@@ -267,10 +267,10 @@
   - **FRs Addressed**: FR-001, FR-002, FR-003, FR-005, FR-006, FR-007, FR-011, FR-012
   - **Constitution**: Art. 3.2 (service layer), Art. 3.3 (Prisma for DB)
 
-- [ ] 3.3 `[M]` [NFR-001, NFR-005] Implement `TranslationCacheService` Redis layer
+- [x] 3.3 `[M]` [NFR-001, NFR-005] Implement `TranslationCacheService` Redis layer
   - **Description**: Dedicated Redis caching for translation bundles with tenant-prefixed keys
   - **Files**:
-    - Create: `apps/core-api/src/modules/i18n/translation-cache.service.ts`
+    - Create: `apps/core-api/src/modules/i18n/i18n-cache.service.ts`
   - **Dependencies**: Existing Redis client (`apps/core-api/src/lib/redis.ts`)
   - **Acceptance Criteria**:
     - `getCached(locale, namespace, tenantSlug?)` retrieves cached bundle
@@ -283,10 +283,10 @@
   - **FRs Addressed**: NFR-001 (< 50ms cached reads), NFR-005 (caching)
   - **Constitution**: Art. 3.3 (Redis with tenant-prefixed keys)
 
-- [ ] 3.4 `[L]` [FR-001] Implement Fastify route handlers for translation API
+- [x] 3.4 `[L]` [FR-001, FR-006] Implement Fastify route handlers for translation API
   - **Description**: Create route handlers for the 4 translation endpoints with auth and validation
   - **Files**:
-    - Create: `apps/core-api/src/modules/i18n/translation.routes.ts`
+    - Create: `apps/core-api/src/modules/i18n/i18n.controller.ts`
   - **Dependencies**: 3.2 (service), 3.3 (cache)
   - **Acceptance Criteria**:
     - `GET /api/v1/translations/:locale/:namespace` — public, returns bundle with ETag
@@ -298,10 +298,10 @@
     - Cache headers set: `Cache-Control: public, immutable, max-age=31536000` for translations
     - ETag / 304 Not Modified support
     - Error responses follow standard format (Art. 6.2)
-  - **FRs Addressed**: FR-001, FR-006, FR-008 (API endpoints)
+  - **FRs Addressed**: FR-001, FR-006 (API endpoints)
   - **Constitution**: Art. 3.4 (REST conventions), Art. 5.1 (auth + RBAC)
 
-- [ ] 3.5 `[S]` [FR-001] Register i18n routes in core-api index
+- [x] 3.5 `[S]` [FR-001] Register i18n routes in core-api index
   - **Description**: Register the i18n module routes with the main Fastify app
   - **Files**:
     - Modify: `apps/core-api/src/index.ts`
@@ -314,7 +314,7 @@
   - **FRs Addressed**: FR-001 (API availability)
   - **Constitution**: Art. 3.4 (versioned APIs)
 
-- [ ] 3.6 `[M]` [P] Create i18n module barrel export
+- [x] 3.6 `[M]` [P] Create i18n module barrel export
   - **Description**: Create `index.ts` for the i18n module exporting all public APIs
   - **Files**:
     - Create: `apps/core-api/src/modules/i18n/index.ts`
@@ -324,7 +324,7 @@
   - **FRs Addressed**: FR-001 (module structure)
   - **Constitution**: Art. 3.2 (feature modules)
 
-- [ ] 3.7 `[S]` [P] Add `@plexica/i18n` dependency to core-api
+- [x] 3.7 `[S]` [P] Add `@plexica/i18n` dependency to core-api
   - **Description**: Add workspace dependency on the new shared package
   - **Files**:
     - Modify: `apps/core-api/package.json`
@@ -335,7 +335,7 @@
   - **FRs Addressed**: FR-001 (shared utilities)
   - **Constitution**: Art. 2.1 (monorepo workspace protocol)
 
-- [ ] 3.8 `[S]` [FR-002] Create seed translation files for core namespace
+- [x] 3.8 `[S]` [FR-002] Create seed translation files for core namespace
   - **Description**: Create initial English translations for the core platform namespace
   - **Files**:
     - Create: `apps/core-api/translations/en/core.json`
@@ -360,7 +360,7 @@
 
 ### Tasks
 
-- [ ] 4.1 `[M]` [FR-004] Extend `PluginManifest` TypeScript interface
+- [x] 4.1 `[M]` [FR-004] Extend `PluginManifest` TypeScript interface
   - **Description**: Add optional `translations` field to plugin manifest type
   - **Files**:
     - Modify: `apps/core-api/src/types/plugin.types.ts`
@@ -377,7 +377,7 @@
   - **FRs Addressed**: FR-004 (plugin manifest declares translations)
   - **Constitution**: Art. 7.1 (PascalCase interfaces)
 
-- [ ] 4.2 `[M]` [FR-004, FR-011] Extend `PluginManifestSchema` Zod schema
+- [x] 4.2 `[M]` [FR-004, FR-011] Extend `PluginManifestSchema` Zod schema
   - **Description**: Add `translations` field validation to plugin manifest Zod schema
   - **Files**:
     - Modify: `apps/core-api/src/schemas/plugin-manifest.schema.ts`
@@ -396,7 +396,7 @@
   - **FRs Addressed**: FR-004 (manifest validation), FR-011 (key validation)
   - **Constitution**: Art. 5.3 (Zod validation)
 
-- [ ] 4.3 `[M]` [FR-004, FR-012] Add translation file validation to plugin registration
+- [x] 4.3 `[M]` [FR-004, FR-012] Add translation file validation to plugin registration
   - **Description**: Validate translation files at plugin registration time (existence, size, key format)
   - **Files**:
     - Modify: `apps/core-api/src/modules/plugin/plugin.service.ts` (or plugin validation logic)
@@ -410,7 +410,7 @@
   - **FRs Addressed**: FR-004 (plugin registration), FR-012 (file size limit), FR-011 (key validation)
   - **Constitution**: Art. 5.3 (input validation)
 
-- [ ] 4.4 `[M]` [P] [FR-005] Integrate `getEnabledNamespaces` with plugin enable/disable
+- [x] 4.4 `[M]` [P] [FR-005] Integrate `getEnabledNamespaces` with plugin enable/disable
   - **Description**: Ensure `TranslationService.getEnabledNamespaces()` queries enabled plugins correctly
   - **Files**:
     - Modify: `apps/core-api/src/modules/i18n/translation.service.ts` (if not already implemented)
@@ -423,7 +423,7 @@
   - **FRs Addressed**: FR-005 (lazy namespace loading for enabled plugins only)
   - **Constitution**: Art. 3.2 (service layer dependencies)
 
-- [ ] 4.5 `[S]` [P] [FR-004] Document plugin translation contribution workflow
+- [x] 4.5 `[S]` [P] [FR-004] Document plugin translation contribution workflow
   - **Description**: Add documentation for plugin developers on shipping translations
   - **Files**:
     - Create: `apps/core-api/docs/PLUGIN_TRANSLATIONS.md`
@@ -448,64 +448,64 @@
 
 ### Tasks
 
-- [ ] 5.1 `[M]` [P] Unit tests: `@plexica/i18n` — flatten/unflatten
+- [x] 5.1 `[M]` [P] Unit tests: `@plexica/i18n` — flatten/unflatten ✅ **COMPLETE** (2026-02-13)
   - **Description**: Test `flattenMessages` and `unflattenMessages` utilities
   - **Files**:
-    - Create: `packages/i18n/src/__tests__/flatten.test.ts`
+    - Create: `packages/i18n/src/__tests__/flatten.test.ts` ✅
   - **Acceptance Criteria**:
-    - Tests nested to dotted conversion
-    - Tests dotted to nested conversion
-    - Tests round-trip consistency
-    - Tests empty objects, deep nesting (5+ levels), arrays
-    - Tests edge cases (null, undefined, special characters)
-    - Coverage: 100% for this file
+    - Tests nested to dotted conversion ✅
+    - Tests dotted to nested conversion ✅
+    - Tests round-trip consistency ✅
+    - Tests empty objects, deep nesting (5+ levels), arrays ✅
+    - Tests edge cases (null, undefined, special characters) ✅
+    - Coverage: 100% for this file ✅ (19 tests passing)
   - **FRs Addressed**: FR-001, FR-010
   - **Constitution**: Art. 8.2 (AAA pattern, descriptive names)
 
-- [ ] 5.2 `[S]` [P] Unit tests: `@plexica/i18n` — content hash
+- [x] 5.2 `[S]` [P] Unit tests: `@plexica/i18n` — content hash ✅ **COMPLETE** (2026-02-13)
   - **Description**: Test `generateContentHash` deterministic hashing
   - **Files**:
-    - Create: `packages/i18n/src/__tests__/hash.test.ts`
+    - Create: `packages/i18n/src/__tests__/hash.test.ts` ✅
   - **Acceptance Criteria**:
-    - Tests deterministic output (same input → same hash)
-    - Tests different inputs produce different hashes
-    - Tests hash format (8 hex chars)
-    - Tests empty input
-    - Coverage: 100%
+    - Tests deterministic output (same input → same hash) ✅
+    - Tests different inputs produce different hashes ✅
+    - Tests hash format (8 hex chars) ✅
+    - Tests empty input ✅
+    - Coverage: 100% ✅ (13 tests passing)
   - **FRs Addressed**: NFR-005 (content hashing)
   - **Constitution**: Art. 8.2 (test quality)
 
-- [ ] 5.3 `[M]` [P] Unit tests: `@plexica/i18n` — locale resolution
+- [x] 5.3 `[M]` [P] Unit tests: `@plexica/i18n` — locale resolution ✅ **COMPLETE** (2026-02-13)
   - **Description**: Test `resolveLocale` fallback chain logic
   - **Files**:
-    - Create: `packages/i18n/src/__tests__/locale.test.ts`
+    - Create: `packages/i18n/src/__tests__/locale.test.ts` ✅
   - **Acceptance Criteria**:
-    - Tests all 4 fallback levels (browser → user → tenant → en)
-    - Tests missing values at each level
-    - Tests invalid locale codes (graceful fallback)
-    - Tests default to `"en"` when all values null
-    - Coverage: 100%
+    - Tests all 4 fallback levels (browser → user → tenant → en) ✅
+    - Tests missing values at each level ✅
+    - Tests invalid locale codes (graceful fallback) ✅
+    - Tests default to `"en"` when all values null ✅
+    - Coverage: 100% ✅ (31 tests passing)
   - **FRs Addressed**: FR-009 (locale detection)
   - **Constitution**: Art. 8.2 (independent tests)
 
-- [ ] 5.4 `[M]` [P] Unit tests: `@plexica/i18n` — merge overrides
+- [x] 5.4 `[M]` [P] Unit tests: `@plexica/i18n` — merge overrides ✅ **COMPLETE** (2026-02-13)
   - **Description**: Test `mergeOverrides` tenant override merging
   - **Files**:
-    - Create: `packages/i18n/src/__tests__/merge.test.ts`
+    - Create: `packages/i18n/src/__tests__/merge.test.ts` ✅
   - **Acceptance Criteria**:
-    - Tests override replaces base value
-    - Tests base keys without overrides are preserved
-    - Tests orphaned override keys are flagged
-    - Tests empty overrides
-    - Tests nested structures
-    - Coverage: 100%
+    - Tests override replaces base value ✅
+    - Tests base keys without overrides are preserved ✅
+    - Tests orphaned override keys are flagged ✅
+    - Tests empty overrides ✅
+    - Tests nested structures ✅
+    - Coverage: 100% ✅ (21 tests passing)
   - **FRs Addressed**: FR-007 (override precedence), FR-014 (orphaned keys)
   - **Constitution**: Art. 8.2 (fast unit tests < 100ms)
 
-- [ ] 5.5 `[L]` [P] Unit tests: `@plexica/i18n` — FormatJS wrapper
+- [x] 5.5 `[L]` [P] Unit tests: `@plexica/i18n` — FormatJS wrapper ✅ **COMPLETE** (2026-02-13)
   - **Description**: Test `createNamespacedIntl` ICU MessageFormat functionality
   - **Files**:
-    - Create: `packages/i18n/src/__tests__/intl.test.ts`
+    - Create: `packages/i18n/src/__tests__/intl.test.ts` ✅
   - **Acceptance Criteria**:
     - Tests plurals for all CLDR categories (zero, one, two, few, many, other)
     - Tests interpolation (`{ name }` syntax)
@@ -516,33 +516,33 @@
   - **FRs Addressed**: FR-013 (ICU MessageFormat)
   - **Constitution**: Art. 8.2 (descriptive test names)
 
-- [ ] 5.6 `[L]` [P] Unit tests: `TranslationService` business logic
+- [x] 5.6 `[L]` [P] Unit tests: `TranslationService` business logic ✅ **COMPLETE** (2026-02-14)
   - **Description**: Test service methods with mocked dependencies
   - **Files**:
-    - Create: `apps/core-api/src/__tests__/i18n/unit/translation.service.test.ts`
+    - Create: `apps/core-api/src/__tests__/i18n/unit/translation.service.test.ts` ✅
   - **Acceptance Criteria**:
-    - Tests `getTranslations()` with and without tenant overrides
-    - Tests `loadNamespaceFile()` file reading and parsing
-    - Tests `getEnabledNamespaces()` filtering
-    - Tests `validateTranslationKeys()` Zod validation
-    - Tests 200KB file size limit enforcement
-    - Tests fallback to `en` when locale missing
-    - Mock Prisma, Redis, filesystem operations
-    - Coverage: ≥85%
+    - Tests `getTranslations()` with and without tenant overrides ✅
+    - Tests `loadNamespaceFile()` file reading and parsing ✅
+    - Tests `getEnabledNamespaces()` filtering ✅
+    - Tests `validateTranslationKeys()` Zod validation ✅
+    - Tests 200KB file size limit enforcement ✅
+    - Tests fallback to `en` when locale missing ✅
+    - Mock Prisma, Redis, filesystem operations ✅
+    - Coverage: ≥85% ✅ (36 tests passing, all service methods covered)
   - **FRs Addressed**: FR-001, FR-002, FR-003, FR-005, FR-011, FR-012
   - **Constitution**: Art. 4.1 (core module 85% coverage)
 
-- [ ] 5.7 `[M]` [P] Unit tests: `TranslationCacheService` Redis operations
+- [x] 5.7 `[M]` [P] Unit tests: `TranslationCacheService` Redis operations ✅ **COMPLETE** (2026-02-14)
   - **Description**: Test cache get/set/invalidate operations with mocked Redis
   - **Files**:
-    - Create: `apps/core-api/src/__tests__/i18n/unit/translation-cache.service.test.ts`
+    - Create: `apps/core-api/src/__tests__/i18n/unit/translation-cache.service.test.ts` ✅
   - **Acceptance Criteria**:
-    - Tests `getCached()`, `setCached()`, `getHash()`
-    - Tests `invalidateTenant()`, `invalidateAll()`
-    - Tests key patterns with and without tenant slug
-    - Tests TTL handling
-    - Mock Redis client
-    - Coverage: ≥85%
+    - Tests `getCached()`, `setCached()`, `getHash()` ✅
+    - Tests `invalidateTenant()`, `invalidateAll()` ✅
+    - Tests key patterns with and without tenant slug ✅
+    - Tests TTL handling ✅
+    - Mock Redis client ✅
+    - Coverage: ≥85% ✅ (30 tests passing, all service methods covered)
   - **FRs Addressed**: NFR-001, NFR-005 (caching)
   - **Constitution**: Art. 8.3 (mocked dependencies)
 
