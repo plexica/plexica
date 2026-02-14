@@ -30,7 +30,7 @@
 **Test Coverage**:
 
 - **@plexica/i18n**: 115 tests, 94.9% coverage
-- **Core API i18n module**: 218 tests, 99% pass rate, on track for ≥85% coverage
+- **Core API i18n module**: 218 tests, 100% pass rate (218/218 passing), on track for ≥85% coverage
 - **Total i18n tests**: 333 tests across 13 test files
 
 **Next Steps**: Milestone 6 (Frontend Integration) deferred to separate sprint; backend i18n system fully functional and ready for plugin consumption.
@@ -487,12 +487,12 @@
 
 **Actual Effort**: 3 days (completed 2026-02-14)
 
-**Status**: ✅ **COMPLETE** — All 14 tasks complete, 218 tests implemented with 99% pass rate
+**Status**: ✅ **COMPLETE** — All 14 tasks complete, 218 tests implemented with 100% pass rate
 
 **Summary**:
 
 - **Total tests**: 218 tests across 8 test files
-- **Pass rate**: 99% (216/218 passing, 2 auth integration issues documented)
+- **Pass rate**: 100% (218/218 passing — all auth integration issues resolved)
 - **Test breakdown**: 141 unit tests, 56 integration tests, 21 E2E tests
 - **Coverage**: On track for ≥85% target (comprehensive test coverage achieved)
 - **Test files created**: 8 new test files covering TranslationService, TranslationCacheService, Zod schemas, API routes, tenant overrides, plugin manifest validation, locale switching, and plugin lifecycle
@@ -624,7 +624,7 @@
     - Test invalid key format in PUT → 400 response ✅
     - Test payload > 1MB → 413 response ✅
     - Use test database and Redis ✅
-    - Coverage: ≥85% ✅ (24 tests total, 22 passing - 2 auth integration issues to debug)
+    - Coverage: ≥85% ✅ (24 tests total, 24/24 passing — all auth integration issues resolved)
   - **FRs Addressed**: FR-001, FR-006, FR-011, API endpoints
   - **Constitution**: Art. 8.1 (integration tests for API endpoints)
 
@@ -696,7 +696,7 @@
     - Documents how to run i18n tests in isolation ✅
     - Documents coverage targets (≥85%) ✅
     - Added troubleshooting section for common test issues ✅
-    - Documented 218 tests across 8 files with 99% pass rate ✅
+    - Documented 218 tests across 8 files with 100% pass rate (218/218 passing) ✅
   - **FRs Addressed**: Documentation (Art. 1.3)
   - **Constitution**: Art. 8 (test standards)
 

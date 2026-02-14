@@ -310,14 +310,10 @@ describe('Translation API Routes (Integration)', () => {
         },
       });
 
-      // TODO: Update when authentication middleware is implemented
-      expect([200, 401, 403]).toContain(response.statusCode);
-
-      if (response.statusCode === 200) {
-        const body = JSON.parse(response.body);
-        expect(body).toHaveProperty('overrides');
-        expect(body).toHaveProperty('updatedAt');
-      }
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('overrides');
+      expect(body).toHaveProperty('updatedAt');
     });
 
     it('should return tenant overrides when present', async () => {
@@ -343,13 +339,9 @@ describe('Translation API Routes (Integration)', () => {
         },
       });
 
-      // TODO: Update when authentication middleware is implemented
-      expect([200, 401, 403]).toContain(response.statusCode);
-
-      if (response.statusCode === 200) {
-        const body = JSON.parse(response.body);
-        expect(body.overrides.en.core['deals.title']).toBe('Opportunities');
-      }
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.overrides.en.core['deals.title']).toBe('Opportunities');
     });
   });
 
@@ -388,13 +380,9 @@ describe('Translation API Routes (Integration)', () => {
         },
       });
 
-      // TODO: Update when authentication middleware is implemented
-      expect([200, 401, 403]).toContain(response.statusCode);
-
-      if (response.statusCode === 200) {
-        const body = JSON.parse(response.body);
-        expect(body.overrides.en.core['deals.title']).toBe('Opportunities');
-      }
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.overrides.en.core['deals.title']).toBe('Opportunities');
     });
 
     it('should return 400 for invalid override format', async () => {
@@ -452,29 +440,20 @@ describe('Translation API Routes (Integration)', () => {
         },
       });
 
-      // TODO: Update when authentication middleware is fully implemented
-      // For now, accept 413 (payload too large) or auth errors (401/403)
-      expect([413, 401, 403]).toContain(response.statusCode);
+      // Should return 413 for payload too large
+      expect(response.statusCode).toBe(413);
 
-      // Only validate error structure if we got the expected 413 response
-      if (response.statusCode === 413) {
-        const body = JSON.parse(response.body);
-        // Accept both our custom error format and Fastify's built-in format
-        if (body.error && body.error.code === 'PAYLOAD_TOO_LARGE') {
-          // Our custom error format
-          expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
-        } else if (body.code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
-          // Fastify's built-in body size limit error (valid)
-          expect(body.statusCode).toBe(413);
-          expect(body.error).toBe('Payload Too Large');
-        } else {
-          throw new Error(`Unexpected 413 error format: ${JSON.stringify(body)}`);
-        }
+      const body = JSON.parse(response.body);
+      // Accept both our custom error format and Fastify's built-in format
+      if (body.error && body.error.code === 'PAYLOAD_TOO_LARGE') {
+        // Our custom error format
+        expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
+      } else if (body.code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+        // Fastify's built-in body size limit error (valid)
+        expect(body.statusCode).toBe(413);
+        expect(body.error).toBe('Payload Too Large');
       } else {
-        // Auth not fully implemented yet - test passes if endpoint exists
-        console.log(
-          `  ℹ️  Test received ${response.statusCode} (auth issue) - 413 validation skipped`
-        );
+        throw new Error(`Unexpected 413 error format: ${JSON.stringify(body)}`);
       }
     });
 
@@ -520,15 +499,6 @@ describe('Translation API Routes (Integration)', () => {
           },
         },
       });
-
-      // TODO: Update when authentication middleware is fully implemented
-      // For now, skip cache invalidation check if auth fails
-      if (updateResponse.statusCode === 401 || updateResponse.statusCode === 403) {
-        console.log(
-          `  ℹ️  Test received ${updateResponse.statusCode} (auth issue) - cache invalidation test skipped`
-        );
-        return; // Skip the rest of the test
-      }
 
       expect(updateResponse.statusCode).toBe(200);
 

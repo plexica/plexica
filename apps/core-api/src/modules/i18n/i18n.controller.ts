@@ -23,6 +23,7 @@ import {
 } from './i18n.schemas.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { getTenantContext } from '../../middleware/tenant-context.js';
+import { tenantService } from '../../services/tenant.service.js';
 import { z } from 'zod';
 
 // Initialize services
@@ -234,12 +235,21 @@ export async function translationRoutes(fastify: FastifyInstance) {
         tags: ['translations', 'tenant'],
       },
     },
-    async (_request, reply) => {
+    async (request, reply) => {
       try {
-        // Extract tenant context from authenticated user
+        // Extract tenant context from AsyncLocalStorage or fallback to request.user
         const tenantContext = getTenantContext();
+        let tenantId: string | undefined;
 
-        if (!tenantContext?.tenantId) {
+        if (tenantContext?.tenantId) {
+          tenantId = tenantContext.tenantId;
+        } else if (request.user?.tenantSlug) {
+          // Fallback: Fetch tenant ID from slug (for tests or when context middleware not used)
+          const tenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
+          tenantId = tenant?.id;
+        }
+
+        if (!tenantId) {
           return reply.status(403).send({
             error: {
               code: 'FORBIDDEN',
@@ -248,7 +258,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const overrides = await translationService.getTenantOverrides(tenantContext.tenantId);
+        const overrides = await translationService.getTenantOverrides(tenantId);
 
         return reply.send({
           overrides,
@@ -296,10 +306,22 @@ export async function translationRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        // Extract tenant context
+        // Extract tenant context from AsyncLocalStorage or fallback to request.user
         const tenantContext = getTenantContext();
+        let tenantId: string | undefined;
+        let tenantSlug: string | undefined;
 
-        if (!tenantContext?.tenantId || !tenantContext?.tenantSlug) {
+        if (tenantContext?.tenantId && tenantContext?.tenantSlug) {
+          tenantId = tenantContext.tenantId;
+          tenantSlug = tenantContext.tenantSlug;
+        } else if (request.user?.tenantSlug) {
+          // Fallback: Fetch tenant from slug (for tests or when context middleware not used)
+          const tenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
+          tenantId = tenant?.id;
+          tenantSlug = tenant?.slug;
+        }
+
+        if (!tenantId || !tenantSlug) {
           return reply.status(403).send({
             error: {
               code: 'FORBIDDEN',
@@ -335,13 +357,10 @@ export async function translationRoutes(fastify: FastifyInstance) {
         }
 
         // Update overrides
-        const updated = await translationService.updateTenantOverrides(
-          tenantContext.tenantId,
-          overrides
-        );
+        const updated = await translationService.updateTenantOverrides(tenantId, overrides);
 
         // Invalidate cache for this tenant
-        await cacheService.invalidateTenant(tenantContext.tenantSlug);
+        await cacheService.invalidateTenant(tenantSlug);
 
         return reply.send({
           overrides: updated,
