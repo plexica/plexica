@@ -109,6 +109,7 @@ Use `/forge-adr <decision-topic>` to create a new ADR. The template includes:
 | ADR-009 | [TailwindCSS v4 Semantic Tokens](adr-009-tailwindcss-v4-tokens.md)              | Accepted | 2026-02-11 | ADR-004, Constitution Art. 1.3 |
 | ADR-010 | [@plexica/types Shared Package](adr-010-shared-types-package.md)                | Accepted | 2026-02-11 | ADR-001, Constitution Art. 7.1 |
 | ADR-011 | [Vite Module Federation for Plugins](adr-011-vite-module-federation.md)         | Accepted | 2026-02-11 | ADR-004, ADR-009, ADR-010      |
+| ADR-012 | [ICU MessageFormat Library (FormatJS)](adr-012-icu-messageformat-library.md)    | Accepted | 2026-02-13 | Spec 006, Constitution Art. 2  |
 
 ---
 

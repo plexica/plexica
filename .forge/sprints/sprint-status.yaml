@@ -1,0 +1,95 @@
+# Sprint Status
+# Managed by the forge-scrum agent via /forge-sprint and /forge-status
+
+project: 'Plexica Platform'
+
+current_sprint:
+  number: 1
+  goal: 'Implement Phase 3 i18n System: namespace-based translations with FormatJS, tenant overrides, and comprehensive testing'
+  start_date: '2026-02-13'
+  end_date: '2026-02-27'
+
+  stories:
+    - id: 'E01-S001'
+      title: 'Database Schema & Migrations for i18n'
+      status: done # pending | in_progress | done | blocked
+      points: 1
+      blocked_reason: ''
+      description: 'Add translation_overrides JSONB and default_locale columns to Tenant model'
+      milestone: 'M1: Database Schema'
+      estimated_hours: '4-6'
+      completed_date: '2026-02-13'
+
+    - id: 'E01-S002'
+      title: '@plexica/i18n Shared Package'
+      status: done
+      points: 5
+      blocked_reason: ''
+      description: 'Create shared i18n utilities package wrapping FormatJS APIs for backend and frontend'
+      milestone: 'M2: Shared Package'
+      estimated_hours: '16-24'
+
+    - id: 'E01-S003'
+      title: 'Backend i18n Service'
+      status: pending
+      points: 7
+      blocked_reason: ''
+      description: 'Implement TranslationService, API routes, and Redis caching in core-api'
+      milestone: 'M3: Backend Service'
+      estimated_hours: '24-32'
+      dependencies: ['E01-S001', 'E01-S002']
+
+    - id: 'E01-S004'
+      title: 'Plugin Manifest Integration'
+      status: pending
+      points: 3
+      blocked_reason: ''
+      description: 'Extend plugin system to support translation namespace declarations'
+      milestone: 'M4: Plugin Integration'
+      estimated_hours: '8-16'
+      dependencies: ['E01-S003']
+
+    - id: 'E01-S005'
+      title: 'Testing & Quality Assurance'
+      status: pending
+      points: 7
+      blocked_reason: ''
+      description: 'Comprehensive unit, integration, and E2E tests for 85% coverage target'
+      milestone: 'M5: Testing & QA'
+      estimated_hours: '24-32'
+      dependencies: ['E01-S002', 'E01-S003', 'E01-S004']
+
+    - id: 'E01-S006'
+      title: 'Frontend Integration'
+      status: pending
+      points: 5
+      blocked_reason: ''
+      description: 'React integration with react-intl, locale switching UI, and admin override editor'
+      milestone: 'M6: Frontend Integration'
+      estimated_hours: '16-24'
+      dependencies: ['E01-S003']
+
+  velocity:
+    planned: 28
+    completed: 1
+
+  notes: |
+    Sprint 1 focuses on implementing Spec 006 (i18n System) from start to finish.
+    All 6 milestones included for complete feature delivery.
+
+    Critical Path: E01-S001 → E01-S002 → E01-S003 → E01-S004 → E01-S005
+    Parallel Work: E01-S006 (Frontend) can proceed after E01-S003 completes
+
+    Key Risks:
+    - FormatJS compile-time setup complexity (MEDIUM severity)
+    - Plugin manifest validation edge cases (MEDIUM severity)
+    - Cache invalidation race conditions (MEDIUM severity)
+
+    Success Criteria:
+    - All 14 functional requirements (FR-001 to FR-014) implemented
+    - All 5 non-functional requirements (NFR-001 to NFR-005) met
+    - Test coverage ≥85% for i18n module
+    - All API endpoints functional and documented
+    - Zero constitution violations
+
+previous_sprints: []

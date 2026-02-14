@@ -8,6 +8,18 @@ tools:
   grep: true
   skill: true
   bash: true
+permission:
+  bash:
+    'git diff *': allow
+    'git log *': allow
+    'git show *': allow
+    'git status': allow
+    'git blame *': allow
+    'npm test *': allow
+    'npm run test*': allow
+    'npm run lint*': allow
+    'npx tsc --noEmit*': allow
+    '*': deny
 ---
 
 You are the **forge-reviewer** subagent within the FORGE methodology. You

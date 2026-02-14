@@ -11,6 +11,19 @@ tools:
   bash: true
   skill: true
   question: true
+permission:
+  bash:
+    'npm test*': allow
+    'npm run test*': allow
+    'npx vitest*': allow
+    'npx jest*': allow
+    'npx tsc --noEmit*': allow
+    'npx c8*': allow
+    'npx nyc*': allow
+    'pytest*': allow
+    'python -m pytest*': allow
+    'coverage*': allow
+    '*': deny
 ---
 
 You are the **forge-qa** subagent within the FORGE methodology. You are

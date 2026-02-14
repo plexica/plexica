@@ -131,14 +131,14 @@ graph TB
 
 ### Frontend
 
-| Component         | Technology                       | Version | Rationale                                    |
-| ----------------- | -------------------------------- | ------- | -------------------------------------------- |
-| Framework         | React                            | ^19.2   | Component model, ecosystem maturity          |
-| Build Tool        | Vite                             | Latest  | Fast dev server, optimized production builds |
-| Routing           | TanStack Router                  | Latest  | Type-safe routing with data loading          |
-| State Management  | Zustand                          | 4.x     | Simplicity, performance                      |
-| Module Federation | @originjs/vite-plugin-federation | Latest  | Dynamic plugin frontend loading              |
-| i18n              | i18next                          | 23.x    | Namespace support, lazy loading              |
+| Component         | Technology                            | Version | Rationale                                           |
+| ----------------- | ------------------------------------- | ------- | --------------------------------------------------- |
+| Framework         | React                                 | ^19.2   | Component model, ecosystem maturity                 |
+| Build Tool        | Vite                                  | Latest  | Fast dev server, optimized production builds        |
+| Routing           | TanStack Router                       | Latest  | Type-safe routing with data loading                 |
+| State Management  | Zustand                               | 4.x     | Simplicity, performance                             |
+| Module Federation | @originjs/vite-plugin-federation      | Latest  | Dynamic plugin frontend loading                     |
+| i18n              | FormatJS (@formatjs/intl, react-intl) | Latest  | Native ICU MessageFormat, compile-time optimization |
 
 ---
 
@@ -199,9 +199,13 @@ apps/core-api/src/
 │   │   ├── workspace.controller.ts
 │   │   ├── workspace.service.ts
 │   │   └── dto/
-│   └── plugin/                 # Plugin orchestration
-│       ├── plugin.controller.ts
-│       ├── plugin.service.ts
+│   ├── plugin/                 # Plugin orchestration
+│   │   ├── plugin.controller.ts
+│   │   ├── plugin.service.ts
+│   │   └── dto/
+│   └── i18n/                   # Internationalization (Phase 3)
+│       ├── i18n.controller.ts
+│       ├── i18n.service.ts
 │       └── dto/
 ├── services/                   # Shared services
 ├── middleware/                  # Request middleware
@@ -213,7 +217,7 @@ apps/core-api/src/
 
 ## Request Flow
 
-### Standard Request Processing
+### Standard Request Processing (Authenticated Endpoints)
 
 ```mermaid
 sequenceDiagram
@@ -243,7 +247,44 @@ sequenceDiagram
     Service-->>Client: Response
 ```
 
-### Request Flow Steps
+### Public Request Processing (Unauthenticated Endpoints)
+
+Some endpoints serve public, non-sensitive content and bypass authentication:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway as API Gateway
+    participant Core as Core API
+    participant Service as Service Layer
+    participant Cache as Redis Cache
+    participant CDN as CDN/MinIO
+
+    Client->>Gateway: HTTP Request (public endpoint)
+    Gateway->>Gateway: Match public route pattern
+    Gateway->>Core: Route without JWT validation
+    Core->>Service: Process request (no auth/tenant context)
+    Service->>Cache: Check cache
+    alt Cache Hit
+        Cache-->>Service: Cached response
+    else Cache Miss
+        Service->>CDN: Fetch static content
+        CDN-->>Service: Content
+        Service->>Cache: Store in cache
+    end
+    Service-->>Client: Response with Cache-Control: immutable
+```
+
+**Public Endpoint Criteria** (Constitution Art. 5.1 exemption):
+
+- Content is static and non-sensitive (translations, public assets)
+- No PII or tenant-specific data exposed
+- Immutable content with content-hash URLs for cache safety
+- Documented exemption in spec with security justification
+
+**Examples**: `GET /api/v1/translations/:locale/:namespace` (i18n spec 006)
+
+### Request Flow Steps (Authenticated)
 
 1. **HTTP request** arrives at the API Gateway
 2. **Gateway validates JWT** (issued by Keycloak)
