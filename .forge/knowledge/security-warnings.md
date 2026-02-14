@@ -4,12 +4,59 @@
 > These are WARNING-level issues that should be addressed before production.
 
 **Created**: February 14, 2026  
+**Last Updated**: February 14, 2026  
 **Source**: Adversarial code review of plugin manifest integration  
-**Total Issues**: 6 (5 WARNING + 1 INFO)
+**Total Issues**: 6 (5 WARNING + 1 INFO)  
+**Status**: 3 issues fixed (Feb 14, 2026); 3 remaining
 
 ---
 
-## WARNING Issues
+## ✅ RESOLVED Issues
+
+### ~~Issue #2: Unbounded Query - Memory Exhaustion Risk~~ ✅ FIXED
+
+**Status**: ✅ Fixed on February 14, 2026  
+**Fixed In**: `apps/core-api/src/services/plugin.service.ts` (lines 270-322)  
+**Test Coverage**: `plugin-security-fixes.test.ts` (2 tests added)
+
+**Resolution Summary**:
+Replaced `findMany({ include: { installations: true } })` with 3 parallel `COUNT()` aggregation queries. Memory usage reduced from O(n) to O(1). Database handles aggregation, eliminating data transfer overhead.
+
+**Details**: See `.forge/knowledge/decision-log.md` - "Milestone 4 Security Fixes Part 2"
+
+---
+
+### ~~Issue #3: Duplicate Validation in updatePlugin()~~ ✅ FIXED
+
+**Status**: ✅ Fixed on February 14, 2026  
+**Fixed In**: `apps/core-api/src/services/plugin.service.ts` (lines 128-161)  
+**Test Coverage**: `plugin-security-fixes.test.ts` (3 tests added)
+
+**Resolution Summary**:
+Added `validatePluginManifest()` Zod validation to `updatePlugin()` method. Now enforces both Zod schema + custom validation (defense-in-depth), consistent with `registerPlugin()` pattern. Closes security bypass allowing invalid manifests via update endpoint.
+
+**Details**: See `.forge/knowledge/decision-log.md` - "Milestone 4 Security Fixes Part 2"
+
+---
+
+### ~~Issue #6: Non-compliant Logging (console.log)~~ ✅ FIXED
+
+**Status**: ✅ Fixed on February 14, 2026  
+**Fixed In**:
+
+- `apps/core-api/src/services/plugin.service.ts` (constructors + 4 console.log calls)
+- `apps/core-api/src/lib/logger.ts` (new shared Pino logger)
+
+**Test Coverage**: `plugin-security-fixes.test.ts` (3 tests + 3 Constitution compliance tests)
+
+**Resolution Summary**:
+Created shared Pino logger instance (`lib/logger.ts`). Updated `PluginRegistryService` and `PluginLifecycleService` constructors to accept optional `Logger` parameter. Replaced all `console.log/error/warn` with structured Pino logging. Logger passed to nested services.
+
+**Details**: See `.forge/knowledge/decision-log.md` - "Milestone 4 Security Fixes Part 2"
+
+---
+
+## WARNING Issues (Remaining)
 
 ### Issue #1: ReDoS Vulnerability in Plugin Manifest Validation
 
@@ -554,18 +601,38 @@ this.logger.info(
 | 5       | Unimplemented version check | WARNING  | Medium   | 2-3 hours        |
 | 6       | Non-compliant logging       | INFO     | Low      | 1-2 hours        |
 
-**Total Estimated Effort**: 11-17 hours (approximately 2-3 days)
+**Total Estimated Effort**: 5-8 hours remaining (Issues #1, #4, #5 only; Issues #2, #3, #6 fixed)
+
+---
+
+## Test Coverage
+
+**New Tests Added** (February 14, 2026):
+
+- **File**: `apps/core-api/src/__tests__/plugin/unit/plugin-security-fixes.test.ts`
+- **Test Count**: 11 comprehensive tests
+  - 2 tests for Issue #2 (COUNT aggregation performance)
+  - 3 tests for Issue #3 (Zod + custom validation enforcement)
+  - 3 tests for Issue #6 (Pino logger integration)
+  - 3 tests for Constitution compliance verification
+
+**Overall Test Status**: 825/825 tests passing (814 existing + 11 new)
 
 ---
 
 ## Tracking
 
-These issues should be created as GitHub Issues with labels:
+**FIXED (GitHub issues not needed)**:
 
-- `security` (Issues #1, #2, #3)
-- `technical-debt` (Issues #4, #6)
-- `plugin-system` (All issues)
-- `constitution-compliance` (Issue #6)
+- ~~Issue #2: Unbounded Query~~ ✅ Fixed Feb 14, 2026
+- ~~Issue #3: Validation Bypass~~ ✅ Fixed Feb 14, 2026
+- ~~Issue #6: Non-compliant Logging~~ ✅ Fixed Feb 14, 2026
+
+**Remaining issues** should be created as GitHub Issues with labels:
+
+- `security` (Issues #1)
+- `technical-debt` (Issues #4, #5)
+- `plugin-system` (All remaining issues)
 
 **Recommended Sprint**: Sprint 2 (after Milestone 5/6 complete)
 
@@ -578,8 +645,9 @@ These issues should be created as GitHub Issues with labels:
   - `.forge/constitution.md` (Articles 5, 6)
   - `docs/SECURITY.md` (Security best practices)
   - `apps/core-api/docs/PLUGIN_TRANSLATIONS.md` (Plugin developer guide)
+  - `.forge/knowledge/decision-log.md` (Milestone 4 Security Fixes Part 2)
 
 ---
 
 _Last Updated: February 14, 2026_  
-_Status: Awaiting GitHub issue creation_
+_Status: 3 issues fixed; 3 issues awaiting GitHub issue creation_

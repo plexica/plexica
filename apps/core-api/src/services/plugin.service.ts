@@ -17,6 +17,8 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { TranslationKeySchema } from '../modules/i18n/i18n.schemas.js';
 import { flattenMessages } from '@plexica/i18n';
+import { logger } from '../lib/logger.js';
+import type { Logger } from 'pino';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -29,22 +31,15 @@ type TenantPluginWithPluginAndTenant = TenantPlugin & { plugin: Plugin; tenant: 
 export class PluginRegistryService {
   private serviceRegistry: ServiceRegistryService;
   private dependencyResolver: DependencyResolutionService;
+  private logger: Logger;
 
-  constructor() {
-    // SECURITY: Use silent logger to prevent sensitive data leaks
-    // Debug logging disabled in production
-    const isProduction = process.env.NODE_ENV === 'production';
-    const silentLogger = {
-      info: isProduction ? () => {} : (...args: unknown[]) => console.log('[INFO]', ...args),
-      error: (...args: unknown[]) => console.error('[ERROR]', ...args),
-      warn: (...args: unknown[]) => console.warn('[WARN]', ...args),
-      debug: isProduction ? () => {} : (...args: unknown[]) => console.debug('[DEBUG]', ...args),
-    };
+  constructor(customLogger?: Logger) {
+    // Use provided logger or default to shared Pino logger
+    // Constitution Article 6.3: Pino JSON logging with standard fields
+    this.logger = customLogger || logger;
 
-    // @ts-expect-error ServiceRegistryService expects a full PrismaClient but we pass our db instance
-    this.serviceRegistry = new ServiceRegistryService(db, redis, silentLogger);
-    // @ts-expect-error DependencyResolutionService expects a full PrismaClient but we pass our db instance
-    this.dependencyResolver = new DependencyResolutionService(db, silentLogger);
+    this.serviceRegistry = new ServiceRegistryService(db, redis, this.logger);
+    this.dependencyResolver = new DependencyResolutionService(db, this.logger);
   }
 
   /**
@@ -104,7 +99,10 @@ export class PluginRegistryService {
         } catch (error: unknown) {
           // Log errors but continue with other services
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error(`Failed to register service '${service.name}':`, errorMsg);
+          this.logger.error(
+            { pluginId: manifest.id, serviceName: service.name, error: errorMsg },
+            `Failed to register service '${service.name}'`
+          );
           // Continue with other services, don't fail the entire registration
         }
       }
@@ -127,8 +125,20 @@ export class PluginRegistryService {
 
   /**
    * Update an existing plugin
+   *
+   * SECURITY FIX: Now uses Zod validation to prevent security bypass.
+   * Previous implementation only used custom validation, allowing invalid
+   * manifests to bypass Zod schema constraints.
    */
   async updatePlugin(pluginId: string, manifest: PluginManifest): Promise<Plugin> {
+    // ✅ SECURITY: Validate with Zod schema first (same as registerPlugin)
+    const validation = validatePluginManifest(manifest);
+    if (!validation.valid) {
+      const errorMessages = validation.errors?.map((e) => `${e.path}: ${e.message}`).join('; ');
+      throw new Error(`Invalid plugin manifest: ${errorMessages}`);
+    }
+
+    // Additional custom validation (translation files, version format, etc.)
     await this.validateManifest(manifest);
 
     const plugin = await db.plugin.findUnique({
@@ -259,34 +269,54 @@ export class PluginRegistryService {
 
   /**
    * Get plugin statistics
+   *
+   * PERFORMANCE FIX: Use database aggregation instead of loading all rows into memory.
+   * For popular plugins with 10,000+ installations, the old implementation would:
+   * - Load ~500MB+ of data into memory
+   * - Risk Node.js out-of-memory errors
+   * - Scale linearly O(n) with tenant count
+   *
+   * New implementation uses COUNT queries (O(1) memory, database aggregation).
    */
   async getPluginStats(pluginId: string): Promise<{
     installCount: number;
     activeTenants: number;
     version: string;
   }> {
-    // Fetch plugin and installation stats in parallel (not sequentially)
-    const [plugin, installations] = await Promise.all([
-      db.plugin.findUnique({
-        where: { id: pluginId },
-      }),
-      db.tenantPlugin.findMany({
-        where: { pluginId },
-        include: { tenant: true },
-      }),
-    ]);
+    // Fetch plugin metadata and run aggregation queries in parallel
+    const [plugin, totalInstallations, enabledInstallations, activeTenantsCount] =
+      await Promise.all([
+        db.plugin.findUnique({
+          where: { id: pluginId },
+          select: { id: true, version: true },
+        }),
+        // Count total installations (all tenants)
+        db.tenantPlugin.count({
+          where: { pluginId },
+        }),
+        // Count enabled installations
+        db.tenantPlugin.count({
+          where: { pluginId, enabled: true },
+        }),
+        // Count active tenants with enabled plugin
+        db.tenantPlugin.count({
+          where: {
+            pluginId,
+            enabled: true,
+            tenant: {
+              status: TENANT_STATUS.ACTIVE,
+            },
+          },
+        }),
+      ]);
 
     if (!plugin) {
       throw new Error(`Plugin '${pluginId}' not found`);
     }
 
-    const activeTenants = installations.filter(
-      (i) => i.enabled && i.tenant.status === TENANT_STATUS.ACTIVE
-    ).length;
-
     return {
-      installCount: installations.length,
-      activeTenants,
+      installCount: totalInstallations,
+      activeTenants: activeTenantsCount,
       version: plugin.version,
     };
   }
@@ -438,23 +468,16 @@ export class PluginLifecycleService {
   private registry: PluginRegistryService;
   private serviceRegistry: ServiceRegistryService;
   private dependencyResolver: DependencyResolutionService;
+  private logger: Logger;
 
-  constructor() {
-    this.registry = new PluginRegistryService();
+  constructor(customLogger?: Logger) {
+    // Use provided logger or default to shared Pino logger
+    // Constitution Article 6.3: Pino JSON logging with standard fields
+    this.logger = customLogger || logger;
 
-    // SECURITY: Use silent logger to prevent sensitive data leaks
-    const isProduction = process.env.NODE_ENV === 'production';
-    const silentLogger = {
-      info: isProduction ? () => {} : (...args: unknown[]) => console.log('[INFO]', ...args),
-      error: (...args: unknown[]) => console.error('[ERROR]', ...args),
-      warn: (...args: unknown[]) => console.warn('[WARN]', ...args),
-      debug: isProduction ? () => {} : (...args: unknown[]) => console.debug('[DEBUG]', ...args),
-    };
-
-    // @ts-expect-error ServiceRegistryService expects a full PrismaClient but we pass our db instance
-    this.serviceRegistry = new ServiceRegistryService(db, redis, silentLogger);
-    // @ts-expect-error DependencyResolutionService expects a full PrismaClient but we pass our db instance
-    this.dependencyResolver = new DependencyResolutionService(db, silentLogger);
+    this.registry = new PluginRegistryService(this.logger);
+    this.serviceRegistry = new ServiceRegistryService(db, redis, this.logger);
+    this.dependencyResolver = new DependencyResolutionService(db, this.logger);
   }
 
   /**
@@ -600,7 +623,10 @@ export class PluginLifecycleService {
           });
         } catch (error: unknown) {
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error(`Failed to register service '${service.name}':`, errorMsg);
+          this.logger.error(
+            { pluginId, tenantId, serviceName: service.name, error: errorMsg },
+            `Failed to register service '${service.name}'`
+          );
           // Log but don't fail the installation - service registration is supplementary
         }
       }

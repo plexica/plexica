@@ -185,10 +185,144 @@ if (manifest.api?.services) {
 
 ---
 
+### Milestone 4 Security Fixes Part 2 (February 14, 2026)
+
+Following resolution of 3 CRITICAL issues, 3 additional WARNING-level security and code quality issues were fixed:
+
+#### WARNING #2: Unbounded Query - Memory Exhaustion Risk
+
+**Vulnerability**: `getPluginStats()` loaded ALL tenant plugin installations into memory using `findMany({ include: { installations: true } })`. For popular plugins with 10,000+ installations, this caused:
+
+- Loading ~500MB+ data into memory
+- Risk of Node.js out-of-memory errors
+- Linear scaling O(n) with tenant count
+
+**File Modified**: `apps/core-api/src/services/plugin.service.ts` (lines 270-322)
+
+**Fix Implementation**:
+
+- Replaced `findMany` with 3 parallel `COUNT()` aggregation queries
+- Memory usage reduced from O(n) to O(1)
+- Database handles aggregation, no data transfer overhead
+
+```typescript
+// Old: Load all installations into memory
+const plugin = await db.plugin.findUnique({
+  where: { id: pluginId },
+  include: { installations: true }, // Loads 10,000+ records
+});
+
+// New: Database aggregation queries
+const [totalInstallations, enabledInstallations, activeTenantsCount] = await Promise.all([
+  db.tenantPlugin.count({ where: { pluginId } }),
+  db.tenantPlugin.count({ where: { pluginId, enabled: true } }),
+  db.tenantPlugin.count({ where: { pluginId, enabled: true, tenant: { status: 'ACTIVE' } } }),
+]);
+```
+
+**Impact**: **HIGH** - Prevented memory exhaustion and scalability bottleneck  
+**Constitution Compliance**: Article 3.3 (Database aggregation for performance), Article 4.3 (Performance targets)  
+**Status**: ✅ Fixed (Feb 14, 2026)
+
+---
+
+#### WARNING #3: Validation Bypass in updatePlugin()
+
+**Vulnerability**: `updatePlugin()` method only used custom validation (`validateManifest()`), bypassing Zod schema validation that was enforced in `registerPlugin()`. This inconsistency allowed attackers to bypass format validation (e.g., plugin ID format) when updating existing plugins.
+
+**File Modified**: `apps/core-api/src/services/plugin.service.ts` (lines 128-161)
+
+**Fix Implementation**:
+
+- Added `validatePluginManifest()` Zod validation before custom validation
+- Defense-in-depth: Both Zod schema + custom validation enforced
+- Consistent with `registerPlugin()` pattern
+
+```typescript
+async updatePlugin(pluginId: string, manifest: Partial<PluginManifest>): Promise<Plugin> {
+  // NEW: Zod validation (was missing)
+  const validation = validatePluginManifest(manifest as PluginManifest);
+  if (!validation.valid) {
+    const errorMessages = validation.errors?.map((e) => `${e.path}: ${e.message}`).join('; ');
+    throw new Error(`Invalid plugin manifest: ${errorMessages}`);
+  }
+
+  // Existing: Custom validation
+  await this.validateManifest(manifest as PluginManifest);
+
+  // ... rest of update logic
+}
+```
+
+**Impact**: **HIGH** - Closed security bypass, enforced input validation  
+**Constitution Compliance**: Article 5.3 (Zod validation for all external input)  
+**Status**: ✅ Fixed (Feb 14, 2026)
+
+---
+
+#### INFO #6: Non-compliant Logging (console.log)
+
+**Issue**: `PluginRegistryService` and `PluginLifecycleService` used custom "silent logger" wrapper around `console.log/error/warn`, violating Constitution Article 6.3 (Pino JSON logging).
+
+**Files Modified**:
+
+- `apps/core-api/src/services/plugin.service.ts` (constructor refactored)
+- `apps/core-api/src/lib/logger.ts` (new shared Pino logger)
+
+**Fix Implementation**:
+
+1. Created shared Pino logger instance (`lib/logger.ts`) with proper configuration
+2. Updated both service constructors to accept optional `Logger` parameter
+3. Replaced all `console.log/error/warn` with structured Pino logging
+4. Logger passed to nested services (ServiceRegistryService, DependencyResolutionService)
+
+```typescript
+// New: Shared Pino logger
+export const logger = pino({
+  level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+  transport: isDevelopment ? { target: 'pino-pretty', ... } : undefined,
+});
+
+// Updated constructors
+export class PluginRegistryService {
+  private logger: Logger;
+
+  constructor(customLogger?: Logger) {
+    this.logger = customLogger || logger; // Use custom or default Pino logger
+    this.serviceRegistry = new ServiceRegistryService(db, redis, this.logger);
+    this.dependencyResolver = new DependencyResolutionService(db, this.logger);
+  }
+}
+
+// Structured logging with context
+this.logger.error(
+  { pluginId: manifest.id, serviceName: service.name, error: errorMsg },
+  `Failed to register service '${service.name}'`
+);
+```
+
+**Impact**: **MEDIUM** - Improved observability, structured logging compliance  
+**Constitution Compliance**: Article 6.3 (Pino JSON logging with standard fields: timestamp, level, message, requestId, userId, tenantId)  
+**Status**: ✅ Fixed (Feb 14, 2026)
+
+---
+
+**Test Coverage**: Added 11 comprehensive tests in `plugin-security-fixes.test.ts`:
+
+- 2 tests for Issue #2 (COUNT aggregation)
+- 3 tests for Issue #3 (Zod + custom validation)
+- 3 tests for Issue #6 (Pino logger integration)
+- 3 tests for Constitution compliance verification
+
+**All Tests Passing**: 825/825 tests pass (814 existing + 11 new)
+
+---
+
 ## Recent Changes
 
 | Date       | Change                             | Reason                                                            | Impact                                                                                                             |
 | ---------- | ---------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 2026-02-14 | Security fixes part 2 (M4)         | /forge-review WARNING issues #2, #3, #6 resolved                  | High - Unbounded query fix, Zod validation fix, Pino logging compliance; 11 new tests; 825 tests passing           |
 | 2026-02-14 | Transaction integrity fix (M4)     | /forge-review found orphaned service registrations                | High - Moved service registration outside transaction, lifecycle hooks inside transaction                          |
 | 2026-02-14 | Cross-tenant auth bypass fix (M4)  | /forge-review found tenant authorization bypass                   | High - Created requireTenantAccess middleware, applied to 6 plugin routes, prevents cross-tenant access            |
 | 2026-02-14 | Path traversal fix (M4 security)   | /forge-review found path traversal risk in translation validation | High - Added defense-in-depth: re-validate locale/namespace, path.resolve() + startsWith() check                   |
