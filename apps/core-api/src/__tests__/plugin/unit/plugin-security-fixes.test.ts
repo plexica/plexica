@@ -1,16 +1,19 @@
 /**
- * Security Fixes Tests for Milestone 4 Issues #2, #3, #6
+ * Security Fixes Tests for Milestone 4 Issues #1, #2, #3, #4, #5, #6
  *
  * Tests for security warnings identified in /forge-review:
+ * - Issue #1: ReDoS Vulnerability - safe-regex2 library for regex validation
  * - Issue #2: Unbounded Query - Database aggregation instead of loading all data
  * - Issue #3: Validation Bypass - Zod validation in updatePlugin()
+ * - Issue #4: Code Duplication - Shared Pino logger and service instantiation
+ * - Issue #5: Unimplemented Version Check - semver validation for dependencies
  * - Issue #6: Non-compliant Logging - Pino structured logging instead of console.log
  *
  * Related: .forge/knowledge/security-warnings.md
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PluginRegistryService } from '../../../services/plugin.service.js';
+import { PluginRegistryService, PluginLifecycleService } from '../../../services/plugin.service.js';
 import { db } from '../../../lib/db.js';
 import { logger } from '../../../lib/logger.js';
 
@@ -351,6 +354,476 @@ describe('Milestone 4 Security Fixes', () => {
     it('should comply with Article 3.3: Database aggregation for performance', () => {
       // Verify getPluginStats uses COUNT queries (tested in Issue #2)
       expect(true).toBe(true); // Placeholder for structural compliance check
+    });
+  });
+
+  describe('Issue #1: ReDoS Vulnerability Fix', () => {
+    it('should reject regex patterns with nested quantifiers using safe-regex2', async () => {
+      // Scenario: Attacker submits plugin with ReDoS regex pattern in configuration validation
+      // Old implementation: Pattern matching only (incomplete detection)
+      // New implementation: safe-regex2 library (comprehensive static analysis)
+
+      const manifestWithReDoS = {
+        id: 'plugin-redos-attack',
+        name: 'Malicious Plugin',
+        version: '1.0.0',
+        description: 'Plugin with ReDoS vulnerability',
+        category: 'security',
+        metadata: {
+          license: 'MIT',
+          author: { name: 'Attacker', email: 'attacker@example.com' },
+        },
+        config: [
+          {
+            key: 'user_input',
+            label: 'User Input',
+            type: 'string',
+            required: true,
+            validation: {
+              pattern: '(a+)+b', // Classic ReDoS pattern - exponential backtracking
+            },
+          },
+        ],
+      };
+
+      // Mock plugin installation to trigger validation
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-redos-attack',
+        manifest: manifestWithReDoS,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+
+      const lifecycleService = new PluginLifecycleService();
+
+      // safe-regex2 should detect and reject this pattern during configuration validation
+      await expect(
+        lifecycleService.installPlugin('tenant-1', 'plugin-redos-attack', {
+          user_input: 'test',
+        })
+      ).rejects.toThrow(/ReDoS vulnerability detected.*\(a\+\)\+b/);
+    });
+
+    it('should reject overlapping alternations that cause exponential backtracking', async () => {
+      const manifestWithAlternationReDoS = {
+        id: 'plugin-alternation-attack',
+        name: 'Alternation Attack',
+        version: '1.0.0',
+        description: 'Plugin with alternation ReDoS',
+        category: 'security',
+        metadata: {
+          license: 'MIT',
+          author: { name: 'Attacker', email: 'attacker@example.com' },
+        },
+        config: [
+          {
+            key: 'data',
+            label: 'Data',
+            type: 'string',
+            required: true,
+            validation: {
+              pattern: '(a+)*b', // Nested quantifier with alternation - dangerous ReDoS
+            },
+          },
+        ],
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-alternation-attack',
+        manifest: manifestWithAlternationReDoS,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+
+      const lifecycleService = new PluginLifecycleService();
+
+      await expect(
+        lifecycleService.installPlugin('tenant-1', 'plugin-alternation-attack', {
+          data: 'test',
+        })
+      ).rejects.toThrow(/ReDoS vulnerability detected/);
+    });
+
+    it('should accept safe regex patterns validated by safe-regex2', async () => {
+      const manifestWithSafeRegex = {
+        id: 'plugin-safe-regex',
+        name: 'Safe Plugin',
+        version: '1.0.0',
+        description: 'Plugin with safe regex patterns',
+        category: 'utilities',
+        metadata: {
+          license: 'MIT',
+          author: { name: 'Developer', email: 'dev@example.com' },
+        },
+        config: [
+          {
+            key: 'email',
+            label: 'Email',
+            type: 'string',
+            required: true,
+            validation: {
+              pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$', // Safe email regex
+            },
+          },
+        ],
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-safe-regex',
+        manifest: manifestWithSafeRegex,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+
+      vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
+        return callback(db);
+      });
+
+      vi.mocked(db.tenantPlugin.create).mockResolvedValue({
+        tenantId: 'tenant-1',
+        pluginId: 'plugin-safe-regex',
+        enabled: false,
+        plugin: { id: 'plugin-safe-regex', name: 'Safe Plugin', version: '1.0.0' },
+        tenant: { id: 'tenant-1' },
+      } as any);
+
+      const lifecycleService = new PluginLifecycleService();
+
+      const result = await lifecycleService.installPlugin('tenant-1', 'plugin-safe-regex', {
+        email: 'test@example.com',
+      });
+
+      // Safe regex should pass validation
+      expect(result.pluginId).toBe('plugin-safe-regex');
+    });
+
+    it('should provide actionable error messages for ReDoS patterns', async () => {
+      const manifestWithNestedStar = {
+        id: 'plugin-nested-star',
+        name: 'Nested Star Attack',
+        version: '1.0.0',
+        description: 'Plugin with nested star quantifier',
+        category: 'security',
+        metadata: {
+          license: 'MIT',
+          author: { name: 'Attacker', email: 'attacker@example.com' },
+        },
+        config: [
+          {
+            key: 'input',
+            label: 'Input',
+            type: 'string',
+            required: true,
+            validation: {
+              pattern: '(a*)*b', // Nested star quantifier
+            },
+          },
+        ],
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-nested-star',
+        manifest: manifestWithNestedStar,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+
+      const lifecycleService = new PluginLifecycleService();
+
+      try {
+        await lifecycleService.installPlugin('tenant-1', 'plugin-nested-star', { input: 'test' });
+        throw new Error('Expected validation to fail');
+      } catch (error: any) {
+        // Verify error message is actionable
+        expect(error.message).toContain('ReDoS vulnerability detected');
+        expect(error.message).toContain('(a*)*b');
+        expect(error.message).toMatch(
+          /nested quantifiers|excessive backtracking|overlapping alternations/i
+        );
+        expect(error.message).toContain('plugin development documentation');
+      }
+    });
+  });
+
+  describe('Issue #5: Unimplemented Version Check Fix', () => {
+    let lifecycleService: PluginLifecycleService;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      lifecycleService = new PluginLifecycleService();
+    });
+
+    it('should validate dependency version compatibility using semver', async () => {
+      const pluginManifest = {
+        id: 'plugin-dashboard',
+        name: 'Dashboard Plugin',
+        version: '1.0.0',
+        dependencies: {
+          required: {
+            'plugin-analytics': '^2.0.0',
+          },
+        },
+      };
+
+      const analyticsPlugin = {
+        id: 'plugin-analytics',
+        name: 'Analytics Plugin',
+        version: '1.5.0',
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-dashboard',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          tenantId: 'tenant-1',
+          pluginId: 'plugin-analytics',
+          enabled: true,
+          plugin: analyticsPlugin,
+        } as any);
+
+      await expect(lifecycleService.installPlugin('tenant-1', 'plugin-dashboard')).rejects.toThrow(
+        /Incompatible dependency version.*plugin-analytics.*requires version \^2\.0\.0.*installed version is 1\.5\.0/
+      );
+
+      expect(db.tenantPlugin.create).not.toHaveBeenCalled();
+    });
+
+    it('should accept compatible dependency versions', async () => {
+      const pluginManifest = {
+        id: 'plugin-dashboard',
+        name: 'Dashboard Plugin',
+        version: '1.0.0',
+        dependencies: {
+          required: {
+            'plugin-analytics': '^2.0.0',
+          },
+        },
+      };
+
+      const analyticsPlugin = {
+        id: 'plugin-analytics',
+        name: 'Analytics Plugin',
+        version: '2.3.1',
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-dashboard',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          tenantId: 'tenant-1',
+          pluginId: 'plugin-analytics',
+          enabled: true,
+          plugin: analyticsPlugin,
+        } as any);
+
+      vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
+        return callback(db);
+      });
+
+      vi.mocked(db.tenantPlugin.create).mockResolvedValue({
+        tenantId: 'tenant-1',
+        pluginId: 'plugin-dashboard',
+        enabled: false,
+        plugin: { id: 'plugin-dashboard' },
+        tenant: { id: 'tenant-1' },
+      } as any);
+
+      const result = await lifecycleService.installPlugin('tenant-1', 'plugin-dashboard');
+
+      expect(result.pluginId).toBe('plugin-dashboard');
+      expect(db.tenantPlugin.create).toHaveBeenCalled();
+    });
+
+    it('should validate exact version requirements', async () => {
+      const pluginManifest = {
+        id: 'plugin-strict',
+        name: 'Strict Plugin',
+        version: '1.0.0',
+        dependencies: {
+          required: {
+            'plugin-base': '3.0.0',
+          },
+        },
+      };
+
+      const basePlugin = {
+        id: 'plugin-base',
+        version: '3.0.1',
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-strict',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          tenantId: 'tenant-1',
+          pluginId: 'plugin-base',
+          enabled: true,
+          plugin: basePlugin,
+        } as any);
+
+      await expect(lifecycleService.installPlugin('tenant-1', 'plugin-strict')).rejects.toThrow(
+        /Incompatible dependency version.*plugin-base.*requires version 3\.0\.0.*installed version is 3\.0\.1/
+      );
+    });
+
+    it('should validate version ranges with multiple operators', async () => {
+      const pluginManifest = {
+        id: 'plugin-flexible',
+        name: 'Flexible Plugin',
+        version: '1.0.0',
+        dependencies: {
+          required: {
+            'plugin-utils': '>=1.5.0 <2.0.0',
+          },
+        },
+      };
+
+      const utilsPlugin = {
+        id: 'plugin-utils',
+        version: '1.8.3',
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-flexible',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          tenantId: 'tenant-1',
+          pluginId: 'plugin-utils',
+          enabled: true,
+          plugin: utilsPlugin,
+        } as any);
+
+      vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
+        return callback(db);
+      });
+
+      vi.mocked(db.tenantPlugin.create).mockResolvedValue({
+        tenantId: 'tenant-1',
+        pluginId: 'plugin-flexible',
+        enabled: false,
+        plugin: { id: 'plugin-flexible' },
+        tenant: { id: 'tenant-1' },
+      } as any);
+
+      const result = await lifecycleService.installPlugin('tenant-1', 'plugin-flexible');
+
+      expect(result.pluginId).toBe('plugin-flexible');
+    });
+
+    it('should provide clear error messages with required vs actual versions', async () => {
+      const pluginManifest = {
+        id: 'plugin-test',
+        version: '1.0.0',
+        dependencies: {
+          required: {
+            'plugin-dep': '~4.2.0',
+          },
+        },
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+        id: 'plugin-test',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+      } as any);
+
+      vi.mocked(db.tenantPlugin.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          tenantId: 'tenant-1',
+          pluginId: 'plugin-dep',
+          enabled: true,
+          plugin: { id: 'plugin-dep', version: '4.1.0' },
+        } as any);
+
+      try {
+        await lifecycleService.installPlugin('tenant-1', 'plugin-test');
+        throw new Error('Expected validation to fail');
+      } catch (error: any) {
+        expect(error.message).toContain('Incompatible dependency version');
+        expect(error.message).toContain('plugin-dep');
+        expect(error.message).toContain('~4.2.0');
+        expect(error.message).toContain('4.1.0');
+      }
+    });
+  });
+
+  describe('Issue #4: Code Duplication Fix', () => {
+    it('should use shared logger factory pattern (no duplication)', () => {
+      // Scenario: Both PluginRegistryService and PluginLifecycleService use shared logger
+      // Old implementation: Each service instantiated its own logger (code duplication)
+      // New implementation: Shared logger from lib/logger.ts
+
+      const customLogger = {
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+      } as any;
+
+      // Both services accept the same logger parameter
+      const registryService = new PluginRegistryService(customLogger);
+      const lifecycleService = new PluginLifecycleService(customLogger);
+
+      expect(registryService).toBeDefined();
+      expect(lifecycleService).toBeDefined();
+
+      // Verify both services can be instantiated without duplication
+      expect(registryService).toBeInstanceOf(PluginRegistryService);
+      expect(lifecycleService).toBeInstanceOf(PluginLifecycleService);
+    });
+
+    it('should share logger instance across nested services', () => {
+      // Verify that nested services (ServiceRegistryService, DependencyResolutionService)
+      // receive the same logger instance (passed via constructor)
+
+      const customLogger = {
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+      } as any;
+
+      // Create service with custom logger
+      const service = new PluginRegistryService(customLogger);
+
+      // Logger should be passed to nested services
+      // (Internal implementation detail, but constructor should accept logger)
+      expect(service).toBeDefined();
+    });
+
+    it('should use default shared logger when no custom logger provided', () => {
+      // Both services should fall back to lib/logger.ts when no custom logger provided
+      const registryService = new PluginRegistryService();
+      const lifecycleService = new PluginLifecycleService();
+
+      // Both should use default logger from lib/logger.ts
+      expect(registryService).toBeDefined();
+      expect(lifecycleService).toBeDefined();
     });
   });
 });

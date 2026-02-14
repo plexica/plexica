@@ -19,6 +19,7 @@ import { TranslationKeySchema } from '../modules/i18n/i18n.schemas.js';
 import { flattenMessages } from '@plexica/i18n';
 import { logger } from '../lib/logger.js';
 import type { Logger } from 'pino';
+import safeRegex from 'safe-regex2';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -912,7 +913,14 @@ export class PluginLifecycleService {
           throw new Error(`Required plugin dependency '${depId}' is not installed or active`);
         }
 
-        // TODO: Implement version checking
+        // Validate version compatibility using semver
+        const installedVersion = installation.plugin.version;
+        if (!semver.satisfies(installedVersion, _version)) {
+          throw new Error(
+            `Incompatible dependency version: Plugin '${depId}' requires version ${_version}, ` +
+              `but installed version is ${installedVersion}`
+          );
+        }
       }
     }
 
@@ -947,29 +955,19 @@ export class PluginLifecycleService {
 
   /**
    * Validate regex pattern for common ReDoS (Regular Expression Denial of Service) vulnerabilities
-   * Rejects patterns with nested quantifiers, alternation with overlap, etc.
+   * Uses safe-regex2 library for static analysis of regex patterns
    */
   private validateRegexPattern(pattern: string): void {
-    // Common ReDoS indicators to reject:
-    // 1. Nested quantifiers: (a+)+ , (a*)*
-    // 2. Alternation with overlap: (a|a)+ , (a|ab)+
-    // 3. Multiple overlapping alternations: (a|a|a)+
-
-    const redosPatterns = [
-      /(\w\+)\+/, // nested + quantifier
-      /(\w\*)\*/, // nested * quantifier
-      /(\w\{[\d,]+\})\+/, // nested { } with +
-      /\([^)]*\|[^)]*\)\+/, // alternation with +
-      /\([^)]*\|[^)]*\)\*/, // alternation with *
-    ];
-
-    for (const redosPattern of redosPatterns) {
-      if (redosPattern.test(pattern)) {
-        throw new Error(
-          `ReDoS vulnerability detected in regex pattern: ${pattern}. ` +
-            `Patterns with nested quantifiers or overlapping alternations are not allowed.`
-        );
-      }
+    // Use safe-regex2 for comprehensive static analysis
+    // Detects nested quantifiers, excessive backtracking, overlapping alternations, etc.
+    if (!safeRegex(pattern)) {
+      throw new Error(
+        `ReDoS vulnerability detected in regex pattern: "${pattern}". ` +
+          'This pattern may cause excessive backtracking and denial of service. ' +
+          'Avoid nested quantifiers (e.g., (a+)+, (a*)*), overlapping alternations (e.g., (a|ab)+), ' +
+          'and patterns with exponential complexity. ' +
+          'See plugin development documentation for safe regex patterns.'
+      );
     }
   }
 }
