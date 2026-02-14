@@ -141,12 +141,12 @@ describe('TranslationService', () => {
     });
 
     it('should throw error when neither requested nor fallback locale found', async () => {
-      // Arrange
+      // Arrange: Both 'it' and 'en' (fallback) files don't exist
       vi.mocked(fs.stat).mockRejectedValue(new Error('File not found'));
 
-      // Act & Assert
+      // Act & Assert: When even the fallback locale fails, the namespace doesn't exist
       await expect(service.getTranslations('it', 'core')).rejects.toThrow(
-        /LOCALE_NOT_FOUND.*No translations found/
+        /NAMESPACE_NOT_FOUND.*Translation file not found/
       );
     });
 

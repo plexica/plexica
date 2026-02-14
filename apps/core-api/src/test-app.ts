@@ -20,6 +20,7 @@ import { workspaceRoutes } from './routes/workspace.js';
 import { adminRoutes } from './routes/admin.js';
 import { marketplaceRoutes } from './routes/marketplace.js';
 import { pluginGatewayRoutes } from './routes/plugin-gateway.js';
+import { translationRoutes } from './modules/i18n/i18n.controller.js';
 import { db } from './lib/db.js';
 import { redis } from './lib/redis.js';
 import { ServiceRegistryService } from './services/service-registry.service.js';
@@ -76,6 +77,7 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(pluginUploadRoutes, { prefix: '/api' });
   await app.register(marketplaceRoutes, { prefix: '/api' });
   await app.register(adminRoutes, { prefix: '/api' });
+  await app.register(translationRoutes, { prefix: '/api/v1' });
 
   // Plugin Gateway Routes
   const serviceRegistry = new ServiceRegistryService(db, redis, app.log);

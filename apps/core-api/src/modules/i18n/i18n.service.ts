@@ -99,14 +99,12 @@ export class TranslationService {
           messages = await this.loadNamespaceFile(DEFAULT_LOCALE, namespace);
           locale = DEFAULT_LOCALE; // Update locale to reflect fallback
         } catch (fallbackError) {
-          throw new Error(
-            `${ERROR_CODES.LOCALE_NOT_FOUND}: No translations found for locale '${locale}' or fallback '${DEFAULT_LOCALE}'`
-          );
+          // If even the default locale doesn't have this namespace, it truly doesn't exist
+          throw fallbackError;
         }
       } else {
-        throw new Error(
-          `${ERROR_CODES.LOCALE_NOT_FOUND}: No translations found for locale '${locale}'`
-        );
+        // Requested default locale but namespace not found - namespace doesn't exist
+        throw error;
       }
     }
 
