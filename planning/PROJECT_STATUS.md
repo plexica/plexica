@@ -1,40 +1,43 @@
 # Plexica - Project Status
 
-**Last Updated**: February 11, 2026  
-**Current Phase**: Phase 2 - Plugin Ecosystem + Frontend Consolidation  
-**Current Milestone**: **M2.4 — Plugin Registry & Marketplace**  
-**Previous Milestone**: Frontend Consolidation D5 ✅ (Completed Feb 11) — All phases A–D5 complete  
+**Last Updated**: February 15, 2026  
+**Current Phase**: Phase 2 - Plugin Ecosystem + i18n System  
+**Current Milestone**: **Sprint 2 Planning** (i18n Frontend + Test Coverage)  
+**Previous Milestone**: Sprint 1 - i18n Backend ✅ (Completed Feb 15) — 5/6 stories, 23 velocity  
 **Version**: 0.9.0
 
 ---
 
 ## 📊 Quick Overview
 
-| Metric                       | Value                                 | Status                   |
-| ---------------------------- | ------------------------------------- | ------------------------ |
-| **Current Phase**            | Phase 2 + Frontend Consolidation      | 🟢 Active                |
-| **Current Focus**            | M2.4 Plugin Registry & Marketplace    | 🟡 In Progress           |
-| **Frontend Consolidation**   | Phase A, B, C1–C5, D1–D5 complete     | ✅ 100% Complete         |
-| **Total Commits (Last 10d)** | 35 commits                            | 🟢 High velocity         |
-| **Total TypeScript Files**   | 1,435 files                           | 🟢 Growing               |
-| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins | ✅ 100% Complete         |
-| **Frontend MVP**             | Tenant App + Super-Admin Panel        | ✅ 100% Complete         |
-| **Workspaces**               | Organizational layer within tenants   | ✅ 100% Complete         |
-| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P   | ✅ 67% Complete (4/6)    |
-| **Shared Packages**          | sdk, types, api-client, ui, event-bus | ✅ All operational       |
-| **Total Tests**              | ~1,855 across all packages            | 🟢 Growing               |
-| **Test Coverage (core-api)** | Core API Lines Coverage               | 🟡 **63% (target: 80%)** |
-| **Team Size**                | 1 developer (AI-assisted)             | -                        |
+| Metric                       | Value                                           | Status                   |
+| ---------------------------- | ----------------------------------------------- | ------------------------ |
+| **Current Phase**            | Phase 2 + i18n System Implementation            | 🟢 Active                |
+| **Current Focus**            | Sprint 2 Planning (Frontend + Tests)            | 🟡 Planning              |
+| **Sprint 1 Status**          | i18n Backend Complete (5/6 stories)             | ✅ Closed (Feb 15, 2026) |
+| **Baseline Velocity**        | 23 story points (Sprint 1)                      | 🎯 Established           |
+| **Total Commits (Last 10d)** | 38 commits                                      | 🟢 High velocity         |
+| **Total TypeScript Files**   | 1,435+ files                                    | 🟢 Growing               |
+| **Backend MVP**              | Core + Multi-tenancy + Auth + Plugins           | ✅ 100% Complete         |
+| **Frontend MVP**             | Tenant App + Super-Admin Panel                  | ✅ 100% Complete         |
+| **Workspaces**               | Organizational layer within tenants             | ✅ 100% Complete         |
+| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P             | ✅ 67% Complete (4/6)    |
+| **i18n System (Backend)**    | FormatJS + Redis Cache + Plugin API             | ✅ 100% Complete         |
+| **Shared Packages**          | sdk, types, api-client, ui, event-bus, **i18n** | ✅ All operational       |
+| **Total Tests**              | ~2,073 across all packages (1,855 + 218 i18n)   | 🟢 Growing               |
+| **Test Coverage (core-api)** | Core API Lines Coverage                         | 🟡 **63% (target: 80%)** |
+| **i18n Test Coverage**       | @plexica/i18n + core-api i18n module            | ✅ **94.9% / 85%**       |
+| **Team Size**                | 1 developer (AI-assisted)                       | -                        |
 
 ---
 
-## 🎯 Current Phase: Phase 2 - Plugin Ecosystem
+## 🎯 Current Phase: Phase 2 - Plugin Ecosystem + i18n System
 
 ### Objective
 
-Develop advanced plugin capabilities including event-driven architecture, module federation for frontend plugins, and plugin-to-plugin communication.
+Develop advanced plugin capabilities including event-driven architecture, module federation for frontend plugins, plugin-to-plugin communication, and internationalization support for multi-locale deployments.
 
-### Milestone Status
+### Phase 2 Milestone Status
 
 | Milestone | Name                            | Duration | Status         | Progress | Completion Date |
 | --------- | ------------------------------- | -------- | -------------- | -------- | --------------- |
@@ -47,9 +50,84 @@ Develop advanced plugin capabilities including event-driven architecture, module
 
 **Total Phase 2 Progress**: ███████░░░░░░░░░ 67% (4/6 milestones completed)
 
+### Phase 3 - i18n System Sprint Status
+
+| Sprint       | Name                          | Duration | Status      | Velocity           | Completion Date |
+| ------------ | ----------------------------- | -------- | ----------- | ------------------ | --------------- |
+| **Sprint 1** | i18n Backend Implementation   | 3 days   | ✅ Closed   | 23/28 pts          | Feb 15, 2026    |
+| **Sprint 2** | i18n Frontend + Test Coverage | 2 weeks  | 📋 Planning | 20-25 pts (target) | TBD             |
+
+**i18n System Progress**: ████████████░░░ 83% (5/6 stories complete, backend production-ready)
+
 ---
 
 ## ✅ Completed Milestones
+
+### Sprint 1 - i18n System Implementation (Backend) ✅
+
+**Completed**: February 15, 2026  
+**Duration**: 3 days (Feb 13-15, 2026)  
+**Velocity**: 23/28 story points (82% completion)  
+**Stories Completed**: 5/6 (E01-S006 carried to Sprint 2)  
+**Commits**: `07c4df0`, `a90b6fb` + 15 milestone commits  
+**Epic**: [E01 - Internationalization (i18n)](.forge/epics/E01-i18n.md)  
+**Spec**: [006-i18n](.forge/specs/006-i18n/spec.md)  
+**Retrospective**: [Sprint 1 Retro](.forge/sprints/retrospectives/sprint-01-retro.md)
+
+**Deliverables**:
+
+- ✅ **E01-S001: Database Schema & Migrations** (1 pt)
+  - Added `translation_overrides JSONB` and `default_locale VARCHAR(10)` to `tenants` table
+  - Prisma migration with indexes for performance
+  - 11 migration tests passing
+
+- ✅ **E01-S002: @plexica/i18n Shared Package** (5 pts)
+  - FormatJS wrapper library (ADR-012: FormatJS selected over i18next)
+  - Utilities: flatten/unflatten messages, content hashing, locale resolution
+  - 115 tests, 94.9% coverage (exceeds 80% target)
+  - Dual Node.js/browser API for SSR and client-side
+
+- ✅ **E01-S003: Backend i18n Service** (7 pts)
+  - TranslationService with Redis caching (TTL: 1h, content-hashed URLs)
+  - 4 API endpoints: GET translations, list locales, GET/PUT tenant overrides
+  - 179 core translation keys (English baseline)
+  - Fallback chain: tenant override → plugin → core → fallback locale
+
+- ✅ **E01-S004: Plugin Manifest Integration** (3 pts)
+  - Extended plugin manifest schema with `translations` field
+  - File validation at plugin registration (locale/namespace format, file existence)
+  - Plugin developer documentation: [PLUGIN_TRANSLATIONS.md](docs/PLUGIN_TRANSLATIONS.md)
+  - Centralized translation storage: `apps/core-api/translations/`
+
+- ✅ **E01-S005: Testing & Quality Assurance** (7 pts)
+  - 218 comprehensive tests (141 unit, 56 integration, 21 E2E)
+  - 100% pass rate after 4 auth integration fixes
+  - Security hardening: 6 issues identified via `/forge-review` and fixed
+    - 3 CRITICAL: Cross-tenant bypass, path traversal, transaction integrity
+    - 3 WARNING: Unbounded query, validation bypass, logging compliance
+  - Test documentation: [i18n Testing Guide](apps/core-api/src/__tests__/i18n/README.md)
+
+- 📦 **E01-S006: Frontend Integration** (5 pts) — **Carried to Sprint 2**
+  - React integration with `react-intl`
+  - Locale switching UI component
+  - Tenant admin translation override editor
+  - Frontend E2E tests
+
+**Key Achievements**:
+
+- 🎯 Backend i18n system 100% production-ready
+- 🔒 Zero constitution violations (security-first approach)
+- 📊 All 14 backend FRs implemented (FR-001 to FR-014)
+- 🚀 All 5 NFRs met (performance, caching, bundle size, locale fallback)
+- 📈 Baseline velocity established: 23 story points
+
+**Technical Decisions**:
+
+- **ADR-012**: Selected FormatJS over i18next (12KB bundle vs 25KB, native ICU MessageFormat)
+- **Architecture**: Centralized translation storage pattern (not per-plugin directories)
+- **Security**: Tenant context fallback pattern for auth compatibility
+
+---
 
 ### M1.1 - Foundation Setup ✅
 
