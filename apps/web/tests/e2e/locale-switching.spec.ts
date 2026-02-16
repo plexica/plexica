@@ -12,6 +12,14 @@
 
 import { test, expect, Page } from '@playwright/test';
 import { mockAllApis } from './helpers/api-mocks';
+import { z } from 'zod';
+
+// Zod schemas for validation (from @plexica/i18n)
+const LocaleCodeSchema = z
+  .string()
+  .regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'Locale must be in BCP 47 format (e.g., en, it, en-US)');
+
+const TranslationMessagesSchema = z.record(z.string(), z.string());
 
 // Mock translation data for testing
 const mockTranslations = {
@@ -58,6 +66,41 @@ const mockTenantOverrides = {
   },
   updatedAt: new Date().toISOString(),
 };
+
+// Validate mock data at test setup time (fail fast if mocks are invalid)
+test.beforeAll(() => {
+  // Validate all locales follow BCP 47 format
+  for (const locale of Object.keys(mockTranslations)) {
+    try {
+      LocaleCodeSchema.parse(locale);
+    } catch (err) {
+      throw new Error(
+        `Mock translation locale "${locale}" is invalid: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // Validate all translation messages are string-to-string records
+  for (const [locale, namespaces] of Object.entries(mockTranslations)) {
+    for (const [namespace, messages] of Object.entries(namespaces)) {
+      try {
+        TranslationMessagesSchema.parse(messages);
+      } catch (err) {
+        throw new Error(
+          `Mock translation messages for "${locale}.${namespace}" are invalid: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
+      }
+    }
+  }
+
+  // Validate tenant overrides structure
+  for (const [locale, namespaces] of Object.entries(mockTenantOverrides.overrides)) {
+    LocaleCodeSchema.parse(locale);
+    for (const messages of Object.values(namespaces)) {
+      TranslationMessagesSchema.parse(messages);
+    }
+  }
+});
 
 /**
  * Helper function to mock translation API endpoints

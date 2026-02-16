@@ -13,6 +13,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { TranslationService } from './i18n.service.js';
 import { TranslationCacheService } from './i18n-cache.service.js';
+import { generateSecureETag } from '../../lib/crypto.js';
 import {
   LocaleCodeSchema,
   NamespaceSchema,
@@ -120,11 +121,18 @@ export async function translationRoutes(fastify: FastifyInstance) {
         NamespaceSchema.parse(namespace);
 
         // Check ETag header for 304 Not Modified support
+        // Use HMAC-based ETag to prevent cache poisoning attacks
         const clientETag = request.headers['if-none-match'];
         const cachedHash = await cacheService.getHash(locale, namespace, tenant);
 
-        if (clientETag && cachedHash && clientETag === `"${cachedHash}"`) {
-          return reply.status(304).send();
+        if (clientETag && cachedHash) {
+          // Strip quotes from ETag header
+          const cleanClientETag = clientETag.replace(/^"|"$/g, '');
+          const secureETag = generateSecureETag(cachedHash);
+
+          if (cleanClientETag === secureETag) {
+            return reply.status(304).send();
+          }
         }
 
         // Try to get from cache first
@@ -139,9 +147,11 @@ export async function translationRoutes(fastify: FastifyInstance) {
         }
 
         // Set cache headers for immutable content (FR-010)
+        // Use secure HMAC-based ETag to prevent cache poisoning
+        const secureETag = generateSecureETag(bundle.contentHash);
         reply
           .header('Cache-Control', 'public, immutable, max-age=31536000')
-          .header('ETag', `"${bundle.contentHash}"`)
+          .header('ETag', `"${secureETag}"`)
           .header('Content-Type', 'application/json; charset=utf-8')
           .send(bundle);
       } catch (error) {
@@ -215,6 +225,60 @@ export async function translationRoutes(fastify: FastifyInstance) {
           error: {
             code: 'INTERNAL_ERROR',
             message: 'Failed to fetch available locales',
+          },
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/v1/tenant/translations/namespaces
+   * Get available translation namespaces for the tenant
+   * Requires authentication
+   */
+  fastify.get(
+    '/tenant/translations/namespaces',
+    {
+      preHandler: authMiddleware,
+      schema: {
+        description: 'Get available translation namespaces from core and enabled plugins',
+        tags: ['translations', 'tenant'],
+      },
+    },
+    async (request, reply) => {
+      try {
+        // Extract tenant context from AsyncLocalStorage or fallback to request.user
+        const tenantContext = getTenantContext();
+        let tenantId: string | undefined;
+
+        if (tenantContext?.tenantId) {
+          tenantId = tenantContext.tenantId;
+        } else if (request.user?.tenantSlug) {
+          // Fallback: Fetch tenant ID from slug (for tests or when context middleware not used)
+          const tenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
+          tenantId = tenant?.id;
+        }
+
+        if (!tenantId) {
+          return reply.status(403).send({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'No tenant context available',
+            },
+          });
+        }
+
+        const namespaces = await translationService.getEnabledNamespaces(tenantId);
+
+        return reply.send({ namespaces });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        fastify.log.error({ error }, 'Namespace list error');
+        return reply.status(500).send({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to fetch available namespaces',
           },
         });
       }

@@ -1,5 +1,5 @@
 // apps/web/src/contexts/IntlContext.tsx
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { IntlProvider as ReactIntlProvider } from 'react-intl';
 import { resolveLocale, isValidLocale } from '@plexica/i18n';
@@ -63,7 +63,13 @@ export function IntlProvider({ children }: IntlProviderProps) {
       return; // Don't update to invalid locale
     }
 
+    // Clear messages FIRST (synchronous) to prevent flicker
+    setMessages({});
+
+    // THEN update locale
     setLocaleState(newLocale);
+
+    // Persist to localStorage
     try {
       localStorage?.setItem('plexica_locale', newLocale);
     } catch {
@@ -78,11 +84,6 @@ export function IntlProvider({ children }: IntlProviderProps) {
       ...newMessages,
     }));
   }, []);
-
-  // Clear stale translations when locale changes
-  useEffect(() => {
-    setMessages({}); // Reset messages on locale change to prevent stale translations
-  }, [locale]);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue: IntlContextValue = useMemo(

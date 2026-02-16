@@ -1,6 +1,7 @@
 // apps/web/src/routes/admin.translation-overrides.tsx
 
 import { createFileRoute } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { AppLayout } from '../components/Layout';
@@ -67,8 +68,19 @@ function TranslationOverridesPage() {
   // RBAC check: Only tenant_admin can access this page
   const isTenantAdmin = user?.roles?.includes('tenant_admin') ?? false;
 
-  // Load available namespaces from enabled plugins
-  const availableNamespaces = ['core', 'auth', 'workspace']; // TODO: Get from API
+  // Load available namespaces from API (core + enabled plugins)
+  const { data: namespacesData } = useQuery({
+    queryKey: ['tenant-translation-namespaces'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ namespaces: string[] }>(
+        '/api/v1/tenant/translations/namespaces'
+      );
+      return response.namespaces;
+    },
+    enabled: isTenantAdmin,
+  });
+
+  const availableNamespaces = namespacesData || ['core'];
 
   // Load translations for selected namespace
   const { data: translationsData, isLoading: isLoadingTranslations } = useTranslations({
