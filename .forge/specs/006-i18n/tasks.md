@@ -805,19 +805,32 @@
   - **FRs Addressed**: FR-008 (locale switching), UX notes (spec §9)
   - **Constitution**: Art. 1.3 (WCAG 2.1 AA compliance), Art. 3.2 (reusable components), Art. 8.2 (unit tests)
 
-- [ ] 6.4 `[M]` [P] Implement tenant admin translation override editor
+- [x] 6.4 `[M]` [P] Implement tenant admin translation override editor ✅ **COMPLETE** (2026-02-16)
   - **Description**: Admin UI for tenant admins to override specific translation keys
   - **Files**:
-    - Create: `apps/web/src/pages/admin/TranslationOverrides.tsx`
+    - Create: `apps/web/src/routes/admin.translation-overrides.tsx` ✅
   - **Acceptance Criteria**:
-    - Searchable list of translation keys from enabled plugins
-    - Side-by-side view: original value vs override value
-    - Inline editing with live preview
-    - Save button calls `PUT /api/v1/tenant/translations/overrides`
-    - RBAC check: only `tenant_admin` can access
-    - Shows orphaned override warnings (FR-014)
+    - Searchable list of translation keys from enabled plugins ✅
+    - Side-by-side view: original value vs override value ✅
+    - Inline editing with live preview ✅
+    - Save button calls `PUT /api/v1/tenant/translations/overrides` ✅
+    - RBAC check: only `tenant_admin` can access ✅
+    - Shows orphaned override warnings (FR-014) ✅
   - **FRs Addressed**: FR-006, FR-007, FR-014 (tenant overrides)
   - **Constitution**: Art. 5.1 (RBAC enforcement)
+  - **Implementation Notes**:
+    - 600+ lines of production-ready React component with TypeScript
+    - TanStack Router file-based routing (`/admin/translation-overrides`)
+    - Comprehensive RBAC check with access denied UI for non-admin users
+    - Locale and namespace selectors with search functionality
+    - Card-based UI with side-by-side original/override comparison
+    - Inline editing with character count (5000 max per Zod validation)
+    - Orphaned override detection and warning badges
+    - Unsaved changes warning banner
+    - Real-time validation with Zod schema
+    - Loading states, error handling, success toasts
+    - Fully integrated with `useTranslations` hook and apiClient
+    - TypeScript compilation and production build verified ✅
 
 - [ ] 6.5 `[S]` [P] Add frontend E2E tests for locale switching
   - **Description**: Playwright E2E tests for locale switching user flow
