@@ -298,6 +298,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
     '/tenant/translations/overrides',
     {
       preHandler: authMiddleware,
+      bodyLimit: 1024 * 1024, // 1MB limit enforced by Fastify parser (prevents DoS)
       schema: {
         description: 'Update tenant translation overrides',
         tags: ['translations', 'tenant'],
@@ -353,6 +354,22 @@ export async function translationRoutes(fastify: FastifyInstance) {
         }
 
         const { overrides } = validation.data;
+
+        // Validate no empty string values (security: prevent bypass of client-side deletion logic)
+        for (const locale of Object.keys(overrides)) {
+          for (const namespace of Object.keys(overrides[locale] || {})) {
+            for (const [key, value] of Object.entries(overrides[locale][namespace] || {})) {
+              if (typeof value === 'string' && value.trim() === '') {
+                return reply.status(400).send({
+                  error: {
+                    code: 'INVALID_TRANSLATION_VALUE',
+                    message: `Empty translation value not allowed for key "${key}". Remove the key entirely instead.`,
+                  },
+                });
+              }
+            }
+          }
+        }
 
         // Check payload size (max 1MB per FR-011)
         const payloadSize = JSON.stringify(overrides).length;
