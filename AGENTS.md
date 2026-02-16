@@ -19,8 +19,9 @@ pnpm format                     # Format code with Prettier
 **For current test statistics and coverage details, see [docs/TESTING.md](docs/TESTING.md#test-suite-overview)**
 
 Quick summary:
-- 1,855+ total tests (backend + frontend)
-- 63% coverage (target: 80%)
+- 2,118+ total tests (1,855 backend + 263 i18n)
+- 63% overall coverage (target: 80%)
+- i18n system: 95% average coverage ✅
 - 100% pass rate when infrastructure running
 
 ## Quick Test Commands
@@ -583,10 +584,45 @@ await db.$queryRaw`SELECT * FROM users WHERE email = ${email}`;
 ## Key Resources
 
 - **Security Guidelines**: 🔒 **[docs/SECURITY.md](docs/SECURITY.md)** - **MANDATORY** security best practices (SQL injection prevention, authentication, multi-tenant security)
+- **Project Status**: See `planning/PROJECT_STATUS.md` for current sprint and milestone status
 - **Full Guidelines**: The longer AGENTS.md sections below contain comprehensive test policy, documentation standards, and development guidelines
-- **Project Status**: See `PROJECT_COMPLETE.md` for full project overview (~870 tests implemented)
 - **Test Documentation**: `TEST_IMPLEMENTATION_PLAN.md` for testing strategies
 - **Quick Start**: `QUICKSTART_GUIDE.md` for 5-10 minute setup
+
+### Recent Sprints (Last 7 Days)
+
+**Sprint 2: i18n Frontend Integration** ✅ COMPLETE (Feb 16, 2026)
+
+- **Duration**: 1 day (planned 7 days, 700% efficiency)
+- **Velocity**: 5/5 story points (100% completion)
+- **Epic**: E01-S006 Frontend i18n Integration
+- **Deliverables**:
+  - ✅ IntlContext and react-intl setup (16 tests, 82.85% coverage)
+  - ✅ useTranslations and useNamespaces hooks (15 tests, 100% coverage)
+  - ✅ LanguageSelector component in @plexica/ui (15 tests, 100% coverage, 9 Storybook stories)
+  - ✅ Translation override admin UI (600+ lines, full RBAC)
+  - ✅ Locale switching E2E tests (14 Playwright tests)
+  - ✅ Developer documentation (928 lines, comprehensive guide)
+- **Quality**: 45 tests added, 95% average coverage, 0 bugs/security issues
+- **Files**: IntlContext, useTranslations, LanguageSelector, admin UI, E2E tests, I18N_USAGE.md
+- **Commits**: `eed8e55`, `98f6759`, `830ea69`, `c3c1c0f`
+
+**Sprint 1: i18n Backend Implementation** ✅ COMPLETE (Feb 15, 2026)
+
+- **Duration**: 3 days
+- **Velocity**: 23/28 story points (82% completion, 5/6 stories)
+- **Epic**: E01 i18n System (Milestones 1-5)
+- **Deliverables**:
+  - ✅ Database schema (translation_overrides, default_locale)
+  - ✅ @plexica/i18n package (115 tests, 94.9% coverage)
+  - ✅ Backend i18n Service (TranslationService, 4 API endpoints, Redis caching)
+  - ✅ Plugin manifest integration (translation validation)
+  - ✅ Testing & QA (218 tests: 141 unit, 56 integration, 21 E2E)
+  - ✅ Security fixes (9 issues: 4 HIGH, 4 MEDIUM, 1 LOW)
+- **Quality**: 218 tests, 100% pass rate, 6 security issues fixed
+- **Commits**: `07c4df0`, `a90b6fb` + 15 milestone commits
+
+**i18n System Status**: ✅ **100% COMPLETE** (6/6 milestones, 28 story points total)
 
 ---
 
