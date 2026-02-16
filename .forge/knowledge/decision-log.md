@@ -25,6 +25,52 @@
 
 ---
 
+### Phase 3 Security Fixes (February 17, 2026)
+
+**Date**: February 17, 2026  
+**Context**: Adversarial security review of Spec 002-Authentication Phase 3 (Keycloak Service Extensions) implementation
+
+**Issues Resolved**: 8 security and code quality issues (2 CRITICAL, 4 WARNING, 2 INFO)
+
+**Key Fixes**:
+
+1. **Error Response Sanitization** (CRITICAL):
+   - Created `sanitizeKeycloakError()` helper to prevent stack traces and internal details from being exposed
+   - Logs full errors internally with Pino, returns generic user-friendly messages
+   - Applied to all 7 methods: provisionRealmClients, provisionRealmRoles, setRealmEnabled, exchangeAuthorizationCode, refreshToken, revokeToken, configureRefreshTokenRotation
+
+2. **Input Validation** (CRITICAL):
+   - Created `validateRealmName()` to prevent injection attacks
+   - Validates realm name format: 1-50 chars, lowercase alphanumeric + hyphens only
+   - Applied to all methods accepting `realmName` parameter
+
+3. **Structured Logging** (WARNING):
+   - Added success logging to all token operations and realm management
+   - Error logging integrated into `sanitizeKeycloakError()` with full context
+
+4. **Test Access Patterns** (INFO):
+   - Changed `private client`, `withRealmScope`, `withRetry` → `protected`
+   - Added `@internal` JSDoc comments
+   - Removed 30 occurrences of `(keycloakService as any)` casts in tests
+
+5. **Rollback Logic** (INFO):
+   - Added Keycloak realm rollback in `TenantService.createTenant()` catch block
+   - Prevents orphaned realms after failed provisioning
+
+**Files Modified**:
+
+- `apps/core-api/src/services/keycloak.service.ts` (+293 lines)
+- `apps/core-api/src/services/tenant.service.ts` (+13 lines)
+- `apps/core-api/src/__tests__/auth/integration/realm-provisioning.integration.test.ts` (removed 'as any' casts)
+
+**Documentation**: `.forge/knowledge/phase3-security-fixes.md` (2,000+ lines comprehensive report)
+
+**Constitution Compliance**: Articles 5.2, 5.3, 6.3, 3.2, 4.3, 8.2, 9.1
+
+**Status**: ✅ All 8 issues resolved, TypeScript compilation passes, commit `a443fb2`
+
+---
+
 ## Implementation Notes
 
 ### Microservices Architecture
@@ -506,38 +552,46 @@ if (!semver.satisfies(installedVersion, _version)) {
 
 ## Recent Changes
 
-| Date       | Change                             | Reason                                                            | Impact                                                                                                                     |
-| ---------- | ---------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 2026-02-16 | Gap analysis FORGE specs vs code   | Comprehensive audit of implementation vs specifications           | High - Identified 3 critical gaps (Core Services 0%, ABAC missing, User sync absent); documentation divergences documented |
-| 2026-02-16 | Sprint 2 security review complete  | Adversarial review found 1 CRITICAL + 5 WARNING issues            | High - CRITICAL DoS and validation issues fixed in commit 205d462; 5 WARNING issues documented for tracking                |
-| 2026-02-16 | Task 6.3 LanguageSelector complete | Frontend i18n component fully integrated                          | High - 15 unit tests (100% coverage), 9 Storybook stories, integrated in Header; pragmatic testing strategy                |
-| 2026-02-16 | LanguageSelector in @plexica/ui    | Sprint 2 Task 6.3 architectural decision                          | Medium - Component will be reusable across apps; Storybook stories; Vitest tests; design system consistency                |
-| 2026-02-16 | Sprint 2 started                   | Frontend i18n integration (E01-S006, 5 pts, 1 week)               | High - Completes i18n epic; focused sprint for quality implementation; baseline velocity 23 pts                            |
-| 2026-02-16 | Sprint format migration            | Migrated from single-file to multi-sprint directory architecture  | High - Sprint 001 archived; new directory structure; sprint-sequence.yaml created; ready for concurrent sprints            |
-| 2026-02-15 | PROJECT_STATUS.md updated          | Sprint 1 completion and i18n system status update                 | High - Sprint 1 milestone documented; i18n backend 100% complete; baseline velocity 23 pts; Sprint 2 ready                 |
-| 2026-02-15 | Auth test failures fixed           | Tenant context fallback for test compatibility                    | High - All 218 i18n tests passing (100%); controller now works with/without tenant context middleware                      |
-| 2026-02-15 | Sprint 1 closed                    | Backend i18n complete (23/28 pts); E01-S006 carried to Sprint 2   | High - Baseline velocity established (23 pts); retrospective created; Sprint 2 ready for planning                          |
-| 2026-02-14 | Security fixes part 3 (M4)         | /forge-review WARNING issues #1, #4, #5 resolved                  | High - ReDoS fix, semver version check, code duplication; 12 new tests; 836 tests passing                                  |
-| 2026-02-14 | Security fixes part 2 (M4)         | /forge-review WARNING issues #2, #3, #6 resolved                  | High - Unbounded query fix, Zod validation fix, Pino logging compliance; 11 new tests; 825 tests passing                   |
-| 2026-02-14 | Transaction integrity fix (M4)     | /forge-review found orphaned service registrations                | High - Moved service registration outside transaction, lifecycle hooks inside transaction                                  |
-| 2026-02-14 | Cross-tenant auth bypass fix (M4)  | /forge-review found tenant authorization bypass                   | High - Created requireTenantAccess middleware, applied to 6 plugin routes, prevents cross-tenant access                    |
-| 2026-02-14 | Path traversal fix (M4 security)   | /forge-review found path traversal risk in translation validation | High - Added defense-in-depth: re-validate locale/namespace, path.resolve() + startsWith() check                           |
-| 2026-02-14 | Milestone 4 (i18n) completed       | Plugin manifest integration with translation validation           | High - 5 tasks complete; manifest schema extended; file validation at registration; PLUGIN_TRANSLATIONS.md created         |
-| 2026-02-14 | Milestone 3 (i18n) completed       | Backend i18n Service with TranslationService, API routes, caching | High - 8 tasks complete; 4 API endpoints; Redis caching; 179 core translations; ready for plugin integration               |
-| 2026-02-13 | Milestone 2 (i18n) completed       | @plexica/i18n shared package created with FormatJS wrapper        | High - 8 tasks complete; 115 tests passing; 94.9% coverage; ready for backend integration                                  |
-| 2026-02-13 | Milestone 1 (i18n) completed       | Database schema and migration for i18n support implemented        | High - All 3 tasks complete; migration tested with 11 passing tests                                                        |
-| 2026-02-13 | Spec 006 clarification (session 2) | Resolved /forge-analyze findings: data model, NFR measurability   | Medium - Fixed `tenant_settings` ref, added `default_locale`, made NFR-004/005 measurable                                  |
-| 2026-02-13 | Architecture: i18n module added    | Added i18n module to core-api structure for Spec 006              | Low - Documents future Phase 3 module                                                                                      |
-| 2026-02-13 | Architecture: public endpoints     | Documented unauthenticated request flow pattern                   | Medium - Enables public translation/asset endpoints                                                                        |
-| 2026-02-13 | Architecture: i18next → FormatJS   | Updated system-architecture.md per ADR-012                        | High - Aligns architecture with accepted ADR-012 decision                                                                  |
-| 2026-02-13 | ADR-012: FormatJS for i18n         | ICU MessageFormat library selection for Spec 006-i18n             | Medium - New dependencies; system architecture doc updated                                                                 |
-| 2026-02-13 | FORGE documentation conversion     | Convert all docs/specs/planning to FORGE format                   | High - All documentation centralized under .forge/                                                                         |
-| 2026-02-13 | 11 ADRs created in FORGE format    | Migrate from planning/DECISIONS.md to individual ADR files        | Medium - Better navigability and cross-referencing                                                                         |
-| 2026-02-13 | 8 modular specs created            | Break monolithic FUNCTIONAL_SPECIFICATIONS.md into modular specs  | High - Specs are now traceable and independently maintainable                                                              |
-| 2026-02-13 | Architecture docs created          | Synthesize system, deployment, and security architecture docs     | High - Architecture decisions are now documented with Mermaid diagrams                                                     |
-| 2026-02-13 | Product brief and roadmap created  | Extract from functional specs into FORGE product docs             | Medium - Product vision and roadmap centralized                                                                            |
-| 2026-02-13 | FORGE methodology initialized      | Improve structured development workflow                           | High - All future work follows FORGE                                                                                       |
-| 2026-02-13 | Constitution created (v1.0)        | Define non-negotiable project standards                           | High - Governs all development decisions                                                                                   |
+| Date       | Change                             | Reason                                                               | Impact                                                                                                                          |
+| ---------- | ---------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-02-17 | Phase 3 security fixes (Spec 002)  | Adversarial review found 8 security/quality issues in Keycloak code  | High - 2 CRITICAL (error leakage, input validation), 4 WARNING, 2 INFO resolved; +293 lines keycloak.service.ts; commit a443fb2 |
+| 2026-02-16 | Spec 009 updated (v1.1)            | Added Tasks 6 & 7 from /forge-clarify (error format + rate limiting) | High - 7 tasks total (68-104h); 37 story points; updated tasks.md (2,439 lines) and plan.md (890+ lines); Sprint 3 now 24 pts   |
+| 2026-02-16 | Created Spec 009: Workspace Mgmt   | FORGE spec for brownfield workspace system (85% implemented)         | High - 3 files (spec.md 2,954 lines, tasks.md, plan.md); 5 gaps identified; 58-88h implementation; 95-124 tests planned         |
+| 2026-02-16 | Updated PLUGIN_DEVELOPMENT.md      | Added "Using Core Services" section with planned API examples        | Medium - 140+ line section documenting Storage, Notification, Job Queue, Search service usage patterns for plugin devs          |
+| 2026-02-16 | Updated docs/ARCHITECTURE.md       | Added comprehensive Backend Architecture section                     | High - 300+ line section: microservices design, Core API, plugin services, request flow, tech stack, migration path             |
+| 2026-02-16 | Updated FUNCTIONAL_SPECIFICATIONS  | Added implementation status warnings to Sections 5 and 10            | High - Disclaimer blocks added: RBAC-only (ABAC planned), Core Services 0% implemented; metadata updated to Feb 16              |
+| 2026-02-16 | Created PROVISIONING.md            | Document tenant provisioning (semi-automated)                        | Medium - 11,000+ line guide for manual provisioning; rollback strategies; grace period management; automation roadmap           |
+| 2026-02-16 | Created PLUGIN_DEPLOYMENT.md       | Document manual deployment (no orchestration exists)                 | Medium - 10,000+ line guide for Docker/K8s deployment; health checks; resource limits; planned automation roadmap               |
+| 2026-02-16 | Gap analysis FORGE specs vs code   | Comprehensive audit of implementation vs specifications              | High - Identified 3 critical gaps (Core Services 0%, ABAC missing, User sync absent); documentation divergences documented      |
+| 2026-02-16 | Sprint 2 security review complete  | Adversarial review found 1 CRITICAL + 5 WARNING issues               | High - CRITICAL DoS and validation issues fixed in commit 205d462; 5 WARNING issues documented for tracking                     |
+| 2026-02-16 | Task 6.3 LanguageSelector complete | Frontend i18n component fully integrated                             | High - 15 unit tests (100% coverage), 9 Storybook stories, integrated in Header; pragmatic testing strategy                     |
+| 2026-02-16 | LanguageSelector in @plexica/ui    | Sprint 2 Task 6.3 architectural decision                             | Medium - Component will be reusable across apps; Storybook stories; Vitest tests; design system consistency                     |
+| 2026-02-16 | Sprint 2 started                   | Frontend i18n integration (E01-S006, 5 pts, 1 week)                  | High - Completes i18n epic; focused sprint for quality implementation; baseline velocity 23 pts                                 |
+| 2026-02-16 | Sprint format migration            | Migrated from single-file to multi-sprint directory architecture     | High - Sprint 001 archived; new directory structure; sprint-sequence.yaml created; ready for concurrent sprints                 |
+| 2026-02-15 | PROJECT_STATUS.md updated          | Sprint 1 completion and i18n system status update                    | High - Sprint 1 milestone documented; i18n backend 100% complete; baseline velocity 23 pts; Sprint 2 ready                      |
+| 2026-02-15 | Auth test failures fixed           | Tenant context fallback for test compatibility                       | High - All 218 i18n tests passing (100%); controller now works with/without tenant context middleware                           |
+| 2026-02-15 | Sprint 1 closed                    | Backend i18n complete (23/28 pts); E01-S006 carried to Sprint 2      | High - Baseline velocity established (23 pts); retrospective created; Sprint 2 ready for planning                               |
+| 2026-02-14 | Security fixes part 3 (M4)         | /forge-review WARNING issues #1, #4, #5 resolved                     | High - ReDoS fix, semver version check, code duplication; 12 new tests; 836 tests passing                                       |
+| 2026-02-14 | Security fixes part 2 (M4)         | /forge-review WARNING issues #2, #3, #6 resolved                     | High - Unbounded query fix, Zod validation fix, Pino logging compliance; 11 new tests; 825 tests passing                        |
+| 2026-02-14 | Transaction integrity fix (M4)     | /forge-review found orphaned service registrations                   | High - Moved service registration outside transaction, lifecycle hooks inside transaction                                       |
+| 2026-02-14 | Cross-tenant auth bypass fix (M4)  | /forge-review found tenant authorization bypass                      | High - Created requireTenantAccess middleware, applied to 6 plugin routes, prevents cross-tenant access                         |
+| 2026-02-14 | Path traversal fix (M4 security)   | /forge-review found path traversal risk in translation validation    | High - Added defense-in-depth: re-validate locale/namespace, path.resolve() + startsWith() check                                |
+| 2026-02-14 | Milestone 4 (i18n) completed       | Plugin manifest integration with translation validation              | High - 5 tasks complete; manifest schema extended; file validation at registration; PLUGIN_TRANSLATIONS.md created              |
+| 2026-02-14 | Milestone 3 (i18n) completed       | Backend i18n Service with TranslationService, API routes, caching    | High - 8 tasks complete; 4 API endpoints; Redis caching; 179 core translations; ready for plugin integration                    |
+| 2026-02-13 | Milestone 2 (i18n) completed       | @plexica/i18n shared package created with FormatJS wrapper           | High - 8 tasks complete; 115 tests passing; 94.9% coverage; ready for backend integration                                       |
+| 2026-02-13 | Milestone 1 (i18n) completed       | Database schema and migration for i18n support implemented           | High - All 3 tasks complete; migration tested with 11 passing tests                                                             |
+| 2026-02-13 | Spec 006 clarification (session 2) | Resolved /forge-analyze findings: data model, NFR measurability      | Medium - Fixed `tenant_settings` ref, added `default_locale`, made NFR-004/005 measurable                                       |
+| 2026-02-13 | Architecture: i18n module added    | Added i18n module to core-api structure for Spec 006                 | Low - Documents future Phase 3 module                                                                                           |
+| 2026-02-13 | Architecture: public endpoints     | Documented unauthenticated request flow pattern                      | Medium - Enables public translation/asset endpoints                                                                             |
+| 2026-02-13 | Architecture: i18next → FormatJS   | Updated system-architecture.md per ADR-012                           | High - Aligns architecture with accepted ADR-012 decision                                                                       |
+| 2026-02-13 | ADR-012: FormatJS for i18n         | ICU MessageFormat library selection for Spec 006-i18n                | Medium - New dependencies; system architecture doc updated                                                                      |
+| 2026-02-13 | FORGE documentation conversion     | Convert all docs/specs/planning to FORGE format                      | High - All documentation centralized under .forge/                                                                              |
+| 2026-02-13 | 11 ADRs created in FORGE format    | Migrate from planning/DECISIONS.md to individual ADR files           | Medium - Better navigability and cross-referencing                                                                              |
+| 2026-02-13 | 8 modular specs created            | Break monolithic FUNCTIONAL_SPECIFICATIONS.md into modular specs     | High - Specs are now traceable and independently maintainable                                                                   |
+| 2026-02-13 | Architecture docs created          | Synthesize system, deployment, and security architecture docs        | High - Architecture decisions are now documented with Mermaid diagrams                                                          |
+| 2026-02-13 | Product brief and roadmap created  | Extract from functional specs into FORGE product docs                | Medium - Product vision and roadmap centralized                                                                                 |
+| 2026-02-13 | FORGE methodology initialized      | Improve structured development workflow                              | High - All future work follows FORGE                                                                                            |
+| 2026-02-13 | Constitution created (v1.0)        | Define non-negotiable project standards                              | High - Governs all development decisions                                                                                        |
 
 ---
 
