@@ -91,11 +91,20 @@ export class TenantService {
       // Step 2: Create Keycloak realm for tenant
       await keycloakService.createRealm(slug, name);
 
-      // Step 3: Initialize default roles and permissions
+      // Step 3: Provision Keycloak clients (plexica-web, plexica-api)
+      await keycloakService.provisionRealmClients(slug);
+
+      // Step 4: Provision Keycloak roles (tenant_admin, user)
+      await keycloakService.provisionRealmRoles(slug);
+
+      // Step 5: Configure refresh token rotation for security
+      await keycloakService.configureRefreshTokenRotation(slug);
+
+      // Step 6: Initialize default roles and permissions
       const schemaName = this.getSchemaName(slug);
       await permissionService.initializeDefaultRoles(schemaName);
 
-      // Step 4: Create MinIO bucket (to be implemented)
+      // Step 7: Create MinIO bucket (to be implemented)
       // await this.createMinIOBucket(slug);
 
       // Update tenant status to ACTIVE
@@ -116,6 +125,19 @@ export class TenantService {
 
       return activeTenant;
     } catch (error) {
+      // Rollback: Attempt to delete Keycloak realm if provisioning failed
+      // This prevents orphaned realms from previous failed attempts
+      try {
+        await keycloakService.deleteRealm(slug);
+        console.info(`Successfully rolled back Keycloak realm for tenant: ${slug}`);
+      } catch (rollbackError) {
+        // Log rollback failure but don't mask original error
+        console.warn(
+          `Failed to rollback Keycloak realm for tenant ${slug}:`,
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+        );
+      }
+
       // If provisioning fails, attempt to update tenant status to indicate failure.
       // It's possible the tenant record was removed concurrently (tests/cleanup), so
       // guard the update and log if the record no longer exists instead of throwing
