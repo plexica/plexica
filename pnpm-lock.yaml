@@ -440,6 +440,9 @@ importers:
       '@plexica/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@plexica/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@plexica/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -467,6 +470,9 @@ importers:
       react-dom:
         specifier: ^19.2.3
         version: 19.2.3(react@19.2.3)
+      react-intl:
+        specifier: ^7.1.14
+        version: 7.1.14(react@19.2.3)(typescript@5.9.3)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -495,6 +501,15 @@ importers:
       '@tanstack/router-plugin':
         specifier: ^1.153.2
         version: 1.153.2(@tanstack/react-router@1.153.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.0)(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@testing-library/user-event':
+        specifier: ^14.6.1
+        version: 14.6.1(@testing-library/dom@10.4.0)
       '@types/node':
         specifier: ^25.0.9
         version: 25.0.9
@@ -519,6 +534,9 @@ importers:
       globals:
         specifier: ^17.0.0
         version: 17.0.0
+      jsdom:
+        specifier: ^27.4.0
+        version: 27.4.0(@noble/hashes@1.8.0)
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
@@ -531,6 +549,9 @@ importers:
       vite:
         specifier: ^7.3.1
         version: 7.3.1(@types/node@25.0.9)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.9)(jiti@2.6.1)(jsdom@27.4.0(@noble/hashes@1.8.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@25.0.9)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2)
 
   packages/api-client:
     dependencies:
@@ -1514,6 +1535,14 @@ packages:
     resolution: {integrity: sha512-i6+xVqT+6KCz7nBfk4ybMXmbKO36tKvbMKtgFz9KV+8idYFyFbfwKooYk8kGjyA5+T5f1kEPQM5IDLXucTAQ9g==}
     peerDependencies:
       typescript: ^4.7 || 5
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@formatjs/intl@3.1.8':
+    resolution: {integrity: sha512-LWXgwI5zTMatvR8w8kCNh/priDTOF/ZssokMBHJ7ZWXFoYLVOYo0EJERD9Eajv+xsfQO1QkuAt77KWQ1OI4mOQ==}
+    peerDependencies:
+      typescript: ^5.6.0
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -2762,6 +2791,11 @@ packages:
 
   '@types/fs-extra@11.0.4':
     resolution: {integrity: sha512-yTbItCNreRooED33qjunPthRcSjERP1r4MqCZc7wv0u2sUkzTFp45tgUfS5+r7FrZPdmCCNflLhVSP/o+SemsQ==}
+
+  '@types/hoist-non-react-statics@3.3.7':
+    resolution: {integrity: sha512-PQTyIulDkIDro8P+IHbKCsw7U2xxBYflVzW/FgWdCAePD9xGSidgA76/GeJ6lBKoblyhf9pBY763gbrN+1dI8g==}
+    peerDependencies:
+      '@types/react': ^19.2.9
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -4089,6 +4123,9 @@ packages:
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
 
+  hoist-non-react-statics@3.3.2:
+    resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
+
   hono@4.10.6:
     resolution: {integrity: sha512-BIdolzGpDO9MQ4nu3AUuDwHZZ+KViNm+EZ75Ae55eMXMqLVhDFqEMXxtUe9Qh8hjL+pIna/frs2j6Y2yD5Ua/g==}
     engines: {node: '>=16.9.0'}
@@ -5202,6 +5239,15 @@ packages:
     resolution: {integrity: sha512-yELu4WmLPw5Mr/lmeEpox5rw3RETacE++JgHqQzd2dg+YbJuat3jH4ingc+WPZhxaoFzdv9y33G+F7Nl5O0GBg==}
     peerDependencies:
       react: ^19.2.3
+
+  react-intl@7.1.14:
+    resolution: {integrity: sha512-VE/0Wi/lHJlBC7APQpCzLUdIt3GB5B0GZrRW8Q+ACbkHI4j+Wwgg9J1TniN6zmLHmPH5gxXcMy+fkSPfw5p1WQ==}
+    peerDependencies:
+      react: ^19.2.3
+      typescript: ^5.6.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
@@ -6965,6 +7011,16 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
+  '@formatjs/intl@3.1.8(typescript@5.9.3)':
+    dependencies:
+      '@formatjs/ecma402-abstract': 2.3.6
+      '@formatjs/fast-memoize': 2.2.7
+      '@formatjs/icu-messageformat-parser': 2.11.4
+      intl-messageformat: 10.7.18
+      tslib: 2.8.1
+    optionalDependencies:
+      typescript: 5.9.3
+
   '@hono/node-server@1.19.6(hono@4.10.6)':
     dependencies:
       hono: 4.10.6
@@ -8275,6 +8331,11 @@ snapshots:
     dependencies:
       '@types/jsonfile': 6.1.4
       '@types/node': 25.0.9
+
+  '@types/hoist-non-react-statics@3.3.7(@types/react@19.2.9)':
+    dependencies:
+      '@types/react': 19.2.9
+      hoist-non-react-statics: 3.3.2
 
   '@types/json-schema@7.0.15': {}
 
@@ -9926,6 +9987,10 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
+  hoist-non-react-statics@3.3.2:
+    dependencies:
+      react-is: 16.13.1
+
   hono@4.10.6: {}
 
   html-encoding-sniffer@6.0.0(@noble/hashes@1.8.0):
@@ -11096,6 +11161,20 @@ snapshots:
     dependencies:
       react: 19.2.3
       scheduler: 0.27.0
+
+  react-intl@7.1.14(react@19.2.3)(typescript@5.9.3):
+    dependencies:
+      '@formatjs/ecma402-abstract': 2.3.6
+      '@formatjs/icu-messageformat-parser': 2.11.4
+      '@formatjs/intl': 3.1.8(typescript@5.9.3)
+      '@types/hoist-non-react-statics': 3.3.7(@types/react@19.2.9)
+      '@types/react': 19.2.9
+      hoist-non-react-statics: 3.3.2
+      intl-messageformat: 10.7.18
+      react: 19.2.3
+      tslib: 2.8.1
+    optionalDependencies:
+      typescript: 5.9.3
 
   react-is@16.13.1: {}
 

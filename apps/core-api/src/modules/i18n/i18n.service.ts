@@ -18,13 +18,13 @@ import { db } from '../../lib/db.js';
 import { PluginLifecycleService } from '../../services/plugin.service.js';
 import {
   flattenMessages,
-  generateContentHash,
   mergeOverrides,
   type TranslationBundle,
   type TenantOverrides,
   type LocaleInfo,
   type NamespacedMessages,
 } from '@plexica/i18n';
+import { generateContentHash } from '@plexica/i18n/hash.js';
 import { LocaleCodeSchema, NamespaceSchema, TranslationKeySchema } from './i18n.schemas.js';
 import type { PluginManifest } from '../../types/plugin.types.js';
 import { Prisma } from '@plexica/database';

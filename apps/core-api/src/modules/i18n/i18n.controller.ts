@@ -297,7 +297,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
   }>(
     '/tenant/translations/overrides',
     {
-      preHandler: authMiddleware, // TODO: Add requireRole('tenant_admin') when role middleware exists
+      preHandler: authMiddleware,
       schema: {
         description: 'Update tenant translation overrides',
         tags: ['translations', 'tenant'],
@@ -306,6 +306,16 @@ export async function translationRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
+        // RBAC: Enforce tenant_admin role requirement
+        if (!request.user?.roles?.includes('tenant_admin')) {
+          return reply.status(403).send({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'tenant_admin role required to update translation overrides',
+            },
+          });
+        }
+
         // Extract tenant context from AsyncLocalStorage or fallback to request.user
         const tenantContext = getTenantContext();
         let tenantId: string | undefined;

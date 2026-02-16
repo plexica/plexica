@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 14, 2026
+**Last Updated**: February 16, 2026
 
 ---
 
@@ -78,6 +78,39 @@ Federation.
 system architecture doc updated to FormatJS (2026-02-13); `@plexica/i18n`
 shared package to be created.  
 **Status**: ✅ Architecture updated; Spec 006 clarified and corrected.
+
+---
+
+### LanguageSelector Component in @plexica/ui
+
+**Date**: February 16, 2026  
+**Context**: Sprint 2 planning for E01-S006 (Frontend Integration) - Task 6.3
+
+**Decision**: Implement `LanguageSelector` component in `packages/ui` as part of the shared UI library, rather than directly in `apps/web/src/components`.
+
+**Rationale**:
+
+- **Reusability**: Component will be used across multiple apps (`apps/web`, `apps/super-admin`, plugin frontends)
+- **Design system consistency**: Aligns with existing 36 components in `@plexica/ui` (Button, Select, Dropdown, etc.)
+- **Infrastructure ready**: Storybook and Vitest already configured in `packages/ui`
+- **Quality assurance**: Storybook enables visual testing and component documentation; Vitest provides unit test coverage
+- **Constitution compliance**: Art. 3.2 (reusable components in shared packages), Art. 8.2 (component testing requirements)
+
+**Implementation**:
+
+- Component built on `@radix-ui/react-select` (consistent with existing Select component)
+- Headless/agnostic API: accepts `locales`, `value`, `onChange` props (no i18n logic in UI component)
+- Storybook stories: default state, many locales, disabled state, styling examples
+- Unit tests: rendering, interaction, keyboard navigation, accessibility (target ≥85% coverage)
+- Usage in apps: imported from `@plexica/ui` and integrated with app-specific IntlContext
+
+**Files**:
+
+- Create: `packages/ui/src/components/LanguageSelector/` (component, stories, tests, index)
+- Modify: `packages/ui/src/index.ts` (export LanguageSelector)
+- Usage: `apps/web/src/App.tsx` (integrate with IntlContext)
+
+**Status**: ✅ **COMPLETE** (Feb 16, 2026) — Component implemented with 15 unit tests (100% coverage), 9 Storybook stories, integrated in apps/web Header
 
 ---
 
@@ -441,6 +474,10 @@ if (!semver.satisfies(installedVersion, _version)) {
 
 | Date       | Change                             | Reason                                                            | Impact                                                                                                             |
 | ---------- | ---------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 2026-02-16 | Task 6.3 LanguageSelector complete | Frontend i18n component fully integrated                          | High - 15 unit tests (100% coverage), 9 Storybook stories, integrated in Header; pragmatic testing strategy        |
+| 2026-02-16 | LanguageSelector in @plexica/ui    | Sprint 2 Task 6.3 architectural decision                          | Medium - Component will be reusable across apps; Storybook stories; Vitest tests; design system consistency        |
+| 2026-02-16 | Sprint 2 started                   | Frontend i18n integration (E01-S006, 5 pts, 1 week)               | High - Completes i18n epic; focused sprint for quality implementation; baseline velocity 23 pts                    |
+| 2026-02-16 | Sprint format migration            | Migrated from single-file to multi-sprint directory architecture  | High - Sprint 001 archived; new directory structure; sprint-sequence.yaml created; ready for concurrent sprints    |
 | 2026-02-15 | PROJECT_STATUS.md updated          | Sprint 1 completion and i18n system status update                 | High - Sprint 1 milestone documented; i18n backend 100% complete; baseline velocity 23 pts; Sprint 2 ready         |
 | 2026-02-15 | Auth test failures fixed           | Tenant context fallback for test compatibility                    | High - All 218 i18n tests passing (100%); controller now works with/without tenant context middleware              |
 | 2026-02-15 | Sprint 1 closed                    | Backend i18n complete (23/28 pts); E01-S006 carried to Sprint 2   | High - Baseline velocity established (23 pts); retrospective created; Sprint 2 ready for planning                  |

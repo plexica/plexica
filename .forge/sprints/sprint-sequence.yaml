@@ -1,0 +1,12 @@
+# Sprint Sequence Tracker
+# Automatically managed by forge-scrum
+# DO NOT EDIT MANUALLY
+
+version: 1
+next_sprint_number: 3
+last_updated: '2026-02-16'
+
+# History:
+# - Sprint 001: Completed 2026-02-15 (i18n Backend, 23 pts)
+# - Sprint 002: Started 2026-02-16 (i18n Frontend, 5 pts)
+# - Next sprint will be 003

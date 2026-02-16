@@ -17,9 +17,11 @@ export type {
   OverrideMergeResult,
 } from './types.js';
 
-// Export utilities (will be implemented in respective files)
+// Export utilities (browser-safe)
 export { flattenMessages, unflattenMessages } from './flatten.js';
-export { generateContentHash } from './hash.js';
 export { resolveLocale, isValidLocale } from './locale.js';
 export { mergeOverrides } from './merge.js';
 export { createNamespacedIntl } from './intl.js';
+
+// NOTE: generateContentHash is Node.js-only (uses node:crypto)
+// Backend code should import it directly: import { generateContentHash } from '@plexica/i18n/hash';

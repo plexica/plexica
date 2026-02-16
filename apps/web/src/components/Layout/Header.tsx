@@ -7,15 +7,28 @@ import { useAuthStore } from '@/stores/auth-store';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
 import { LogOut, Settings, Menu, Search, Bell } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { LanguageSelector } from '@plexica/ui';
+import { useIntl } from '@/contexts';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
+// Available locales for language selector
+const AVAILABLE_LOCALES = [
+  { code: 'en', name: 'English' },
+  { code: 'it', name: 'Italiano' },
+  // Add more locales as translations become available
+  // { code: 'es', name: 'Español' },
+  // { code: 'fr', name: 'Français' },
+  // { code: 'de', name: 'Deutsch' },
+];
+
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { user, tenant } = useAuthStore();
+  const { locale, setLocale } = useIntl();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -105,6 +118,14 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
         {/* Theme Toggle */}
         <ThemeToggle />
+
+        {/* Language Selector */}
+        <LanguageSelector
+          locales={AVAILABLE_LOCALES}
+          value={locale}
+          onChange={setLocale}
+          ariaLabel="Select language"
+        />
 
         {/* Workspace Switcher (Extension Point: header.workspaceMenu) */}
         <div className="hidden md:block">
