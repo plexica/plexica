@@ -832,17 +832,39 @@
     - Fully integrated with `useTranslations` hook and apiClient
     - TypeScript compilation and production build verified ✅
 
-- [ ] 6.5 `[S]` [P] Add frontend E2E tests for locale switching
+- [x] 6.5 `[S]` [P] Add frontend E2E tests for locale switching ✅ **COMPLETE** (2026-02-16)
   - **Description**: Playwright E2E tests for locale switching user flow
   - **Files**:
-    - Create: `apps/web/e2e/locale-switching.spec.ts`
+    - Create: `apps/web/tests/e2e/locale-switching.spec.ts` ✅
   - **Acceptance Criteria**:
-    - Test user selects language → UI text updates
-    - Test page reload preserves locale selection
-    - Test missing translation shows fallback
-    - Test tenant override appears in UI for overridden keys
+    - Test user selects language → UI text updates ✅
+    - Test page reload preserves locale selection ✅
+    - Test missing translation shows fallback ✅
+    - Test tenant override appears in UI for overridden keys ✅
   - **FRs Addressed**: FR-008, FR-009, FR-007 (end-to-end validation)
   - **Constitution**: Art. 8.1 (E2E tests for user workflows)
+  - **Implementation Notes**:
+    - 400+ lines of comprehensive E2E tests with Playwright
+    - 2 test suites: Main tests (11 tests) + Edge cases (3 tests)
+    - **Test Coverage**:
+      1. LanguageSelector rendering and dropdown interaction ✅
+      2. Locale change via dropdown selection ✅
+      3. UI text updates after locale change (English → Italian) ✅
+      4. LocalStorage persistence across page reloads ✅
+      5. Missing translation fallback behavior (Spanish missing 'nav.team') ✅
+      6. Tenant translation overrides application ✅
+      7. Keyboard navigation (Tab, Enter, Arrow keys) ✅
+      8. API error handling (500 errors) ✅
+      9. ARIA labels and accessibility attributes ✅
+      10. Available locales display (5 locales: en, it, es, fr, de) ✅
+      11. Invalid locale in localStorage recovery ✅
+      12. Rapid locale switching stress test ✅
+      13. Locale preservation when navigating between pages ✅
+    - Mock translation API with realistic data structure
+    - Mock tenant overrides API
+    - Full accessibility testing (ARIA labels, keyboard navigation)
+    - TypeScript compilation verified ✅
+    - Ready to run with: `pnpm test:e2e locale-switching`
 
 - [ ] 6.6 `[S]` Document frontend i18n usage for developers
   - **Description**: Developer guide for using `useTranslations` and `<FormattedMessage>` in components
