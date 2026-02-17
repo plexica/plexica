@@ -1,7 +1,7 @@
 # Security Architecture
 
-**Version**: 1.0
-**Last Updated**: February 13, 2026
+**Version**: 1.1
+**Last Updated**: February 16, 2026
 **Status**: Active
 **Owner**: Security & Platform Engineering Team
 **FORGE Track**: Feature
@@ -115,8 +115,9 @@ sequenceDiagram
 **Keycloak Configuration**:
 
 - One Keycloak **realm per tenant** for complete auth isolation
-- Realm naming: `tenant-{slug}` (e.g., `tenant-acme-corp`)
-- Default roles per realm: `admin`, `member`, `viewer`
+- Realm naming: raw tenant slug (e.g., `acme-corp` — no prefix)
+- Base roles per realm: `tenant_admin`, `user` (realm-level; see Spec 002 FR-006)
+- Workspace-level roles: `ADMIN`, `MEMBER`, `VIEWER` (see Spec 009, WorkspaceRole enum)
 - Session tokens expire after **24 hours** of inactivity (Constitution Art. 5.1)
 
 ### Authentication Code Pattern
@@ -145,13 +146,21 @@ Per **Constitution Article 5.1**, RBAC is enforced for all protected resources.
 
 **Role Hierarchy**:
 
-| Role         | Scope     | Capabilities                                  |
-| ------------ | --------- | --------------------------------------------- |
-| Super Admin  | Global    | Manage all tenants, plugins, system config    |
-| Tenant Admin | Tenant    | Manage tenant settings, users, roles, plugins |
-| Admin        | Workspace | Full workspace management                     |
-| Member       | Workspace | Read/write within workspace, limited settings |
-| Viewer       | Workspace | Read-only access                              |
+| Role         | Scope     | Keycloak Location          | Capabilities                                  |
+| ------------ | --------- | -------------------------- | --------------------------------------------- |
+| Super Admin  | Global    | Master realm role          | Manage all tenants, plugins, system config    |
+| Tenant Admin | Tenant    | Realm role: `tenant_admin` | Manage tenant settings, users, roles, plugins |
+| User         | Tenant    | Realm role: `user`         | Base tenant access, join workspaces           |
+| Team Admin   | Team      | Application-level          | Team management within tenant                 |
+| Admin        | Workspace | `WorkspaceRole.ADMIN`      | Full workspace management                     |
+| Member       | Workspace | `WorkspaceRole.MEMBER`     | Read/write within workspace, limited settings |
+| Viewer       | Workspace | `WorkspaceRole.VIEWER`     | Read-only access                              |
+
+> **Note**: Realm-level roles (`tenant_admin`, `user`) are provisioned in
+> Keycloak per Spec 002 FR-006. Workspace-level roles (`ADMIN`, `MEMBER`,
+> `VIEWER`) are managed in the application database via the `WorkspaceRole`
+> enum (Spec 009). System roles (`super_admin`, `tenant_admin`, `team_admin`,
+> `user`) are defined in Spec 003 FR-003 and are immutable.
 
 **Permission Model**:
 
@@ -299,13 +308,13 @@ graph TB
     end
 
     subgraph "Storage Isolation"
-        S1[MinIO: bucket tenant-acme]
-        S2[MinIO: bucket tenant-widgets]
+        S1[MinIO: bucket acme]
+        S2[MinIO: bucket widgets]
     end
 
     subgraph "Auth Isolation"
-        KC1[Keycloak: realm tenant-acme]
-        KC2[Keycloak: realm tenant-widgets]
+        KC1[Keycloak: realm acme]
+        KC2[Keycloak: realm widgets]
     end
 ```
 
@@ -316,7 +325,7 @@ graph TB
 | Database       | Separate PostgreSQL schema per tenant | Tenant context middleware   |
 | Cache          | Redis key prefix `tenant:{slug}:`     | Cache service wrapper       |
 | Object Storage | Separate MinIO bucket per tenant      | Storage service wrapper     |
-| Authentication | Separate Keycloak realm per tenant    | Realm-per-tenant config     |
+| Authentication | Separate Keycloak realm per tenant    | Realm named by raw slug     |
 | Event Bus      | Topic prefix `tenant.{slug}.`         | Event bus service wrapper   |
 | Workspaces     | Logical isolation via `workspace_id`  | Workspace membership guards |
 

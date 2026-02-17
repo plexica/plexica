@@ -1,7 +1,7 @@
 # System Architecture
 
-**Version**: 1.0
-**Last Updated**: February 13, 2026
+**Version**: 1.1
+**Last Updated**: February 16, 2026
 **Status**: Active
 **Owner**: Architecture Team
 **FORGE Track**: Feature
@@ -184,42 +184,96 @@ graph TB
 
 ### Project Structure
 
+The codebase uses a **pragmatic flat structure** (not feature-module grouping)
+for the core API, with select feature modules for newer subsystems:
+
 ```
 apps/core-api/src/
-├── modules/                    # Feature modules
-│   ├── auth/                   # Authentication module
-│   │   ├── auth.controller.ts
-│   │   ├── auth.service.ts
-│   │   └── dto/
-│   ├── tenant/                 # Tenant management
-│   │   ├── tenant.controller.ts
-│   │   ├── tenant.service.ts
-│   │   └── dto/
-│   ├── workspace/              # Workspace management
-│   │   ├── workspace.controller.ts
-│   │   ├── workspace.service.ts
-│   │   └── dto/
-│   ├── plugin/                 # Plugin orchestration
-│   │   ├── plugin.controller.ts
-│   │   ├── plugin.service.ts
-│   │   └── dto/
-│   └── i18n/                   # Internationalization (Phase 3)
-│       ├── i18n.controller.ts
-│       ├── i18n.service.ts
-│       └── dto/
-├── services/                   # Shared services
-├── middleware/                  # Request middleware
-├── lib/                        # Utilities and helpers
-└── index.ts                    # Entry point
+├── routes/                     # API route handlers (Fastify route registration)
+│   ├── auth.ts                 # Authentication routes (/api/v1/auth/*)
+│   ├── tenant.ts               # Tenant management routes
+│   ├── workspace.ts            # Workspace routes
+│   ├── plugin.ts               # Plugin management routes
+│   ├── plugin-gateway.ts       # Plugin API gateway proxy
+│   ├── plugin-upload.ts        # Plugin upload routes
+│   ├── marketplace.ts          # Plugin marketplace routes
+│   ├── admin.ts                # Super admin routes
+│   ├── health.ts               # Health check endpoints
+│   ├── metrics.ts              # Prometheus metrics endpoint
+│   └── dlq.ts                  # Dead letter queue management
+├── services/                   # Business logic layer
+│   ├── keycloak.service.ts     # Keycloak Admin API integration
+│   ├── tenant.service.ts       # Tenant lifecycle management
+│   ├── permission.service.ts   # RBAC permission engine
+│   ├── plugin.service.ts       # Plugin registry and lifecycle
+│   ├── marketplace.service.ts  # Plugin marketplace
+│   ├── analytics.service.ts    # Usage analytics
+│   ├── admin.service.ts        # Super admin operations
+│   ├── shared-data.service.ts  # Cross-tenant shared data
+│   ├── service-registry.service.ts      # Plugin service registry
+│   ├── dependency-resolution.service.ts # Plugin dependency resolution
+│   ├── plugin-api-gateway.service.ts    # Plugin API proxying
+│   └── minio-client.ts         # MinIO/S3 object storage client
+├── middleware/                  # Request middleware (Fastify hooks)
+│   ├── auth.ts                 # JWT validation + requireTenantAccess guard
+│   ├── tenant-context.ts       # Tenant context extraction (AsyncLocalStorage)
+│   ├── error-handler.ts        # Global error handler
+│   ├── csrf-protection.ts      # CSRF protection middleware
+│   └── advanced-rate-limit.ts  # In-memory rate limiting
+├── modules/                    # Feature modules (newer subsystems)
+│   ├── i18n/                   # Internationalization module
+│   │   ├── i18n.controller.ts  #   Route handler
+│   │   ├── i18n.service.ts     #   Business logic
+│   │   ├── i18n-cache.service.ts #  Redis caching
+│   │   ├── i18n.schemas.ts     #   Zod validation schemas
+│   │   └── index.ts            #   Module exports
+│   └── workspace/              # Workspace management module
+│       ├── workspace.service.ts #  Business logic
+│       ├── dto/                #   Data transfer objects
+│       └── guards/             #   Workspace role guards
+├── lib/                        # Utilities and shared infrastructure
+│   ├── db.ts                   # Prisma client singleton
+│   ├── redis.ts                # Redis client singleton
+│   ├── jwt.ts                  # JWT validation (JWKS-based)
+│   ├── logger.ts               # Shared Pino logger instance
+│   ├── tenant-prisma.ts        # Tenant-scoped Prisma client
+│   ├── crypto.ts               # Cryptographic utilities
+│   ├── cors-validator.ts       # CORS origin validation
+│   ├── header-validator.ts     # Request header validation
+│   ├── plugin-validator.ts     # Plugin manifest validation
+│   ├── plugin-hooks.ts         # Plugin lifecycle hooks
+│   ├── secrets-management.ts   # AWS SSM secrets manager
+│   ├── semver.ts               # Semantic version comparison
+│   ├── advanced-rate-limit.ts  # Rate limit utilities
+│   └── csrf-protection.ts      # CSRF token utilities
+├── schemas/                    # Zod validation schemas
+│   ├── plugin-manifest.schema.ts  # Plugin manifest validation
+│   └── marketplace.schema.ts      # Marketplace query validation
+├── types/                      # TypeScript type definitions
+│   └── plugin.types.ts         # Plugin-related types
+├── constants/                  # Application constants
+│   └── index.ts                # Shared constants
+├── config/                     # Configuration
+│   └── index.ts                # Environment config loader
+├── test-app.ts                 # Test application bootstrap
+└── index.ts                    # Entry point (server bootstrap)
 ```
 
-**Module File Naming Convention:**
+> **Architecture Note**: The codebase primarily uses a flat structure with
+> `routes/` → `services/` → `lib/` layering. Newer features (i18n, workspace)
+> use a feature-module pattern under `modules/`. Both patterns are acceptable;
+> new subsystems should prefer the feature-module pattern per Art. 3.2.
+> The `routes/*.ts` files serve the "controller" role in the layered architecture,
+> registering Fastify routes and delegating to services.
 
-- `{module}.controller.ts` - Fastify route handlers (HTTP layer)
-- `{module}.service.ts` - Business logic and data access
-- `dto/` - Data Transfer Objects and validation schemas
+**File Naming Convention:**
 
-The term "controller" refers to the file containing Fastify route handlers. This follows the MVC pattern where controllers handle HTTP requests/responses and delegate business logic to services.
+- `{domain}.ts` — Route handlers (e.g., `routes/auth.ts`, `routes/tenant.ts`)
+- `{domain}.service.ts` — Business logic (e.g., `services/keycloak.service.ts`)
+- `{domain}.controller.ts` — Route handlers in modules (e.g., `modules/i18n/i18n.controller.ts`)
+- `{domain}.schemas.ts` — Zod validation schemas
+- `dto/` — Data Transfer Objects and request/response types
+- `guards/` — Authorization guard middleware
 
 ---
 
@@ -327,8 +381,8 @@ graph TB
 | -------------- | ---------------------------------------------------- | ---------------------- |
 | **PostgreSQL** | Schema-per-tenant (e.g., `tenant_acme_corp`)         | Article 1.2            |
 | **Redis**      | Tenant-prefixed keys (e.g., `tenant:acme:session:*`) | Article 1.2            |
-| **Keycloak**   | Realm-per-tenant (e.g., `tenant-acme-corp`)          | Article 5.1            |
-| **MinIO/S3**   | Bucket-per-tenant (e.g., `tenant-acme-corp`)         | Article 1.2            |
+| **Keycloak**   | Realm-per-tenant (e.g., `acme-corp` — raw slug)      | Article 5.1            |
+| **MinIO/S3**   | Bucket-per-tenant (e.g., `acme-corp`)                | Article 1.2            |
 | **Redpanda**   | Topic naming: `{tenant_slug}.{event_type}`           | Article 1.2            |
 | **Workspaces** | Logical isolation (filtered by `workspace_id`)       | —                      |
 
