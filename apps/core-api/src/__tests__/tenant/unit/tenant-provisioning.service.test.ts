@@ -19,6 +19,9 @@ vi.mock('../../../lib/db', () => ({
 vi.mock('../../../services/keycloak.service', () => ({
   keycloakService: {
     createRealm: vi.fn().mockResolvedValue(undefined),
+    provisionRealmClients: vi.fn().mockResolvedValue(undefined),
+    provisionRealmRoles: vi.fn().mockResolvedValue(undefined),
+    configureRefreshTokenRotation: vi.fn().mockResolvedValue(undefined),
     deleteRealm: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -47,6 +50,8 @@ describe('TenantService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -78,6 +83,8 @@ describe('TenantService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -102,6 +109,8 @@ describe('TenantService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -139,6 +148,8 @@ describe('TenantService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -162,6 +173,8 @@ describe('TenantService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
