@@ -1,11 +1,13 @@
 # Plexica - Functional Specifications
 
-**Last Updated**: 2026-02-11  
+**Last Updated**: 2026-02-16  
 **Status**: In Progress  
 **Owner**: Engineering Team  
 **Document Type**: Functional Specifications
 
 **Note**: This document accurately reflects the functional architecture. Frontend Consolidation (Phase A-D5) completed Feb 11, 2026, adds extensive test coverage and component system documented in separate guides.
+
+**Implementation Status**: As of Feb 16, 2026, implementation is ~75% complete. Sections 5 (Authorization) and 10 (Core Services) contain planned features not yet implemented. See section-specific status warnings for details.
 
 ## Table of Contents
 
@@ -337,12 +339,14 @@ Keycloak only manages authentication. Profile data is in the Plexica DB:
 
 ## 5. Authorization System (RBAC + ABAC)
 
+> **⚠️ IMPLEMENTATION STATUS**: Currently, only **RBAC is implemented** (60% complete). The ABAC system (policy engine, attribute-based conditions, policies table) is **planned but not yet built**. See [`docs/AUTHORIZATION.md`](../docs/AUTHORIZATION.md) for current implementation details and future ABAC design.
+
 ### 5.1 Hybrid Model
 
 Plexica combines RBAC and ABAC for maximum flexibility:
 
-- **RBAC**: Predefined roles with associated permissions (simple, performant)
-- **ABAC**: Dynamic policies based on attributes (flexible, granular)
+- **RBAC**: Predefined roles with associated permissions (simple, performant) — ✅ **Implemented**
+- **ABAC**: Dynamic policies based on attributes (flexible, granular) — ❌ **Not Yet Implemented**
 
 ### 5.2 RBAC - Role Based Access Control
 
@@ -1043,6 +1047,17 @@ Tenants can override specific translations:
 ---
 
 ## 10. Core Services
+
+> **⚠️ IMPLEMENTATION STATUS**: Core Services are **not yet implemented** (0% complete). The specifications below describe the planned architecture. See [`docs/CORE_SERVICES.md`](../docs/CORE_SERVICES.md) for complete API specifications and implementation guide.
+>
+> **Current State**:
+>
+> - ✅ MinIO client exists (`apps/core-api/src/lib/minio-client.ts`) but not exposed as a service API
+> - ✅ Event bus package exists (`packages/event-bus/`) but no job queue service built on top
+> - ❌ Storage Service API not implemented
+> - ❌ Notification Service not implemented
+> - ❌ Job Queue Service not implemented
+> - ❌ Search Service not implemented
 
 ### 10.1 Storage Service
 
