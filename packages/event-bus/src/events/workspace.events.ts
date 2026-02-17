@@ -11,7 +11,7 @@
 
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import type { DomainEvent, EventMetadata } from '../types';
+import type { DomainEvent } from '../types';
 
 // ---------------------------------------------------------------------------
 // Event Type Constants
@@ -138,7 +138,7 @@ export const WorkspaceCreatedDataSchema = z.object({
 
 export const WorkspaceUpdatedDataSchema = z.object({
   workspaceId: z.string().min(1),
-  changes: z.record(z.unknown()),
+  changes: z.record(z.string(), z.unknown()),
 });
 
 export const WorkspaceDeletedDataSchema = z.object({
