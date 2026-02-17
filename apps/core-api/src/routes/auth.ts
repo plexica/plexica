@@ -1,390 +1,715 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import axios from 'axios';
-import { config } from '../config/index.js';
-import { verifyKeycloakToken, extractUserInfo } from '../lib/jwt.js';
+// apps/core-api/src/routes/auth.ts
 
-// SECURITY: Regex to validate tenant slugs before interpolating into Keycloak URLs.
-// Prevents SSRF by ensuring the slug cannot contain path traversal characters.
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
+import axios from 'axios';
+import { authService } from '../services/auth.service.js';
+import { authRateLimitHook } from '../middleware/auth-rate-limit.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { config } from '../config/index.js';
+import { redis } from '../lib/redis.js';
+import { logger } from '../lib/logger.js';
+
+/**
+ * Auth Routes - OAuth 2.0 Authorization Code Flow
+ *
+ * Implements secure OAuth 2.0 authentication flow:
+ * 1. GET /auth/login - Build authorization URL
+ * 2. GET /auth/callback - Exchange code for tokens
+ * 3. POST /auth/refresh - Refresh access token
+ * 4. POST /auth/logout - Revoke tokens and logout
+ * 5. GET /auth/me - Get current user info
+ * 6. GET /auth/jwks/:tenantSlug - Proxy JWKS endpoint
+ *
+ * Constitution Compliance:
+ * - Article 3.2: Service layer delegation (AuthService)
+ * - Article 5.1: Tenant validation on all endpoints
+ * - Article 5.3: Zod input validation
+ * - Article 6.2: Constitution-compliant error format
+ * - Article 6.3: Structured Pino logging
+ */
+
+// ===== Zod Validation Schemas =====
+
+/**
+ * Tenant slug validation regex
+ * SECURITY: Prevents SSRF and path traversal attacks
+ * Format: 1-50 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphens
+ */
 const TENANT_SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
 
-// Token response from Keycloak
-interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  refresh_expires_in: number;
-  token_type: string;
-}
+const LoginQuerySchema = z.object({
+  tenantSlug: z
+    .string()
+    .min(1, 'Tenant slug is required')
+    .regex(TENANT_SLUG_REGEX, 'Invalid tenant slug format'),
+  redirectUri: z.string().url('Invalid redirect URI'),
+  state: z.string().optional(),
+});
 
-const loginSchema = {
-  body: {
-    type: 'object',
-    required: ['username', 'password', 'tenant'],
-    properties: {
-      username: {
-        type: 'string',
-        minLength: 1,
-        description: 'Username or email',
-      },
-      password: {
-        type: 'string',
-        minLength: 1,
-        description: 'User password',
-      },
-      tenant: {
-        type: 'string',
-        minLength: 1,
-        description: 'Tenant slug',
-      },
-    },
-  },
-};
+const CallbackQuerySchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+  tenantSlug: z
+    .string()
+    .min(1, 'Tenant slug is required')
+    .regex(TENANT_SLUG_REGEX, 'Invalid tenant slug format'),
+  state: z.string().optional(),
+});
 
-const refreshTokenSchema = {
-  body: {
-    type: 'object',
-    required: ['refreshToken', 'tenant'],
-    properties: {
-      refreshToken: {
-        type: 'string',
-        minLength: 1,
-        description: 'Refresh token',
-      },
-      tenant: {
-        type: 'string',
-        minLength: 1,
-        description: 'Tenant slug',
-      },
-    },
-  },
-};
+const RefreshBodySchema = z.object({
+  tenantSlug: z
+    .string()
+    .min(1, 'Tenant slug is required')
+    .regex(TENANT_SLUG_REGEX, 'Invalid tenant slug format'),
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
+const LogoutBodySchema = z.object({
+  tenantSlug: z
+    .string()
+    .min(1, 'Tenant slug is required')
+    .regex(TENANT_SLUG_REGEX, 'Invalid tenant slug format'),
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
+const JwksParamsSchema = z.object({
+  tenantSlug: z
+    .string()
+    .min(1, 'Tenant slug is required')
+    .regex(TENANT_SLUG_REGEX, 'Invalid tenant slug format'),
+});
+
+// ===== Route Handlers =====
 
 export async function authRoutes(fastify: FastifyInstance) {
   /**
-   * Login endpoint
-   * Authenticates user with Keycloak and returns tokens
+   * GET /auth/login
+   *
+   * Build OAuth 2.0 authorization URL for tenant login
+   *
+   * Query Parameters:
+   * - tenantSlug: Tenant identifier
+   * - redirectUri: Callback URL after authentication
+   * - state: Optional CSRF protection token
+   *
+   * Response:
+   * - 200: { authUrl: string }
+   * - 400: Validation error
+   * - 403: Tenant not found or suspended
+   * - 429: Rate limited
    */
-  fastify.post<{
-    Body: { username: string; password: string; tenant: string };
+  fastify.get<{
+    Querystring: z.infer<typeof LoginQuerySchema>;
   }>(
     '/auth/login',
     {
+      preHandler: [authRateLimitHook],
       schema: {
-        description: 'Authenticate user and get access token',
+        description: 'Build OAuth 2.0 authorization URL for login',
         tags: ['auth'],
-        ...loginSchema,
+        querystring: {
+          type: 'object',
+          required: ['tenantSlug', 'redirectUri'],
+          properties: {
+            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            redirectUri: { type: 'string', description: 'OAuth callback URL' },
+            state: { type: 'string', description: 'CSRF protection token' },
+          },
+        },
         response: {
           200: {
-            description: 'Authentication successful',
+            description: 'Authorization URL built successfully',
             type: 'object',
             properties: {
-              accessToken: { type: 'string' },
-              refreshToken: { type: 'string' },
-              expiresIn: { type: 'number' },
-              tokenType: { type: 'string' },
-              user: {
+              authUrl: { type: 'string', description: 'Keycloak authorization URL' },
+            },
+          },
+          400: {
+            description: 'Validation error',
+            type: 'object',
+            properties: {
+              error: {
                 type: 'object',
                 properties: {
-                  id: { type: 'string' },
-                  username: { type: 'string' },
-                  email: { type: 'string' },
-                  name: { type: 'string' },
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
                 },
               },
             },
           },
-          401: {
-            description: 'Authentication failed',
+          403: {
+            description: 'Tenant not found or suspended',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          429: {
+            description: 'Rate limited',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
             },
           },
         },
       },
     },
     async (
-      request: FastifyRequest<{ Body: { username: string; password: string; tenant: string } }>,
+      request: FastifyRequest<{ Querystring: z.infer<typeof LoginQuerySchema> }>,
       reply: FastifyReply
     ) => {
       try {
-        const { username, password, tenant } = request.body;
-
-        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
-        if (!TENANT_SLUG_REGEX.test(tenant)) {
+        // Validate query parameters
+        const validation = LoginQuerySchema.safeParse(request.query);
+        if (!validation.success) {
           return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'Invalid tenant slug format',
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid query parameters',
+              details: validation.error.flatten(),
+            },
           });
         }
 
-        // Get token from Keycloak
-        const tokenUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/token`;
+        const { tenantSlug, redirectUri, state } = validation.data;
 
-        const response = await axios.post<TokenResponse>(
-          tokenUrl,
-          new URLSearchParams({
-            grant_type: 'password',
-            client_id: config.keycloakClientId,
-            client_secret: config.keycloakClientSecret || '',
-            username,
-            password,
-          }),
+        // Build authorization URL via AuthService
+        const authUrl = await authService.buildLoginUrl(tenantSlug, redirectUri, state);
+
+        logger.info(
           {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-          }
+            tenantSlug,
+            redirectUri,
+            hasState: !!state,
+            ip: request.ip,
+          },
+          'OAuth login URL requested'
         );
 
-        const tokens = response.data;
-
-        // Verify and decode the access token to get user info
-        const payload = await verifyKeycloakToken(tokens.access_token, tenant);
-        const user = extractUserInfo(payload);
-
-        return reply.send({
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresIn: tokens.expires_in,
-          tokenType: tokens.token_type,
-          user,
-        });
+        return reply.send({ authUrl });
       } catch (error: any) {
-        request.log.error(error, 'Login failed');
+        // AuthService throws Constitution-compliant errors
+        if (error.error && error.error.code) {
+          const statusCode =
+            error.error.code === 'AUTH_TENANT_NOT_FOUND' ||
+            error.error.code === 'AUTH_TENANT_SUSPENDED'
+              ? 403
+              : 500;
 
-        const keycloakStatus = error.response?.status;
-
-        // Keycloak returns 401 for unauthorized, or 400 with invalid_grant
-        // for bad credentials, disabled accounts, etc.
-        if (
-          keycloakStatus === 401 ||
-          (keycloakStatus === 400 && error.response?.data?.error === 'invalid_grant')
-        ) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'Invalid username or password',
-          });
+          return reply.code(statusCode).send(error);
         }
 
-        // Keycloak returns 404 when the realm (tenant) doesn't exist
-        if (keycloakStatus === 404) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Tenant not found',
-          });
-        }
-
-        // Keycloak returns 400 for other client errors (bad client config, etc.)
-        if (keycloakStatus === 400) {
-          return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'Authentication request failed',
-          });
-        }
+        // Unexpected error
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            ip: request.ip,
+          },
+          'Unexpected error building login URL'
+        );
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Authentication failed',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to build authorization URL',
+          },
         });
       }
     }
   );
 
   /**
-   * Refresh token endpoint
-   * Exchanges refresh token for new access token
+   * GET /auth/callback
+   *
+   * OAuth 2.0 callback - exchange authorization code for tokens
+   *
+   * Query Parameters:
+   * - code: Authorization code from Keycloak
+   * - tenantSlug: Tenant identifier
+   * - state: Optional CSRF protection token (should match login request)
+   *
+   * Response:
+   * - 200: { success: true, access_token, refresh_token, expires_in, refresh_expires_in }
+   * - 400: Validation error
+   * - 401: Code exchange failed (expired or invalid code)
+   * - 403: Tenant not found or suspended
+   * - 429: Rate limited
+   */
+  fastify.get<{
+    Querystring: z.infer<typeof CallbackQuerySchema>;
+  }>(
+    '/auth/callback',
+    {
+      preHandler: [authRateLimitHook],
+      schema: {
+        description: 'OAuth 2.0 callback - exchange authorization code for tokens',
+        tags: ['auth'],
+        querystring: {
+          type: 'object',
+          required: ['code', 'tenantSlug'],
+          properties: {
+            code: { type: 'string', description: 'Authorization code' },
+            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            state: { type: 'string', description: 'CSRF token' },
+          },
+        },
+        response: {
+          200: {
+            description: 'Tokens exchanged successfully',
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              access_token: { type: 'string' },
+              refresh_token: { type: 'string' },
+              expires_in: { type: 'number' },
+              refresh_expires_in: { type: 'number' },
+            },
+          },
+          400: {
+            description: 'Validation error',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          401: {
+            description: 'Code exchange failed',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          403: {
+            description: 'Tenant not found or suspended',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          429: {
+            description: 'Rate limited',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Querystring: z.infer<typeof CallbackQuerySchema> }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        // Validate query parameters
+        const validation = CallbackQuerySchema.safeParse(request.query);
+        if (!validation.success) {
+          return reply.code(400).send({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid query parameters',
+              details: validation.error.flatten(),
+            },
+          });
+        }
+
+        const { code, tenantSlug, state } = validation.data;
+
+        // Exchange authorization code for tokens
+        // Note: redirectUri must match the one used in /auth/login
+        const redirectUri = config.oauthCallbackUrl;
+        const tokens = await authService.exchangeCode(tenantSlug, code, redirectUri);
+
+        logger.info(
+          {
+            tenantSlug,
+            hasState: !!state,
+            ip: request.ip,
+            expiresIn: tokens.expires_in,
+          },
+          'OAuth callback successful - tokens issued'
+        );
+
+        return reply.send({
+          success: true,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_in: tokens.expires_in,
+          refresh_expires_in: tokens.refresh_expires_in,
+        });
+      } catch (error: any) {
+        // AuthService throws Constitution-compliant errors
+        if (error.error && error.error.code) {
+          const statusCode =
+            error.error.code === 'AUTH_CODE_EXCHANGE_FAILED'
+              ? 401
+              : error.error.code === 'AUTH_TENANT_NOT_FOUND' ||
+                  error.error.code === 'AUTH_TENANT_SUSPENDED'
+                ? 403
+                : 500;
+
+          return reply.code(statusCode).send(error);
+        }
+
+        // Unexpected error
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            ip: request.ip,
+          },
+          'Unexpected error in OAuth callback'
+        );
+
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to exchange authorization code',
+          },
+        });
+      }
+    }
+  );
+
+  /**
+   * POST /auth/refresh
+   *
+   * Refresh access token using refresh token
+   *
+   * Body:
+   * - tenantSlug: Tenant identifier
+   * - refreshToken: Valid refresh token
+   *
+   * Response:
+   * - 200: { access_token, refresh_token, expires_in, refresh_expires_in, token_type }
+   * - 400: Validation error
+   * - 401: Token refresh failed (invalid or expired refresh token)
+   * - 403: Tenant not found or suspended
    */
   fastify.post<{
-    Body: { refreshToken: string; tenant: string };
+    Body: z.infer<typeof RefreshBodySchema>;
   }>(
     '/auth/refresh',
     {
       schema: {
         description: 'Refresh access token using refresh token',
         tags: ['auth'],
-        ...refreshTokenSchema,
+        body: {
+          type: 'object',
+          required: ['tenantSlug', 'refreshToken'],
+          properties: {
+            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            refreshToken: { type: 'string', description: 'Refresh token' },
+          },
+        },
         response: {
           200: {
             description: 'Token refreshed successfully',
             type: 'object',
             properties: {
-              accessToken: { type: 'string' },
-              refreshToken: { type: 'string' },
-              expiresIn: { type: 'number' },
-              tokenType: { type: 'string' },
+              access_token: { type: 'string' },
+              refresh_token: { type: 'string' },
+              expires_in: { type: 'number' },
+              refresh_expires_in: { type: 'number' },
+              token_type: { type: 'string' },
+            },
+          },
+          400: {
+            description: 'Validation error',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
             },
           },
           401: {
-            description: 'Invalid or expired refresh token',
+            description: 'Token refresh failed',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          403: {
+            description: 'Tenant not found or suspended',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
             },
           },
         },
       },
     },
     async (
-      request: FastifyRequest<{ Body: { refreshToken: string; tenant: string } }>,
+      request: FastifyRequest<{ Body: z.infer<typeof RefreshBodySchema> }>,
       reply: FastifyReply
     ) => {
       try {
-        const { refreshToken, tenant } = request.body;
-
-        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
-        if (!TENANT_SLUG_REGEX.test(tenant)) {
+        // Validate body
+        const validation = RefreshBodySchema.safeParse(request.body);
+        if (!validation.success) {
           return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'Invalid tenant slug format',
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid request body',
+              details: validation.error.flatten(),
+            },
           });
         }
 
-        // Refresh token with Keycloak
-        const tokenUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/token`;
+        const { tenantSlug, refreshToken } = validation.data;
 
-        const response = await axios.post<TokenResponse>(
-          tokenUrl,
-          new URLSearchParams({
-            grant_type: 'refresh_token',
-            client_id: config.keycloakClientId,
-            client_secret: config.keycloakClientSecret || '',
-            refresh_token: refreshToken,
-          }),
+        // Refresh tokens via AuthService
+        const tokens = await authService.refreshTokens(tenantSlug, refreshToken);
+
+        logger.info(
           {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-          }
+            tenantSlug,
+            ip: request.ip,
+            expiresIn: tokens.expires_in,
+          },
+          'Access token refreshed successfully'
         );
 
-        const tokens = response.data;
-
         return reply.send({
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresIn: tokens.expires_in,
-          tokenType: tokens.token_type,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_in: tokens.expires_in,
+          refresh_expires_in: tokens.refresh_expires_in,
+          token_type: tokens.token_type,
         });
       } catch (error: any) {
-        request.log.error(error, 'Token refresh failed');
+        // AuthService throws Constitution-compliant errors
+        if (error.error && error.error.code) {
+          const statusCode =
+            error.error.code === 'AUTH_TOKEN_REFRESH_FAILED'
+              ? 401
+              : error.error.code === 'AUTH_TENANT_NOT_FOUND' ||
+                  error.error.code === 'AUTH_TENANT_SUSPENDED'
+                ? 403
+                : 500;
 
-        const keycloakStatus = error.response?.status;
-
-        // Keycloak returns 401 for unauthorized, or 400 with invalid_grant
-        // for expired/revoked refresh tokens
-        if (
-          keycloakStatus === 401 ||
-          (keycloakStatus === 400 && error.response?.data?.error === 'invalid_grant')
-        ) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'Invalid or expired refresh token',
-          });
+          return reply.code(statusCode).send(error);
         }
 
-        // Keycloak returns 404 when the realm (tenant) doesn't exist
-        if (keycloakStatus === 404) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Tenant not found',
-          });
-        }
-
-        // Keycloak returns 400 for other client errors
-        if (keycloakStatus === 400) {
-          return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'Token refresh request failed',
-          });
-        }
+        // Unexpected error
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            ip: request.ip,
+          },
+          'Unexpected error refreshing token'
+        );
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Token refresh failed',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to refresh access token',
+          },
         });
       }
     }
   );
 
   /**
-   * Logout endpoint
-   * Revokes tokens in Keycloak
+   * POST /auth/logout
+   *
+   * Logout user and revoke tokens
+   *
+   * Body:
+   * - tenantSlug: Tenant identifier
+   * - refreshToken: Refresh token to revoke
+   *
+   * Response:
+   * - 200: { success: true }
+   * - 400: Validation error
+   * - 401: Not authenticated
+   *
+   * Side Effects:
+   * - Revokes tokens in Keycloak (best-effort)
+   *
+   * Note: Returns success even if revocation fails (token will expire naturally)
    */
   fastify.post<{
-    Body: { refreshToken: string; tenant: string };
+    Body: z.infer<typeof LogoutBodySchema>;
   }>(
     '/auth/logout',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Logout user and revoke tokens',
         tags: ['auth'],
         body: {
           type: 'object',
-          required: ['refreshToken', 'tenant'],
+          required: ['tenantSlug', 'refreshToken'],
           properties: {
-            refreshToken: { type: 'string' },
-            tenant: { type: 'string' },
+            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            refreshToken: { type: 'string', description: 'Refresh token' },
           },
         },
         response: {
-          204: {
+          200: {
             description: 'Logout successful',
-            type: 'null',
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+            },
+          },
+          400: {
+            description: 'Validation error',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          401: {
+            description: 'Not authenticated',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
         },
       },
     },
     async (
-      request: FastifyRequest<{ Body: { refreshToken: string; tenant: string } }>,
+      request: FastifyRequest<{ Body: z.infer<typeof LogoutBodySchema> }>,
       reply: FastifyReply
     ) => {
       try {
-        const { refreshToken, tenant } = request.body;
-
-        // SECURITY: Validate tenant slug to prevent SSRF via URL path injection
-        if (!TENANT_SLUG_REGEX.test(tenant)) {
+        // Validate body
+        const validation = LogoutBodySchema.safeParse(request.body);
+        if (!validation.success) {
           return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'Invalid tenant slug format',
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid request body',
+              details: validation.error.flatten(),
+            },
           });
         }
 
-        // Logout from Keycloak
-        const logoutUrl = `${config.keycloakUrl}/realms/${tenant}/protocol/openid-connect/logout`;
+        const { tenantSlug, refreshToken } = validation.data;
 
-        await axios.post(
-          logoutUrl,
-          new URLSearchParams({
-            client_id: config.keycloakClientId,
-            client_secret: config.keycloakClientSecret || '',
-            refresh_token: refreshToken,
-          }),
+        // Revoke tokens (best-effort - doesn't throw on failure)
+        await authService.revokeTokens(tenantSlug, refreshToken, 'refresh_token');
+
+        logger.info(
           {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-          }
+            tenantSlug,
+            userId: request.user?.id,
+            ip: request.ip,
+          },
+          'User logged out successfully'
         );
 
-        return reply.code(204).send();
+        return reply.send({ success: true });
       } catch (error: any) {
-        request.log.error(error, 'Logout failed');
-        // Even if logout fails, return success to client
-        return reply.code(204).send();
+        // Even if an unexpected error occurs, return success
+        // Token revocation is best-effort
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            ip: request.ip,
+          },
+          'Logout completed with error'
+        );
+
+        return reply.send({ success: true });
       }
     }
   );
 
   /**
-   * Get current user info
-   * Requires authentication
+   * GET /auth/me
+   *
+   * Get current authenticated user information
+   *
+   * Response:
+   * - 200: { id, username, email, name, roles, tenant }
+   * - 401: Not authenticated
    */
   fastify.get(
     '/auth/me',
     {
+      preHandler: [authMiddleware],
       schema: {
         description: 'Get current authenticated user information',
         tags: ['auth'],
@@ -405,21 +730,26 @@ export async function authRoutes(fastify: FastifyInstance) {
             description: 'Not authenticated',
             type: 'object',
             properties: {
-              error: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
       },
-      preHandler: async (request, reply) => {
-        // Import authMiddleware here to avoid circular dependency
-        const { authMiddleware } = await import('../middleware/auth.js');
-        await authMiddleware(request, reply);
-      },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
+      // authMiddleware ensures request.user is present
       if (!request.user) {
         return reply.code(401).send({
-          error: 'Not authenticated',
+          error: {
+            code: 'AUTH_REQUIRED',
+            message: 'Authentication required',
+          },
         });
       }
 
@@ -431,6 +761,219 @@ export async function authRoutes(fastify: FastifyInstance) {
         roles: request.user.roles,
         tenant: request.user.tenantSlug,
       });
+    }
+  );
+
+  /**
+   * GET /auth/jwks/:tenantSlug
+   *
+   * Proxy JWKS endpoint for tenant realm
+   *
+   * Params:
+   * - tenantSlug: Tenant identifier
+   *
+   * Response:
+   * - 200: JWKS JSON (cached for 10 minutes)
+   * - 400: Invalid tenant slug format
+   * - 404: Tenant not found
+   * - 500: Failed to fetch JWKS from Keycloak
+   *
+   * Security:
+   * - Validates tenant slug format to prevent SSRF
+   * - Caches JWKS in Redis with 10-minute TTL
+   * - Returns raw JWKS JSON from Keycloak
+   */
+  fastify.get<{
+    Params: z.infer<typeof JwksParamsSchema>;
+  }>(
+    '/auth/jwks/:tenantSlug',
+    {
+      schema: {
+        description: 'Get JWKS for tenant realm (cached)',
+        tags: ['auth'],
+        params: {
+          type: 'object',
+          required: ['tenantSlug'],
+          properties: {
+            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+          },
+        },
+        response: {
+          200: {
+            description: 'JWKS JSON',
+            type: 'object',
+            properties: {
+              keys: {
+                type: 'array',
+                items: { type: 'object' },
+              },
+            },
+          },
+          400: {
+            description: 'Invalid tenant slug',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          404: {
+            description: 'Tenant not found',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+          500: {
+            description: 'Failed to fetch JWKS',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Params: z.infer<typeof JwksParamsSchema> }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        // Validate tenant slug format (SSRF prevention)
+        const validation = JwksParamsSchema.safeParse(request.params);
+        if (!validation.success) {
+          return reply.code(400).send({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid tenant slug format',
+              details: validation.error.flatten(),
+            },
+          });
+        }
+
+        const { tenantSlug } = validation.data;
+
+        // Check Redis cache first
+        const cacheKey = `auth:jwks:${tenantSlug}`;
+        const cached = await redis.get(cacheKey);
+
+        if (cached) {
+          logger.debug(
+            {
+              tenantSlug,
+              cacheHit: true,
+            },
+            'JWKS cache hit'
+          );
+
+          return reply.type('application/json').send(cached);
+        }
+
+        // Cache miss - fetch from Keycloak
+        const jwksUrl = `${config.keycloakUrl}/realms/${tenantSlug}/protocol/openid-connect/certs`;
+
+        logger.debug(
+          {
+            tenantSlug,
+            jwksUrl,
+            cacheMiss: true,
+          },
+          'Fetching JWKS from Keycloak'
+        );
+
+        const response = await axios.get(jwksUrl, {
+          timeout: 5000,
+          validateStatus: (status) => status < 500, // Allow 4xx for better error handling
+        });
+
+        // Handle Keycloak errors
+        if (response.status === 404) {
+          return reply.code(404).send({
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: 'The specified tenant does not exist',
+            },
+          });
+        }
+
+        if (response.status >= 400) {
+          logger.error(
+            {
+              tenantSlug,
+              keycloakStatus: response.status,
+              keycloakError: response.data,
+            },
+            'Keycloak JWKS fetch failed'
+          );
+
+          return reply.code(500).send({
+            error: {
+              code: 'JWKS_FETCH_FAILED',
+              message: 'Failed to fetch JWKS from authentication server',
+            },
+          });
+        }
+
+        const jwks = response.data;
+
+        // Cache JWKS with 10-minute TTL
+        const ttlSeconds = Math.floor(config.jwksCacheTtl / 1000);
+        await redis.setex(cacheKey, ttlSeconds, JSON.stringify(jwks));
+
+        logger.info(
+          {
+            tenantSlug,
+            ttl: ttlSeconds,
+            keysCount: jwks.keys?.length || 0,
+          },
+          'JWKS fetched and cached successfully'
+        );
+
+        return reply.type('application/json').send(jwks);
+      } catch (error: any) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          'Unexpected error fetching JWKS'
+        );
+
+        // Handle axios network errors
+        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+          return reply.code(500).send({
+            error: {
+              code: 'JWKS_FETCH_FAILED',
+              message: 'Authentication server is unavailable',
+            },
+          });
+        }
+
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to fetch JWKS',
+          },
+        });
+      }
     }
   );
 }
