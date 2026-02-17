@@ -305,15 +305,18 @@ enum WorkspaceRole {
 
 // User Model (in tenant schema)
 model User {
-  id         String   @id @default(uuid())
-  keycloakId String   @unique @map("keycloak_id")
-  email      String   @unique
-  firstName  String?  @map("first_name")
-  lastName   String?  @map("last_name")
-  avatar     String?
-  locale     String   @default("en")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id          String     @id @default(uuid())
+  keycloakId  String     @unique @map("keycloak_id")
+  email       String     @unique
+  firstName   String?    @map("first_name")
+  lastName    String?    @map("last_name")
+  displayName String?    @map("display_name")
+  avatarUrl   String?    @map("avatar_url")
+  locale      String     @default("en")
+  preferences Json       @default("{}") // User preferences (theme, notifications, etc.)
+  status      UserStatus @default(ACTIVE) // Account status
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
   workspaceMemberships WorkspaceMember[]
   teamsOwned           Team[]            @relation("TeamOwner")
@@ -321,6 +324,15 @@ model User {
 
   @@map("users")
   @@schema("core") // Template - will be in tenant schemas
+}
+
+// User status enum
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+
+  @@schema("core")
 }
 
 // Workspace Model (in tenant schema)
