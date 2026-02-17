@@ -30,6 +30,43 @@
 
 ## Recent Decisions (February 2026)
 
+### Workspace Integration Tests - COMPLETE (February 17, 2026)
+
+**Date**: February 17, 2026  
+**Context**: All workspace integration tests fixed - workspace-crud (32/32), workspace-members (32/32)
+
+**Status**: ✅ **COMPLETE - 64/64 workspace integration tests passing (100%)**
+
+- ✅ workspace-crud.integration.test.ts: 32/32 passing (100%)
+- ✅ workspace-members.integration.test.ts: 32/32 passing (100%)
+
+**Achievement**: Fixed Fastify error serialization issues causing `FST_ERR_FAILED_ERROR_SERIALIZATION` errors
+
+**Three-Phase Fix** (Commits `a20815d`, `67a9b0d`, `cc9af92`):
+
+**Phase 1 - workspace-crud fixes** (Commit `a20815d`):
+
+- Created `handleServiceError()` function for Constitution-compliant error responses
+- Added `attachValidation: true` to POST/PATCH workspace routes
+- Fixed `workspaceGuard` middleware error format
+- Result: 1/32 → 32/32 passing (100%)
+
+**Phase 2 - workspace-members setup** (Commit `67a9b0d`):
+
+- Fixed mock token creation (use `testTenantSlug` instead of `tenantId`)
+- Added tenant schema user creation for foreign key constraints
+- Result: 0/32 → 24/32 passing (75%)
+
+**Phase 3 - workspace-members validation** (Commit `cc9af92`):
+
+- Added `attachValidation: true` to POST/PATCH member routes
+- Added `request.validationError` checks with Constitution-compliant errors
+- Updated 5 test assertions to handle nested error format (`body.error.message`)
+- Fixed security best practice test: 403 → 404 for non-members (info disclosure)
+- Result: 24/32 → 32/32 passing (100%)
+
+---
+
 ### Integration Test Error Handling Fix - Fastify Serialization Issue Resolved (February 17, 2026)
 
 **Date**: February 17, 2026  
@@ -44,7 +81,7 @@
 3. Custom error classes didn't match the expected `{ error: { code, message } }` schema structure
 4. Result: `FST_ERR_FAILED_ERROR_SERIALIZATION` with message `"code" is required!`
 
-**Solution Implemented** (Commit `pending`):
+**Solution Implemented** (Commits `a20815d`, `67a9b0d`):
 
 1. **Created `handleServiceError()` function** (workspace.ts lines 199-228):
    - Maps service errors using existing `mapServiceError()` logic
