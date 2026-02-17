@@ -764,6 +764,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   }>(
     '/workspaces/:workspaceId/members',
     {
+      attachValidation: true, // Don't throw on validation failure
       schema: {
         ...addMemberRequestSchema,
         tags: ['workspaces'],
@@ -805,24 +806,41 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       ],
     },
     async (request, reply) => {
-      const { workspaceId } = request.params;
-      const body = request.body;
-      const invitedBy = request.user?.id;
-      if (!invitedBy) {
-        throw new WorkspaceError(
-          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
-          'User not authenticated'
-        );
-      }
-
-      const errors = validateAddMember(body);
-      if (errors.length > 0) {
-        throw new WorkspaceError(WorkspaceErrorCode.VALIDATION_ERROR, 'Invalid request data', {
-          fields: errors,
-        });
-      }
-
       try {
+        // Check for schema validation errors
+        if (request.validationError) {
+          return reply.code(400).send({
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Validation failed',
+              details: { validation: request.validationError.validation },
+            },
+          });
+        }
+
+        const { workspaceId } = request.params;
+        const body = request.body;
+        const invitedBy = request.user?.id;
+        if (!invitedBy) {
+          return reply.code(401).send({
+            error: {
+              code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+              message: 'User not authenticated',
+            },
+          });
+        }
+
+        const errors = validateAddMember(body);
+        if (errors.length > 0) {
+          return reply.code(400).send({
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Invalid request data',
+              details: { fields: errors },
+            },
+          });
+        }
+
         const member = await workspaceService.addMember(
           workspaceId,
           body,
@@ -846,6 +864,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   }>(
     '/workspaces/:workspaceId/members/:userId',
     {
+      attachValidation: true, // Don't throw on validation failure
       schema: {
         ...updateMemberRoleRequestSchema,
         tags: ['workspaces'],
@@ -866,17 +885,32 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       ],
     },
     async (request, reply) => {
-      const { workspaceId, userId } = request.params;
-      const body = request.body;
-
-      const errors = validateUpdateMemberRole(body);
-      if (errors.length > 0) {
-        throw new WorkspaceError(WorkspaceErrorCode.VALIDATION_ERROR, 'Invalid request data', {
-          fields: errors,
-        });
-      }
-
       try {
+        // Check for schema validation errors
+        if (request.validationError) {
+          return reply.code(400).send({
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Validation failed',
+              details: { validation: request.validationError.validation },
+            },
+          });
+        }
+
+        const { workspaceId, userId } = request.params;
+        const body = request.body;
+
+        const errors = validateUpdateMemberRole(body);
+        if (errors.length > 0) {
+          return reply.code(400).send({
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Invalid request data',
+              details: { fields: errors },
+            },
+          });
+        }
+
         const member = await workspaceService.updateMemberRole(
           workspaceId,
           userId,

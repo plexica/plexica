@@ -329,7 +329,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(409);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/already.*member|duplicate/i);
+      expect(body.error?.message || body.message).toMatch(/already.*member|duplicate/i);
     });
 
     it('should reject non-admin user (403)', async () => {
@@ -370,7 +370,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(404);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/user.*not found/i);
+      expect(body.error?.message || body.message).toMatch(/user.*not found/i);
     });
 
     it('should reject invalid workspace ID (404)', async () => {
@@ -518,7 +518,9 @@ describe('Workspace Members Integration', () => {
         },
       });
 
-      expect(response.statusCode).toBe(403);
+      // Returns 404 instead of 403 as a security best practice:
+      // Don't reveal workspace existence to non-members
+      expect(response.statusCode).toBe(404);
     });
   });
 
@@ -666,7 +668,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(400);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/last admin|cannot demote/i);
+      expect(body.error?.message || body.message).toMatch(/last admin|cannot demote/i);
     });
 
     it('should allow admin to demote self if others exist', async () => {
@@ -821,7 +823,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(400);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/last admin|cannot remove/i);
+      expect(body.error?.message || body.message).toMatch(/last admin|cannot remove/i);
     });
 
     it('should cascade delete team memberships', async () => {
