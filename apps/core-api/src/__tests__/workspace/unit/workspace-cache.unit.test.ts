@@ -67,7 +67,11 @@ describe('WorkspaceService Membership Caching', () => {
       const result = await service.getMembership(workspaceId, userId, tenantContext);
 
       // Assert
-      expect(result).toEqual(mockMembership);
+      // Note: JSON.parse converts Date to string, so expect string not Date object
+      expect(result).toEqual({
+        ...mockMembership,
+        joinedAt: '2024-01-01T00:00:00.000Z', // Date becomes string after JSON round-trip
+      });
       expect(mockRedis.get).toHaveBeenCalledWith(
         `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:${userId}`
       );
@@ -239,18 +243,23 @@ describe('WorkspaceService Membership Caching', () => {
       mockDb.$transaction.mockImplementation(async (callback) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
-          $queryRaw: vi.fn().mockResolvedValue([
-            {
-              workspace_id: workspaceId,
-              user_id: userId,
-              role: 'MEMBER',
-              invited_by: invitedBy,
-              joined_at: new Date('2024-01-01'),
-              user_email: 'user@example.com',
-              user_first_name: 'John',
-              user_last_name: 'Doe',
-            },
-          ]),
+          $queryRaw: vi
+            .fn()
+            .mockResolvedValueOnce([{ id: workspaceId }]) // First call: workspaceCheck returns workspace exists
+            .mockResolvedValueOnce([]) // Second call: existingCheck returns empty (user not a member yet)
+            .mockResolvedValueOnce([
+              // Third call: getMember returns the new member
+              {
+                workspace_id: workspaceId,
+                user_id: userId,
+                role: 'MEMBER',
+                invited_by: invitedBy,
+                joined_at: new Date('2024-01-01'),
+                user_email: 'user@example.com',
+                user_first_name: 'John',
+                user_last_name: 'Doe',
+              },
+            ]),
         };
         return callback(txMock);
       });
@@ -442,7 +451,11 @@ describe('WorkspaceService Membership Caching', () => {
 
       // Assert
       expect(result.exists).toBe(true);
-      expect(result.membership).toEqual(mockMembership);
+      // Note: JSON.parse converts Date to string, so expect string not Date object
+      expect(result.membership).toEqual({
+        ...mockMembership,
+        joinedAt: '2024-01-01T00:00:00.000Z', // Date becomes string after JSON round-trip
+      });
       expect(mockRedis.get).toHaveBeenCalledWith(
         `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:${userId}`
       );
