@@ -86,13 +86,14 @@ describe('AuthRateLimiter', () => {
       );
     });
 
-    it('should handle Redis failure gracefully (allow request)', async () => {
+    it('should handle Redis failure gracefully (block request - fail-closed)', async () => {
       // Mock Redis failure
       vi.mocked(redis.eval).mockRejectedValue(new Error('Redis connection failed'));
 
       const allowed = await authRateLimiter.check('192.168.1.4');
 
-      expect(allowed).toBe(true); // Graceful degradation
+      // SECURITY: Fail-closed to prevent unlimited brute force if Redis is down (HIGH #4 fix)
+      expect(allowed).toBe(false);
     });
 
     it('should pass correct window in seconds to Lua script', async () => {
@@ -345,14 +346,22 @@ describe('authRateLimitHook()', () => {
     expect(mockReply.code).toHaveBeenCalledWith(429);
   });
 
-  it('should handle Redis failure gracefully (allow request)', async () => {
+  it('should handle Redis failure gracefully (block request - fail-closed)', async () => {
     vi.mocked(redis.eval).mockRejectedValue(new Error('Redis connection failed'));
 
     await authRateLimitHook(mockRequest as FastifyRequest, mockReply as FastifyReply);
 
-    // Request should be allowed due to graceful degradation
-    expect(mockReply.code).not.toHaveBeenCalled();
-    expect(mockReply.send).not.toHaveBeenCalled();
+    // SECURITY: Fail-closed to prevent unlimited brute force if Redis is down (HIGH #4 fix)
+    expect(mockReply.code).toHaveBeenCalledWith(429);
+    expect(mockReply.send).toHaveBeenCalledWith({
+      error: {
+        code: 'AUTH_RATE_LIMITED',
+        message: 'Too many authentication attempts. Please try again later.',
+        details: {
+          retryAfter: expect.any(Number),
+        },
+      },
+    });
   });
 });
 
