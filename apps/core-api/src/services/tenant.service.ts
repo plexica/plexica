@@ -2,6 +2,7 @@ import { PrismaClient, TenantStatus } from '@plexica/database';
 import { keycloakService } from './keycloak.service.js';
 import { permissionService } from './permission.service.js';
 import { db } from '../lib/db.js';
+import { logger } from '../lib/logger.js';
 
 export interface CreateTenantInput {
   slug: string;
@@ -129,16 +130,24 @@ export class TenantService {
       // This prevents orphaned realms from previous failed attempts
       try {
         await keycloakService.deleteRealm(slug);
-        console.info(`Successfully rolled back Keycloak realm for tenant: ${slug}`);
+        logger.info(
+          { tenantSlug: slug },
+          'Successfully rolled back Keycloak realm after tenant creation failure'
+        );
       } catch (rollbackError) {
         // Log rollback failure but don't mask original error
-        console.warn(
-          `Failed to rollback Keycloak realm for tenant ${slug}:`,
-          rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
+        logger.warn(
+          {
+            tenantSlug: slug,
+            error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+          },
+          'Failed to rollback Keycloak realm - manual cleanup required'
         );
       }
 
       // If provisioning fails, attempt to update tenant status to indicate failure.
+      // Per Spec 002 §5 (line 77), §6 (line 128), and Plan §7 (line 719):
+      // Status must remain PROVISIONING (not SUSPENDED) to allow retry/recovery.
       // It's possible the tenant record was removed concurrently (tests/cleanup), so
       // guard the update and log if the record no longer exists instead of throwing
       // an additional error that masks the original provisioning failure.
@@ -146,7 +155,7 @@ export class TenantService {
         await this.db.tenant.update({
           where: { id: tenant.id },
           data: {
-            status: TenantStatus.SUSPENDED,
+            status: TenantStatus.PROVISIONING,
             settings: {
               ...settings,
               provisioningError: error instanceof Error ? error.message : 'Unknown error',
@@ -154,9 +163,12 @@ export class TenantService {
           },
         });
       } catch (updateErr) {
-        console.warn(
-          `Could not update tenant status for id=${tenant?.id}:`,
-          updateErr instanceof Error ? updateErr.message : String(updateErr)
+        logger.warn(
+          {
+            tenantId: tenant?.id,
+            error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+          },
+          'Could not update tenant status after provisioning failure'
         );
       }
 
@@ -190,9 +202,15 @@ export class TenantService {
       // Surface helpful debugging information for CI/local debugging
       // Re-throw after logging so provisioning fails loudly instead of producing cryptic downstream errors
       // (e.g. missing privileges causing later CREATE TABLE to silently fail)
-      console.error(
-        `Failed granting privileges on schema ${schemaName} to user ${dbUser}:`,
-        err instanceof Error ? err.message : String(err)
+      logger.error(
+        {
+          tenantSlug: slug,
+          schemaName,
+          dbUser,
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        },
+        'Failed to create tenant-specific schema'
       );
       throw err;
     }

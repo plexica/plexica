@@ -7,6 +7,20 @@ import { config } from '../config/index.js';
 import { logger } from '../lib/logger.js';
 
 /**
+ * Custom error class for sanitized Keycloak errors.
+ * Prevents re-sanitization in catch blocks.
+ */
+export class KeycloakSanitizedError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number
+  ) {
+    super(message);
+    this.name = 'KeycloakSanitizedError';
+  }
+}
+
+/**
  * OAuth 2.0 token response from Keycloak
  */
 export interface KeycloakTokenResponse {
@@ -66,6 +80,7 @@ export class KeycloakService {
    * @param realmName - Realm name (for logging)
    * @param additionalContext - Additional logging context
    * @returns Sanitized user-friendly error message
+   * @throws KeycloakSanitizedError with sanitized message
    */
   private sanitizeKeycloakError(
     context: string,
@@ -73,7 +88,7 @@ export class KeycloakService {
     errorText: string,
     realmName: string,
     additionalContext?: Record<string, unknown>
-  ): string {
+  ): never {
     // Log full error for debugging (structured logging)
     logger.error(
       {
@@ -87,19 +102,22 @@ export class KeycloakService {
     );
 
     // Return sanitized error based on status code
+    let sanitizedMessage: string;
     if (status === 400) {
-      return `Invalid request for ${context}`;
+      sanitizedMessage = `Invalid request for ${context}`;
     } else if (status === 401) {
-      return `Authentication failed for ${context}`;
+      sanitizedMessage = `Authentication failed for ${context}`;
     } else if (status === 403) {
-      return `Permission denied for ${context}`;
+      sanitizedMessage = `Permission denied for ${context}`;
     } else if (status === 404) {
-      return `Resource not found for ${context}`;
+      sanitizedMessage = `Resource not found for ${context}`;
     } else if (status >= 500) {
-      return `Service unavailable for ${context}`;
+      sanitizedMessage = `Service unavailable for ${context}`;
     } else {
-      return `Failed to complete ${context}`;
+      sanitizedMessage = `Failed to complete ${context}`;
     }
+
+    throw new KeycloakSanitizedError(sanitizedMessage, status);
   }
 
   /**
@@ -187,16 +205,18 @@ export class KeycloakService {
   async createRealm(tenantSlug: string, tenantName: string): Promise<void> {
     await this.ensureAuth();
 
-    await this.withRetry(async () => {
-      // Check if realm already exists to make the operation idempotent.
-      // This prevents "409 Conflict / invalid_request" errors when a realm
-      // was left over from a previous run (e.g. tests) or when createTenant
-      // is retried after a partial failure.
-      const existing = await this.getRealm(tenantSlug);
-      if (existing) {
-        return; // Realm already exists — nothing to do
-      }
+    // Check if realm already exists to make the operation idempotent.
+    // This prevents "409 Conflict / invalid_request" errors when a realm
+    // was left over from a previous run (e.g. tests) or when createTenant
+    // is retried after a partial failure.
+    // Note: getRealm already uses withRetry internally
+    const existing = await this.getRealm(tenantSlug);
+    if (existing) {
+      return; // Realm already exists — nothing to do
+    }
 
+    // Create the realm with retry on auth failure
+    await this.withRetry(async () => {
       const realmRepresentation: RealmRepresentation = {
         realm: tenantSlug,
         displayName: tenantName,
@@ -339,14 +359,7 @@ export class KeycloakService {
           const status = keycloakError.response?.status || 500;
           const errorData = JSON.stringify(keycloakError.response?.data || error);
 
-          const sanitizedMessage = this.sanitizeKeycloakError(
-            'client provisioning',
-            status,
-            errorData,
-            realmName
-          );
-
-          throw new Error(sanitizedMessage);
+          this.sanitizeKeycloakError('client provisioning', status, errorData, realmName);
         }
       })
     );
@@ -388,14 +401,7 @@ export class KeycloakService {
           const status = keycloakError.response?.status || 500;
           const errorData = JSON.stringify(keycloakError.response?.data || error);
 
-          const sanitizedMessage = this.sanitizeKeycloakError(
-            'role provisioning',
-            status,
-            errorData,
-            realmName
-          );
-
-          throw new Error(sanitizedMessage);
+          this.sanitizeKeycloakError('role provisioning', status, errorData, realmName);
         }
       })
     );
@@ -451,37 +457,27 @@ export class KeycloakService {
     this.validateRealmName(realmName);
     await this.ensureAuth();
 
-    await this.withRetry(async () => {
-      try {
-        // Verify realm exists first
-        const realm = await this.getRealm(realmName);
-        if (!realm) {
-          throw new Error(`Realm '${realmName}' not found`);
-        }
-
-        // Update the enabled flag
-        await this.client.realms.update({ realm: realmName }, { enabled });
-
-        logger.info(
-          { realmName, enabled },
-          `Realm ${enabled ? 'enabled' : 'disabled'} successfully`
-        );
-      } catch (error: unknown) {
-        const keycloakError = error as { response?: { status?: number; data?: unknown } };
-        const status = keycloakError.response?.status || 500;
-        const errorData = JSON.stringify(keycloakError.response?.data || error);
-
-        const sanitizedMessage = this.sanitizeKeycloakError(
-          'realm enable/disable',
-          status,
-          errorData,
-          realmName,
-          { enabled }
-        );
-
-        throw new Error(sanitizedMessage);
+    try {
+      // Verify realm exists first
+      // Note: getRealm already uses withRetry internally, so we don't wrap this method
+      const realm = await this.getRealm(realmName);
+      if (!realm) {
+        throw new Error(`Realm '${realmName}' not found`);
       }
-    });
+
+      // Update the enabled flag (with retry on auth failure)
+      await this.withRetry(async () => {
+        await this.client.realms.update({ realm: realmName }, { enabled });
+      });
+
+      logger.info({ realmName, enabled }, `Realm ${enabled ? 'enabled' : 'disabled'} successfully`);
+    } catch (error: unknown) {
+      const keycloakError = error as { response?: { status?: number; data?: unknown } };
+      const status = keycloakError.response?.status || 500;
+      const errorData = JSON.stringify(keycloakError.response?.data || error);
+
+      this.sanitizeKeycloakError('realm enable/disable', status, errorData, realmName, { enabled });
+    }
   }
 
   /**
@@ -652,21 +648,20 @@ export class KeycloakService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        const sanitizedMessage = this.sanitizeKeycloakError(
+        this.sanitizeKeycloakError(
           'authorization code exchange',
           response.status,
           errorText,
           realmName,
           { clientId }
         );
-        throw new Error(sanitizedMessage);
       }
 
       logger.info({ realmName, clientId }, 'Authorization code exchanged successfully');
 
       return (await response.json()) as KeycloakTokenResponse;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message.startsWith('Failed to')) {
+      if (error instanceof KeycloakSanitizedError) {
         throw error; // Already sanitized
       }
 
@@ -715,21 +710,16 @@ export class KeycloakService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        const sanitizedMessage = this.sanitizeKeycloakError(
-          'token refresh',
-          response.status,
-          errorText,
-          realmName,
-          { clientId }
-        );
-        throw new Error(sanitizedMessage);
+        this.sanitizeKeycloakError('token refresh', response.status, errorText, realmName, {
+          clientId,
+        });
       }
 
       logger.info({ realmName, clientId }, 'Token refreshed successfully');
 
       return (await response.json()) as KeycloakTokenResponse;
     } catch (error: unknown) {
-      if (error instanceof Error && error.message.startsWith('Failed to')) {
+      if (error instanceof KeycloakSanitizedError) {
         throw error; // Already sanitized
       }
 
@@ -778,19 +768,15 @@ export class KeycloakService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        const sanitizedMessage = this.sanitizeKeycloakError(
-          'token revocation',
-          response.status,
-          errorText,
-          realmName,
-          { clientId, tokenTypeHint }
-        );
-        throw new Error(sanitizedMessage);
+        this.sanitizeKeycloakError('token revocation', response.status, errorText, realmName, {
+          clientId,
+          tokenTypeHint,
+        });
       }
 
       logger.info({ realmName, clientId, tokenTypeHint }, 'Token revoked successfully');
     } catch (error: unknown) {
-      if (error instanceof Error && error.message.startsWith('Failed to')) {
+      if (error instanceof KeycloakSanitizedError) {
         throw error; // Already sanitized
       }
 
@@ -831,14 +817,12 @@ export class KeycloakService {
         const status = keycloakError.response?.status || 500;
         const errorData = JSON.stringify(keycloakError.response?.data || error);
 
-        const sanitizedMessage = this.sanitizeKeycloakError(
+        this.sanitizeKeycloakError(
           'refresh token rotation configuration',
           status,
           errorData,
           realmName
         );
-
-        throw new Error(sanitizedMessage);
       }
     });
   }
