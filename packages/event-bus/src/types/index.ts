@@ -178,3 +178,76 @@ export const TopicConfigSchema = z.object({
   retentionMs: z.number().int().positive().optional(),
   cleanupPolicy: z.enum(['delete', 'compact']).optional(),
 });
+
+/**
+ * User lifecycle event data types
+ * Used for Keycloak user synchronization to tenant-scoped users table
+ * Spec 002-Authentication Phase 5 (Event-Driven User Sync)
+ */
+
+/**
+ * Data structure for USER_CREATED events
+ * Published when a new user is created in Keycloak realm
+ */
+export interface UserCreatedData {
+  keycloakId: string; // Keycloak user ID (sub claim)
+  realmName: string; // Tenant slug (realm name)
+  email: string; // User email (required)
+  firstName?: string; // Optional first name
+  lastName?: string; // Optional last name
+}
+
+/**
+ * Data structure for USER_UPDATED events
+ * Published when user attributes are modified in Keycloak realm
+ * Only changed fields are included (all fields optional except keycloakId and realmName)
+ */
+export interface UserUpdatedData {
+  keycloakId: string; // Keycloak user ID (sub claim)
+  realmName: string; // Tenant slug (realm name)
+  email?: string; // Updated email (if changed)
+  firstName?: string; // Updated first name (if changed)
+  lastName?: string; // Updated last name (if changed)
+}
+
+/**
+ * Data structure for USER_DELETED events
+ * Published when a user is deleted/deactivated in Keycloak realm
+ */
+export interface UserDeletedData {
+  keycloakId: string; // Keycloak user ID (sub claim)
+  realmName: string; // Tenant slug (realm name)
+}
+
+/**
+ * User lifecycle event envelope
+ * Discriminated union for type-safe event handling
+ */
+export type UserLifecycleEvent =
+  | { type: 'USER_CREATED'; data: UserCreatedData }
+  | { type: 'USER_UPDATED'; data: UserUpdatedData }
+  | { type: 'USER_DELETED'; data: UserDeletedData };
+
+/**
+ * Zod schemas for user lifecycle event validation
+ */
+export const UserCreatedDataSchema = z.object({
+  keycloakId: z.string().uuid(),
+  realmName: z.string().min(1).max(50),
+  email: z.string().email(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+});
+
+export const UserUpdatedDataSchema = z.object({
+  keycloakId: z.string().uuid(),
+  realmName: z.string().min(1).max(50),
+  email: z.string().email().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+});
+
+export const UserDeletedDataSchema = z.object({
+  keycloakId: z.string().uuid(),
+  realmName: z.string().min(1).max(50),
+});
