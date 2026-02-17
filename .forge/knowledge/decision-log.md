@@ -30,6 +30,69 @@
 
 ## Recent Decisions (February 2026)
 
+### Integration Test Error Handling Fix - Fastify Serialization Issue Resolved (February 17, 2026)
+
+**Date**: February 17, 2026  
+**Context**: Integration tests were failing with `FST_ERR_FAILED_ERROR_SERIALIZATION` errors when trying to return proper HTTP error codes (400/404/409)
+
+**Problem**: When throwing custom `WorkspaceError` objects with `statusCode` properties inside async route handlers, Fastify attempted to serialize the error object as a response, causing schema validation failures before the custom error handler could process them.
+
+**Root Cause Discovery**:
+
+1. Throwing errors with `statusCode` property made Fastify treat them as response objects
+2. Fastify's response serializer validated against response schemas before error handler execution
+3. Custom error classes didn't match the expected `{ error: { code, message } }` schema structure
+4. Result: `FST_ERR_FAILED_ERROR_SERIALIZATION` with message `"code" is required!`
+
+**Solution Implemented** (Commit `pending`):
+
+1. **Created `handleServiceError()` function** (workspace.ts lines 199-228):
+   - Maps service errors using existing `mapServiceError()` logic
+   - Sends Constitution-compliant error responses DIRECTLY via `reply.send()`
+   - Avoids throwing errors, preventing Fastify serialization issues
+   - Re-throws unmapped errors for global 500 handling
+
+2. **Added `attachValidation: true` to route schemas**:
+   - POST /api/workspaces (line 272)
+   - PATCH /api/workspaces/:id (line 524)
+   - Prevents Fastify from throwing validation errors immediately
+   - Attaches validation errors to `request.validationError` for manual handling
+
+3. **Updated route handlers to check `request.validationError`**:
+   - Returns 400 error responses directly when validation fails
+   - Ensures Constitution Art. 6.2 compliance: `{ error: { code, message, details } }`
+
+4. **Replaced all `throwMappedError()` calls with `handleServiceError()`**:
+   - 14 occurrences updated across workspace routes
+   - Old function deprecated but kept for reference
+
+5. **Fixed PATCH endpoint bug**:
+   - Line 570: Changed `workspaceService.create()` → `workspaceService.update()`
+   - Handler was calling wrong service method
+
+6. **Fixed `workspaceGuard` middleware error format**:
+   - Updated all error responses to Constitution-compliant nested format
+   - Fixed 401, 400, 403, 404, and 500 error responses
+   - Changed `{ error: 'Not Found', message: '...' }` → `{ error: { code: 'WORKSPACE_NOT_FOUND', message: '...' } }`
+
+**Test Results**:
+
+- **Before**: 1/32 passing (3%)
+- **After route fixes**: 23/32 passing (72%)
+- **After guard fixes**: ✅ **32/32 passing (100%)**
+
+**Files Modified**:
+
+- `apps/core-api/src/routes/workspace.ts` - Error handling overhaul
+- `apps/core-api/src/modules/workspace/guards/workspace.guard.ts` - Constitution-compliant error format
+- `apps/core-api/src/__tests__/workspace/integration/workspace-crud.integration.test.ts` - Test assertions updated for new error format
+
+**Constitution Compliance**: Article 6.2 (Error Response Format) - All error responses now properly structured
+
+**Status**: ✅ **COMPLETE** - All 32 workspace-crud integration tests passing
+
+---
+
 ### Unit Test Stabilization COMPLETE - 100% Pass Rate Achieved (February 17, 2026)
 
 **Date**: February 17, 2026  

@@ -16,8 +16,10 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
     const tenantContext = (request as any).tenant;
     if (!tenantContext) {
       return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'Tenant context not found',
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Tenant context not found',
+        },
       });
     }
 
@@ -25,8 +27,10 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
     const userId = (request as any).user?.id;
     if (!userId) {
       return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'User not authenticated',
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'User not authenticated',
+        },
       });
     }
 
@@ -39,9 +43,11 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
 
     if (!workspaceId) {
       return reply.code(400).send({
-        error: 'Bad Request',
-        message:
-          'Workspace ID required (provide via X-Workspace-ID header, path param, query, or body)',
+        error: {
+          code: 'BAD_REQUEST',
+          message:
+            'Workspace ID required (provide via X-Workspace-ID header, path param, query, or body)',
+        },
       });
     }
 
@@ -54,15 +60,19 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
 
     if (!exists) {
       return reply.code(404).send({
-        error: 'Not Found',
-        message: 'Workspace not found or does not belong to this tenant',
+        error: {
+          code: 'WORKSPACE_NOT_FOUND',
+          message: 'Workspace not found or does not belong to this tenant',
+        },
       });
     }
 
     if (!membership) {
       return reply.code(403).send({
-        error: 'Forbidden',
-        message: 'You are not a member of this workspace',
+        error: {
+          code: 'WORKSPACE_ACCESS_DENIED',
+          message: 'You are not a member of this workspace',
+        },
       });
     }
 
@@ -75,8 +85,10 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
   } catch (error) {
     request.log.error(error, 'Error in workspace guard');
     return reply.code(500).send({
-      error: 'Internal Server Error',
-      message: 'Failed to validate workspace access',
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to validate workspace access',
+      },
     });
   }
 }

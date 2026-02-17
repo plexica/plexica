@@ -14,7 +14,7 @@
 //   using Redis sliding-window counters (rateLimiter factory).
 //   This is in addition to the global LRU-based rate limiter.
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { workspaceService } from '../modules/workspace/workspace.service.js';
 import { WorkspaceResourceService } from '../modules/workspace/workspace-resource.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
@@ -184,6 +184,37 @@ const memberParamsSchema = {
 };
 
 /**
+ * Handle a service error by mapping it to a WorkspaceError and sending
+ * the appropriate error response. If the error cannot be mapped, re-throw
+ * it so Fastify's global error handler processes it as a 500.
+ *
+ * This approach avoids the FST_ERR_FAILED_ERROR_SERIALIZATION error that
+ * occurs when throwing custom error classes with statusCode properties in
+ * async route handlers.
+ *
+ * @param error - The error caught from the service layer
+ * @param reply - The Fastify reply object
+ * @returns Never returns normally (either sends response or throws)
+ */
+function handleServiceError(error: unknown, reply: FastifyReply): never {
+  const mapped = mapServiceError(error);
+  if (mapped) {
+    // Send error response directly to avoid Fastify serialization issues
+    reply.status(mapped.statusCode).send({
+      error: {
+        code: mapped.code,
+        message: mapped.message,
+        ...(mapped.details ? { details: mapped.details } : {}),
+      },
+    });
+    // TypeScript needs this to understand control flow
+    throw new Error('Response sent');
+  }
+  // If not mapped, re-throw so Fastify's error handler processes it as 500
+  throw error;
+}
+
+/**
  * Re-throw a service error as a WorkspaceError.
  *
  * If the error matches a known workspace error pattern, throw the
@@ -191,7 +222,15 @@ const memberParamsSchema = {
  * the global error handler treats it as a 500.
  */
 function throwMappedError(error: unknown): never {
+  console.log('[throwMappedError] Input error:', {
+    isError: error instanceof Error,
+    message: error instanceof Error ? error.message : String(error),
+    constructor: error?.constructor?.name,
+  });
   const mapped = mapServiceError(error);
+  console.log('[throwMappedError] Mapped result:', {
+    mapped: mapped ? { code: mapped.code, statusCode: mapped.statusCode } : null,
+  });
   if (mapped) throw mapped;
   throw error;
 }
@@ -230,6 +269,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   }>(
     '/workspaces',
     {
+      attachValidation: true, // Don't throw on validation failure, attach to request.validationError
       schema: {
         ...createWorkspaceRequestSchema,
         tags: ['workspaces'],
@@ -268,19 +308,38 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
     async (request, reply) => {
+      // Check for Fastify schema validation errors
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: {
+              validation: request.validationError.validation,
+            },
+          },
+        });
+      }
+
       const userId = request.user?.id;
       if (!userId) {
-        throw new WorkspaceError(
-          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
-          'User not authenticated'
-        );
+        return reply.status(403).send({
+          error: {
+            code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+            message: 'User not authenticated',
+          },
+        });
       }
 
       const body = request.body;
       const errors = validateCreateWorkspace(body);
       if (errors.length > 0) {
-        throw new WorkspaceError(WorkspaceErrorCode.VALIDATION_ERROR, 'Invalid request data', {
-          fields: errors,
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid request data',
+            details: { fields: errors },
+          },
         });
       }
 
@@ -288,7 +347,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const workspace = await workspaceService.create(body, userId, request.tenant);
         return reply.code(201).send(workspace);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -385,7 +444,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const workspaces = await workspaceService.findAll(userId, options, request.tenant);
         return reply.send(workspaces);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -447,7 +506,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
         return reply.send({ ...workspace, userRole });
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -462,6 +521,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   }>(
     '/workspaces/:workspaceId',
     {
+      attachValidation: true, // Don't throw on validation failure
       schema: {
         ...updateWorkspaceRequestSchema,
         tags: ['workspaces'],
@@ -496,13 +556,30 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       ],
     },
     async (request, reply) => {
+      // Check for Fastify schema validation errors
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: {
+              validation: request.validationError.validation,
+            },
+          },
+        });
+      }
+
       const { workspaceId } = request.params;
       const body = request.body;
 
       const errors = validateUpdateWorkspace(body);
       if (errors.length > 0) {
-        throw new WorkspaceError(WorkspaceErrorCode.VALIDATION_ERROR, 'Invalid request data', {
-          fields: errors,
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid request data',
+            details: { fields: errors },
+          },
         });
       }
 
@@ -510,7 +587,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const workspace = await workspaceService.update(workspaceId, body, request.tenant);
         return reply.send(workspace);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -553,7 +630,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         await workspaceService.delete(workspaceId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -615,7 +692,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const members = await workspaceService.getMembers(workspaceId, options, request.tenant);
         return reply.send(members);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -672,7 +749,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.send(member);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -754,7 +831,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.code(201).send(member);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -808,7 +885,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.send(member);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -852,7 +929,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         await workspaceService.removeMember(workspaceId, userId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -882,7 +959,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const teams = await workspaceService.getTeams(workspaceId, request.tenant);
         return reply.send(teams);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -970,7 +1047,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
         return reply.code(201).send(team);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -1073,7 +1150,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.code(201).send(resource);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -1167,7 +1244,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const result = await resourceService.listResources(workspaceId, query, request.tenant);
         return reply.send(result);
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );
@@ -1225,7 +1302,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         await resourceService.unshareResource(workspaceId, resourceId, userId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
-        throwMappedError(error);
+        handleServiceError(error, reply);
       }
     }
   );

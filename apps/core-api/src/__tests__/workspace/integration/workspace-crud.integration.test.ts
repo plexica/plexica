@@ -29,67 +29,125 @@ describe('Workspace CRUD Integration', () => {
   const createdWorkspaceIds: string[] = [];
 
   beforeAll(async () => {
-    // Reset all state
-    await testContext.resetAll();
+    try {
+      console.log('Step 1: Starting beforeAll hook...');
 
-    // Build test app
-    app = await buildTestApp();
-    await app.ready();
+      // Reset all state
+      console.log('Step 2: Resetting test context...');
+      await testContext.resetAll();
+      console.log('Step 2: Test context reset complete');
 
-    // Get super admin token to create tenant
-    // Use mock tokens for integration tests (faster and more reliable)
-    superAdminToken = testContext.auth.createMockSuperAdminToken();
+      // Build test app
+      console.log('Step 3: Building test app...');
+      app = await buildTestApp();
+      console.log('Step 3: Test app built, checking if valid:', !!app);
 
-    // Generate unique tenant slug for test isolation
-    testTenantSlug = `acme-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-    schemaName = `tenant_${testTenantSlug.replace(/-/g, '_')}`;
+      console.log('Step 4: Waiting for app.ready()...');
+      await app.ready();
+      console.log('Step 4: App ready');
 
-    // Create test tenant
-    const tenantResponse = await app.inject({
-      method: 'POST',
-      url: '/api/admin/tenants',
-      headers: {
-        authorization: `Bearer ${superAdminToken}`,
-        'content-type': 'application/json',
-      },
-      payload: {
-        slug: testTenantSlug,
-        name: 'ACME Corporation',
-        adminEmail: `admin@${testTenantSlug}.test`,
-        adminPassword: 'test123',
-      },
-    });
+      // Get super admin token to create tenant
+      // Use mock tokens for integration tests (faster and more reliable)
+      console.log('Step 5: Creating super admin token...');
+      superAdminToken = testContext.auth.createMockSuperAdminToken();
+      console.log('Step 5: Super admin token created');
 
-    if (tenantResponse.statusCode !== 201) {
-      throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
+      // Generate unique tenant slug for test isolation
+      testTenantSlug = `acme-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      schemaName = `tenant_${testTenantSlug.replace(/-/g, '_')}`;
+      console.log('Step 6: Generated tenant slug:', testTenantSlug);
+
+      // Create test tenant
+      console.log('Step 7: Creating tenant via POST /api/admin/tenants...');
+      const tenantResponse = await app.inject({
+        method: 'POST',
+        url: '/api/admin/tenants',
+        headers: {
+          authorization: `Bearer ${superAdminToken}`,
+          'content-type': 'application/json',
+        },
+        payload: {
+          slug: testTenantSlug,
+          name: 'ACME Corporation',
+          adminEmail: `admin@${testTenantSlug}.test`,
+          adminPassword: 'test123',
+        },
+      });
+      console.log('Step 7: Tenant response status:', tenantResponse.statusCode);
+
+      if (tenantResponse.statusCode !== 201) {
+        console.error('❌ Failed to create tenant. Response body:', tenantResponse.body);
+        throw new Error(`Failed to create test tenant: ${tenantResponse.body}`);
+      }
+
+      // Get tenant ID from response
+      const tenant = tenantResponse.json();
+      const tenantId = tenant.id;
+      console.log('Step 8: Tenant created with ID:', tenantId);
+
+      // Use mock tokens for integration tests (more reliable than real Keycloak tokens)
+      // IMPORTANT: Mock tokens need tenantSlug (not tenantId) to match auth middleware expectations
+      // Use valid UUIDs since the API validates userId format
+      console.log('Step 9: Creating mock tokens...');
+      adminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug, {
+        sub: 'c3c3c3c3-3333-4333-c333-333333333333',
+        email: `admin@${testTenantSlug}.test`,
+        given_name: 'Test',
+        family_name: 'Admin',
+      });
+
+      memberToken = testContext.auth.createMockTenantMemberToken(testTenantSlug, {
+        sub: 'd4d4d4d4-4444-4444-d444-444444444444',
+        email: `member@${testTenantSlug}.test`,
+        given_name: 'Test',
+        family_name: 'Member',
+      });
+      console.log('Step 9: Mock tokens created');
+
+      // Decode tokens to get user IDs and verify tenantSlug
+      console.log('Step 10: Decoding tokens to get user IDs...');
+      const adminDecoded = testContext.auth.decodeToken(adminToken);
+      const memberDecoded = testContext.auth.decodeToken(memberToken);
+
+      console.log('Admin token payload:', JSON.stringify(adminDecoded, null, 2));
+      console.log('Admin token tenantSlug:', adminDecoded.tenantSlug);
+      console.log('Expected tenantSlug:', testTenantSlug);
+
+      adminUserId = adminDecoded.sub;
+      memberUserId = memberDecoded.sub;
+      console.log('Step 10: User IDs extracted - Admin:', adminUserId, 'Member:', memberUserId);
+
+      // Step 11: Create test users in the tenant schema
+      // The workspace service expects users to exist when creating workspace members
+      console.log('Step 11: Creating test users in database...');
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        adminUserId,
+        adminUserId,
+        `admin@${testTenantSlug}.test`,
+        'Test',
+        'Admin'
+      );
+
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        memberUserId,
+        memberUserId,
+        `member@${testTenantSlug}.test`,
+        'Test',
+        'Member'
+      );
+      console.log('Step 11: Test users created');
+
+      console.log('✅ beforeAll hook complete!');
+    } catch (error) {
+      console.error('❌ beforeAll FAILED with error:', error);
+      throw error;
     }
-
-    // Get tenant ID from response
-    const tenant = tenantResponse.json();
-    const tenantId = tenant.id;
-
-    // Use mock tokens for integration tests (more reliable than real Keycloak tokens)
-    // Use valid UUIDs since the API validates userId format
-    adminToken = testContext.auth.createMockTenantAdminToken(tenantId, {
-      sub: 'c3c3c3c3-3333-4333-c333-333333333333',
-      email: `admin@${testTenantSlug}.test`,
-      given_name: 'Test',
-      family_name: 'Admin',
-    });
-
-    memberToken = testContext.auth.createMockTenantMemberToken(tenantId, {
-      sub: 'd4d4d4d4-4444-4444-d444-444444444444',
-      email: `member@${testTenantSlug}.test`,
-      given_name: 'Test',
-      family_name: 'Member',
-    });
-
-    // Decode tokens to get user IDs
-    const adminDecoded = testContext.auth.decodeToken(adminToken);
-    const memberDecoded = testContext.auth.decodeToken(memberToken);
-
-    adminUserId = adminDecoded.sub;
-    memberUserId = memberDecoded.sub;
   });
 
   afterAll(async () => {
@@ -125,6 +183,11 @@ describe('Workspace CRUD Integration', () => {
           settings: { theme: 'dark' },
         },
       });
+
+      if (response.statusCode !== 201) {
+        console.log('❌ Test failed! Response status:', response.statusCode);
+        console.log('Response body:', response.body);
+      }
 
       expect(response.statusCode).toBe(201);
       const workspace = response.json();
@@ -199,7 +262,7 @@ describe('Workspace CRUD Integration', () => {
 
       expect(response2.statusCode).toBe(409);
       const body = response2.json();
-      expect(body.message || body.error).toMatch(/already exists|duplicate/i);
+      expect(body.error.message).toMatch(/already exists|duplicate/i);
     });
 
     it('should set default settings if not provided', async () => {
@@ -744,7 +807,7 @@ describe('Workspace CRUD Integration', () => {
 
       expect(deleteResponse.statusCode).toBe(400);
       const body = deleteResponse.json();
-      expect(body.message || body.error).toMatch(/teams|cannot delete/i);
+      expect(body.error.message).toMatch(/teams|cannot delete/i);
     });
 
     it('should cascade delete members', async () => {
