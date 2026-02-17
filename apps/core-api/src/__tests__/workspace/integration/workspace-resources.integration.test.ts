@@ -15,10 +15,12 @@ import Fastify, { FastifyInstance } from 'fastify';
 import { workspaceRoutes } from '../../../routes/workspace.js';
 import { db } from '../../../lib/db.js';
 import { v4 as uuidv4 } from 'uuid';
+import { testAuth } from '../../../../../../test-infrastructure/helpers/test-auth.helper.js';
 
 describe('Workspace Resource Sharing Integration Tests', () => {
   let app: FastifyInstance;
   let testTenantId: string;
+  let testTenantSlug: string;
   let testSchemaName: string;
   let testWorkspaceId: string;
   let testPluginId: string;
@@ -33,10 +35,35 @@ describe('Workspace Resource Sharing Integration Tests', () => {
 
     // Generate test IDs
     testTenantId = uuidv4();
-    testSchemaName = `tenant_${testTenantId.replace(/-/g, '_')}`;
+    testTenantSlug = `test-tenant-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    testSchemaName = `tenant_${testTenantSlug.replace(/-/g, '_')}`;
     testWorkspaceId = uuidv4();
     testPluginId = uuidv4();
-    authToken = 'Bearer test-token';
+
+    // Create tenant record in core schema (required for authMiddleware validation)
+    await db.$executeRawUnsafe(`
+      INSERT INTO core.tenants (id, slug, name, status, created_at, updated_at)
+      VALUES (
+        '${testTenantId}',
+        '${testTenantSlug}',
+        'Test Tenant',
+        'ACTIVE',
+        NOW(),
+        NOW()
+      )
+    `);
+
+    // Generate valid JWT token with tenant context
+    const token = testAuth.createMockToken({
+      sub: 'test-user-id',
+      email: 'test@example.com',
+      preferred_username: 'testuser',
+      tenant_id: testTenantSlug,
+      realm_access: {
+        roles: ['workspace-admin'],
+      },
+    });
+    authToken = `Bearer ${token}`;
 
     // Create test schema (multi-tenant isolation)
     await db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${testSchemaName}"`);
@@ -84,6 +111,10 @@ describe('Workspace Resource Sharing Integration Tests', () => {
   afterEach(async () => {
     // Clean up: drop test schema
     await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${testSchemaName}" CASCADE`);
+
+    // Clean up: delete test tenant from core schema
+    await db.$executeRawUnsafe(`DELETE FROM core.tenants WHERE id = '${testTenantId}'`);
+
     await app.close();
   });
 

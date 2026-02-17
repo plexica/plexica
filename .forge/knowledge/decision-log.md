@@ -30,6 +30,35 @@
 
 ## Recent Decisions (February 2026)
 
+### workspace-resources.integration.test.ts Architecture Mismatch - NEEDS REWRITE (February 17, 2026)
+
+**Date**: February 17, 2026  
+**Context**: Investigating 35 integration test failures (JWT 401 errors)
+
+**Finding**: `workspace-resources.integration.test.ts` has fundamental architecture mismatch
+
+**Problems**:
+
+1. Creates standalone Fastify app instead of using `buildTestApp()` helper
+2. Manually creates schemas/tables with raw SQL instead of using Prisma
+3. Bypasses tenant/workspace services that routes expect
+4. Routes use Prisma-based services which expect different table structures
+
+**Correct Pattern** (from `workspace-crud.integration.test.ts` and `workspace-members.integration.test.ts`):
+
+- Use `buildTestApp()` to get fully configured app
+- Use `testContext.auth.createMockToken()` for JWT generation
+- Create tenants via `/api/admin/tenants` endpoint (proper provisioning)
+- Let services handle database operations
+
+**Decision**: Mark this test file for complete rewrite in future sprint
+
+**Workaround**: Other 2 workspace integration test files (`workspace-crud`, `workspace-members`) already follow correct pattern and test similar functionality
+
+**Status**: DEFERRED - Focus on unit test failures first (easier wins)
+
+---
+
 ### Cross-Tenant Isolation Investigation - FALSE ALARM ✅ (February 17, 2026)
 
 **Date**: February 17, 2026  
