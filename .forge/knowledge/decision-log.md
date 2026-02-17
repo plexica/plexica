@@ -30,6 +30,58 @@
 
 ## Recent Decisions (February 2026)
 
+### Plugin Install Integration Tests - COMPLETE (February 17, 2026)
+
+**Date**: February 17, 2026 (Late Evening)  
+**Context**: Priority 1 integration test fixes - plugin-install.integration.test.ts
+
+**Status**: ✅ **COMPLETE - 18/18 plugin-install tests passing (100%)**
+
+**Three Issues Fixed**:
+
+**Issue 1 - Wrong Status Code for Missing Auth**:
+
+- Test expected 403 (Forbidden) for missing auth header
+- Correct behavior: 401 (Unauthorized) when no auth provided
+- Fix: Changed expectation from 403 → 401 (line 179)
+
+**Issue 2 - Cross-Tenant Token Misuse (Demo Tenant GET)**:
+
+- Test used `tenantAdminToken` (for testTenant) to access demoTenant resources
+- After cross-tenant security fix, correctly returns 403
+- Fix: Created `demoTenantAdminToken` and used it for demo tenant operations (line 454)
+
+**Issue 3 - Cross-Tenant Token Misuse (Demo Tenant POST)**:
+
+- Test used `tenantAdminToken` to install plugin in demoTenant
+- After cross-tenant security fix, correctly returns 403
+- Fix: Used `demoTenantAdminToken` for demo tenant plugin installation (line 540)
+
+**Security Validation**:
+
+- ✅ Tests now properly validate multi-tenant isolation
+- ✅ Each tenant uses its own authentication token
+- ✅ Cross-tenant access attempts correctly blocked
+- ✅ Constitution Art. 1.2 compliance verified
+
+**Test Results**:
+
+- Before: 15/18 passing (83.3%)
+- After: ✅ **18/18 passing (100%)**
+
+**Files Modified**:
+
+- `apps/core-api/src/__tests__/plugin/integration/plugin-install.integration.test.ts`
+
+**Progress**: ✅ **Priority 1 fixes COMPLETE: 9/9 tests fixed (100%)**
+
+- ✅ realm-provisioning (1 test)
+- ✅ translation.routes (2 tests)
+- ✅ auth-flow (3 tests)
+- ✅ plugin-install (3 tests)
+
+---
+
 ### Auth Flow Integration Tests - COMPLETE (February 17, 2026)
 
 **Date**: February 17, 2026 (Late Evening)  

@@ -15,6 +15,7 @@ describe('Plugin Installation Integration Tests', () => {
   let app: FastifyInstance;
   let superAdminToken: string;
   let tenantAdminToken: string;
+  let demoTenantAdminToken: string; // Added for demo tenant operations
   let testPluginId: string;
   let testTenantId: string;
   let demoTenantId: string;
@@ -83,8 +84,9 @@ describe('Plugin Installation Integration Tests', () => {
     const demoData = demoResponse.json();
     demoTenantId = demoData.id;
 
-    // Get tenant admin token
+    // Get tenant admin tokens
     tenantAdminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug);
+    demoTenantAdminToken = testContext.auth.createMockTenantAdminToken(demoTenantSlug);
 
     testPluginId = `plugin-test-${Date.now()}`;
   });
@@ -175,7 +177,7 @@ describe('Plugin Installation Integration Tests', () => {
         },
       });
 
-      expect(response.statusCode).toBe(403); // 403 when no auth header is provided
+      expect(response.statusCode).toBe(401); // 401 Unauthorized when no auth header provided
     });
 
     it('should reject installation of non-existent plugin', async () => {
@@ -450,7 +452,7 @@ describe('Plugin Installation Integration Tests', () => {
         method: 'GET',
         url: `/api/tenants/${demoTenantId}/plugins`,
         headers: {
-          authorization: `Bearer ${tenantAdminToken}`,
+          authorization: `Bearer ${demoTenantAdminToken}`, // Use correct token for demo tenant
         },
       });
 
@@ -535,7 +537,7 @@ describe('Plugin Installation Integration Tests', () => {
         method: 'POST',
         url: `/api/tenants/${demoTenantId}/plugins/${testPluginId}/install`,
         headers: {
-          authorization: `Bearer ${tenantAdminToken}`,
+          authorization: `Bearer ${demoTenantAdminToken}`, // Use correct token for demo tenant
         },
         payload: {
           configuration: {
