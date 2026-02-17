@@ -18,7 +18,6 @@ import {
   setUserId,
   executeInTenantSchema,
   tenantContextMiddleware,
-  clearUserSyncCache,
   type TenantContext,
 } from '../../../middleware/tenant-context.js';
 import { tenantService } from '../../../services/tenant.service.js';
@@ -90,7 +89,7 @@ function makeMockRequestReply(overrides: { url?: string; headers?: Record<string
 describe('Tenant Isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    clearUserSyncCache();
+    // NOTE: User sync cache removed in Spec 002 Phase 5 (async sync via UserSyncConsumer)
   });
 
   // ─────────────────────────────────────────────────────────
@@ -651,18 +650,6 @@ describe('Tenant Isolation', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────
-  // 7. clearUserSyncCache
-  // ─────────────────────────────────────────────────────────
-  describe('clearUserSyncCache', () => {
-    it('should not throw when called (smoke test)', () => {
-      expect(() => clearUserSyncCache()).not.toThrow();
-    });
-
-    it('should be callable multiple times without error', () => {
-      clearUserSyncCache();
-      clearUserSyncCache();
-      // No assertion needed beyond no-throw
-    });
-  });
+  // NOTE: clearUserSyncCache test removed in Spec 002 Phase 5
+  // (user sync now handled asynchronously via UserSyncConsumer)
 });
