@@ -40,6 +40,170 @@ Host App (apps/web)              Core API (:4000)
 
 ---
 
+## Using Core Services
+
+**⚠️ Status**: Core Services are **not yet implemented** (0% complete). This section describes the planned API usage patterns for when these services become available.
+
+Plexica provides four shared services that plugins can use instead of implementing their own infrastructure:
+
+| Service                  | Purpose                                  | Status             | API Docs                                                           |
+| ------------------------ | ---------------------------------------- | ------------------ | ------------------------------------------------------------------ |
+| **Storage Service**      | File upload/download/signed URLs (MinIO) | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md#storage-service)      |
+| **Notification Service** | Email, push, in-app notifications        | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md#notification-service) |
+| **Job Queue Service**    | Async jobs, cron scheduling, retry logic | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md#job-queue-service)    |
+| **Search Service**       | Full-text search, facets, autocomplete   | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md#search-service)       |
+
+### Example: Storage Service (Planned)
+
+When the Storage Service is implemented, plugins will be able to use it like this:
+
+```typescript
+// In your plugin backend
+import { StorageServiceClient } from '@plexica/sdk';
+
+const storageService = new StorageServiceClient({
+  tenantId: req.tenantId,
+  apiUrl: process.env.CORE_API_URL,
+});
+
+// Upload a file
+const fileInfo = await storageService.upload({
+  file: buffer,
+  path: 'contacts/avatars/john-doe.jpg',
+  contentType: 'image/jpeg',
+  metadata: {
+    uploadedBy: req.userId,
+    contactId: 'contact-123',
+  },
+});
+
+// Generate signed URL for temporary access
+const signedUrl = await storageService.getSignedUrl({
+  path: 'contacts/avatars/john-doe.jpg',
+  expiresIn: 3600, // 1 hour
+});
+
+// List files in a directory
+const files = await storageService.list({
+  prefix: 'contacts/avatars/',
+  limit: 100,
+});
+```
+
+### Example: Notification Service (Planned)
+
+```typescript
+import { NotificationServiceClient } from '@plexica/sdk';
+
+const notificationService = new NotificationServiceClient({
+  tenantId: req.tenantId,
+  apiUrl: process.env.CORE_API_URL,
+});
+
+// Send email notification
+await notificationService.sendEmail({
+  to: 'user@example.com',
+  templateId: 'crm-contact-created',
+  data: {
+    contactName: 'John Doe',
+    createdBy: req.user.name,
+  },
+});
+
+// Send in-app notification
+await notificationService.sendInApp({
+  userId: 'user-456',
+  title: 'New contact added',
+  message: 'John Doe was added to your CRM',
+  category: 'crm',
+  actionUrl: '/crm/contacts/123',
+});
+```
+
+### Example: Job Queue Service (Planned)
+
+```typescript
+import { JobQueueServiceClient } from '@plexica/sdk';
+
+const jobQueueService = new JobQueueServiceClient({
+  tenantId: req.tenantId,
+  apiUrl: process.env.CORE_API_URL,
+});
+
+// Enqueue an async job
+const jobId = await jobQueueService.enqueue({
+  type: 'crm.export-contacts',
+  payload: {
+    format: 'csv',
+    filters: { status: 'active' },
+  },
+  options: {
+    priority: 'high',
+    retries: 3,
+    timeout: 300000, // 5 minutes
+  },
+});
+
+// Schedule a cron job
+await jobQueueService.schedule({
+  type: 'crm.cleanup-old-contacts',
+  cronExpression: '0 2 * * *', // Daily at 2 AM
+  payload: { olderThan: 365 },
+});
+```
+
+### Example: Search Service (Planned)
+
+```typescript
+import { SearchServiceClient } from '@plexica/sdk';
+
+const searchService = new SearchServiceClient({
+  tenantId: req.tenantId,
+  apiUrl: process.env.CORE_API_URL,
+});
+
+// Index a document
+await searchService.index({
+  index: 'crm-contacts',
+  documentId: 'contact-123',
+  document: {
+    name: 'John Doe',
+    email: 'john@example.com',
+    company: 'Acme Corp',
+    tags: ['customer', 'vip'],
+  },
+});
+
+// Search with filters
+const results = await searchService.search({
+  index: 'crm-contacts',
+  query: 'john',
+  filters: {
+    tags: ['customer'],
+  },
+  facets: ['company', 'tags'],
+  page: 1,
+  pageSize: 20,
+});
+
+// Autocomplete
+const suggestions = await searchService.autocomplete({
+  index: 'crm-contacts',
+  field: 'name',
+  query: 'joh',
+  limit: 10,
+});
+```
+
+**For complete API specifications**, see [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md).
+
+**Implementation Timeline**:
+
+- Q2 2026: Storage Service and Notification Service
+- Q3 2026: Job Queue Service and Search Service
+
+---
+
 ## Advanced Topics
 
 | Guide                                                                | Description                                                                      |
