@@ -159,12 +159,12 @@ describe('WorkspaceResourceService', () => {
 
         const result = await service.shareResource(WORKSPACE_ID, dto, USER_ID, tenantCtx);
 
-        // Verify result
+        // Verify result (service returns snake_case from database)
         expect(result.id).toBe(RESOURCE_LINK_ID);
-        expect(result.workspaceId).toBe(WORKSPACE_ID);
-        expect(result.resourceType).toBe('plugin');
-        expect(result.resourceId).toBe(RESOURCE_ID);
-        expect(result.createdAt).toBeInstanceOf(Date);
+        expect(result.workspace_id).toBe(WORKSPACE_ID);
+        expect(result.resource_type).toBe('plugin');
+        expect(result.resource_id).toBe(RESOURCE_ID);
+        expect(result.created_at).toBeInstanceOf(Date);
 
         // Verify event published
         expect(mockEventBus.publish).toHaveBeenCalledWith(
@@ -493,10 +493,10 @@ describe('WorkspaceResourceService', () => {
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toEqual({
         id: 'link-1',
-        workspaceId: WORKSPACE_ID,
-        resourceType: 'plugin',
-        resourceId: 'plugin-1',
-        createdAt: expect.any(Date),
+        workspace_id: WORKSPACE_ID,
+        resource_type: 'plugin',
+        resource_id: 'plugin-1',
+        created_at: expect.any(Date),
       });
       expect(result.pagination).toEqual({
         limit: 50,
@@ -545,7 +545,7 @@ describe('WorkspaceResourceService', () => {
       const result = await service.listResources(WORKSPACE_ID, dto, tenantCtx);
 
       expect(result.data).toHaveLength(1);
-      expect(result.data[0].resourceType).toBe('plugin');
+      expect(result.data[0].resource_type).toBe('plugin');
       expect(result.pagination.total).toBe(1);
     });
 
@@ -652,10 +652,10 @@ describe('WorkspaceResourceService', () => {
 
       expect(result).toEqual({
         id: RESOURCE_LINK_ID,
-        workspaceId: WORKSPACE_ID,
-        resourceType: 'plugin',
-        resourceId: RESOURCE_ID,
-        createdAt: expect.any(Date),
+        workspace_id: WORKSPACE_ID,
+        resource_type: 'plugin',
+        resource_id: RESOURCE_ID,
+        created_at: expect.any(Date),
       });
     });
 
