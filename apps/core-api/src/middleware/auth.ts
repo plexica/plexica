@@ -23,6 +23,11 @@ declare module 'fastify' {
  * Verifies JWT token and extracts user information
  *
  * Routes that require authentication should use this middleware
+ *
+ * Constitution Compliance:
+ * - Article 5.1: RBAC enforcement with tenant validation
+ * - Article 5.1: Tenant context validation on every request
+ * - Article 6.2: Constitution-compliant error format
  */
 export async function authMiddleware(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -31,13 +36,91 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
 
     if (!token) {
       return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'Missing or invalid Authorization header',
+        error: {
+          code: 'AUTH_TOKEN_MISSING',
+          message: 'Missing or invalid Authorization header',
+        },
       });
     }
 
     // Verify token and extract tenant
     const payload = await verifyTokenWithTenant(token);
+
+    // Validate tenant exists and is not suspended (FR-012, Edge Case #9)
+    let tenant;
+    try {
+      tenant = await tenantService.getTenantBySlug(payload.tenantSlug);
+    } catch (error: any) {
+      request.log.warn(
+        { tenantSlug: payload.tenantSlug, error: error.message },
+        'Tenant not found for authenticated user'
+      );
+      return reply.code(403).send({
+        error: {
+          code: 'AUTH_TENANT_NOT_FOUND',
+          message: 'The tenant associated with this token does not exist',
+          details: {
+            tenantSlug: payload.tenantSlug,
+          },
+        },
+      });
+    }
+
+    // Reject suspended tenants (FR-012, Edge Case #9)
+    if (tenant.status === 'SUSPENDED') {
+      request.log.warn(
+        { tenantSlug: payload.tenantSlug, tenantId: tenant.id },
+        'Authentication denied for suspended tenant'
+      );
+      return reply.code(403).send({
+        error: {
+          code: 'AUTH_TENANT_SUSPENDED',
+          message: 'This tenant account is currently suspended. Please contact support.',
+          details: {
+            tenantSlug: payload.tenantSlug,
+            status: 'SUSPENDED',
+          },
+        },
+      });
+    }
+
+    // Cross-tenant validation (FR-011)
+    // Extract tenant context from request path if available
+    const pathSegments = request.url.split('/');
+    const tenantIndex = pathSegments.indexOf('tenants');
+    if (tenantIndex !== -1 && pathSegments[tenantIndex + 1]) {
+      const requestedTenantId = pathSegments[tenantIndex + 1];
+
+      // Skip validation if super admin from master realm
+      const isSuperAdmin =
+        payload.tenantSlug === MASTER_TENANT_SLUG &&
+        (payload.roles?.includes(USER_ROLES.SUPER_ADMIN) || payload.roles?.includes('super-admin'));
+
+      if (!isSuperAdmin) {
+        // Validate JWT tenant matches requested tenant
+        if (tenant.id !== requestedTenantId) {
+          request.log.warn(
+            {
+              jwtTenant: payload.tenantSlug,
+              jwtTenantId: tenant.id,
+              requestedTenantId,
+              path: request.url,
+            },
+            '[SECURITY] Cross-tenant access attempt detected in authMiddleware'
+          );
+          return reply.code(403).send({
+            error: {
+              code: 'AUTH_CROSS_TENANT',
+              message: 'Token not valid for this tenant',
+              details: {
+                jwtTenant: payload.tenantSlug,
+                requestedTenantId,
+              },
+            },
+          });
+        }
+      }
+    }
 
     // Extract user info
     const userInfo = extractUserInfo(payload);
@@ -49,11 +132,26 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     };
     request.token = payload;
   } catch (error: any) {
-    request.log.error({ error }, 'Authentication failed');
+    request.log.error({ error: error.message }, 'Authentication failed');
+
+    // Determine error type and return appropriate response
+    if (error.message && error.message.includes('expired')) {
+      return reply.code(401).send({
+        error: {
+          code: 'AUTH_TOKEN_EXPIRED',
+          message: 'Token has expired',
+        },
+      });
+    }
 
     return reply.code(401).send({
-      error: 'Unauthorized',
-      message: error.message || 'Invalid or expired token',
+      error: {
+        code: 'AUTH_TOKEN_INVALID',
+        message: 'Invalid or malformed token',
+        details: {
+          reason: error.message,
+        },
+      },
     });
   }
 }
@@ -91,13 +189,17 @@ export async function optionalAuthMiddleware(
  *
  * Usage:
  * fastify.get('/admin', { preHandler: [authMiddleware, requireRole('admin')] }, handler)
+ *
+ * Constitution Compliance: Article 6.2 (error format)
  */
 export function requireRole(...roles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (!request.user) {
       return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'Authentication required',
+        error: {
+          code: 'AUTH_REQUIRED',
+          message: 'Authentication required',
+        },
       });
     }
 
@@ -106,8 +208,14 @@ export function requireRole(...roles: string[]) {
 
     if (!hasRequiredRole) {
       return reply.code(403).send({
-        error: 'Forbidden',
-        message: `Required role(s): ${roles.join(', ')}`,
+        error: {
+          code: 'AUTH_INSUFFICIENT_ROLE',
+          message: `Required role(s): ${roles.join(', ')}`,
+          details: {
+            requiredRoles: roles,
+            userRoles,
+          },
+        },
       });
     }
   };
@@ -122,13 +230,17 @@ export function requireRole(...roles: string[]) {
  *
  * Usage:
  * fastify.get('/posts', { preHandler: [authMiddleware, requirePermission('posts.read')] }, handler)
+ *
+ * Constitution Compliance: Article 6.2 (error format)
  */
 export function requirePermission(...permissions: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (!request.user) {
       return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'Authentication required',
+        error: {
+          code: 'AUTH_REQUIRED',
+          message: 'Authentication required',
+        },
       });
     }
 
@@ -142,15 +254,25 @@ export function requirePermission(...permissions: string[]) {
 
       if (!hasRequiredPermission) {
         return reply.code(403).send({
-          error: 'Forbidden',
-          message: `Required permission(s): ${permissions.join(', ')}`,
+          error: {
+            code: 'AUTH_INSUFFICIENT_PERMISSION',
+            message: `Required permission(s): ${permissions.join(', ')}`,
+            details: {
+              requiredPermissions: permissions,
+            },
+          },
         });
       }
     } catch (error: any) {
-      request.log.error({ error }, 'Permission check failed');
+      request.log.error({ error: error.message }, 'Permission check failed');
       return reply.code(500).send({
-        error: 'Permission System Error',
-        message: 'Failed to check permissions',
+        error: {
+          code: 'PERMISSION_CHECK_FAILED',
+          message: 'Failed to verify permissions',
+          details: {
+            reason: error.message,
+          },
+        },
       });
     }
   };
@@ -167,6 +289,8 @@ async function getUserPermissions(userId: string, tenantSlug: string): Promise<s
 /**
  * Super admin middleware
  * Only allows access to super admins (from master realm or plexica-admin realm)
+ *
+ * Constitution Compliance: Article 6.2 (error format)
  */
 export async function requireSuperAdmin(
   request: FastifyRequest,
@@ -199,8 +323,10 @@ export async function requireSuperAdmin(
   // Double-check authentication after middleware
   if (!request.user) {
     return reply.code(401).send({
-      error: 'Unauthorized',
-      message: 'Authentication required',
+      error: {
+        code: 'AUTH_REQUIRED',
+        message: 'Authentication required',
+      },
     });
   }
 
@@ -216,8 +342,14 @@ export async function requireSuperAdmin(
       'Unauthorized super admin access attempt from invalid realm'
     );
     return reply.code(403).send({
-      error: 'Forbidden',
-      message: 'Super admin access required',
+      error: {
+        code: 'AUTH_SUPER_ADMIN_REQUIRED',
+        message: 'Super admin access required',
+        details: {
+          userRealm: request.user.tenantSlug,
+          validRealms,
+        },
+      },
     });
   }
 
@@ -232,8 +364,13 @@ export async function requireSuperAdmin(
       'Unauthorized super admin access attempt - missing super_admin role'
     );
     return reply.code(403).send({
-      error: 'Forbidden',
-      message: 'Super admin access required',
+      error: {
+        code: 'AUTH_SUPER_ADMIN_REQUIRED',
+        message: 'Super admin role required',
+        details: {
+          userRoles: request.user.roles,
+        },
+      },
     });
   }
 }
@@ -241,6 +378,8 @@ export async function requireSuperAdmin(
 /**
  * Tenant owner middleware
  * Only allows access to tenant owners or super admins
+ *
+ * Constitution Compliance: Article 6.2 (error format)
  */
 export async function requireTenantOwner(
   request: FastifyRequest,
@@ -248,8 +387,10 @@ export async function requireTenantOwner(
 ): Promise<void> {
   if (!request.user) {
     return reply.code(401).send({
-      error: 'Unauthorized',
-      message: 'Authentication required',
+      error: {
+        code: 'AUTH_REQUIRED',
+        message: 'Authentication required',
+      },
     });
   }
 
@@ -267,8 +408,14 @@ export async function requireTenantOwner(
     !request.user.roles.includes(USER_ROLES.ADMIN)
   ) {
     return reply.code(403).send({
-      error: 'Forbidden',
-      message: 'Tenant owner or admin access required',
+      error: {
+        code: 'AUTH_TENANT_OWNER_REQUIRED',
+        message: 'Tenant owner or admin access required',
+        details: {
+          userRoles: request.user.roles,
+          requiredRoles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
+        },
+      },
     });
   }
 }
@@ -288,7 +435,7 @@ export async function requireTenantOwner(
  *   handler
  * )
  *
- * Constitution Compliance: Article 1.2 (Multi-Tenancy Isolation), Article 5.1 (Tenant Validation)
+ * Constitution Compliance: Article 1.2 (Multi-Tenancy Isolation), Article 5.1 (Tenant Validation), Article 6.2 (error format)
  */
 export async function requireTenantAccess(
   request: FastifyRequest<{ Params: { id: string } }>,
@@ -296,8 +443,10 @@ export async function requireTenantAccess(
 ): Promise<void> {
   if (!request.user) {
     return reply.code(401).send({
-      error: 'Unauthorized',
-      message: 'Authentication required',
+      error: {
+        code: 'AUTH_REQUIRED',
+        message: 'Authentication required',
+      },
     });
   }
 
@@ -307,8 +456,13 @@ export async function requireTenantAccess(
   if (!requestedTenantId) {
     request.log.error({ params: request.params }, 'Missing tenant ID in path parameters');
     return reply.code(400).send({
-      error: 'Bad Request',
-      message: 'Tenant ID is required in the URL path',
+      error: {
+        code: 'TENANT_ID_REQUIRED',
+        message: 'Tenant ID is required in the URL path',
+        details: {
+          params: request.params,
+        },
+      },
     });
   }
 
@@ -328,14 +482,20 @@ export async function requireTenantAccess(
   let userTenant;
   try {
     userTenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
-  } catch (error) {
+  } catch (error: any) {
     request.log.error(
-      { error, tenantSlug: request.user.tenantSlug },
+      { error: error.message, tenantSlug: request.user.tenantSlug },
       'Failed to fetch user tenant'
     );
     return reply.code(500).send({
-      error: 'Internal Server Error',
-      message: 'Failed to verify tenant access',
+      error: {
+        code: 'TENANT_FETCH_FAILED',
+        message: 'Failed to verify tenant access',
+        details: {
+          tenantSlug: request.user.tenantSlug,
+          reason: error.message,
+        },
+      },
     });
   }
 
@@ -345,8 +505,13 @@ export async function requireTenantAccess(
       'User tenant not found - possible data inconsistency'
     );
     return reply.code(403).send({
-      error: 'Forbidden',
-      message: 'User tenant not found',
+      error: {
+        code: 'AUTH_TENANT_NOT_FOUND',
+        message: 'User tenant not found',
+        details: {
+          tenantSlug: request.user.tenantSlug,
+        },
+      },
     });
   }
 
@@ -362,8 +527,14 @@ export async function requireTenantAccess(
       '[SECURITY] Cross-tenant access attempt detected'
     );
     return reply.code(403).send({
-      error: 'Forbidden',
-      message: 'You do not have access to this tenant',
+      error: {
+        code: 'AUTH_CROSS_TENANT',
+        message: 'You do not have access to this tenant',
+        details: {
+          userTenantId: userTenant.id,
+          requestedTenantId,
+        },
+      },
     });
   }
 
