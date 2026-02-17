@@ -19,6 +19,7 @@ vi.mock('../../../lib/logger.js', () => ({
 vi.mock('../../../config/index.js', () => ({
   config: {
     keycloakUrl: 'http://localhost:8080',
+    oauthCallbackUrl: 'http://localhost:3001/auth/callback', // CRITICAL #2 fix: redirect URI origin allowlist
   },
 }));
 

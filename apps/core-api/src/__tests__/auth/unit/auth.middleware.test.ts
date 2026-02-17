@@ -67,11 +67,17 @@ describe('Auth Middleware - authMiddleware', () => {
         email: 'user@example.com',
         roles: ['user', 'admin'],
       };
+      const mockTenant = {
+        id: 'tenant-id-123',
+        slug: 'test-tenant',
+        status: 'ACTIVE',
+      };
 
       request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
       vi.mocked(jwtLib.verifyTokenWithTenant).mockResolvedValue(mockPayload as any);
       vi.mocked(jwtLib.extractUserInfo).mockReturnValue(mockUserInfo as any);
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
 
       await authMiddleware(request, reply);
 
@@ -97,6 +103,11 @@ describe('Auth Middleware - authMiddleware', () => {
         exp: 1704153600,
         realm_access: { roles: ['user'] },
       };
+      const mockTenant = {
+        id: 'tenant-id-123',
+        slug: 'test-tenant',
+        status: 'ACTIVE',
+      };
 
       request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
@@ -107,6 +118,7 @@ describe('Auth Middleware - authMiddleware', () => {
         email: 'user@example.com',
         roles: ['user'],
       } as any);
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
 
       await authMiddleware(request, reply);
 
@@ -127,6 +139,11 @@ describe('Auth Middleware - authMiddleware', () => {
         tenantSlug: 'test-tenant',
         realm_access: { roles },
       };
+      const mockTenant = {
+        id: 'tenant-id-456',
+        slug: 'test-tenant',
+        status: 'ACTIVE',
+      };
 
       request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
@@ -137,6 +154,7 @@ describe('Auth Middleware - authMiddleware', () => {
         email: 'admin@example.com',
         roles,
       } as any);
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
 
       await authMiddleware(request, reply);
 
@@ -156,12 +174,12 @@ describe('Auth Middleware - authMiddleware', () => {
       await authMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_TOKEN_MISSING',
           message: 'Missing or invalid Authorization header',
-        })
-      );
+        },
+      });
     });
 
     it('should return 401 when bearer token is malformed', async () => {
@@ -174,11 +192,12 @@ describe('Auth Middleware - authMiddleware', () => {
       await authMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_TOKEN_MISSING',
+          message: 'Missing or invalid Authorization header',
+        },
+      });
     });
 
     it('should return 401 when bearer token is empty', async () => {
@@ -221,12 +240,12 @@ describe('Auth Middleware - authMiddleware', () => {
       await authMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
-          message: 'Token verification failed',
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_TOKEN_INVALID',
+          message: 'Invalid or malformed token',
+        },
+      });
     });
 
     it('should return 401 on expired token', async () => {
@@ -241,11 +260,12 @@ describe('Auth Middleware - authMiddleware', () => {
       await authMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: 'Token expired',
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_TOKEN_EXPIRED',
+          message: 'Token has expired',
+        },
+      });
     });
 
     it('should return 401 on malformed token signature', async () => {
@@ -276,7 +296,10 @@ describe('Auth Middleware - authMiddleware', () => {
 
       await authMiddleware(request, reply);
 
-      expect(request.log.error).toHaveBeenCalledWith({ error }, 'Authentication failed');
+      expect(request.log.error).toHaveBeenCalledWith(
+        { error: error.message },
+        'Authentication failed'
+      );
     });
   });
 
@@ -292,6 +315,11 @@ describe('Auth Middleware - authMiddleware', () => {
         tenantSlug: 'test-tenant',
         realm_access: { roles: [] },
       };
+      const mockTenant = {
+        id: 'tenant-id-789',
+        slug: 'test-tenant',
+        status: 'ACTIVE',
+      };
 
       request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
@@ -302,6 +330,7 @@ describe('Auth Middleware - authMiddleware', () => {
         email: 'test@example.com',
         roles: [],
       } as any);
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
 
       await authMiddleware(request, reply);
 
@@ -319,6 +348,11 @@ describe('Auth Middleware - authMiddleware', () => {
         tenantSlug: 'test-tenant',
         realm_access: { roles: [] },
       };
+      const mockTenant = {
+        id: 'tenant-id-789',
+        slug: 'test-tenant',
+        status: 'ACTIVE',
+      };
 
       request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
@@ -329,6 +363,7 @@ describe('Auth Middleware - authMiddleware', () => {
         email: 'alice@example.com',
         roles: [],
       } as any);
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
 
       await authMiddleware(request, reply);
 
@@ -346,6 +381,11 @@ describe('Auth Middleware - authMiddleware', () => {
         tenantSlug: 'acme-corp',
         realm_access: { roles: [] },
       };
+      const mockTenant = {
+        id: 'tenant-id-789',
+        slug: 'acme-corp',
+        status: 'ACTIVE',
+      };
 
       request.headers!.authorization = `Bearer ${mockToken}`;
       vi.mocked(jwtLib.extractBearerToken).mockReturnValue(mockToken);
@@ -356,6 +396,7 @@ describe('Auth Middleware - authMiddleware', () => {
         email: 'test@example.com',
         roles: [],
       } as any);
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
 
       await authMiddleware(request, reply);
 
@@ -560,12 +601,16 @@ describe('Auth Middleware - requireRole', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Forbidden',
-          message: expect.stringContaining('Required role(s): admin'),
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_INSUFFICIENT_ROLE',
+          message: 'Required role(s): admin',
+          details: {
+            requiredRoles: ['admin'],
+            userRoles: ['user'],
+          },
+        },
+      });
     });
 
     it('should return 403 when user has no roles', async () => {
@@ -602,11 +647,16 @@ describe('Auth Middleware - requireRole', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('admin, moderator, editor'),
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_INSUFFICIENT_ROLE',
+          message: 'Required role(s): admin, moderator, editor',
+          details: {
+            requiredRoles: ['admin', 'moderator', 'editor'],
+            userRoles: ['user', 'viewer'],
+          },
+        },
+      });
     });
   });
 
@@ -621,12 +671,12 @@ describe('Auth Middleware - requireRole', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_REQUIRED',
           message: 'Authentication required',
-        })
-      );
+        },
+      });
     });
 
     it('should return 401 when user roles are undefined', async () => {
@@ -749,12 +799,15 @@ describe('Auth Middleware - requirePermission', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Forbidden',
-          message: expect.stringContaining('posts.delete'),
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_INSUFFICIENT_PERMISSION',
+          message: 'Required permission(s): posts.delete',
+          details: {
+            requiredPermissions: ['posts.delete'],
+          },
+        },
+      });
     });
 
     it('should return 403 when user has no permissions', async () => {
@@ -797,11 +850,15 @@ describe('Auth Middleware - requirePermission', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('posts.delete, posts.admin, comments.delete'),
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_INSUFFICIENT_PERMISSION',
+          message: 'Required permission(s): posts.delete, posts.admin, comments.delete',
+          details: {
+            requiredPermissions: ['posts.delete', 'posts.admin', 'comments.delete'],
+          },
+        },
+      });
     });
   });
 
@@ -827,12 +884,15 @@ describe('Auth Middleware - requirePermission', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(500);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Permission System Error',
-          message: 'Failed to check permissions',
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'PERMISSION_CHECK_FAILED',
+          message: 'Failed to verify permissions',
+          details: {
+            reason: 'Database connection failed',
+          },
+        },
+      });
     });
 
     it('should log permission check errors', async () => {
@@ -854,7 +914,10 @@ describe('Auth Middleware - requirePermission', () => {
       const middleware = requirePermission('posts.read');
       await middleware(request, reply);
 
-      expect(request.log.error).toHaveBeenCalledWith({ error }, 'Permission check failed');
+      expect(request.log.error).toHaveBeenCalledWith(
+        { error: 'Permission service error' },
+        'Permission check failed'
+      );
     });
   });
 
@@ -869,12 +932,12 @@ describe('Auth Middleware - requirePermission', () => {
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_REQUIRED',
           message: 'Authentication required',
-        })
-      );
+        },
+      });
     });
   });
 });
@@ -936,12 +999,16 @@ describe('Auth Middleware - requireSuperAdmin', () => {
       await requireSuperAdmin(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Forbidden',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_SUPER_ADMIN_REQUIRED',
           message: 'Super admin access required',
-        })
-      );
+          details: {
+            userRealm: 'other-tenant',
+            validRealms: expect.arrayContaining(['master', 'plexica-admin']),
+          },
+        },
+      });
     });
 
     it('should log warning for non-master tenant access attempt', async () => {
@@ -981,12 +1048,15 @@ describe('Auth Middleware - requireSuperAdmin', () => {
       await requireSuperAdmin(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Forbidden',
-          message: 'Super admin access required',
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_SUPER_ADMIN_REQUIRED',
+          message: 'Super admin role required',
+          details: {
+            userRoles: ['admin', 'user'],
+          },
+        },
+      });
     });
 
     it('should return 403 when user has no roles', async () => {
@@ -1038,12 +1108,12 @@ describe('Auth Middleware - requireSuperAdmin', () => {
       await requireSuperAdmin(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_REQUIRED',
           message: 'Authentication required',
-        })
-      );
+        },
+      });
     });
   });
 });
@@ -1158,12 +1228,16 @@ describe('Auth Middleware - requireTenantOwner', () => {
       await requireTenantOwner(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Forbidden',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_TENANT_OWNER_REQUIRED',
           message: 'Tenant owner or admin access required',
-        })
-      );
+          details: {
+            userRoles: ['user', 'viewer'],
+            requiredRoles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
+          },
+        },
+      });
     });
 
     it('should return 403 when user has no roles', async () => {
@@ -1211,12 +1285,12 @@ describe('Auth Middleware - requireTenantOwner', () => {
       await requireTenantOwner(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Unauthorized',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'AUTH_REQUIRED',
           message: 'Authentication required',
-        })
-      );
+        },
+      });
     });
   });
 });
