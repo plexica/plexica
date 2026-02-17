@@ -523,6 +523,15 @@ describe('UserSyncConsumer', () => {
   });
 
   describe('getTenantContextWithRetry() - Edge Case #2', () => {
+    // Use fake timers for tests with retry delays to avoid 48+ second test runs
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('should return tenant context on first attempt', async () => {
       const event = createMockEvent<UserCreatedData>('USER_CREATED', {
         keycloakId: '123e4567-e89b-12d3-a456-426614174000',
@@ -560,7 +569,13 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      await consumer.handleUserCreated(event);
+      // Start the async operation
+      const promise = consumer.handleUserCreated(event);
+
+      // Advance timers to skip the 1s retry delay
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await promise;
 
       expect(mockTenantService.getTenantBySlug).toHaveBeenCalledTimes(2);
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -585,12 +600,20 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      await expect(consumer.handleUserCreated(event)).rejects.toThrow(
-        "Tenant 'acme-corp' not provisioned after 5 attempts"
-      );
+      // Start the async operation
+      const promise = consumer.handleUserCreated(event);
+
+      // Advance timers through all retry delays (1s + 2s + 5s + 10s = 18s total)
+      // Note: 5th attempt has no delay
+      await vi.advanceTimersByTimeAsync(1000); // 1st retry
+      await vi.advanceTimersByTimeAsync(2000); // 2nd retry
+      await vi.advanceTimersByTimeAsync(5000); // 3rd retry
+      await vi.advanceTimersByTimeAsync(10000); // 4th retry
+
+      await expect(promise).rejects.toThrow("Tenant 'acme-corp' not provisioned after 5 attempts");
 
       expect(mockTenantService.getTenantBySlug).toHaveBeenCalledTimes(5);
-      expect(mockLogger.warn).toHaveBeenCalledTimes(4); // 4 retries (not on 5th attempt)
+      expect(mockLogger.warn).toHaveBeenCalledTimes(5); // 5 warn logs (one per attempt)
       expect(mockLogger.error).toHaveBeenCalledWith(
         { realmName: 'acme-corp', attempts: 5 },
         'Failed to get tenant context after all retry attempts'
@@ -632,9 +655,16 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      await expect(consumer.handleUserCreated(event)).rejects.toThrow(
-        "Tenant 'acme-corp' not provisioned after 5 attempts"
-      );
+      // Start the async operation
+      const promise = consumer.handleUserCreated(event);
+
+      // Advance timers through all retry delays
+      await vi.advanceTimersByTimeAsync(1000); // 1st retry
+      await vi.advanceTimersByTimeAsync(2000); // 2nd retry
+      await vi.advanceTimersByTimeAsync(5000); // 3rd retry
+      await vi.advanceTimersByTimeAsync(10000); // 4th retry
+
+      await expect(promise).rejects.toThrow("Tenant 'acme-corp' not provisioned after 5 attempts");
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -700,7 +730,15 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      await consumer.handleUserCreated(event);
+      // Start the async operation
+      const promise = consumer.handleUserCreated(event);
+
+      // Advance timers through retry delays
+      await vi.advanceTimersByTimeAsync(1000); // 1st retry
+      await vi.advanceTimersByTimeAsync(2000); // 2nd retry
+      await vi.advanceTimersByTimeAsync(5000); // 3rd retry
+
+      await promise;
 
       const warnCalls = vi.mocked(mockLogger.warn).mock.calls;
       expect(warnCalls[0][0]).toMatchObject({ delayMs: 1000 }); // 1st retry: 1s
@@ -731,7 +769,13 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      await consumer.handleUserCreated(event);
+      // Start the async operation
+      const promise = consumer.handleUserCreated(event);
+
+      // Advance timer through the 1s delay
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await promise;
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
