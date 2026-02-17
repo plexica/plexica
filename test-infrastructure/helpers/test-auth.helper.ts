@@ -209,7 +209,7 @@ export class TestAuthHelper {
    */
   extractTenantId(token: string): string | null {
     const decoded = this.decodeToken(token);
-    return decoded?.tenant_id || decoded?.attributes?.tenant_id?.[0] || null;
+    return decoded?.tenant_id || decoded?.tenantSlug || decoded?.attributes?.tenant_id?.[0] || null;
   }
 
   /**

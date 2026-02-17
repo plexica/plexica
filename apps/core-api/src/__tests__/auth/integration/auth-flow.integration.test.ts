@@ -201,8 +201,10 @@ describe('Auth Flow Integration', () => {
       expect(response.statusCode).toBeLessThan(500);
 
       const data = response.json();
+      // Constitution Art. 6.2: Nested error format
       expect(data).toHaveProperty('error');
-      expect(data).toHaveProperty('message');
+      expect(data.error).toHaveProperty('code');
+      expect(data.error).toHaveProperty('message');
     });
   });
 
@@ -242,7 +244,7 @@ describe('Auth Flow Integration', () => {
         url: '/api/workspaces',
         headers: {
           authorization: `Bearer ${tenantAdminToken}`,
-          'x-tenant-id': demoTenantSlug, // Wrong tenant!
+          'x-tenant-slug': demoTenantSlug, // Wrong tenant! (Should use x-tenant-slug not x-tenant-id)
         },
       });
 

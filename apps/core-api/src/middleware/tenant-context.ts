@@ -48,12 +48,14 @@ export async function tenantContextMiddleware(
     }
 
     let tenantSlug: string | undefined;
+    let jwtTenantSlug: string | undefined;
 
     // Method 1: Extract tenant from JWT token (primary method for authenticated requests)
     // authMiddleware sets request.user.tenantSlug from the JWT token's realm claim
     const user = (request as any).user;
     if (user && user.tenantSlug) {
       tenantSlug = user.tenantSlug;
+      jwtTenantSlug = user.tenantSlug; // Remember JWT tenant for validation
     }
 
     // Method 2: Fallback to X-Tenant-Slug header for public/unauthenticated requests
@@ -78,6 +80,26 @@ export async function tenantContextMiddleware(
       // Use validated tenant slug from header
       if (headerValidation.tenantSlug) {
         tenantSlug = headerValidation.tenantSlug;
+      }
+    } else if (jwtTenantSlug) {
+      // SECURITY: If user is authenticated, validate that any tenant header matches JWT tenant
+      // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation)
+      const headerValidation = validateCustomHeaders(request.headers);
+      if (headerValidation.tenantSlug && headerValidation.tenantSlug !== jwtTenantSlug) {
+        request.log.warn(
+          { jwtTenant: jwtTenantSlug, headerTenant: headerValidation.tenantSlug, userId: user.id },
+          'Cross-tenant access attempt detected'
+        );
+        return reply.code(403).send({
+          error: {
+            code: 'AUTH_CROSS_TENANT',
+            message: 'Token not valid for requested tenant',
+            details: {
+              jwtTenant: jwtTenantSlug,
+              requestedTenant: headerValidation.tenantSlug,
+            },
+          },
+        });
       }
     }
 

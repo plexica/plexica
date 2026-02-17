@@ -30,6 +30,54 @@
 
 ## Recent Decisions (February 2026)
 
+### Auth Flow Integration Tests - COMPLETE (February 17, 2026)
+
+**Date**: February 17, 2026 (Late Evening)  
+**Context**: Priority 1 integration test fixes - auth-flow.integration.test.ts
+
+**Status**: ✅ **COMPLETE - 13/13 auth-flow tests passing (100%)**
+
+**Three Issues Fixed**:
+
+**Issue 1 - Error Format Mismatch**:
+
+- Test expected flat `data.message`, implementation uses Constitution nested format
+- Fix: Updated test line 205-208 to check `data.error.code` and `data.error.message`
+
+**Issue 2 - extractTenantId Missing tenantSlug Field**:
+
+- `extractTenantId()` checked `tenant_id` field, mock tokens use `tenantSlug`
+- Fix: Updated `test-auth.helper.ts` line 212 to also check `decoded?.tenantSlug`
+
+**Issue 3 - Cross-Tenant Validation Missing (SECURITY FIX)**:
+
+- Middleware accepted mismatched tenant headers without validating against JWT
+- Vulnerability: User with JWT for tenant A could access tenant B by sending different header
+- Fix 1: Added cross-tenant validation in `tenant-context.ts` lines 62-80
+  - Check if authenticated user sends `x-tenant-slug` header different from JWT tenant
+  - Return 403 AUTH_CROSS_TENANT if mismatch detected
+- Fix 2: Updated test line 247 to use correct header name (`x-tenant-slug` not `x-tenant-id`)
+
+**Security Impact**:
+
+- ✅ **Constitution Art. 1.2 (Multi-Tenancy Isolation) now enforced**
+- Cross-tenant access attempts now logged and blocked with 403
+
+**Test Results**:
+
+- Before: 10/13 passing (77%)
+- After: ✅ **13/13 passing (100%)**
+
+**Files Modified**:
+
+- `apps/core-api/src/__tests__/auth/integration/auth-flow.integration.test.ts`
+- `apps/core-api/src/middleware/tenant-context.ts`
+- `test-infrastructure/helpers/test-auth.helper.ts`
+
+**Progress**: Priority 1 fixes: 5/9 complete (realm-provisioning + translation.routes + auth-flow)
+
+---
+
 ### Translation Routes Integration Tests - COMPLETE (February 17, 2026)
 
 **Date**: February 17, 2026 (Late Evening)  
