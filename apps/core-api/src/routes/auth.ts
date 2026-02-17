@@ -83,6 +83,45 @@ const JwksParamsSchema = z.object({
 
 export async function authRoutes(fastify: FastifyInstance) {
   /**
+   * Error Handler: Transform Fastify validation errors to Constitution format
+   *
+   * Fastify's built-in schema validation returns errors like:
+   * { statusCode: 400, code: 'FST_ERR_VALIDATION', error: 'Bad Request', message: '...' }
+   *
+   * We transform these to Constitution Article 6.2 format:
+   * { error: { code: 'VALIDATION_ERROR', message: '...', details: {...} } }
+   */
+  fastify.setErrorHandler((error, _request, reply) => {
+    const errorAny = error as any;
+
+    // Check if this is a Fastify validation error (by validation property or error code)
+    if (errorAny.validation || errorAny.code === 'FST_ERR_VALIDATION') {
+      // Map Fastify's technical messages to user-friendly messages
+      const message = errorAny.message || '';
+      let userMessage = 'Validation failed';
+
+      if (message.includes('querystring')) {
+        userMessage = 'Invalid query parameters';
+      } else if (message.includes('body')) {
+        userMessage = 'Invalid request body';
+      } else if (message.includes('params')) {
+        userMessage = 'Invalid path parameters';
+      }
+
+      return reply.code(400).send({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: userMessage,
+          details: errorAny.validation || { message: errorAny.message },
+        },
+      });
+    }
+
+    // For other errors, use default handler
+    return reply.send(error);
+  });
+
+  /**
    * GET /auth/login
    *
    * Build OAuth 2.0 authorization URL for tenant login
@@ -147,7 +186,7 @@ export async function authRoutes(fastify: FastifyInstance) {
                 properties: {
                   code: { type: 'string' },
                   message: { type: 'string' },
-                  details: { type: 'object' },
+                  details: { type: 'object', additionalProperties: true },
                 },
               },
             },
@@ -277,6 +316,7 @@ export async function authRoutes(fastify: FastifyInstance) {
               success: { type: 'boolean' },
               access_token: { type: 'string' },
               refresh_token: { type: 'string' },
+              token_type: { type: 'string' },
               expires_in: { type: 'number' },
               refresh_expires_in: { type: 'number' },
             },
@@ -378,6 +418,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           success: true,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
+          token_type: tokens.token_type,
           expires_in: tokens.expires_in,
           refresh_expires_in: tokens.refresh_expires_in,
         });
@@ -569,7 +610,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.code(500).send({
           error: {
             code: 'INTERNAL_ERROR',
-            message: 'Failed to refresh access token',
+            message: 'Failed to refresh token',
           },
         });
       }
@@ -724,7 +765,7 @@ export async function authRoutes(fastify: FastifyInstance) {
               email: { type: 'string' },
               name: { type: 'string' },
               roles: { type: 'array', items: { type: 'string' } },
-              tenant: { type: 'string' },
+              tenantSlug: { type: 'string' },
             },
           },
           401: {
@@ -749,7 +790,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.code(401).send({
           error: {
             code: 'AUTH_REQUIRED',
-            message: 'Authentication required',
+            message: 'User information not available',
           },
         });
       }
@@ -760,7 +801,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         email: request.user.email,
         name: request.user.name,
         roles: request.user.roles,
-        tenant: request.user.tenantSlug,
+        tenantSlug: request.user.tenantSlug,
       });
     }
   );
@@ -809,7 +850,18 @@ export async function authRoutes(fastify: FastifyInstance) {
             properties: {
               keys: {
                 type: 'array',
-                items: { type: 'object' },
+                items: {
+                  type: 'object',
+                  properties: {
+                    kid: { type: 'string' },
+                    kty: { type: 'string' },
+                    alg: { type: 'string' },
+                    use: { type: 'string' },
+                    n: { type: 'string' },
+                    e: { type: 'string' },
+                  },
+                  additionalProperties: true, // Allow other JWKS properties
+                },
               },
             },
           },
@@ -867,7 +919,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           return reply.code(400).send({
             error: {
               code: 'VALIDATION_ERROR',
-              message: 'Invalid tenant slug format',
+              message: 'Invalid tenant slug',
               details: validation.error.flatten(),
             },
           });
@@ -888,7 +940,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             'JWKS cache hit'
           );
 
-          return reply.type('application/json').send(cached);
+          return reply.type('application/json').send(JSON.parse(cached));
         }
 
         // Cache miss - fetch from Keycloak
@@ -913,7 +965,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           return reply.code(404).send({
             error: {
               code: 'TENANT_NOT_FOUND',
-              message: 'The specified tenant does not exist',
+              message: 'Tenant not found in Keycloak',
             },
           });
         }
@@ -931,7 +983,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           return reply.code(500).send({
             error: {
               code: 'JWKS_FETCH_FAILED',
-              message: 'Failed to fetch JWKS from authentication server',
+              message: 'Failed to fetch JWKS from Keycloak',
             },
           });
         }
@@ -966,7 +1018,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           return reply.code(500).send({
             error: {
               code: 'JWKS_FETCH_FAILED',
-              message: 'Authentication server is unavailable',
+              message: 'Failed to fetch JWKS from Keycloak',
             },
           });
         }
@@ -974,7 +1026,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.code(500).send({
           error: {
             code: 'INTERNAL_ERROR',
-            message: 'Failed to fetch JWKS',
+            message: 'Failed to retrieve JWKS',
           },
         });
       }

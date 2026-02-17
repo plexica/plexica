@@ -56,13 +56,21 @@ vi.mock('../../../lib/redis.js', () => ({
   },
 }));
 
-vi.mock('axios');
+vi.mock('axios', () => {
+  return {
+    default: {
+      get: vi.fn(),
+      post: vi.fn(),
+    },
+  };
+});
 
 vi.mock('../../../lib/logger.js', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
@@ -70,7 +78,7 @@ vi.mock('../../../config/index.js', () => ({
   config: {
     keycloakUrl: 'https://keycloak.example.com',
     oauthCallbackUrl: 'https://app.example.com/callback',
-    jwksCacheTtl: 600, // 10 minutes
+    jwksCacheTtl: 600000, // 10 minutes in milliseconds (600 seconds * 1000)
     nodeEnv: 'test',
   },
 }));
@@ -86,7 +94,7 @@ describe('Auth Routes - OAuth 2.0', () => {
   let app: FastifyInstance;
 
   beforeEach(async () => {
-    // Reset all mocks
+    // Reset all mocks (clears call history but preserves mock functions)
     vi.clearAllMocks();
 
     // Create fresh Fastify instance
@@ -706,7 +714,11 @@ describe('Auth Routes - OAuth 2.0', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({ success: true });
-      expect(authService.revokeTokens).toHaveBeenCalledWith('test-tenant', 'refresh-token');
+      expect(authService.revokeTokens).toHaveBeenCalledWith(
+        'test-tenant',
+        'refresh-token',
+        'refresh_token'
+      );
     });
 
     it('should return success even if revokeTokens fails (best-effort)', async () => {
@@ -869,16 +881,30 @@ describe('Auth Routes - OAuth 2.0', () => {
     };
 
     it('should return JWKS from Keycloak on cache miss', async () => {
+      const redisSpy = vi.mocked(redis.setex);
+      redisSpy.mockClear();
+
       vi.mocked(redis.get).mockResolvedValue(null); // Cache miss
-      vi.mocked(axios.get).mockResolvedValue({
-        status: 200,
-        data: mockJwks,
+
+      // Use mockImplementation instead of mockResolvedValue
+      vi.mocked(axios.get).mockImplementation(async () => {
+        return {
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: {} as any,
+          data: mockJwks,
+        };
       });
 
       const response = await app.inject({
         method: 'GET',
         url: '/auth/jwks/test-tenant',
       });
+
+      console.log('response.statusCode:', response.statusCode);
+      console.log('response.json():', JSON.stringify(response.json(), null, 2));
+      console.log('redis.setex called with:', redisSpy.mock.calls[0]);
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual(mockJwks);
@@ -943,7 +969,7 @@ describe('Auth Routes - OAuth 2.0', () => {
 
     it('should return 404 TENANT_NOT_FOUND when Keycloak returns 404', async () => {
       vi.mocked(redis.get).mockResolvedValue(null);
-      vi.mocked(axios.get).mockResolvedValue({
+      (axios.get as any).mockResolvedValue({
         status: 404,
         data: {},
       });
@@ -952,6 +978,13 @@ describe('Auth Routes - OAuth 2.0', () => {
         method: 'GET',
         url: '/auth/jwks/nonexistent-tenant',
       });
+
+      // Debug output
+      if (response.statusCode !== 404) {
+        console.log('Response body:', response.json());
+        console.log('axios.get mock:', axios.get);
+        console.log('axios.get type:', typeof axios.get);
+      }
 
       expect(response.statusCode).toBe(404);
       const body = response.json();
