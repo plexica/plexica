@@ -51,6 +51,9 @@ describe('JWT Utilities', () => {
     it('should return true when user has the role', () => {
       const payload: KeycloakJwtPayload = {
         preferred_username: 'testuser',
+        tenant_id: 'acme-corp',
+        realm: 'acme-corp',
+        teams: ['engineering', 'product'],
         realm_access: {
           roles: ['admin', 'user'],
         },
@@ -64,6 +67,7 @@ describe('JWT Utilities', () => {
     it('should return false when user does not have the role', () => {
       const payload: KeycloakJwtPayload = {
         preferred_username: 'testuser',
+        tenant_id: 'acme-corp',
         realm_access: {
           roles: ['user'],
         },
@@ -165,6 +169,9 @@ describe('JWT Utilities', () => {
         name: 'John Doe',
         given_name: 'John',
         family_name: 'Doe',
+        tenant_id: 'acme-corp',
+        realm: 'acme-corp',
+        teams: ['engineering', 'product'],
         realm_access: {
           roles: ['admin', 'user'],
         },
