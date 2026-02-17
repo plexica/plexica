@@ -199,13 +199,8 @@ export class WorkspaceResourceService {
       }
     }
 
-    return {
-      id: createdResource.id,
-      workspaceId: createdResource.workspace_id,
-      resourceType: createdResource.resource_type,
-      resourceId: createdResource.resource_id,
-      createdAt: createdResource.created_at,
-    };
+    // Return snake_case to match database schema
+    return createdResource;
   }
 
   /**
@@ -397,14 +392,9 @@ export class WorkspaceResourceService {
       `Listed ${resources.length} resources for workspace ${workspaceId}`
     );
 
+    // Return snake_case to match database schema
     return {
-      data: resources.map((r) => ({
-        id: r.id,
-        workspaceId: r.workspace_id,
-        resourceType: r.resource_type,
-        resourceId: r.resource_id,
-        createdAt: r.created_at,
-      })),
+      data: resources,
       pagination: {
         limit,
         offset,
@@ -447,14 +437,8 @@ export class WorkspaceResourceService {
       return null;
     }
 
-    const resource = resources[0];
-    return {
-      id: resource.id,
-      workspaceId: resource.workspace_id,
-      resourceType: resource.resource_type,
-      resourceId: resource.resource_id,
-      createdAt: resource.created_at,
-    };
+    // Return snake_case to match database schema
+    return resources[0];
   }
 
   /**

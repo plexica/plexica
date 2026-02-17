@@ -10,7 +10,8 @@
  * @module modules/i18n/i18n.controller
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { TranslationService } from './i18n.service.js';
 import { TranslationCacheService } from './i18n-cache.service.js';
 import { generateSecureETag } from '../../lib/crypto.js';
@@ -25,7 +26,6 @@ import {
 import { authMiddleware } from '../../middleware/auth.js';
 import { getTenantContext } from '../../middleware/tenant-context.js';
 import { tenantService } from '../../services/tenant.service.js';
-import { z } from 'zod';
 
 // Initialize services
 const translationService = new TranslationService();
@@ -272,8 +272,6 @@ export async function translationRoutes(fastify: FastifyInstance) {
 
         return reply.send({ namespaces });
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
         fastify.log.error({ error }, 'Namespace list error');
         return reply.status(500).send({
           error: {

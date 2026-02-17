@@ -95,13 +95,9 @@ export class TranslationService {
     } catch (error) {
       // Try fallback to default locale (FR-003)
       if (locale !== DEFAULT_LOCALE) {
-        try {
-          messages = await this.loadNamespaceFile(DEFAULT_LOCALE, namespace);
-          locale = DEFAULT_LOCALE; // Update locale to reflect fallback
-        } catch (fallbackError) {
-          // If even the default locale doesn't have this namespace, it truly doesn't exist
-          throw fallbackError;
-        }
+        messages = await this.loadNamespaceFile(DEFAULT_LOCALE, namespace);
+        locale = DEFAULT_LOCALE; // Update locale to reflect fallback
+        // If this also fails, error will propagate naturally
       } else {
         // Requested default locale but namespace not found - namespace doesn't exist
         throw error;
@@ -153,7 +149,7 @@ export class TranslationService {
     let stats;
     try {
       stats = await fs.stat(filePath);
-    } catch (error) {
+    } catch {
       throw new Error(
         `${ERROR_CODES.NAMESPACE_NOT_FOUND}: Translation file not found at ${filePath}`
       );
@@ -338,11 +334,6 @@ export class TranslationService {
             continue; // Skip invalid locale directories
           }
 
-          // Count namespace files in this locale
-          const localeDir = path.join(TRANSLATIONS_DIR, localeCode);
-          const files = await fs.readdir(localeDir);
-          const namespaceCount = files.filter((f) => f.endsWith('.json')).length;
-
           // Get locale display names (basic implementation - could be enhanced with Intl.DisplayNames)
           locales.push({
             code: localeCode,
@@ -351,7 +342,7 @@ export class TranslationService {
           });
         }
       }
-    } catch (error) {
+    } catch {
       // If translations directory doesn't exist, return empty array
       return [];
     }

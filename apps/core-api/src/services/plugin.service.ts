@@ -285,7 +285,7 @@ export class PluginRegistryService {
     version: string;
   }> {
     // Fetch plugin metadata and run aggregation queries in parallel
-    const [plugin, totalInstallations, enabledInstallations, activeTenantsCount] =
+    const [plugin, totalInstallations, _enabledInstallations, activeTenantsCount] =
       await Promise.all([
         db.plugin.findUnique({
           where: { id: pluginId },

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import { WorkspaceService } from '../../../modules/workspace/workspace.service.js';
 import { WorkspaceResourceService } from '../../../modules/workspace/workspace-resource.service.js';
 import { db } from '../../../lib/db.js';
@@ -140,6 +140,19 @@ describe('Workspace Resource Sharing E2E Tests', () => {
     );
 
     secondWorkspaceId = workspace2.id;
+  });
+
+  afterEach(async () => {
+    // Cleanup: remove all shared resources between tests to prevent "already shared" errors
+    try {
+      await db.$executeRawUnsafe(
+        `DELETE FROM "${schemaName}"."workspace_resources" WHERE workspace_id IN ($1, $2)`,
+        testWorkspaceId,
+        secondWorkspaceId
+      );
+    } catch {
+      // Ignore cleanup errors
+    }
   });
 
   afterAll(async () => {
@@ -491,19 +504,28 @@ describe('Workspace Resource Sharing E2E Tests', () => {
         )
       );
 
-      // Attempt to share a resource that exists in tenant1 with workspace in tenant2
-      // This should fail because the resource doesn't exist in tenant2's schema
-      await expect(
-        tenantContextStorage.run(tenant2Context, async () =>
-          resourceService.shareResource(
-            workspace2.id,
-            { resourceType: 'plugin', resourceId: testResourceId1 },
-            user2.id
-          )
-        )
-      ).resolves.toBeDefined(); // Sharing succeeds because validation doesn't check resource existence
+      // Use DIFFERENT resource IDs for each tenant to properly test physical isolation
+      const tenant1ResourceId = crypto.randomUUID();
+      const tenant2ResourceId = crypto.randomUUID();
 
-      // However, the resource is isolated to tenant2's schema
+      // Share a resource in tenant1
+      await runInContext(async () =>
+        resourceService.shareResource(
+          testWorkspaceId,
+          { resourceType: 'plugin', resourceId: tenant1ResourceId },
+          testUserId
+        )
+      );
+
+      // Share a DIFFERENT resource in tenant2
+      await tenantContextStorage.run(tenant2Context, async () =>
+        resourceService.shareResource(
+          workspace2.id,
+          { resourceType: 'plugin', resourceId: tenant2ResourceId },
+          user2.id
+        )
+      );
+
       // Verify tenant1 can't see tenant2's resources
       const tenant1Resources = await runInContext(async () =>
         resourceService.listResources(testWorkspaceId, { limit: 100, offset: 0 })
@@ -513,11 +535,14 @@ describe('Workspace Resource Sharing E2E Tests', () => {
         resourceService.listResources(workspace2.id, { limit: 100, offset: 0 })
       );
 
-      // Resources should be completely isolated
+      // Each tenant should only see their own resource
+      expect(tenant1Resources.data.length).toBe(1);
+      expect(tenant2Resources.data.length).toBe(1);
+
       const tenant1ResourceIds = tenant1Resources.data.map((r: any) => r.resource_id);
       const tenant2ResourceIds = tenant2Resources.data.map((r: any) => r.resource_id);
 
-      // No overlap between tenant1 and tenant2 resource IDs in their workspaces
+      // No overlap between tenant1 and tenant2 resource IDs
       const overlap = tenant1ResourceIds.filter((id: string) => tenant2ResourceIds.includes(id));
       expect(overlap.length).toBe(0);
 
@@ -533,6 +558,18 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       // Each tenant has their own isolated resources
       expect(tenant1DbResources.every((r) => r.workspace_id !== workspace2.id)).toBe(true);
       expect(tenant2DbResources.every((r) => r.workspace_id !== testWorkspaceId)).toBe(true);
+
+      // Verify tenant1's resource is NOT in tenant2's schema
+      const tenant1ResourceInTenant2Schema = tenant2DbResources.find(
+        (r) => r.resource_id === tenant1ResourceId
+      );
+      expect(tenant1ResourceInTenant2Schema).toBeUndefined();
+
+      // Verify tenant2's resource is NOT in tenant1's schema
+      const tenant2ResourceInTenant1Schema = tenant1DbResources.find(
+        (r) => r.resource_id === tenant2ResourceId
+      );
+      expect(tenant2ResourceInTenant1Schema).toBeUndefined();
 
       // Cleanup second tenant
       await db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema2Name}" CASCADE`);

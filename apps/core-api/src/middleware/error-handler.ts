@@ -94,7 +94,7 @@ function getErrorCode(error: FastifyError): string {
       return 'NOT_FOUND';
     case 'ConflictError':
       return 'CONFLICT';
-    default:
+    default: {
       // Generic codes by status
       const statusCode = error.statusCode || 500;
       if (statusCode === 400) return 'BAD_REQUEST';
@@ -104,6 +104,7 @@ function getErrorCode(error: FastifyError): string {
       if (statusCode === 409) return 'CONFLICT';
       if (statusCode === 429) return 'RATE_LIMITED';
       return 'INTERNAL_SERVER_ERROR';
+    }
   }
 }
 

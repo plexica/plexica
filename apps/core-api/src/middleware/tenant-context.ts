@@ -3,7 +3,6 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { Prisma } from '@plexica/database';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
-import { db } from '../lib/db.js';
 
 // Tenant context stored in AsyncLocalStorage
 export interface TenantContext {

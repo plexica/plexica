@@ -109,7 +109,7 @@ async function mockTranslationApis(page: Page) {
   // GET /api/v1/translations/:locale/:namespace
   await page.route('**/api/v1/translations/**', async (route) => {
     const url = route.request().url();
-    const match = url.match(/\/translations\/([^\/]+)\/([^\/]+)/);
+    const match = url.match(/\/translations\/([^/]+)\/([^/]+)/);
 
     if (match) {
       const [, locale, namespace] = match;
