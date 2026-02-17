@@ -30,6 +30,48 @@
 
 ## Recent Decisions (February 2026)
 
+### Integration Test Status Update - 87.2% Pass Rate Achieved (February 17, 2026)
+
+**Date**: February 17, 2026 (Evening)  
+**Context**: Full integration test suite executed after workspace test fixes
+
+**Achievement**: ✅ **319/366 integration tests passing (87.2%)**
+
+**Progress Since Morning CI Report**:
+
+- Morning (CI): 126/161 passing (78.3%)
+- Evening (Now): 319/366 passing (87.2%)
+- **Improvement**: +193 tests passing, +8.9% pass rate
+
+**Files Passing (8/17)**:
+
+- ✅ workspace-crud.integration.test.ts: 32/32 (100%)
+- ✅ workspace-members.integration.test.ts: 32/32 (100%)
+- ✅ tenant-overrides.test.ts: 14/14 (100%)
+- ✅ 5 other integration files (auth permissions, plugin marketplace, tenant API)
+
+**Major Failures Remaining (46 tests)**:
+
+1. **user-sync.integration.test.ts**: 10/12 failing (Redpanda consumer timing issues)
+2. **oauth-flow.integration.test.ts**: 14/14 failing (OAuth setup not configured for integration)
+3. **workspace-resources.integration.test.ts**: 10/10 failing (architecture mismatch - marked for rewrite)
+4. **auth-flow.integration.test.ts**: 3/13 failing (validation + cross-tenant checks)
+5. **translation.routes.test.ts**: 2/24 failing (cache invalidation)
+6. **plugin-install.integration.test.ts**: 3/18 failing (auth middleware)
+7. **realm-provisioning.integration.test.ts**: 1/17 failing (error handling)
+
+**Next Steps**:
+
+- Priority 1: Fix translation cache (2 tests), auth-flow (3 tests), realm-provisioning (1 test), plugin-install (3 tests)
+- Priority 2: Fix user-sync timing issues (10 tests)
+- Deferred: workspace-resources (rewrite needed), oauth-flow (E2E conversion needed)
+
+**Expected After Priority 1+2**: 338/342 passing (98.8%) - 24 tests deferred to Sprint 4
+
+**Full Report**: `.forge/knowledge/integration-test-status-2026-02-17.md`
+
+---
+
 ### Workspace Integration Tests - COMPLETE (February 17, 2026)
 
 **Date**: February 17, 2026  
