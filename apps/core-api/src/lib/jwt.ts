@@ -19,7 +19,10 @@ export interface KeycloakJwtPayload extends JwtPayload {
       roles: string[];
     };
   };
-  tenant?: string; // Custom claim for tenant identification
+  tenant?: string; // Custom claim for tenant identification (legacy)
+  tenant_id?: string; // Tenant ID claim (new standard claim)
+  realm?: string; // Keycloak realm name
+  teams?: string[]; // Team memberships for the user
   azp?: string; // Authorized party (client_id)
 }
 
@@ -38,7 +41,7 @@ function getJwksClient(realm: string): jwksClient.JwksClient {
     const client = jwksClient({
       jwksUri: `${config.keycloakUrl}/realms/${realm}/protocol/openid-connect/certs`,
       cache: true,
-      cacheMaxAge: 86400000, // 24 hours
+      cacheMaxAge: 600000, // 10 minutes (NFR-007)
       rateLimit: true,
       jwksRequestsPerMinute: 10,
     });
@@ -179,6 +182,48 @@ export async function verifyTokenWithTenant(
     ...verifiedPayload,
     tenantSlug,
   };
+}
+
+/**
+ * Validate that JWT tenant context matches the requested tenant
+ *
+ * This prevents cross-tenant access by ensuring the user's JWT
+ * is scoped to the tenant they're trying to access.
+ *
+ * @param payload - Decoded JWT payload
+ * @param requestedTenant - Tenant slug from the request (URL/header)
+ * @throws Error if tenant mismatch detected
+ */
+export function validateTenantMatch(payload: KeycloakJwtPayload, requestedTenant: string): void {
+  // Extract tenant from JWT (check multiple possible claim locations)
+  let jwtTenant: string | undefined;
+
+  // Priority order: tenant_id > tenant > realm > issuer
+  if (payload.tenant_id) {
+    jwtTenant = payload.tenant_id;
+  } else if (payload.tenant) {
+    jwtTenant = payload.tenant;
+  } else if (payload.realm) {
+    jwtTenant = payload.realm;
+  } else if (payload.iss) {
+    // Extract realm from issuer URL
+    const issuerMatch = payload.iss.match(/\/realms\/([^/]+)$/);
+    if (issuerMatch) {
+      jwtTenant = issuerMatch[1];
+    }
+  }
+
+  // If no tenant found in JWT, fail validation
+  if (!jwtTenant) {
+    throw new Error('TENANT_MISMATCH: No tenant found in JWT claims');
+  }
+
+  // Check for exact match
+  if (jwtTenant !== requestedTenant) {
+    throw new Error(
+      `TENANT_MISMATCH: JWT tenant '${jwtTenant}' does not match requested tenant '${requestedTenant}'`
+    );
+  }
 }
 
 /**

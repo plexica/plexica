@@ -62,6 +62,23 @@ const configSchema = z.object({
   jwtSecret: z.string(),
   jwtExpiration: z.string().default('15m'),
 
+  // OAuth 2.0
+  oauthCallbackUrl: z.string().url().describe('OAuth 2.0 callback URL for Authorization Code flow'),
+  jwksCacheTtl: z.coerce
+    .number()
+    .default(600000)
+    .describe('JWKS cache TTL in milliseconds (default: 10 minutes)'),
+
+  // Rate Limiting
+  authRateLimitMax: z.coerce
+    .number()
+    .default(10)
+    .describe('Max login attempts per IP per window (default: 10)'),
+  authRateLimitWindow: z.coerce
+    .number()
+    .default(60000)
+    .describe('Auth rate limit window in milliseconds (default: 1 minute)'),
+
   // CORS - SECURITY: Validate and parse CORS origins
   corsOrigins: corsOriginTransform,
 });
@@ -97,6 +114,12 @@ export const config = configSchema.parse({
 
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiration: process.env.JWT_EXPIRATION,
+
+  oauthCallbackUrl: process.env.OAUTH_CALLBACK_URL,
+  jwksCacheTtl: process.env.JWKS_CACHE_TTL,
+
+  authRateLimitMax: process.env.AUTH_RATE_LIMIT_MAX,
+  authRateLimitWindow: process.env.AUTH_RATE_LIMIT_WINDOW,
 
   corsOrigins: process.env.CORS_ORIGIN,
 });

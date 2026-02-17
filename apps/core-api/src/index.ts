@@ -28,6 +28,8 @@ import { DependencyResolutionService } from './services/dependency-resolution.se
 import { csrfProtectionMiddleware } from './middleware/csrf-protection.js';
 import { advancedRateLimitMiddleware } from './middleware/advanced-rate-limit.js';
 import { setupErrorHandler } from './middleware/error-handler.js';
+import { RedpandaClient, EventBusService } from '@plexica/event-bus';
+import { UserSyncConsumer } from './services/user-sync.consumer.js';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -47,6 +49,24 @@ const server = fastify({
   // SECURITY: Set request timeout to prevent slow client DoS attacks
   requestTimeout: 30 * 1000, // 30 seconds
 });
+
+// Initialize Redpanda client and EventBusService
+const redpandaClient = new RedpandaClient({
+  clientId: 'plexica-core-api',
+  brokers: config.kafkaBrokers.split(',').map((b) => b.trim()),
+  connectionTimeout: 10000,
+  requestTimeout: 30000,
+  retry: {
+    maxRetryTime: 30000,
+    initialRetryTime: 300,
+    factor: 0.2,
+    multiplier: 2,
+    retries: 5,
+  },
+});
+
+const eventBusService = new EventBusService(redpandaClient);
+const userSyncConsumer = new UserSyncConsumer(eventBusService);
 
 // Register plugins
 async function registerPlugins() {
@@ -191,8 +211,29 @@ server.setNotFoundHandler((request, reply) => {
 // Graceful shutdown
 async function closeGracefully(signal: string) {
   server.log.info(`Received signal ${signal}, closing gracefully`);
-  await server.close();
-  process.exit(0);
+
+  try {
+    // Stop UserSyncConsumer and commit offsets
+    if (userSyncConsumer.isConsumerRunning()) {
+      server.log.info('Stopping UserSyncConsumer...');
+      await userSyncConsumer.stop();
+      server.log.info('UserSyncConsumer stopped successfully');
+    }
+
+    // Disconnect Redpanda client
+    server.log.info('Disconnecting Redpanda client...');
+    await redpandaClient.disconnect();
+    server.log.info('Redpanda client disconnected');
+
+    // Close Fastify server
+    await server.close();
+    server.log.info('Fastify server closed');
+
+    process.exit(0);
+  } catch (error) {
+    server.log.error({ error }, 'Error during graceful shutdown');
+    process.exit(1);
+  }
 }
 
 process.on('SIGINT', () => closeGracefully('SIGINT'));
@@ -205,6 +246,11 @@ async function start() {
     server.log.info('Initializing MinIO...');
     await minioClient.initialize();
     server.log.info('MinIO initialized successfully');
+
+    // Initialize Redpanda client
+    server.log.info('Connecting to Redpanda...');
+    await redpandaClient.connect();
+    server.log.info('Redpanda client connected successfully');
 
     await registerPlugins();
     await registerRoutes();
@@ -219,6 +265,11 @@ async function start() {
     if (config.nodeEnv === 'development') {
       server.log.info(`📚 API Documentation: http://localhost:${config.port}/docs`);
     }
+
+    // Start UserSyncConsumer after server is listening
+    server.log.info('Starting UserSyncConsumer...');
+    await userSyncConsumer.start();
+    server.log.info('✅ UserSyncConsumer started successfully');
   } catch (err) {
     server.log.error(err);
     process.exit(1);
