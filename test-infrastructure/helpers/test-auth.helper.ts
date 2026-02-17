@@ -21,7 +21,7 @@ export interface MockTokenPayload {
     roles: string[];
   };
   resource_access?: Record<string, { roles: string[] }>;
-  tenant_id?: string;
+  tenantSlug?: string; // Tenant slug (not ID)
   workspace_id?: string;
 }
 
@@ -75,17 +75,17 @@ export class TestAuthHelper {
   /**
    * Create a mock tenant admin token
    */
-  createMockTenantAdminToken(tenantId: string, overrides?: Partial<MockTokenPayload>): string {
+  createMockTenantAdminToken(tenantSlug: string, overrides?: Partial<MockTokenPayload>): string {
     return this.createMockToken({
-      sub: `tenant-admin-${tenantId}-keycloak-id`,
-      email: `admin@${tenantId}.test`,
-      preferred_username: `test-tenant-admin-${tenantId}`,
+      sub: `tenant-admin-${tenantSlug}-keycloak-id`,
+      email: `admin@${tenantSlug}.test`,
+      preferred_username: `test-tenant-admin-${tenantSlug}`,
       given_name: 'Admin',
-      family_name: tenantId,
+      family_name: tenantSlug,
       realm_access: {
-        roles: ['tenant-admin'],
+        roles: ['tenant_admin'], // Fixed: Use underscore to match Keycloak provisioning
       },
-      tenant_id: tenantId,
+      tenantSlug: tenantSlug,
       ...overrides,
     });
   }
@@ -93,17 +93,17 @@ export class TestAuthHelper {
   /**
    * Create a mock tenant member token
    */
-  createMockTenantMemberToken(tenantId: string, overrides?: Partial<MockTokenPayload>): string {
+  createMockTenantMemberToken(tenantSlug: string, overrides?: Partial<MockTokenPayload>): string {
     return this.createMockToken({
-      sub: `tenant-member-${tenantId}-keycloak-id`,
-      email: `member@${tenantId}.test`,
-      preferred_username: `test-tenant-member-${tenantId}`,
+      sub: `tenant-member-${tenantSlug}-keycloak-id`,
+      email: `member@${tenantSlug}.test`,
+      preferred_username: `test-tenant-member-${tenantSlug}`,
       given_name: 'Member',
-      family_name: tenantId,
+      family_name: tenantSlug,
       realm_access: {
         roles: ['tenant-member'],
       },
-      tenant_id: tenantId,
+      tenantSlug: tenantSlug,
       ...overrides,
     });
   }
@@ -112,18 +112,18 @@ export class TestAuthHelper {
    * Create a mock workspace admin token
    */
   createMockWorkspaceAdminToken(
-    tenantId: string,
+    tenantSlug: string,
     workspaceId: string,
     overrides?: Partial<MockTokenPayload>
   ): string {
     return this.createMockToken({
       sub: `workspace-admin-${workspaceId}-keycloak-id`,
-      email: `ws-admin@${tenantId}.test`,
+      email: `ws-admin@${tenantSlug}.test`,
       preferred_username: `test-workspace-admin-${workspaceId}`,
       realm_access: {
         roles: ['workspace-admin'],
       },
-      tenant_id: tenantId,
+      tenantSlug: tenantSlug,
       workspace_id: workspaceId,
       ...overrides,
     });

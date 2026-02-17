@@ -472,6 +472,12 @@ export class KeycloakService {
 
       logger.info({ realmName, enabled }, `Realm ${enabled ? 'enabled' : 'disabled'} successfully`);
     } catch (error: unknown) {
+      // Re-throw our custom "realm not found" error without sanitization
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw error;
+      }
+
+      // Sanitize Keycloak API errors
       const keycloakError = error as { response?: { status?: number; data?: unknown } };
       const status = keycloakError.response?.status || 500;
       const errorData = JSON.stringify(keycloakError.response?.data || error);

@@ -30,6 +30,39 @@
 
 ## Recent Decisions (February 2026)
 
+### Translation Routes Integration Tests - COMPLETE (February 17, 2026)
+
+**Date**: February 17, 2026 (Late Evening)  
+**Context**: Priority 1 integration test fixes - translation.routes.test.ts
+
+**Status**: ✅ **COMPLETE - 24/24 translation routes tests passing (100%)**
+
+**Root Cause**: Mock token role name mismatch
+
+- Mock token had: `realm_access.roles: ['tenant-admin']` (hyphen)
+- Route checked: `request.user?.roles?.includes('tenant_admin')` (underscore)
+- Keycloak provisions: `tenant_admin` (underscore)
+
+**Fix Applied** (Commit `pending`):
+
+- File: `test-infrastructure/helpers/test-auth.helper.ts`
+- Line 86: Changed `roles: ['tenant-admin']` → `roles: ['tenant_admin']`
+- Aligns with Keycloak provisioning standard (see `keycloak.service.ts` line 387)
+
+**Test Results**:
+
+- Before: 22/24 passing (91.7%)
+- After: ✅ **24/24 passing (100%)**
+
+**Affected Tests Fixed**:
+
+1. "should update tenant overrides" - 403 → 200 ✅
+2. "should invalidate cache after updating overrides" - 403 → 200 ✅
+
+**Progress**: Priority 1 fixes: 2/9 complete (realm-provisioning + translation.routes)
+
+---
+
 ### Integration Test Status Update - 87.2% Pass Rate Achieved (February 17, 2026)
 
 **Date**: February 17, 2026 (Evening)  
