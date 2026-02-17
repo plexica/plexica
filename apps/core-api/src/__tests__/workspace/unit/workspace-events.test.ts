@@ -161,7 +161,12 @@ describe('WorkspaceService Event Publishing', () => {
         ],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish CREATED event after successful workspace creation', async () => {
@@ -242,7 +247,12 @@ describe('WorkspaceService Event Publishing', () => {
         ],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish UPDATED event with changes object', async () => {
@@ -288,7 +298,12 @@ describe('WorkspaceService Event Publishing', () => {
         ],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish DELETED event after successful deletion', async () => {
@@ -355,7 +370,12 @@ describe('WorkspaceService Event Publishing', () => {
         },
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish MEMBER_ADDED event after adding a member', async () => {
@@ -418,7 +438,12 @@ describe('WorkspaceService Event Publishing', () => {
         ],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish MEMBER_ROLE_UPDATED event with old and new roles', async () => {
@@ -474,7 +499,12 @@ describe('WorkspaceService Event Publishing', () => {
         ],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish MEMBER_REMOVED event after removing a member', async () => {
@@ -528,7 +558,12 @@ describe('WorkspaceService Event Publishing', () => {
         ],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
     });
 
     it('should publish TEAM_CREATED event after creating a team', async () => {
@@ -585,7 +620,12 @@ describe('WorkspaceService Event Publishing', () => {
         executeRawResults: [1, 1, 1],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
 
       // Should NOT throw despite event bus failure
       const result = await service.create(
@@ -626,7 +666,12 @@ describe('WorkspaceService Event Publishing', () => {
         executeRawResults: [1, 1, 1],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
 
       await service.create({ slug: 'eng', name: 'Eng' }, CREATOR_ID, tenantCtx as any);
 
@@ -651,7 +696,12 @@ describe('WorkspaceService Event Publishing', () => {
         executeRawResults: [1, 1],
       });
 
-      service = new WorkspaceService(mockDb as any, mockEventBus as any, mockLogger as any);
+      service = new WorkspaceService(
+        mockDb as any,
+        mockEventBus as any,
+        undefined,
+        mockLogger as any
+      );
 
       // Should NOT throw
       await expect(service.delete(WORKSPACE_ID, tenantCtx as any)).resolves.toBeUndefined();
@@ -693,7 +743,7 @@ describe('WorkspaceService Event Publishing', () => {
       });
 
       // No eventBus passed — undefined
-      service = new WorkspaceService(mockDb as any, undefined, mockLogger as any);
+      service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
 
       const result = await service.create(
         { slug: 'eng', name: 'Eng' },

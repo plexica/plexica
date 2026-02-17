@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or Discussion
+    url: https://github.com/plexica/plexica/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: Security Vulnerability
+    url: mailto:security@plexica.dev
+    about: Please report security vulnerabilities privately via email
+  - name: Documentation
+    url: https://github.com/plexica/plexica/tree/main/docs
+    about: Read the documentation for setup and usage guides
