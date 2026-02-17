@@ -39,8 +39,64 @@ export class AuthService {
    * @param state - Optional state parameter for CSRF protection
    * @returns Authorization URL to redirect user to
    * @throws Error if tenant is invalid or suspended
+   *
+   * SECURITY: redirectUri is validated against config.oauthCallbackUrl origin
+   * to prevent open redirect / authorization code interception attacks.
+   * An attacker could set redirectUri=https://evil.com/steal to receive the
+   * authorization code after the victim authenticates. The origin allowlist
+   * ensures only trusted callback URLs are accepted.
    */
   async buildLoginUrl(tenantSlug: string, redirectUri: string, state?: string): Promise<string> {
+    // SECURITY: Validate redirectUri origin against allowlist to prevent open redirect attacks
+    // Only allow redirect URIs whose origin matches the configured OAuth callback URL
+    try {
+      const allowedOrigin = new URL(config.oauthCallbackUrl).origin;
+      const requestedOrigin = new URL(redirectUri).origin;
+
+      if (requestedOrigin !== allowedOrigin) {
+        logger.warn(
+          {
+            tenantSlug,
+            redirectUri,
+            requestedOrigin,
+            allowedOrigin,
+          },
+          '[SECURITY] Open redirect attempt blocked - redirectUri origin does not match allowlist'
+        );
+
+        throw {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid redirect URI: origin is not allowed',
+            details: {
+              allowedOrigin,
+            },
+          },
+        };
+      }
+    } catch (error: any) {
+      // Re-throw Constitution-compliant errors from the block above
+      if (error?.error?.code === 'VALIDATION_ERROR') {
+        throw error;
+      }
+      // URL parsing failed — reject malformed URIs
+      logger.warn(
+        {
+          tenantSlug,
+          redirectUri,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        '[SECURITY] Malformed redirectUri rejected'
+      );
+
+      throw {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid redirect URI format',
+        },
+      };
+    }
+
     // Validate tenant exists and is not suspended
     await this.validateTenantForAuth(tenantSlug);
 

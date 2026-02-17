@@ -209,13 +209,13 @@ describe('authMiddleware', () => {
     await authMiddleware(mockRequest, mockReply);
 
     expect(mockReply.code).toHaveBeenCalledWith(401);
+    // SECURITY: No `details.reason` in response — error.message from jwt library
+    // can leak internal Keycloak URLs, expected audiences, and algorithm info.
+    // See HIGH #3 fix in middleware/auth.ts lines 150-158.
     expect(mockReply.send).toHaveBeenCalledWith({
       error: {
         code: 'AUTH_TOKEN_INVALID',
         message: 'Invalid or malformed token',
-        details: {
-          reason: 'Invalid signature',
-        },
       },
     });
   });

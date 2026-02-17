@@ -132,6 +132,17 @@ if (config.nodeEnv === 'production') {
         'Please set STORAGE_ACCESS_KEY and STORAGE_SECRET_KEY to secure values.'
     );
   }
+
+  // SECURITY: Enforce minimum JWT secret strength in production.
+  // A weak jwtSecret amplifies the risk of HS256 token forgery (see jwt.ts).
+  // 32 bytes (256 bits) is the minimum recommended for HMAC-SHA256.
+  if (config.jwtSecret.length < 32) {
+    throw new Error(
+      'SECURITY ERROR: JWT_SECRET is too short for production. ' +
+        'Minimum 32 characters (256 bits) required for HMAC-SHA256 security. ' +
+        'Generate a strong secret with: openssl rand -base64 48'
+    );
+  }
 }
 
 export type Config = z.infer<typeof configSchema>;

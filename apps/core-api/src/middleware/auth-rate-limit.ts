@@ -66,15 +66,18 @@ class AuthRateLimiter {
 
       return allowed;
     } catch (error) {
-      // Graceful degradation: Allow request if Redis fails
+      // SECURITY: Fail CLOSED when Redis is unavailable.
+      // Failing open would allow unlimited brute force attempts if an attacker
+      // causes a Redis outage or exhausts its connections. Denying requests
+      // during Redis downtime is safer than allowing unlimited auth attempts.
       logger.error(
         {
           ip,
           error: error instanceof Error ? error.message : String(error),
         },
-        'Auth rate limiter Redis failure, allowing request'
+        'Auth rate limiter Redis failure, BLOCKING request (fail-closed)'
       );
-      return true;
+      return false;
     }
   }
 

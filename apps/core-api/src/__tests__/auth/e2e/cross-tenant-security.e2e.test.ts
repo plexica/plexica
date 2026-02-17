@@ -1,6 +1,14 @@
 /**
  * Cross-Tenant Security E2E Tests
  *
+ * ⚠️ **NOTE**: These tests cover workspace/user-level cross-tenant isolation.
+ * For JWT-level cross-tenant security, see:
+ * - `apps/core-api/src/__tests__/auth/e2e/auth-complete.e2e.test.ts` (Additional Security Validations suite)
+ * - FR-011 (Cross-tenant JWT rejection) is tested there
+ *
+ * These tests remain valid but use mock tokens from testContext helper.
+ * Consider migrating to OAuth-based tokens for more realistic testing.
+ *
  * Tests that verify tenant isolation and prevent cross-tenant data access.
  * These are critical security tests that ensure users cannot access data
  * from other tenants.

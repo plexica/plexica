@@ -1,6 +1,23 @@
 /**
  * Token Refresh Flow E2E Tests
  *
+ * ⚠️ **DEPRECATED** (as of 2026-02-17)
+ *
+ * This test file uses the old ROPC (Resource Owner Password Credentials) flow
+ * which was replaced with OAuth 2.0 Authorization Code flow in Phase 4.
+ *
+ * **Replacement**: See `apps/core-api/src/__tests__/auth/e2e/auth-complete.e2e.test.ts`
+ * - Covers all token refresh scenarios with OAuth 2.0 flow
+ * - Includes refresh token rotation testing (FR-014)
+ * - Includes stolen token detection (Edge Case #11)
+ *
+ * **Why Deprecated**:
+ * - POST /api/auth/login endpoint no longer exists
+ * - OAuth 2.0 is more secure than ROPC (no password credentials in API)
+ * - New tests provide comprehensive coverage of refresh flow
+ *
+ * **Status**: Tests will skip; scheduled for removal after Sprint 3
+ *
  * Tests the complete token refresh flow with real Keycloak integration.
  * Covers:
  * - Token refresh with valid refresh token
@@ -16,7 +33,7 @@ import { buildTestApp } from '../../../test-app';
 import { db } from '../../../lib/db';
 import { redis } from '../../../lib/redis';
 
-describe('Token Refresh Flow E2E', () => {
+describe.skip('Token Refresh Flow E2E (DEPRECATED - uses ROPC flow)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {

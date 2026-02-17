@@ -134,10 +134,18 @@ export async function verifyTokenWithTenant(
   const payload = decoded.payload;
 
   // Check if this is a test token (HS256) or Keycloak token (RS256)
+  // SECURITY: HS256 test tokens are ONLY allowed in non-production environments.
+  // In production, all tokens MUST be RS256 from Keycloak to prevent algorithm confusion attacks.
   const isTestToken = decoded.header.alg === 'HS256' || payload.iss === 'plexica-test';
 
   if (isTestToken) {
-    // Verify test token with JWT_SECRET
+    // CRITICAL SECURITY: Block HS256 tokens in production to prevent algorithm confusion attacks.
+    // An attacker who discovers jwtSecret could forge tokens with arbitrary tenantSlug, sub, and roles.
+    if (config.nodeEnv === 'production') {
+      throw new Error('Invalid token: HS256 tokens are not accepted in production');
+    }
+
+    // Verify test token with JWT_SECRET (non-production only)
     const verifiedPayload = jwt.verify(token, config.jwtSecret, {
       algorithms: ['HS256'],
     }) as KeycloakJwtPayload;

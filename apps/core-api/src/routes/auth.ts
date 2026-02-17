@@ -435,6 +435,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   }>(
     '/auth/refresh',
     {
+      preHandler: [authRateLimitHook],
       schema: {
         description: 'Refresh access token using refresh token',
         tags: ['auth'],
@@ -599,7 +600,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   }>(
     '/auth/logout',
     {
-      preHandler: [authMiddleware],
+      preHandler: [authRateLimitHook, authMiddleware],
       schema: {
         description: 'Logout user and revoke tokens',
         tags: ['auth'],
@@ -788,6 +789,9 @@ export async function authRoutes(fastify: FastifyInstance) {
   }>(
     '/auth/jwks/:tenantSlug',
     {
+      // SECURITY: Rate limit JWKS endpoint to prevent tenant enumeration
+      // and cache miss amplification DDoS (each miss triggers a Keycloak fetch).
+      preHandler: [authRateLimitHook],
       schema: {
         description: 'Get JWKS for tenant realm (cached)',
         tags: ['auth'],

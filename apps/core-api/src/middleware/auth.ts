@@ -85,8 +85,11 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     }
 
     // Cross-tenant validation (FR-011)
-    // Extract tenant context from request path if available
-    const pathSegments = request.url.split('/');
+    // SECURITY: Use URL parsing to extract the path without query string.
+    // Using request.url.split('/') directly is vulnerable to query string
+    // pollution (e.g., /api/v1/foo?x=/tenants/evil-id) and URL encoding bypass.
+    const parsedUrl = new URL(request.url, 'http://localhost');
+    const pathSegments = parsedUrl.pathname.split('/');
     const tenantIndex = pathSegments.indexOf('tenants');
     if (tenantIndex !== -1 && pathSegments[tenantIndex + 1]) {
       const requestedTenantId = pathSegments[tenantIndex + 1];
@@ -144,13 +147,13 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
+    // SECURITY: Do not include error.message in the response — it can leak
+    // internal Keycloak URLs, expected audiences, and algorithm details.
+    // The full error is already logged server-side above.
     return reply.code(401).send({
       error: {
         code: 'AUTH_TOKEN_INVALID',
         message: 'Invalid or malformed token',
-        details: {
-          reason: error.message,
-        },
       },
     });
   }
