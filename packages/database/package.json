@@ -5,7 +5,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "db:generate": "npx --yes prisma@7.2.0 generate --config ./prisma/prisma.config.ts",
+    "db:generate": "npx --yes prisma@7.4.0 generate --config ./prisma/prisma.config.ts",
     "db:migrate": "npx prisma migrate dev --config ./prisma/prisma.config.ts",
     "db:migrate:deploy": "npx prisma migrate deploy --config ./prisma/prisma.config.ts",
     "db:migrate:status": "npx prisma migrate status --config ./prisma/prisma.config.ts",
