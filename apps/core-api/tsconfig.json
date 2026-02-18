@@ -3,7 +3,9 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "noUnusedLocals": false
+    "noUnusedLocals": false,
+    "module": "ESNext",
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/__tests__/**/*", "**/*.test.ts", "**/*.spec.ts"]

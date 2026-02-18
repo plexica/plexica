@@ -24,5 +24,5 @@ export { mergeOverrides } from './merge.js';
 export { createNamespacedIntl } from './intl.js';
 
 // NOTE: generateContentHash is Node.js-only (uses node:crypto)
-// Exported here for convenience, but only works in Node.js environments
-export { generateContentHash } from './hash.js';
+// NOT exported from main index to avoid bundling node:crypto in browser builds
+// Backend code can import directly from '@plexica/i18n/hash.js' if needed

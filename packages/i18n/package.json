@@ -15,6 +15,11 @@
       "import": "./dist/hash.js",
       "require": "./dist/hash.js",
       "types": "./dist/hash.d.ts"
+    },
+    "./hash.js": {
+      "import": "./dist/hash.js",
+      "require": "./dist/hash.js",
+      "types": "./dist/hash.d.ts"
     }
   },
   "scripts": {
