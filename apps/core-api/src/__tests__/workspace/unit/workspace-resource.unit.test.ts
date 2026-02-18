@@ -168,6 +168,7 @@ describe('WorkspaceResourceService', () => {
 
         // Verify event published
         expect(mockEventBus.publish).toHaveBeenCalledWith(
+          'plexica.workspace.lifecycle',
           WORKSPACE_EVENTS.RESOURCE_SHARED,
           {
             workspaceId: WORKSPACE_ID,
@@ -378,6 +379,7 @@ describe('WorkspaceResourceService', () => {
 
         // Verify event published
         expect(mockEventBus.publish).toHaveBeenCalledWith(
+          'plexica.workspace.lifecycle',
           WORKSPACE_EVENTS.RESOURCE_UNSHARED,
           {
             workspaceId: WORKSPACE_ID,

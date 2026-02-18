@@ -323,6 +323,7 @@ describe('authMiddleware', () => {
       realm: 'master',
       tenantSlug: 'master',
       roles: ['super-admin'],
+      realm_access: { roles: ['super-admin'] },
     });
     const mockUserInfo = createMockUserInfo({ roles: ['super-admin'] });
     const mockTenant = createMockTenant({ slug: 'master' });

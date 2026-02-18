@@ -4,7 +4,7 @@
 // Validates Constitution Art. 9.2 compliance (DoS protection)
 // and Art. 6.2 compliance (error response format).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 // vi.mock factories are hoisted — must not reference external variables.
@@ -181,6 +181,13 @@ describe('rateLimiter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Override NODE_ENV so the rate limiter logic actually executes
+    // (rate-limiter.ts line 111 skips when NODE_ENV === 'test')
+    process.env.NODE_ENV = 'development';
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = 'test';
   });
 
   it('should return a function (Fastify hook)', () => {
