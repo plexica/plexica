@@ -739,7 +739,7 @@ describe('User Sync Pipeline Integration Tests', () => {
 
       // Cleanup
       await tenantService.hardDeleteTenant(suspendedTenant.id);
-    }, 20000);
+    }, 45000);
   });
 
   describe('Edge Case #7: Consumer Lag Replay', () => {

@@ -158,7 +158,7 @@ describe('Plugin Marketplace Integration Tests', () => {
         payload: pluginManifest,
       });
 
-      expect(response.statusCode).toBe(403); // 403 when no auth header is provided
+      expect(response.statusCode).toBe(401); // 401 Unauthorized when no auth header is provided
     });
 
     it('should reject duplicate plugin registration', async () => {

@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 17, 2026
+**Last Updated**: February 18, 2026
 
 > **Archive Notice**: Historical decisions from 2025 and earlier have been moved to
 > [archives/decision-log-2025.md](./archives/decision-log-2025.md)
@@ -14,10 +14,14 @@
 
 ### Technical Debt
 
-| ID     | Description                                              | Impact  | Severity | Tracked In                                | Target Sprint |
-| ------ | -------------------------------------------------------- | ------- | -------- | ----------------------------------------- | ------------- |
-| TD-001 | Test coverage at 63%, target 80%                         | Quality | MEDIUM   | `specs/TEST_COVERAGE_IMPROVEMENT_PLAN.md` | Phase 2       |
-| TD-002 | Core modules (auth, tenant, workspace) need 85% coverage | Quality | HIGH     | `AGENTS.md`                               | Q1 2026       |
+| ID     | Description                                               | Impact  | Severity | Tracked In           | Target Sprint |
+| ------ | --------------------------------------------------------- | ------- | -------- | -------------------- | ------------- |
+| TD-001 | Test coverage at 76.5%, target 80%                        | Quality | MEDIUM   | CI report 2026-02-18 | Next Sprint   |
+| TD-002 | Core modules (auth, tenant, workspace) need 85% coverage  | Quality | HIGH     | `AGENTS.md`          | Q1 2026       |
+| TD-003 | keycloak.service.ts at 2.83% coverage                     | Quality | HIGH     | CI report 2026-02-18 | Next Sprint   |
+| TD-004 | 24 integration tests deferred (oauth-flow + ws-resources) | Quality | MEDIUM   | CI report 2026-02-18 | Sprint 5      |
+| TD-005 | 82 E2E failures need remediation                          | Quality | MEDIUM   | CI report 2026-02-18 | Sprint 4-5    |
+| TD-006 | 40 deprecated E2E tests (ROPC flow) need removal          | Quality | LOW      | CI report 2026-02-18 | Sprint 5      |
 
 ### Deferred Decisions
 
@@ -29,6 +33,101 @@
 ---
 
 ## Recent Decisions (February 2026)
+
+### Full CI Pipeline Execution - COMPLETE (February 18, 2026)
+
+**Date**: February 18, 2026  
+**Context**: Executed complete CI pipeline: lint → infrastructure → unit → integration → E2E → coverage → build
+
+**Status**: ✅ **ALL PHASES COMPLETE** — Report at `.forge/knowledge/ci-integration-test-report-2026-02-18.md`
+
+**Results Summary**:
+
+| Phase             | Result                               |
+| ----------------- | ------------------------------------ |
+| Unit Tests        | 1,239/1,239 (100%)                   |
+| Integration Tests | 341/366 (93.2%) — 24 deferred        |
+| E2E Tests         | 96 passing / 51 failing / 48 skipped |
+| Coverage          | 76.5% lines (target: 80%)            |
+| Build             | 13/13 packages                       |
+
+**Key Findings**: Coverage gap primarily from `keycloak.service.ts` (2.83%), E2E failures primarily from tenant provisioning in test setup.
+
+---
+
+### Keycloak 401 P1 Bug Fix (February 18, 2026)
+
+**Date**: February 18, 2026  
+**Context**: Keycloak admin API calls failing with 401 Unauthorized during tenant provisioning
+
+**Status**: ✅ **FIXED** — tenant-api: 32/32 integration tests now passing
+
+**Root Cause**: Two interacting bugs in `keycloak.service.ts`:
+
+**Bug A — Token Never Refreshed After Expiry**:
+
+- `initialized` boolean was set once to `true` and never reset
+- `@keycloak/keycloak-admin-client` does NOT auto-refresh tokens (despite misleading comment in code)
+- Keycloak `admin-cli` access token has 60-second default lifespan
+- After ~60 tests, token expires and all subsequent Keycloak calls fail with 401
+
+**Bug B — `withRetry()` Couldn't Detect 401 Through Sanitized Errors**:
+
+- Inner try/catch blocks in `provisionRealmClients()`, `provisionRealmRoles()`, `configureRefreshTokenRotation()` wrap raw Keycloak 401 errors into `KeycloakSanitizedError`
+- `withRetry()` only checked `error.response?.status` (undefined on sanitized) and `error.message.includes('401')` (false — message is "Authentication failed for client provisioning")
+- Result: 401 errors were never detected as auth failures, so no re-auth retry happened
+
+**Fixes Applied**:
+
+1. Added `lastAuthTime` timestamp tracking + `TOKEN_REFRESH_INTERVAL_MS = 50_000` constant
+2. `ensureAuth()` now checks token age and proactively re-authenticates before expiry
+3. `withRetry()` now detects `KeycloakSanitizedError.statusCode` alongside raw errors
+
+**Files Modified**: `apps/core-api/src/services/keycloak.service.ts`
+
+**Constitution Compliance**: Article 5.1 (Keycloak Auth) — now properly maintaining valid admin sessions
+
+---
+
+### Integration Test Fixes Applied (February 18, 2026)
+
+**Date**: February 18, 2026  
+**Context**: 5 actionable integration test failures fixed during CI pipeline run
+
+**Fixes**:
+
+| #   | Test File                      | Fix                          | Root Cause                                       |
+| --- | ------------------------------ | ---------------------------- | ------------------------------------------------ |
+| 1   | workspace-members.integration  | Changed expect 404→403       | Security posture: non-member gets 403 not 404    |
+| 2   | user-sync.integration          | Timeout 20s→45s              | Exponential backoff exceeds 20s window           |
+| 3   | plugin-permissions.integration | Added `demoTenantAdminToken` | Cross-tenant security blocks wrong-tenant tokens |
+| 4   | plugin-marketplace.integration | Changed expect 403→401       | Unauthenticated = 401, not 403                   |
+| 5   | CI workflow                    | Timeout 30min→60min          | Full suite needs ~45 minutes                     |
+
+**Result**: Integration tests improved from initial 192/197 (partial run) to **341/366** (full run, 93.2%)
+
+---
+
+### E2E Test Analysis - Failure Categorization (February 18, 2026)
+
+**Date**: February 18, 2026  
+**Context**: All 16 E2E test files executed individually for first time
+
+**Discovery**: 96 passing / 51 failing / 48 skipped across 16 files
+
+**Failure Categories** (prioritized remediation):
+
+1. **P1: Tenant Provisioning in E2E Setup (~37 tests)** — Plugin E2E tests reference non-existent `plexica-test` tenant
+2. **P2: OAuth Routes Not Registered (~13 tests)** — Same issue as integration oauth-flow
+3. **P3: Cross-Tenant Status Code Mismatches (~7 tests)** — Tests expect old codes after middleware changes
+4. **P4: Workspace Setup Cascading (~22 tests)** — Likely resolved by P1 fix
+5. **P5: Flaky Concurrent Tests (~3 tests)** — Timing-sensitive assertions
+
+**DEPRECATED (correctly skipped)**: 40 tests across security-hardening + token-refresh (ROPC flow)
+
+**Full Report**: `.forge/knowledge/ci-integration-test-report-2026-02-18.md`
+
+---
 
 ### Plugin Install Integration Tests - COMPLETE (February 17, 2026)
 

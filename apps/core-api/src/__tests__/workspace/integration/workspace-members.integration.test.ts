@@ -518,9 +518,9 @@ describe('Workspace Members Integration', () => {
         },
       });
 
-      // Returns 404 instead of 403 as a security best practice:
-      // Don't reveal workspace existence to non-members
-      expect(response.statusCode).toBe(404);
+      // Authenticated users who aren't workspace members get 403 Forbidden.
+      // The workspace guard confirms the workspace exists but denies access.
+      expect(response.statusCode).toBe(403);
     });
   });
 

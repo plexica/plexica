@@ -40,6 +40,19 @@ export class KeycloakService {
   protected client: KcAdminClient;
   private initialized = false;
   /**
+   * Timestamp of the last successful authentication.
+   * Used to proactively re-authenticate before the admin token expires.
+   * The Keycloak admin-cli access token has a default 60-second lifespan,
+   * so we re-authenticate after 50 seconds to avoid 401 errors.
+   */
+  private lastAuthTime = 0;
+  /**
+   * Maximum age (in ms) before we proactively re-authenticate.
+   * Set to 50 seconds — well within the Keycloak admin-cli default
+   * access token lifespan of 60 seconds.
+   */
+  private static readonly TOKEN_REFRESH_INTERVAL_MS = 50_000;
+  /**
    * Mutex to serialize realm-scoped operations.
    * The Keycloak admin client shares a single realm config via setConfig(),
    * so concurrent operations targeting different tenants would clobber each other.
@@ -132,6 +145,7 @@ export class KeycloakService {
     });
 
     this.initialized = true;
+    this.lastAuthTime = Date.now();
   }
 
   /**
@@ -143,14 +157,17 @@ export class KeycloakService {
   }
 
   /**
-   * Ensure the client is authenticated (refresh token if needed)
+   * Ensure the client is authenticated, proactively re-authenticating
+   * before the admin token expires (default 60s lifespan).
+   *
+   * NOTE: The @keycloak/keycloak-admin-client does NOT auto-refresh
+   * admin-cli tokens. We must handle re-authentication ourselves.
    */
   private async ensureAuth(): Promise<void> {
-    if (!this.initialized) {
+    const now = Date.now();
+    if (!this.initialized || now - this.lastAuthTime > KeycloakService.TOKEN_REFRESH_INTERVAL_MS) {
       await this.initialize();
     }
-    // Keycloak admin client handles token refresh automatically,
-    // but we provide a mechanism to re-auth if needed
   }
 
   /**
@@ -162,10 +179,15 @@ export class KeycloakService {
     try {
       return await operation();
     } catch (error: unknown) {
-      // If we get a 401, try to re-authenticate and retry once
-      const status = (error as { response?: { status?: number } })?.response?.status;
+      // If we get a 401, try to re-authenticate and retry once.
+      // Check both raw Keycloak errors (error.response.status) and
+      // sanitized errors (KeycloakSanitizedError.statusCode) since
+      // inner try/catch blocks in provisioning methods wrap raw 401s.
+      const rawStatus = (error as { response?: { status?: number } })?.response?.status;
+      const sanitizedStatus =
+        error instanceof KeycloakSanitizedError ? error.statusCode : undefined;
       const message = error instanceof Error ? error.message : '';
-      if (status === 401 || message.includes('401')) {
+      if (rawStatus === 401 || sanitizedStatus === 401 || message.includes('401')) {
         await this.reAuthenticate();
         return await operation();
       }

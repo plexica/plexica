@@ -19,6 +19,7 @@ describe('Plugin Permissions Integration Tests', () => {
   let testTenantId: string;
   let testTenantSlug: string;
   let demoTenantSlug: string;
+  let demoTenantAdminToken: string;
 
   beforeAll(async () => {
     // Reset test environment
@@ -77,6 +78,7 @@ describe('Plugin Permissions Integration Tests', () => {
 
     // Use mock tokens for integration tests (faster and more reliable)
     tenantAdminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug);
+    demoTenantAdminToken = testContext.auth.createMockTenantAdminToken(demoTenantSlug);
   });
 
   afterAll(async () => {
@@ -415,11 +417,11 @@ describe('Plugin Permissions Integration Tests', () => {
         where: { slug: demoTenantSlug },
       });
 
-      // Install in second tenant
+      // Install in second tenant (must use demo tenant's own admin token)
       await app.inject({
         method: 'POST',
         url: `/api/tenants/${demoTenant!.id}/plugins/${isolationPluginId}/install`,
-        headers: { authorization: `Bearer ${tenantAdminToken}` },
+        headers: { authorization: `Bearer ${demoTenantAdminToken}` },
         payload: { configuration: { scope: `tenant-${demoTenantSlug}` } },
       });
 
