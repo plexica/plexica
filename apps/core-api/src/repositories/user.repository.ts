@@ -7,6 +7,30 @@ import { getTenantContext, type TenantContext } from '../middleware/tenant-conte
 import type { CreateUserDto, UpdateUserDto } from '../types/auth.types.js';
 
 /**
+ * Map a raw PostgreSQL row (snake_case) to a camelCase user object.
+ *
+ * Raw SQL queries return column names as-is from the database (snake_case).
+ * This function normalizes the shape to match TypeScript conventions and
+ * the camelCase DTOs used throughout the codebase.
+ */
+function mapRowToUser(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: row.id,
+    keycloakId: row.keycloak_id,
+    email: row.email,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_url,
+    locale: row.locale,
+    preferences: row.preferences,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
  * UserRepository - Data access layer for tenant-scoped user records
  *
  * This repository enforces tenant schema isolation via AsyncLocalStorage context
@@ -67,7 +91,7 @@ export class UserRepository {
         LIMIT 1
       `;
 
-      return result.length > 0 ? result[0] : null;
+      return result.length > 0 ? mapRowToUser(result[0]) : null;
     } catch (error) {
       this.logger.error(
         { keycloakId, schemaName, error: error instanceof Error ? error.message : String(error) },
@@ -93,7 +117,7 @@ export class UserRepository {
       LIMIT 1
     `;
 
-    return result.length > 0 ? result[0] : null;
+    return result.length > 0 ? mapRowToUser(result[0]) : null;
   }
 
   /**
@@ -112,7 +136,7 @@ export class UserRepository {
       LIMIT 1
     `;
 
-    return result.length > 0 ? result[0] : null;
+    return result.length > 0 ? mapRowToUser(result[0]) : null;
   }
 
   /**
@@ -167,7 +191,7 @@ export class UserRepository {
         'User created successfully'
       );
 
-      return result[0];
+      return mapRowToUser(result[0]);
     } catch (error) {
       this.logger.error(
         {
@@ -262,7 +286,7 @@ export class UserRepository {
         'User updated successfully'
       );
 
-      return result[0];
+      return mapRowToUser(result[0]);
     } catch (error) {
       this.logger.error(
         { keycloakId, schemaName, error: error instanceof Error ? error.message : String(error) },
@@ -295,7 +319,7 @@ export class UserRepository {
       throw new Error(`User with keycloakId '${keycloakId}' not found in tenant schema`);
     }
 
-    return result[0];
+    return mapRowToUser(result[0]);
   }
 
   /**
@@ -356,7 +380,7 @@ export class UserRepository {
       throw new Error('Failed to upsert user: no row returned');
     }
 
-    return result[0];
+    return mapRowToUser(result[0]);
   }
 }
 

@@ -215,25 +215,37 @@ function handleServiceError(error: unknown, reply: FastifyReply): never {
 }
 
 /**
- * Re-throw a service error as a WorkspaceError.
- *
- * If the error matches a known workspace error pattern, throw the
- * mapped WorkspaceError. Otherwise re-throw the original error so
- * the global error handler treats it as a 500.
+ * DEPRECATED: Helper function for deprecated throwMappedError pattern.
+ * Kept for reference but no longer used.
+ * Use handleServiceError() instead which directly sends responses without throwing.
  */
-function throwMappedError(error: unknown): never {
-  console.log('[throwMappedError] Input error:', {
-    isError: error instanceof Error,
-    message: error instanceof Error ? error.message : String(error),
-    constructor: error?.constructor?.name,
-  });
-  const mapped = mapServiceError(error);
-  console.log('[throwMappedError] Mapped result:', {
-    mapped: mapped ? { code: mapped.code, statusCode: mapped.statusCode } : null,
-  });
-  if (mapped) throw mapped;
-  throw error;
-}
+// function throwMappedError(error: unknown): never {
+//   console.log('[throwMappedError] Input error:', {
+//     isError: error instanceof Error,
+//     message: error instanceof Error ? error.message : String(error),
+//     constructor: error?.constructor?.name,
+//   });
+//
+//   // Match error message patterns and convert to WorkspaceError
+//   const errorMessage = error instanceof Error ? error.message : String(error);
+//
+//   if (errorMessage.includes('already exists') || errorMessage.includes('unique constraint')) {
+//     throw new WorkspaceError(409, 'WORKSPACE_CONFLICT', errorMessage);
+//   } else if (errorMessage.includes('not found')) {
+//     throw new WorkspaceError(404, 'WORKSPACE_NOT_FOUND', errorMessage);
+//   } else if (errorMessage.includes('unauthorized') || errorMessage.includes('permission')) {
+//     throw new WorkspaceError(403, 'WORKSPACE_FORBIDDEN', errorMessage);
+//   } else if (
+//     errorMessage.includes('invalid') ||
+//     errorMessage.includes('required') ||
+//     errorMessage.includes('validation')
+//   ) {
+//     throw new WorkspaceError(400, 'WORKSPACE_VALIDATION_ERROR', errorMessage);
+//   } else {
+//     // Re-throw unrecognized errors so global error handler treats as 500
+//     throw error;
+//   }
+// }
 
 /**
  * Workspace routes registration

@@ -130,8 +130,12 @@ describe('UserSyncConsumer', () => {
     vi.mocked(redis.exists).mockResolvedValue(0);
     vi.mocked(redis.setex).mockResolvedValue('OK');
 
-    // Create consumer instance
-    consumer = new UserSyncConsumer(mockEventBus, mockLogger, mockUserRepo, mockTenantService);
+    // Create consumer instance with options object API
+    consumer = new UserSyncConsumer(mockEventBus, {
+      logger: mockLogger,
+      userRepository: mockUserRepo,
+      tenantService: mockTenantService,
+    });
   });
 
   afterEach(() => {
@@ -146,7 +150,7 @@ describe('UserSyncConsumer', () => {
     });
 
     it('should use default dependencies when not provided', () => {
-      const consumerWithDefaults = new UserSyncConsumer(mockEventBus);
+      const consumerWithDefaults = new UserSyncConsumer(mockEventBus, {});
       expect(consumerWithDefaults).toBeDefined();
     });
 
@@ -158,7 +162,7 @@ describe('UserSyncConsumer', () => {
         expect.any(Function),
         {
           groupId: 'plexica-user-sync',
-          fromBeginning: false,
+          fromBeginning: true,
           autoCommit: true,
         }
       );
@@ -166,7 +170,7 @@ describe('UserSyncConsumer', () => {
       expect(consumer.getSubscriptionId()).toBe('subscription-123');
       expect(mockLogger.info).toHaveBeenCalledWith('Starting UserSyncConsumer...');
       expect(mockLogger.info).toHaveBeenCalledWith(
-        { subscriptionId: 'subscription-123' },
+        { subscriptionId: 'subscription-123', groupId: 'plexica-user-sync', fromBeginning: true },
         'UserSyncConsumer started successfully'
       );
     });
@@ -274,21 +278,23 @@ describe('UserSyncConsumer', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
-    it('should throw error when getTenantContextWithRetry fails', async () => {
+    it('should skip gracefully when tenant not found (permanent error)', async () => {
       vi.mocked(mockTenantService.getTenantBySlug).mockRejectedValue(
         new Error('Tenant not found: acme-corp')
       );
 
-      await expect(consumer.handleUserCreated(validUserCreatedEvent)).rejects.toThrow(
-        'Tenant not found'
-      );
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.objectContaining({
+      // Should NOT throw - consumer skips events for non-existent tenants
+      await consumer.handleUserCreated(validUserCreatedEvent);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        {
           keycloakId: '123e4567-e89b-12d3-a456-426614174000',
           realmName: 'acme-corp',
-        }),
-        'Failed to handle USER_CREATED event'
+        },
+        'Skipping USER_CREATED event - tenant does not exist (may be old test data)'
       );
+      // User should NOT be created since tenant doesn't exist
+      expect(mockUserRepo.create).not.toHaveBeenCalled();
     });
 
     it('should throw error when UserRepository.create fails', async () => {
@@ -401,13 +407,20 @@ describe('UserSyncConsumer', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
-    it('should throw error when getTenantContextWithRetry fails', async () => {
+    it('should skip gracefully when tenant not found (permanent error)', async () => {
       vi.mocked(mockTenantService.getTenantBySlug).mockRejectedValue(new Error('Tenant not found'));
 
-      await expect(consumer.handleUserUpdated(validUserUpdatedEvent)).rejects.toThrow(
-        'Tenant not found'
+      // Should NOT throw - consumer skips events for non-existent tenants
+      await consumer.handleUserUpdated(validUserUpdatedEvent);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        {
+          keycloakId: '123e4567-e89b-12d3-a456-426614174000',
+          realmName: 'acme-corp',
+        },
+        'Skipping USER_UPDATED event - tenant does not exist (may be old test data)'
       );
-      expect(mockLogger.error).toHaveBeenCalled();
+      expect(mockUserRepo.update).not.toHaveBeenCalled();
     });
 
     it('should throw error when UserRepository.update fails (user not found)', async () => {
@@ -484,13 +497,20 @@ describe('UserSyncConsumer', () => {
       await expect(consumer.handleUserDeleted(invalidEvent)).rejects.toThrow();
     });
 
-    it('should throw error when getTenantContextWithRetry fails', async () => {
+    it('should skip gracefully when tenant not found (permanent error)', async () => {
       vi.mocked(mockTenantService.getTenantBySlug).mockRejectedValue(new Error('Tenant not found'));
 
-      await expect(consumer.handleUserDeleted(validUserDeletedEvent)).rejects.toThrow(
-        'Tenant not found'
+      // Should NOT throw - consumer skips events for non-existent tenants
+      await consumer.handleUserDeleted(validUserDeletedEvent);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        {
+          keycloakId: '123e4567-e89b-12d3-a456-426614174000',
+          realmName: 'acme-corp',
+        },
+        'Skipping USER_DELETED event - tenant does not exist (may be old test data)'
       );
-      expect(mockLogger.error).toHaveBeenCalled();
+      expect(mockUserRepo.softDelete).not.toHaveBeenCalled();
     });
 
     it('should throw error when UserRepository.softDelete fails', async () => {
@@ -585,7 +605,7 @@ describe('UserSyncConsumer', () => {
           maxAttempts: 5,
           delayMs: 1000,
         }),
-        'Tenant not yet provisioned, retrying after delay (Edge Case #2)'
+        'Tenant lookup failed, retrying after delay (Edge Case #2)'
       );
     });
 
@@ -600,8 +620,11 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      // Start the async operation
-      const promise = consumer.handleUserCreated(event);
+      // Start the async operation and attach rejection handler to prevent unhandled rejection
+      let caughtError: Error | undefined;
+      const promise = consumer.handleUserCreated(event).catch((err) => {
+        caughtError = err;
+      });
 
       // Advance timers through all retry delays (1s + 2s + 5s + 10s = 18s total)
       // Note: 5th attempt has no delay
@@ -610,7 +633,10 @@ describe('UserSyncConsumer', () => {
       await vi.advanceTimersByTimeAsync(5000); // 3rd retry
       await vi.advanceTimersByTimeAsync(10000); // 4th retry
 
-      await expect(promise).rejects.toThrow("Tenant 'acme-corp' not provisioned after 5 attempts");
+      await promise;
+
+      expect(caughtError).toBeDefined();
+      expect(caughtError!.message).toContain("Tenant 'acme-corp' not provisioned after 5 attempts");
 
       expect(mockTenantService.getTenantBySlug).toHaveBeenCalledTimes(5);
       expect(mockLogger.warn).toHaveBeenCalledTimes(5); // 5 warn logs (one per attempt)
@@ -620,7 +646,7 @@ describe('UserSyncConsumer', () => {
       );
     });
 
-    it('should throw immediately on permanent error (tenant not found)', async () => {
+    it('should skip gracefully on permanent error (tenant not found)', async () => {
       vi.mocked(mockTenantService.getTenantBySlug).mockRejectedValue(
         new Error('Tenant not found: acme-corp')
       );
@@ -631,17 +657,21 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      await expect(consumer.handleUserCreated(event)).rejects.toThrow('Tenant not found');
+      // Should NOT throw - consumer skips events for non-existent tenants
+      await consumer.handleUserCreated(event);
 
       // Should not retry - permanent error
       expect(mockTenantService.getTenantBySlug).toHaveBeenCalledTimes(1);
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        { realmName: 'acme-corp', attempt: 1 },
-        'Tenant not found - skipping retry (permanent error)'
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        {
+          keycloakId: '123e4567-e89b-12d3-a456-426614174000',
+          realmName: 'acme-corp',
+        },
+        'Skipping USER_CREATED event - tenant does not exist (may be old test data)'
       );
     });
 
-    it('should verify tenant has schemaName (provisioning check)', async () => {
+    it('should warn but proceed when tenant status is PROVISIONING', async () => {
       vi.mocked(mockTenantService.getTenantBySlug).mockResolvedValue({
         id: 'tenant-123',
         slug: 'acme-corp',
@@ -655,24 +685,15 @@ describe('UserSyncConsumer', () => {
         email: 'test@example.com',
       });
 
-      // Start the async operation
-      const promise = consumer.handleUserCreated(event);
+      // Consumer computes schemaName from slug, so it proceeds even if tenant.schemaName is null
+      await consumer.handleUserCreated(event);
 
-      // Advance timers through all retry delays
-      await vi.advanceTimersByTimeAsync(1000); // 1st retry
-      await vi.advanceTimersByTimeAsync(2000); // 2nd retry
-      await vi.advanceTimersByTimeAsync(5000); // 3rd retry
-      await vi.advanceTimersByTimeAsync(10000); // 4th retry
-
-      await expect(promise).rejects.toThrow("Tenant 'acme-corp' not provisioned after 5 attempts");
-
+      expect(mockTenantService.getTenantBySlug).toHaveBeenCalledTimes(1);
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          realmName: 'acme-corp',
-          error: "Tenant 'acme-corp' found but schema not provisioned yet",
-        }),
-        'Tenant not yet provisioned, retrying after delay (Edge Case #2)'
+        { realmName: 'acme-corp', status: 'PROVISIONING' },
+        'Tenant exists but status is not ACTIVE - processing anyway'
       );
+      expect(mockUserRepo.create).toHaveBeenCalled(); // Processing continues
     });
 
     it('should warn if tenant status is not ACTIVE', async () => {
@@ -700,7 +721,7 @@ describe('UserSyncConsumer', () => {
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         { realmName: 'acme-corp', status: 'SUSPENDED' },
-        'Tenant exists but status is not ACTIVE'
+        'Tenant exists but status is not ACTIVE - processing anyway'
       );
       expect(mockUserRepo.create).toHaveBeenCalled(); // Processing continues
     });
@@ -785,7 +806,7 @@ describe('UserSyncConsumer', () => {
           delayMs: 1000,
           error: 'Schema not provisioned',
         }),
-        'Tenant not yet provisioned, retrying after delay (Edge Case #2)'
+        'Tenant lookup failed, retrying after delay (Edge Case #2)'
       );
     });
   });

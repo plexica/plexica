@@ -118,6 +118,16 @@ function getErrorCode(error: FastifyError): string {
 export function setupErrorHandler(server: FastifyInstance) {
   server.setErrorHandler(
     async (error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
+      // Debug logging to confirm handler is called
+      if (process.env.NODE_ENV === 'test') {
+        console.log('[error-handler] INVOKED with error:', {
+          name: error.name,
+          message: error.message,
+          code: (error as any).code,
+          statusCode: error.statusCode,
+        });
+      }
+
       // Always log the full error server-side (Constitution Art. 6.3)
       const errorType = classifyError(error);
       const logLevel = errorType === ErrorType.OPERATIONAL ? 'warn' : 'error';
@@ -185,6 +195,20 @@ export function setupErrorHandler(server: FastifyInstance) {
           }),
         },
       };
+
+      // Debug logging in test environment
+      if (process.env.NODE_ENV === 'test') {
+        console.log('[error-handler] Sending error response:', {
+          statusCode,
+          errorResponse,
+          originalError: {
+            name: error.name,
+            message: error.message,
+            code: (error as any).code,
+            statusCode: error.statusCode,
+          },
+        });
+      }
 
       // Send error response
       return reply.status(statusCode).send(errorResponse);

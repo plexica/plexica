@@ -20,7 +20,8 @@ export interface KeycloakJwtPayload extends JwtPayload {
     };
   };
   tenant?: string; // Custom claim for tenant identification (legacy)
-  tenant_id?: string; // Tenant ID claim (new standard claim)
+  tenant_id?: string; // Tenant ID claim (old format, kept for backward compatibility)
+  tenantSlug?: string; // Tenant slug claim (current standard)
   realm?: string; // Keycloak realm name
   teams?: string[]; // Team memberships for the user
   azp?: string; // Authorized party (client_id)
@@ -153,7 +154,10 @@ export async function verifyTokenWithTenant(
     // Extract tenant from custom claim or default to 'plexica-test'
     let tenantSlug: string = 'plexica-test';
 
-    if ((verifiedPayload as any).tenant_id) {
+    // Check for tenant slug in preferred order: tenantSlug > tenant_id > tenant > issuer
+    if (verifiedPayload.tenantSlug) {
+      tenantSlug = verifiedPayload.tenantSlug;
+    } else if ((verifiedPayload as any).tenant_id) {
       tenantSlug = (verifiedPayload as any).tenant_id;
     } else if (verifiedPayload.tenant) {
       tenantSlug = verifiedPayload.tenant;

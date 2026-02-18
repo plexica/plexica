@@ -55,7 +55,8 @@ const mockTenantContext: TenantContext = {
   schemaName: 'tenant_test_tenant',
 };
 
-const mockUser = {
+// Raw database row (snake_case) — returned by $queryRaw / $queryRawUnsafe
+const mockDbRow = {
   id: 'user-uuid-123',
   keycloak_id: 'keycloak-uuid-456',
   email: 'test@example.com',
@@ -68,6 +69,22 @@ const mockUser = {
   status: 'ACTIVE',
   created_at: new Date('2024-01-01'),
   updated_at: new Date('2024-01-01'),
+};
+
+// Expected camelCase output after mapRowToUser()
+const mockUser = {
+  id: 'user-uuid-123',
+  keycloakId: 'keycloak-uuid-456',
+  email: 'test@example.com',
+  firstName: 'John',
+  lastName: 'Doe',
+  displayName: 'John Doe',
+  avatarUrl: 'https://example.com/avatar.jpg',
+  locale: 'en',
+  preferences: { theme: 'dark', notifications: true },
+  status: 'ACTIVE',
+  createdAt: new Date('2024-01-01'),
+  updatedAt: new Date('2024-01-01'),
 };
 
 describe('UserRepository', () => {
@@ -162,7 +179,7 @@ describe('UserRepository', () => {
   describe('findByKeycloakId', () => {
     it('should return user when found in tenant schema', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const result = await repository.findByKeycloakId('keycloak-uuid-456');
 
@@ -210,7 +227,7 @@ describe('UserRepository', () => {
   describe('findByEmail', () => {
     it('should return user when found by email', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const result = await repository.findByEmail('test@example.com');
 
@@ -229,7 +246,7 @@ describe('UserRepository', () => {
 
     it('should handle email case sensitivity correctly', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const result = await repository.findByEmail('Test@Example.com');
 
@@ -240,7 +257,7 @@ describe('UserRepository', () => {
   describe('findById', () => {
     it('should return user when found by internal UUID', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const result = await repository.findById('user-uuid-123');
 
@@ -261,7 +278,7 @@ describe('UserRepository', () => {
   describe('create', () => {
     it('should create user with all fields', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-456',
@@ -291,14 +308,21 @@ describe('UserRepository', () => {
 
     it('should create user with minimal fields (defaults)', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const minimalUser = {
-        ...mockUser,
+      const minimalDbRow = {
+        ...mockDbRow,
         first_name: null,
         last_name: null,
         display_name: null,
         avatar_url: null,
       };
-      vi.mocked(db.$queryRaw).mockResolvedValue([minimalUser]);
+      const minimalUser = {
+        ...mockUser,
+        firstName: null,
+        lastName: null,
+        displayName: null,
+        avatarUrl: null,
+      };
+      vi.mocked(db.$queryRaw).mockResolvedValue([minimalDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-789',
@@ -313,7 +337,7 @@ describe('UserRepository', () => {
 
     it('should use default locale "en" when not provided', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-456',
@@ -328,7 +352,7 @@ describe('UserRepository', () => {
 
     it('should use default status "ACTIVE" when not provided', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-456',
@@ -381,8 +405,9 @@ describe('UserRepository', () => {
   describe('update', () => {
     it('should update single field', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const updatedUser = { ...mockUser, display_name: 'Jane Doe' };
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedUser]);
+      const updatedDbRow = { ...mockDbRow, display_name: 'Jane Doe' };
+      const updatedUser = { ...mockUser, displayName: 'Jane Doe' };
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedDbRow]);
 
       const updateData: UpdateUserDto = {
         displayName: 'Jane Doe',
@@ -403,8 +428,9 @@ describe('UserRepository', () => {
 
     it('should update multiple fields', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const updatedUser = { ...mockUser, first_name: 'Jane', last_name: 'Smith', locale: 'fr' };
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedUser]);
+      const updatedDbRow = { ...mockDbRow, first_name: 'Jane', last_name: 'Smith', locale: 'fr' };
+      const updatedUser = { ...mockUser, firstName: 'Jane', lastName: 'Smith', locale: 'fr' };
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedDbRow]);
 
       const updateData: UpdateUserDto = {
         firstName: 'Jane',
@@ -425,8 +451,8 @@ describe('UserRepository', () => {
 
     it('should update preferences (JSONB)', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const updatedUser = { ...mockUser, preferences: { theme: 'light', notifications: false } };
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedUser]);
+      const updatedDbRow = { ...mockDbRow, preferences: { theme: 'light', notifications: false } };
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedDbRow]);
 
       const updateData: UpdateUserDto = {
         preferences: { theme: 'light', notifications: false },
@@ -434,13 +460,13 @@ describe('UserRepository', () => {
 
       const result = await repository.update('keycloak-uuid-456', updateData);
 
-      expect(result).toEqual(updatedUser);
+      expect(result.preferences).toEqual({ theme: 'light', notifications: false });
     });
 
     it('should update status enum', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const updatedUser = { ...mockUser, status: 'SUSPENDED' };
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedUser]);
+      const updatedDbRow = { ...mockDbRow, status: 'SUSPENDED' };
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([updatedDbRow]);
 
       const updateData: UpdateUserDto = {
         status: 'SUSPENDED',
@@ -476,7 +502,7 @@ describe('UserRepository', () => {
 
     it('should always update updated_at timestamp', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([mockDbRow]);
 
       const updateData: UpdateUserDto = {
         displayName: 'Jane Doe',
@@ -513,7 +539,7 @@ describe('UserRepository', () => {
 
     it('should use parameterized queries (SQL injection prevention)', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValue([mockDbRow]);
 
       const maliciousData: UpdateUserDto = {
         displayName: "'; DROP TABLE users; --",
@@ -531,8 +557,8 @@ describe('UserRepository', () => {
   describe('softDelete', () => {
     it('should set status to DELETED', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const deletedUser = { ...mockUser, status: 'DELETED' };
-      vi.mocked(db.$queryRaw).mockResolvedValue([deletedUser]);
+      const deletedDbRow = { ...mockDbRow, status: 'DELETED' };
+      vi.mocked(db.$queryRaw).mockResolvedValue([deletedDbRow]);
 
       const result = await repository.softDelete('keycloak-uuid-456');
 
@@ -551,20 +577,20 @@ describe('UserRepository', () => {
 
     it('should update updated_at timestamp', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const deletedUser = { ...mockUser, status: 'DELETED', updated_at: new Date() };
-      vi.mocked(db.$queryRaw).mockResolvedValue([deletedUser]);
+      const deletedDbRow = { ...mockDbRow, status: 'DELETED', updated_at: new Date() };
+      vi.mocked(db.$queryRaw).mockResolvedValue([deletedDbRow]);
 
-      await repository.softDelete('keycloak-uuid-456');
+      const result = await repository.softDelete('keycloak-uuid-456');
 
-      // Verify updated_at is updated
-      expect(deletedUser.updated_at).toBeDefined();
+      // Verify updatedAt is present in the mapped result
+      expect(result.updatedAt).toBeDefined();
     });
   });
 
   describe('upsert', () => {
     it('should insert new user when not exists', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-456',
@@ -581,8 +607,8 @@ describe('UserRepository', () => {
 
     it('should update existing user on conflict', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const updatedUser = { ...mockUser, email: 'updated@example.com' };
-      vi.mocked(db.$queryRaw).mockResolvedValue([updatedUser]);
+      const updatedDbRow = { ...mockDbRow, email: 'updated@example.com' };
+      vi.mocked(db.$queryRaw).mockResolvedValue([updatedDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-456', // Existing keycloak_id
@@ -598,7 +624,7 @@ describe('UserRepository', () => {
 
     it('should use default values for optional fields on insert', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       const minimalData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-789',
@@ -627,8 +653,8 @@ describe('UserRepository', () => {
 
     it('should handle JSONB preferences on upsert', async () => {
       vi.mocked(tenantContextModule.getTenantContext).mockReturnValue(mockTenantContext);
-      const userWithPrefs = { ...mockUser, preferences: { theme: 'blue', layout: 'grid' } };
-      vi.mocked(db.$queryRaw).mockResolvedValue([userWithPrefs]);
+      const userWithPrefsDbRow = { ...mockDbRow, preferences: { theme: 'blue', layout: 'grid' } };
+      vi.mocked(db.$queryRaw).mockResolvedValue([userWithPrefsDbRow]);
 
       const createData: CreateUserDto = {
         keycloakId: 'keycloak-uuid-456',
@@ -657,7 +683,7 @@ describe('UserRepository', () => {
       };
 
       // User exists in tenant 1
-      vi.mocked(db.$queryRaw).mockResolvedValueOnce([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValueOnce([mockDbRow]);
 
       const resultTenant1 = await repository.findByKeycloakId('keycloak-uuid-456', tenant1Context);
       expect(resultTenant1).toEqual(mockUser);
@@ -687,7 +713,7 @@ describe('UserRepository', () => {
       };
 
       // Update succeeds in tenant 1
-      vi.mocked(db.$queryRawUnsafe).mockResolvedValueOnce([mockUser]);
+      vi.mocked(db.$queryRawUnsafe).mockResolvedValueOnce([mockDbRow]);
 
       await expect(
         repository.update('keycloak-uuid-456', updateData, tenant1Context)
@@ -715,7 +741,7 @@ describe('UserRepository', () => {
       };
 
       // Delete succeeds in tenant 1
-      vi.mocked(db.$queryRaw).mockResolvedValueOnce([{ ...mockUser, status: 'DELETED' }]);
+      vi.mocked(db.$queryRaw).mockResolvedValueOnce([{ ...mockDbRow, status: 'DELETED' }]);
 
       await expect(
         repository.softDelete('keycloak-uuid-456', tenant1Context)
@@ -743,7 +769,7 @@ describe('UserRepository', () => {
       };
 
       // Verify schema name is used correctly in queries
-      vi.mocked(db.$queryRaw).mockResolvedValue([mockUser]);
+      vi.mocked(db.$queryRaw).mockResolvedValue([mockDbRow]);
 
       await repository.findByKeycloakId('keycloak-uuid-456', tenant1Context);
       expect(db.$queryRaw).toHaveBeenCalledTimes(1);

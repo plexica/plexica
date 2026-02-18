@@ -178,6 +178,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.CREATED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
@@ -201,7 +202,7 @@ describe('WorkspaceService Event Publishing', () => {
       );
 
       const publishCall = (mockEventBus.publish as Mock).mock.calls[0];
-      const metadata = publishCall[2];
+      const metadata = publishCall[3];
       expect(metadata.userId).toBe(CREATOR_ID);
     });
 
@@ -213,7 +214,7 @@ describe('WorkspaceService Event Publishing', () => {
       );
 
       const publishCall = (mockEventBus.publish as Mock).mock.calls[0];
-      const metadata = publishCall[2];
+      const metadata = publishCall[3];
       expect(metadata.correlationId).toBeDefined();
       expect(typeof metadata.correlationId).toBe('string');
       expect(metadata.correlationId.length).toBeGreaterThan(0);
@@ -264,6 +265,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.UPDATED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
@@ -311,6 +313,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.DELETED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
@@ -326,7 +329,7 @@ describe('WorkspaceService Event Publishing', () => {
       await service.delete(WORKSPACE_ID, tenantCtx as any);
 
       const publishCall = (mockEventBus.publish as Mock).mock.calls[0];
-      const metadata = publishCall[2];
+      const metadata = publishCall[3];
       expect(metadata.userId).toBe(CREATOR_ID);
     });
   });
@@ -388,6 +391,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.MEMBER_ADDED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
@@ -456,6 +460,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.MEMBER_ROLE_UPDATED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
@@ -512,6 +517,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.MEMBER_REMOVED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,
@@ -575,6 +581,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
+        'plexica.workspace.lifecycle',
         WORKSPACE_EVENTS.TEAM_CREATED,
         expect.objectContaining({
           workspaceId: WORKSPACE_ID,

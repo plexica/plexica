@@ -46,42 +46,52 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     // Verify token and extract tenant
     const payload = await verifyTokenWithTenant(token);
 
-    // Validate tenant exists and is not suspended (FR-012, Edge Case #9)
-    let tenant;
-    try {
-      tenant = await tenantService.getTenantBySlug(payload.tenantSlug);
-    } catch (error: any) {
-      request.log.warn(
-        { tenantSlug: payload.tenantSlug, error: error.message },
-        'Tenant not found for authenticated user'
-      );
-      return reply.code(403).send({
-        error: {
-          code: 'AUTH_TENANT_NOT_FOUND',
-          message: 'The tenant associated with this token does not exist',
-          details: {
-            tenantSlug: payload.tenantSlug,
-          },
-        },
-      });
-    }
+    // Check if user is super admin (skip tenant validation for super admins)
+    const roles = payload.realm_access?.roles ?? [];
+    const isSuperAdmin =
+      roles.includes(USER_ROLES.SUPER_ADMIN) ||
+      roles.includes('super-admin') ||
+      roles.includes('super_admin');
 
-    // Reject suspended tenants (FR-012, Edge Case #9)
-    if (tenant.status === 'SUSPENDED') {
-      request.log.warn(
-        { tenantSlug: payload.tenantSlug, tenantId: tenant.id },
-        'Authentication denied for suspended tenant'
-      );
-      return reply.code(403).send({
-        error: {
-          code: 'AUTH_TENANT_SUSPENDED',
-          message: 'This tenant account is currently suspended. Please contact support.',
-          details: {
-            tenantSlug: payload.tenantSlug,
-            status: 'SUSPENDED',
+    // Validate tenant exists and is not suspended (FR-012, Edge Case #9)
+    // SKIP tenant validation for super admins (they operate platform-wide)
+    let tenant;
+    if (!isSuperAdmin) {
+      try {
+        tenant = await tenantService.getTenantBySlug(payload.tenantSlug);
+      } catch (error: any) {
+        request.log.warn(
+          { tenantSlug: payload.tenantSlug, error: error.message },
+          'Tenant not found for authenticated user'
+        );
+        return reply.code(403).send({
+          error: {
+            code: 'AUTH_TENANT_NOT_FOUND',
+            message: 'The tenant associated with this token does not exist',
+            details: {
+              tenantSlug: payload.tenantSlug,
+            },
           },
-        },
-      });
+        });
+      }
+
+      // Reject suspended tenants (FR-012, Edge Case #9)
+      if (tenant.status === 'SUSPENDED') {
+        request.log.warn(
+          { tenantSlug: payload.tenantSlug, tenantId: tenant.id },
+          'Authentication denied for suspended tenant'
+        );
+        return reply.code(403).send({
+          error: {
+            code: 'AUTH_TENANT_SUSPENDED',
+            message: 'This tenant account is currently suspended. Please contact support.',
+            details: {
+              tenantSlug: payload.tenantSlug,
+              status: 'SUSPENDED',
+            },
+          },
+        });
+      }
     }
 
     // Cross-tenant validation (FR-011)
@@ -94,12 +104,8 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     if (tenantIndex !== -1 && pathSegments[tenantIndex + 1]) {
       const requestedTenantId = pathSegments[tenantIndex + 1];
 
-      // Skip validation if super admin from master realm
-      const isSuperAdmin =
-        payload.tenantSlug === MASTER_TENANT_SLUG &&
-        (payload.roles?.includes(USER_ROLES.SUPER_ADMIN) || payload.roles?.includes('super-admin'));
-
-      if (!isSuperAdmin) {
+      // Skip validation if super admin (already checked above)
+      if (!isSuperAdmin && tenant) {
         // Validate JWT tenant matches requested tenant
         if (tenant.id !== requestedTenantId) {
           request.log.warn(

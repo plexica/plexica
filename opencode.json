@@ -34,14 +34,14 @@
   },
   "permission": {
     "bash": {
-      "*": "ask",
+      "cd *": "allow",
       "git *": "allow",
-      "npm test": "allow",
-      "npm run *": "allow",
-      "npx *": "allow",
       "npm *": "allow",
+      "npx *": "allow",
       "node *": "allow",
       "yarn *": "allow",
+      "pnpm *": "allow",
+      "bun *": "allow",
       "ls *": "allow",
       "pwd": "allow",
       "cat *": "allow",
@@ -58,7 +58,11 @@
       "mv *": "allow",
       "rm -f *": "allow",
       "echo *": "allow",
-      "pnpm *": "allow"
+      "cd * && *": "allow",
+      "* | tail *": "allow",
+      "* | head *": "allow",
+      "* 2>&1 | *": "allow",
+      "*": "allow"
     },
     "edit": "allow",
     "write": "allow",

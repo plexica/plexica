@@ -181,11 +181,16 @@ export class WorkspaceResourceService {
           },
         });
 
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: tenantContext.tenantId,
-          workspaceId,
-          userId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.resource.shared'
+          event.data,
+          {
+            tenantId: tenantContext.tenantId,
+            workspaceId,
+            userId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {
@@ -292,11 +297,16 @@ export class WorkspaceResourceService {
           }
         );
 
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: tenantContext.tenantId,
-          workspaceId,
-          userId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.resource.unshared'
+          event.data,
+          {
+            tenantId: tenantContext.tenantId,
+            workspaceId,
+            userId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {

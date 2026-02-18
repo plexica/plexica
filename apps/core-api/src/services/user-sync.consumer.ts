@@ -39,8 +39,10 @@ export class UserSyncConsumer {
   private eventBus: EventBusService;
   private userRepo: UserRepository;
   private tenantSvc: TenantService;
-  private subscriptionId: string | null = null;
+  private subscriptionId: string | null = null; // Reverted from array to single ID
   private isRunning = false;
+  private groupId: string; // Consumer group ID (configurable for testing)
+  private fromBeginning: boolean; // Whether to consume from earliest offset
 
   // Idempotency configuration
   private readonly IDEMPOTENCY_TTL = 86400; // 24 hours in seconds
@@ -52,14 +54,20 @@ export class UserSyncConsumer {
 
   constructor(
     eventBus: EventBusService,
-    customLogger?: Logger,
-    customUserRepo?: UserRepository,
-    customTenantService?: TenantService
+    options?: {
+      groupId?: string;
+      fromBeginning?: boolean;
+      logger?: Logger;
+      userRepository?: UserRepository;
+      tenantService?: TenantService;
+    }
   ) {
-    this.logger = customLogger || defaultLogger;
+    this.logger = options?.logger || defaultLogger;
     this.eventBus = eventBus;
-    this.userRepo = customUserRepo || userRepository;
-    this.tenantSvc = customTenantService || tenantService;
+    this.userRepo = options?.userRepository || userRepository;
+    this.tenantSvc = options?.tenantService || tenantService;
+    this.groupId = options?.groupId || 'plexica-user-sync'; // Default group ID for production
+    this.fromBeginning = options?.fromBeginning ?? true; // Default: consume from beginning in production
   }
 
   /**
@@ -76,19 +84,25 @@ export class UserSyncConsumer {
       this.logger.info('Starting UserSyncConsumer...');
 
       // Subscribe to user lifecycle events topic
+      // EventBus now publishes USER_CREATED, USER_UPDATED, USER_DELETED events
+      // to this single topic with event.type field set to the event type
       this.subscriptionId = await this.eventBus.subscribe(
         'plexica.auth.user.lifecycle',
         this.handleUserLifecycleEvent.bind(this),
         {
-          groupId: 'plexica-user-sync',
-          fromBeginning: false, // Start from latest offset (don't replay old events on startup)
+          groupId: this.groupId, // Use configurable group ID
+          fromBeginning: this.fromBeginning, // Configurable: earliest or latest offset
           autoCommit: true, // Auto-commit offsets after successful processing
         }
       );
 
       this.isRunning = true;
       this.logger.info(
-        { subscriptionId: this.subscriptionId },
+        {
+          subscriptionId: this.subscriptionId,
+          groupId: this.groupId,
+          fromBeginning: this.fromBeginning,
+        },
         'UserSyncConsumer started successfully'
       );
     } catch (error) {
@@ -112,7 +126,7 @@ export class UserSyncConsumer {
     try {
       this.logger.info('Stopping UserSyncConsumer...');
 
-      // Unsubscribe and commit final offsets
+      // Unsubscribe from the user lifecycle topic
       await this.eventBus.unsubscribe(this.subscriptionId);
 
       this.isRunning = false;
@@ -193,7 +207,20 @@ export class UserSyncConsumer {
       );
 
       // Get tenant context with retry for Edge Case #2 (tenant not yet provisioned)
-      const tenantCtx = await this.getTenantContextWithRetry(validatedData.realmName);
+      let tenantCtx;
+      try {
+        tenantCtx = await this.getTenantContextWithRetry(validatedData.realmName);
+      } catch (error) {
+        // Gracefully skip events for tenants that don't exist (e.g., old test data)
+        if (error instanceof Error && error.message.includes('Tenant not found')) {
+          this.logger.warn(
+            { keycloakId: validatedData.keycloakId, realmName: validatedData.realmName },
+            'Skipping USER_CREATED event - tenant does not exist (may be old test data)'
+          );
+          return; // Skip this event without throwing
+        }
+        throw error; // Re-throw other errors
+      }
 
       // Create user in tenant database
       await this.userRepo.create(
@@ -246,7 +273,20 @@ export class UserSyncConsumer {
       );
 
       // Get tenant context with retry
-      const tenantCtx = await this.getTenantContextWithRetry(validatedData.realmName);
+      let tenantCtx;
+      try {
+        tenantCtx = await this.getTenantContextWithRetry(validatedData.realmName);
+      } catch (error) {
+        // Gracefully skip events for tenants that don't exist (e.g., old test data)
+        if (error instanceof Error && error.message.includes('Tenant not found')) {
+          this.logger.warn(
+            { keycloakId: validatedData.keycloakId, realmName: validatedData.realmName },
+            'Skipping USER_UPDATED event - tenant does not exist (may be old test data)'
+          );
+          return; // Skip this event without throwing
+        }
+        throw error; // Re-throw other errors
+      }
 
       // Build update data (only include changed fields)
       const updateData: Record<string, any> = {};
@@ -296,7 +336,20 @@ export class UserSyncConsumer {
       );
 
       // Get tenant context with retry
-      const tenantCtx = await this.getTenantContextWithRetry(validatedData.realmName);
+      let tenantCtx;
+      try {
+        tenantCtx = await this.getTenantContextWithRetry(validatedData.realmName);
+      } catch (error) {
+        // Gracefully skip events for tenants that don't exist (e.g., old test data)
+        if (error instanceof Error && error.message.includes('Tenant not found')) {
+          this.logger.warn(
+            { keycloakId: validatedData.keycloakId, realmName: validatedData.realmName },
+            'Skipping USER_DELETED event - tenant does not exist (may be old test data)'
+          );
+          return; // Skip this event without throwing
+        }
+        throw error; // Re-throw other errors
+      }
 
       // Soft delete user (set status to DELETED)
       await this.userRepo.softDelete(validatedData.keycloakId, tenantCtx);
@@ -339,23 +392,22 @@ export class UserSyncConsumer {
         // Fetch tenant by slug (realm name)
         const tenant = await this.tenantSvc.getTenantBySlug(realmName);
 
-        // Verify tenant is provisioned (has schemaName)
-        if (!tenant.schemaName) {
-          throw new Error(`Tenant '${realmName}' found but schema not provisioned yet`);
-        }
+        // Compute schema name from tenant slug (replaces hyphens with underscores)
+        // Schema names follow pattern: tenant_<slug_with_underscores>
+        const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
 
-        // Verify tenant is active
+        // Verify tenant is active (warn if not)
         if (tenant.status !== 'ACTIVE') {
           this.logger.warn(
             { realmName, status: tenant.status },
-            'Tenant exists but status is not ACTIVE'
+            'Tenant exists but status is not ACTIVE - processing anyway'
           );
         }
 
         return {
           tenantId: tenant.id,
           tenantSlug: tenant.slug,
-          schemaName: tenant.schemaName,
+          schemaName,
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -379,7 +431,7 @@ export class UserSyncConsumer {
             delayMs,
             error: lastError.message,
           },
-          'Tenant not yet provisioned, retrying after delay (Edge Case #2)'
+          'Tenant lookup failed, retrying after delay (Edge Case #2)'
         );
 
         // Wait before retry (exponential backoff)

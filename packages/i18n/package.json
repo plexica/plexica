@@ -3,12 +3,19 @@
   "version": "0.1.0",
   "description": "Shared internationalization (i18n) utilities for Plexica - namespace-based translations with FormatJS",
   "private": true,
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./hash": "./src/hash.ts",
-    "./hash.js": "./src/hash.ts"
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./hash": {
+      "import": "./dist/hash.js",
+      "require": "./dist/hash.js",
+      "types": "./dist/hash.d.ts"
+    }
   },
   "scripts": {
     "build": "tsc",

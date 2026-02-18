@@ -101,8 +101,15 @@ export class EventBusService {
 
   /**
    * Publish a single event
+   *
+   * @param topic - Kafka topic name for routing (e.g., 'plexica.auth.user.lifecycle')
+   * @param eventType - Semantic event type (e.g., 'USER_CREATED', 'USER_UPDATED')
+   * @param data - Event payload
+   * @param metadata - Event metadata (tenantId, workspaceId, etc.)
+   * @param options - Publishing options (compression, partition key, etc.)
    */
   async publish<T = unknown>(
+    topic: string,
     eventType: string,
     data: T,
     metadata: Partial<EventMetadata> & { tenantId?: string; workspaceId?: string } = {},
@@ -115,14 +122,11 @@ export class EventBusService {
     const startTime = Date.now();
 
     try {
-      // Build domain event
-      const event = this.buildDomainEvent(eventType, data, metadata);
+      // Build domain event (topic for routing, eventType for semantics)
+      const event = this.buildDomainEvent(topic, eventType, data, metadata);
 
       // Validate event
       DomainEventSchema.parse(event);
-
-      // Determine topic from event type
-      const topic = eventType; // Event type IS the topic name
 
       // Check circuit breaker
       this.checkCircuitBreaker(topic);
@@ -187,9 +191,12 @@ export class EventBusService {
 
   /**
    * Publish multiple events in a batch
+   *
+   * @param events - Array of events with topic, eventType, data, metadata, and options
    */
   async publishBatch<T = unknown>(
     events: Array<{
+      topic: string;
       eventType: string;
       data: T;
       metadata?: Partial<EventMetadata> & { tenantId?: string; workspaceId?: string };
@@ -204,11 +211,10 @@ export class EventBusService {
       // Group events by topic
       const eventsByTopic = new Map<string, any[]>();
 
-      for (const { eventType, data, metadata = {}, options = {} } of events) {
-        const event = this.buildDomainEvent(eventType, data, metadata);
+      for (const { topic, eventType, data, metadata = {}, options = {} } of events) {
+        const event = this.buildDomainEvent(topic, eventType, data, metadata);
         DomainEventSchema.parse(event);
 
-        const topic = eventType;
         const serializedEvent = this.serializeEvent(event);
 
         const message = {
@@ -461,8 +467,14 @@ export class EventBusService {
 
   /**
    * Build domain event from data
+   *
+   * @param topic - Kafka topic name for routing
+   * @param eventType - Semantic event type (used in event.type field)
+   * @param data - Event payload
+   * @param metadata - Event metadata
    */
   private buildDomainEvent<T>(
+    topic: string,
     eventType: string,
     data: T,
     metadata: Partial<EventMetadata> & { tenantId?: string; workspaceId?: string }
@@ -475,7 +487,7 @@ export class EventBusService {
 
     return {
       id: uuidv4(),
-      type: eventType,
+      type: eventType, // Use semantic event type, not topic name
       tenantId: metadata.tenantId,
       workspaceId: metadata.workspaceId,
       timestamp: new Date(),

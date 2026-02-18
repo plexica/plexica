@@ -269,13 +269,18 @@ export class WorkspaceService {
             creatorId,
           },
         });
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic (routing)
+          event.type, // event type (semantics: 'core.workspace.created')
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {
@@ -627,13 +632,18 @@ export class WorkspaceService {
             changes,
           },
         });
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.updated'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           { workspaceId: id, eventType: WORKSPACE_EVENTS.UPDATED, error: String(eventError) },
@@ -730,13 +740,18 @@ export class WorkspaceService {
             workspaceId: id,
           },
         });
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.deleted'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           { workspaceId: id, eventType: WORKSPACE_EVENTS.DELETED, error: String(eventError) },
@@ -1112,13 +1127,18 @@ export class WorkspaceService {
             invitedBy,
           },
         });
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.member.added'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {
@@ -1254,13 +1274,18 @@ export class WorkspaceService {
             },
           }
         );
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.member.role_updated'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {
@@ -1377,13 +1402,18 @@ export class WorkspaceService {
             userId,
           },
         });
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.member.removed'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {
@@ -1756,13 +1786,18 @@ export class WorkspaceService {
             ownerId: data.ownerId,
           },
         });
-        await this.eventBus.publish(event.type, event.data, {
-          tenantId: event.tenantId,
-          workspaceId: event.workspaceId,
-          userId: event.metadata.userId,
-          source: event.metadata.source,
-          correlationId: event.metadata.correlationId,
-        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.team.created'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
       } catch (eventError) {
         this.log.warn(
           {

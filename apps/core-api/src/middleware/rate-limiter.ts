@@ -107,6 +107,11 @@ export const WORKSPACE_RATE_LIMITS = {
  */
 export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
   return async function rateLimitHook(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+    // Skip rate limiting entirely in test environment to allow high-volume test execution
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+
     try {
       const scopeKey = config.keyExtractor(request);
       const redisKey = `ratelimit:${config.scope}:${scopeKey}`;

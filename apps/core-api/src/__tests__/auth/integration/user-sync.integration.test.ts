@@ -65,15 +65,44 @@ describe('User Sync Pipeline Integration Tests', () => {
 
   /**
    * Helper: Publish user lifecycle event to Redpanda
-   * Note: EventBusService.publish() generates its own event ID internally
+   *
+   * @param data - Event payload
+   * @param overrideEventType - Explicitly set event type (bypasses auto-detection)
+   *
+   * Auto-detection logic (when overrideEventType is not provided):
+   * - USER_DELETED: only has keycloakId and realmName (no email)
+   * - USER_CREATED: has email field (default for events with email)
+   * - USER_UPDATED: must be explicitly specified via overrideEventType
    */
   async function publishUserEvent(
-    data: UserCreatedData | UserUpdatedData | UserDeletedData
+    data: UserCreatedData | UserUpdatedData | UserDeletedData,
+    overrideEventType?: 'USER_CREATED' | 'USER_UPDATED' | 'USER_DELETED'
   ): Promise<void> {
-    await eventBusService.publish('plexica.auth.user.lifecycle', data, {
-      source: 'integration-test',
-      tenantId: testTenantId,
-    });
+    let eventType: string;
+
+    if (overrideEventType) {
+      eventType = overrideEventType;
+    } else if (!('email' in data)) {
+      // Only has keycloakId and realmName -> DELETE
+      eventType = 'USER_DELETED';
+    } else {
+      // Has email field -> default to CREATE
+      // For UPDATE events, callers should use overrideEventType
+      eventType = 'USER_CREATED';
+    }
+
+    // Publish to single topic with specific event type
+    // Topic: plexica.auth.user.lifecycle (routing)
+    // Event Type: USER_CREATED, USER_UPDATED, or USER_DELETED (semantics)
+    await eventBusService.publish(
+      'plexica.auth.user.lifecycle', // topic (routing)
+      eventType, // event type (semantics - will be set in event.type field)
+      data,
+      {
+        source: 'integration-test',
+        tenantId: testTenantId,
+      }
+    );
   }
 
   /**
@@ -86,6 +115,74 @@ describe('User Sync Pipeline Integration Tests', () => {
       slug: uniqueSlug,
     });
     return { id: tenant.id, slug: tenant.slug };
+  }
+
+  /**
+   * Helper: Wait for tenant schema to be fully provisioned
+   *
+   * Edge Case #2 Fix: Tenant schema creation is asynchronous. The createTenant()
+   * call returns immediately, but the PostgreSQL schema and tables are created
+   * in the background. If the consumer starts before the schema is ready, it will
+   * fail to insert users and exhaust its retry logic.
+   *
+   * Solution: Poll for schema existence and verify the users table exists with
+   * required columns before starting the consumer. This ensures the consumer has
+   * a working database when it receives the first event.
+   *
+   * @param schemaName - Tenant schema name (e.g., 'tenant_acme_corp')
+   * @param timeout - Maximum wait time in milliseconds (default: 10000)
+   * @throws Error if schema is not ready after timeout
+   */
+  async function waitForTenantSchema(schemaName: string, timeout: number = 10000): Promise<void> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeout) {
+      try {
+        // Check if schema exists
+        const schemaResult = await db.$queryRaw<Array<{ exists: boolean }>>`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.schemata 
+            WHERE schema_name = ${schemaName}
+          ) as exists
+        `;
+
+        if (schemaResult[0]?.exists) {
+          // Schema exists, verify it has the users table
+          const tableResult = await db.$queryRaw<Array<{ exists: boolean }>>`
+            SELECT EXISTS (
+              SELECT 1 FROM information_schema.tables 
+              WHERE table_schema = ${schemaName} 
+              AND table_name = 'users'
+            ) as exists
+          `;
+
+          if (tableResult[0]?.exists) {
+            // Verify users table has required columns (display_name, status)
+            const columnsResult = await db.$queryRaw<Array<{ column_name: string }>>`
+              SELECT column_name
+              FROM information_schema.columns
+              WHERE table_schema = ${schemaName}
+              AND table_name = 'users'
+              AND column_name IN ('display_name', 'status', 'avatar_url', 'locale', 'preferences')
+            `;
+
+            if (columnsResult.length >= 5) {
+              // Schema fully provisioned with all required columns (display_name, status, avatar_url, locale, preferences)
+              return;
+            }
+          }
+        }
+      } catch (error) {
+        // Ignore errors, keep polling (schema might not exist yet)
+      }
+
+      // Wait 100ms before next poll
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    throw new Error(
+      `Tenant schema ${schemaName} not ready after ${timeout}ms. ` +
+        `This indicates the tenant provisioning process is taking longer than expected.`
+    );
   }
 
   beforeAll(async () => {
@@ -121,12 +218,61 @@ describe('User Sync Pipeline Integration Tests', () => {
       schemaName: `tenant_${testTenantSlug.replace(/-/g, '_')}`,
     };
 
-    // Initialize UserSyncConsumer
-    userSyncConsumer = new UserSyncConsumer(eventBusService);
+    // ✅ CRITICAL FIX (Edge Case #2): Wait for tenant schema to be fully provisioned
+    // Tenant schema creation is asynchronous. Without this check, the consumer might
+    // start before the schema is ready, causing "tenant not provisioned" errors.
+    // This polls for schema existence (100ms intervals, 10s timeout) before starting
+    // the consumer, ensuring the database is ready to accept user inserts.
+    await waitForTenantSchema(tenantContext.schemaName, 10000);
+
+    // Initialize UserSyncConsumer with unique group ID to avoid offset conflicts
+    // Each test run gets a fresh consumer group that starts from the LATEST offset
+    // (not the beginning) to avoid processing stale events from previous test runs.
+    // fromBeginning: false to skip old test data and only consume NEW events
+    // We use a unique group ID per test run to avoid offset conflicts
+    const uniqueGroupId = `plexica-user-sync-test-${Date.now()}`;
+    userSyncConsumer = new UserSyncConsumer(eventBusService, {
+      groupId: uniqueGroupId,
+      fromBeginning: false, // Skip old events, only consume new ones
+    });
+
+    // Note: The consumer subscribes to 'plexica.auth.user.lifecycle' topic
+    // and routes events by event.type field (USER_CREATED, USER_UPDATED, USER_DELETED)
     await userSyncConsumer.start();
 
-    // Wait for consumer to be fully ready
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Wait for consumer to complete offset seek and start polling
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Warmup: Publish and wait for a test event to confirm consumer is ready
+    // This ensures the consumer has completed its offset seek and is actively polling
+    const warmupUser = {
+      keycloakId: uuidv4(),
+      realmName: testTenantSlug,
+      email: `warmup-${Date.now()}@example.com`,
+      firstName: 'Warmup',
+      lastName: 'User',
+    };
+    await publishUserEvent(warmupUser);
+
+    // Wait up to 10 seconds for warmup user to appear (confirms consumer is ready)
+    const warmupSuccess = await waitFor(
+      async () => {
+        try {
+          const user = await userRepository.findByKeycloakId(warmupUser.keycloakId, tenantContext);
+          return user !== null;
+        } catch {
+          return false;
+        }
+      },
+      10000, // 10 second timeout for warmup
+      200 // 200ms poll interval
+    );
+
+    if (!warmupSuccess) {
+      throw new Error('Consumer warmup failed - consumer not processing events');
+    }
+
+    console.log('✅ Consumer warmed up and ready for tests');
   });
 
   afterAll(async () => {
@@ -165,6 +311,10 @@ describe('User Sync Pipeline Integration Tests', () => {
     if (keys.length > 0) {
       await redis.del(...keys);
     }
+
+    // Wait briefly to ensure consumer is ready after previous test
+    // This prevents race conditions where events are published before consumer is polling
+    await new Promise((resolve) => setTimeout(resolve, 500));
   });
 
   describe('Full Pipeline: User Created Event', () => {
@@ -281,12 +431,15 @@ describe('User Sync Pipeline Integration Tests', () => {
 
       // Act: Publish USER_UPDATED event (only email changed)
       const newEmail = `updated-${Date.now()}@example.com`;
-      await publishUserEvent({
-        keycloakId,
-        realmName: testTenantSlug,
-        email: newEmail,
-        // firstName and lastName not provided (unchanged)
-      });
+      await publishUserEvent(
+        {
+          keycloakId,
+          realmName: testTenantSlug,
+          email: newEmail,
+          // firstName and lastName not provided (unchanged)
+        },
+        'USER_UPDATED'
+      );
 
       // Assert: Wait for update to propagate
       const updateCompleted = await waitFor(
@@ -335,13 +488,16 @@ describe('User Sync Pipeline Integration Tests', () => {
 
       // Act: Update all fields
       const newEmail = `fully-updated-${Date.now()}@example.com`;
-      await publishUserEvent({
-        keycloakId,
-        realmName: testTenantSlug,
-        email: newEmail,
-        firstName: 'New',
-        lastName: 'Person',
-      });
+      await publishUserEvent(
+        {
+          keycloakId,
+          realmName: testTenantSlug,
+          email: newEmail,
+          firstName: 'New',
+          lastName: 'Person',
+        },
+        'USER_UPDATED'
+      );
 
       // Assert
       const updateCompleted = await waitFor(
@@ -491,11 +647,14 @@ describe('User Sync Pipeline Integration Tests', () => {
       );
 
       // Update user (different event, should process normally)
-      await publishUserEvent({
-        keycloakId,
-        realmName: testTenantSlug,
-        email: email2,
-      });
+      await publishUserEvent(
+        {
+          keycloakId,
+          realmName: testTenantSlug,
+          email: email2,
+        },
+        'USER_UPDATED'
+      );
 
       // Assert: Update should be processed
       const updateCompleted = await waitFor(
@@ -528,7 +687,8 @@ describe('User Sync Pipeline Integration Tests', () => {
 
       // Act: Publish event for suspended tenant
       await eventBusService.publish(
-        'plexica.auth.user.lifecycle',
+        'plexica.auth.user.lifecycle', // topic
+        'USER_CREATED', // event type
         {
           keycloakId,
           realmName: suspendedTenant.slug,
@@ -655,7 +815,8 @@ describe('User Sync Pipeline Integration Tests', () => {
 
       // Act: Publish event
       await eventBusService.publish(
-        'plexica.auth.user.lifecycle',
+        'plexica.auth.user.lifecycle', // topic
+        'USER_CREATED', // event type
         {
           keycloakId,
           realmName: fakeSlug,
@@ -678,7 +839,8 @@ describe('User Sync Pipeline Integration Tests', () => {
     it('should handle malformed event data gracefully', async () => {
       // Arrange: Publish event with invalid data
       await eventBusService.publish(
-        'plexica.auth.user.lifecycle',
+        'plexica.auth.user.lifecycle', // topic
+        'USER_CREATED', // event type
         {
           // Missing required keycloakId field
           realmName: testTenantSlug,

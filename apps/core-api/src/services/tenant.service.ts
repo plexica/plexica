@@ -224,6 +224,11 @@ export class TenantService {
         email TEXT UNIQUE NOT NULL,
         first_name TEXT,
         last_name TEXT,
+        display_name TEXT,
+        avatar_url TEXT,
+        locale TEXT,
+        preferences JSONB DEFAULT '{}',
+        status TEXT DEFAULT 'ACTIVE',
         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
