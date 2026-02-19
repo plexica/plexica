@@ -28,12 +28,14 @@ vi.mock('../redpanda-client', () => {
     deleteTopics: vi.fn().mockResolvedValue(undefined),
   };
 
+  class MockRedpandaClient {
+    getProducer = vi.fn(() => mockProducer);
+    getConsumer = vi.fn().mockResolvedValue(mockConsumer);
+    getAdmin = vi.fn(() => mockAdmin);
+  }
+
   return {
-    RedpandaClient: vi.fn().mockImplementation(() => ({
-      getProducer: vi.fn(() => mockProducer),
-      getConsumer: vi.fn().mockResolvedValue(mockConsumer),
-      getAdmin: vi.fn(() => mockAdmin),
-    })),
+    RedpandaClient: MockRedpandaClient,
   };
 });
 
