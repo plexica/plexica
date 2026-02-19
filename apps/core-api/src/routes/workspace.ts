@@ -1108,6 +1108,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   }>(
     '/workspaces/:workspaceId/resources/share',
     {
+      attachValidation: true, // Don't throw on validation failure, attach to request.validationError
       schema: {
         params: {
           type: 'object',
@@ -1172,6 +1173,17 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       const { workspaceId } = request.params;
       const body = request.body;
       const userId = request.user?.id;
+
+      // Handle Fastify schema validation errors (attachValidation: true)
+      if (request.validationError) {
+        return reply.code(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: request.validationError.message,
+            details: request.validationError.validation,
+          },
+        });
+      }
 
       if (!userId) {
         throw new WorkspaceError(
