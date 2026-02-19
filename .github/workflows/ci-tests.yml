@@ -82,6 +82,9 @@ jobs:
         env:
           DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=core'
 
+      - name: Build workspace packages
+        run: pnpm --filter "@plexica/i18n" build
+
       # =============================================================================
       # PRE-FLIGHT CHECKS
       # =============================================================================
