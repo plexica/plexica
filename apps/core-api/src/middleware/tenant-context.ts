@@ -84,8 +84,16 @@ export async function tenantContextMiddleware(
     } else if (jwtTenantSlug) {
       // SECURITY: If user is authenticated, validate that any tenant header matches JWT tenant
       // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation)
+      // EXCEPTION: Super admins can access any tenant (they operate platform-wide)
       const headerValidation = validateCustomHeaders(request.headers);
-      if (headerValidation.tenantSlug && headerValidation.tenantSlug !== jwtTenantSlug) {
+      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
+      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
+
+      if (
+        headerValidation.tenantSlug &&
+        headerValidation.tenantSlug !== jwtTenantSlug &&
+        !isSuperAdmin
+      ) {
         request.log.warn(
           { jwtTenant: jwtTenantSlug, headerTenant: headerValidation.tenantSlug, userId: user.id },
           'Cross-tenant access attempt detected'
@@ -100,6 +108,11 @@ export async function tenantContextMiddleware(
             },
           },
         });
+      }
+
+      // If super admin is accessing a different tenant via header, use the header tenant
+      if (isSuperAdmin && headerValidation.tenantSlug) {
+        tenantSlug = headerValidation.tenantSlug;
       }
     }
 

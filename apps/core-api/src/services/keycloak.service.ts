@@ -334,10 +334,15 @@ export class KeycloakService {
     // TODO: Add environment variable support (WEB_REDIRECT_URIS, WEB_ORIGINS) in Phase 4
     const defaultRedirectUris = [
       'http://localhost:3000/*', // Development frontend
+      'http://localhost:3001/*', // API / OAuth callback (OAUTH_CALLBACK_URL)
       'http://localhost:5173/*', // Vite dev server
     ];
 
-    const defaultOrigins = ['http://localhost:3000', 'http://localhost:5173'];
+    const defaultOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173',
+    ];
 
     await this.withRetry(() =>
       this.withRealmScope(realmName, async () => {
@@ -645,6 +650,7 @@ export class KeycloakService {
    * @param code - Authorization code from the callback
    * @param redirectUri - Same redirect URI used in the authorization request
    * @param clientId - Client ID (default: 'plexica-web')
+   * @param codeVerifier - PKCE code verifier (required when PKCE was used in auth request)
    * @returns Token response with access_token, refresh_token, etc.
    * @throws Error if token exchange fails
    */
@@ -652,7 +658,8 @@ export class KeycloakService {
     realmName: string,
     code: string,
     redirectUri: string,
-    clientId = 'plexica-web'
+    clientId = 'plexica-web',
+    codeVerifier?: string
   ): Promise<KeycloakTokenResponse> {
     this.validateRealmName(realmName);
 
@@ -664,6 +671,11 @@ export class KeycloakService {
       code,
       redirect_uri: redirectUri,
     });
+
+    // Include PKCE code verifier if provided
+    if (codeVerifier) {
+      params.set('code_verifier', codeVerifier);
+    }
 
     try {
       const response = await fetch(tokenEndpoint, {

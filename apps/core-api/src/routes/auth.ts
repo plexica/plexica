@@ -54,6 +54,7 @@ const CallbackQuerySchema = z.object({
     .min(1, 'Tenant slug is required')
     .regex(TENANT_SLUG_REGEX, 'Invalid tenant slug format'),
   state: z.string().optional(),
+  codeVerifier: z.string().optional(),
 });
 
 const RefreshBodySchema = z.object({
@@ -306,6 +307,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             code: { type: 'string', description: 'Authorization code' },
             tenantSlug: { type: 'string', description: 'Tenant identifier' },
             state: { type: 'string', description: 'CSRF token' },
+            codeVerifier: { type: 'string', description: 'PKCE code verifier' },
           },
         },
         response: {
@@ -402,7 +404,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         // Exchange authorization code for tokens
         // Note: redirectUri must match the one used in /auth/login
         const redirectUri = config.oauthCallbackUrl;
-        const tokens = await authService.exchangeCode(tenantSlug, code, redirectUri);
+        const tokens = await authService.exchangeCode(
+          tenantSlug,
+          code,
+          redirectUri,
+          validation.data.codeVerifier
+        );
 
         logger.info(
           {

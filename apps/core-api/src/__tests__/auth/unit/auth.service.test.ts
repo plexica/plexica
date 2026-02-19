@@ -181,7 +181,8 @@ describe('AuthService', () => {
         'acme-corp',
         'auth-code-789',
         'http://localhost:3001/auth/callback',
-        'plexica-web'
+        'plexica-web',
+        undefined
       );
     });
 

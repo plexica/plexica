@@ -68,9 +68,9 @@ describe('Workspace Collaboration E2E', () => {
       );
     }
 
-    // Get admin token (uses pre-existing Keycloak user test-tenant-admin-acme)
-    const admin1TokenResp = await testContext.auth.getRealTenantAdminToken('acme');
-    admin1Token = admin1TokenResp.access_token;
+    // Create mock tenant admin token (HS256, accepted by jwt.ts in test env)
+    // Must use dynamic tenant slug so JWT tenantSlug matches the tenant being accessed
+    admin1Token = testContext.auth.createMockTenantAdminToken(tenantSlug);
 
     // Decode the JWT to get the actual `sub` claim — this is the user ID
     // that the auth middleware will resolve from the token.
@@ -428,7 +428,12 @@ describe('Workspace Collaboration E2E', () => {
 
       expect(removeResponse.statusCode).toBe(400);
       const body = removeResponse.json();
-      expect(body.message || body.error).toMatch(/last admin|cannot remove/i);
+      // Constitution-compliant error format: { error: { code, message } }
+      const errorMsg =
+        body.message ||
+        body.error?.message ||
+        (typeof body.error === 'string' ? body.error : JSON.stringify(body.error));
+      expect(errorMsg).toMatch(/last admin|cannot remove/i);
     });
   });
 

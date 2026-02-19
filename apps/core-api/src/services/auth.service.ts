@@ -131,13 +131,15 @@ export class AuthService {
    * @param tenantSlug - Tenant identifier
    * @param code - Authorization code from callback
    * @param redirectUri - Same redirect URI used in authorization request
+   * @param codeVerifier - PKCE code verifier (required when PKCE was used in auth request)
    * @returns Token response with access_token, refresh_token, etc.
    * @throws Error if code exchange fails or tenant is invalid
    */
   async exchangeCode(
     tenantSlug: string,
     code: string,
-    redirectUri: string
+    redirectUri: string,
+    codeVerifier?: string
   ): Promise<KeycloakTokenResponse> {
     // Validate tenant before token exchange
     await this.validateTenantForAuth(tenantSlug);
@@ -147,7 +149,8 @@ export class AuthService {
         tenantSlug,
         code,
         redirectUri,
-        'plexica-web'
+        'plexica-web',
+        codeVerifier
       );
 
       logger.info(

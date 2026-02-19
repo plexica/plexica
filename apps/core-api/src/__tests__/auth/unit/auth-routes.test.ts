@@ -348,7 +348,8 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(authService.exchangeCode).toHaveBeenCalledWith(
         'test-tenant',
         'auth-code-123',
-        'https://app.example.com/callback'
+        'https://app.example.com/callback',
+        undefined
       );
     });
 
