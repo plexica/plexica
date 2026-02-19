@@ -1,6 +1,7 @@
 # Plexica
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/plexica/plexica/actions/workflows/ci.yml/badge.svg)](https://github.com/plexica/plexica/actions/workflows/ci.yml)
 [![GitHub issues](https://img.shields.io/github/issues/plexica/plexica)](https://github.com/plexica/plexica/issues)
 [![GitHub stars](https://img.shields.io/github/stars/plexica/plexica)](https://github.com/plexica/plexica/stargazers)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
@@ -8,37 +9,40 @@
 
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
-**Version**: 0.9.0  
-**Status**: Phase 2 - Plugin Ecosystem (67% Complete - M2.1, M2.2, M2.3 ✅, M2.4 in progress) | Frontend Consolidation ✅ Complete | M2.4 Plugin Registry & Marketplace  
-**Last Updated**: February 11, 2026
+**Version**: 0.1.0  
+**Status**: Phase 2 — Plugin Ecosystem + Workspace Management + Auth OAuth 2.0 ✅  
+**Last Updated**: February 19, 2026
 
 ---
 
 ## 📊 Project Status
 
-**Current Phase**: Phase 2 - Plugin Ecosystem (67% complete)  
-**Current Milestone**: M2.4 - Plugin Registry & Marketplace (20% complete)  
-**Last Updated**: February 11, 2026
+| Area                         | Status                                                              |
+| ---------------------------- | ------------------------------------------------------------------- |
+| **Backend MVP**              | ✅ **100% Complete** — Core, Auth OAuth 2.0, Multi-tenancy, Plugins |
+| **i18n System**              | ✅ **100% Complete** — Backend + Frontend + 263 tests, 95% coverage |
+| **Spec 002 Authentication**  | ✅ **100% Complete** — 50 tasks, 7 phases (Feb 17)                  |
+| **Workspace Management**     | 🟡 **71% Complete** — Spec 009, Sprint 3 done (24/24 pts)           |
+| **Frontend MVP**             | 🟡 **60% Complete** — Tenant App + Super-Admin functional           |
+| **Frontend Production**      | 🔴 **0%** — Spec 010 planned (error boundaries, theming, widgets)   |
+| **Plugin Ecosystem**         | 🟡 **67% Complete** — M2.1–M2.3 done, M2.4 in progress              |
+| **Total Tests**              | 🟢 **2,200+** across all packages                                   |
+| **Core-API Coverage**        | 🟡 **~77%** (target: 80%)                                           |
+| **Security Vulnerabilities** | ✅ **0 known** (9 resolved Feb 17)                                  |
 
-**Recent Achievements:**
-
-- ✅ Phase 1 MVP Complete (97.5%) + Frontend Consolidation (A-D5)
-- ✅ M2.3: Plugin-to-Plugin Communication with 80% Code Coverage
-- ✅ 1,855+ tests (1,047 backend, 808 frontend) with 63% overall coverage
-
-👉 **For detailed progress tracking, see [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)**
+👉 **Full progress tracking**: [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)
 
 ---
 
 ## 🚀 Quick Start
 
-**Want to get started in 5 minutes?** → See **[docs/QUICKSTART.md](./docs/QUICKSTART.md)** for the fastest setup!
+**Want to get started in 5 minutes?** → See **[docs/QUICKSTART.md](./docs/QUICKSTART.md)**
 
-### One-Command Setup (Recommended)
+### One-Command Setup
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/[org]/plexica.git
+git clone https://github.com/plexica/plexica.git
 cd plexica
 
 # 2. Install dependencies
@@ -48,7 +52,7 @@ pnpm install
 pnpm run init
 ```
 
-That's it! The initialization script will:
+The initialization script will:
 
 - ✅ Start Docker infrastructure
 - ✅ Create database schema
@@ -71,13 +75,13 @@ cd apps/super-admin && pnpm dev
 
 ### Access Points
 
-- **Tenant App**: http://localhost:3001 (Login: `admin@acme-corp.com` / `Admin123!`)
-- **Super Admin**: http://localhost:3002 (Login: `admin@plexica.com` / `admin`)
-- **Core API**: http://localhost:3000
-- **API Health**: http://localhost:3000/health
-- **Keycloak**: http://localhost:8080 (Login: `admin` / `admin`)
-
-📖 **For detailed setup, troubleshooting, and more → See [docs/QUICKSTART.md](./docs/QUICKSTART.md)**
+| Service     | URL                          | Credentials                         |
+| ----------- | ---------------------------- | ----------------------------------- |
+| Tenant App  | http://localhost:3001        | `admin@acme-corp.com` / `Admin123!` |
+| Super Admin | http://localhost:3002        | `admin@plexica.com` / `admin`       |
+| Core API    | http://localhost:3000        | —                                   |
+| API Health  | http://localhost:3000/health | —                                   |
+| Keycloak    | http://localhost:8080        | `admin` / `admin`                   |
 
 ---
 
@@ -87,49 +91,39 @@ cd apps/super-admin && pnpm dev
 ┌─────────────────────────────────────────────────────────┐
 │                   PLEXICA PLATFORM                      │
 ├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐│
-│  │  API Gateway │  │   Keycloak    │  │  Frontend    ││
-│  │  (Kong/      │  │  (Auth/IdP)   │  │   Web        ││
-│  │   Traefik)   │  │               │  │  (React)     ││
-│  └──────┬───────┘  └───────┬───────┘  └──────────────┘│
-│         │                   │                           │
-│  ┌──────┴───────────────────┴────────────────────────┐ │
-│  │              Core API Service (Fastify)          │ │
-│  │  ✅ Tenant Management    ✅ Plugin Orchestration │ │
-│  │  ✅ User Management      ✅ Permission Engine    │ │
-│  │  ✅ RBAC/ABAC           ✅ Event Hooks           │ │
-│  └───────────────────┬──────────────────────────────┘ │
-│                      │                                 │
-│  ┌───────────────────┴──────────────────────────────┐ │
-│  │              Plugin Ecosystem                    │ │
-│  │  ┌────────┐  ┌─────────┐  ┌──────────────────┐  │ │
-│  │  │Sample  │  │ Future  │  │  Future         │  │ │
-│  │  │Analyt. │  │ CRM     │  │  Billing ...    │  │ │
-│  │  └────────┘  └─────────┘  └──────────────────┘  │ │
-│  └──────────────────────────────────────────────────┘ │
-│                      │                                 │
-│  ┌───────────────────┴──────────────────────────────┐ │
-│  │         Infrastructure Layer                     │ │
-│  │  ┌──────────┐  ┌───────┐  ┌──────────────────┐  │ │
-│  │  │PostgreSQL│  │ Redis │  │ Redpanda/Kafka   │  │ │
-│  │  │    15    │  │   7   │  │  (Events)        │  │ │
-│  │  └──────────┘  └───────┘  └──────────────────┘  │ │
-│  │  ┌──────────────────────────────────────────┐   │ │
-│  │  │      Object Storage (MinIO/S3)           │   │ │
-│  │  └──────────────────────────────────────────┘   │ │
-│  └──────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌──────────────┐  ┌───────────────┐  ┌─────────────┐  │
+│  │  API Gateway │  │   Keycloak    │  │  Frontend   │  │
+│  │  (Traefik)   │  │  (Auth/IdP)   │  │   (React)   │  │
+│  └──────┬───────┘  └───────┬───────┘  └─────────────┘  │
+│         │                  │                            │
+│  ┌──────┴──────────────────┴──────────────────────────┐ │
+│  │           Core API Service (Fastify 5)             │ │
+│  │  ✅ Tenant Management    ✅ Plugin Orchestration   │ │
+│  │  ✅ OAuth 2.0 / PKCE     ✅ Permission Engine      │ │
+│  │  ✅ RBAC                 ✅ Event Hooks             │ │
+│  │  ✅ i18n / Translations  🟡 Workspace Management   │ │
+│  └───────────────────┬────────────────────────────────┘ │
+│                      │                                  │
+│  ┌───────────────────┴────────────────────────────────┐ │
+│  │              Plugin Ecosystem                      │ │
+│  │  ┌──────────┐  ┌─────────┐  ┌──────────────────┐  │ │
+│  │  │ Analytics│  │ Future  │  │  Future          │  │ │
+│  │  │ (sample) │  │ CRM     │  │  Billing ...     │  │ │
+│  │  └──────────┘  └─────────┘  └──────────────────┘  │ │
+│  └────────────────────────────────────────────────────┘ │
+│                      │                                  │
+│  ┌───────────────────┴────────────────────────────────┐ │
+│  │              Infrastructure Layer                  │ │
+│  │  PostgreSQL 15  │  Redis 7  │  Kafka (KafkaJS)     │ │
+│  │  MinIO (S3)     │  Keycloak 26+                    │ │
+│  └────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 🎯 Key Features
-
-**For detailed architecture documentation:**
-
-- **Backend/System Architecture**: See [`specs/TECHNICAL_SPECIFICATIONS.md`](specs/TECHNICAL_SPECIFICATIONS.md)
-- **Frontend Architecture**: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ### ✅ Multi-Tenancy
 
@@ -138,51 +132,44 @@ cd apps/super-admin && pnpm dev
 - Tenant lifecycle management (create, suspend, delete)
 - Per-tenant storage buckets in MinIO
 
-### ✅ Authentication & Authorization
+### ✅ Authentication & Authorization (OAuth 2.0)
 
-- Keycloak for Identity & Access Management
-- Separate realms per tenant for isolation
-- JWT token validation with JWKS
-- RBAC with default roles and permission-based access control
+- Keycloak for Identity & Access Management (realm-per-tenant)
+- OAuth 2.0 + PKCE flow, JWT validation with JWKS
+- RBAC with fine-grained permission-based access control
+- Token refresh, session management, MFA support
+
+### ✅ Internationalization (i18n)
+
+- Full i18n backend API with translation override management
+- React frontend integration (`IntlContext`, `useTranslations`, `LanguageSelector`)
+- Admin UI for managing per-tenant translation overrides
+- Redis-cached translations for performance
+- 263 tests, 95% average coverage across i18n packages
 
 ### ✅ Plugin System
 
-- Modular architecture with lifecycle management (install → activate → deactivate → uninstall)
+- Lifecycle management: install → activate → deactivate → uninstall
 - Plugin registry (global catalog) with configuration validation
-- Dependency checking and hook/event system
-- Module Federation support for frontend
+- Dependency checking and event hook system
+- Module Federation for frontend plugin loading
 - Sample analytics plugin included
 
-### ⏳ Workspaces (88% Complete - M2.4)
+### 🟡 Workspace Management (71% Complete)
 
-- Organizational layer within tenants for better resource management
-- Workspace hierarchy: Tenant → Workspace → Team
+- Organizational layer within tenants (Tenant → Workspace → Team)
 - Role-based access control (ADMIN, MEMBER, VIEWER)
-- Workspace-scoped resources, teams, and member management
-- Workspace switching UI in frontend
-- Default workspace for backward compatibility
+- Event publishing, Redis caching, cross-workspace resource sharing
+- Rate limiting and error standardization
+- _Remaining_: Settings configuration API, test coverage improvement
 
-See **[specs/WORKSPACE_SPECIFICATIONS.md](./specs/WORKSPACE_SPECIFICATIONS.md)** for complete specification.
+### 🟡 Frontend (60% Complete)
 
-### Frontend (✅ Complete - M1.5, M1.6)
+**Tenant Web App** (`apps/web`, port 3001) — React 19 + Vite 7 + TanStack Router, Tailwind CSS, shadcn/ui, Module Federation, responsive design.
 
-**Tenant Web App** (`apps/web` - port 3001):
+**Super-Admin Panel** (`apps/super-admin`, port 3002) — Platform management, tenant/plugin/user administration, analytics dashboard.
 
-- React 18 + Vite + TypeScript + TanStack Router/Query
-- Tailwind CSS + shadcn/ui components
-- Keycloak authentication (PKCE flow)
-- Dashboard, plugin management, team management, settings
-- Module Federation for dynamic plugin loading
-- Responsive design with collapsible sidebar
-
-**Super-Admin Panel** (`apps/super-admin` - port 3002):
-
-- Platform management interface
-- Tenant/plugin/user administration
-- Analytics dashboard with charts
-- Mock authentication for development
-
-See **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** for detailed frontend architecture.
+_Planned (Spec 010)_: Error boundaries, tenant theming API, widget system, test coverage (2.4% → 80%), WCAG 2.1 AA accessibility.
 
 ---
 
@@ -191,68 +178,60 @@ See **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** for detailed frontend arc
 ```
 plexica/
 ├── apps/
-│   ├── core-api/              # ✅ Core API Service (Fastify)
-│   ├── web/                   # ✅ Frontend Web App (React)
-│   ├── super-admin/           # ✅ Super Admin Panel
-│   └── plugins/               # Internal plugins (future)
+│   ├── core-api/          # ✅ Core API Service (Fastify 5)
+│   ├── web/               # 🟡 Tenant Web App (React 19 + Vite 7)
+│   └── super-admin/       # 🟡 Super Admin Panel
 │
 ├── packages/
-│   ├── database/              # ✅ Prisma schema & migrations
-│   ├── sdk/                   # ⚪ Plugin SDK - Planned
-│   ├── types/                 # ⚪ Shared TypeScript types - Planned
-│   ├── api-client/            # ⚪ Frontend API client - Planned
-│   ├── ui/                    # ⚪ Shared UI components - Planned
-│   └── config/                # ✅ Shared configs
+│   ├── database/          # ✅ Prisma schema & migrations (PostgreSQL 15)
+│   ├── i18n/              # ✅ Internationalization package (263 tests)
+│   ├── ui/                # ✅ Shared UI components (@plexica/ui)
+│   ├── event-bus/         # ✅ Plugin event system (KafkaJS)
+│   ├── sdk/               # ✅ Plugin SDK
+│   ├── api-client/        # ✅ Frontend API client
+│   ├── types/             # ✅ Shared TypeScript types
+│   └── config/            # ✅ Shared ESLint/TS configs
 │
-├── plugins/                   # Example external plugins
-│   └── sample-analytics/      # ✅ Sample analytics plugin
+├── plugins/
+│   └── sample-analytics/  # ✅ Example plugin
 │
-├── docs/                      # ✅ Documentation & guides
-├── specs/                     # ✅ Technical specifications
-├── planning/                  # ✅ Roadmap and milestones
-└── infrastructure/            # ⚪ Docker, Helm, K8s (planned)
+├── .forge/                # FORGE methodology (specs, sprints, ADRs)
+├── docs/                  # Developer guides
+├── specs/                 # Functional & technical specifications
+└── planning/              # Roadmap, milestones, PROJECT_STATUS.md
 ```
 
-**Legend**: ✅ Complete | ⚪ Planned
-
-See **[specs/PROJECT_STRUCTURE.md](./specs/PROJECT_STRUCTURE.md)** for detailed information.
+**Legend**: ✅ Complete | 🟡 In Progress | 🔴 Not Started
 
 ---
 
 ## 🛠️ Technology Stack
 
-**Quick Overview**:
+| Layer          | Technology                                         |
+| -------------- | -------------------------------------------------- |
+| **Backend**    | Node.js 20, TypeScript 5.9, Fastify 5.7, Prisma 6+ |
+| **Database**   | PostgreSQL 15 (multi-schema), Redis 7              |
+| **Auth**       | Keycloak 26+ (realm-per-tenant, OAuth 2.0 / PKCE)  |
+| **Events**     | KafkaJS 2.2 (internal workspace event bus)         |
+| **Storage**    | MinIO 8+ (S3-compatible)                           |
+| **Frontend**   | React 19, Vite 7, TanStack Router, TailwindCSS v4  |
+| **i18n**       | react-intl, custom @plexica/i18n package           |
+| **Testing**    | Vitest 4, Playwright — 2,200+ tests                |
+| **Monorepo**   | pnpm workspaces + Turborepo                        |
+| **Deployment** | Docker Compose (dev), Kubernetes (planned)         |
 
-| Layer          | Key Technologies                                             |
-| -------------- | ------------------------------------------------------------ |
-| **Backend**    | Node.js 20, TypeScript 5.9, Fastify 5.7, Prisma 7.2          |
-| **Database**   | PostgreSQL 15 (multi-schema), Redis 7                        |
-| **Auth**       | Keycloak 23 (realm-per-tenant)                               |
-| **Events**     | Redpanda (Kafka-compatible)                                  |
-| **Storage**    | MinIO (S3-compatible)                                        |
-| **Frontend**   | React 18, Vite 5, Module Federation, TailwindCSS v4, Zustand |
-| **Testing**    | Vitest 1.x (~1,855 tests, 63% coverage)                      |
-| **Deployment** | Docker Compose (dev), Kubernetes (planned)                   |
-
-**For complete technology stack details, rationale, and versions**: See [`specs/TECHNICAL_SPECIFICATIONS.md#12-detailed-technology-stack`](specs/TECHNICAL_SPECIFICATIONS.md#12-detailed-technology-stack)
+Full rationale and version constraints: [`.forge/constitution.md`](./.forge/constitution.md#article-2-technology-stack)
 
 ---
 
 ## 📋 Development Commands
 
-For complete command reference and development guidelines, see **[AGENTS.md](AGENTS.md#quick-start---essential-commands)**.
-
-### Most Common Commands
-
 ```bash
 # Install dependencies
 pnpm install
 
-# Start development servers
+# Start development servers (all packages)
 pnpm dev
-
-# Run tests
-pnpm test
 
 # Build all packages
 pnpm build
@@ -262,28 +241,23 @@ pnpm lint
 pnpm format
 ```
 
-### Quick Links
+### Testing
 
-- **Full Command Reference**: [AGENTS.md](AGENTS.md#quick-start---essential-commands)
-- **Testing Commands**: [TESTING.md](docs/TESTING.md#quick-start-5-minutes)
-- **Database Operations**: [Database Package README](packages/database/README.md)
-- **Infrastructure Setup**: [Quick Start Guide](docs/QUICKSTART.md)
+```bash
+cd apps/core-api
+
+pnpm test              # All tests (~3-5 min)
+pnpm test:unit         # Unit tests only (~30s)
+pnpm test:integration  # Integration tests (~90s)
+pnpm test:e2e          # E2E tests (~2 min)
+pnpm test:coverage     # Coverage report
+```
+
+Full command reference: [AGENTS.md](AGENTS.md#quick-start---essential-commands)
 
 ---
 
 ## 🔌 Plugin Development
-
-### Sample Plugin Structure
-
-```
-plugins/sample-analytics/
-├── plugin.json              # Plugin manifest
-├── README.md               # Documentation
-└── src/
-    ├── index.ts            # Entry point
-    ├── hooks.ts            # Event handlers
-    └── config.ts           # Configuration schema
-```
 
 ### Plugin Manifest Example
 
@@ -293,30 +267,9 @@ plugins/sample-analytics/
   "name": "Sample Analytics Plugin",
   "version": "1.0.0",
   "category": "analytics",
-  "config": [
-    {
-      "key": "apiKey",
-      "type": "string",
-      "required": true,
-      "validation": {
-        "minLength": 10,
-        "pattern": "^[a-zA-Z0-9_-]+$"
-      }
-    }
-  ],
-  "permissions": [
-    {
-      "resource": "analytics",
-      "action": "read"
-    }
-  ],
+  "permissions": [{ "resource": "analytics", "action": "read" }],
   "backend": {
-    "hooks": [
-      {
-        "name": "user.login",
-        "description": "Track user logins"
-      }
-    ]
+    "hooks": [{ "name": "user.login", "description": "Track user logins" }]
   }
 }
 ```
@@ -324,98 +277,72 @@ plugins/sample-analytics/
 ### Plugin API
 
 ```bash
-# Register plugin (super_admin only)
-POST /api/plugins
-
-# List all available plugins
-GET /api/plugins
-
-# Install plugin for tenant
-POST /api/tenants/:id/plugins/:pluginId/install
-
-# Activate plugin
-POST /api/tenants/:id/plugins/:pluginId/activate
-
-# Deactivate plugin
-POST /api/tenants/:id/plugins/:pluginId/deactivate
-
-# Uninstall plugin
-DELETE /api/tenants/:id/plugins/:pluginId
-
-# List tenant's installed plugins
-GET /api/tenants/:id/plugins
+POST   /api/plugins                                   # Register plugin (super_admin)
+GET    /api/plugins                                   # List all plugins
+POST   /api/tenants/:id/plugins/:pluginId/install     # Install for tenant
+POST   /api/tenants/:id/plugins/:pluginId/activate    # Activate
+POST   /api/tenants/:id/plugins/:pluginId/deactivate  # Deactivate
+DELETE /api/tenants/:id/plugins/:pluginId             # Uninstall
+GET    /api/tenants/:id/plugins                       # List tenant plugins
 ```
 
 ---
 
 ## 📚 Documentation
 
-### Specifications
+### Specifications (FORGE)
 
-- **[Functional Specifications](./specs/FUNCTIONAL_SPECIFICATIONS.md)** - Business requirements and features
-- **[Technical Specifications](./specs/TECHNICAL_SPECIFICATIONS.md)** - Detailed architecture and implementation
-- **[Project Structure](./specs/PROJECT_STRUCTURE.md)** - Monorepo organization
-- **[Plugin Strategy](./specs/PLUGIN_STRATEGY.md)** - Plugin system design
+- **[Spec 002 — Authentication](./forge/specs/002-authentication/)** ✅ OAuth 2.0
+- **[Spec 006 — i18n System](./forge/specs/006-i18n/)** ✅ Complete
+- **[Spec 009 — Workspace Management](./forge/specs/009-workspace-management/)** 🟡 71%
+- **[Spec 010 — Frontend Production Readiness](./forge/specs/010-frontend-production-readiness/)** 🔴 Planned
 
 ### Planning
 
-- **[Project Status](./planning/PROJECT_STATUS.md)** - Current milestones and progress
-- **[Roadmap](./planning/ROADMAP.md)** - Phase 1-5 timeline
-- **[Milestones](./planning/MILESTONES.md)** - Detailed milestone tracking
-- **[Decisions](./planning/DECISIONS.md)** - Architectural Decision Records (ADR)
+- **[Project Status](./planning/PROJECT_STATUS.md)** — Current milestones and sprint velocity
+- **[Roadmap](./planning/ROADMAP.md)** — Phase 1–5 timeline
+- **[Decisions](./planning/DECISIONS.md)** — Architectural Decision Records (ADRs)
 
 ### Guides
 
-- **[Getting Started](./docs/GETTING_STARTED.md)** - Setup and first steps
-- **[Frontend Architecture](./docs/ARCHITECTURE.md)** - Complete frontend architecture overview
-- **[Prisma 7 Migration Guide](./docs/PRISMA_7_MIGRATION.md)** - Troubleshooting and best practices
-- **[Contributing](./docs/CONTRIBUTING.md)** - Contribution guidelines
-- **[Agent Guidelines](./AGENTS.md)** - For AI coding agents
+- **[Quick Start](./docs/QUICKSTART.md)** — 5-minute setup
+- **[Frontend Architecture](./docs/ARCHITECTURE.md)** — Full frontend overview
+- **[i18n Usage Guide](./docs/I18N_USAGE.md)** — Internationalization developer guide
+- **[Security Guidelines](./docs/SECURITY.md)** 🔒 — MANDATORY for all contributors
+- **[Contributing](./docs/CONTRIBUTING.md)** — Contribution guidelines
+- **[Agent Guidelines](./AGENTS.md)** — For AI coding agents
 
 ### Testing
 
-- **[Testing Overview](./docs/testing/README.md)** - Complete testing strategy
-- **[Quick Test Guide](./docs/testing/QUICK_TEST.md)** - 5-minute smoke test
-- **[Frontend Testing](./docs/testing/FRONTEND_TESTING.md)** - React component tests
-- **[E2E Testing](./docs/testing/E2E_TESTING.md)** - End-to-end workflows
-- **[Backend Testing](./docs/testing/BACKEND_TESTING.md)** - API integration tests
-
-### API
-
-- **[OpenAPI/Swagger](http://localhost:3000/docs)** - Interactive API documentation
-- **Health Check**: http://localhost:3000/health
+- **[Testing Overview](./docs/TESTING.md)** — Strategy, stats, and coverage
+- **[Backend Testing](./docs/testing/BACKEND_TESTING.md)** — API & integration tests
+- **[Frontend Testing](./docs/testing/FRONTEND_TESTING.md)** — React component tests
+- **[E2E Testing](./docs/testing/E2E_TESTING.md)** — End-to-end workflows
 
 ---
 
 ## 🧪 Testing
 
-Plexica has comprehensive testing documentation to ensure quality and reliability with **1,047+ tests** across all packages.
+**2,200+ tests** across all packages:
 
-**Test Statistics**:
+| Package                 | Tests  | Coverage     |
+| ----------------------- | ------ | ------------ |
+| `apps/core-api`         | 1,855+ | ~77% lines   |
+| `packages/i18n`         | 263    | ~95% average |
+| `apps/web` (Playwright) | 64 E2E | ~2.4% (⚠️)   |
+| Other packages          | ~220+  | Varies       |
 
-- **Backend (core-api)**: 1,047 unit/integration/E2E tests
-- **Frontend (web)**: 64 Playwright E2E tests
-- **Super-Admin**: 105 Playwright E2E tests
-- **UI Components (@plexica/ui)**: 495 component tests
-- **SDK (@plexica/sdk)**: 65 tests
-- **API Client (@plexica/api-client)**: 79 tests
-- **Total**: ~1,855 tests
-- **Coverage**: 63% lines (target: 80%)
+Coverage targets: 80% overall, 85% for auth/tenant/workspace modules.
 
-### Running Tests
+### Test Infrastructure
 
 ```bash
-# Run all tests
-pnpm test
-
-# Run tests for specific package
-pnpm test --filter @plexica/core-api
-
-# Run tests in watch mode
-pnpm test:watch
-
-# Generate coverage report
-pnpm test:coverage
+# Start test services (PostgreSQL, Keycloak, Redis, MinIO)
+cd test-infrastructure
+./scripts/test-setup.sh
+./scripts/test-check.sh   # Verify services
+./scripts/test-reset.sh   # Reset test data
+./scripts/test-teardown.sh
 ```
 
 ---
@@ -425,33 +352,17 @@ pnpm test:coverage
 ### Development
 
 ```bash
-# Start infrastructure and development server
 docker-compose up -d
 pnpm dev
 ```
 
-### Production
+### Production (Planned)
 
-- Platform: Kubernetes (Helm charts)
+- Container orchestration: Kubernetes (Helm charts)
 - CI/CD: GitHub Actions
 - Monitoring: Prometheus + Grafana
-- Container Registry: Docker Hub / GHCR
 
-See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** for detailed deployment instructions.
-
----
-
-## 📈 Next Steps
-
-See **[planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)** for detailed milestone tracking, completion status, and upcoming tasks.
-
----
-
-## 🔗 Resources
-
-- **API Docs**: http://localhost:3000/docs (dev)
-- **Health Check**: http://localhost:3000/health (dev)
-- **Status**: [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md) - Detailed project progress and milestones
+See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** for detailed instructions.
 
 ---
 
@@ -459,56 +370,55 @@ See **[planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)** for detailed 
 
 - **Issues**: [GitHub Issues](https://github.com/plexica/plexica/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/plexica/plexica/discussions)
-- **Security**: Report vulnerabilities to [security@plexica.dev](mailto:security@plexica.dev)
-- **Code of Conduct**: Violations can be reported to [conduct@plexica.dev](mailto:conduct@plexica.dev)
+- **Security**: [security@plexica.dev](mailto:security@plexica.dev)
+- **Code of Conduct**: [conduct@plexica.dev](mailto:conduct@plexica.dev)
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](./docs/CONTRIBUTING.md) for details.
+We welcome contributions! Please read:
 
-Before contributing, please read our [Code of Conduct](CODE_OF_CONDUCT.md).
+1. **[Security Guidelines](./docs/SECURITY.md)** 🔒 — SQL injection prevention, RBAC, tenant isolation
+2. **[Agent Guidelines](./AGENTS.md)** — Code style, test requirements, naming conventions
+3. **[Contributing Guide](./docs/CONTRIBUTING.md)** — Workflow, PR policy, commit style
+4. **[Code of Conduct](./CODE_OF_CONDUCT.md)**
 
 ### Development Workflow
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`pnpm test`)
-5. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+3. Write tests first (TDD — required per [AGENTS.md](./AGENTS.md))
+4. Implement the feature
+5. Run tests (`pnpm test`) and lint (`pnpm lint`)
+6. Commit (`git commit -m 'feat: add amazing feature'`)
+7. Push and open a Pull Request
+
+> **Note**: PRs without tests or with coverage below 80% will be rejected by CI.
 
 ---
 
 ## 📜 License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Licensed under the [Apache License 2.0](LICENSE).
 
-### What does this mean?
-
-✅ You can use Plexica for commercial purposes  
-✅ You can modify and distribute the code  
-✅ You must include the original copyright and license notice  
-✅ You must state significant changes made to the code  
-✅ Patent protection included
-
-For more information, visit: https://www.apache.org/licenses/LICENSE-2.0
+✅ Commercial use allowed | ✅ Modification and distribution allowed  
+✅ Must include original copyright | ✅ Patent protection included
 
 ---
 
 ## 🙏 Acknowledgments
 
 Built with:
-
-- [Fastify](https://fastify.io/) - Fast and low overhead web framework
-- [Prisma](https://prisma.io/) - Next-generation ORM
-- [Keycloak](https://www.keycloak.org/) - Open Source Identity and Access Management
-- [Redpanda](https://redpanda.com/) - Kafka-compatible streaming platform
-- [Turborepo](https://turbo.build/) - High-performance build system for monorepos
+[Fastify](https://fastify.io/) ·
+[Prisma](https://prisma.io/) ·
+[Keycloak](https://www.keycloak.org/) ·
+[React](https://react.dev/) ·
+[Vite](https://vitejs.dev/) ·
+[Turborepo](https://turbo.build/) ·
+[Vitest](https://vitest.dev/)
 
 ---
 
-**Plexica v0.7.0** | Built with ❤️ by Plexica Engineering Team  
-_Last updated: February 3, 2026_
+**Plexica v0.1.0** | Built with ❤️ by Plexica Engineering Team  
+_Last updated: February 19, 2026_
