@@ -9,17 +9,23 @@ import type { PluginContext, EventHandler } from '../src/types';
 // Mock PluginEventClient
 // ---------------------------------------------------------------------------
 
-vi.mock('@plexica/event-bus', () => {
-  const MockPluginEventClient = vi.fn().mockImplementation(() => ({
+const hoisted = vi.hoisted(() => {
+  const instance = {
     publish: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockResolvedValue('sub-123'),
     unsubscribe: vi.fn().mockResolvedValue(undefined),
     unsubscribeAll: vi.fn().mockResolvedValue(undefined),
     getSubscriptionCount: vi.fn().mockReturnValue(3),
-  }));
+  };
+  const ctor = vi.fn().mockImplementation(function (this: unknown) {
+    return instance;
+  });
+  return { MockPluginEventClient: ctor };
+});
 
+vi.mock('@plexica/event-bus', () => {
   return {
-    PluginEventClient: MockPluginEventClient,
+    PluginEventClient: hoisted.MockPluginEventClient,
     EventBusService: vi.fn(),
   };
 });
