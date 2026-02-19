@@ -17,6 +17,7 @@ import { marketplaceRoutes } from './routes/marketplace';
 // import { dlqRoutes } from './routes/dlq';
 // import metricsRoutes from './routes/metrics';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
+import { translationRoutes } from './modules/i18n/i18n.controller.js';
 import { minioClient } from './services/minio-client';
 import { db } from './lib/db';
 import { redis } from './lib/redis';
@@ -27,6 +28,8 @@ import { DependencyResolutionService } from './services/dependency-resolution.se
 import { csrfProtectionMiddleware } from './middleware/csrf-protection.js';
 import { advancedRateLimitMiddleware } from './middleware/advanced-rate-limit.js';
 import { setupErrorHandler } from './middleware/error-handler.js';
+import { RedpandaClient, EventBusService } from '@plexica/event-bus';
+import { UserSyncConsumer } from './services/user-sync.consumer.js';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -46,6 +49,24 @@ const server = fastify({
   // SECURITY: Set request timeout to prevent slow client DoS attacks
   requestTimeout: 30 * 1000, // 30 seconds
 });
+
+// Initialize Redpanda client and EventBusService
+const redpandaClient = new RedpandaClient({
+  clientId: 'plexica-core-api',
+  brokers: config.kafkaBrokers.split(',').map((b) => b.trim()),
+  connectionTimeout: 10000,
+  requestTimeout: 30000,
+  retry: {
+    maxRetryTime: 30000,
+    initialRetryTime: 300,
+    factor: 0.2,
+    multiplier: 2,
+    retries: 5,
+  },
+});
+
+const eventBusService = new EventBusService(redpandaClient);
+const userSyncConsumer = new UserSyncConsumer(eventBusService);
 
 // Register plugins
 async function registerPlugins() {
@@ -124,6 +145,7 @@ async function registerPlugins() {
           { name: 'plugins', description: 'Plugin management' },
           { name: 'marketplace', description: 'Plugin marketplace (M2.4)' },
           { name: 'auth', description: 'Authentication & authorization' },
+          { name: 'translations', description: 'Translation management' },
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
           { name: 'plugin-gateway', description: 'Plugin-to-plugin communication (M2.3)' },
@@ -156,6 +178,7 @@ async function registerRoutes() {
   await server.register(pluginRoutes, { prefix: '/api' });
   await server.register(pluginUploadRoutes, { prefix: '/api' });
   await server.register(marketplaceRoutes, { prefix: '/api' }); // Marketplace routes (M2.4)
+  await server.register(translationRoutes, { prefix: '/api/v1' }); // Translation routes (i18n system)
   await server.register(adminRoutes, { prefix: '/api' }); // Super-admin routes
   // TODO: Fix TypeScript errors in DLQ and Metrics routes before enabling
   // await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });
@@ -188,8 +211,29 @@ server.setNotFoundHandler((request, reply) => {
 // Graceful shutdown
 async function closeGracefully(signal: string) {
   server.log.info(`Received signal ${signal}, closing gracefully`);
-  await server.close();
-  process.exit(0);
+
+  try {
+    // Stop UserSyncConsumer and commit offsets
+    if (userSyncConsumer.isConsumerRunning()) {
+      server.log.info('Stopping UserSyncConsumer...');
+      await userSyncConsumer.stop();
+      server.log.info('UserSyncConsumer stopped successfully');
+    }
+
+    // Disconnect Redpanda client
+    server.log.info('Disconnecting Redpanda client...');
+    await redpandaClient.disconnect();
+    server.log.info('Redpanda client disconnected');
+
+    // Close Fastify server
+    await server.close();
+    server.log.info('Fastify server closed');
+
+    process.exit(0);
+  } catch (error) {
+    server.log.error({ error }, 'Error during graceful shutdown');
+    process.exit(1);
+  }
 }
 
 process.on('SIGINT', () => closeGracefully('SIGINT'));
@@ -202,6 +246,11 @@ async function start() {
     server.log.info('Initializing MinIO...');
     await minioClient.initialize();
     server.log.info('MinIO initialized successfully');
+
+    // Initialize Redpanda client
+    server.log.info('Connecting to Redpanda...');
+    await redpandaClient.connect();
+    server.log.info('Redpanda client connected successfully');
 
     await registerPlugins();
     await registerRoutes();
@@ -216,6 +265,11 @@ async function start() {
     if (config.nodeEnv === 'development') {
       server.log.info(`📚 API Documentation: http://localhost:${config.port}/docs`);
     }
+
+    // Start UserSyncConsumer after server is listening
+    server.log.info('Starting UserSyncConsumer...');
+    await userSyncConsumer.start();
+    server.log.info('✅ UserSyncConsumer started successfully');
   } catch (err) {
     server.log.error(err);
     process.exit(1);

@@ -2,6 +2,7 @@ import { PrismaClient, TenantStatus } from '@plexica/database';
 import { keycloakService } from './keycloak.service.js';
 import { permissionService } from './permission.service.js';
 import { db } from '../lib/db.js';
+import { logger } from '../lib/logger.js';
 
 export interface CreateTenantInput {
   slug: string;
@@ -91,11 +92,20 @@ export class TenantService {
       // Step 2: Create Keycloak realm for tenant
       await keycloakService.createRealm(slug, name);
 
-      // Step 3: Initialize default roles and permissions
+      // Step 3: Provision Keycloak clients (plexica-web, plexica-api)
+      await keycloakService.provisionRealmClients(slug);
+
+      // Step 4: Provision Keycloak roles (tenant_admin, user)
+      await keycloakService.provisionRealmRoles(slug);
+
+      // Step 5: Configure refresh token rotation for security
+      await keycloakService.configureRefreshTokenRotation(slug);
+
+      // Step 6: Initialize default roles and permissions
       const schemaName = this.getSchemaName(slug);
       await permissionService.initializeDefaultRoles(schemaName);
 
-      // Step 4: Create MinIO bucket (to be implemented)
+      // Step 7: Create MinIO bucket (to be implemented)
       // await this.createMinIOBucket(slug);
 
       // Update tenant status to ACTIVE
@@ -116,7 +126,28 @@ export class TenantService {
 
       return activeTenant;
     } catch (error) {
+      // Rollback: Attempt to delete Keycloak realm if provisioning failed
+      // This prevents orphaned realms from previous failed attempts
+      try {
+        await keycloakService.deleteRealm(slug);
+        logger.info(
+          { tenantSlug: slug },
+          'Successfully rolled back Keycloak realm after tenant creation failure'
+        );
+      } catch (rollbackError) {
+        // Log rollback failure but don't mask original error
+        logger.warn(
+          {
+            tenantSlug: slug,
+            error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+          },
+          'Failed to rollback Keycloak realm - manual cleanup required'
+        );
+      }
+
       // If provisioning fails, attempt to update tenant status to indicate failure.
+      // Per Spec 002 §5 (line 77), §6 (line 128), and Plan §7 (line 719):
+      // Status must remain PROVISIONING (not SUSPENDED) to allow retry/recovery.
       // It's possible the tenant record was removed concurrently (tests/cleanup), so
       // guard the update and log if the record no longer exists instead of throwing
       // an additional error that masks the original provisioning failure.
@@ -124,7 +155,7 @@ export class TenantService {
         await this.db.tenant.update({
           where: { id: tenant.id },
           data: {
-            status: TenantStatus.SUSPENDED,
+            status: TenantStatus.PROVISIONING,
             settings: {
               ...settings,
               provisioningError: error instanceof Error ? error.message : 'Unknown error',
@@ -132,9 +163,12 @@ export class TenantService {
           },
         });
       } catch (updateErr) {
-        console.warn(
-          `Could not update tenant status for id=${tenant?.id}:`,
-          updateErr instanceof Error ? updateErr.message : String(updateErr)
+        logger.warn(
+          {
+            tenantId: tenant?.id,
+            error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+          },
+          'Could not update tenant status after provisioning failure'
         );
       }
 
@@ -168,9 +202,15 @@ export class TenantService {
       // Surface helpful debugging information for CI/local debugging
       // Re-throw after logging so provisioning fails loudly instead of producing cryptic downstream errors
       // (e.g. missing privileges causing later CREATE TABLE to silently fail)
-      console.error(
-        `Failed granting privileges on schema ${schemaName} to user ${dbUser}:`,
-        err instanceof Error ? err.message : String(err)
+      logger.error(
+        {
+          tenantSlug: slug,
+          schemaName,
+          dbUser,
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        },
+        'Failed to create tenant-specific schema'
       );
       throw err;
     }
@@ -184,6 +224,11 @@ export class TenantService {
         email TEXT UNIQUE NOT NULL,
         first_name TEXT,
         last_name TEXT,
+        display_name TEXT,
+        avatar_url TEXT,
+        locale TEXT,
+        preferences JSONB DEFAULT '{}',
+        status TEXT DEFAULT 'ACTIVE',
         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )

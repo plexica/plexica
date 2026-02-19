@@ -18,7 +18,6 @@ import {
   setUserId,
   executeInTenantSchema,
   tenantContextMiddleware,
-  clearUserSyncCache,
   type TenantContext,
 } from '../../../middleware/tenant-context.js';
 import { tenantService } from '../../../services/tenant.service.js';
@@ -90,7 +89,7 @@ function makeMockRequestReply(overrides: { url?: string; headers?: Record<string
 describe('Tenant Isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    clearUserSyncCache();
+    // NOTE: User sync cache removed in Spec 002 Phase 5 (async sync via UserSyncConsumer)
   });
 
   // ─────────────────────────────────────────────────────────
@@ -443,12 +442,13 @@ describe('Tenant Isolation', () => {
       await tenantContextMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(400);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Bad Request',
-          message: 'Tenant identification required. Provide X-Tenant-Slug header.',
-        })
-      );
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'TENANT_IDENTIFICATION_REQUIRED',
+          message:
+            'Tenant identification required. Authenticate with JWT or provide X-Tenant-Slug header.',
+        },
+      });
     });
 
     it('should return 400 when X-Tenant-Slug header fails validation', async () => {
@@ -459,7 +459,13 @@ describe('Tenant Isolation', () => {
       await tenantContextMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(400);
-      expect(reply.send).toHaveBeenCalledWith(expect.objectContaining({ error: 'Bad Request' }));
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            code: 'VALIDATION_ERROR',
+          }),
+        })
+      );
       expect(tenantService.getTenantBySlug).not.toHaveBeenCalled();
     });
 
@@ -474,12 +480,15 @@ describe('Tenant Isolation', () => {
 
       expect(tenantService.getTenantBySlug).toHaveBeenCalledWith('nonexistent');
       expect(reply.code).toHaveBeenCalledWith(404);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Not Found',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'TENANT_NOT_FOUND',
           message: "Tenant 'nonexistent' not found",
-        })
-      );
+          details: {
+            tenantSlug: 'nonexistent',
+          },
+        },
+      });
     });
 
     it('should return 403 when tenant status is SUSPENDED', async () => {
@@ -496,12 +505,16 @@ describe('Tenant Isolation', () => {
       await tenantContextMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Forbidden',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'TENANT_NOT_ACTIVE',
           message: "Tenant 'suspended-co' is not active (status: SUSPENDED)",
-        })
-      );
+          details: {
+            tenantSlug: 'suspended-co',
+            status: 'SUSPENDED',
+          },
+        },
+      });
     });
 
     it('should return 403 when tenant status is PROVISIONING', async () => {
@@ -577,12 +590,12 @@ describe('Tenant Isolation', () => {
       await tenantContextMiddleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(500);
-      expect(reply.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'Internal Server Error',
+      expect(reply.send).toHaveBeenCalledWith({
+        error: {
+          code: 'INTERNAL_ERROR',
           message: 'Failed to set tenant context',
-        })
-      );
+        },
+      });
     });
 
     it('should not allow tenant A middleware to produce context visible from tenant B request', async () => {
@@ -651,18 +664,6 @@ describe('Tenant Isolation', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────
-  // 7. clearUserSyncCache
-  // ─────────────────────────────────────────────────────────
-  describe('clearUserSyncCache', () => {
-    it('should not throw when called (smoke test)', () => {
-      expect(() => clearUserSyncCache()).not.toThrow();
-    });
-
-    it('should be callable multiple times without error', () => {
-      clearUserSyncCache();
-      clearUserSyncCache();
-      // No assertion needed beyond no-throw
-    });
-  });
+  // NOTE: clearUserSyncCache test removed in Spec 002 Phase 5
+  // (user sync now handled asynchronously via UserSyncConsumer)
 });

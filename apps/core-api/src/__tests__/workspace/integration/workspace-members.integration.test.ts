@@ -83,14 +83,14 @@ describe('Workspace Members Integration', () => {
     adminUserId = 'a1a1a1a1-1111-4111-a111-111111111111';
     memberUserId = 'b2b2b2b2-2222-4222-b222-222222222222';
 
-    adminToken = testContext.auth.createMockTenantAdminToken(tenantId, {
+    adminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug, {
       sub: adminUserId,
       email: `admin@${testTenantSlug}.test`,
       given_name: 'Test',
       family_name: 'Admin',
     });
 
-    memberToken = testContext.auth.createMockTenantMemberToken(tenantId, {
+    memberToken = testContext.auth.createMockTenantMemberToken(testTenantSlug, {
       sub: memberUserId,
       email: `member@${testTenantSlug}.test`,
       given_name: 'Test',
@@ -122,6 +122,29 @@ describe('Workspace Members Integration', () => {
         lastName: 'Member',
       },
     });
+
+    // Create users in tenant schema (required for foreign key constraints)
+    await db.$executeRawUnsafe(
+      `INSERT INTO "${schemaName}"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      adminUserId,
+      adminUserId,
+      `admin@${testTenantSlug}.test`,
+      'Test',
+      'Admin'
+    );
+
+    await db.$executeRawUnsafe(
+      `INSERT INTO "${schemaName}"."users" ("id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at")
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      memberUserId,
+      memberUserId,
+      `member@${testTenantSlug}.test`,
+      'Test',
+      'Member'
+    );
 
     // Create a workspace as admin
     const createResponse = await app.inject({
@@ -306,7 +329,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(409);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/already.*member|duplicate/i);
+      expect(body.error?.message || body.message).toMatch(/already.*member|duplicate/i);
     });
 
     it('should reject non-admin user (403)', async () => {
@@ -347,7 +370,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(404);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/user.*not found/i);
+      expect(body.error?.message || body.message).toMatch(/user.*not found/i);
     });
 
     it('should reject invalid workspace ID (404)', async () => {
@@ -495,6 +518,8 @@ describe('Workspace Members Integration', () => {
         },
       });
 
+      // Authenticated users who aren't workspace members get 403 Forbidden.
+      // The workspace guard confirms the workspace exists but denies access.
       expect(response.statusCode).toBe(403);
     });
   });
@@ -643,7 +668,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(400);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/last admin|cannot demote/i);
+      expect(body.error?.message || body.message).toMatch(/last admin|cannot demote/i);
     });
 
     it('should allow admin to demote self if others exist', async () => {
@@ -798,7 +823,7 @@ describe('Workspace Members Integration', () => {
 
       expect(response.statusCode).toBe(400);
       const body = response.json();
-      expect(body.message || body.error).toMatch(/last admin|cannot remove/i);
+      expect(body.error?.message || body.message).toMatch(/last admin|cannot remove/i);
     });
 
     it('should cascade delete team memberships', async () => {

@@ -29,6 +29,31 @@ describe('Workspace Concurrent Operations E2E', () => {
   let tenantHeaders: Record<string, string>;
   let schemaName: string;
 
+  /**
+   * Helper: Create a user in both core and tenant schemas.
+   * Workspace operations require users to exist in the tenant schema's users table
+   * because of foreign key constraints on workspace_members.
+   */
+  async function createUserInBothSchemas(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    keycloakId: string;
+  }) {
+    const user = await db.user.create({ data });
+    await db.$executeRawUnsafe(
+      `INSERT INTO "${schemaName}"."users" (id, keycloak_id, email, first_name, last_name)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING`,
+      user.id,
+      user.keycloakId,
+      user.email,
+      user.firstName,
+      user.lastName
+    );
+    return user;
+  }
+
   beforeAll(async () => {
     // Build test app (environment already reset in setup)
     app = await buildTestApp();
@@ -57,20 +82,58 @@ describe('Workspace Concurrent Operations E2E', () => {
       );
     }
 
-    // Get admin token (uses pre-existing Keycloak user test-tenant-admin-acme)
-    const adminTokenResp = await testContext.auth.getRealTenantAdminToken('acme');
-    adminToken = adminTokenResp.access_token;
+    // Create mock tenant admin token (HS256, accepted by jwt.ts in test env)
+    // Must use dynamic tenant slug so JWT tenantSlug matches the tenant being accessed
+    adminToken = testContext.auth.createMockTenantAdminToken(tenantSlug);
+
+    // Decode the JWT to get the `sub` claim — use it as the keycloakId so
+    // the auth middleware's user lookup matches the DB record.
+    const tokenPayload = JSON.parse(Buffer.from(adminToken.split('.')[1], 'base64url').toString());
+    const keycloakSub = tokenPayload.sub;
 
     // Create admin user in DB (seed data was wiped)
-    const adminUser = await db.user.create({
-      data: {
-        email: `admin-${suffix}@ws-concurrent.example.com`,
-        firstName: 'Admin',
-        lastName: 'User',
-        keycloakId: `kc-admin-${suffix}`,
-      },
+    // CRITICAL: Use keycloakSub as the user `id` because the auth middleware
+    // sets request.user.id = payload.sub (JWT sub claim). The workspace service
+    // uses request.user.id as creatorId for FK insert into workspace_members,
+    // so the user's DB id MUST match the JWT sub value.
+    const existingUser = await db.user.findFirst({
+      where: { keycloakId: keycloakSub },
     });
+
+    let adminUser;
+    if (existingUser) {
+      adminUser = existingUser;
+    } else {
+      adminUser = await db.user.create({
+        data: {
+          id: keycloakSub,
+          email: `admin-${suffix}@ws-concurrent.example.com`,
+          firstName: 'Admin',
+          lastName: 'User',
+          keycloakId: keycloakSub,
+        },
+      });
+    }
     adminUserId = adminUser.id;
+
+    // Insert admin user into the tenant schema's users table
+    // (required because WorkspaceService joins against the tenant schema users table)
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}"."users" (id, keycloak_id, email, first_name, last_name)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO NOTHING`,
+        adminUser.id,
+        adminUser.keycloakId,
+        adminUser.email,
+        adminUser.firstName,
+        adminUser.lastName
+      );
+      console.log(`✅ Inserted admin user into tenant schema "${schemaName}".users`);
+    } catch (err) {
+      console.error(`❌ Failed to insert admin user into tenant schema:`, err);
+      throw err;
+    }
   });
 
   beforeEach(() => {
@@ -96,18 +159,21 @@ describe('Workspace Concurrent Operations E2E', () => {
         },
       });
 
+      if (createResponse.statusCode !== 201) {
+        console.error('Workspace creation failed:', createResponse.statusCode, createResponse.body);
+      }
+      expect(createResponse.statusCode).toBe(201);
+
       const workspaceId = createResponse.json().id;
 
-      // Create 10 users
+      // Create 10 users (in both core and tenant schemas)
       const users = await Promise.all(
         Array.from({ length: 10 }, (_, i) =>
-          db.user.create({
-            data: {
-              email: `concurrent-user-${i}-${Date.now()}@example.com`,
-              firstName: 'User',
-              lastName: `${i}`,
-              keycloakId: `keycloak-${i}-${suffix}-${Date.now()}`,
-            },
+          createUserInBothSchemas({
+            email: `concurrent-user-${i}-${Date.now()}@example.com`,
+            firstName: 'User',
+            lastName: `${i}`,
+            keycloakId: `keycloak-${i}-${suffix}-${Date.now()}`,
           })
         )
       );
@@ -156,13 +222,11 @@ describe('Workspace Concurrent Operations E2E', () => {
       const workspaceId = createResponse.json().id;
 
       // Create one user
-      const user = await db.user.create({
-        data: {
-          email: `duplicate-test-${Date.now()}@example.com`,
-          firstName: 'Duplicate',
-          lastName: 'Test',
-          keycloakId: `keycloak-dup-${suffix}-${Date.now()}`,
-        },
+      const user = await createUserInBothSchemas({
+        email: `duplicate-test-${Date.now()}@example.com`,
+        firstName: 'Duplicate',
+        lastName: 'Test',
+        keycloakId: `keycloak-dup-${suffix}-${Date.now()}`,
       });
 
       // Try to add same user 10 times concurrently
@@ -215,13 +279,11 @@ describe('Workspace Concurrent Operations E2E', () => {
       // Create 5 users and add them
       const users = await Promise.all(
         Array.from({ length: 5 }, (_, i) =>
-          db.user.create({
-            data: {
-              email: `role-user-${i}-${Date.now()}@example.com`,
-              firstName: 'User',
-              lastName: `${i}`,
-              keycloakId: `keycloak-role-${i}-${suffix}-${Date.now()}`,
-            },
+          createUserInBothSchemas({
+            email: `role-user-${i}-${Date.now()}@example.com`,
+            firstName: 'User',
+            lastName: `${i}`,
+            keycloakId: `keycloak-role-${i}-${suffix}-${Date.now()}`,
           })
         )
       );
@@ -282,13 +344,11 @@ describe('Workspace Concurrent Operations E2E', () => {
       const workspaceId = createResponse.json().id;
 
       // Create and add one user
-      const user = await db.user.create({
-        data: {
-          email: `same-role-${Date.now()}@example.com`,
-          firstName: 'Same',
-          lastName: 'Role',
-          keycloakId: `keycloak-same-${suffix}-${Date.now()}`,
-        },
+      const user = await createUserInBothSchemas({
+        email: `same-role-${Date.now()}@example.com`,
+        firstName: 'Same',
+        lastName: 'Role',
+        keycloakId: `keycloak-same-${suffix}-${Date.now()}`,
       });
 
       await app.inject({
@@ -346,13 +406,11 @@ describe('Workspace Concurrent Operations E2E', () => {
       const workspaceId = createResponse.json().id;
 
       // Add second admin
-      const admin2 = await db.user.create({
-        data: {
-          email: `admin2-race-${Date.now()}@example.com`,
-          firstName: 'Admin',
-          lastName: 'Two',
-          keycloakId: `keycloak-admin2-${suffix}-${Date.now()}`,
-        },
+      const admin2 = await createUserInBothSchemas({
+        email: `admin2-race-${Date.now()}@example.com`,
+        firstName: 'Admin',
+        lastName: 'Two',
+        keycloakId: `keycloak-admin2-${suffix}-${Date.now()}`,
       });
 
       await app.inject({
@@ -387,7 +445,6 @@ describe('Workspace Concurrent Operations E2E', () => {
 
       // At least one should succeed, at most one should fail (last admin protection)
       const successful = responses.filter((r) => r.statusCode === 200);
-      const failed = responses.filter((r) => r.statusCode === 400);
 
       // If there's no concurrency protection, both may succeed but at least one admin should remain
       expect(successful.length).toBeGreaterThanOrEqual(1);
@@ -416,13 +473,11 @@ describe('Workspace Concurrent Operations E2E', () => {
       const workspaceId = createResponse.json().id;
 
       // Add second admin
-      const admin2 = await db.user.create({
-        data: {
-          email: `admin2-remove-${Date.now()}@example.com`,
-          firstName: 'Admin',
-          lastName: 'Two',
-          keycloakId: `keycloak-admin2-remove-${suffix}-${Date.now()}`,
-        },
+      const admin2 = await createUserInBothSchemas({
+        email: `admin2-remove-${Date.now()}@example.com`,
+        firstName: 'Admin',
+        lastName: 'Two',
+        keycloakId: `keycloak-admin2-remove-${suffix}-${Date.now()}`,
       });
 
       await app.inject({
@@ -690,16 +745,14 @@ describe('Workspace Concurrent Operations E2E', () => {
 
       const workspaceId = createResponse.json().id;
 
-      // Create 20 users
+      // Create 20 users (in both core and tenant schemas)
       const users = await Promise.all(
         Array.from({ length: 20 }, (_, i) =>
-          db.user.create({
-            data: {
-              email: `perf-user-${i}-${Date.now()}@example.com`,
-              firstName: 'Perf',
-              lastName: `${i}`,
-              keycloakId: `keycloak-perf-${i}-${suffix}-${Date.now()}`,
-            },
+          createUserInBothSchemas({
+            email: `perf-user-${i}-${Date.now()}@example.com`,
+            firstName: 'Perf',
+            lastName: `${i}`,
+            keycloakId: `keycloak-perf-${i}-${suffix}-${Date.now()}`,
           })
         )
       );

@@ -1,0 +1,42 @@
+Plexica
+Copyright 2024-2026 Plexica Contributors
+
+This product includes software developed by the Plexica community
+(https://github.com/plexica/plexica).
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+---
+
+This project includes or depends on the following third-party software:
+
+## Runtime Dependencies
+
+- Fastify - MIT License (https://github.com/fastify/fastify)
+- React - MIT License (https://github.com/facebook/react)
+- Prisma - Apache 2.0 License (https://github.com/prisma/prisma)
+- Keycloak - Apache 2.0 License (https://github.com/keycloak/keycloak)
+- PostgreSQL - PostgreSQL License (https://www.postgresql.org)
+- Redis - BSD 3-Clause License (https://redis.io)
+- MinIO - GNU AGPL v3.0 (https://github.com/minio/minio)
+
+For a complete list of dependencies and their licenses, please refer to:
+- package.json files in the repository
+- pnpm-lock.yaml for exact versions
+
+## Attribution
+
+Special thanks to all contributors who have helped build Plexica.
+
+For the full list of contributors, see:
+https://github.com/plexica/plexica/graphs/contributors

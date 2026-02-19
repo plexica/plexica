@@ -1,0 +1,69 @@
+# Sprint 001 - Completed
+# Closed: 2026-02-15
+# Migrated from legacy sprint-status.yaml format
+
+version: 1
+sprint_number: 1
+sprint_goal: 'Implement Phase 3 i18n System: namespace-based translations with FormatJS, tenant overrides, and comprehensive testing'
+start_date: '2026-02-13'
+end_date: '2026-02-15'
+velocity_target: 28
+actual_velocity: 23
+
+stories:
+  - id: 'E01-S001'
+    title: 'Database Schema for i18n'
+    status: done
+    points: 3
+  - id: 'E01-S002'
+    title: 'Shared @plexica/i18n Package'
+    status: done
+    points: 8
+  - id: 'E01-S003'
+    title: 'Backend Translation Service'
+    status: done
+    points: 8
+  - id: 'E01-S004'
+    title: 'Plugin Manifest Integration'
+    status: done
+    points: 5
+  - id: 'E01-S005'
+    title: 'Security & Validation'
+    status: done
+    points: 3
+  - id: 'E01-S006'
+    title: 'Frontend Integration'
+    status: carried_over
+    points: 5
+
+completion_rate: '82%'
+stories_completed: 5
+stories_planned: 6
+
+notes: |
+  ✅ Sprint 1 CLOSED (2026-02-15)
+
+  Outstanding Success:
+  - Backend i18n system 100% complete (Milestones 1-5)
+  - 218 comprehensive tests implemented (100% pass rate)
+  - @plexica/i18n package: 115 tests, 94.9% coverage
+  - core-api i18n module: ≥85% coverage (exceeds target)
+  - 6 critical security fixes applied post-M4 adversarial review
+  - All 14 functional requirements implemented (backend)
+  - All 5 non-functional requirements met
+  - Zero constitution violations after fixes
+
+  Carried Over:
+  - E01-S006 (Frontend Integration, 5 pts) → Sprint 2
+  - Rationale: Backend is production-ready; frontend deserves focused sprint
+
+  Key Achievements:
+  - Security: 3 CRITICAL + 3 WARNING issues identified and fixed
+  - Testing: Comprehensive test suite with unit, integration, and security tests
+  - Architecture: FormatJS integration with compile-time optimization
+  - Performance: Redis caching, content-hashed URLs for immutable assets
+  - Compliance: Constitution Article 1.2, 5.1, 5.3, 6.3 violations resolved
+
+  Retrospective: .forge/sprints/retrospectives/sprint-01-retro.md
+
+retrospective: '.forge/sprints/retrospectives/sprint-01-retro.md'

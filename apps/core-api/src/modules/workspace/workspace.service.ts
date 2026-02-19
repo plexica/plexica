@@ -1,7 +1,20 @@
 import { PrismaClient, WorkspaceRole, Prisma } from '@plexica/database';
+import { EventBusService, WORKSPACE_EVENTS, createWorkspaceEvent } from '@plexica/event-bus';
+import type {
+  WorkspaceCreatedData,
+  WorkspaceUpdatedData,
+  WorkspaceDeletedData,
+  MemberAddedData,
+  MemberRoleUpdatedData,
+  MemberRemovedData,
+  TeamCreatedData,
+} from '@plexica/event-bus';
+import type { Redis } from 'ioredis';
 import { db } from '../../lib/db.js';
+import { logger } from '../../lib/logger.js';
 import { getTenantContext, type TenantContext } from '../../middleware/tenant-context.js';
 import type { CreateWorkspaceDto, UpdateWorkspaceDto, AddMemberDto } from './dto/index.js';
+import type { Logger } from 'pino';
 
 /**
  * Row types for raw SQL query results.
@@ -78,6 +91,10 @@ interface TeamRow {
   member_count?: number;
 }
 
+// Cache configuration constants
+const CACHE_TTL_SECONDS = 300; // 5 minutes
+const CACHE_KEY_PREFIX = 'workspace';
+
 /**
  * Workspace Service
  *
@@ -88,9 +105,28 @@ interface TeamRow {
  */
 export class WorkspaceService {
   private db: PrismaClient;
+  private eventBus?: EventBusService;
+  private cache?: Redis;
+  private log: Logger;
 
-  constructor() {
-    this.db = db;
+  constructor(
+    customDb?: PrismaClient,
+    eventBus?: EventBusService,
+    cache?: Redis,
+    customLogger?: Logger
+  ) {
+    this.db = customDb || db;
+    this.eventBus = eventBus;
+    this.cache = cache;
+    this.log = customLogger || logger;
+  }
+
+  /**
+   * Build tenant-scoped cache key for membership
+   * @private
+   */
+  private membershipCacheKey(tenantId: string, workspaceId: string, userId: string): string {
+    return `tenant:${tenantId}:${CACHE_KEY_PREFIX}:${workspaceId}:member:${userId}`;
   }
 
   /**
@@ -123,7 +159,7 @@ export class WorkspaceService {
     }
 
     // Use a transaction to ensure workspace and member are created together
-    return await this.db.$transaction(async (tx) => {
+    const createdWorkspace = await this.db.$transaction(async (tx) => {
       // Set search path for this transaction to use the tenant schema
       // Note: schemaName is validated with regex above, so this is safe
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
@@ -218,6 +254,46 @@ export class WorkspaceService {
         },
       };
     });
+
+    // Publish workspace created event after successful transaction
+    if (this.eventBus) {
+      try {
+        const event = createWorkspaceEvent<WorkspaceCreatedData>(WORKSPACE_EVENTS.CREATED, {
+          aggregateId: createdWorkspace.id,
+          tenantId: tenantContext.tenantId,
+          userId: creatorId,
+          data: {
+            workspaceId: createdWorkspace.id,
+            slug: createdWorkspace.slug,
+            name: createdWorkspace.name,
+            creatorId,
+          },
+        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic (routing)
+          event.type, // event type (semantics: 'core.workspace.created')
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          {
+            workspaceId: createdWorkspace.id,
+            eventType: WORKSPACE_EVENTS.CREATED,
+            error: String(eventError),
+          },
+          'Failed to publish workspace created event'
+        );
+      }
+    }
+
+    return createdWorkspace;
   }
 
   /**
@@ -430,7 +506,7 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    return await this.db.$transaction(async (tx) => {
+    const updatedWorkspace = await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       // Note: schemaName is validated with regex above
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
@@ -516,12 +592,7 @@ export class WorkspaceService {
           throw new Error(`Workspace ${id} not found after update`);
         }
 
-        // TODO: Publish event 'core.workspace.updated'
-        // await this.eventBus.publish({
-        //   type: 'core.workspace.updated',
-        //   aggregateId: id,
-        //   data: { workspaceId: id, changes: dto }
-        // });
+        // Event published after transaction (see below)
 
         const workspace = workspaces[0];
         const result = {
@@ -541,6 +612,47 @@ export class WorkspaceService {
         );
       }
     });
+
+    // Publish workspace updated event after successful transaction
+    if (this.eventBus && updatedWorkspace) {
+      try {
+        // Build changes object from DTO fields
+        const changes: Record<string, unknown> = {};
+        if (dto.name !== undefined) changes.name = dto.name;
+        if (dto.description !== undefined) changes.description = dto.description;
+        if (dto.settings !== undefined) changes.settings = dto.settings;
+
+        const actorId = tenantContext!.userId ?? 'system';
+        const event = createWorkspaceEvent<WorkspaceUpdatedData>(WORKSPACE_EVENTS.UPDATED, {
+          aggregateId: id,
+          tenantId: tenantContext!.tenantId,
+          userId: actorId,
+          data: {
+            workspaceId: id,
+            changes,
+          },
+        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.updated'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          { workspaceId: id, eventType: WORKSPACE_EVENTS.UPDATED, error: String(eventError) },
+          'Failed to publish workspace updated event'
+        );
+      }
+    }
+
+    return updatedWorkspace;
   }
 
   /**
@@ -594,14 +706,59 @@ export class WorkspaceService {
         DELETE FROM ${workspacesTable}
         WHERE id = ${id} AND tenant_id = ${tenantId}
       `;
-
-      // TODO: Publish event 'core.workspace.deleted'
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.deleted',
-      //   aggregateId: id,
-      //   data: { workspaceId: id }
-      // });
     });
+
+    // Invalidate all member cache entries for this workspace (pattern-based cleanup)
+    if (this.cache) {
+      try {
+        const pattern = `tenant:${tenantId}:${CACHE_KEY_PREFIX}:${id}:member:*`;
+        const keys = await this.cache.keys(pattern);
+        if (keys.length > 0) {
+          await this.cache.del(...keys);
+          this.log.debug(
+            { workspaceId: id, invalidatedKeys: keys.length },
+            'Workspace member cache invalidated on workspace delete'
+          );
+        }
+      } catch (cacheError) {
+        this.log.warn(
+          { workspaceId: id, error: String(cacheError) },
+          'Failed to invalidate workspace member cache'
+        );
+      }
+    }
+
+    // Publish workspace deleted event after successful transaction
+    if (this.eventBus) {
+      try {
+        const actorId = tenantContext!.userId ?? 'system';
+        const event = createWorkspaceEvent<WorkspaceDeletedData>(WORKSPACE_EVENTS.DELETED, {
+          aggregateId: id,
+          tenantId,
+          userId: actorId,
+          data: {
+            workspaceId: id,
+          },
+        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.deleted'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          { workspaceId: id, eventType: WORKSPACE_EVENTS.DELETED, error: String(eventError) },
+          'Failed to publish workspace deleted event'
+        );
+      }
+    }
   }
 
   /**
@@ -621,14 +778,27 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    // TODO: Implement Redis caching
-    // const cacheKey = `workspace:${workspaceId}:member:${userId}`;
-    // const cached = await this.cache.get(cacheKey);
-    // if (cached) {
-    //   return JSON.parse(cached);
-    // }
+    // 1. Try cache first
+    if (this.cache) {
+      try {
+        const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);
+        const cached = await this.cache.get(cacheKey);
+        if (cached) {
+          this.log.debug({ workspaceId, userId, cacheHit: true }, 'Membership cache hit');
+          return JSON.parse(cached);
+        }
+        this.log.debug({ workspaceId, userId, cacheHit: false }, 'Membership cache miss');
+      } catch (cacheError) {
+        // Cache failure: fall through to database query
+        this.log.warn(
+          { workspaceId, userId, error: String(cacheError) },
+          'Redis cache read failed, falling back to database'
+        );
+      }
+    }
 
-    return await this.db.$transaction(async (tx) => {
+    // 2. Query database (existing logic)
+    const result = await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       // Note: schemaName is validated with regex above
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
@@ -644,27 +814,39 @@ export class WorkspaceService {
       }
 
       const membership = memberships[0];
-      const result = {
+      return {
         workspaceId: membership.workspace_id,
         userId: membership.user_id,
         role: membership.role,
         invitedBy: membership.invited_by,
         joinedAt: membership.joined_at,
       };
-
-      // TODO: Cache membership for 5 minutes
-      // if (result) {
-      //   await this.cache.set(cacheKey, JSON.stringify(result), 300);
-      // }
-
-      return result;
     });
+
+    // 3. Populate cache on miss (non-blocking)
+    if (result && this.cache) {
+      try {
+        const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);
+        await this.cache.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL_SECONDS);
+        this.log.debug({ workspaceId, userId }, 'Membership cached successfully');
+      } catch (cacheError) {
+        this.log.warn(
+          { workspaceId, userId, error: String(cacheError) },
+          'Redis cache write failed'
+        );
+      }
+    }
+
+    return result;
   }
 
   /**
    * Check workspace exists in tenant and get user membership in a single transaction.
    * Used by workspace guard to avoid two separate transactions per request.
    * Returns { exists: true, membership } or { exists: false, membership: null }.
+   *
+   * Caching Strategy: Cache membership only, always verify workspace existence from database
+   * to prevent stale access after workspace deletion.
    */
   async checkAccessAndGetMembership(
     workspaceId: string,
@@ -692,46 +874,82 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
+    // Try to get cached membership (but always verify workspace existence)
+    let cachedMembership: any = null;
+    if (this.cache) {
+      try {
+        const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);
+        const cached = await this.cache.get(cacheKey);
+        if (cached) {
+          cachedMembership = JSON.parse(cached);
+          this.log.debug(
+            { workspaceId, userId, cacheHit: true },
+            'Membership cache hit in checkAccess'
+          );
+        }
+      } catch (cacheError) {
+        this.log.warn(
+          { workspaceId, userId, error: String(cacheError) },
+          'Redis cache read failed in checkAccess'
+        );
+      }
+    }
+
     return await this.db.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
       const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
-      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
 
-      // Check workspace exists and get membership in one query via LEFT JOIN
-      const results = await tx.$queryRaw<MembershipRow[]>`
-        SELECT 
-          w.id as workspace_id,
-          wm.user_id,
-          wm.role,
-          wm.invited_by,
-          wm.joined_at
-        FROM ${workspacesTable} w
-        LEFT JOIN ${membersTable} wm 
-          ON w.id = wm.workspace_id AND wm.user_id = ${userId}
-        WHERE w.id = ${workspaceId} AND w.tenant_id = ${tenantId}
+      // Always verify workspace exists from database
+      const workspaceExists = await tx.$queryRaw<IdRow[]>`
+        SELECT id FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
       `;
 
-      if (!results || results.length === 0) {
+      if (!workspaceExists || workspaceExists.length === 0) {
         return { exists: false, membership: null };
       }
 
-      const row = results[0];
-      if (!row.user_id) {
-        // Workspace exists but user is not a member
+      // If we have cached membership, return it (workspace exists and membership is cached)
+      if (cachedMembership) {
+        return { exists: true, membership: cachedMembership };
+      }
+
+      // Cache miss: query membership from database
+      const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
+      const memberships = await tx.$queryRaw<MembershipRow[]>`
+        SELECT * FROM ${membersTable}
+        WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+      `;
+
+      if (!memberships || memberships.length === 0) {
         return { exists: true, membership: null };
       }
 
-      return {
-        exists: true,
-        membership: {
-          workspaceId: row.workspace_id,
-          userId: row.user_id,
-          role: row.role,
-          invitedBy: row.invited_by,
-          joinedAt: row.joined_at,
-        },
+      const row = memberships[0];
+      const membership = {
+        workspaceId: row.workspace_id,
+        userId: row.user_id,
+        role: row.role,
+        invitedBy: row.invited_by,
+        joinedAt: row.joined_at,
       };
+
+      // Cache the membership for future lookups
+      if (this.cache) {
+        try {
+          const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);
+          await this.cache.set(cacheKey, JSON.stringify(membership), 'EX', CACHE_TTL_SECONDS);
+          this.log.debug({ workspaceId, userId }, 'Membership cached in checkAccess');
+        } catch (cacheError) {
+          this.log.warn(
+            { workspaceId, userId, error: String(cacheError) },
+            'Redis cache write failed in checkAccess'
+          );
+        }
+      }
+
+      return { exists: true, membership };
     });
   }
 
@@ -776,7 +994,7 @@ export class WorkspaceService {
 
     const role = dto.role || WorkspaceRole.MEMBER;
 
-    return await this.db.$transaction(async (tx) => {
+    const addedMember = await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       // Note: schemaName is validated with regex above
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
@@ -862,14 +1080,6 @@ export class WorkspaceService {
 
       const member = members[0];
 
-      // TODO: Invalidate cache and publish event
-      // await this.cache.del(`workspace:${workspaceId}:member:${dto.userId}`);
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.member.added',
-      //   aggregateId: workspaceId,
-      //   data: { workspaceId, userId: dto.userId, role: member.role, invitedBy }
-      // });
-
       return {
         workspaceId: member.workspace_id,
         userId: member.user_id,
@@ -884,6 +1094,64 @@ export class WorkspaceService {
         },
       };
     });
+
+    // Invalidate cache after successful transaction
+    if (this.cache) {
+      try {
+        const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, dto.userId);
+        await this.cache.del(cacheKey);
+        this.log.debug(
+          { workspaceId, userId: dto.userId },
+          'Membership cache invalidated on member add'
+        );
+      } catch (cacheError) {
+        this.log.warn(
+          { workspaceId, userId: dto.userId, error: String(cacheError) },
+          'Failed to invalidate membership cache'
+        );
+      }
+    }
+
+    // Publish member added event after successful transaction
+    if (this.eventBus) {
+      try {
+        const event = createWorkspaceEvent<MemberAddedData>(WORKSPACE_EVENTS.MEMBER_ADDED, {
+          aggregateId: workspaceId,
+          tenantId,
+          userId: invitedBy,
+          workspaceId,
+          data: {
+            workspaceId,
+            userId: dto.userId,
+            role: addedMember.role as 'ADMIN' | 'MEMBER' | 'VIEWER',
+            invitedBy,
+          },
+        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.member.added'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          {
+            workspaceId,
+            eventType: WORKSPACE_EVENTS.MEMBER_ADDED,
+            error: String(eventError),
+          },
+          'Failed to publish member added event'
+        );
+      }
+    }
+
+    return addedMember;
   }
 
   /**
@@ -907,7 +1175,7 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    return await this.db.$transaction(async (tx) => {
+    const { result: updatedMember, oldRole } = await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       // Note: schemaName is validated with regex above
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
@@ -925,6 +1193,7 @@ export class WorkspaceService {
       }
 
       const currentMember = currentMembers[0];
+      const previousRole = currentMember.role;
 
       // Check if demoting the last admin
       if (currentMember.role === 'ADMIN' && role !== 'ADMIN') {
@@ -960,22 +1229,76 @@ export class WorkspaceService {
 
       const member = members[0];
 
-      // TODO: Invalidate cache and publish event
-      // await this.cache.del(`workspace:${workspaceId}:member:${userId}`);
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.member.role_updated',
-      //   aggregateId: workspaceId,
-      //   data: { workspaceId, userId, newRole: role }
-      // });
-
       return {
-        workspaceId: member.workspace_id,
-        userId: member.user_id,
-        role: member.role,
-        invitedBy: member.invited_by,
-        joinedAt: member.joined_at,
+        result: {
+          workspaceId: member.workspace_id,
+          userId: member.user_id,
+          role: member.role,
+          invitedBy: member.invited_by,
+          joinedAt: member.joined_at,
+        },
+        oldRole: previousRole,
       };
     });
+
+    // Invalidate cache after successful transaction
+    if (this.cache) {
+      try {
+        const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);
+        await this.cache.del(cacheKey);
+        this.log.debug({ workspaceId, userId }, 'Membership cache invalidated on role update');
+      } catch (cacheError) {
+        this.log.warn(
+          { workspaceId, userId, error: String(cacheError) },
+          'Failed to invalidate membership cache'
+        );
+      }
+    }
+
+    // Publish member role updated event after successful transaction
+    if (this.eventBus) {
+      try {
+        const actorId = tenantContext!.userId ?? 'system';
+        const event = createWorkspaceEvent<MemberRoleUpdatedData>(
+          WORKSPACE_EVENTS.MEMBER_ROLE_UPDATED,
+          {
+            aggregateId: workspaceId,
+            tenantId: tenantContext!.tenantId,
+            userId: actorId,
+            workspaceId,
+            data: {
+              workspaceId,
+              userId,
+              oldRole,
+              newRole: role,
+            },
+          }
+        );
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.member.role_updated'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          {
+            workspaceId,
+            eventType: WORKSPACE_EVENTS.MEMBER_ROLE_UPDATED,
+            error: String(eventError),
+          },
+          'Failed to publish member role updated event'
+        );
+      }
+    }
+
+    return updatedMember;
   }
 
   /**
@@ -1049,15 +1372,59 @@ export class WorkspaceService {
          DELETE FROM ${membersTable}
          WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
        `;
-
-      // TODO: Invalidate cache and publish event
-      // await this.cache.del(`workspace:${workspaceId}:member:${userId}`);
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.member.removed',
-      //   aggregateId: workspaceId,
-      //   data: { workspaceId, userId }
-      // });
     });
+
+    // Invalidate cache after successful transaction
+    if (this.cache) {
+      try {
+        const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);
+        await this.cache.del(cacheKey);
+        this.log.debug({ workspaceId, userId }, 'Membership cache invalidated on member remove');
+      } catch (cacheError) {
+        this.log.warn(
+          { workspaceId, userId, error: String(cacheError) },
+          'Failed to invalidate membership cache'
+        );
+      }
+    }
+
+    // Publish member removed event after successful transaction
+    if (this.eventBus) {
+      try {
+        const actorId = tenantContext!.userId ?? 'system';
+        const event = createWorkspaceEvent<MemberRemovedData>(WORKSPACE_EVENTS.MEMBER_REMOVED, {
+          aggregateId: workspaceId,
+          tenantId: tenantContext!.tenantId,
+          userId: actorId,
+          workspaceId,
+          data: {
+            workspaceId,
+            userId,
+          },
+        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.member.removed'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          {
+            workspaceId,
+            eventType: WORKSPACE_EVENTS.MEMBER_REMOVED,
+            error: String(eventError),
+          },
+          'Failed to publish member removed event'
+        );
+      }
+    }
   }
 
   /**
@@ -1339,7 +1706,7 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    return await this.db.$transaction(async (tx) => {
+    const createdTeam = await this.db.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
       const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
@@ -1386,13 +1753,6 @@ export class WorkspaceService {
 
       const t = teams[0];
 
-      // TODO: Publish event
-      // await this.eventBus.publish({
-      //   type: 'core.workspace.team.created',
-      //   aggregateId: workspaceId,
-      //   data: { workspaceId, teamId: t.id, name: data.name }
-      // });
-
       return {
         id: t.id,
         workspaceId: t.workspace_id,
@@ -1409,6 +1769,48 @@ export class WorkspaceService {
         },
       };
     });
+
+    // Publish team created event after successful transaction
+    if (this.eventBus) {
+      try {
+        const actorId = tenantContext!.userId ?? 'system';
+        const event = createWorkspaceEvent<TeamCreatedData>(WORKSPACE_EVENTS.TEAM_CREATED, {
+          aggregateId: workspaceId,
+          tenantId: tenantContext!.tenantId,
+          userId: actorId,
+          workspaceId,
+          data: {
+            workspaceId,
+            teamId: createdTeam.id,
+            name: data.name,
+            ownerId: data.ownerId,
+          },
+        });
+        await this.eventBus.publish(
+          'plexica.workspace.lifecycle', // topic
+          event.type, // event type: 'core.workspace.team.created'
+          event.data,
+          {
+            tenantId: event.tenantId,
+            workspaceId: event.workspaceId,
+            userId: event.metadata.userId,
+            source: event.metadata.source,
+            correlationId: event.metadata.correlationId,
+          }
+        );
+      } catch (eventError) {
+        this.log.warn(
+          {
+            workspaceId,
+            eventType: WORKSPACE_EVENTS.TEAM_CREATED,
+            error: String(eventError),
+          },
+          'Failed to publish team created event'
+        );
+      }
+    }
+
+    return createdTeam;
   }
 }
 

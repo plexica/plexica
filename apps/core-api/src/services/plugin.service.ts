@@ -13,6 +13,13 @@ import { DependencyResolutionService } from './dependency-resolution.service.js'
 import { redis } from '../lib/redis.js';
 import semver from 'semver';
 import { TENANT_STATUS } from '../constants/index.js';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { TranslationKeySchema } from '../modules/i18n/i18n.schemas.js';
+import { flattenMessages } from '@plexica/i18n';
+import { logger } from '../lib/logger.js';
+import type { Logger } from 'pino';
+import safeRegex from 'safe-regex2';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -25,22 +32,15 @@ type TenantPluginWithPluginAndTenant = TenantPlugin & { plugin: Plugin; tenant: 
 export class PluginRegistryService {
   private serviceRegistry: ServiceRegistryService;
   private dependencyResolver: DependencyResolutionService;
+  private logger: Logger;
 
-  constructor() {
-    // SECURITY: Use silent logger to prevent sensitive data leaks
-    // Debug logging disabled in production
-    const isProduction = process.env.NODE_ENV === 'production';
-    const silentLogger = {
-      info: isProduction ? () => {} : (...args: unknown[]) => console.log('[INFO]', ...args),
-      error: (...args: unknown[]) => console.error('[ERROR]', ...args),
-      warn: (...args: unknown[]) => console.warn('[WARN]', ...args),
-      debug: isProduction ? () => {} : (...args: unknown[]) => console.debug('[DEBUG]', ...args),
-    };
+  constructor(customLogger?: Logger) {
+    // Use provided logger or default to shared Pino logger
+    // Constitution Article 6.3: Pino JSON logging with standard fields
+    this.logger = customLogger || logger;
 
-    // @ts-expect-error ServiceRegistryService expects a full PrismaClient but we pass our db instance
-    this.serviceRegistry = new ServiceRegistryService(db, redis, silentLogger);
-    // @ts-expect-error DependencyResolutionService expects a full PrismaClient but we pass our db instance
-    this.dependencyResolver = new DependencyResolutionService(db, silentLogger);
+    this.serviceRegistry = new ServiceRegistryService(db, redis, this.logger);
+    this.dependencyResolver = new DependencyResolutionService(db, this.logger);
   }
 
   /**
@@ -55,7 +55,7 @@ export class PluginRegistryService {
     }
 
     // Additional basic validation
-    this.validateManifest(manifest);
+    await this.validateManifest(manifest);
 
     // Check if plugin already exists
     const existing = await db.plugin.findUnique({
@@ -100,7 +100,10 @@ export class PluginRegistryService {
         } catch (error: unknown) {
           // Log errors but continue with other services
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error(`Failed to register service '${service.name}':`, errorMsg);
+          this.logger.error(
+            { pluginId: manifest.id, serviceName: service.name, error: errorMsg },
+            `Failed to register service '${service.name}'`
+          );
           // Continue with other services, don't fail the entire registration
         }
       }
@@ -123,9 +126,21 @@ export class PluginRegistryService {
 
   /**
    * Update an existing plugin
+   *
+   * SECURITY FIX: Now uses Zod validation to prevent security bypass.
+   * Previous implementation only used custom validation, allowing invalid
+   * manifests to bypass Zod schema constraints.
    */
   async updatePlugin(pluginId: string, manifest: PluginManifest): Promise<Plugin> {
-    this.validateManifest(manifest);
+    // ✅ SECURITY: Validate with Zod schema first (same as registerPlugin)
+    const validation = validatePluginManifest(manifest);
+    if (!validation.valid) {
+      const errorMessages = validation.errors?.map((e) => `${e.path}: ${e.message}`).join('; ');
+      throw new Error(`Invalid plugin manifest: ${errorMessages}`);
+    }
+
+    // Additional custom validation (translation files, version format, etc.)
+    await this.validateManifest(manifest);
 
     const plugin = await db.plugin.findUnique({
       where: { id: pluginId },
@@ -255,34 +270,54 @@ export class PluginRegistryService {
 
   /**
    * Get plugin statistics
+   *
+   * PERFORMANCE FIX: Use database aggregation instead of loading all rows into memory.
+   * For popular plugins with 10,000+ installations, the old implementation would:
+   * - Load ~500MB+ of data into memory
+   * - Risk Node.js out-of-memory errors
+   * - Scale linearly O(n) with tenant count
+   *
+   * New implementation uses COUNT queries (O(1) memory, database aggregation).
    */
   async getPluginStats(pluginId: string): Promise<{
     installCount: number;
     activeTenants: number;
     version: string;
   }> {
-    // Fetch plugin and installation stats in parallel (not sequentially)
-    const [plugin, installations] = await Promise.all([
-      db.plugin.findUnique({
-        where: { id: pluginId },
-      }),
-      db.tenantPlugin.findMany({
-        where: { pluginId },
-        include: { tenant: true },
-      }),
-    ]);
+    // Fetch plugin metadata and run aggregation queries in parallel
+    const [plugin, totalInstallations, _enabledInstallations, activeTenantsCount] =
+      await Promise.all([
+        db.plugin.findUnique({
+          where: { id: pluginId },
+          select: { id: true, version: true },
+        }),
+        // Count total installations (all tenants)
+        db.tenantPlugin.count({
+          where: { pluginId },
+        }),
+        // Count enabled installations
+        db.tenantPlugin.count({
+          where: { pluginId, enabled: true },
+        }),
+        // Count active tenants with enabled plugin
+        db.tenantPlugin.count({
+          where: {
+            pluginId,
+            enabled: true,
+            tenant: {
+              status: TENANT_STATUS.ACTIVE,
+            },
+          },
+        }),
+      ]);
 
     if (!plugin) {
       throw new Error(`Plugin '${pluginId}' not found`);
     }
 
-    const activeTenants = installations.filter(
-      (i) => i.enabled && i.tenant.status === TENANT_STATUS.ACTIVE
-    ).length;
-
     return {
-      installCount: installations.length,
-      activeTenants,
+      installCount: totalInstallations,
+      activeTenants: activeTenantsCount,
       version: plugin.version,
     };
   }
@@ -290,7 +325,7 @@ export class PluginRegistryService {
   /**
    * Validate plugin manifest
    */
-  private validateManifest(manifest: PluginManifest): void {
+  private async validateManifest(manifest: PluginManifest): Promise<void> {
     if (!manifest.id || !/^[a-z0-9-]{1,64}$/.test(manifest.id)) {
       throw new Error('Plugin ID must be 1-64 chars, lowercase alphanumeric with hyphens');
     }
@@ -322,6 +357,107 @@ export class PluginRegistryService {
     if (!manifest.metadata?.author?.name) {
       throw new Error('Plugin author name is required');
     }
+
+    // NEW: Validate translation files if translations section is declared (FR-004, FR-011, FR-012)
+    if (manifest.translations) {
+      await this.validateTranslationFiles(manifest);
+    }
+  }
+
+  /**
+   * Validate translation files for a plugin (FR-004, FR-011, FR-012)
+   *
+   * Checks that:
+   * - All declared translation files exist
+   * - Each file is ≤ 200KB
+   * - All translation keys are valid (max 128 chars, [a-zA-Z0-9._] only)
+   *
+   * @throws Error if validation fails with actionable message
+   */
+  private async validateTranslationFiles(manifest: PluginManifest): Promise<void> {
+    if (!manifest.translations) {
+      return;
+    }
+
+    const { namespaces, supportedLocales } = manifest.translations;
+    const pluginBasePath = path.resolve(process.cwd(), 'plugins', manifest.id);
+    const MAX_FILE_SIZE = 200 * 1024; // 200KB in bytes (FR-012)
+
+    // Re-validate namespace and locale formats for defense-in-depth (path traversal protection)
+    const namespaceRegex = /^[a-z0-9\-]+$/;
+    const localeRegex = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+    for (const locale of supportedLocales) {
+      // Defense-in-depth: re-validate locale format at filesystem boundary
+      if (!localeRegex.test(locale)) {
+        throw new Error(
+          `Invalid locale format: "${locale}". Must be BCP 47 format (e.g., "en", "en-US").`
+        );
+      }
+
+      for (const namespace of namespaces) {
+        // Defense-in-depth: re-validate namespace format at filesystem boundary
+        if (!namespaceRegex.test(namespace)) {
+          throw new Error(
+            `Invalid namespace format: "${namespace}". Must be lowercase alphanumeric with hyphens.`
+          );
+        }
+
+        const translationFilePath = path.join(
+          pluginBasePath,
+          'translations',
+          locale,
+          `${namespace}.json`
+        );
+
+        // Path traversal protection: verify resolved path stays within plugin directory
+        const resolvedPath = path.resolve(translationFilePath);
+        if (!resolvedPath.startsWith(pluginBasePath)) {
+          throw new Error(
+            `Path traversal detected: Translation file path "${translationFilePath}" ` +
+              `resolves outside plugin directory. This is a security violation.`
+          );
+        }
+
+        try {
+          // Check if file exists
+          const fileStats = await fs.stat(resolvedPath);
+
+          // Validate file size (FR-012)
+          if (fileStats.size > MAX_FILE_SIZE) {
+            throw new Error(
+              `Translation file too large: ${resolvedPath} (${(fileStats.size / 1024).toFixed(2)}KB > 200KB limit). ` +
+                `Split into multiple namespaces or reduce translation count.`
+            );
+          }
+
+          // Read and parse file
+          const fileContent = await fs.readFile(resolvedPath, 'utf8');
+          const translations = JSON.parse(fileContent);
+
+          // Flatten to get all keys
+          const flattenedKeys = flattenMessages(translations);
+
+          // Validate each key (FR-011)
+          for (const key of Object.keys(flattenedKeys)) {
+            const validation = TranslationKeySchema.safeParse(key);
+            if (!validation.success) {
+              throw new Error(
+                `Invalid translation key "${key}" in ${resolvedPath}: ${validation.error.issues[0].message}`
+              );
+            }
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(
+              `Missing translation file: ${resolvedPath}. ` +
+                `Plugin declares namespace "${namespace}" for locale "${locale}" but file does not exist.`
+            );
+          }
+          throw error; // Re-throw validation errors or other errors
+        }
+      }
+    }
   }
 }
 
@@ -333,23 +469,16 @@ export class PluginLifecycleService {
   private registry: PluginRegistryService;
   private serviceRegistry: ServiceRegistryService;
   private dependencyResolver: DependencyResolutionService;
+  private logger: Logger;
 
-  constructor() {
-    this.registry = new PluginRegistryService();
+  constructor(customLogger?: Logger) {
+    // Use provided logger or default to shared Pino logger
+    // Constitution Article 6.3: Pino JSON logging with standard fields
+    this.logger = customLogger || logger;
 
-    // SECURITY: Use silent logger to prevent sensitive data leaks
-    const isProduction = process.env.NODE_ENV === 'production';
-    const silentLogger = {
-      info: isProduction ? () => {} : (...args: unknown[]) => console.log('[INFO]', ...args),
-      error: (...args: unknown[]) => console.error('[ERROR]', ...args),
-      warn: (...args: unknown[]) => console.warn('[WARN]', ...args),
-      debug: isProduction ? () => {} : (...args: unknown[]) => console.debug('[DEBUG]', ...args),
-    };
-
-    // @ts-expect-error ServiceRegistryService expects a full PrismaClient but we pass our db instance
-    this.serviceRegistry = new ServiceRegistryService(db, redis, silentLogger);
-    // @ts-expect-error DependencyResolutionService expects a full PrismaClient but we pass our db instance
-    this.dependencyResolver = new DependencyResolutionService(db, silentLogger);
+    this.registry = new PluginRegistryService(this.logger);
+    this.serviceRegistry = new ServiceRegistryService(db, redis, this.logger);
+    this.dependencyResolver = new DependencyResolutionService(db, this.logger);
   }
 
   /**
@@ -429,11 +558,12 @@ export class PluginLifecycleService {
     // Check old-style dependencies
     await this.checkDependencies(tenantId, manifest);
 
-    // Create installation within transaction
+    // Create installation within transaction (without service registration to maintain atomicity)
+    let installation: TenantPluginWithPluginAndTenant;
     try {
-      return await db.$transaction(async (tx) => {
+      installation = await db.$transaction(async (tx) => {
         // Create installation
-        const installation = await tx.tenantPlugin.create({
+        const newInstallation = await tx.tenantPlugin.create({
           data: {
             tenantId,
             pluginId,
@@ -446,33 +576,8 @@ export class PluginLifecycleService {
           },
         });
 
-        // M2.3: Register services for this tenant
-        if (manifest.api?.services) {
-          for (const service of manifest.api.services) {
-            try {
-              await this.serviceRegistry.registerService({
-                pluginId,
-                tenantId,
-                serviceName: service.name,
-                version: service.version,
-                baseUrl: service.baseUrl || `http://plugin-${pluginId}:8080`,
-                endpoints: service.endpoints?.map((ep) => ({
-                  method: ep.method,
-                  path: ep.path,
-                  description: ep.description,
-                  permissions: ep.permissions,
-                  metadata: ep.metadata,
-                })),
-                metadata: service.metadata,
-              });
-            } catch (error: unknown) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
-              console.error(`Failed to register service '${service.name}':`, errorMsg);
-            }
-          }
-        }
-
         // Run installation lifecycle hook if defined
+        // NOTE: Lifecycle hook runs INSIDE transaction. If it fails, installation rolls back.
         if (manifest.lifecycle?.install) {
           try {
             await this.runLifecycleHook(manifest, 'install', {
@@ -487,13 +592,48 @@ export class PluginLifecycleService {
           }
         }
 
-        return installation;
+        return newInstallation;
       });
     } catch (error: unknown) {
       throw new Error(
         `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
+
+    // AFTER transaction succeeds: Register services for this tenant
+    // This is done outside the transaction to avoid orphaned service registrations
+    // if the transaction rolls back. If service registration fails here, the installation
+    // is complete but without services (better than having services without installation).
+    if (manifest.api?.services) {
+      for (const service of manifest.api.services) {
+        try {
+          await this.serviceRegistry.registerService({
+            pluginId,
+            tenantId,
+            serviceName: service.name,
+            version: service.version,
+            baseUrl: service.baseUrl || `http://plugin-${pluginId}:8080`,
+            endpoints: service.endpoints?.map((ep) => ({
+              method: ep.method,
+              path: ep.path,
+              description: ep.description,
+              permissions: ep.permissions,
+              metadata: ep.metadata,
+            })),
+            metadata: service.metadata,
+          });
+        } catch (error: unknown) {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          this.logger.error(
+            { pluginId, tenantId, serviceName: service.name, error: errorMsg },
+            `Failed to register service '${service.name}'`
+          );
+          // Log but don't fail the installation - service registration is supplementary
+        }
+      }
+    }
+
+    return installation;
   }
 
   /**
@@ -773,7 +913,14 @@ export class PluginLifecycleService {
           throw new Error(`Required plugin dependency '${depId}' is not installed or active`);
         }
 
-        // TODO: Implement version checking
+        // Validate version compatibility using semver
+        const installedVersion = installation.plugin.version;
+        if (!semver.satisfies(installedVersion, _version)) {
+          throw new Error(
+            `Incompatible dependency version: Plugin '${depId}' requires version ${_version}, ` +
+              `but installed version is ${installedVersion}`
+          );
+        }
       }
     }
 
@@ -808,29 +955,19 @@ export class PluginLifecycleService {
 
   /**
    * Validate regex pattern for common ReDoS (Regular Expression Denial of Service) vulnerabilities
-   * Rejects patterns with nested quantifiers, alternation with overlap, etc.
+   * Uses safe-regex2 library for static analysis of regex patterns
    */
   private validateRegexPattern(pattern: string): void {
-    // Common ReDoS indicators to reject:
-    // 1. Nested quantifiers: (a+)+ , (a*)*
-    // 2. Alternation with overlap: (a|a)+ , (a|ab)+
-    // 3. Multiple overlapping alternations: (a|a|a)+
-
-    const redosPatterns = [
-      /(\w\+)\+/, // nested + quantifier
-      /(\w\*)\*/, // nested * quantifier
-      /(\w\{[\d,]+\})\+/, // nested { } with +
-      /\([^)]*\|[^)]*\)\+/, // alternation with +
-      /\([^)]*\|[^)]*\)\*/, // alternation with *
-    ];
-
-    for (const redosPattern of redosPatterns) {
-      if (redosPattern.test(pattern)) {
-        throw new Error(
-          `ReDoS vulnerability detected in regex pattern: ${pattern}. ` +
-            `Patterns with nested quantifiers or overlapping alternations are not allowed.`
-        );
-      }
+    // Use safe-regex2 for comprehensive static analysis
+    // Detects nested quantifiers, excessive backtracking, overlapping alternations, etc.
+    if (!safeRegex(pattern)) {
+      throw new Error(
+        `ReDoS vulnerability detected in regex pattern: "${pattern}". ` +
+          'This pattern may cause excessive backtracking and denial of service. ' +
+          'Avoid nested quantifiers (e.g., (a+)+, (a*)*), overlapping alternations (e.g., (a|ab)+), ' +
+          'and patterns with exponential complexity. ' +
+          'See plugin development documentation for safe regex patterns.'
+      );
     }
   }
 }

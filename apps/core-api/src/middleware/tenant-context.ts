@@ -3,7 +3,6 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { Prisma } from '@plexica/database';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
-import { db } from '../lib/db.js';
 
 // Tenant context stored in AsyncLocalStorage
 export interface TenantContext {
@@ -17,35 +16,6 @@ export interface TenantContext {
 // AsyncLocalStorage instance for tenant context
 export const tenantContextStorage = new AsyncLocalStorage<TenantContext>();
 
-// In-memory cache for user-tenant sync to avoid redundant UPSERT queries.
-// Key: `${schemaName}:${userId}`, Value: timestamp of last sync.
-// Entries expire after SYNC_CACHE_TTL_MS to pick up user profile changes.
-const SYNC_CACHE_TTL_MS = 60_000; // 1 minute
-const SYNC_CACHE_MAX_SIZE = 10_000; // Maximum entries before eviction
-const userSyncCache = new Map<string, number>();
-
-/**
- * Evict expired entries from the user sync cache.
- * Called when the cache exceeds SYNC_CACHE_MAX_SIZE.
- * Falls back to clearing the entire cache if eviction is insufficient.
- */
-function evictExpiredSyncCacheEntries(): void {
-  const now = Date.now();
-  for (const [key, timestamp] of userSyncCache) {
-    if (now - timestamp >= SYNC_CACHE_TTL_MS) {
-      userSyncCache.delete(key);
-    }
-  }
-  // If still too large after evicting expired entries, clear the oldest half
-  if (userSyncCache.size > SYNC_CACHE_MAX_SIZE) {
-    const entries = [...userSyncCache.entries()].sort((a, b) => a[1] - b[1]);
-    const toRemove = Math.floor(entries.length / 2);
-    for (let i = 0; i < toRemove; i++) {
-      userSyncCache.delete(entries[i][0]);
-    }
-  }
-}
-
 /**
  * Get current tenant context from AsyncLocalStorage
  */
@@ -57,9 +27,14 @@ export function getTenantContext(): TenantContext | undefined {
  * Fastify hook to extract tenant from request and set context
  *
  * The tenant can be identified by:
- * 1. JWT token (tenant claim) - for authenticated requests
- * 2. X-Tenant-Slug header - for API requests
+ * 1. JWT token (tenant claim) - for authenticated requests (primary method)
+ * 2. X-Tenant-Slug header - for public/unauthenticated requests (fallback)
  * 3. Subdomain - for web requests (future)
+ *
+ * Constitution Compliance:
+ * - Article 1.2: Multi-Tenancy Isolation via JWT-based tenant extraction
+ * - Article 6.2: Constitution-compliant error format
+ * - Article 6.3: Structured logging with Pino
  */
 export async function tenantContextMiddleware(
   request: FastifyRequest,
@@ -73,33 +48,73 @@ export async function tenantContextMiddleware(
     }
 
     let tenantSlug: string | undefined;
+    let jwtTenantSlug: string | undefined;
 
-    // SECURITY: Validate and extract custom headers
-    const headerValidation = validateCustomHeaders(request.headers);
-
-    // Log any header validation errors
-    if (headerValidation.errors.length > 0) {
-      headerValidation.errors.forEach((error) => {
-        logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
-      });
-      return reply.code(400).send({
-        error: 'Bad Request',
-        message: 'Invalid header format',
-        details: headerValidation.errors,
-      });
+    // Method 1: Extract tenant from JWT token (primary method for authenticated requests)
+    // authMiddleware sets request.user.tenantSlug from the JWT token's realm claim
+    const user = (request as any).user;
+    if (user && user.tenantSlug) {
+      tenantSlug = user.tenantSlug;
+      jwtTenantSlug = user.tenantSlug; // Remember JWT tenant for validation
     }
 
-    // Use validated tenant slug from header
-    if (headerValidation.tenantSlug) {
-      tenantSlug = headerValidation.tenantSlug;
-    }
+    // Method 2: Fallback to X-Tenant-Slug header for public/unauthenticated requests
+    if (!tenantSlug) {
+      // SECURITY: Validate and extract custom headers
+      const headerValidation = validateCustomHeaders(request.headers);
 
-    // Method 2: Extract tenant from JWT token (to be implemented with auth)
-    // const token = request.headers.authorization?.replace('Bearer ', '');
-    // if (token) {
-    //   const decoded = await verifyToken(token);
-    //   tenantSlug = decoded.tenant;
-    // }
+      // Log any header validation errors
+      if (headerValidation.errors.length > 0) {
+        headerValidation.errors.forEach((error) => {
+          logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
+        });
+        return reply.code(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid header format',
+            details: headerValidation.errors,
+          },
+        });
+      }
+
+      // Use validated tenant slug from header
+      if (headerValidation.tenantSlug) {
+        tenantSlug = headerValidation.tenantSlug;
+      }
+    } else if (jwtTenantSlug) {
+      // SECURITY: If user is authenticated, validate that any tenant header matches JWT tenant
+      // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation)
+      // EXCEPTION: Super admins can access any tenant (they operate platform-wide)
+      const headerValidation = validateCustomHeaders(request.headers);
+      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
+      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
+
+      if (
+        headerValidation.tenantSlug &&
+        headerValidation.tenantSlug !== jwtTenantSlug &&
+        !isSuperAdmin
+      ) {
+        request.log.warn(
+          { jwtTenant: jwtTenantSlug, headerTenant: headerValidation.tenantSlug, userId: user.id },
+          'Cross-tenant access attempt detected'
+        );
+        return reply.code(403).send({
+          error: {
+            code: 'AUTH_CROSS_TENANT',
+            message: 'Token not valid for requested tenant',
+            details: {
+              jwtTenant: jwtTenantSlug,
+              requestedTenant: headerValidation.tenantSlug,
+            },
+          },
+        });
+      }
+
+      // If super admin is accessing a different tenant via header, use the header tenant
+      if (isSuperAdmin && headerValidation.tenantSlug) {
+        tenantSlug = headerValidation.tenantSlug;
+      }
+    }
 
     // Method 3: Extract tenant from subdomain (future)
     // const host = request.headers.host;
@@ -112,8 +127,11 @@ export async function tenantContextMiddleware(
 
     if (!tenantSlug) {
       return reply.code(400).send({
-        error: 'Bad Request',
-        message: 'Tenant identification required. Provide X-Tenant-Slug header.',
+        error: {
+          code: 'TENANT_IDENTIFICATION_REQUIRED',
+          message:
+            'Tenant identification required. Authenticate with JWT or provide X-Tenant-Slug header.',
+        },
       });
     }
 
@@ -122,16 +140,27 @@ export async function tenantContextMiddleware(
 
     if (!tenant) {
       return reply.code(404).send({
-        error: 'Not Found',
-        message: `Tenant '${tenantSlug}' not found`,
+        error: {
+          code: 'TENANT_NOT_FOUND',
+          message: `Tenant '${tenantSlug}' not found`,
+          details: {
+            tenantSlug,
+          },
+        },
       });
     }
 
     // Check tenant status
     if (tenant.status !== 'ACTIVE') {
       return reply.code(403).send({
-        error: 'Forbidden',
-        message: `Tenant '${tenantSlug}' is not active (status: ${tenant.status})`,
+        error: {
+          code: 'TENANT_NOT_ACTIVE',
+          message: `Tenant '${tenantSlug}' is not active (status: ${tenant.status})`,
+          details: {
+            tenantSlug,
+            status: tenant.status,
+          },
+        },
       });
     }
 
@@ -141,7 +170,7 @@ export async function tenantContextMiddleware(
       tenantSlug: tenant.slug,
       schemaName: tenantService.getSchemaName(tenant.slug),
       // SECURITY: Set workspace ID if provided and validated
-      workspaceId: headerValidation.workspaceId,
+      workspaceId: user ? undefined : validateCustomHeaders(request.headers).workspaceId,
     };
 
     // Store context in AsyncLocalStorage using enterWith
@@ -151,25 +180,41 @@ export async function tenantContextMiddleware(
     // Also add context to request for easy access
     (request as any).tenant = context;
 
-    // Sync user to tenant schema if authenticated
-    // This ensures the user exists in the tenant schema for foreign key constraints
-    const user = (request as any).user;
-    if (user && user.id) {
-      await syncUserToTenantSchema(context.schemaName, user);
-    }
+    // NOTE: User sync to tenant schema is now handled asynchronously via UserSyncConsumer
+    // (Phase 5, FR-007) - no request-time UPSERT needed
   } catch (error) {
     // Handle tenant-not-found separately (getTenantBySlug throws instead of returning null)
     if (error instanceof Error && error.message === 'Tenant not found') {
+      const tenantSlug =
+        (request as any).user?.tenantSlug ||
+        (request.headers['x-tenant-slug'] as string) ||
+        'unknown';
+
+      request.log.warn(
+        { tenantSlug, error: error.message },
+        'Tenant not found in tenant-context middleware'
+      );
+
       return reply.code(404).send({
-        error: 'Not Found',
-        message: `Tenant '${(request.headers['x-tenant-slug'] as string) || 'unknown'}' not found`,
+        error: {
+          code: 'TENANT_NOT_FOUND',
+          message: `Tenant '${tenantSlug}' not found`,
+          details: {
+            tenantSlug,
+          },
+        },
       });
     }
 
-    request.log.error(error, 'Error in tenant context middleware');
+    request.log.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      'Error in tenant context middleware'
+    );
     return reply.code(500).send({
-      error: 'Internal Server Error',
-      message: 'Failed to set tenant context',
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to set tenant context',
+      },
     });
   }
 }
@@ -285,81 +330,4 @@ export async function executeInTenantSchema<T>(
     // Reset to default schema
     await prismaClient.$executeRaw`SET search_path TO public, core`;
   }
-}
-
-/**
- * Sync user to tenant schema
- * Ensures the user exists in the tenant schema for foreign key constraints
- */
-async function syncUserToTenantSchema(schemaName: string, userInfo: any): Promise<void> {
-  try {
-    // Check in-memory cache to avoid redundant UPSERT under concurrent requests
-    const cacheKey = `${schemaName}:${userInfo.id}`;
-    const lastSync = userSyncCache.get(cacheKey);
-    if (lastSync && Date.now() - lastSync < SYNC_CACHE_TTL_MS) {
-      return; // Already synced recently
-    }
-
-    // Validate schema name to prevent SQL injection
-    if (!/^[a-z0-9_]+$/.test(schemaName)) {
-      throw new Error(`Invalid schema name: ${schemaName}`);
-    }
-
-    // Extract first and last name
-    const firstName = userInfo.name?.split(' ')[0] || null;
-    const lastName = userInfo.name?.split(' ').slice(1).join(' ') || null;
-
-    // Upsert user into tenant schema using parameterized query
-    // Note: Only use columns that exist in the tenant schema users table
-    const tableName = Prisma.raw(`"${schemaName}"."users"`);
-
-    await db.$executeRaw`
-       INSERT INTO ${tableName} (
-         "id", "keycloak_id", "email", "first_name", "last_name", "created_at", "updated_at"
-       )
-       VALUES (
-         ${userInfo.id}, 
-         ${userInfo.id}, 
-         ${userInfo.email || null}, 
-         ${firstName}, 
-         ${lastName}, 
-         NOW(), 
-         NOW()
-       )
-       ON CONFLICT ("keycloak_id")
-       DO UPDATE SET
-         "email" = EXCLUDED."email",
-         "first_name" = EXCLUDED."first_name",
-         "last_name" = EXCLUDED."last_name",
-         "updated_at" = NOW()
-     `;
-
-    // Evict stale entries if cache has grown too large
-    if (userSyncCache.size >= SYNC_CACHE_MAX_SIZE) {
-      evictExpiredSyncCacheEntries();
-    }
-
-    // Mark as synced
-    userSyncCache.set(cacheKey, Date.now());
-  } catch (error: unknown) {
-    // Log error but don't fail the request
-    // Note: No request.log available here; using process.stderr for structured output
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    process.stderr.write(
-      JSON.stringify({
-        level: 'error',
-        msg: 'Failed to sync user to tenant schema',
-        schemaName,
-        userId: userInfo.id,
-        error: errorMessage,
-      }) + '\n'
-    );
-  }
-}
-
-/**
- * Clear the user sync cache. Useful for tests that need fresh sync behavior.
- */
-export function clearUserSyncCache(): void {
-  userSyncCache.clear();
 }

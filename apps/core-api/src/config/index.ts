@@ -62,6 +62,23 @@ const configSchema = z.object({
   jwtSecret: z.string(),
   jwtExpiration: z.string().default('15m'),
 
+  // OAuth 2.0
+  oauthCallbackUrl: z.string().url().describe('OAuth 2.0 callback URL for Authorization Code flow'),
+  jwksCacheTtl: z.coerce
+    .number()
+    .default(600000)
+    .describe('JWKS cache TTL in milliseconds (default: 10 minutes)'),
+
+  // Rate Limiting
+  authRateLimitMax: z.coerce
+    .number()
+    .default(10)
+    .describe('Max login attempts per IP per window (default: 10)'),
+  authRateLimitWindow: z.coerce
+    .number()
+    .default(60000)
+    .describe('Auth rate limit window in milliseconds (default: 1 minute)'),
+
   // CORS - SECURITY: Validate and parse CORS origins
   corsOrigins: corsOriginTransform,
 });
@@ -98,6 +115,12 @@ export const config = configSchema.parse({
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiration: process.env.JWT_EXPIRATION,
 
+  oauthCallbackUrl: process.env.OAUTH_CALLBACK_URL,
+  jwksCacheTtl: process.env.JWKS_CACHE_TTL,
+
+  authRateLimitMax: process.env.AUTH_RATE_LIMIT_MAX,
+  authRateLimitWindow: process.env.AUTH_RATE_LIMIT_WINDOW,
+
   corsOrigins: process.env.CORS_ORIGIN,
 });
 
@@ -107,6 +130,17 @@ if (config.nodeEnv === 'production') {
     throw new Error(
       'SECURITY ERROR: MinIO default credentials (minioadmin) detected in production. ' +
         'Please set STORAGE_ACCESS_KEY and STORAGE_SECRET_KEY to secure values.'
+    );
+  }
+
+  // SECURITY: Enforce minimum JWT secret strength in production.
+  // A weak jwtSecret amplifies the risk of HS256 token forgery (see jwt.ts).
+  // 32 bytes (256 bits) is the minimum recommended for HMAC-SHA256.
+  if (config.jwtSecret.length < 32) {
+    throw new Error(
+      'SECURITY ERROR: JWT_SECRET is too short for production. ' +
+        'Minimum 32 characters (256 bits) required for HMAC-SHA256 security. ' +
+        'Generate a strong secret with: openssl rand -base64 48'
     );
   }
 }

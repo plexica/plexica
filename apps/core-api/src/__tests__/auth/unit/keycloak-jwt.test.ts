@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import {
   verifyKeycloakToken,
   verifyTokenWithTenant,
+  validateTenantMatch,
   type KeycloakJwtPayload,
 } from '../../../lib/jwt.js';
 
@@ -326,6 +327,127 @@ describe('Keycloak JWT Functions', () => {
       const result = await verifyTokenWithTenant(token);
 
       expect(result.tenantSlug).toBe('custom-tenant');
+    });
+  });
+
+  describe('validateTenantMatch', () => {
+    it('should pass validation when tenant_id matches requested tenant', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        tenant_id: 'acme-corp',
+        iss: 'http://localhost:8080/realms/acme-corp',
+      };
+
+      expect(() => validateTenantMatch(payload, 'acme-corp')).not.toThrow();
+    });
+
+    it('should pass validation when tenant claim matches requested tenant', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        tenant: 'acme-corp',
+        iss: 'http://localhost:8080/realms/acme-corp',
+      };
+
+      expect(() => validateTenantMatch(payload, 'acme-corp')).not.toThrow();
+    });
+
+    it('should pass validation when realm claim matches requested tenant', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        realm: 'acme-corp',
+        iss: 'http://localhost:8080/realms/acme-corp',
+      };
+
+      expect(() => validateTenantMatch(payload, 'acme-corp')).not.toThrow();
+    });
+
+    it('should pass validation when issuer realm matches requested tenant', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        iss: 'http://localhost:8080/realms/acme-corp',
+      };
+
+      expect(() => validateTenantMatch(payload, 'acme-corp')).not.toThrow();
+    });
+
+    it('should throw error when tenant_id does not match requested tenant', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        tenant_id: 'acme-corp',
+        iss: 'http://localhost:8080/realms/acme-corp',
+      };
+
+      expect(() => validateTenantMatch(payload, 'globex-inc')).toThrow(
+        "TENANT_MISMATCH: JWT tenant 'acme-corp' does not match requested tenant 'globex-inc'"
+      );
+    });
+
+    it('should throw error when no tenant found in JWT', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+      };
+
+      expect(() => validateTenantMatch(payload, 'acme-corp')).toThrow(
+        'TENANT_MISMATCH: No tenant found in JWT claims'
+      );
+    });
+
+    it('should prioritize tenant_id over other claims', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        tenant_id: 'correct-tenant',
+        tenant: 'wrong-tenant',
+        realm: 'wrong-realm',
+        iss: 'http://localhost:8080/realms/wrong-issuer',
+      };
+
+      // Should use tenant_id (highest priority)
+      expect(() => validateTenantMatch(payload, 'correct-tenant')).not.toThrow();
+      expect(() => validateTenantMatch(payload, 'wrong-tenant')).toThrow();
+    });
+
+    it('should prioritize tenant over realm and issuer', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        tenant: 'correct-tenant',
+        realm: 'wrong-realm',
+        iss: 'http://localhost:8080/realms/wrong-issuer',
+      };
+
+      expect(() => validateTenantMatch(payload, 'correct-tenant')).not.toThrow();
+      expect(() => validateTenantMatch(payload, 'wrong-realm')).toThrow();
+    });
+
+    it('should prioritize realm over issuer', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        realm: 'correct-tenant',
+        iss: 'http://localhost:8080/realms/wrong-issuer',
+      };
+
+      expect(() => validateTenantMatch(payload, 'correct-tenant')).not.toThrow();
+      expect(() => validateTenantMatch(payload, 'wrong-issuer')).toThrow();
+    });
+
+    it('should handle issuer without /realms/ pattern', () => {
+      const payload: KeycloakJwtPayload = {
+        sub: 'user-123',
+        preferred_username: 'testuser',
+        iss: 'http://localhost:8080/invalid-format',
+      };
+
+      expect(() => validateTenantMatch(payload, 'acme-corp')).toThrow(
+        'TENANT_MISMATCH: No tenant found in JWT claims'
+      );
     });
   });
 });

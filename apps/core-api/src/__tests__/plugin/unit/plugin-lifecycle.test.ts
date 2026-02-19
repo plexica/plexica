@@ -237,7 +237,7 @@ describe('PluginRegistryService', () => {
 
   describe('updatePlugin', () => {
     it('should successfully update an existing plugin', async () => {
-      const pluginId = 'test-plugin';
+      const pluginId = 'plugin-test';
       const manifest = {
         id: pluginId,
         name: 'Updated Plugin',
@@ -268,7 +268,7 @@ describe('PluginRegistryService', () => {
 
     it('should throw error if plugin not found', async () => {
       const manifest = {
-        id: 'test-plugin',
+        id: 'plugin-test',
         name: 'Test Plugin',
         version: '1.0.0',
         description: 'A test plugin for testing purposes',
@@ -453,23 +453,12 @@ describe('PluginRegistryService', () => {
         version: '1.0.0',
       };
 
-      const mockInstallations = [
-        {
-          enabled: true,
-          tenant: { status: 'ACTIVE' },
-        },
-        {
-          enabled: true,
-          tenant: { status: 'ACTIVE' },
-        },
-        {
-          enabled: false,
-          tenant: { status: 'ACTIVE' },
-        },
-      ];
-
+      // Mock database COUNT aggregations (new implementation uses COUNT queries)
       vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
-      vi.mocked(db.tenantPlugin.findMany).mockResolvedValue(mockInstallations as any);
+      vi.mocked(db.tenantPlugin.count)
+        .mockResolvedValueOnce(3) // Total installations
+        .mockResolvedValueOnce(2) // Enabled installations
+        .mockResolvedValueOnce(2); // Active tenants (enabled + active status)
 
       const result = await registryService.getPluginStats('plugin-1');
 

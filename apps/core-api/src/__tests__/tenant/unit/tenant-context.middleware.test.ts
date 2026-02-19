@@ -113,8 +113,11 @@ describe.sequential('Tenant Context Middleware', () => {
 
       expect(mockReply.code).toHaveBeenCalledWith(400);
       expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Bad Request',
-        message: 'Tenant identification required. Provide X-Tenant-Slug header.',
+        error: {
+          code: 'TENANT_IDENTIFICATION_REQUIRED',
+          message:
+            'Tenant identification required. Authenticate with JWT or provide X-Tenant-Slug header.',
+        },
       });
     });
 
@@ -129,8 +132,13 @@ describe.sequential('Tenant Context Middleware', () => {
 
       expect(mockReply.code).toHaveBeenCalledWith(404);
       expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Not Found',
-        message: "Tenant 'nonexistent-tenant' not found",
+        error: {
+          code: 'TENANT_NOT_FOUND',
+          message: "Tenant 'nonexistent-tenant' not found",
+          details: {
+            tenantSlug: 'nonexistent-tenant',
+          },
+        },
       });
     });
 
@@ -152,8 +160,14 @@ describe.sequential('Tenant Context Middleware', () => {
 
       expect(mockReply.code).toHaveBeenCalledWith(403);
       expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Forbidden',
-        message: "Tenant 'suspended-tenant' is not active (status: SUSPENDED)",
+        error: {
+          code: 'TENANT_NOT_ACTIVE',
+          message: "Tenant 'suspended-tenant' is not active (status: SUSPENDED)",
+          details: {
+            tenantSlug: 'suspended-tenant',
+            status: 'SUSPENDED',
+          },
+        },
       });
     });
 
@@ -175,8 +189,14 @@ describe.sequential('Tenant Context Middleware', () => {
 
       expect(mockReply.code).toHaveBeenCalledWith(403);
       expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Forbidden',
-        message: "Tenant 'new-tenant' is not active (status: PROVISIONING)",
+        error: {
+          code: 'TENANT_NOT_ACTIVE',
+          message: "Tenant 'new-tenant' is not active (status: PROVISIONING)",
+          details: {
+            tenantSlug: 'new-tenant',
+            status: 'PROVISIONING',
+          },
+        },
       });
     });
 
@@ -193,8 +213,10 @@ describe.sequential('Tenant Context Middleware', () => {
 
       expect(mockReply.code).toHaveBeenCalledWith(500);
       expect(mockReply.send).toHaveBeenCalledWith({
-        error: 'Internal Server Error',
-        message: 'Failed to set tenant context',
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to set tenant context',
+        },
       });
     });
 

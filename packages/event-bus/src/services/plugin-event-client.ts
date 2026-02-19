@@ -37,14 +37,21 @@ export class PluginEventClient {
     await this.eventBus['topicManager'].createPluginTopic(this.pluginId, eventName);
 
     // Publish with injected context
-    await this.eventBus.publish(topic, data, {
-      tenantId: this.tenantId,
-      workspaceId: options.workspaceId || this.workspaceId,
-      source: this.pluginId,
-      userId: this.userId,
-      correlationId: options.correlationId,
-      causationId: options.causationId,
-    });
+    // Topic: plexica.plugin.{pluginId}.{eventName} (routing)
+    // Event Type: {eventName} (semantics, e.g., 'contact.created')
+    await this.eventBus.publish(
+      topic, // topic for routing
+      eventName, // event type for semantics
+      data,
+      {
+        tenantId: this.tenantId,
+        workspaceId: options.workspaceId || this.workspaceId,
+        source: this.pluginId,
+        userId: this.userId,
+        correlationId: options.correlationId,
+        causationId: options.causationId,
+      }
+    );
   }
 
   /**

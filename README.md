@@ -1,5 +1,11 @@
 # Plexica
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GitHub issues](https://img.shields.io/github/issues/plexica/plexica)](https://github.com/plexica/plexica/issues)
+[![GitHub stars](https://img.shields.io/github/stars/plexica/plexica)](https://github.com/plexica/plexica/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
+[![Code of Conduct](https://img.shields.io/badge/code%20of%20conduct-contributor%20covenant-purple.svg)](CODE_OF_CONDUCT.md)
+
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
 **Version**: 0.9.0  
@@ -451,16 +457,18 @@ See **[planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)** for detailed 
 
 ## 📞 Support & Community
 
-- **Issues**: [GitHub Issues](https://github.com/[org]/plexica/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/[org]/plexica/discussions)
-- **Discord**: TBD
-- **Email**: TBD
+- **Issues**: [GitHub Issues](https://github.com/plexica/plexica/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/plexica/plexica/discussions)
+- **Security**: Report vulnerabilities to [security@plexica.dev](mailto:security@plexica.dev)
+- **Code of Conduct**: Violations can be reported to [conduct@plexica.dev](mailto:conduct@plexica.dev)
 
 ---
 
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](./docs/CONTRIBUTING.md) for details.
+
+Before contributing, please read our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ### Development Workflow
 
@@ -476,7 +484,17 @@ We welcome contributions! Please see our [Contributing Guide](./docs/CONTRIBUTIN
 
 ## 📜 License
 
-TBD
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+### What does this mean?
+
+✅ You can use Plexica for commercial purposes  
+✅ You can modify and distribute the code  
+✅ You must include the original copyright and license notice  
+✅ You must state significant changes made to the code  
+✅ Patent protection included
+
+For more information, visit: https://www.apache.org/licenses/LICENSE-2.0
 
 ---
 

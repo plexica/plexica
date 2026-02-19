@@ -53,6 +53,9 @@ vi.mock('../../../lib/db.js', () => ({
 vi.mock('../../../services/keycloak.service.js', () => ({
   keycloakService: {
     createRealm: vi.fn().mockResolvedValue(undefined),
+    provisionRealmClients: vi.fn().mockResolvedValue(undefined),
+    provisionRealmRoles: vi.fn().mockResolvedValue(undefined),
+    configureRefreshTokenRotation: vi.fn().mockResolvedValue(undefined),
     deleteRealm: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -63,10 +66,20 @@ vi.mock('../../../services/permission.service.js', () => ({
   },
 }));
 
+vi.mock('../../../lib/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 import { TenantService, type CreateTenantInput } from '../../../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
 import { keycloakService } from '../../../services/keycloak.service.js';
 import { permissionService } from '../../../services/permission.service.js';
+import { logger } from '../../../lib/logger.js';
 
 // Helper to create a mock tenant object
 function makeMockTenant(overrides: Record<string, any> = {}) {
@@ -76,6 +89,8 @@ function makeMockTenant(overrides: Record<string, any> = {}) {
     name: 'ACME Corporation',
     status: TenantStatus.ACTIVE,
     settings: {},
+    translationOverrides: {},
+    defaultLocale: 'en',
     theme: {},
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
@@ -92,6 +107,9 @@ describe('TenantService', () => {
 
     // Reconfigure external service mocks after clearing
     vi.mocked(keycloakService.createRealm).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.provisionRealmClients).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.provisionRealmRoles).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.configureRefreshTokenRotation).mockResolvedValue(undefined);
     vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
     vi.mocked(permissionService.initializeDefaultRoles).mockResolvedValue(undefined);
 
@@ -267,7 +285,7 @@ describe('TenantService', () => {
       const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
       mockTenantCreate.mockResolvedValue(tenant);
       mockExecuteRawUnsafe.mockRejectedValue(new Error('Schema creation failed'));
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.SUSPENDED });
+      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.PROVISIONING });
 
       await expect(service.createTenant({ slug: 'acme-corp', name: 'ACME' })).rejects.toThrow(
         'Failed to provision tenant: Schema creation failed'
@@ -276,7 +294,7 @@ describe('TenantService', () => {
       expect(mockTenantUpdate).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
         data: expect.objectContaining({
-          status: TenantStatus.SUSPENDED,
+          status: TenantStatus.PROVISIONING,
           settings: expect.objectContaining({
             provisioningError: 'Schema creation failed',
           }),
@@ -291,14 +309,11 @@ describe('TenantService', () => {
       // The status update itself fails (tenant might have been deleted concurrently)
       mockTenantUpdate.mockRejectedValue(new Error('Record not found'));
 
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
       await expect(service.createTenant({ slug: 'acme-corp', name: 'ACME' })).rejects.toThrow(
         'Failed to provision tenant'
       );
 
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
+      expect(logger.warn).toHaveBeenCalled();
     });
   });
 

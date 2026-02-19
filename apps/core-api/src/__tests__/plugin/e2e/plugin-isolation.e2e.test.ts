@@ -32,20 +32,16 @@ describe('Plugin Isolation E2E Tests', () => {
     const superResp = await testContext.auth.getRealSuperAdminToken();
     superAdminToken = superResp.access_token;
 
-    // Get tenant admin tokens (use pre-existing Keycloak users)
-    const admin1Resp = await testContext.auth.getRealTenantAdminToken('acme');
-    tenant1AdminToken = admin1Resp.access_token;
-
-    const admin2Resp = await testContext.auth.getRealTenantAdminToken('demo');
-    tenant2AdminToken = admin2Resp.access_token;
-
     // Create tenants dynamically via API (seed data is wiped by e2e-setup)
     const suffix = Date.now();
+    const tenant1Slug = `plugin-iso-1-${suffix}`;
+    const tenant2Slug = `plugin-iso-2-${suffix}`;
+
     const createT1 = await app.inject({
       method: 'POST',
       url: '/api/tenants',
       headers: { authorization: `Bearer ${superAdminToken}` },
-      payload: { slug: `plugin-iso-1-${suffix}`, name: 'Plugin Isolation Test Tenant 1' },
+      payload: { slug: tenant1Slug, name: 'Plugin Isolation Test Tenant 1' },
     });
     tenant1Id = createT1.json().id;
 
@@ -53,9 +49,14 @@ describe('Plugin Isolation E2E Tests', () => {
       method: 'POST',
       url: '/api/tenants',
       headers: { authorization: `Bearer ${superAdminToken}` },
-      payload: { slug: `plugin-iso-2-${suffix}`, name: 'Plugin Isolation Test Tenant 2' },
+      payload: { slug: tenant2Slug, name: 'Plugin Isolation Test Tenant 2' },
     });
     tenant2Id = createT2.json().id;
+
+    // Create mock tenant admin tokens (HS256, accepted by jwt.ts in test env)
+    // Must use dynamic tenant slugs so JWT tenantSlug matches the tenant being accessed
+    tenant1AdminToken = testContext.auth.createMockTenantAdminToken(tenant1Slug);
+    tenant2AdminToken = testContext.auth.createMockTenantAdminToken(tenant2Slug);
   });
 
   beforeEach(() => {

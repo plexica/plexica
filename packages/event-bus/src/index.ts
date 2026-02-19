@@ -17,3 +17,40 @@ export * from './utils/event-handler-initializer';
 
 // Export metrics
 export { EventMetrics, eventMetrics } from './metrics/event-metrics';
+
+// Export workspace events
+export {
+  WORKSPACE_EVENTS,
+  createWorkspaceEvent,
+  type WorkspaceEventType,
+  type WorkspaceCreatedEvent,
+  type WorkspaceUpdatedEvent,
+  type WorkspaceDeletedEvent,
+  type MemberAddedEvent,
+  type MemberRoleUpdatedEvent,
+  type MemberRemovedEvent,
+  type TeamCreatedEvent,
+  type ResourceSharedEvent,
+  type ResourceUnsharedEvent,
+  type WorkspaceEventData,
+  type WorkspaceCreatedData,
+  type WorkspaceUpdatedData,
+  type WorkspaceDeletedData,
+  type MemberAddedData,
+  type MemberRoleUpdatedData,
+  type MemberRemovedData,
+  type TeamCreatedData,
+  type ResourceSharedData,
+  type ResourceUnsharedData,
+  type CreateWorkspaceEventParams,
+  WORKSPACE_EVENT_SCHEMAS,
+  WorkspaceCreatedDataSchema,
+  WorkspaceUpdatedDataSchema,
+  WorkspaceDeletedDataSchema,
+  MemberAddedDataSchema,
+  MemberRoleUpdatedDataSchema,
+  MemberRemovedDataSchema,
+  TeamCreatedDataSchema,
+  ResourceSharedDataSchema,
+  ResourceUnsharedDataSchema,
+} from './events/workspace.events';

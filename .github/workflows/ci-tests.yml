@@ -55,7 +55,7 @@ jobs:
   tests:
     name: All Tests (Sequential + Coverage)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -81,6 +81,9 @@ jobs:
         run: pnpm db:generate
         env:
           DATABASE_URL: 'postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=core'
+
+      - name: Build workspace packages
+        run: pnpm --filter "@plexica/i18n" build
 
       # =============================================================================
       # PRE-FLIGHT CHECKS

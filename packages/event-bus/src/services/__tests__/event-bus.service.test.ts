@@ -28,12 +28,14 @@ vi.mock('../redpanda-client', () => {
     deleteTopics: vi.fn().mockResolvedValue(undefined),
   };
 
+  class MockRedpandaClient {
+    getProducer = vi.fn(() => mockProducer);
+    getConsumer = vi.fn().mockResolvedValue(mockConsumer);
+    getAdmin = vi.fn(() => mockAdmin);
+  }
+
   return {
-    RedpandaClient: vi.fn().mockImplementation(() => ({
-      getProducer: vi.fn(() => mockProducer),
-      getConsumer: vi.fn().mockResolvedValue(mockConsumer),
-      getAdmin: vi.fn(() => mockAdmin),
-    })),
+    RedpandaClient: MockRedpandaClient,
   };
 });
 
@@ -56,16 +58,17 @@ describe('EventBusService', () => {
 
   describe('publish', () => {
     it('should publish an event successfully', async () => {
+      const topic = 'test.events';
       const eventType = 'test.event.created';
       const data = { message: 'Hello, World!' };
       const metadata = { tenantId: 'tenant-123' };
 
-      await eventBus.publish(eventType, data, metadata);
+      await eventBus.publish(topic, eventType, data, metadata);
 
       const producer = mockClient.getProducer();
       expect(producer.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          topic: eventType,
+          topic: topic,
           messages: expect.arrayContaining([
             expect.objectContaining({
               key: 'tenant-123',
@@ -80,13 +83,17 @@ describe('EventBusService', () => {
     });
 
     it('should throw error if tenantId is missing', async () => {
+      const topic = 'test.events';
       const eventType = 'test.event.created';
       const data = { message: 'Hello, World!' };
 
-      await expect(eventBus.publish(eventType, data, {})).rejects.toThrow('tenantId is required');
+      await expect(eventBus.publish(topic, eventType, data, {})).rejects.toThrow(
+        'tenantId is required'
+      );
     });
 
     it('should include workspaceId in headers when provided', async () => {
+      const topic = 'test.events';
       const eventType = 'test.event.created';
       const data = { message: 'Hello, World!' };
       const metadata = {
@@ -94,7 +101,7 @@ describe('EventBusService', () => {
         workspaceId: 'workspace-456',
       };
 
-      await eventBus.publish(eventType, data, metadata);
+      await eventBus.publish(topic, eventType, data, metadata);
 
       const producer = mockClient.getProducer();
       expect(producer.send).toHaveBeenCalledWith(
@@ -111,12 +118,13 @@ describe('EventBusService', () => {
     });
 
     it('should use compression when compress option is true', async () => {
+      const topic = 'test.events';
       const eventType = 'test.event.created';
       const data = { message: 'Hello, World!' };
       const metadata = { tenantId: 'tenant-123' };
       const options = { compress: true };
 
-      await eventBus.publish(eventType, data, metadata, options);
+      await eventBus.publish(topic, eventType, data, metadata, options);
 
       const producer = mockClient.getProducer();
       expect(producer.send).toHaveBeenCalledWith(
@@ -131,11 +139,13 @@ describe('EventBusService', () => {
     it('should publish multiple events in batch', async () => {
       const events = [
         {
+          topic: 'test.events',
           eventType: 'test.event.created',
           data: { id: 1 },
           metadata: { tenantId: 'tenant-123' },
         },
         {
+          topic: 'test.events',
           eventType: 'test.event.updated',
           data: { id: 2 },
           metadata: { tenantId: 'tenant-123' },
@@ -226,9 +236,9 @@ describe('EventBusService', () => {
       await eventBus.shutdown();
 
       // Verify cannot publish after shutdown
-      await expect(eventBus.publish(eventType, {}, { tenantId: 'test' })).rejects.toThrow(
-        'EventBus is shutting down'
-      );
+      await expect(
+        eventBus.publish('test.events', eventType, {}, { tenantId: 'test' })
+      ).rejects.toThrow('EventBus is shutting down');
     });
   });
 

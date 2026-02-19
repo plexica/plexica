@@ -1,7 +1,6 @@
 // apps/core-api/src/lib/advanced-rate-limit.ts
 
 import { LRUCache } from 'lru-cache';
-import { clearUserSyncCache } from '../middleware/tenant-context.js';
 
 /**
  * Advanced Rate Limiting Module
@@ -352,7 +351,7 @@ export function resetAllCaches(): void {
   userLimitCache.clear();
   endpointLimitCache.clear();
   tenantLimitCache.clear();
-  clearUserSyncCache();
+  // NOTE: User sync cache removed in Spec 002 Phase 5 (async sync via UserSyncConsumer)
 }
 
 /**

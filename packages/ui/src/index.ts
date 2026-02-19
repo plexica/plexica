@@ -24,6 +24,7 @@ export * from './components/RadioGroup/RadioGroup';
 export * from './components/Switch/Switch';
 export * from './components/Slider/Slider';
 export * from './components/Form/Form';
+export * from './components/LanguageSelector';
 
 // Feedback Components
 export * from './components/Alert/Alert';

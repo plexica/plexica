@@ -1,9 +1,83 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "github-copilot/claude-sonnet-4.5",
+  "provider": {
+    "github-copilot": {
+      "models": {
+        "claude-opus-4.6": {
+          "options": {
+            "thinking": {
+              "budgetTokens": 16000
+            }
+          }
+        },
+        "claude-sonnet-4.5": {
+          "options": {
+            "thinking": {
+              "budgetTokens": 8000
+            }
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "forge-pm": {
+      "model": "github-copilot/claude-opus-4.6"
+    },
+    "forge-architect": {
+      "model": "github-copilot/claude-opus-4.6"
+    },
+    "forge-reviewer": {
+      "model": "github-copilot/claude-opus-4.6"
+    }
+  },
+  "permission": {
+    "bash": {
+      "cd *": "allow",
+      "git *": "allow",
+      "npm *": "allow",
+      "npx *": "allow",
+      "node *": "allow",
+      "yarn *": "allow",
+      "pnpm *": "allow",
+      "bun *": "allow",
+      "ls *": "allow",
+      "pwd": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "grep *": "allow",
+      "find *": "allow",
+      "wc *": "allow",
+      "tree *": "allow",
+      "make *": "allow",
+      "mkdir *": "allow",
+      "touch *": "allow",
+      "cp *": "allow",
+      "mv *": "allow",
+      "rm -f *": "allow",
+      "echo *": "allow",
+      "cd * && *": "allow",
+      "* | tail *": "allow",
+      "* | head *": "allow",
+      "* 2>&1 | *": "allow",
+      "*": "allow"
+    },
+    "edit": "allow",
+    "write": "allow",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow"
+  },
+  "instructions": [".forge/constitution.md", ".forge/knowledge/decision-log.md"],
   "mcp": {
-    "chrome-devtools": {
+    "github": {
       "type": "local",
-      "command": ["npx", "-y", "chrome-devtools-mcp@latest"]
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
+      }
     }
   }
 }

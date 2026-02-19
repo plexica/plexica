@@ -368,16 +368,42 @@ export class DeadLetterQueueService {
 
   /**
    * Ensure DLQ topic exists
+   * Falls back to replicationFactor: 1 if cluster has fewer brokers than requested
    */
   private async ensureDLQTopic(dlqTopic: string): Promise<void> {
     const exists = await this.topicManager.topicExists(dlqTopic);
     if (!exists) {
-      await this.topicManager.createTopic(dlqTopic, {
-        numPartitions: 3,
-        replicationFactor: 3,
-        retentionMs: this.config.retentionDays * 24 * 60 * 60 * 1000,
-        cleanupPolicy: 'delete',
-      });
+      const retentionMs = this.config.retentionDays * 24 * 60 * 60 * 1000;
+      try {
+        await this.topicManager.createTopic(dlqTopic, {
+          numPartitions: 3,
+          replicationFactor: 3,
+          retentionMs,
+          cleanupPolicy: 'delete',
+        });
+      } catch (error: unknown) {
+        // Gracefully handle single-broker environments (test/dev)
+        // where replicationFactor: 3 is invalid
+        const isReplicationError =
+          error instanceof Error &&
+          (error.message?.includes('INVALID_REPLICATION_FACTOR') ||
+            error.message?.includes('Replication-factor is invalid') ||
+            (error as any).errors?.some?.((e: any) => e.type === 'INVALID_REPLICATION_FACTOR'));
+
+        if (isReplicationError) {
+          console.warn(
+            `⚠️  DLQ topic creation failed with replicationFactor: 3, retrying with 1 (single-broker environment)`
+          );
+          await this.topicManager.createTopic(dlqTopic, {
+            numPartitions: 1,
+            replicationFactor: 1,
+            retentionMs,
+            cleanupPolicy: 'delete',
+          });
+        } else {
+          throw error;
+        }
+      }
     }
   }
 

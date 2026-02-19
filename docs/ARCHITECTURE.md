@@ -1,6 +1,6 @@
-# Plexica Frontend Architecture
+# Plexica Architecture
 
-**Last Updated**: 2025-02-03  
+**Last Updated**: 2026-02-16  
 **Status**: Complete  
 **Owner**: Engineering Team  
 **Document Type**: Architecture
@@ -9,16 +9,17 @@
 
 ## 📋 Documentation Scope
 
-**This document is the authoritative source for:**
+**This document covers:**
 
-- Frontend system architecture (React, Vite, Module Federation)
+- **Frontend Architecture** (React, Vite, Module Federation)
+- **Backend Architecture** (Fastify, microservices, plugin system) — _NEW_
 - Client-side authentication and authorization (Keycloak integration)
 - Multi-tenant context management on the frontend
-- Plugin system frontend implementation (dynamic loading, routing)
+- Plugin system frontend and backend implementation
 - State management and component architecture
 - UI/UX patterns and layout components
 
-**For backend/system architecture, see:** [`specs/TECHNICAL_SPECIFICATIONS.md`](../specs/TECHNICAL_SPECIFICATIONS.md) (API design, database, infrastructure, deployment)
+**For detailed system design, see:** [`.forge/architecture/system-architecture.md`](../.forge/architecture/system-architecture.md) (comprehensive system architecture with Mermaid diagrams)
 
 ---
 
@@ -34,19 +35,38 @@ This document describes the complete frontend architecture of Plexica, a multi-t
 ## Table of Contents
 
 1. [System Architecture](#system-architecture)
-2. [Authentication System](#authentication-system)
-3. [Multi-Tenant Context Management](#multi-tenant-context-management)
-4. [Module Federation & Plugin System](#module-federation--plugin-system)
-5. [Routing Architecture](#routing-architecture)
-6. [State Management](#state-management)
-7. [Layout Components](#layout-components)
-8. [Application Pages](#application-pages)
-9. [API Integration](#api-integration)
-10. [Security Considerations](#security-considerations)
+2. [Backend Architecture](#backend-architecture) ← _NEW_
+3. [Frontend Architecture](#frontend-architecture)
+4. [Authentication System](#authentication-system)
+5. [Multi-Tenant Context Management](#multi-tenant-context-management)
+6. [Module Federation & Plugin System](#module-federation--plugin-system)
+7. [Routing Architecture](#routing-architecture)
+8. [State Management](#state-management)
+9. [Layout Components](#layout-components)
+10. [Application Pages](#application-pages)
+11. [API Integration](#api-integration)
+12. [Security Considerations](#security-considerations)
 
 ---
 
 ## System Architecture
+
+### Overview
+
+This document describes the complete architecture of Plexica, covering both **frontend** (React-based web application) and **backend** (Fastify-based API services with plugin microservices).
+
+**System Composition**:
+
+- **Frontend**: React application with Module Federation for dynamic plugin loading
+- **Backend**: Microservices architecture with Core API and independent plugin services
+- **Infrastructure**: PostgreSQL (schema-per-tenant), Redis (tenant-prefixed keys), Keycloak (realm-per-tenant), MinIO (bucket-per-tenant)
+
+**Last Updated**: February 2026  
+**Current Status**: M2.1 Complete (Frontend) + Backend Modular Monolith (Phase 1)
+
+---
+
+## Frontend Architecture
 
 ### Application Structure
 
@@ -98,6 +118,341 @@ apps/
   "plugins": "Module Federation (@originjs/vite-plugin-federation)"
 }
 ```
+
+---
+
+## Backend Architecture
+
+### Overview
+
+Plexica's backend uses a **microservices architecture** with the Core API as the central orchestration layer and plugins deployed as independent services. The system is designed for gradual migration from a modular monolith to fully distributed microservices.
+
+**Current Phase**: Modular Monolith with Plugin System (Phase 1)  
+**Target Phase**: Distributed Microservices (Phase 2-3, Q2-Q3 2026)
+
+### Architectural Style
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        WEB["Web Application<br/>(React)"]
+        ADMIN["Super Admin<br/>(React)"]
+    end
+
+    subgraph "Gateway Layer"
+        GW["API Gateway<br/>(Kong / Traefik)"]
+    end
+
+    subgraph "Core Services Layer"
+        CORE["Core API Service<br/>(Fastify + Node.js)<br/>Port 4000"]
+    end
+
+    subgraph "Plugin Services Layer"
+        PA["Plugin A<br/>(Container)<br/>Port 3100"]
+        PB["Plugin B<br/>(Container)<br/>Port 3200"]
+        PN["Plugin N<br/>(Container)<br/>Port 3xxx"]
+    end
+
+    subgraph "Shared Services Layer (Planned)"
+        STORAGE["Storage Service<br/>(MinIO wrapper)"]
+        NOTIFY["Notification Service<br/>(Email/Push)"]
+        JOBS["Job Queue Service<br/>(Async jobs)"]
+        SEARCH["Search Service<br/>(Full-text)"]
+    end
+
+    subgraph "Infrastructure Layer"
+        PG["PostgreSQL<br/>(Schema-per-tenant)"]
+        REDIS["Redis<br/>(Tenant-prefixed keys)"]
+        KAFKA["Event Bus<br/>(KafkaJS)"]
+        KC["Keycloak<br/>(Realm-per-tenant)"]
+        MINIO["MinIO / S3<br/>(Bucket-per-tenant)"]
+    end
+
+    WEB --> GW
+    ADMIN --> GW
+    GW --> CORE
+    GW --> PA
+    GW --> PB
+    GW --> PN
+
+    CORE --> PA
+    CORE --> PB
+    CORE --> PN
+
+    PA --> STORAGE
+    PB --> NOTIFY
+    PN --> JOBS
+
+    CORE --> PG
+    CORE --> REDIS
+    CORE --> KAFKA
+    CORE --> KC
+
+    PA --> PG
+    PB --> REDIS
+    PN --> KAFKA
+
+    STORAGE --> MINIO
+    NOTIFY --> REDIS
+    JOBS --> KAFKA
+    SEARCH --> PG
+
+    style STORAGE fill:#f9f,stroke:#333,stroke-width:2px
+    style NOTIFY fill:#f9f,stroke:#333,stroke-width:2px
+    style JOBS fill:#f9f,stroke:#333,stroke-width:2px
+    style SEARCH fill:#f9f,stroke:#333,stroke-width:2px
+```
+
+**Legend**:
+
+- 🟢 Green (regular): Implemented and running
+- 🟣 Purple (dashed): Planned but not yet implemented
+
+### Core API Service
+
+**Purpose**: Central orchestration layer for tenant management, authentication, authorization, plugin lifecycle, and shared services.
+
+**Technology Stack**:
+
+- **Framework**: Fastify 5.7
+- **Language**: TypeScript 5.9
+- **ORM**: Prisma 6.8
+- **Cache**: ioredis 5.9
+- **Events**: KafkaJS 2.2
+
+**Key Responsibilities**:
+
+1. Tenant provisioning and lifecycle management
+2. User authentication (Keycloak integration)
+3. Authorization (RBAC + ABAC policy engine)
+4. Plugin registry and lifecycle orchestration
+5. Service discovery for plugin-to-plugin communication
+6. API gateway for plugin routing
+
+**Module Structure** (Feature-based):
+
+```
+apps/core-api/src/
+├── modules/
+│   ├── auth/           # Authentication (Keycloak integration)
+│   ├── tenant/         # Tenant management (CRUD, provisioning)
+│   ├── workspace/      # Workspace management
+│   ├── plugin/         # Plugin registry, lifecycle, service discovery
+│   └── user/           # User profile management
+├── services/           # Shared services (logger, cache, event bus)
+├── middleware/         # Request middleware (auth, tenant context, RBAC)
+├── lib/                # Utilities (database, MinIO client, Keycloak client)
+└── routes/             # API route definitions
+```
+
+**Layered Architecture** (Constitution Article 3.2):
+
+```
+Controllers (Route Handlers)
+    ↓
+Services (Business Logic)
+    ↓
+Repositories (Data Access)
+    ↓
+Prisma ORM (Database)
+```
+
+**Rules**:
+
+- ✅ No direct database access from controllers
+- ✅ All queries parameterized (SQL injection prevention)
+- ✅ Tenant context middleware enforces row-level security
+- ✅ Zod validation for all external input
+
+### Plugin Services
+
+**Purpose**: Independent microservices that extend platform functionality. Each plugin runs in a separate container with its own lifecycle and resources.
+
+**Architecture**: Each plugin has:
+
+- **Backend**: Standalone Fastify server exposing REST APIs
+- **Frontend**: React app loaded via Module Federation
+- **Database**: Tables in tenant-specific PostgreSQL schema
+- **Events**: Publishes/subscribes to event bus for async communication
+
+**Plugin Deployment** (Current: Manual, Planned: Automated):
+
+- Each plugin packaged as Docker container
+- Deployed via Docker Compose or Kubernetes
+- Registered with Core API via plugin manifest
+- Health checks at `/health/live`, `/health/ready`, `/health`
+
+**See**: [`docs/PLUGIN_DEPLOYMENT.md`](./PLUGIN_DEPLOYMENT.md) for complete deployment guide.
+
+### Shared Services (Planned - 0% Implemented)
+
+**⚠️ Status**: These services are **not yet implemented**. Specifications are complete and ready for implementation.
+
+**Purpose**: Reusable service APIs that plugins can use instead of building their own implementations.
+
+| Service                  | Purpose                                  | Status             | Docs                                          |
+| ------------------------ | ---------------------------------------- | ------------------ | --------------------------------------------- |
+| **Storage Service**      | File upload/download/signed URLs (MinIO) | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md) |
+| **Notification Service** | Email, push, in-app notifications        | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md) |
+| **Job Queue Service**    | Async jobs, cron scheduling, retry logic | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md) |
+| **Search Service**       | Full-text search, facets, autocomplete   | ❌ Not Implemented | [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md) |
+
+**See**: [`docs/CORE_SERVICES.md`](./CORE_SERVICES.md) for complete API specifications and usage examples.
+
+### Request Flow
+
+#### Authenticated Request Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway as API Gateway
+    participant Core as Core API
+    participant Plugin as Plugin Service
+    participant DB as PostgreSQL
+    participant KC as Keycloak
+
+    Client->>Gateway: GET /api/crm/contacts<br/>Authorization: Bearer <JWT><br/>X-Tenant-Slug: acme-corp
+    Gateway->>KC: Validate JWT
+    KC-->>Gateway: Token valid
+    Gateway->>Core: Forward request with tenant context
+    Core->>Core: Tenant Context Middleware<br/>(extract tenantId)
+    Core->>Core: Auth Middleware<br/>(verify permissions)
+    Core->>Plugin: GET /contacts<br/>X-Tenant-ID: 123
+    Plugin->>DB: SELECT * FROM acme_corp.contacts<br/>(tenant schema isolation)
+    DB-->>Plugin: Contacts data
+    Plugin-->>Core: 200 OK + JSON
+    Core-->>Gateway: Response
+    Gateway-->>Client: 200 OK + JSON
+```
+
+#### Unauthenticated Request Flow (Public Endpoints)
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway as API Gateway
+    participant Core as Core API
+
+    Client->>Gateway: GET /api/translations/en/core.json
+    Gateway->>Core: Forward request (no auth)
+    Core->>Core: Public endpoint (no auth check)
+    Core-->>Gateway: 200 OK + JSON
+    Gateway-->>Client: 200 OK + JSON
+```
+
+**Public Endpoints** (no authentication required):
+
+- `GET /health` - Health check
+- `GET /api/translations/:locale/:namespace` - Translation files
+
+### Service Communication Patterns
+
+**1. HTTP REST (Synchronous)**:
+
+- Plugin → Core API: Service discovery, tenant validation, permission checks
+- Plugin → Plugin: Direct REST calls via service registry
+
+**2. Event Bus (Asynchronous)**:
+
+- Plugin publishes events (e.g., `crm.contact.created`)
+- Other plugins subscribe and react (e.g., `analytics` tracks activity)
+- Event bus: KafkaJS with workspace isolation (topic per tenant)
+
+**3. Shared Data (Database)**:
+
+- Plugins access their own tables in tenant schema
+- No cross-plugin database access (use events or APIs instead)
+
+### Multi-Tenancy Isolation
+
+**Database Isolation**: Schema-per-tenant
+
+```sql
+-- Each tenant has a dedicated schema
+CREATE SCHEMA tenant_acme_corp;
+CREATE SCHEMA tenant_globex;
+
+-- Plugin tables created in tenant schema
+CREATE TABLE tenant_acme_corp.crm_contacts (...);
+CREATE TABLE tenant_acme_corp.crm_deals (...);
+```
+
+**Keycloak Isolation**: Realm-per-tenant
+
+```
+Keycloak Instance
+├── Realm: master (Super Admin)
+├── Realm: tenant-acme-corp (Tenant A users)
+└── Realm: tenant-globex (Tenant B users)
+```
+
+**Storage Isolation**: Bucket-per-tenant
+
+```
+MinIO / S3
+├── tenant-acme-corp/       (Tenant A files)
+├── tenant-globex/          (Tenant B files)
+```
+
+**Cache Isolation**: Tenant-prefixed keys
+
+```redis
+# Redis keys prefixed with tenant ID
+SET "tenant:123:user:456:session" "{...}"
+SET "tenant:789:plugin:crm:config" "{...}"
+```
+
+### Technology Stack (Backend)
+
+| Layer             | Technology      | Version | Purpose                                         |
+| ----------------- | --------------- | ------- | ----------------------------------------------- |
+| Runtime           | Node.js         | ≥20.0.0 | Modern LTS with native ESM support              |
+| Language          | TypeScript      | ^5.9    | Type safety and developer productivity          |
+| Framework         | Fastify         | ^5.7    | High performance, plugin architecture           |
+| ORM               | Prisma          | ^6.8    | Type-safe queries, migration management         |
+| Database          | PostgreSQL      | 15+     | ACID compliance, JSON support, schema isolation |
+| Cache             | Redis / ioredis | ^5.9    | Session storage, rate limiting, caching         |
+| Event Bus         | KafkaJS         | ^2.2    | Plugin event system, async communication        |
+| Auth Provider     | Keycloak        | 26+     | Enterprise SSO, RBAC, realm-per-tenant          |
+| Object Storage    | MinIO           | ^8.0    | S3-compatible storage for plugin assets         |
+| Validation        | Zod             | 3.x     | Runtime type validation                         |
+| Testing Framework | Vitest          | ^4.0    | Fast, Jest-compatible, native ESM support       |
+
+### Migration Path: Modular Monolith → Microservices
+
+**Phase 1** (Current): Modular Monolith with Plugin System
+
+- Core API as monolith with feature modules
+- Plugins as separate services (already microservices)
+- Service registry pattern in place
+- Clear module boundaries enforced
+
+**Phase 2** (Q2 2026): Extract Shared Services
+
+- Storage Service → Standalone microservice
+- Notification Service → Standalone microservice
+- Job Queue Service → Standalone microservice
+- Search Service → Standalone microservice
+
+**Phase 3** (Q3 2026): Core API Decomposition (if needed)
+
+- Tenant Service → Standalone microservice
+- Auth Service → Standalone microservice
+- Keep Plugin Registry in Core API (orchestration layer)
+
+**Rationale**:
+
+- Start with modular monolith for development velocity
+- Service registry and event bus patterns already enable future extraction
+- Plugin isolation proves microservices architecture works
+- Gradual migration minimizes risk
+
+**See**: [`.forge/architecture/system-architecture.md`](../.forge/architecture/system-architecture.md) for complete system design.
+
+---
+
+## Frontend Architecture
 
 ### File Structure
 
@@ -911,7 +1266,9 @@ VITE_BASE_DOMAIN=plexica.app
 
 ## Summary
 
-The Plexica frontend is a modern, production-ready React application with:
+Plexica is a production-ready platform with:
+
+**Frontend**:
 
 - ✅ **Authentication**: Keycloak SSO with PKCE flow
 - ✅ **Multi-Tenancy**: URL-based tenant identification
@@ -922,13 +1279,29 @@ The Plexica frontend is a modern, production-ready React application with:
 - ✅ **Security**: Complete tenant isolation and access control
 - ✅ **Performance**: Optimized bundle size and load times
 
-**Current Status**: M2.1 Complete (100%)  
-**Next Milestone**: M2.2 - Super-Admin App
+**Backend**:
+
+- ✅ **Microservices Architecture**: Core API + independent plugin services
+- ✅ **Multi-Tenancy Isolation**: Schema-per-tenant (PostgreSQL), realm-per-tenant (Keycloak), bucket-per-tenant (MinIO)
+- ✅ **Plugin System**: Registry, lifecycle management, service discovery
+- ✅ **Event-Driven**: KafkaJS event bus for async plugin communication
+- ✅ **Layered Architecture**: Controllers → Services → Repositories → ORM
+- ⚠️ **Shared Services**: Planned but not yet implemented (Storage, Notification, Job Queue, Search)
+
+**Current Status**:
+
+- Frontend: M2.1 Complete (100%)
+- Backend: Phase 1 - Modular Monolith with Plugin System (~75% complete)
+- Next Phase: Extract Shared Services as Microservices (Q2 2026)
 
 ---
 
 **Related Documents**:
 
+- [Backend System Architecture](../.forge/architecture/system-architecture.md) ← Complete system design with Mermaid diagrams
+- [Core Services API Specification](./CORE_SERVICES.md) ← 4 shared services (planned)
+- [Plugin Deployment Guide](./PLUGIN_DEPLOYMENT.md) ← Manual deployment procedures
+- [Authorization (RBAC+ABAC)](./AUTHORIZATION.md) ← Current RBAC + planned ABAC
 - [Testing Guide](./testing/README.md)
 - [Frontend Testing](./testing/FRONTEND_TESTING.md)
 - [Backend Testing](./testing/BACKEND_TESTING.md)
@@ -937,6 +1310,6 @@ The Plexica frontend is a modern, production-ready React application with:
 
 ---
 
-_Plexica Frontend Architecture v1.0_  
-_Last Updated: January 2026_  
+_Plexica Architecture v2.0_  
+_Last Updated: February 2026_  
 _Author: Plexica Engineering Team_

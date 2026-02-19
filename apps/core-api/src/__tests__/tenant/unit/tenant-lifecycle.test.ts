@@ -37,6 +37,9 @@ vi.mock('../../../lib/db.js', () => ({
 vi.mock('../../../services/keycloak.service.js', () => ({
   keycloakService: {
     createRealm: vi.fn().mockResolvedValue(undefined),
+    provisionRealmClients: vi.fn().mockResolvedValue(undefined),
+    provisionRealmRoles: vi.fn().mockResolvedValue(undefined),
+    configureRefreshTokenRotation: vi.fn().mockResolvedValue(undefined),
     deleteRealm: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -56,6 +59,9 @@ describe('Tenant Lifecycle', () => {
     // Reconfigure mocks after clearing
     vi.mocked(permissionService.initializeDefaultRoles).mockResolvedValue(undefined);
     vi.mocked(keycloakService.createRealm).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.provisionRealmClients).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.provisionRealmRoles).mockResolvedValue(undefined);
+    vi.mocked(keycloakService.configureRefreshTokenRotation).mockResolvedValue(undefined);
     vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
 
     service = new TenantService();
@@ -71,6 +77,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -112,6 +120,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -137,6 +147,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -162,6 +174,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -182,7 +196,10 @@ describe('Tenant Lifecycle', () => {
       expect(mockTenantUpdate).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
         data: expect.objectContaining({
-          status: TenantStatus.SUSPENDED,
+          status: TenantStatus.PROVISIONING,
+          settings: expect.objectContaining({
+            provisioningError: 'Schema creation failed',
+          }),
         }),
       });
     });
@@ -208,6 +225,8 @@ describe('Tenant Lifecycle', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           settings: {},
+          translationOverrides: {},
+          defaultLocale: 'en',
           theme: {},
         };
 
@@ -263,6 +282,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -317,6 +338,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -324,7 +347,7 @@ describe('Tenant Lifecycle', () => {
       mockExecuteRawUnsafe.mockRejectedValueOnce(new Error('Database error'));
       mockTenantUpdate.mockResolvedValue({
         ...mockTenant,
-        status: TenantStatus.SUSPENDED,
+        status: TenantStatus.PROVISIONING,
         settings: { provisioningError: 'Database error' },
       });
 
@@ -337,7 +360,10 @@ describe('Tenant Lifecycle', () => {
         expect.objectContaining({
           where: { id: 'tenant-123' },
           data: expect.objectContaining({
-            status: TenantStatus.SUSPENDED,
+            status: TenantStatus.PROVISIONING,
+            settings: expect.objectContaining({
+              provisioningError: 'Database error',
+            }),
           }),
         })
       );
@@ -352,6 +378,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -382,6 +410,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -417,6 +447,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -468,6 +500,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme,
       };
 
@@ -495,6 +529,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
         plugins: [],
       };
@@ -525,6 +561,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
         plugins: [],
       };
@@ -557,6 +595,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 
@@ -619,6 +659,8 @@ describe('Tenant Lifecycle', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
         theme: {},
       };
 

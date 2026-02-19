@@ -1,6 +1,23 @@
 /**
  * Security Hardening E2E Tests
  *
+ * ⚠️ **DEPRECATED** (as of 2026-02-17)
+ *
+ * This test file uses the old ROPC (Resource Owner Password Credentials) flow
+ * which was replaced with OAuth 2.0 Authorization Code flow in Phase 4.
+ *
+ * **Replacement**: See `apps/core-api/src/__tests__/auth/e2e/auth-complete.e2e.test.ts`
+ * - Edge Case #10: Brute Force Protection (3 tests covering rate limiting)
+ * - Edge Case #11: Stolen Refresh Token (3 tests covering token reuse)
+ * - Additional Security Validations (3 tests covering JWT validation)
+ *
+ * **Why Deprecated**:
+ * - POST /api/auth/login endpoint no longer exists
+ * - OAuth 2.0 provides better security than ROPC
+ * - New tests cover all security scenarios with current implementation
+ *
+ * **Status**: Tests will skip; scheduled for removal after Sprint 3
+ *
  * Tests security measures to protect against common attacks.
  * Covers:
  * - Rate limiting on auth endpoints
@@ -19,7 +36,7 @@ import { db } from '../../../lib/db';
 import { redis } from '../../../lib/redis';
 import { resetAllCaches } from '../../../lib/advanced-rate-limit';
 
-describe('Security Hardening E2E', () => {
+describe.skip('Security Hardening E2E (DEPRECATED - uses ROPC flow)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {

@@ -1,0 +1,23 @@
+# Sprint File (Per-Sprint Format)
+# Managed by the forge-scrum agent via /forge-sprint
+#
+# This template is used to create individual sprint files in .forge/sprints/active/
+# Format version 1: supports multiple concurrent sprints with automatic archiving
+
+version: 1
+sprint:
+  number: 1                    # Sprint number (matches filename sprint-NNN.yaml)
+  goal: "[Sprint goal]"        # Clear, concise sprint objective
+  start_date: "YYYY-MM-DD"    # ISO 8601 date format
+  end_date: "YYYY-MM-DD"      # ISO 8601 date format
+
+  stories:
+    # - id: "E01-S001"           # Story ID (ENN-SNNN format)
+    #   title: "Story title"     # Brief story description
+    #   status: pending          # pending | in_progress | done | blocked | carried_over
+    #   points: 5                # Story points (≥ 0)
+    #   blocked_reason: ""       # Only if status is blocked
+
+  velocity:
+    planned: 0                   # Sum of all story points
+    completed: 0                 # Sum of done story points

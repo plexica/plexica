@@ -83,9 +83,12 @@ describe('Auth Flow Integration', () => {
       });
 
       expect(response.statusCode).toBe(401);
-      expect(response.json()).toMatchObject({
-        error: 'Unauthorized',
-      });
+      const body = response.json();
+      // Constitution Art. 6.2 compliant error format
+      expect(body).toHaveProperty('error');
+      expect(body.error).toHaveProperty('code');
+      expect(body.error).toHaveProperty('message');
+      expect(body.error.code).toBe('AUTH_TOKEN_MISSING');
     });
 
     it('should reject request with invalid token', async () => {
@@ -98,6 +101,12 @@ describe('Auth Flow Integration', () => {
       });
 
       expect(response.statusCode).toBe(401);
+      const body = response.json();
+      // Constitution Art. 6.2 compliant error format
+      expect(body).toHaveProperty('error');
+      expect(body.error).toHaveProperty('code');
+      expect(body.error).toHaveProperty('message');
+      expect(body.error.code).toBe('AUTH_TOKEN_INVALID');
     });
 
     it('should reject request with expired token', async () => {
@@ -119,6 +128,12 @@ describe('Auth Flow Integration', () => {
       });
 
       expect(response.statusCode).toBe(401);
+      const body = response.json();
+      // Constitution Art. 6.2 compliant error format
+      expect(body).toHaveProperty('error');
+      expect(body.error).toHaveProperty('code');
+      expect(body.error).toHaveProperty('message');
+      expect(body.error.code).toBe('AUTH_TOKEN_EXPIRED');
     });
   });
 
@@ -186,8 +201,10 @@ describe('Auth Flow Integration', () => {
       expect(response.statusCode).toBeLessThan(500);
 
       const data = response.json();
+      // Constitution Art. 6.2: Nested error format
       expect(data).toHaveProperty('error');
-      expect(data).toHaveProperty('message');
+      expect(data.error).toHaveProperty('code');
+      expect(data.error).toHaveProperty('message');
     });
   });
 
@@ -227,7 +244,7 @@ describe('Auth Flow Integration', () => {
         url: '/api/workspaces',
         headers: {
           authorization: `Bearer ${tenantAdminToken}`,
-          'x-tenant-id': demoTenantSlug, // Wrong tenant!
+          'x-tenant-slug': demoTenantSlug, // Wrong tenant! (Should use x-tenant-slug not x-tenant-id)
         },
       });
 

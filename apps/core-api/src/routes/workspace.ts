@@ -1,5 +1,22 @@
-import type { FastifyInstance } from 'fastify';
+// apps/core-api/src/routes/workspace.ts
+//
+// Workspace API routes — Constitution Art. 6.2 compliant error format
+// and per-endpoint rate limiting (Spec 009, Tasks 6 & 7).
+//
+// Error handling approach:
+//   Service exceptions are mapped to WorkspaceError via mapServiceError().
+//   WorkspaceError has statusCode + code fields that the global Fastify
+//   error handler (setupErrorHandler) uses to produce Art. 6.2 responses.
+//   Validation errors are thrown as WorkspaceError directly.
+//
+// Rate limiting:
+//   Each route has a workspace-specific rate limiter via onRequest hook
+//   using Redis sliding-window counters (rateLimiter factory).
+//   This is in addition to the global LRU-based rate limiter.
+
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { workspaceService } from '../modules/workspace/workspace.service.js';
+import { WorkspaceResourceService } from '../modules/workspace/workspace-resource.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { workspaceGuard, workspaceRoleGuard } from '../modules/workspace/guards/index.js';
@@ -8,13 +25,38 @@ import {
   validateUpdateWorkspace,
   validateAddMember,
   validateUpdateMemberRole,
+  validateShareResource,
 } from '../modules/workspace/dto/index.js';
 import type { CreateWorkspaceDto } from '../modules/workspace/dto/create-workspace.dto.js';
 import type { UpdateWorkspaceDto } from '../modules/workspace/dto/update-workspace.dto.js';
 import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';
 import type { UpdateMemberRoleDto } from '../modules/workspace/dto/update-member-role.dto.js';
+import type { ShareResourceDto, ListSharedResourcesDto } from '../modules/workspace/dto/index.js';
+import {
+  WorkspaceError,
+  WorkspaceErrorCode,
+  mapServiceError,
+} from '../modules/workspace/utils/error-formatter.js';
+import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
 
-// Request schemas for Fastify validation
+// --- Shared error response schema (Art. 6.2) ---
+const errorResponseSchema = {
+  type: 'object',
+  properties: {
+    error: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        message: { type: 'string' },
+        details: { type: 'object', additionalProperties: true },
+      },
+      required: ['code', 'message'],
+    },
+  },
+  required: ['error'],
+};
+
+// --- Request schemas for Fastify validation ---
 const createWorkspaceRequestSchema = {
   body: {
     type: 'object',
@@ -142,29 +184,104 @@ const memberParamsSchema = {
 };
 
 /**
+ * Handle a service error by mapping it to a WorkspaceError and sending
+ * the appropriate error response. If the error cannot be mapped, re-throw
+ * it so Fastify's global error handler processes it as a 500.
+ *
+ * This approach avoids the FST_ERR_FAILED_ERROR_SERIALIZATION error that
+ * occurs when throwing custom error classes with statusCode properties in
+ * async route handlers.
+ *
+ * @param error - The error caught from the service layer
+ * @param reply - The Fastify reply object
+ * @returns Never returns normally (either sends response or throws)
+ */
+function handleServiceError(error: unknown, reply: FastifyReply): never {
+  const mapped = mapServiceError(error);
+  if (mapped) {
+    // Send error response directly to avoid Fastify serialization issues
+    reply.status(mapped.statusCode).send({
+      error: {
+        code: mapped.code,
+        message: mapped.message,
+        ...(mapped.details ? { details: mapped.details } : {}),
+      },
+    });
+    // TypeScript needs this to understand control flow
+    throw new Error('Response sent');
+  }
+  // If not mapped, re-throw so Fastify's error handler processes it as 500
+  throw error;
+}
+
+/**
+ * DEPRECATED: Helper function for deprecated throwMappedError pattern.
+ * Kept for reference but no longer used.
+ * Use handleServiceError() instead which directly sends responses without throwing.
+ */
+// function throwMappedError(error: unknown): never {
+//   console.log('[throwMappedError] Input error:', {
+//     isError: error instanceof Error,
+//     message: error instanceof Error ? error.message : String(error),
+//     constructor: error?.constructor?.name,
+//   });
+//
+//   // Match error message patterns and convert to WorkspaceError
+//   const errorMessage = error instanceof Error ? error.message : String(error);
+//
+//   if (errorMessage.includes('already exists') || errorMessage.includes('unique constraint')) {
+//     throw new WorkspaceError(409, 'WORKSPACE_CONFLICT', errorMessage);
+//   } else if (errorMessage.includes('not found')) {
+//     throw new WorkspaceError(404, 'WORKSPACE_NOT_FOUND', errorMessage);
+//   } else if (errorMessage.includes('unauthorized') || errorMessage.includes('permission')) {
+//     throw new WorkspaceError(403, 'WORKSPACE_FORBIDDEN', errorMessage);
+//   } else if (
+//     errorMessage.includes('invalid') ||
+//     errorMessage.includes('required') ||
+//     errorMessage.includes('validation')
+//   ) {
+//     throw new WorkspaceError(400, 'WORKSPACE_VALIDATION_ERROR', errorMessage);
+//   } else {
+//     // Re-throw unrecognized errors so global error handler treats as 500
+//     throw error;
+//   }
+// }
+
+/**
  * Workspace routes registration
  *
- * Implements 10 API endpoints:
- * - POST   /api/workspaces              - Create workspace
- * - GET    /api/workspaces              - List user's workspaces
- * - GET    /api/workspaces/:id          - Get workspace details
- * - PATCH  /api/workspaces/:id          - Update workspace (admin only)
- * - DELETE /api/workspaces/:id          - Delete workspace (admin only)
- * - GET    /api/workspaces/:id/members  - List workspace members
- * - GET    /api/workspaces/:id/members/:userId - Get member details
- * - POST   /api/workspaces/:id/members  - Add member (admin only)
- * - PATCH  /api/workspaces/:id/members/:userId - Update member role (admin only)
- * - DELETE /api/workspaces/:id/members/:userId - Remove member (admin only)
- * - GET    /api/workspaces/:id/teams    - List workspace teams
+ * Implements 15 API endpoints with Constitution-compliant error format
+ * (Art. 6.2) and per-endpoint rate limiting (Art. 9.2):
+ *
+ * - POST   /api/workspaces                           - Create workspace
+ * - GET    /api/workspaces                           - List user's workspaces
+ * - GET    /api/workspaces/:workspaceId              - Get workspace details
+ * - PATCH  /api/workspaces/:workspaceId              - Update workspace (admin only)
+ * - DELETE /api/workspaces/:workspaceId              - Delete workspace (admin only)
+ * - GET    /api/workspaces/:workspaceId/members      - List workspace members
+ * - GET    /api/workspaces/:workspaceId/members/:userId - Get member details
+ * - POST   /api/workspaces/:workspaceId/members      - Add member (admin only)
+ * - PATCH  /api/workspaces/:workspaceId/members/:userId - Update member role (admin only)
+ * - DELETE /api/workspaces/:workspaceId/members/:userId - Remove member (admin only)
+ * - GET    /api/workspaces/:workspaceId/teams        - List workspace teams
+ * - POST   /api/workspaces/:workspaceId/teams        - Create team (member+)
+ * - POST   /api/workspaces/:workspaceId/resources/share - Share resource (admin only)
+ * - GET    /api/workspaces/:workspaceId/resources    - List shared resources
+ * - DELETE /api/workspaces/:workspaceId/resources/:resourceId - Unshare resource (admin only)
  */
 export async function workspaceRoutes(fastify: FastifyInstance) {
-  // Create workspace
-  // Requires: tenant context, authenticated user
+  // Instantiate WorkspaceResourceService for resource sharing endpoints
+  const resourceService = new WorkspaceResourceService();
+  // ────────────────────────────────────────────────────────────────
+  // POST /workspaces — Create workspace
+  // Rate limit: WORKSPACE_CREATE (10/min per tenant)
+  // ────────────────────────────────────────────────────────────────
   fastify.post<{
     Body: CreateWorkspaceDto;
   }>(
     '/workspaces',
     {
+      attachValidation: true, // Don't throw on validation failure, attach to request.validationError
       schema: {
         ...createWorkspaceRequestSchema,
         tags: ['workspaces'],
@@ -194,60 +311,63 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
-          409: {
-            description: 'Workspace with this slug already exists',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          400: errorResponseSchema,
+          409: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
     async (request, reply) => {
-      try {
-        const userId = request.user?.id;
-        if (!userId) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
+      // Check for Fastify schema validation errors
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: {
+              validation: request.validationError.validation,
+            },
+          },
+        });
+      }
+
+      const userId = request.user?.id;
+      if (!userId) {
+        return reply.status(403).send({
+          error: {
+            code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
             message: 'User not authenticated',
-          });
-        }
+          },
+        });
+      }
 
-        const body = request.body;
-        const errors = validateCreateWorkspace(body);
-        if (errors.length > 0) {
-          return reply.code(400).send({
-            error: 'Validation Error',
+      const body = request.body;
+      const errors = validateCreateWorkspace(body);
+      if (errors.length > 0) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
             message: 'Invalid request data',
-            details: errors,
-          });
-        }
+            details: { fields: errors },
+          },
+        });
+      }
 
+      try {
         const workspace = await workspaceService.create(body, userId, request.tenant);
         return reply.code(201).send(workspace);
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('already exists')) {
-          return reply.code(409).send({
-            error: 'Conflict',
-            message: error.message,
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to create workspace',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // List user's workspaces
-  // Requires: tenant context, authenticated user
-  // List user workspaces with pagination and sorting
-  // Requires: tenant context, authenticated user
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces — List user's workspaces
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
   fastify.get<{
     Querystring: {
       limit?: number;
@@ -314,42 +434,37 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware],
     },
     async (request, reply) => {
+      const userId = request.user?.id;
+      if (!userId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
+      }
+
+      const { limit, offset, sortBy, sortOrder } = request.query;
+      const options = { limit, offset, sortBy, sortOrder };
+
       try {
-        const userId = request.user?.id;
-        if (!userId) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'User not authenticated',
-          });
-        }
-
-        const { limit, offset, sortBy, sortOrder } = request.query;
-        const options = {
-          limit,
-          offset,
-          sortBy,
-          sortOrder,
-        };
-
         const workspaces = await workspaceService.findAll(userId, options, request.tenant);
         return reply.send(workspaces);
       } catch (error) {
-        request.log.error(error);
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch workspaces',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Get workspace details
-  // Requires: tenant context, workspace membership
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId — Get workspace details
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
   fastify.get<{
     Params: { workspaceId: string };
   }>(
@@ -386,16 +501,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string' },
             },
           },
-          404: {
-            description: 'Workspace not found',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          404: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request, reply) => {
@@ -408,29 +518,22 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
         return reply.send({ ...workspace, userRole });
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('not found')) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch workspace',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Update workspace
-  // Requires: tenant context, workspace membership, ADMIN role
+  // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId — Update workspace
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
   fastify.patch<{
     Params: { workspaceId: string };
     Body: UpdateWorkspaceDto;
   }>(
     '/workspaces/:workspaceId',
     {
+      attachValidation: true, // Don't throw on validation failure
       schema: {
         ...updateWorkspaceRequestSchema,
         tags: ['workspaces'],
@@ -451,16 +554,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string' },
             },
           },
-          404: {
-            description: 'Workspace not found',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -469,39 +568,46 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       ],
     },
     async (request, reply) => {
-      try {
-        const { workspaceId } = request.params;
-        const body = request.body;
+      // Check for Fastify schema validation errors
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: {
+              validation: request.validationError.validation,
+            },
+          },
+        });
+      }
 
-        const errors = validateUpdateWorkspace(body);
-        if (errors.length > 0) {
-          return reply.code(400).send({
-            error: 'Validation Error',
+      const { workspaceId } = request.params;
+      const body = request.body;
+
+      const errors = validateUpdateWorkspace(body);
+      if (errors.length > 0) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
             message: 'Invalid request data',
-            details: errors,
-          });
-        }
+            details: { fields: errors },
+          },
+        });
+      }
 
+      try {
         const workspace = await workspaceService.update(workspaceId, body, request.tenant);
         return reply.send(workspace);
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('not found')) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to update workspace',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Delete workspace
-  // Requires: tenant context, workspace membership, ADMIN role
+  // ────────────────────────────────────────────────────────────────
+  // DELETE /workspaces/:workspaceId — Delete workspace
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
   fastify.delete<{
     Params: { workspaceId: string };
   }>(
@@ -518,16 +624,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Workspace deleted successfully',
             type: 'null',
           },
-          400: {
-            description: 'Cannot delete workspace with existing teams',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          400: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -541,23 +642,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         await workspaceService.delete(workspaceId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('existing teams')) {
-          return reply.code(400).send({
-            error: 'Bad Request',
-            message: error.message,
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to delete workspace',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Get workspace members with filtering and pagination
-  // Requires: tenant context, workspace membership
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/members — List workspace members
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
   fastify.get<{
     Params: { workspaceId: string };
     Querystring: {
@@ -595,34 +688,31 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         summary: 'List workspace members',
         description:
           'Returns all members of a workspace with their roles, supporting filtering and pagination',
+        response: {
+          429: errorResponseSchema,
+        },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request, reply) => {
       try {
         const { workspaceId } = request.params;
         const { role, limit, offset } = request.query;
-
-        const options = {
-          role,
-          limit,
-          offset,
-        };
+        const options = { role, limit, offset };
 
         const members = await workspaceService.getMembers(workspaceId, options, request.tenant);
         return reply.send(members);
       } catch (error) {
-        request.log.error(error);
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch workspace members',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Get specific member details
-  // Requires: tenant context, workspace membership
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/members/:userId — Get member details
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
   fastify.get<{
     Params: { workspaceId: string; userId: string };
   }>(
@@ -654,16 +744,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          404: {
-            description: 'Member not found',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          404: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request, reply) => {
@@ -676,29 +761,22 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.send(member);
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('not found')) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Member not found',
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch member details',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Add member to workspace
-  // Requires: tenant context, workspace membership, ADMIN role
+  // ────────────────────────────────────────────────────────────────
+  // POST /workspaces/:workspaceId/members — Add member
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
   fastify.post<{
     Params: { workspaceId: string };
     Body: AddMemberDto;
   }>(
     '/workspaces/:workspaceId/members',
     {
+      attachValidation: true, // Don't throw on validation failure
       schema: {
         ...addMemberRequestSchema,
         tags: ['workspaces'],
@@ -725,16 +803,13 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          409: {
-            description: 'User already a member',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -744,22 +819,37 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
+        // Check for schema validation errors
+        if (request.validationError) {
+          return reply.code(400).send({
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Validation failed',
+              details: { validation: request.validationError.validation },
+            },
+          });
+        }
+
         const { workspaceId } = request.params;
         const body = request.body;
         const invitedBy = request.user?.id;
         if (!invitedBy) {
           return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'User not authenticated',
+            error: {
+              code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+              message: 'User not authenticated',
+            },
           });
         }
 
         const errors = validateAddMember(body);
         if (errors.length > 0) {
           return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid request data',
-            details: errors,
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Invalid request data',
+              details: { fields: errors },
+            },
           });
         }
 
@@ -771,41 +861,34 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.code(201).send(member);
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('already a member')) {
-          return reply.code(409).send({
-            error: 'Conflict',
-            message: error.message,
-          });
-        }
-        if (error instanceof Error && error.message.includes('not found')) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to add member',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Update member role
-  // Requires: tenant context, workspace membership, ADMIN role
+  // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId/members/:userId — Update member role
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
   fastify.patch<{
     Params: { workspaceId: string; userId: string };
     Body: UpdateMemberRoleDto;
   }>(
     '/workspaces/:workspaceId/members/:userId',
     {
+      attachValidation: true, // Don't throw on validation failure
       schema: {
         ...updateMemberRoleRequestSchema,
         tags: ['workspaces'],
         summary: 'Update member role',
         description: 'Changes the role of a workspace member. Requires ADMIN role.',
+        response: {
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          429: errorResponseSchema,
+        },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -815,15 +898,28 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
+        // Check for schema validation errors
+        if (request.validationError) {
+          return reply.code(400).send({
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Validation failed',
+              details: { validation: request.validationError.validation },
+            },
+          });
+        }
+
         const { workspaceId, userId } = request.params;
         const body = request.body;
 
         const errors = validateUpdateMemberRole(body);
         if (errors.length > 0) {
           return reply.code(400).send({
-            error: 'Validation Error',
-            message: 'Invalid request data',
-            details: errors,
+            error: {
+              code: WorkspaceErrorCode.VALIDATION_ERROR,
+              message: 'Invalid request data',
+              details: { fields: errors },
+            },
           });
         }
 
@@ -835,29 +931,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         );
         return reply.send(member);
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('last admin')) {
-          return reply.code(400).send({
-            error: 'Bad Request',
-            message: error.message,
-          });
-        }
-        if (error instanceof Error && error.message.includes('not found')) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Member not found',
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to update member role',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Remove member from workspace
-  // Requires: tenant context, workspace membership, ADMIN role
+  // ────────────────────────────────────────────────────────────────
+  // DELETE /workspaces/:workspaceId/members/:userId — Remove member
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
   fastify.delete<{
     Params: { workspaceId: string; userId: string };
   }>(
@@ -874,16 +956,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Member removed successfully',
             type: 'null',
           },
-          400: {
-            description: 'Cannot remove last admin',
-            type: 'object',
-            properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
-            },
-          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -897,29 +975,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         await workspaceService.removeMember(workspaceId, userId, request.tenant);
         return reply.code(204).send();
       } catch (error) {
-        request.log.error(error);
-        if (error instanceof Error && error.message.includes('last admin')) {
-          return reply.code(400).send({
-            error: 'Bad Request',
-            message: error.message,
-          });
-        }
-        if (error instanceof Error && error.message.includes('not found')) {
-          return reply.code(404).send({
-            error: 'Not Found',
-            message: 'Member not found',
-          });
-        }
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to remove member',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Get workspace teams
-  // Requires: tenant context, workspace membership
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/teams — List workspace teams
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
   fastify.get<{ Params: { workspaceId: string } }>(
     '/workspaces/:workspaceId/teams',
     {
@@ -928,7 +992,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         tags: ['workspaces'],
         summary: 'List workspace teams',
         description: 'Returns all teams in the workspace',
+        response: {
+          429: errorResponseSchema,
+        },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
     },
     async (request, reply) => {
@@ -937,17 +1005,15 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const teams = await workspaceService.getTeams(workspaceId, request.tenant);
         return reply.send(teams);
       } catch (error) {
-        request.log.error(error);
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch workspace teams',
-        });
+        handleServiceError(error, reply);
       }
     }
   );
 
-  // Create team in workspace
-  // Requires: tenant context, workspace membership, MEMBER role or higher
+  // ────────────────────────────────────────────────────────────────
+  // POST /workspaces/:workspaceId/teams — Create team
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
   fastify.post<{
     Params: { workspaceId: string };
     Body: { name: string; description?: string };
@@ -992,8 +1058,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               workspaceId: { type: 'string' },
             },
           },
+          429: errorResponseSchema,
         },
       },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
@@ -1002,17 +1070,17 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       ],
     },
     async (request, reply) => {
+      const { workspaceId } = request.params;
+      const userId = request.user?.id;
+
+      if (!userId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
+      }
+
       try {
-        const { workspaceId } = request.params;
-        const userId = request.user?.id;
-
-        if (!userId) {
-          return reply.code(401).send({
-            error: 'Unauthorized',
-            message: 'User not authenticated',
-          });
-        }
-
         const team = await workspaceService.createTeam(
           workspaceId,
           {
@@ -1025,11 +1093,274 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
         return reply.code(201).send(team);
       } catch (error) {
-        request.log.error(error);
-        return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to create team',
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // POST /workspaces/:workspaceId/resources/share — Share resource with workspace
+  // Rate limit: RESOURCE_SHARING (20/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.post<{
+    Params: { workspaceId: string };
+    Body: ShareResourceDto;
+  }>(
+    '/workspaces/:workspaceId/resources/share',
+    {
+      attachValidation: true, // Don't throw on validation failure, attach to request.validationError
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: {
+            workspaceId: { type: 'string', format: 'uuid' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['resourceType', 'resourceId'],
+          properties: {
+            resourceType: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 100,
+              pattern: '^[a-z0-9][a-z0-9\\-_]*[a-z0-9]$',
+              description:
+                'Type of resource to share (e.g., "plugin", "template", "dataset"). Lowercase alphanumeric with hyphens/underscores.',
+              examples: ['plugin', 'template', 'dataset', 'custom-resource'],
+            },
+            resourceId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'Unique identifier of the resource to share',
+              examples: ['550e8400-e29b-41d4-a716-446655440000'],
+            },
+          },
+          additionalProperties: false,
+        },
+        tags: ['workspaces', 'resources'],
+        summary: 'Share resource with workspace',
+        description:
+          'Shares a resource (plugin, template, dataset, etc.) with a workspace. Requires ADMIN role and enabled cross-workspace sharing.',
+        response: {
+          201: {
+            description: 'Resource shared successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              workspaceId: { type: 'string', format: 'uuid' },
+              resourceType: { type: 'string' },
+              resourceId: { type: 'string', format: 'uuid' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          409: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      const { workspaceId } = request.params;
+      const body = request.body;
+      const userId = request.user?.id;
+
+      // Handle Fastify schema validation errors (attachValidation: true)
+      if (request.validationError) {
+        return reply.code(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: request.validationError.message,
+            details: request.validationError.validation,
+          },
         });
+      }
+
+      if (!userId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
+      }
+
+      const errors = validateShareResource(body);
+      if (errors.length > 0) {
+        throw new WorkspaceError(WorkspaceErrorCode.VALIDATION_ERROR, 'Invalid request data', {
+          fields: errors,
+        });
+      }
+
+      try {
+        const resource = await resourceService.shareResource(
+          workspaceId,
+          body,
+          userId,
+          request.tenant
+        );
+        return reply.code(201).send(resource);
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/resources — List shared resources
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { workspaceId: string };
+    Querystring: ListSharedResourcesDto;
+  }>(
+    '/workspaces/:workspaceId/resources',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: {
+            workspaceId: { type: 'string', format: 'uuid' },
+          },
+        },
+        querystring: {
+          type: 'object',
+          properties: {
+            resourceType: {
+              type: 'string',
+              description: 'Filter by resource type (optional)',
+              examples: ['plugin', 'template', 'dataset'],
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+              description: 'Maximum number of results to return',
+            },
+            offset: {
+              type: 'integer',
+              minimum: 0,
+              default: 0,
+              description: 'Number of results to skip (for pagination)',
+            },
+          },
+          additionalProperties: false,
+        },
+        tags: ['workspaces', 'resources'],
+        summary: 'List shared resources',
+        description:
+          'Returns all resources shared with a workspace, with optional filtering and pagination.',
+        response: {
+          200: {
+            description: 'List of shared resources',
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    workspaceId: { type: 'string', format: 'uuid' },
+                    resourceType: { type: 'string' },
+                    resourceId: { type: 'string', format: 'uuid' },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  limit: { type: 'integer' },
+                  offset: { type: 'integer' },
+                  total: { type: 'integer' },
+                  hasMore: { type: 'boolean' },
+                },
+              },
+            },
+          },
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+    },
+    async (request, reply) => {
+      try {
+        const { workspaceId } = request.params;
+        const query = request.query as ListSharedResourcesDto;
+
+        const result = await resourceService.listResources(workspaceId, query, request.tenant);
+        return reply.send(result);
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // DELETE /workspaces/:workspaceId/resources/:resourceId — Unshare resource
+  // Rate limit: RESOURCE_SHARING (20/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.delete<{
+    Params: { workspaceId: string; resourceId: string };
+  }>(
+    '/workspaces/:workspaceId/resources/:resourceId',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId', 'resourceId'],
+          properties: {
+            workspaceId: { type: 'string', format: 'uuid' },
+            resourceId: { type: 'string', format: 'uuid' },
+          },
+        },
+        tags: ['workspaces', 'resources'],
+        summary: 'Unshare resource from workspace',
+        description: 'Removes a resource share link from a workspace. Requires ADMIN role.',
+        response: {
+          204: {
+            description: 'Resource unshared successfully',
+            type: 'null',
+          },
+          404: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      const { workspaceId, resourceId } = request.params;
+      const userId = request.user?.id;
+
+      if (!userId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
+      }
+
+      try {
+        await resourceService.unshareResource(workspaceId, resourceId, userId, request.tenant);
+        return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
       }
     }
   );
