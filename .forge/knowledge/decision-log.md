@@ -34,6 +34,76 @@
 
 ## Recent Decisions (February 2026)
 
+### Security Vulnerability Remediation - 10 Vulnerabilities Fixed (February 19, 2026)
+
+**Date**: February 19, 2026  
+**Context**: GitHub Dependabot reported 10 security vulnerabilities (6 HIGH, 4 MODERATE)
+
+**Vulnerabilities Resolved**:
+
+1. **fast-xml-parser** (HIGH) - DoS through entity expansion in DOCTYPE (no expansion limit)
+   - Vulnerable: >=4.1.3 <5.3.6
+   - Fixed: >=5.3.6
+   - Path: `minio` transitive dependency
+
+2. **minimatch** (HIGH) - ReDoS via repeated wildcards with non-matching literal
+   - Vulnerable: <10.2.1
+   - Fixed: >=10.2.1
+   - Paths: eslint, @fastify/static, glob dependencies
+
+3. **ajv** (MODERATE) - ReDoS when using `$data` option
+   - Vulnerable: <8.18.0
+   - Fixed: >=8.18.0
+   - Paths: Fastify, eslint, @microsoft/api-extractor dependencies
+
+4. **axios** (HIGH) - Denial of Service via **proto** Key in mergeConfig
+   - Vulnerable: <1.7.10
+   - Fixed: >=1.7.10
+   - Path: Keycloak admin client transitive dependency
+
+5. **@isaacs/brace-expansion** (HIGH) - Uncontrolled Resource Consumption
+   - Already fixed in previous session (Feb 17)
+   - Verified still overridden correctly
+
+6. **esbuild** (MODERATE) - CORS issue: dev server can send requests to any website
+   - Vulnerable: <0.21.6
+   - Fixed: >=0.21.6
+   - Path: Vite/tsup build tools
+
+**Remediation Actions**:
+
+```json
+"pnpm": {
+  "overrides": {
+    "fast-xml-parser": ">=5.3.6",
+    "minimatch": ">=10.2.1",
+    "ajv": ">=8.18.0",
+    "axios": ">=1.7.10",
+    "esbuild": ">=0.21.6",
+    "@isaacs/brace-expansion": ">=5.0.1"
+  }
+}
+```
+
+**Verification**: ✅ `pnpm audit`: **0 vulnerabilities** (down from 10)
+
+**GitHub Dependabot Alerts Resolved**: 8 alerts closed
+
+- Alert #24: minimatch (HIGH)
+- Alert #23: ajv (MODERATE)
+- Alert #22: minimatch (HIGH)
+- Alert #21: ajv (MODERATE)
+- Alert #19: axios (HIGH)
+- Alert #17: fast-xml-parser (HIGH)
+- Alert #4: @isaacs/brace-expansion (HIGH) - previously fixed
+- Alert #1: esbuild (MODERATE)
+
+**Constitution Compliance**: Article 5.4 (Dependency Security) - Critical vulnerabilities patched within required timeframe
+
+**Status**: ✅ **COMPLETE** - All security vulnerabilities resolved
+
+---
+
 ### E2E Test Remediation COMPLETE — 88 Tests Fixed (February 19, 2026)
 
 **Date**: February 19, 2026  
