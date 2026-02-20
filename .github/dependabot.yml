@@ -1,0 +1,139 @@
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # npm / pnpm — root workspace (handles all packages in the monorepo)
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '08:00'
+      timezone: 'Europe/Rome'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+      - 'npm'
+    groups:
+      # Batch all React-related upgrades together
+      react:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+          - 'react-*'
+          - '@radix-ui/*'
+      # Batch all TanStack packages together
+      tanstack:
+        patterns:
+          - '@tanstack/*'
+      # Batch all testing-related packages together
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+          - 'vite'
+          - '@vitejs/*'
+      # Batch all TypeScript / ESLint tooling together
+      typescript-tooling:
+        patterns:
+          - 'typescript'
+          - '@typescript-eslint/*'
+          - 'eslint'
+          - 'eslint-*'
+          - '@eslint/*'
+          - 'prettier'
+      # Batch all Prisma packages together
+      prisma:
+        patterns:
+          - 'prisma'
+          - '@prisma/*'
+      # Batch all Fastify packages together
+      fastify:
+        patterns:
+          - 'fastify'
+          - '@fastify/*'
+      # Batch all Storybook packages together
+      storybook:
+        patterns:
+          - 'storybook'
+          - '@storybook/*'
+      # Batch all Turbo / build tooling together
+      build-tooling:
+        patterns:
+          - 'turbo'
+          - 'tsup'
+          - 'esbuild'
+    ignore:
+      # ajv v6 is required by eslint@9 internally; upgrading to v8 breaks eslint.
+      # The CVE (GHSA-2g4f-4pwh-qvx6) only triggers when using the $data option,
+      # which eslint does not use. Track: https://github.com/eslint/eslint/issues
+      - dependency-name: 'ajv'
+        versions: ['>=7.0.0']
+
+  # ---------------------------------------------------------------------------
+  # Docker — core-api
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'docker'
+    directory: '/apps/core-api'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '08:00'
+      timezone: 'Europe/Rome'
+    labels:
+      - 'dependencies'
+      - 'docker'
+
+  # ---------------------------------------------------------------------------
+  # Docker — web
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'docker'
+    directory: '/apps/web'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '08:00'
+      timezone: 'Europe/Rome'
+    labels:
+      - 'dependencies'
+      - 'docker'
+
+  # ---------------------------------------------------------------------------
+  # Docker — super-admin
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'docker'
+    directory: '/apps/super-admin'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '08:00'
+      timezone: 'Europe/Rome'
+    labels:
+      - 'dependencies'
+      - 'docker'
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '08:00'
+      timezone: 'Europe/Rome'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    groups:
+      # Batch all official GitHub Actions together
+      github-actions:
+        patterns:
+          - 'actions/*'
+      # Batch all Docker-related actions together
+      docker-actions:
+        patterns:
+          - 'docker/*'
