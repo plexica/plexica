@@ -33,6 +33,11 @@ import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';
 import type { UpdateMemberRoleDto } from '../modules/workspace/dto/update-member-role.dto.js';
 import type { ShareResourceDto, ListSharedResourcesDto } from '../modules/workspace/dto/index.js';
 import {
+  validateEnableWorkspacePlugin,
+  validateUpdateWorkspacePlugin,
+} from '../modules/workspace/dto/workspace-plugin.dto.js';
+import { workspacePluginService } from '../modules/workspace/workspace-plugin.service.js';
+import {
   WorkspaceError,
   WorkspaceErrorCode,
   mapServiceError,
@@ -1643,6 +1648,328 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
       try {
         await resourceService.unshareResource(workspaceId, resourceId, userId, request.tenant);
+        return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // POST /workspaces/:workspaceId/plugins — Enable plugin for workspace
+  // Spec 011 Phase 2, FR-023 — workspace ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.post<{
+    Params: { workspaceId: string };
+    Body: { pluginId: string; config?: Record<string, unknown> };
+  }>(
+    '/workspaces/:workspaceId/plugins',
+    {
+      attachValidation: true,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: { workspaceId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['pluginId'],
+          properties: {
+            pluginId: { type: 'string', description: 'Plugin identifier to enable' },
+            config: {
+              type: 'object',
+              additionalProperties: true,
+              description: 'Optional initial plugin configuration',
+            },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Enable plugin for workspace',
+        description:
+          'Enables a tenant-level plugin for this workspace. Requires workspace ADMIN role.',
+        response: {
+          201: {
+            description: 'Plugin enabled successfully',
+            type: 'object',
+            properties: {
+              workspaceId: { type: 'string' },
+              pluginId: { type: 'string' },
+              enabled: { type: 'boolean' },
+              configuration: { type: 'object', additionalProperties: true },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { validation: request.validationError.validation },
+          },
+        });
+      }
+
+      const errors = validateEnableWorkspacePlugin(request.body);
+      if (errors.length > 0) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid request data',
+            details: { fields: errors },
+          },
+        });
+      }
+
+      const { workspaceId } = request.params;
+      const { pluginId, config = {} } = request.body;
+
+      try {
+        const row = await workspacePluginService.enablePlugin(
+          workspaceId,
+          pluginId,
+          config,
+          request.tenant! // tenantContextMiddleware + workspaceGuard guarantee non-null
+        );
+        return reply.code(201).send({
+          workspaceId: row.workspace_id,
+          pluginId: row.plugin_id,
+          enabled: row.enabled,
+          configuration: row.configuration,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/plugins — List workspace plugins
+  // Spec 011 Phase 2, FR-025 — any workspace member
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { workspaceId: string };
+  }>(
+    '/workspaces/:workspaceId/plugins',
+    {
+      schema: {
+        ...workspaceParamsSchema,
+        tags: ['workspaces'],
+        summary: 'List workspace plugins',
+        description: 'Returns all plugin records for the workspace (enabled and disabled).',
+        response: {
+          200: {
+            description: 'List of workspace plugins',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                workspaceId: { type: 'string' },
+                pluginId: { type: 'string' },
+                enabled: { type: 'boolean' },
+                configuration: { type: 'object', additionalProperties: true },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+    },
+    async (request, reply) => {
+      const { workspaceId } = request.params;
+
+      try {
+        const rows = await workspacePluginService.listPlugins(workspaceId, request.tenant!);
+        return reply.send(
+          rows.map((r) => ({
+            workspaceId: r.workspace_id,
+            pluginId: r.plugin_id,
+            enabled: r.enabled,
+            configuration: r.configuration,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+        );
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId/plugins/:pluginId — Update plugin config
+  // Spec 011 Phase 2, FR-024 — workspace ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { workspaceId: string; pluginId: string };
+    Body: { config: Record<string, unknown> };
+  }>(
+    '/workspaces/:workspaceId/plugins/:pluginId',
+    {
+      attachValidation: true,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId', 'pluginId'],
+          properties: {
+            workspaceId: { type: 'string' },
+            pluginId: { type: 'string' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['config'],
+          properties: {
+            config: {
+              type: 'object',
+              additionalProperties: true,
+              description: 'Updated plugin configuration',
+            },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Update workspace plugin config',
+        description:
+          'Updates the configuration for an enabled workspace plugin. Requires ADMIN role.',
+        response: {
+          200: {
+            description: 'Plugin configuration updated',
+            type: 'object',
+            properties: {
+              workspaceId: { type: 'string' },
+              pluginId: { type: 'string' },
+              enabled: { type: 'boolean' },
+              configuration: { type: 'object', additionalProperties: true },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { validation: request.validationError.validation },
+          },
+        });
+      }
+
+      const errors = validateUpdateWorkspacePlugin(request.body);
+      if (errors.length > 0) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid request data',
+            details: { fields: errors },
+          },
+        });
+      }
+
+      const { workspaceId, pluginId } = request.params;
+      const { config } = request.body;
+
+      try {
+        const row = await workspacePluginService.updateConfig(
+          workspaceId,
+          pluginId,
+          config,
+          request.tenant!
+        );
+        return reply.send({
+          workspaceId: row.workspace_id,
+          pluginId: row.plugin_id,
+          enabled: row.enabled,
+          configuration: row.configuration,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // DELETE /workspaces/:workspaceId/plugins/:pluginId — Disable workspace plugin
+  // Spec 011 Phase 2, FR-023 — workspace ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.delete<{
+    Params: { workspaceId: string; pluginId: string };
+  }>(
+    '/workspaces/:workspaceId/plugins/:pluginId',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId', 'pluginId'],
+          properties: {
+            workspaceId: { type: 'string' },
+            pluginId: { type: 'string' },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Disable workspace plugin',
+        description:
+          'Disables a plugin for this workspace (preserves configuration). Requires ADMIN role.',
+        response: {
+          204: { description: 'Plugin disabled successfully', type: 'null' },
+          404: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      const { workspaceId, pluginId } = request.params;
+
+      try {
+        await workspacePluginService.disablePlugin(workspaceId, pluginId, request.tenant!);
         return reply.code(204).send();
       } catch (error) {
         handleServiceError(error, reply);

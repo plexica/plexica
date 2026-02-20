@@ -12,6 +12,7 @@ import { authRoutes } from './routes/auth';
 import { pluginRoutes } from './routes/plugin';
 import { pluginUploadRoutes } from './routes/plugin-upload';
 import { workspaceRoutes } from './routes/workspace';
+import { workspaceTemplatesRoutes } from './routes/workspace-templates';
 import { adminRoutes } from './routes/admin';
 import { marketplaceRoutes } from './routes/marketplace';
 // import { dlqRoutes } from './routes/dlq';
@@ -175,6 +176,7 @@ async function registerRoutes() {
   await server.register(authRoutes, { prefix: '/api' });
   await server.register(tenantRoutes, { prefix: '/api' });
   await server.register(workspaceRoutes, { prefix: '/api' });
+  await server.register(workspaceTemplatesRoutes, { prefix: '/api' }); // Spec 011 Phase 2 — FR-021, FR-022
   await server.register(pluginRoutes, { prefix: '/api' });
   await server.register(pluginUploadRoutes, { prefix: '/api' });
   await server.register(marketplaceRoutes, { prefix: '/api' }); // Marketplace routes (M2.4)

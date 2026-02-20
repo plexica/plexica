@@ -19,6 +19,10 @@ import {
   WorkspaceHierarchyService,
   workspaceHierarchyService,
 } from './workspace-hierarchy.service.js';
+import {
+  WorkspaceTemplateService,
+  workspaceTemplateService,
+} from './workspace-template.service.js';
 
 /**
  * Row types for raw SQL query results.
@@ -115,13 +119,15 @@ export class WorkspaceService {
   private cache?: Redis;
   private log: Logger;
   private hierarchyService: WorkspaceHierarchyService;
+  private templateService: WorkspaceTemplateService;
 
   constructor(
     customDb?: PrismaClient,
     eventBus?: EventBusService,
     cache?: Redis,
     customLogger?: Logger,
-    hierarchyService?: WorkspaceHierarchyService
+    hierarchyService?: WorkspaceHierarchyService,
+    templateService?: WorkspaceTemplateService
   ) {
     this.db = customDb || db;
     this.eventBus = eventBus;
@@ -135,6 +141,11 @@ export class WorkspaceService {
       (customDb
         ? new WorkspaceHierarchyService(customDb, cache, customLogger || logger)
         : workspaceHierarchyService);
+    this.templateService =
+      templateService ||
+      (customDb
+        ? new WorkspaceTemplateService(customDb, undefined, customLogger || logger)
+        : workspaceTemplateService);
   }
 
   /**
@@ -284,6 +295,16 @@ export class WorkspaceService {
           NOW()
         )
       `;
+
+      // [Phase 2] Apply template if templateId is provided
+      if (dto.templateId) {
+        await this.templateService.applyTemplate(
+          newWorkspaceId,
+          dto.templateId,
+          tenantContext.tenantId,
+          tx
+        );
+      }
 
       // Fetch the complete workspace with relations
       const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);

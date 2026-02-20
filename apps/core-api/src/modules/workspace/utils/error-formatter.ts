@@ -47,6 +47,19 @@ export enum WorkspaceErrorCode {
   PARENT_PERMISSION_DENIED = 'PARENT_PERMISSION_DENIED',
   /** 409 — Re-parenting would create a cycle in the hierarchy */
   REPARENT_CYCLE_DETECTED = 'REPARENT_CYCLE_DETECTED',
+  // ── Template & Plugin error codes (Spec 011 Phase 2) ──────────────────────
+  /** 404 — Template does not exist */
+  TEMPLATE_NOT_FOUND = 'TEMPLATE_NOT_FOUND',
+  /** 400 — Template references a plugin not installed by the tenant */
+  TEMPLATE_PLUGIN_NOT_INSTALLED = 'TEMPLATE_PLUGIN_NOT_INSTALLED',
+  /** 400 — Template item limit exceeded (max 50) */
+  TEMPLATE_ITEM_LIMIT_EXCEEDED = 'TEMPLATE_ITEM_LIMIT_EXCEEDED',
+  /** 400 — Workspace plugin is already enabled */
+  WORKSPACE_PLUGIN_EXISTS = 'WORKSPACE_PLUGIN_EXISTS',
+  /** 404 — Workspace plugin record not found */
+  WORKSPACE_PLUGIN_NOT_FOUND = 'WORKSPACE_PLUGIN_NOT_FOUND',
+  /** 400 — Plugin is not enabled at the tenant level */
+  PLUGIN_NOT_TENANT_ENABLED = 'PLUGIN_NOT_TENANT_ENABLED',
 }
 
 /**
@@ -68,6 +81,12 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.PARENT_WORKSPACE_NOT_FOUND]: 404,
   [WorkspaceErrorCode.PARENT_PERMISSION_DENIED]: 403,
   [WorkspaceErrorCode.REPARENT_CYCLE_DETECTED]: 409,
+  [WorkspaceErrorCode.TEMPLATE_NOT_FOUND]: 404,
+  [WorkspaceErrorCode.TEMPLATE_PLUGIN_NOT_INSTALLED]: 400,
+  [WorkspaceErrorCode.TEMPLATE_ITEM_LIMIT_EXCEEDED]: 400,
+  [WorkspaceErrorCode.WORKSPACE_PLUGIN_EXISTS]: 409,
+  [WorkspaceErrorCode.WORKSPACE_PLUGIN_NOT_FOUND]: 404,
+  [WorkspaceErrorCode.PLUGIN_NOT_TENANT_ENABLED]: 400,
 };
 
 /**

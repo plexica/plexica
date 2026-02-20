@@ -94,6 +94,8 @@ model Plugin {
   versions      PluginVersion[]
   ratings       PluginRating[]
   installations PluginInstallation[]
+  workspacePlugins WorkspacePlugin[]
+  templates     WorkspaceTemplate[]
 
   @@index([status])
   @@index([category])
@@ -355,6 +357,8 @@ model Workspace {
   members   WorkspaceMember[]
   teams     Team[]
   resources WorkspaceResource[]
+  plugins   WorkspacePlugin[]
+  pages     WorkspacePage[]
 
   @@unique([parentId, slug])
   @@index([tenantId])
@@ -418,4 +422,84 @@ model Team {
   @@index([ownerId])
   @@map("teams")
   @@schema("core") // Template - will be in tenant schemas
+}
+
+// ============================================================================
+// WORKSPACE TEMPLATES & PLUGINS (Spec 011 Phase 2)
+// ============================================================================
+
+// Per-workspace plugin enablement (ADR-014)
+model WorkspacePlugin {
+  workspaceId   String   @map("workspace_id")
+  pluginId      String   @map("plugin_id")
+  enabled       Boolean  @default(true)
+  configuration Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plugin    Plugin    @relation(fields: [pluginId], references: [id])
+
+  @@id([workspaceId, pluginId])
+  @@index([workspaceId])
+  @@index([pluginId])
+  @@map("workspace_plugins")
+  @@schema("core")
+}
+
+// Template provided by a plugin for workspace bootstrapping
+model WorkspaceTemplate {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  providedByPluginId String   @map("provided_by_plugin_id")
+  isDefault          Boolean  @default(false) @map("is_default")
+  metadata           Json     @default("{}")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  plugin Plugin                  @relation(fields: [providedByPluginId], references: [id])
+  items  WorkspaceTemplateItem[]
+
+  @@index([providedByPluginId])
+  @@map("workspace_templates")
+  @@schema("core")
+}
+
+// Items within a template (discriminated by type: plugin | setting | page)
+model WorkspaceTemplateItem {
+  id           String   @id @default(uuid())
+  templateId   String   @map("template_id")
+  type         String   // 'plugin' | 'page' | 'setting'
+  pluginId     String?  @map("plugin_id")
+  pageConfig   Json?    @map("page_config")
+  settingKey   String?  @map("setting_key")
+  settingValue Json?    @map("setting_value")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  template WorkspaceTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("workspace_template_items")
+  @@schema("core")
+}
+
+// Pages within a workspace (created via template or directly)
+model WorkspacePage {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  slug        String
+  title       String
+  config      Json     @default("{}")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@map("workspace_pages")
+  @@schema("core")
 }

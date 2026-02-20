@@ -1,0 +1,435 @@
+// apps/core-api/src/modules/workspace/workspace-template.service.ts
+//
+// Template CRUD and transactional template application during workspace creation.
+// Implements Spec 011 Phase 2 — FR-015, FR-016, FR-017, FR-018, FR-019, FR-020,
+// FR-021, FR-022.
+//
+// IMPORTANT: applyTemplate() MUST be called within an existing Prisma transaction.
+// All queries use Prisma.$queryRaw / Prisma.sql (no string interpolation).
+
+import { PrismaClient, Prisma } from '@plexica/database';
+import { db } from '../../lib/db.js';
+import { logger as rootLogger } from '../../lib/logger.js';
+import type { Logger } from 'pino';
+import { WorkspaceError, WorkspaceErrorCode } from './utils/error-formatter.js';
+import type { WorkspacePluginService } from './workspace-plugin.service.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface TemplateListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  provided_by_plugin_id: string;
+  is_default: boolean;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  item_count: bigint | number;
+}
+
+export interface TemplateItemRow {
+  id: string;
+  template_id: string;
+  type: 'plugin' | 'page' | 'setting';
+  plugin_id: string | null;
+  page_config: Record<string, unknown> | null;
+  setting_key: string | null;
+  setting_value: unknown | null;
+  sort_order: number;
+  created_at: Date;
+}
+
+export interface TemplateWithItems {
+  id: string;
+  name: string;
+  description: string | null;
+  provided_by_plugin_id: string;
+  is_default: boolean;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+  items: TemplateItemRow[];
+}
+
+export interface RegisterTemplateDto {
+  name: string;
+  description?: string;
+  isDefault?: boolean;
+  metadata?: Record<string, unknown>;
+  items: Array<{
+    type: 'plugin' | 'page' | 'setting';
+    pluginId?: string;
+    pageConfig?: Record<string, unknown>;
+    settingKey?: string;
+    settingValue?: unknown;
+    sortOrder?: number;
+  }>;
+}
+
+/** Minimal Prisma transaction client shape */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PrismaTransaction = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
+/**
+ * Manages workspace templates: listing, retrieval, and transactional application.
+ *
+ * Templates are provided by plugins and list the plugins, settings, and pages
+ * to scaffold when a workspace is created from that template.
+ *
+ * Template application is fully transactional — if any item fails to apply,
+ * the entire workspace creation rolls back.
+ */
+export class WorkspaceTemplateService {
+  private readonly db: PrismaClient;
+  private readonly logger: Logger;
+  private readonly pluginService?: WorkspacePluginService;
+
+  constructor(
+    customDb?: PrismaClient,
+    pluginService?: WorkspacePluginService,
+    customLogger?: Logger
+  ) {
+    this.db = customDb ?? db;
+    this.pluginService = pluginService;
+    this.logger = customLogger ?? rootLogger;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Template listing & retrieval (FR-021, FR-022)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * List all templates available to a tenant.
+   *
+   * Only returns templates whose providing plugin is enabled for the tenant.
+   * Ordered by name ascending.
+   */
+  async listTemplates(tenantId: string): Promise<TemplateListItem[]> {
+    this.logger.debug({ tenantId }, 'workspace-template: listing templates');
+
+    const rows = await this.db.$queryRaw<TemplateListItem[]>(
+      Prisma.sql`SELECT wt.id, wt.name, wt.description, wt.provided_by_plugin_id,
+                        wt.is_default, wt.metadata, wt.created_at,
+                        (SELECT COUNT(*)
+                           FROM workspace_template_items wti
+                          WHERE wti.template_id = wt.id) as item_count
+                   FROM workspace_templates wt
+                   JOIN tenant_plugins tp ON tp.plugin_id = wt.provided_by_plugin_id
+                  WHERE tp.tenant_id = ${tenantId}::uuid
+                    AND tp.enabled = true
+                  ORDER BY wt.name ASC`
+    );
+
+    // Normalise BigInt item_count to number for serialisation
+    return rows.map((r) => ({ ...r, item_count: Number(r.item_count) }));
+  }
+
+  /**
+   * Get a single template with its items, ordered by sort_order.
+   *
+   * Throws TEMPLATE_NOT_FOUND if no template with that ID exists.
+   */
+  async getTemplate(templateId: string): Promise<TemplateWithItems> {
+    this.logger.debug({ templateId }, 'workspace-template: getting template');
+
+    const templateRows = await this.db.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        provided_by_plugin_id: string;
+        is_default: boolean;
+        metadata: Record<string, unknown>;
+        created_at: Date;
+        updated_at: Date;
+      }>
+    >(
+      Prisma.sql`SELECT id, name, description, provided_by_plugin_id, is_default,
+                        metadata, created_at, updated_at
+                   FROM workspace_templates
+                  WHERE id = ${templateId}::uuid
+                  LIMIT 1`
+    );
+
+    if (templateRows.length === 0) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
+        `Template ${templateId} not found`,
+        { templateId }
+      );
+    }
+
+    const itemRows = await this.db.$queryRaw<TemplateItemRow[]>(
+      Prisma.sql`SELECT id, template_id, type, plugin_id, page_config,
+                        setting_key, setting_value, sort_order, created_at
+                   FROM workspace_template_items
+                  WHERE template_id = ${templateId}::uuid
+                  ORDER BY sort_order ASC, created_at ASC`
+    );
+
+    return { ...templateRows[0], items: itemRows };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Template application (FR-015, FR-016, FR-017, FR-018, FR-019)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Apply a template to a newly-created workspace within an ongoing transaction.
+   *
+   * MUST be called within an existing Prisma.$transaction — do NOT call from
+   * outside a transaction. Any failure throws and causes the transaction to
+   * roll back, preventing orphan workspace records.
+   *
+   * @param workspaceId - ID of the freshly-created workspace
+   * @param templateId  - ID of the template to apply
+   * @param tenantId    - Owning tenant ID (for plugin validation)
+   * @param tx          - Active Prisma transaction client
+   */
+  async applyTemplate(
+    workspaceId: string,
+    templateId: string,
+    tenantId: string,
+    tx: PrismaTransaction
+  ): Promise<void> {
+    this.logger.debug(
+      { workspaceId, templateId, tenantId },
+      'workspace-template: applying template'
+    );
+
+    // 1. Fetch template with items
+    const template = await this.fetchTemplateWithItems(tx, templateId);
+    if (!template) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
+        `Template ${templateId} not found`,
+        { templateId }
+      );
+    }
+
+    // 2. Validate all plugin-type items have enabled tenant plugins
+    await this.validateTemplatePluginsInTx(template, tenantId, tx);
+
+    // 3. Apply items in sort_order
+    for (const item of template.items) {
+      switch (item.type) {
+        case 'plugin':
+          await this.applyPluginItem(workspaceId, item, tx);
+          break;
+        case 'setting':
+          await this.applySettingItem(workspaceId, item, tx);
+          break;
+        case 'page':
+          await this.applyPageItem(workspaceId, item, tx);
+          break;
+        default: {
+          const exhaustive: never = item.type;
+          throw new WorkspaceError(
+            WorkspaceErrorCode.VALIDATION_ERROR,
+            `Unknown template item type: ${exhaustive}`
+          );
+        }
+      }
+    }
+
+    this.logger.info(
+      { workspaceId, templateId, tenantId, itemCount: template.items.length },
+      'workspace-template: template applied'
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plugin template registration (FR-028) — stubs for Phase 3 (T011-15)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Register a template provided by a plugin.
+   * Fully implemented in T011-15 (Phase 3).
+   */
+  async registerTemplate(_pluginId: string, _dto: RegisterTemplateDto): Promise<TemplateWithItems> {
+    throw new Error('Not implemented: registerTemplate will be completed in T011-15 (Phase 3)');
+  }
+
+  /**
+   * Replace all items of an existing template.
+   * Fully implemented in T011-15 (Phase 3).
+   */
+  async updateTemplate(
+    _pluginId: string,
+    _templateId: string,
+    _dto: RegisterTemplateDto
+  ): Promise<TemplateWithItems> {
+    throw new Error('Not implemented: updateTemplate will be completed in T011-15 (Phase 3)');
+  }
+
+  /**
+   * Delete a template and all its items.
+   * Fully implemented in T011-15 (Phase 3).
+   */
+  async deleteTemplate(_pluginId: string, _templateId: string): Promise<void> {
+    throw new Error('Not implemented: deleteTemplate will be completed in T011-15 (Phase 3)');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fetch template and items within a transaction context.
+   */
+  private async fetchTemplateWithItems(
+    tx: PrismaTransaction,
+    templateId: string
+  ): Promise<TemplateWithItems | null> {
+    const templateRows = await tx.$queryRaw<
+      Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        provided_by_plugin_id: string;
+        is_default: boolean;
+        metadata: Record<string, unknown>;
+        created_at: Date;
+        updated_at: Date;
+      }>
+    >(
+      Prisma.sql`SELECT id, name, description, provided_by_plugin_id, is_default,
+                        metadata, created_at, updated_at
+                   FROM workspace_templates
+                  WHERE id = ${templateId}::uuid
+                  LIMIT 1`
+    );
+
+    if (templateRows.length === 0) {
+      return null;
+    }
+
+    const itemRows = await tx.$queryRaw<TemplateItemRow[]>(
+      Prisma.sql`SELECT id, template_id, type, plugin_id, page_config,
+                        setting_key, setting_value, sort_order, created_at
+                   FROM workspace_template_items
+                  WHERE template_id = ${templateId}::uuid
+                  ORDER BY sort_order ASC, created_at ASC`
+    );
+
+    return { ...templateRows[0], items: itemRows };
+  }
+
+  /**
+   * Validate all plugin-type template items are tenant-enabled.
+   * Uses the transaction client to stay within the same transaction.
+   */
+  private async validateTemplatePluginsInTx(
+    template: TemplateWithItems,
+    tenantId: string,
+    tx: PrismaTransaction
+  ): Promise<void> {
+    const pluginItems = template.items.filter((i) => i.type === 'plugin' && i.plugin_id);
+
+    for (const item of pluginItems) {
+      const pluginId = item.plugin_id!;
+      const rows = await tx.$queryRaw<Array<{ enabled: boolean }>>(
+        Prisma.sql`SELECT enabled
+                     FROM tenant_plugins
+                    WHERE tenant_id = ${tenantId}::uuid
+                      AND plugin_id = ${pluginId}
+                    LIMIT 1`
+      );
+
+      if (rows.length === 0 || !rows[0].enabled) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.TEMPLATE_PLUGIN_NOT_INSTALLED,
+          `Template requires plugin ${pluginId} which is not enabled for tenant ${tenantId}`,
+          { pluginId, tenantId, templateId: template.id }
+        );
+      }
+    }
+  }
+
+  /**
+   * Apply a 'plugin' template item: create a WorkspacePlugin record.
+   */
+  private async applyPluginItem(
+    workspaceId: string,
+    item: TemplateItemRow,
+    tx: PrismaTransaction
+  ): Promise<void> {
+    if (!item.plugin_id) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.VALIDATION_ERROR,
+        `Template item ${item.id} of type 'plugin' is missing plugin_id`
+      );
+    }
+
+    await tx.$executeRaw(
+      Prisma.sql`INSERT INTO workspace_plugins
+                   (workspace_id, plugin_id, enabled, configuration, created_at, updated_at)
+                 VALUES
+                   (${workspaceId}::uuid, ${item.plugin_id}, true, '{}'::jsonb, NOW(), NOW())
+                 ON CONFLICT (workspace_id, plugin_id) DO NOTHING`
+    );
+  }
+
+  /**
+   * Apply a 'setting' template item: merge key/value into workspace settings JSON.
+   */
+  private async applySettingItem(
+    workspaceId: string,
+    item: TemplateItemRow,
+    tx: PrismaTransaction
+  ): Promise<void> {
+    if (!item.setting_key) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.VALIDATION_ERROR,
+        `Template item ${item.id} of type 'setting' is missing setting_key`
+      );
+    }
+
+    const settingValueJson = JSON.stringify(item.setting_value ?? null);
+    // Merge using jsonb || operator — sets the key, preserving other settings
+    await tx.$executeRaw(
+      Prisma.sql`UPDATE workspaces
+                    SET settings = settings || jsonb_build_object(${item.setting_key}, ${settingValueJson}::jsonb),
+                        updated_at = NOW()
+                  WHERE id = ${workspaceId}::uuid`
+    );
+  }
+
+  /**
+   * Apply a 'page' template item: create a WorkspacePage record.
+   */
+  private async applyPageItem(
+    workspaceId: string,
+    item: TemplateItemRow,
+    tx: PrismaTransaction
+  ): Promise<void> {
+    const pageConfig = item.page_config ?? {};
+    const slug = (pageConfig as Record<string, unknown>)['slug'] as string | undefined;
+    const title = (pageConfig as Record<string, unknown>)['title'] as string | undefined;
+
+    if (!slug || !title) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.VALIDATION_ERROR,
+        `Template item ${item.id} of type 'page' requires page_config.slug and page_config.title`
+      );
+    }
+
+    const configJson = JSON.stringify(pageConfig);
+    await tx.$executeRaw(
+      Prisma.sql`INSERT INTO workspace_pages
+                   (id, workspace_id, slug, title, config, sort_order, created_at, updated_at)
+                 VALUES
+                   (gen_random_uuid(), ${workspaceId}::uuid, ${slug}, ${title},
+                    ${configJson}::jsonb, ${item.sort_order}, NOW(), NOW())
+                 ON CONFLICT (workspace_id, slug) DO NOTHING`
+    );
+  }
+}
+
+/** Singleton instance for production use */
+export const workspaceTemplateService = new WorkspaceTemplateService();

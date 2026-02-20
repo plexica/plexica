@@ -14,8 +14,9 @@ import {
 } from '../../../modules/workspace/utils/error-formatter.js';
 
 describe('WorkspaceErrorCode', () => {
-  it('should define all 15 error codes from Spec 009 Section 6.5 and Spec 011 hierarchy codes', () => {
+  it('should define all 21 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, and Spec 011 Phase 2 template/plugin codes', () => {
     const expectedCodes = [
+      // Spec 009 core codes
       'WORKSPACE_NOT_FOUND',
       'WORKSPACE_SLUG_CONFLICT',
       'WORKSPACE_HAS_TEAMS',
@@ -27,14 +28,22 @@ describe('WorkspaceErrorCode', () => {
       'VALIDATION_ERROR',
       'RESOURCE_ALREADY_SHARED',
       'SHARING_DISABLED',
+      // Spec 011 Phase 1 hierarchy codes
       'HIERARCHY_DEPTH_EXCEEDED',
       'PARENT_WORKSPACE_NOT_FOUND',
       'PARENT_PERMISSION_DENIED',
       'REPARENT_CYCLE_DETECTED',
+      // Spec 011 Phase 2 template & plugin codes
+      'TEMPLATE_NOT_FOUND',
+      'TEMPLATE_PLUGIN_NOT_INSTALLED',
+      'TEMPLATE_ITEM_LIMIT_EXCEEDED',
+      'WORKSPACE_PLUGIN_EXISTS',
+      'WORKSPACE_PLUGIN_NOT_FOUND',
+      'PLUGIN_NOT_TENANT_ENABLED',
     ];
 
     const actualCodes = Object.values(WorkspaceErrorCode);
-    expect(actualCodes).toHaveLength(15);
+    expect(actualCodes).toHaveLength(21);
 
     for (const code of expectedCodes) {
       expect(actualCodes).toContain(code);
@@ -99,6 +108,13 @@ describe('getStatusForCode', () => {
       [WorkspaceErrorCode.VALIDATION_ERROR, 400],
       [WorkspaceErrorCode.RESOURCE_ALREADY_SHARED, 409],
       [WorkspaceErrorCode.SHARING_DISABLED, 403],
+      // Spec 011 Phase 2 template & plugin codes
+      [WorkspaceErrorCode.TEMPLATE_NOT_FOUND, 404],
+      [WorkspaceErrorCode.TEMPLATE_PLUGIN_NOT_INSTALLED, 400],
+      [WorkspaceErrorCode.TEMPLATE_ITEM_LIMIT_EXCEEDED, 400],
+      [WorkspaceErrorCode.WORKSPACE_PLUGIN_EXISTS, 409],
+      [WorkspaceErrorCode.WORKSPACE_PLUGIN_NOT_FOUND, 404],
+      [WorkspaceErrorCode.PLUGIN_NOT_TENANT_ENABLED, 400],
     ];
 
     for (const [code, expectedStatus] of expectations) {
