@@ -9,16 +9,16 @@ overrides:
   react-dom: ^19.2.3
   '@types/react': ^19.2.9
   '@types/react-dom': ^19.2.3
-  hono: '>=4.11.7'
+  hono: '>=4.11.10'
   lodash: '>=4.17.23'
   '@isaacs/brace-expansion': '>=5.0.1'
   fast-xml-parser: '>=5.3.6'
   minimatch: '>=10.2.1'
   ajv: '>=8.18.0'
-  '@eslint/eslintrc>ajv': ^6.12.4
-  eslint>ajv: ^6.12.4
-  axios: '>=1.7.10'
-  esbuild: '>=0.21.6'
+  '@eslint/eslintrc>ajv': ^6.12.6
+  eslint>ajv: ^6.12.6
+  axios: '>=1.13.5'
+  esbuild: '>=0.25.0'
 
 importers:
 
@@ -86,7 +86,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/i18n
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       dotenv:
         specifier: ^17.2.3
@@ -162,7 +162,7 @@ importers:
         specifier: ^1.153.2
         version: 1.153.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
         specifier: ^0.562.0
@@ -229,7 +229,7 @@ importers:
         specifier: ^1.153.2
         version: 1.153.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
         specifier: ^0.562.0
@@ -296,7 +296,7 @@ importers:
         specifier: ^1.153.2
         version: 1.153.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
         specifier: ^0.562.0
@@ -366,7 +366,7 @@ importers:
         specifier: ^1.153.2
         version: 1.153.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       clsx:
         specifier: ^2.1.1
@@ -466,7 +466,7 @@ importers:
         specifier: ^1.153.2
         version: 1.153.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       keycloak-js:
         specifier: ^26.2.2
@@ -569,7 +569,7 @@ importers:
         specifier: workspace:*
         version: link:../types
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
     devDependencies:
       '@types/node':
@@ -591,7 +591,7 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       axios:
-        specifier: '>=1.7.10'
+        specifier: '>=1.13.5'
         version: 1.13.5
       chalk:
         specifier: ^5.4.1
@@ -1588,7 +1588,7 @@ packages:
     resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: '>=4.11.7'
+      hono: '>=4.11.10'
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -2651,7 +2651,7 @@ packages:
   '@storybook/csf-plugin@10.1.11':
     resolution: {integrity: sha512-Ant0NhgqHKzQsseeVTSetZCuDHHs0W2HRkHt51Kg/sUl0T/sDtfVA+fWZT8nGzGZqYSFkxqYPWjauPmIhPtaRw==}
     peerDependencies:
-      esbuild: '>=0.21.6'
+      esbuild: '>=0.25.0'
       rollup: '*'
       storybook: ^10.1.11
       vite: '*'
@@ -3299,7 +3299,7 @@ packages:
   axios-mock-adapter@2.1.0:
     resolution: {integrity: sha512-AZUe4OjECGCNNssH8SOdtneiQELsqTsat3SQQCWLPjN436/H+L9AjWfV7bF+Zg/YL9cgbhrz5671hoh+Tbn98w==}
     peerDependencies:
-      axios: '>=1.7.10'
+      axios: '>=1.13.5'
 
   axios@1.13.5:
     resolution: {integrity: sha512-cz4ur7Vb0xS4/KUN0tPWe44eqxrIu31me+fbang3ijiNscE129POzipJJA6zniq2C/Z6sJCjMimjS8Lc/GAs8Q==}
@@ -3384,7 +3384,7 @@ packages:
     resolution: {integrity: sha512-3WrrOuZiyaaZPWiEt4G3+IffISVC9HYlWueJEBWED4ZH4aIAC2PnkdnuRrR94M+w6yGWn4AglWtJtBI8YqvgoA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     peerDependencies:
-      esbuild: '>=0.21.6'
+      esbuild: '>=0.25.0'
 
   c12@3.1.0:
     resolution: {integrity: sha512-uWoS8OU1MEIsOv8p/5a82c3H31LsWVR5qiyXVfBNOzfffjUWtPnhAb4BYI2uG2HfGmZmFjCtui5XNWaps+iFuw==}
@@ -4179,8 +4179,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.11.9:
-    resolution: {integrity: sha512-Eaw2YTGM6WOxA6CXbckaEvslr2Ne4NFsKrvc0v97JD5awbmeBLO5w9Ho9L9kmKonrwF9RJlW6BxT1PVv/agBHQ==}
+  hono@4.12.0:
+    resolution: {integrity: sha512-NekXntS5M94pUfiVZ8oXXK/kkri+5WpX2/Ik+LVsl+uvw+soj4roXIsPqO+XsWrAw20mOzaXOZf3Q7PfB9A/IA==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@6.0.0:
@@ -6904,9 +6904,9 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@hono/node-server@1.19.9(hono@4.11.9)':
+  '@hono/node-server@1.19.9(hono@4.12.0)':
     dependencies:
-      hono: 4.11.9
+      hono: 4.12.0
 
   '@humanfs/core@0.19.1': {}
 
@@ -7120,13 +7120,13 @@ snapshots:
       '@electric-sql/pglite': 0.3.15
       '@electric-sql/pglite-socket': 0.0.20(@electric-sql/pglite@0.3.15)
       '@electric-sql/pglite-tools': 0.2.20(@electric-sql/pglite@0.3.15)
-      '@hono/node-server': 1.19.9(hono@4.11.9)
+      '@hono/node-server': 1.19.9(hono@4.12.0)
       '@mrleebo/prisma-ast': 0.13.1
       '@prisma/get-platform': 7.2.0
       '@prisma/query-plan-executor': 7.2.0
       foreground-child: 3.3.1
       get-port-please: 3.2.0
-      hono: 4.11.9
+      hono: 4.12.0
       http-status-codes: 2.3.0
       pathe: 2.0.3
       proper-lockfile: 4.1.2
@@ -9754,7 +9754,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.11.9: {}
+  hono@4.12.0: {}
 
   html-encoding-sniffer@6.0.0(@noble/hashes@1.8.0):
     dependencies:
