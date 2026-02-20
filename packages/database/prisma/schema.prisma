@@ -339,6 +339,9 @@ enum UserStatus {
 model Workspace {
   id          String   @id @default(uuid())
   tenantId    String   @map("tenant_id")
+  parentId    String?  @map("parent_id")
+  depth       Int      @default(0)
+  path        String   @default("")
   slug        String
   name        String
   description String?
@@ -346,12 +349,18 @@ model Workspace {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  parent    Workspace?  @relation("WorkspaceHierarchy", fields: [parentId], references: [id])
+  children  Workspace[] @relation("WorkspaceHierarchy")
+
   members   WorkspaceMember[]
   teams     Team[]
   resources WorkspaceResource[]
 
-  @@unique([tenantId, slug])
+  @@unique([parentId, slug])
   @@index([tenantId])
+  @@index([parentId])
+  @@index([path])
+  @@index([depth])
   @@map("workspaces")
   @@schema("core") // Template - will be in tenant schemas
 }

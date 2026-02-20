@@ -15,6 +15,10 @@ export const CreateWorkspaceSchema = z.object({
     .max(100, 'name must be between 2 and 100 characters'),
   description: z.string().max(500, 'description must not exceed 500 characters').optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
+  /** Optional parent workspace ID. When provided the new workspace becomes a child. */
+  parentId: z.string().uuid('parentId must be a valid UUID').optional(),
+  /** Optional template ID to apply on workspace creation (Phase 2). */
+  templateId: z.string().uuid('templateId must be a valid UUID').optional(),
 });
 
 /**
@@ -50,6 +54,16 @@ export const createWorkspaceSchema = {
     settings: {
       type: 'object',
       description: 'Optional workspace settings (JSON)',
+    },
+    parentId: {
+      type: 'string',
+      format: 'uuid',
+      description: 'Optional parent workspace ID (creates child workspace)',
+    },
+    templateId: {
+      type: 'string',
+      format: 'uuid',
+      description: 'Optional workspace template ID to apply on creation (Phase 2)',
     },
   },
   additionalProperties: false,

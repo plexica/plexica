@@ -1,14 +1,25 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { workspaceService } from '../workspace.service.js';
+import { WorkspaceHierarchyService } from '../workspace-hierarchy.service.js';
+import type { WorkspaceAccess } from '../types/access.types.js';
+
+/** Singleton hierarchy service used for ancestor-admin fallback checks */
+const hierarchyService = new WorkspaceHierarchyService();
 
 /**
  * Workspace Guard Middleware
  *
- * Extracts workspace ID from request and validates user has access
+ * Extracts workspace ID from request and validates user has access.
  * Priority: Header > Path Param > Query > Body
  *
- * Sets workspaceId in tenant context if valid
- * Attaches workspaceMembership to request for role checking
+ * Access resolution order (Spec 011, FR-011, FR-012):
+ *   1. Direct membership check (unchanged behaviour)
+ *   2. Hierarchical fallback: if user is ADMIN of any ancestor workspace,
+ *      grant HIERARCHICAL_READER access (read-only)
+ *   3. Deny with 403 if neither check passes
+ *
+ * Attaches `workspaceMembership` (direct) or `workspaceAccess` (hierarchical)
+ * to the request for downstream role guards.
  */
 export async function workspaceGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
@@ -51,8 +62,8 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
-    // Check workspace exists and get membership in a single transaction
-    const { exists, membership } = await workspaceService.checkAccessAndGetMembership(
+    // Step 1: Check workspace exists and get direct membership
+    const { exists, membership, workspaceRow } = await workspaceService.checkAccessAndGetMembership(
       workspaceId,
       userId,
       tenantContext
@@ -67,21 +78,43 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
       });
     }
 
-    if (!membership) {
-      return reply.code(403).send({
-        error: {
-          code: 'WORKSPACE_ACCESS_DENIED',
-          message: 'You are not a member of this workspace',
-        },
-      });
+    if (membership) {
+      // Direct member — attach membership and continue (unchanged behaviour)
+      (request as any).workspaceMembership = membership;
+      (request as any).workspaceAccess = {
+        workspaceId,
+        userId,
+        role: membership.role as 'ADMIN' | 'MEMBER' | 'VIEWER',
+        accessType: 'direct',
+      } satisfies WorkspaceAccess;
+      return;
     }
 
-    // Note: We don't set workspace ID in AsyncLocalStorage because it's unreliable with Fastify
-    // The workspace ID is already available via request.workspaceMembership.workspaceId
-    // setWorkspaceId(workspaceId);
+    // Step 2: Hierarchical fallback — only applicable if workspace has ancestors
+    const wsPath: string | undefined = (workspaceRow as any)?.path;
+    if (wsPath && wsPath.includes('/')) {
+      // Workspace has at least one ancestor; check if user is ADMIN of any of them
+      const isAncestorAdmin = await hierarchyService.isAncestorAdmin(userId, wsPath, tenantContext);
 
-    // Attach membership to request for role guard
-    (request as any).workspaceMembership = membership;
+      if (isAncestorAdmin) {
+        // Grant read-only hierarchical access
+        (request as any).workspaceAccess = {
+          workspaceId,
+          userId,
+          role: 'HIERARCHICAL_READER',
+          accessType: 'ancestor_admin',
+        } satisfies WorkspaceAccess;
+        return;
+      }
+    }
+
+    // Step 3: No direct membership and no ancestor admin — deny
+    return reply.code(403).send({
+      error: {
+        code: 'INSUFFICIENT_PERMISSIONS',
+        message: 'You do not have access to this workspace',
+      },
+    });
   } catch (error) {
     request.log.error(error, 'Error in workspace guard');
     return reply.code(500).send({
@@ -94,7 +127,7 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
 }
 
 /**
- * Decorator to add workspace membership to FastifyRequest
+ * Decorator to add workspace membership and access to FastifyRequest
  */
 declare module 'fastify' {
   interface FastifyRequest {
@@ -105,5 +138,6 @@ declare module 'fastify' {
       invitedBy: string;
       joinedAt: Date;
     };
+    workspaceAccess?: WorkspaceAccess;
   }
 }

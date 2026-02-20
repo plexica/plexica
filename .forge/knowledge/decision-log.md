@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 19, 2026
+**Last Updated**: February 20, 2026
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
@@ -59,6 +59,55 @@
 - Let services handle database operations
 
 **Decision**: Mark this test file for complete rewrite in Sprint 5
+
+---
+
+### Spec 011 Plan & ADRs: Workspace Hierarchy & Templates (February 20, 2026)
+
+**Date**: February 20, 2026  
+**Context**: Spec 011 architecture planning for workspace hierarchy, templates, and plugin hook integration
+
+**Status**: ✅ Plan, ADRs, and performance analysis complete — implementation **NOT STARTED** (Sprint 3)
+
+**Deliverables Created**:
+
+1. **Plan 011**: `.forge/specs/011-workspace-hierarchy-templates/plan.md` (~1900 lines)
+   - 18 tasks across 3 phases (~49 story points)
+   - 3 database migrations, 4 new services, 12 new endpoints
+   - 110 tests planned (52 unit + 36 integration + 17 E2E + 5 benchmark)
+   - **§14 Performance Impact Analysis** (new): descendant query sargability, scale scenarios, re-parenting cost, NFR-P01–P05
+2. **ADR-013**: Materialised Path for Workspace Hierarchy (`.forge/knowledge/adr/adr-013-materialised-path.md`)
+   - Chosen over adjacency list (recursive CTEs) and nested sets (expensive writes)
+   - O(log n) descendant queries via B-TREE indexed path column
+   - Path immutability aligns with parentId immutability requirement (FR-006)
+3. **ADR-014**: WorkspacePlugin Scoping (`.forge/knowledge/adr/adr-014-workspace-plugin-scoping.md`)
+   - Separate `workspace_plugins` table (not extending `tenant_plugins`)
+   - Cascade disable on tenant plugin removal; no cascade re-enable
+   - DDD bounded context separation (Art. 3.2)
+
+**Key Architectural Decisions**:
+
+- Materialised path pattern for unlimited-depth hierarchy (ADR-013)
+- Separate workspace_plugins join table scoped to workspace (ADR-014)
+- Template application in single DB transaction; failure = full rollback
+- Hook timeout fail-open at 5s; before_create sequential, created parallel fire-and-forget
+- All queries use `Prisma.$queryRaw` + schema-per-tenant pattern
+
+**Performance Analysis Findings** (plan.md §14):
+
+- `WHERE path LIKE 'rootId/%'` is **sargable** only with `varchar_pattern_ops` B-TREE index — must be explicit in T011-01 migration
+- `getAggregatedCounts` rewritten to single-pass JOIN (not two correlated subqueries) — see plan.md §14.3
+- Scale scenario (500 ws, 10k members): uncached aggregation ~10–25ms — within 200ms P95 SLA
+- Re-parenting > 100-node subtrees needs chunked batch UPDATE to avoid lock contention
+- Redis cache (TTL 300s) for `agg_counts` and `descendants` results required
+- NFR-P01–P05 added to plan.md §14.9; must be added to spec.md by implementor
+- New task **T011-07b** (2 pts, Sprint 3): performance hardening — indexes + cache + benchmarks
+
+**Phase Plan**:
+
+- **Phase 1: Hierarchy** (~23 pts, Sprint 3, Weeks 1-3) — includes T011-07b
+- **Phase 2: Templates** (~13 pts, Sprint 4, Weeks 4-5)
+- **Phase 3: Plugin Integration** (~13 pts, Sprint 4-5, Weeks 5-7)
 
 ---
 

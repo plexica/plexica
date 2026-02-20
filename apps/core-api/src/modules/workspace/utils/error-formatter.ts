@@ -18,10 +18,12 @@
 export enum WorkspaceErrorCode {
   /** 404 — Workspace does not exist in tenant */
   WORKSPACE_NOT_FOUND = 'WORKSPACE_NOT_FOUND',
-  /** 409 — Slug already exists in tenant */
+  /** 409 — Slug already exists in tenant / under parent */
   WORKSPACE_SLUG_CONFLICT = 'WORKSPACE_SLUG_CONFLICT',
   /** 400 — Cannot delete workspace with existing teams */
   WORKSPACE_HAS_TEAMS = 'WORKSPACE_HAS_TEAMS',
+  /** 400 — Cannot delete workspace with existing child workspaces */
+  WORKSPACE_HAS_CHILDREN = 'WORKSPACE_HAS_CHILDREN',
   /** 404 — Membership does not exist */
   MEMBER_NOT_FOUND = 'MEMBER_NOT_FOUND',
   /** 409 — User is already a member */
@@ -36,6 +38,15 @@ export enum WorkspaceErrorCode {
   RESOURCE_ALREADY_SHARED = 'RESOURCE_ALREADY_SHARED',
   /** 403 — Cross-workspace sharing disabled */
   SHARING_DISABLED = 'SHARING_DISABLED',
+  // ── Hierarchy error codes (Spec 011) ──────────────────────────────────────
+  /** 400 — Proposed nesting would exceed the maximum allowed depth */
+  HIERARCHY_DEPTH_EXCEEDED = 'HIERARCHY_DEPTH_EXCEEDED',
+  /** 404 — Specified parent workspace does not exist in the tenant */
+  PARENT_WORKSPACE_NOT_FOUND = 'PARENT_WORKSPACE_NOT_FOUND',
+  /** 403 — Caller is not ADMIN of the specified parent workspace */
+  PARENT_PERMISSION_DENIED = 'PARENT_PERMISSION_DENIED',
+  /** 409 — Re-parenting would create a cycle in the hierarchy */
+  REPARENT_CYCLE_DETECTED = 'REPARENT_CYCLE_DETECTED',
 }
 
 /**
@@ -45,6 +56,7 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.WORKSPACE_NOT_FOUND]: 404,
   [WorkspaceErrorCode.WORKSPACE_SLUG_CONFLICT]: 409,
   [WorkspaceErrorCode.WORKSPACE_HAS_TEAMS]: 400,
+  [WorkspaceErrorCode.WORKSPACE_HAS_CHILDREN]: 400,
   [WorkspaceErrorCode.MEMBER_NOT_FOUND]: 404,
   [WorkspaceErrorCode.MEMBER_ALREADY_EXISTS]: 409,
   [WorkspaceErrorCode.LAST_ADMIN_VIOLATION]: 400,
@@ -52,6 +64,10 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.VALIDATION_ERROR]: 400,
   [WorkspaceErrorCode.RESOURCE_ALREADY_SHARED]: 409,
   [WorkspaceErrorCode.SHARING_DISABLED]: 403,
+  [WorkspaceErrorCode.HIERARCHY_DEPTH_EXCEEDED]: 400,
+  [WorkspaceErrorCode.PARENT_WORKSPACE_NOT_FOUND]: 404,
+  [WorkspaceErrorCode.PARENT_PERMISSION_DENIED]: 403,
+  [WorkspaceErrorCode.REPARENT_CYCLE_DETECTED]: 409,
 };
 
 /**
@@ -121,12 +137,18 @@ const SERVICE_ERROR_MAPPINGS: ErrorMapping[] = [
   { pattern: 'already exists', code: WorkspaceErrorCode.WORKSPACE_SLUG_CONFLICT },
   { pattern: 'already a member', code: WorkspaceErrorCode.MEMBER_ALREADY_EXISTS },
   { pattern: 'existing teams', code: WorkspaceErrorCode.WORKSPACE_HAS_TEAMS },
+  { pattern: 'existing children', code: WorkspaceErrorCode.WORKSPACE_HAS_CHILDREN },
   { pattern: 'last admin', code: WorkspaceErrorCode.LAST_ADMIN_VIOLATION },
   { pattern: /not found/i, code: WorkspaceErrorCode.WORKSPACE_NOT_FOUND },
   { pattern: /member.*not found/i, code: WorkspaceErrorCode.MEMBER_NOT_FOUND },
   { pattern: 'permission', code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS },
   { pattern: /sharing.*disabled/i, code: WorkspaceErrorCode.SHARING_DISABLED },
   { pattern: 'already shared', code: WorkspaceErrorCode.RESOURCE_ALREADY_SHARED },
+  // Hierarchy-specific patterns (Spec 011)
+  { pattern: /maximum hierarchy depth/i, code: WorkspaceErrorCode.HIERARCHY_DEPTH_EXCEEDED },
+  { pattern: /parent workspace.*not found/i, code: WorkspaceErrorCode.PARENT_WORKSPACE_NOT_FOUND },
+  { pattern: /not admin of parent/i, code: WorkspaceErrorCode.PARENT_PERMISSION_DENIED },
+  { pattern: /cycle/i, code: WorkspaceErrorCode.REPARENT_CYCLE_DETECTED },
 ];
 
 /**

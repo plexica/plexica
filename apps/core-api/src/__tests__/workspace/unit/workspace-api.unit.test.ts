@@ -801,6 +801,16 @@ describe('Workspace Integration Tests', () => {
   });
 
   describe('Delete Workspace', () => {
+    beforeEach(() => {
+      // WorkspaceService instantiated with no args uses the real singleton
+      // workspaceHierarchyService which would attempt a real Postgres connection.
+      // Stub hasChildren to return false so delete() proceeds without DB access.
+      vi.spyOn(workspaceService as any, 'hierarchyService', 'get').mockReturnValue({
+        hasChildren: vi.fn().mockResolvedValue(false),
+        invalidateHierarchyCache: vi.fn().mockResolvedValue(undefined),
+      });
+    });
+
     it('should delete workspace with no teams', async () => {
       const mockDb = createMockDb({
         $transaction: vi.fn(async (callback: any) => {

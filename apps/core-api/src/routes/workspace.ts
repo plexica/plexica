@@ -250,19 +250,22 @@ function handleServiceError(error: unknown, reply: FastifyReply): never {
 /**
  * Workspace routes registration
  *
- * Implements 15 API endpoints with Constitution-compliant error format
+ * Implements 17 API endpoints with Constitution-compliant error format
  * (Art. 6.2) and per-endpoint rate limiting (Art. 9.2):
  *
  * - POST   /api/workspaces                           - Create workspace
  * - GET    /api/workspaces                           - List user's workspaces
+ * - GET    /api/workspaces/tree                      - Get hierarchy tree (Spec 011)
  * - GET    /api/workspaces/:workspaceId              - Get workspace details
  * - PATCH  /api/workspaces/:workspaceId              - Update workspace (admin only)
  * - DELETE /api/workspaces/:workspaceId              - Delete workspace (admin only)
+ * - GET    /api/workspaces/:workspaceId/children     - List direct children (Spec 011)
  * - GET    /api/workspaces/:workspaceId/members      - List workspace members
  * - GET    /api/workspaces/:workspaceId/members/:userId - Get member details
  * - POST   /api/workspaces/:workspaceId/members      - Add member (admin only)
  * - PATCH  /api/workspaces/:workspaceId/members/:userId - Update member role (admin only)
  * - DELETE /api/workspaces/:workspaceId/members/:userId - Remove member (admin only)
+ * - PATCH  /api/workspaces/:workspaceId/parent       - Re-parent workspace (admin only, Spec 011 §FR-006)
  * - GET    /api/workspaces/:workspaceId/teams        - List workspace teams
  * - POST   /api/workspaces/:workspaceId/teams        - Create team (member+)
  * - POST   /api/workspaces/:workspaceId/resources/share - Share resource (admin only)
@@ -299,12 +302,16 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               name: { type: 'string' },
               description: { type: 'string', nullable: true },
               settings: { type: 'object', additionalProperties: true },
+              parentId: { type: 'string', nullable: true },
+              depth: { type: 'number' },
+              path: { type: 'string' },
               members: { type: 'array' },
               _count: {
                 type: 'object',
                 properties: {
                   members: { type: 'number' },
                   teams: { type: 'number' },
+                  children: { type: 'number' },
                 },
               },
               createdAt: { type: 'string', format: 'date-time' },
@@ -420,6 +427,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
                 slug: { type: 'string' },
                 name: { type: 'string' },
                 description: { type: 'string' },
+                parentId: { type: 'string', nullable: true },
+                depth: { type: 'number' },
+                path: { type: 'string' },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time' },
                 memberRole: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
@@ -429,6 +439,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
                   properties: {
                     members: { type: 'number' },
                     teams: { type: 'number' },
+                    children: { type: 'number' },
                   },
                 },
               },
@@ -462,6 +473,79 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   );
 
   // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/tree — Get workspace tree for current user
+  // MUST be registered before /workspaces/:workspaceId to avoid Fastify
+  // matching "tree" as an ID param.
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get(
+    '/workspaces/tree',
+    {
+      schema: {
+        tags: ['workspaces'],
+        summary: 'Get workspace tree',
+        description:
+          'Returns the workspace hierarchy tree filtered to workspaces the authenticated user has access to.',
+        response: {
+          200: {
+            description: 'Workspace tree',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                slug: { type: 'string' },
+                name: { type: 'string' },
+                description: { type: 'string', nullable: true },
+                depth: { type: 'number' },
+                path: { type: 'string' },
+                parentId: { type: 'string', nullable: true },
+                memberRole: { type: 'string', nullable: true },
+                _count: {
+                  type: 'object',
+                  properties: {
+                    members: { type: 'number' },
+                    children: { type: 'number' },
+                  },
+                },
+                children: { type: 'array' },
+              },
+            },
+          },
+          401: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware],
+    },
+    async (request, reply) => {
+      const userId = request.user?.id;
+      if (!userId) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        });
+      }
+
+      const tenantCtx = request.tenant;
+      if (!tenantCtx) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Tenant context not found' },
+        });
+      }
+
+      try {
+        const { workspaceHierarchyService } =
+          await import('../modules/workspace/workspace-hierarchy.service.js');
+        const tree = await workspaceHierarchyService.getTree(userId, tenantCtx);
+        return reply.code(200).send(tree);
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
   // GET /workspaces/:workspaceId — Get workspace details
   // Rate limit: WORKSPACE_READ (100/min per user)
   // ────────────────────────────────────────────────────────────────
@@ -487,6 +571,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               name: { type: 'string' },
               description: { type: 'string', nullable: true },
               settings: { type: 'object', additionalProperties: true },
+              parentId: { type: 'string', nullable: true },
+              depth: { type: 'number' },
+              path: { type: 'string' },
               members: { type: 'array' },
               teams: { type: 'array' },
               _count: {
@@ -494,6 +581,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
                 properties: {
                   members: { type: 'number' },
                   teams: { type: 'number' },
+                  children: { type: 'number' },
                 },
               },
               userRole: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
@@ -641,6 +729,104 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const { workspaceId } = request.params;
         await workspaceService.delete(workspaceId, request.tenant);
         return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/children — List direct children
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { workspaceId: string };
+    Querystring: { limit?: number; offset?: number };
+  }>(
+    '/workspaces/:workspaceId/children',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: { workspaceId: { type: 'string' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              description: 'Items per page (default: 50)',
+            },
+            offset: { type: 'integer', minimum: 0, description: 'Items to skip (default: 0)' },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'List direct child workspaces',
+        description: 'Returns paginated direct children of the specified workspace.',
+        response: {
+          200: {
+            description: 'List of child workspaces',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                slug: { type: 'string' },
+                name: { type: 'string' },
+                description: { type: 'string', nullable: true },
+                depth: { type: 'number' },
+                path: { type: 'string' },
+                parentId: { type: 'string', nullable: true },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
+          401: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+    },
+    async (request, reply) => {
+      const { workspaceId } = request.params;
+      const { limit = 50, offset = 0 } = request.query;
+
+      const tenantCtx = request.tenant;
+      if (!tenantCtx) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Tenant context not found' },
+        });
+      }
+
+      try {
+        const { workspaceHierarchyService } =
+          await import('../modules/workspace/workspace-hierarchy.service.js');
+        const children = await workspaceHierarchyService.getDirectChildren(
+          workspaceId,
+          tenantCtx,
+          limit,
+          offset
+        );
+        // Map snake_case DB rows to camelCase API response
+        const mapped = children.map((c) => ({
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          description: c.description,
+          depth: c.depth,
+          path: c.path,
+          parentId: c.parent_id,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+        }));
+        return reply.code(200).send(mapped);
       } catch (error) {
         handleServiceError(error, reply);
       }
@@ -974,6 +1160,105 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const { workspaceId, userId } = request.params;
         await workspaceService.removeMember(workspaceId, userId, request.tenant);
         return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId/parent — Re-parent workspace
+  // Spec 011 §FR-006 — tenant ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { workspaceId: string };
+    Body: { parentId: string | null };
+  }>(
+    '/workspaces/:workspaceId/parent',
+    {
+      attachValidation: true,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: {
+            workspaceId: { type: 'string', format: 'uuid' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['parentId'],
+          properties: {
+            parentId: {
+              oneOf: [{ type: 'string', format: 'uuid' }, { type: 'null' }],
+              description: 'New parent workspace ID, or null to promote to root.',
+            },
+          },
+          additionalProperties: false,
+        },
+        tags: ['workspaces'],
+        summary: 'Re-parent workspace',
+        description:
+          'Moves a workspace under a new parent (or to root). Requires tenant ADMIN role. Spec 011 §FR-006.',
+        response: {
+          200: {
+            description: 'Workspace re-parented successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              parentId: { type: 'string', nullable: true },
+              depth: { type: 'number' },
+              path: { type: 'string' },
+            },
+          },
+          400: errorResponseSchema,
+          403: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          429: errorResponseSchema,
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { validation: request.validationError.validation },
+          },
+        });
+      }
+
+      const { workspaceId } = request.params;
+      const { parentId } = request.body;
+      const userId = request.user?.id;
+
+      if (!userId) {
+        return reply.status(401).send({
+          error: {
+            code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+            message: 'User not authenticated',
+          },
+        });
+      }
+
+      try {
+        const result = await workspaceService.reparent(
+          workspaceId,
+          parentId ?? null,
+          userId,
+          request.tenant
+        );
+        return reply.code(200).send(result);
       } catch (error) {
         handleServiceError(error, reply);
       }

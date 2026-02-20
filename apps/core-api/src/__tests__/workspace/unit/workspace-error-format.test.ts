@@ -14,11 +14,12 @@ import {
 } from '../../../modules/workspace/utils/error-formatter.js';
 
 describe('WorkspaceErrorCode', () => {
-  it('should define all 10 error codes from Spec 009 Section 6.5', () => {
+  it('should define all 15 error codes from Spec 009 Section 6.5 and Spec 011 hierarchy codes', () => {
     const expectedCodes = [
       'WORKSPACE_NOT_FOUND',
       'WORKSPACE_SLUG_CONFLICT',
       'WORKSPACE_HAS_TEAMS',
+      'WORKSPACE_HAS_CHILDREN',
       'MEMBER_NOT_FOUND',
       'MEMBER_ALREADY_EXISTS',
       'LAST_ADMIN_VIOLATION',
@@ -26,10 +27,14 @@ describe('WorkspaceErrorCode', () => {
       'VALIDATION_ERROR',
       'RESOURCE_ALREADY_SHARED',
       'SHARING_DISABLED',
+      'HIERARCHY_DEPTH_EXCEEDED',
+      'PARENT_WORKSPACE_NOT_FOUND',
+      'PARENT_PERMISSION_DENIED',
+      'REPARENT_CYCLE_DETECTED',
     ];
 
     const actualCodes = Object.values(WorkspaceErrorCode);
-    expect(actualCodes).toHaveLength(10);
+    expect(actualCodes).toHaveLength(15);
 
     for (const code of expectedCodes) {
       expect(actualCodes).toContain(code);

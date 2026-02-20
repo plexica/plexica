@@ -353,6 +353,9 @@ describe('WorkspaceService Membership Caching', () => {
       ];
       mockRedis.keys.mockResolvedValue(cacheKeys);
 
+      // hasChildren() calls this.db.$queryRaw directly (outside transaction)
+      mockDb.$queryRaw.mockResolvedValueOnce([{ count: BigInt(0) }]);
+
       mockDb.$transaction.mockImplementation(async (callback) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
