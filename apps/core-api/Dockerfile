@@ -1,5 +1,5 @@
 # Base stage - install dependencies
-FROM node:20-alpine AS base
+FROM node:25-alpine AS base
 RUN corepack enable pnpm
 WORKDIR /app
 
@@ -31,7 +31,7 @@ RUN pnpm --filter @plexica/database db:generate
 RUN pnpm --filter @plexica/core-api build
 
 # Production stage - run the application
-FROM node:20-alpine AS production
+FROM node:25-alpine AS production
 RUN corepack enable pnpm
 
 # Install dumb-init for proper signal handling
