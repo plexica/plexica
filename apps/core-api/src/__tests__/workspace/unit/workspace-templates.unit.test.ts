@@ -304,7 +304,7 @@ describe('WorkspaceTemplateService.applyTemplate', () => {
         .fn()
         .mockResolvedValueOnce([templateRow]) // template row
         .mockResolvedValueOnce([pluginItem]) // template items
-        .mockResolvedValueOnce([{ enabled: true }]), // tenant_plugins check OK
+        .mockResolvedValueOnce([{ plugin_id: 'plugin-a', enabled: true }]), // tenant_plugins check OK
       $executeRaw: vi.fn().mockResolvedValueOnce(1), // INSERT workspace_plugins
     };
 

@@ -346,12 +346,8 @@ describe('WorkspaceService Membership Caching', () => {
 
     it('should delete all member cache keys when workspace is deleted', async () => {
       // Arrange
-      const cacheKeys = [
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:user-1`,
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:user-2`,
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:user-3`,
-      ];
-      mockRedis.keys.mockResolvedValue(cacheKeys);
+      // The service avoids the O(N) blocking KEYS command. On workspace delete it
+      // invalidates only the aggregation key; per-member entries expire via TTL.
 
       // hasChildren() calls this.db.$queryRaw directly (outside transaction)
       mockDb.$queryRaw.mockResolvedValueOnce([{ count: BigInt(0) }]);
@@ -370,11 +366,11 @@ describe('WorkspaceService Membership Caching', () => {
       // Act
       await service.delete(workspaceId, tenantContext);
 
-      // Assert
-      expect(mockRedis.keys).toHaveBeenCalledWith(
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:*`
+      // Assert: only the aggregation key is invalidated (no KEYS scan)
+      expect(mockRedis.keys).not.toHaveBeenCalled();
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:members:agg`
       );
-      expect(mockRedis.del).toHaveBeenCalledWith(...cacheKeys);
     });
 
     it('should not throw when cache invalidation fails', async () => {
