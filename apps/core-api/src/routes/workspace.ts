@@ -14,7 +14,7 @@
 //   using Redis sliding-window counters (rateLimiter factory).
 //   This is in addition to the global LRU-based rate limiter.
 
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { workspaceService } from '../modules/workspace/workspace.service.js';
 import { WorkspaceResourceService } from '../modules/workspace/workspace-resource.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
@@ -33,28 +33,17 @@ import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';
 import type { UpdateMemberRoleDto } from '../modules/workspace/dto/update-member-role.dto.js';
 import type { ShareResourceDto, ListSharedResourcesDto } from '../modules/workspace/dto/index.js';
 import {
+  validateEnableWorkspacePlugin,
+  validateUpdateWorkspacePlugin,
+} from '../modules/workspace/dto/workspace-plugin.dto.js';
+import { workspacePluginService } from '../modules/workspace/workspace-plugin.service.js';
+import {
   WorkspaceError,
   WorkspaceErrorCode,
-  mapServiceError,
+  handleServiceError,
+  registerWorkspaceErrorHandler,
 } from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
-
-// --- Shared error response schema (Art. 6.2) ---
-const errorResponseSchema = {
-  type: 'object',
-  properties: {
-    error: {
-      type: 'object',
-      properties: {
-        code: { type: 'string' },
-        message: { type: 'string' },
-        details: { type: 'object', additionalProperties: true },
-      },
-      required: ['code', 'message'],
-    },
-  },
-  required: ['error'],
-};
 
 // --- Request schemas for Fastify validation ---
 const createWorkspaceRequestSchema = {
@@ -183,36 +172,8 @@ const memberParamsSchema = {
   },
 };
 
-/**
- * Handle a service error by mapping it to a WorkspaceError and sending
- * the appropriate error response. If the error cannot be mapped, re-throw
- * it so Fastify's global error handler processes it as a 500.
- *
- * This approach avoids the FST_ERR_FAILED_ERROR_SERIALIZATION error that
- * occurs when throwing custom error classes with statusCode properties in
- * async route handlers.
- *
- * @param error - The error caught from the service layer
- * @param reply - The Fastify reply object
- * @returns Never returns normally (either sends response or throws)
- */
-function handleServiceError(error: unknown, reply: FastifyReply): never {
-  const mapped = mapServiceError(error);
-  if (mapped) {
-    // Send error response directly to avoid Fastify serialization issues
-    reply.status(mapped.statusCode).send({
-      error: {
-        code: mapped.code,
-        message: mapped.message,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      },
-    });
-    // TypeScript needs this to understand control flow
-    throw new Error('Response sent');
-  }
-  // If not mapped, re-throw so Fastify's error handler processes it as 500
-  throw error;
-}
+// handleServiceError is imported from error-formatter.ts (M5 deduplication).
+// See: modules/workspace/utils/error-formatter.ts
 
 /**
  * DEPRECATED: Helper function for deprecated throwMappedError pattern.
@@ -250,19 +211,22 @@ function handleServiceError(error: unknown, reply: FastifyReply): never {
 /**
  * Workspace routes registration
  *
- * Implements 15 API endpoints with Constitution-compliant error format
+ * Implements 17 API endpoints with Constitution-compliant error format
  * (Art. 6.2) and per-endpoint rate limiting (Art. 9.2):
  *
  * - POST   /api/workspaces                           - Create workspace
  * - GET    /api/workspaces                           - List user's workspaces
+ * - GET    /api/workspaces/tree                      - Get hierarchy tree (Spec 011)
  * - GET    /api/workspaces/:workspaceId              - Get workspace details
  * - PATCH  /api/workspaces/:workspaceId              - Update workspace (admin only)
  * - DELETE /api/workspaces/:workspaceId              - Delete workspace (admin only)
+ * - GET    /api/workspaces/:workspaceId/children     - List direct children (Spec 011)
  * - GET    /api/workspaces/:workspaceId/members      - List workspace members
  * - GET    /api/workspaces/:workspaceId/members/:userId - Get member details
  * - POST   /api/workspaces/:workspaceId/members      - Add member (admin only)
  * - PATCH  /api/workspaces/:workspaceId/members/:userId - Update member role (admin only)
  * - DELETE /api/workspaces/:workspaceId/members/:userId - Remove member (admin only)
+ * - PATCH  /api/workspaces/:workspaceId/parent       - Re-parent workspace (admin only, Spec 011 §FR-006)
  * - GET    /api/workspaces/:workspaceId/teams        - List workspace teams
  * - POST   /api/workspaces/:workspaceId/teams        - Create team (member+)
  * - POST   /api/workspaces/:workspaceId/resources/share - Share resource (admin only)
@@ -270,6 +234,11 @@ function handleServiceError(error: unknown, reply: FastifyReply): never {
  * - DELETE /api/workspaces/:workspaceId/resources/:resourceId - Unshare resource (admin only)
  */
 export async function workspaceRoutes(fastify: FastifyInstance) {
+  // Register local error handler — required because Fastify v5 child plugin
+  // scopes capture the error handler at registration time, before the global
+  // setupErrorHandler() is called in buildTestApp()/server.ts.
+  registerWorkspaceErrorHandler(fastify);
+
   // Instantiate WorkspaceResourceService for resource sharing endpoints
   const resourceService = new WorkspaceResourceService();
   // ────────────────────────────────────────────────────────────────
@@ -299,21 +268,22 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               name: { type: 'string' },
               description: { type: 'string', nullable: true },
               settings: { type: 'object', additionalProperties: true },
+              parentId: { type: 'string', nullable: true },
+              depth: { type: 'number' },
+              path: { type: 'string' },
               members: { type: 'array' },
               _count: {
                 type: 'object',
                 properties: {
                   members: { type: 'number' },
                   teams: { type: 'number' },
+                  children: { type: 'number' },
                 },
               },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
@@ -420,6 +390,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
                 slug: { type: 'string' },
                 name: { type: 'string' },
                 description: { type: 'string' },
+                parentId: { type: 'string', nullable: true },
+                depth: { type: 'number' },
+                path: { type: 'string' },
                 createdAt: { type: 'string', format: 'date-time' },
                 updatedAt: { type: 'string', format: 'date-time' },
                 memberRole: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
@@ -429,12 +402,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
                   properties: {
                     members: { type: 'number' },
                     teams: { type: 'number' },
+                    children: { type: 'number' },
                   },
                 },
               },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -455,6 +428,79 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       try {
         const workspaces = await workspaceService.findAll(userId, options, request.tenant);
         return reply.send(workspaces);
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/tree — Get workspace tree for current user
+  // MUST be registered before /workspaces/:workspaceId to avoid Fastify
+  // matching "tree" as an ID param.
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get(
+    '/workspaces/tree',
+    {
+      schema: {
+        tags: ['workspaces'],
+        summary: 'Get workspace tree',
+        description:
+          'Returns the workspace hierarchy tree filtered to workspaces the authenticated user has access to.',
+        response: {
+          200: {
+            description: 'Workspace tree',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                slug: { type: 'string' },
+                name: { type: 'string' },
+                description: { type: 'string', nullable: true },
+                depth: { type: 'number' },
+                path: { type: 'string' },
+                parentId: { type: 'string', nullable: true },
+                memberRole: { type: 'string', nullable: true },
+                _count: {
+                  type: 'object',
+                  properties: {
+                    members: { type: 'number' },
+                    children: { type: 'number' },
+                  },
+                },
+                children: { type: 'array' },
+              },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware],
+    },
+    async (request, reply) => {
+      const userId = request.user?.id;
+      if (!userId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
+      }
+
+      const tenantCtx = request.tenant;
+      if (!tenantCtx) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'Tenant context not found'
+        );
+      }
+
+      try {
+        const { workspaceHierarchyService } =
+          await import('../modules/workspace/workspace-hierarchy.service.js');
+        const tree = await workspaceHierarchyService.getTree(userId, tenantCtx);
+        return reply.code(200).send(tree);
       } catch (error) {
         handleServiceError(error, reply);
       }
@@ -487,6 +533,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               name: { type: 'string' },
               description: { type: 'string', nullable: true },
               settings: { type: 'object', additionalProperties: true },
+              parentId: { type: 'string', nullable: true },
+              depth: { type: 'number' },
+              path: { type: 'string' },
               members: { type: 'array' },
               teams: { type: 'array' },
               _count: {
@@ -494,6 +543,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
                 properties: {
                   members: { type: 'number' },
                   teams: { type: 'number' },
+                  children: { type: 'number' },
                 },
               },
               userRole: { type: 'string', enum: ['ADMIN', 'MEMBER', 'VIEWER'] },
@@ -501,8 +551,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string' },
             },
           },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -554,9 +602,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string' },
             },
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -624,8 +669,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Workspace deleted successfully',
             type: 'null',
           },
-          400: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -641,6 +684,101 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         const { workspaceId } = request.params;
         await workspaceService.delete(workspaceId, request.tenant);
         return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/children — List direct children
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { workspaceId: string };
+    Querystring: { limit?: number; offset?: number };
+  }>(
+    '/workspaces/:workspaceId/children',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: { workspaceId: { type: 'string' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: {
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              description: 'Items per page (default: 50)',
+            },
+            offset: { type: 'integer', minimum: 0, description: 'Items to skip (default: 0)' },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'List direct child workspaces',
+        description: 'Returns paginated direct children of the specified workspace.',
+        response: {
+          200: {
+            description: 'List of child workspaces',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                slug: { type: 'string' },
+                name: { type: 'string' },
+                description: { type: 'string', nullable: true },
+                depth: { type: 'number' },
+                path: { type: 'string' },
+                parentId: { type: 'string', nullable: true },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+    },
+    async (request, reply) => {
+      const { workspaceId } = request.params;
+      const { limit = 50, offset = 0 } = request.query;
+
+      const tenantCtx = request.tenant;
+      if (!tenantCtx) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'Tenant context not found'
+        );
+      }
+
+      try {
+        const { workspaceHierarchyService } =
+          await import('../modules/workspace/workspace-hierarchy.service.js');
+        const children = await workspaceHierarchyService.getDirectChildren(
+          workspaceId,
+          tenantCtx,
+          limit,
+          offset
+        );
+        // Map snake_case DB rows to camelCase API response
+        const mapped = children.map((c) => ({
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          description: c.description,
+          depth: c.depth,
+          path: c.path,
+          parentId: c.parent_id,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+        }));
+        return reply.code(200).send(mapped);
       } catch (error) {
         handleServiceError(error, reply);
       }
@@ -688,9 +826,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         summary: 'List workspace members',
         description:
           'Returns all members of a workspace with their roles, supporting filtering and pagination',
-        response: {
-          429: errorResponseSchema,
-        },
+        response: {},
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
@@ -744,8 +880,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -803,10 +937,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -882,11 +1012,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         tags: ['workspaces'],
         summary: 'Update member role',
         description: 'Changes the role of a workspace member. Requires ADMIN role.',
-        response: {
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
-        },
+        response: {},
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
@@ -956,9 +1082,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Member removed successfully',
             type: 'null',
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -981,6 +1104,98 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   );
 
   // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId/parent — Re-parent workspace
+  // Spec 011 §FR-006 — tenant ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { workspaceId: string };
+    Body: { parentId: string | null };
+  }>(
+    '/workspaces/:workspaceId/parent',
+    {
+      attachValidation: true,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: {
+            workspaceId: { type: 'string', format: 'uuid' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['parentId'],
+          properties: {
+            parentId: {
+              oneOf: [{ type: 'string', format: 'uuid' }, { type: 'null' }],
+              description: 'New parent workspace ID, or null to promote to root.',
+            },
+          },
+          additionalProperties: false,
+        },
+        tags: ['workspaces'],
+        summary: 'Re-parent workspace',
+        description:
+          'Moves a workspace under a new parent (or to root). Requires tenant ADMIN role. Spec 011 §FR-006.',
+        response: {
+          200: {
+            description: 'Workspace re-parented successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              parentId: { type: 'string', nullable: true },
+              depth: { type: 'number' },
+              path: { type: 'string' },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { validation: request.validationError.validation },
+          },
+        });
+      }
+
+      const { workspaceId } = request.params;
+      const { parentId } = request.body;
+      const userId = request.user?.id;
+
+      if (!userId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
+      }
+
+      try {
+        const result = await workspaceService.reparent(
+          workspaceId,
+          parentId ?? null,
+          userId,
+          request.tenant
+        );
+        return reply.code(200).send(result);
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
   // GET /workspaces/:workspaceId/teams — List workspace teams
   // Rate limit: WORKSPACE_READ (100/min per user)
   // ────────────────────────────────────────────────────────────────
@@ -992,9 +1207,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         tags: ['workspaces'],
         summary: 'List workspace teams',
         description: 'Returns all teams in the workspace',
-        response: {
-          429: errorResponseSchema,
-        },
+        response: {},
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
@@ -1058,7 +1271,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               workspaceId: { type: 'string' },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1155,10 +1367,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               createdAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: errorResponseSchema,
-          403: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
@@ -1288,7 +1496,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -1333,8 +1540,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Resource unshared successfully',
             type: 'null',
           },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
@@ -1358,6 +1563,318 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
       try {
         await resourceService.unshareResource(workspaceId, resourceId, userId, request.tenant);
+        return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // POST /workspaces/:workspaceId/plugins — Enable plugin for workspace
+  // Spec 011 Phase 2, FR-023 — workspace ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.post<{
+    Params: { workspaceId: string };
+    Body: { pluginId: string; config?: Record<string, unknown> };
+  }>(
+    '/workspaces/:workspaceId/plugins',
+    {
+      attachValidation: true,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: { workspaceId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['pluginId'],
+          properties: {
+            pluginId: { type: 'string', description: 'Plugin identifier to enable' },
+            config: {
+              type: 'object',
+              additionalProperties: true,
+              description: 'Optional initial plugin configuration',
+            },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Enable plugin for workspace',
+        description:
+          'Enables a tenant-level plugin for this workspace. Requires workspace ADMIN role.',
+        response: {
+          201: {
+            description: 'Plugin enabled successfully',
+            type: 'object',
+            properties: {
+              workspaceId: { type: 'string' },
+              pluginId: { type: 'string' },
+              enabled: { type: 'boolean' },
+              configuration: { type: 'object', additionalProperties: true },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { validation: request.validationError.validation },
+          },
+        });
+      }
+
+      const errors = validateEnableWorkspacePlugin(request.body);
+      if (errors.length > 0) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid request data',
+            details: { fields: errors },
+          },
+        });
+      }
+
+      const { workspaceId } = request.params;
+      const { pluginId, config = {} } = request.body;
+
+      try {
+        const row = await workspacePluginService.enablePlugin(
+          workspaceId,
+          pluginId,
+          config,
+          request.tenant! // tenantContextMiddleware + workspaceGuard guarantee non-null
+        );
+        return reply.code(201).send({
+          workspaceId: row.workspace_id,
+          pluginId: row.plugin_id,
+          enabled: row.enabled,
+          configuration: row.configuration,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // GET /workspaces/:workspaceId/plugins — List workspace plugins
+  // Spec 011 Phase 2, FR-025 — any workspace member
+  // Rate limit: WORKSPACE_READ (100/min per user)
+  // ────────────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { workspaceId: string };
+  }>(
+    '/workspaces/:workspaceId/plugins',
+    {
+      schema: {
+        ...workspaceParamsSchema,
+        tags: ['workspaces'],
+        summary: 'List workspace plugins',
+        description: 'Returns all plugin records for the workspace (enabled and disabled).',
+        response: {
+          200: {
+            description: 'List of workspace plugins',
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                workspaceId: { type: 'string' },
+                pluginId: { type: 'string' },
+                enabled: { type: 'boolean' },
+                configuration: { type: 'object', additionalProperties: true },
+                createdAt: { type: 'string', format: 'date-time' },
+                updatedAt: { type: 'string', format: 'date-time' },
+              },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
+      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+    },
+    async (request, reply) => {
+      const { workspaceId } = request.params;
+
+      try {
+        const rows = await workspacePluginService.listPlugins(workspaceId, request.tenant!);
+        return reply.send(
+          rows.map((r) => ({
+            workspaceId: r.workspace_id,
+            pluginId: r.plugin_id,
+            enabled: r.enabled,
+            configuration: r.configuration,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          }))
+        );
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId/plugins/:pluginId — Update plugin config
+  // Spec 011 Phase 2, FR-024 — workspace ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { workspaceId: string; pluginId: string };
+    Body: { config: Record<string, unknown> };
+  }>(
+    '/workspaces/:workspaceId/plugins/:pluginId',
+    {
+      attachValidation: true,
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId', 'pluginId'],
+          properties: {
+            workspaceId: { type: 'string' },
+            pluginId: { type: 'string' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['config'],
+          properties: {
+            config: {
+              type: 'object',
+              additionalProperties: true,
+              description: 'Updated plugin configuration',
+            },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Update workspace plugin config',
+        description:
+          'Updates the configuration for an enabled workspace plugin. Requires ADMIN role.',
+        response: {
+          200: {
+            description: 'Plugin configuration updated',
+            type: 'object',
+            properties: {
+              workspaceId: { type: 'string' },
+              pluginId: { type: 'string' },
+              enabled: { type: 'boolean' },
+              configuration: { type: 'object', additionalProperties: true },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      if (request.validationError) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Validation failed',
+            details: { validation: request.validationError.validation },
+          },
+        });
+      }
+
+      const errors = validateUpdateWorkspacePlugin(request.body);
+      if (errors.length > 0) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid request data',
+            details: { fields: errors },
+          },
+        });
+      }
+
+      const { workspaceId, pluginId } = request.params;
+      const { config } = request.body;
+
+      try {
+        const row = await workspacePluginService.updateConfig(
+          workspaceId,
+          pluginId,
+          config,
+          request.tenant!
+        );
+        return reply.send({
+          workspaceId: row.workspace_id,
+          pluginId: row.plugin_id,
+          enabled: row.enabled,
+          configuration: row.configuration,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        });
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // DELETE /workspaces/:workspaceId/plugins/:pluginId — Disable workspace plugin
+  // Spec 011 Phase 2, FR-023 — workspace ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace)
+  // ────────────────────────────────────────────────────────────────
+  fastify.delete<{
+    Params: { workspaceId: string; pluginId: string };
+  }>(
+    '/workspaces/:workspaceId/plugins/:pluginId',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId', 'pluginId'],
+          properties: {
+            workspaceId: { type: 'string' },
+            pluginId: { type: 'string' },
+          },
+        },
+        tags: ['workspaces'],
+        summary: 'Disable workspace plugin',
+        description:
+          'Disables a plugin for this workspace (preserves configuration). Requires ADMIN role.',
+        response: {
+          204: { description: 'Plugin disabled successfully', type: 'null' },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      const { workspaceId, pluginId } = request.params;
+
+      try {
+        await workspacePluginService.disablePlugin(workspaceId, pluginId, request.tenant!);
         return reply.code(204).send();
       } catch (error) {
         handleServiceError(error, reply);

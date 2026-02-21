@@ -223,8 +223,23 @@ export const PluginManifestSchema = z
         onEnable: z.string().optional(),
         onDisable: z.string().optional(),
         onUpdate: z.string().optional(),
+        // Workspace lifecycle hooks (Spec 011 Phase 3 — T011-13)
+        workspace: z
+          .object({
+            before_create: z.string().url().optional(),
+            created: z.string().url().optional(),
+            deleted: z.string().url().optional(),
+          })
+          .optional(),
       })
       .optional(),
+
+    // Plugin capabilities (Spec 011 Phase 3 — T011-13)
+    // Advertises which core extension points the plugin participates in.
+    capabilities: z
+      .array(z.enum(['workspace.template-provider'] as const))
+      .optional()
+      .default([]),
 
     // Metadata
     metadata: z.record(z.string(), z.unknown()).optional(),

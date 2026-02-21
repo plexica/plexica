@@ -81,7 +81,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should query database on cache miss', async () => {
       // Arrange
       mockRedis.get.mockResolvedValue(null); // Cache miss
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         // Simulate transaction callback
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
@@ -110,7 +110,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should populate cache after database query', async () => {
       // Arrange
       mockRedis.get.mockResolvedValue(null); // Cache miss
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([
@@ -141,7 +141,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should set cache TTL to 300 seconds', async () => {
       // Arrange
       mockRedis.get.mockResolvedValue(null);
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([
@@ -169,7 +169,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should fall back to database when Redis is unavailable', async () => {
       // Arrange
       mockRedis.get.mockRejectedValue(new Error('Redis connection failed'));
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([
@@ -197,7 +197,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should work without cache (cache = undefined)', async () => {
       // Arrange
       const serviceWithoutCache = new WorkspaceService(mockDb, undefined, undefined);
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([
@@ -240,7 +240,7 @@ describe('WorkspaceService Membership Caching', () => {
         lastName: 'Doe',
       });
 
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
@@ -277,7 +277,7 @@ describe('WorkspaceService Membership Caching', () => {
       // Arrange
       const newRole = 'ADMIN' as const;
 
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
@@ -316,7 +316,7 @@ describe('WorkspaceService Membership Caching', () => {
 
     it('should delete cache key when member is removed', async () => {
       // Arrange
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
@@ -346,14 +346,13 @@ describe('WorkspaceService Membership Caching', () => {
 
     it('should delete all member cache keys when workspace is deleted', async () => {
       // Arrange
-      const cacheKeys = [
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:user-1`,
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:user-2`,
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:user-3`,
-      ];
-      mockRedis.keys.mockResolvedValue(cacheKeys);
+      // The service avoids the O(N) blocking KEYS command. On workspace delete it
+      // invalidates only the aggregation key; per-member entries expire via TTL.
 
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      // hasChildren() calls this.db.$queryRaw directly (outside transaction)
+      mockDb.$queryRaw.mockResolvedValueOnce([{ count: BigInt(0) }]);
+
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
@@ -367,17 +366,17 @@ describe('WorkspaceService Membership Caching', () => {
       // Act
       await service.delete(workspaceId, tenantContext);
 
-      // Assert
-      expect(mockRedis.keys).toHaveBeenCalledWith(
-        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:member:*`
+      // Assert: only the aggregation key is invalidated (no KEYS scan)
+      expect(mockRedis.keys).not.toHaveBeenCalled();
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        `tenant:${tenantContext.tenantId}:workspace:${workspaceId}:members:agg`
       );
-      expect(mockRedis.del).toHaveBeenCalledWith(...cacheKeys);
     });
 
     it('should not throw when cache invalidation fails', async () => {
       // Arrange
       mockRedis.del.mockRejectedValue(new Error('Redis connection failed'));
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
@@ -407,7 +406,7 @@ describe('WorkspaceService Membership Caching', () => {
       const workspaceId = 'workspace-abc';
       const userId = 'user-xyz';
       mockRedis.get.mockResolvedValue(null);
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([]),
@@ -438,7 +437,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should return cached membership when cache hit (workspace existence still verified)', async () => {
       // Arrange
       mockRedis.get.mockResolvedValue(JSON.stringify(mockMembership));
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([{ id: workspaceId }]), // Workspace exists
@@ -466,7 +465,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should query membership on cache miss and populate cache', async () => {
       // Arrange
       mockRedis.get.mockResolvedValue(null); // Cache miss
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
@@ -502,7 +501,7 @@ describe('WorkspaceService Membership Caching', () => {
     it('should return exists=false when workspace does not exist (even with cached membership)', async () => {
       // Arrange
       mockRedis.get.mockResolvedValue(JSON.stringify(mockMembership));
-      mockDb.$transaction.mockImplementation(async (callback) => {
+      mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi.fn().mockResolvedValue([]), // Workspace does NOT exist

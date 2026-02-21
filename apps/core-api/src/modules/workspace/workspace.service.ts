@@ -15,6 +15,16 @@ import { logger } from '../../lib/logger.js';
 import { getTenantContext, type TenantContext } from '../../middleware/tenant-context.js';
 import type { CreateWorkspaceDto, UpdateWorkspaceDto, AddMemberDto } from './dto/index.js';
 import type { Logger } from 'pino';
+import {
+  WorkspaceHierarchyService,
+  workspaceHierarchyService,
+} from './workspace-hierarchy.service.js';
+import {
+  WorkspaceTemplateService,
+  workspaceTemplateService,
+} from './workspace-template.service.js';
+import { PluginHookService, pluginHookService } from '../plugin/plugin-hook.service.js';
+import { WorkspaceError, WorkspaceErrorCode } from './utils/error-formatter.js';
 
 /**
  * Row types for raw SQL query results.
@@ -25,6 +35,9 @@ import type { Logger } from 'pino';
 interface WorkspaceRow {
   id: string;
   tenant_id: string;
+  parent_id: string | null;
+  depth: number;
+  path: string;
   slug: string;
   name: string;
   description: string | null;
@@ -48,7 +61,6 @@ interface WorkspaceListRow extends WorkspaceRow {
   member_count: string | number;
   team_count: string | number;
 }
-
 /** Row with only an id column */
 interface IdRow {
   id: string;
@@ -108,17 +120,39 @@ export class WorkspaceService {
   private eventBus?: EventBusService;
   private cache?: Redis;
   private log: Logger;
+  private hierarchyService: WorkspaceHierarchyService;
+  private templateService: WorkspaceTemplateService;
+  private hookService: PluginHookService;
 
   constructor(
     customDb?: PrismaClient,
     eventBus?: EventBusService,
     cache?: Redis,
-    customLogger?: Logger
+    customLogger?: Logger,
+    hierarchyService?: WorkspaceHierarchyService,
+    templateService?: WorkspaceTemplateService,
+    hookService?: PluginHookService
   ) {
     this.db = customDb || db;
     this.eventBus = eventBus;
     this.cache = cache;
     this.log = customLogger || logger;
+    // If a custom db is injected (test mode) and no explicit hierarchyService
+    // is provided, create a local hierarchy service using the same mock db so
+    // that tests don't attempt a real Postgres connection.
+    this.hierarchyService =
+      hierarchyService ||
+      (customDb
+        ? new WorkspaceHierarchyService(customDb, cache, customLogger || logger)
+        : workspaceHierarchyService);
+    this.templateService =
+      templateService ||
+      (customDb
+        ? new WorkspaceTemplateService(customDb, undefined, customLogger || logger)
+        : workspaceTemplateService);
+    this.hookService =
+      hookService ||
+      (customDb ? new PluginHookService(customDb, customLogger || logger) : pluginHookService);
   }
 
   /**
@@ -147,12 +181,74 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    // Check slug uniqueness (using parameterized query to prevent SQL injection)
-    const existing = await this.db.$queryRaw<Array<{ id: string }>>(
-      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
-       WHERE tenant_id = ${tenantContext.tenantId} AND slug = ${dto.slug}
-       LIMIT 1`
+    // ---------------------------------------------------------------------------
+    // Hierarchy: resolve parent and compute depth/path before the transaction
+    // ---------------------------------------------------------------------------
+    let parentRow: import('./types/hierarchy.types.js').WorkspaceHierarchyRow | null = null;
+    if (dto.parentId) {
+      // Validates parent exists AND caller is ADMIN of parent; throws on failure.
+      parentRow = await this.hierarchyService.validateParentAccess(
+        dto.parentId,
+        creatorId,
+        tenantContext
+      );
+      // Spec 011: hierarchy is unlimited depth — validateDepthConstraint is a
+      // soft guard that can be removed; currently MAX_DEPTH = 2 is kept for safety.
+      this.hierarchyService.validateDepthConstraint(parentRow.depth);
+    }
+
+    const { depth, path: hierarchyPath } = this.hierarchyService.computeHierarchyFields(
+      parentRow,
+      '' // placeholder replaced inside transaction after id generation
     );
+    // We compute the final path inside the transaction once we have the new ID.
+    void depth;
+    void hierarchyPath;
+
+    // ---------------------------------------------------------------------------
+    // Phase 3 (T011-14): Run before_create hooks BEFORE transaction.
+    // Sequential. Fail-open on timeout/network error.
+    // ---------------------------------------------------------------------------
+    const hookResult = await this.hookService.runBeforeCreateHooks(
+      {
+        slug: dto.slug,
+        name: dto.name,
+        parentId: dto.parentId,
+        templateId: dto.templateId,
+        tenantId: tenantContext.tenantId,
+      },
+      tenantContext
+    );
+
+    if (!hookResult.approved) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.HOOK_REJECTED_CREATION,
+        hookResult.reason ?? 'Workspace creation rejected by plugin hook',
+        { reason: hookResult.reason, pluginId: hookResult.pluginId }
+      );
+    }
+
+    // Check slug uniqueness scoped to parent_id:
+    //   - root workspaces: unique per (tenant_id, slug) WHERE parent_id IS NULL
+    //   - child workspaces: unique per (parent_id, slug)
+    const existing = await (async () => {
+      if (!dto.parentId) {
+        return this.db.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
+           WHERE tenant_id = ${tenantContext.tenantId}
+             AND slug = ${dto.slug}
+             AND parent_id IS NULL
+           LIMIT 1`
+        );
+      } else {
+        return this.db.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
+           WHERE parent_id = ${dto.parentId}
+             AND slug = ${dto.slug}
+           LIMIT 1`
+        );
+      }
+    })();
 
     if (existing.length > 0) {
       throw new Error(`Workspace with slug '${dto.slug}' already exists in this tenant`);
@@ -170,22 +266,54 @@ export class WorkspaceService {
       `;
       const newWorkspaceId = workspaceIdResult[0].id;
 
+      // Compute final hierarchy fields now that we have the ID
+      const { depth: newDepth, path: newPath } = this.hierarchyService.computeHierarchyFields(
+        parentRow,
+        newWorkspaceId
+      );
+
       // Create workspace using parameterized values
+      // Note: settings must be cast to jsonb explicitly so Postgres accepts
+      // the JSON string parameter when the column type is jsonb.
+      const settingsJson = JSON.stringify(dto.settings ?? {});
       const tableName = Prisma.raw(`"${schemaName}"."workspaces"`);
-      await tx.$executeRaw`
-         INSERT INTO ${tableName}
-         (id, tenant_id, slug, name, description, settings, created_at, updated_at)
-         VALUES (
-           ${newWorkspaceId},
-           ${tenantContext.tenantId},
-           ${dto.slug},
-           ${dto.name},
-           ${dto.description},
-           ${dto.settings || {}},
-           NOW(),
-           NOW()
-         )
-       `;
+      if (dto.parentId) {
+        await tx.$executeRaw(
+          Prisma.sql`INSERT INTO ${tableName}
+           (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
+           VALUES (
+             ${newWorkspaceId},
+             ${tenantContext.tenantId}::uuid,
+             ${dto.parentId}::uuid,
+             ${newDepth},
+             ${newPath},
+             ${dto.slug},
+             ${dto.name},
+             ${dto.description ?? null},
+             ${settingsJson}::jsonb,
+             NOW(),
+             NOW()
+           )`
+        );
+      } else {
+        await tx.$executeRaw(
+          Prisma.sql`INSERT INTO ${tableName}
+           (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
+           VALUES (
+             ${newWorkspaceId},
+             ${tenantContext.tenantId}::uuid,
+             NULL,
+             ${newDepth},
+             ${newPath},
+             ${dto.slug},
+             ${dto.name},
+             ${dto.description ?? null},
+             ${settingsJson}::jsonb,
+             NOW(),
+             NOW()
+           )`
+        );
+      }
 
       // Create workspace member (creator as admin)
       const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
@@ -200,6 +328,16 @@ export class WorkspaceService {
           NOW()
         )
       `;
+
+      // [Phase 2] Apply template if templateId is provided
+      if (dto.templateId) {
+        await this.templateService.applyTemplate(
+          newWorkspaceId,
+          dto.templateId,
+          tenantContext.tenantId,
+          tx
+        );
+      }
 
       // Fetch the complete workspace with relations
       const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
@@ -240,6 +378,9 @@ export class WorkspaceService {
       return {
         id: result.id,
         tenantId: result.tenant_id,
+        parentId: result.parent_id,
+        depth: result.depth,
+        path: result.path,
         slug: result.slug,
         name: result.name,
         description: result.description,
@@ -251,9 +392,15 @@ export class WorkspaceService {
         _count: {
           members: result.member_count,
           teams: result.team_count,
+          children: 0,
         },
       };
     });
+
+    // Invalidate hierarchy caches for the parent (its child count changed)
+    if (dto.parentId && parentRow) {
+      await this.hierarchyService.invalidateHierarchyCache(parentRow.path, tenantContext.tenantId);
+    }
 
     // Publish workspace created event after successful transaction
     if (this.eventBus) {
@@ -292,6 +439,9 @@ export class WorkspaceService {
         );
       }
     }
+
+    // Fire-and-forget — no await (spec 011 T011-14)
+    this.hookService.runCreatedHooks(createdWorkspace.id, dto.templateId ?? null, tenantContext);
 
     return createdWorkspace;
   }
@@ -385,6 +535,9 @@ export class WorkspaceService {
       return result.map((row: WorkspaceListRow) => ({
         id: row.id,
         tenantId: row.tenant_id,
+        parentId: row.parent_id,
+        depth: row.depth,
+        path: row.path,
         slug: row.slug,
         name: row.name,
         description: row.description,
@@ -396,6 +549,7 @@ export class WorkspaceService {
         _count: {
           members: Number(row.member_count),
           teams: Number(row.team_count),
+          children: 0,
         },
       }));
     });
@@ -473,6 +627,9 @@ export class WorkspaceService {
       return {
         id: workspace.id,
         tenantId: workspace.tenant_id,
+        parentId: workspace.parent_id,
+        depth: workspace.depth,
+        path: workspace.path,
         slug: workspace.slug,
         name: workspace.name,
         description: workspace.description,
@@ -484,6 +641,7 @@ export class WorkspaceService {
         _count: {
           members: Number(workspace.member_count),
           teams: Number(workspace.team_count),
+          children: 0,
         },
       };
     });
@@ -511,106 +669,102 @@ export class WorkspaceService {
       // Note: schemaName is validated with regex above
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      try {
-        const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
 
-        // Build UPDATE statement with parameterized values
-        // We need to use conditional logic to handle optional fields
-        let updateCount: number;
+      // Build UPDATE statement with parameterized values.
+      // Note: settings must be cast to jsonb explicitly (same as create()).
+      // Errors are NOT wrapped so mapServiceError can match .code / message.
+      let updateCount: number;
+      const settingsJson = dto.settings !== undefined ? JSON.stringify(dto.settings) : undefined;
 
-        if (dto.name !== undefined && dto.description !== undefined && dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
+      if (dto.name !== undefined && dto.description !== undefined && settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
              SET name = ${dto.name},
                  description = ${dto.description},
-                 settings = ${dto.settings},
+                 settings = ${settingsJson}::jsonb,
                  updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else if (dto.name !== undefined && dto.description !== undefined) {
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.name !== undefined && dto.description !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET name = ${dto.name},
                 description = ${dto.description},
                 updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        } else if (dto.name !== undefined && dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.name !== undefined && settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
              SET name = ${dto.name},
-                 settings = ${dto.settings},
+                 settings = ${settingsJson}::jsonb,
                  updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else if (dto.description !== undefined && dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.description !== undefined && settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
              SET description = ${dto.description},
-                 settings = ${dto.settings},
+                 settings = ${settingsJson}::jsonb,
                  updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else if (dto.name !== undefined) {
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.name !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET name = ${dto.name}, updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        } else if (dto.description !== undefined) {
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.description !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET description = ${dto.description}, updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        } else if (dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
-             SET settings = ${dto.settings}, updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else {
-          // No fields to update, just update the timestamp
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
+             SET settings = ${settingsJson}::jsonb, updated_at = NOW()
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else {
+        // No fields to update, just update the timestamp
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        }
-
-        if (updateCount === 0) {
-          throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
-        }
-
-        // Fetch updated workspace
-        const workspaces = await tx.$queryRaw<WorkspaceRow[]>`
-          SELECT * FROM ${workspacesTable}
-          WHERE id = ${id} AND tenant_id = ${tenantId}
-        `;
-
-        if (!workspaces || workspaces.length === 0) {
-          throw new Error(`Workspace ${id} not found after update`);
-        }
-
-        // Event published after transaction (see below)
-
-        const workspace = workspaces[0];
-        const result = {
-          id: workspace.id,
-          tenantId: workspace.tenant_id,
-          slug: workspace.slug,
-          name: workspace.name,
-          description: workspace.description,
-          settings: workspace.settings,
-          createdAt: workspace.created_at,
-          updatedAt: workspace.updated_at,
-        };
-        return result;
-      } catch (error) {
-        throw new Error(
-          `Failed to update workspace: ${error instanceof Error ? error.message : 'Unknown error'}`
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
         );
       }
+
+      if (updateCount === 0) {
+        throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
+      }
+
+      // Fetch updated workspace
+      const workspaces = await tx.$queryRaw<WorkspaceRow[]>(
+        Prisma.sql`SELECT * FROM ${workspacesTable}
+          WHERE id = ${id} AND tenant_id = ${tenantId}`
+      );
+
+      if (!workspaces || workspaces.length === 0) {
+        throw new Error(`Workspace ${id} not found after update`);
+      }
+
+      // Event published after transaction (see below)
+
+      const workspace = workspaces[0];
+      const result = {
+        id: workspace.id,
+        tenantId: workspace.tenant_id,
+        slug: workspace.slug,
+        name: workspace.name,
+        description: workspace.description,
+        settings: workspace.settings,
+        createdAt: workspace.created_at,
+        updatedAt: workspace.updated_at,
+      };
+      return result;
     });
 
     // Publish workspace updated event after successful transaction
@@ -656,7 +810,7 @@ export class WorkspaceService {
   }
 
   /**
-   * Delete workspace (only if no teams exist)
+   * Delete workspace (only if no teams and no children exist)
    */
   async delete(id: string, tenantCtx?: TenantContext): Promise<void> {
     const tenantContext = tenantCtx || getTenantContext();
@@ -670,6 +824,14 @@ export class WorkspaceService {
     // Validate schema name
     if (!/^[a-z0-9_]+$/.test(schemaName)) {
       throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    // Check for child workspaces before opening the transaction
+    const childExists = await this.hierarchyService.hasChildren(id, tenantContext);
+    if (childExists) {
+      throw new Error(
+        'Cannot delete workspace with existing children. Remove child workspaces first.'
+      );
     }
 
     await this.db.$transaction(async (tx) => {
@@ -708,18 +870,21 @@ export class WorkspaceService {
       `;
     });
 
-    // Invalidate all member cache entries for this workspace (pattern-based cleanup)
+    // Invalidate member cache entries for this workspace using deterministic keys.
+    // KEYS is intentionally avoided (O(N) blocking Redis command).
+    // The member cache key format mirrors the pattern used in addMember / removeMember:
+    //   tenant:<tenantId>:<PREFIX>:<workspaceId>:member:<userId>
+    // On delete we cannot enumerate all members without a DB query, so we invalidate
+    // the workspace-level aggregation key and rely on per-member TTL expiry for the
+    // individual entries. The aggregation key is always present after the first read.
     if (this.cache) {
       try {
-        const pattern = `tenant:${tenantId}:${CACHE_KEY_PREFIX}:${id}:member:*`;
-        const keys = await this.cache.keys(pattern);
-        if (keys.length > 0) {
-          await this.cache.del(...keys);
-          this.log.debug(
-            { workspaceId: id, invalidatedKeys: keys.length },
-            'Workspace member cache invalidated on workspace delete'
-          );
-        }
+        const aggKey = `tenant:${tenantId}:${CACHE_KEY_PREFIX}:${id}:members:agg`;
+        await this.cache.del(aggKey);
+        this.log.debug(
+          { workspaceId: id },
+          'Workspace member aggregation cache invalidated on workspace delete'
+        );
       } catch (cacheError) {
         this.log.warn(
           { workspaceId: id, error: String(cacheError) },
@@ -759,6 +924,208 @@ export class WorkspaceService {
         );
       }
     }
+
+    // Fire-and-forget — no await (spec 011 T011-14)
+    this.hookService.runDeletedHooks(id, tenantContext);
+  }
+
+  /**
+   * Re-parent a workspace to a new parent (or to root if newParentId is null).
+   *
+   * Rules:
+   *   - Caller must be tenant ADMIN (enforced by route preHandler guard)
+   *   - New parent must exist in the same tenant
+   *   - New parent must not be a descendant of the workspace (cycle prevention)
+   *   - Slug must be unique under the new parent
+   *   - Updates path/depth for the workspace AND all its descendants atomically
+   *
+   * Spec 011 §FR-006 — parentId is re-parentable by tenant ADMIN only.
+   */
+  async reparent(
+    workspaceId: string,
+    newParentId: string | null,
+    callerId: string,
+    tenantCtx?: TenantContext
+  ): Promise<{ id: string; parentId: string | null; depth: number; path: string }> {
+    const tenantContext = tenantCtx || getTenantContext();
+    if (!tenantContext) {
+      throw new Error('No tenant context available');
+    }
+
+    const schemaName = tenantContext.schemaName;
+    const { tenantId } = tenantContext;
+
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    const wsTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+
+    // Fetch current workspace row
+    const currentRows = await this.db.$queryRaw<
+      Array<{ id: string; parent_id: string | null; depth: number; path: string; slug: string }>
+    >(
+      Prisma.sql`SELECT id, parent_id, depth, path, slug FROM ${wsTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
+        LIMIT 1`
+    );
+
+    if (currentRows.length === 0) {
+      throw new Error(
+        `Workspace ${workspaceId} not found or does not belong to tenant ${tenantId}`
+      );
+    }
+
+    const current = currentRows[0];
+
+    // Prevent no-op reparenting (already at the desired parent)
+    if (current.parent_id === newParentId) {
+      return {
+        id: current.id,
+        parentId: current.parent_id,
+        depth: current.depth,
+        path: current.path,
+      };
+    }
+
+    let newParentRow: import('./types/hierarchy.types.js').WorkspaceHierarchyRow | null = null;
+
+    if (newParentId !== null) {
+      // Validate new parent exists in the same tenant
+      const parentRows = await this.db.$queryRaw<
+        Array<{
+          id: string;
+          path: string;
+          depth: number;
+          slug: string;
+          name: string;
+          description: string | null;
+          parent_id: string | null;
+          tenant_id: string;
+          settings: unknown;
+          created_at: Date;
+          updated_at: Date;
+        }>
+      >(
+        Prisma.sql`SELECT * FROM ${wsTable}
+          WHERE id = ${newParentId} AND tenant_id = ${tenantId}
+          LIMIT 1`
+      );
+
+      if (parentRows.length === 0) {
+        const err = new Error(`Parent workspace '${newParentId}' not found`);
+        (err as NodeJS.ErrnoException).code = 'PARENT_WORKSPACE_NOT_FOUND';
+        throw err;
+      }
+
+      newParentRow = parentRows[0] as import('./types/hierarchy.types.js').WorkspaceHierarchyRow;
+
+      // Cycle detection: new parent must not be the workspace itself or any descendant
+      if (newParentRow.path.startsWith(current.path + '/') || newParentRow.id === current.id) {
+        const err = new Error(
+          `Cannot re-parent workspace '${workspaceId}' under its own descendant '${newParentId}'`
+        );
+        (err as NodeJS.ErrnoException).code = 'REPARENT_CYCLE_DETECTED';
+        throw err;
+      }
+
+      // Depth constraint: new parent depth + 1 must not exceed MAX_DEPTH
+      this.hierarchyService.validateDepthConstraint(newParentRow.depth);
+    }
+
+    // Slug uniqueness under new parent
+    const slugConflict = await (async () => {
+      if (newParentId === null) {
+        return this.db.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT id FROM ${wsTable}
+            WHERE tenant_id = ${tenantId}
+              AND slug = ${current.slug}
+              AND parent_id IS NULL
+              AND id != ${workspaceId}
+            LIMIT 1`
+        );
+      } else {
+        return this.db.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT id FROM ${wsTable}
+            WHERE parent_id = ${newParentId}
+              AND slug = ${current.slug}
+              AND id != ${workspaceId}
+            LIMIT 1`
+        );
+      }
+    })();
+
+    if (slugConflict.length > 0) {
+      const err = new Error(
+        `Workspace slug '${current.slug}' already exists under the target parent`
+      );
+      (err as NodeJS.ErrnoException).code = 'WORKSPACE_SLUG_CONFLICT';
+      throw err;
+    }
+
+    // Compute new hierarchy fields for the workspace being re-parented
+    const { depth: newDepth, path: newPath } = this.hierarchyService.computeHierarchyFields(
+      newParentRow,
+      workspaceId
+    );
+
+    // Compute old path prefix so we can update all descendants
+    const oldPathPrefix = current.path;
+
+    // Perform all updates in a single transaction
+    await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      // 1. Update the workspace itself
+      if (newParentId !== null) {
+        await tx.$executeRaw`
+          UPDATE ${wsTable}
+          SET parent_id = ${newParentId},
+              depth = ${newDepth},
+              path = ${newPath},
+              updated_at = NOW()
+          WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
+        `;
+      } else {
+        await tx.$executeRaw`
+          UPDATE ${wsTable}
+          SET parent_id = NULL,
+              depth = ${newDepth},
+              path = ${newPath},
+              updated_at = NOW()
+          WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
+        `;
+      }
+
+      // 2. Update all descendants by replacing the old path prefix with the new one.
+      //    The depth delta is newDepth - current.depth.
+      const depthDelta = newDepth - current.depth;
+      const descendantPathPrefix = oldPathPrefix + '/%';
+
+      await tx.$executeRaw(
+        Prisma.sql`UPDATE ${wsTable}
+          SET path = ${newPath} || SUBSTRING(path FROM ${oldPathPrefix.length + 1}),
+              depth = depth + ${depthDelta},
+              updated_at = NOW()
+          WHERE path LIKE ${descendantPathPrefix}
+            AND tenant_id = ${tenantId}`
+      );
+    });
+
+    // Invalidate hierarchy caches for old and new ancestor chains
+    await Promise.allSettled([
+      this.hierarchyService.invalidateHierarchyCache(oldPathPrefix, tenantId),
+      newParentRow
+        ? this.hierarchyService.invalidateHierarchyCache(newParentRow.path, tenantId)
+        : Promise.resolve(),
+    ]);
+
+    this.log.info(
+      { workspaceId, newParentId, callerId, tenantId },
+      'workspace-hierarchy: reparent complete'
+    );
+
+    return { id: workspaceId, parentId: newParentId, depth: newDepth, path: newPath };
   }
 
   /**
@@ -861,6 +1228,8 @@ export class WorkspaceService {
       invitedBy: string;
       joinedAt: Date;
     } | null;
+    /** Workspace path (materialised path) — used for hierarchical guard. */
+    workspaceRow: { id: string; path: string } | null;
   }> {
     const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
@@ -900,19 +1269,21 @@ export class WorkspaceService {
 
       const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
 
-      // Always verify workspace exists from database
-      const workspaceExists = await tx.$queryRaw<IdRow[]>`
-        SELECT id FROM ${workspacesTable}
+      // Always verify workspace exists from database (also fetch path for hierarchy guard)
+      const workspaceExists = await tx.$queryRaw<Array<{ id: string; path: string }>>`
+        SELECT id, path FROM ${workspacesTable}
         WHERE id = ${workspaceId} AND tenant_id = ${tenantId}
       `;
 
       if (!workspaceExists || workspaceExists.length === 0) {
-        return { exists: false, membership: null };
+        return { exists: false, membership: null, workspaceRow: null };
       }
+
+      const workspaceRow = { id: workspaceExists[0].id, path: workspaceExists[0].path ?? '' };
 
       // If we have cached membership, return it (workspace exists and membership is cached)
       if (cachedMembership) {
-        return { exists: true, membership: cachedMembership };
+        return { exists: true, membership: cachedMembership, workspaceRow };
       }
 
       // Cache miss: query membership from database
@@ -923,7 +1294,7 @@ export class WorkspaceService {
       `;
 
       if (!memberships || memberships.length === 0) {
-        return { exists: true, membership: null };
+        return { exists: true, membership: null, workspaceRow };
       }
 
       const row = memberships[0];
@@ -949,7 +1320,7 @@ export class WorkspaceService {
         }
       }
 
-      return { exists: true, membership };
+      return { exists: true, membership, workspaceRow };
     });
   }
 

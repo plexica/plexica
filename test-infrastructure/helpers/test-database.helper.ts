@@ -164,7 +164,7 @@ export class TestDatabaseHelper {
       )
     `);
 
-    // Create workspaces table
+    // Create workspaces table (includes Spec-011 hierarchy columns: parent_id, depth, path)
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspaces" (
         "id" TEXT PRIMARY KEY,
@@ -173,10 +173,39 @@ export class TestDatabaseHelper {
         "name" TEXT NOT NULL,
         "description" TEXT,
         "settings" JSONB NOT NULL DEFAULT '{}',
+        "parent_id" TEXT DEFAULT NULL,
+        "depth" INTEGER NOT NULL DEFAULT 0,
+        "path" VARCHAR NOT NULL DEFAULT '',
         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE ("tenant_id", "slug")
+        FOREIGN KEY ("parent_id") REFERENCES "${schemaName}"."workspaces"("id") ON DELETE RESTRICT
       )
+    `);
+
+    // Hierarchy indexes (sargable path LIKE queries per ADR-013)
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "idx_ws_${schemaName}_tenant"
+        ON "${schemaName}"."workspaces" ("tenant_id")
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "idx_ws_${schemaName}_parent"
+        ON "${schemaName}"."workspaces" ("parent_id")
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "idx_ws_${schemaName}_path"
+        ON "${schemaName}"."workspaces" USING btree ("path" varchar_pattern_ops)
+    `);
+    // Root-workspace unique slug: unique (tenant_id, slug) WHERE parent_id IS NULL
+    await this.prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "idx_ws_${schemaName}_root_slug"
+        ON "${schemaName}"."workspaces" ("tenant_id", "slug")
+        WHERE "parent_id" IS NULL
+    `);
+    // Sibling-scoped unique slug: unique (parent_id, slug) for child workspaces
+    await this.prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "idx_ws_${schemaName}_sibling_slug"
+        ON "${schemaName}"."workspaces" ("parent_id", "slug")
+        WHERE "parent_id" IS NOT NULL
     `);
 
     // Create workspace_members table

@@ -91,6 +91,11 @@ export async function authRoutes(fastify: FastifyInstance) {
    *
    * We transform these to Constitution Article 6.2 format:
    * { error: { code: 'VALIDATION_ERROR', message: '...', details: {...} } }
+   *
+   * For non-validation errors we also ensure the Constitution-compliant object
+   * format so that workspace (and other) errors propagated into this scope are
+   * serialised correctly even when setupErrorHandler has not been registered
+   * (e.g. in unit-test environments that use a bare Fastify instance).
    */
   fastify.setErrorHandler((error, _request, reply) => {
     const errorAny = error as any;
@@ -118,8 +123,28 @@ export async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // For other errors, use default handler
-    return reply.send(error);
+    // For all other errors produce a Constitution Art. 6.2 compliant response.
+    // Using error.code (if it looks like a stable error code) or a generic fallback.
+    const statusCode: number = errorAny.statusCode || 500;
+    const code: string =
+      typeof errorAny.code === 'string' && errorAny.code.includes('_')
+        ? errorAny.code
+        : statusCode === 401
+          ? 'UNAUTHORIZED'
+          : statusCode === 403
+            ? 'FORBIDDEN'
+            : statusCode === 404
+              ? 'NOT_FOUND'
+              : statusCode === 409
+                ? 'CONFLICT'
+                : 'INTERNAL_SERVER_ERROR';
+
+    return reply.code(statusCode).send({
+      error: {
+        code,
+        message: errorAny.message || 'An error occurred',
+      },
+    });
   });
 
   /**

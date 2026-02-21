@@ -7,3 +7,5 @@ export * from './update-workspace.dto.js';
 export * from './add-member.dto.js';
 export * from './update-member-role.dto.js';
 export * from './share-resource.dto.js';
+export * from './workspace-plugin.dto.js';
+export * from './workspace-template.dto.js';

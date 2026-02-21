@@ -64,6 +64,10 @@ function createMockDb(overrides: {
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.userFindUnique ?? null),
     },
+    // Required by PluginHookService.getHookSubscribers (Phase 3)
+    tenantPlugin: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     // Expose tx mock for assertions
     _tx: mockTx,
   };
@@ -289,6 +293,8 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
+          // hasChildren check — no children (BigInt because COUNT returns bigint in Prisma raw)
+          [{ count: BigInt(0) }],
           // Workspace exists check
           [{ id: WORKSPACE_ID }],
           // Team count check — no teams
@@ -699,7 +705,12 @@ describe('WorkspaceService Event Publishing', () => {
       mockLogger = createMockLogger();
 
       const mockDb = createMockDb({
-        queryRawResults: [[{ id: WORKSPACE_ID }], [{ count: 0 }]],
+        queryRawResults: [
+          // hasChildren check — no children
+          [{ count: BigInt(0) }],
+          [{ id: WORKSPACE_ID }],
+          [{ count: 0 }],
+        ],
         executeRawResults: [1, 1],
       });
 
