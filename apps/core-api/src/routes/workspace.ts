@@ -44,23 +44,6 @@ import {
 } from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
 
-// --- Shared error response schema (Art. 6.2) ---
-const errorResponseSchema = {
-  type: 'object',
-  properties: {
-    error: {
-      type: 'object',
-      properties: {
-        code: { type: 'string' },
-        message: { type: 'string' },
-        details: { type: 'object', additionalProperties: true },
-      },
-      required: ['code', 'message'],
-    },
-  },
-  required: ['error'],
-};
-
 // --- Request schemas for Fastify validation ---
 const createWorkspaceRequestSchema = {
   body: {

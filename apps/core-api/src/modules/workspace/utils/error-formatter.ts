@@ -265,7 +265,6 @@ export function getStatusForCode(code: WorkspaceErrorCode): number {
  * occur if reply.send() were called inside a catch block and Fastify also
  * tried to handle the re-thrown error (Constitution Art. 6.1).
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function handleServiceError(error: unknown, _reply: FastifyReply): never {
   if (error instanceof WorkspaceError) {
     throw error;
