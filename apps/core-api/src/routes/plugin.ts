@@ -3,6 +3,11 @@ import { pluginRegistryService, pluginLifecycleService } from '../services/plugi
 import type { PluginManifest } from '../types/plugin.types.js';
 import { requireSuperAdmin, authMiddleware, requireTenantAccess } from '../middleware/auth.js';
 import { PluginStatus } from '@plexica/database';
+import { workspaceTemplateService } from '../modules/workspace/workspace-template.service.js';
+import {
+  RegisterTemplateSchema,
+  type RegisterTemplateDto,
+} from '../modules/plugin/dto/register-template.dto.js';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
   // =====================================
@@ -605,6 +610,205 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         request.log.error(error);
         return reply
           .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  // =====================================
+  // Plugin Template Registration Routes (Spec 011 — T011-15, FR-028)
+  // =====================================
+
+  /**
+   * Register a template provided by a plugin.
+   * Only super admins can register plugin templates.
+   */
+  fastify.post<{
+    Params: { pluginId: string };
+    Body: RegisterTemplateDto;
+  }>(
+    '/plugins/:pluginId/templates',
+    {
+      preHandler: [authMiddleware, requireSuperAdmin],
+      schema: {
+        description: 'Register a workspace template provided by a plugin',
+        tags: ['plugins', 'templates'],
+        params: {
+          type: 'object',
+          required: ['pluginId'],
+          properties: {
+            pluginId: { type: 'string' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['name', 'items'],
+          properties: {
+            name: { type: 'string' },
+            description: { type: 'string' },
+            isDefault: { type: 'boolean' },
+            metadata: { type: 'object' },
+            items: { type: 'array' },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          201: {
+            description: 'Template registered successfully',
+            type: 'object',
+            additionalProperties: true,
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Params: { pluginId: string }; Body: RegisterTemplateDto }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const parsed = RegisterTemplateSchema.safeParse(request.body);
+        if (!parsed.success) {
+          return reply.code(400).send({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid template data',
+              details: { issues: parsed.error.issues },
+            },
+          });
+        }
+        const template = await workspaceTemplateService.registerTemplate(
+          request.params.pluginId,
+          parsed.data
+        );
+        return reply.code(201).send(template);
+      } catch (error: unknown) {
+        request.log.error(error);
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  /**
+   * Replace all items of an existing plugin-provided template.
+   * Only super admins can update plugin templates.
+   */
+  fastify.put<{
+    Params: { pluginId: string; templateId: string };
+    Body: RegisterTemplateDto;
+  }>(
+    '/plugins/:pluginId/templates/:templateId',
+    {
+      preHandler: [authMiddleware, requireSuperAdmin],
+      schema: {
+        description: 'Update a workspace template provided by a plugin',
+        tags: ['plugins', 'templates'],
+        params: {
+          type: 'object',
+          required: ['pluginId', 'templateId'],
+          properties: {
+            pluginId: { type: 'string' },
+            templateId: { type: 'string' },
+          },
+        },
+        body: {
+          type: 'object',
+          required: ['name', 'items'],
+          properties: {
+            name: { type: 'string' },
+            description: { type: 'string' },
+            isDefault: { type: 'boolean' },
+            metadata: { type: 'object' },
+            items: { type: 'array' },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          200: {
+            description: 'Template updated successfully',
+            type: 'object',
+            additionalProperties: true,
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{
+        Params: { pluginId: string; templateId: string };
+        Body: RegisterTemplateDto;
+      }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const parsed = RegisterTemplateSchema.safeParse(request.body);
+        if (!parsed.success) {
+          return reply.code(400).send({
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid template data',
+              details: { issues: parsed.error.issues },
+            },
+          });
+        }
+        const template = await workspaceTemplateService.updateTemplate(
+          request.params.pluginId,
+          request.params.templateId,
+          parsed.data
+        );
+        return reply.send(template);
+      } catch (error: unknown) {
+        request.log.error(error);
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  );
+
+  /**
+   * Delete a plugin-provided template and all its items.
+   * Only super admins can delete plugin templates.
+   */
+  fastify.delete<{
+    Params: { pluginId: string; templateId: string };
+  }>(
+    '/plugins/:pluginId/templates/:templateId',
+    {
+      preHandler: [authMiddleware, requireSuperAdmin],
+      schema: {
+        description: 'Delete a workspace template provided by a plugin',
+        tags: ['plugins', 'templates'],
+        params: {
+          type: 'object',
+          required: ['pluginId', 'templateId'],
+          properties: {
+            pluginId: { type: 'string' },
+            templateId: { type: 'string' },
+          },
+        },
+        response: {
+          204: {
+            description: 'Template deleted successfully',
+            type: 'null',
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Params: { pluginId: string; templateId: string } }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        await workspaceTemplateService.deleteTemplate(
+          request.params.pluginId,
+          request.params.templateId
+        );
+        return reply.code(204).send();
+      } catch (error: unknown) {
+        request.log.error(error);
+        return reply
+          .code(400)
           .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }

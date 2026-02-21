@@ -23,6 +23,8 @@ import {
   WorkspaceTemplateService,
   workspaceTemplateService,
 } from './workspace-template.service.js';
+import { PluginHookService, pluginHookService } from '../plugin/plugin-hook.service.js';
+import { WorkspaceError, WorkspaceErrorCode } from './utils/error-formatter.js';
 
 /**
  * Row types for raw SQL query results.
@@ -120,6 +122,7 @@ export class WorkspaceService {
   private log: Logger;
   private hierarchyService: WorkspaceHierarchyService;
   private templateService: WorkspaceTemplateService;
+  private hookService: PluginHookService;
 
   constructor(
     customDb?: PrismaClient,
@@ -127,7 +130,8 @@ export class WorkspaceService {
     cache?: Redis,
     customLogger?: Logger,
     hierarchyService?: WorkspaceHierarchyService,
-    templateService?: WorkspaceTemplateService
+    templateService?: WorkspaceTemplateService,
+    hookService?: PluginHookService
   ) {
     this.db = customDb || db;
     this.eventBus = eventBus;
@@ -146,6 +150,9 @@ export class WorkspaceService {
       (customDb
         ? new WorkspaceTemplateService(customDb, undefined, customLogger || logger)
         : workspaceTemplateService);
+    this.hookService =
+      hookService ||
+      (customDb ? new PluginHookService(customDb, customLogger || logger) : pluginHookService);
   }
 
   /**
@@ -197,6 +204,29 @@ export class WorkspaceService {
     // We compute the final path inside the transaction once we have the new ID.
     void depth;
     void hierarchyPath;
+
+    // ---------------------------------------------------------------------------
+    // Phase 3 (T011-14): Run before_create hooks BEFORE transaction.
+    // Sequential. Fail-open on timeout/network error.
+    // ---------------------------------------------------------------------------
+    const hookResult = await this.hookService.runBeforeCreateHooks(
+      {
+        slug: dto.slug,
+        name: dto.name,
+        parentId: dto.parentId,
+        templateId: dto.templateId,
+        tenantId: tenantContext.tenantId,
+      },
+      tenantContext
+    );
+
+    if (!hookResult.approved) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.HOOK_REJECTED_CREATION,
+        hookResult.reason ?? 'Workspace creation rejected by plugin hook',
+        { reason: hookResult.reason, pluginId: hookResult.pluginId }
+      );
+    }
 
     // Check slug uniqueness scoped to parent_id:
     //   - root workspaces: unique per (tenant_id, slug) WHERE parent_id IS NULL
@@ -406,6 +436,9 @@ export class WorkspaceService {
         );
       }
     }
+
+    // Fire-and-forget — no await (spec 011 T011-14)
+    this.hookService.runCreatedHooks(createdWorkspace.id, dto.templateId ?? null, tenantContext);
 
     return createdWorkspace;
   }
@@ -889,6 +922,9 @@ export class WorkspaceService {
         );
       }
     }
+
+    // Fire-and-forget — no await (spec 011 T011-14)
+    this.hookService.runDeletedHooks(id, tenantContext);
   }
 
   /**

@@ -60,6 +60,8 @@ export enum WorkspaceErrorCode {
   WORKSPACE_PLUGIN_NOT_FOUND = 'WORKSPACE_PLUGIN_NOT_FOUND',
   /** 400 — Plugin is not enabled at the tenant level */
   PLUGIN_NOT_TENANT_ENABLED = 'PLUGIN_NOT_TENANT_ENABLED',
+  /** 400 — Workspace creation blocked by a plugin before_create hook */
+  HOOK_REJECTED_CREATION = 'HOOK_REJECTED_CREATION',
 }
 
 /**
@@ -87,6 +89,7 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.WORKSPACE_PLUGIN_EXISTS]: 409,
   [WorkspaceErrorCode.WORKSPACE_PLUGIN_NOT_FOUND]: 404,
   [WorkspaceErrorCode.PLUGIN_NOT_TENANT_ENABLED]: 400,
+  [WorkspaceErrorCode.HOOK_REJECTED_CREATION]: 400,
 };
 
 /**

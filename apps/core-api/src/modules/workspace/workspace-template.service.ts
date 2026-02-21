@@ -13,6 +13,7 @@ import { logger as rootLogger } from '../../lib/logger.js';
 import type { Logger } from 'pino';
 import { WorkspaceError, WorkspaceErrorCode } from './utils/error-formatter.js';
 import type { WorkspacePluginService } from './workspace-plugin.service.js';
+import type { RegisterTemplateDto } from '../plugin/dto/register-template.dto.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,20 +54,8 @@ export interface TemplateWithItems {
   items: TemplateItemRow[];
 }
 
-export interface RegisterTemplateDto {
-  name: string;
-  description?: string;
-  isDefault?: boolean;
-  metadata?: Record<string, unknown>;
-  items: Array<{
-    type: 'plugin' | 'page' | 'setting';
-    pluginId?: string;
-    pageConfig?: Record<string, unknown>;
-    settingKey?: string;
-    settingValue?: unknown;
-    sortOrder?: number;
-  }>;
-}
+// Re-export for consumers that import from this module
+export type { RegisterTemplateDto } from '../plugin/dto/register-template.dto.js';
 
 /** Minimal Prisma transaction client shape */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -244,35 +233,246 @@ export class WorkspaceTemplateService {
   }
 
   // ---------------------------------------------------------------------------
-  // Plugin template registration (FR-028) — stubs for Phase 3 (T011-15)
+  // Plugin template registration (FR-028) — T011-15
   // ---------------------------------------------------------------------------
 
   /**
    * Register a template provided by a plugin.
-   * Fully implemented in T011-15 (Phase 3).
+   *
+   * Inserts a new row in workspace_templates and the corresponding items in
+   * workspace_template_items. All within a single transaction so partial
+   * inserts cannot occur.
+   *
+   * @param pluginId - ID of the plugin registering the template
+   * @param dto      - Validated RegisterTemplateDto from request body
    */
-  async registerTemplate(_pluginId: string, _dto: RegisterTemplateDto): Promise<TemplateWithItems> {
-    throw new Error('Not implemented: registerTemplate will be completed in T011-15 (Phase 3)');
+  async registerTemplate(pluginId: string, dto: RegisterTemplateDto): Promise<TemplateWithItems> {
+    this.logger.debug({ pluginId, name: dto.name }, 'workspace-template: registering template');
+
+    if (dto.items.length > 50) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.TEMPLATE_ITEM_LIMIT_EXCEEDED,
+        `Template item count ${dto.items.length} exceeds maximum of 50`,
+        { count: dto.items.length }
+      );
+    }
+
+    const newId = await this.db.$transaction(async (tx) => {
+      // Insert template row
+      const rows = await tx.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`INSERT INTO workspace_templates
+                     (id, name, description, provided_by_plugin_id, is_default, metadata,
+                      created_at, updated_at)
+                   VALUES
+                     (gen_random_uuid(), ${dto.name}, ${dto.description ?? null},
+                      ${pluginId}, ${dto.isDefault ?? false},
+                      ${JSON.stringify(dto.metadata ?? {})}::jsonb,
+                      NOW(), NOW())
+                   RETURNING id`
+      );
+      const templateId = rows[0].id;
+
+      // Insert items
+      for (let i = 0; i < dto.items.length; i++) {
+        const item = dto.items[i];
+        const sortOrder = item.sortOrder ?? i;
+
+        if (item.type === 'plugin') {
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO workspace_template_items
+                         (id, template_id, type, plugin_id, page_config,
+                          setting_key, setting_value, sort_order, created_at)
+                       VALUES
+                         (gen_random_uuid(), ${templateId}::uuid, 'plugin',
+                          ${item.pluginId}, NULL, NULL, NULL, ${sortOrder}, NOW())`
+          );
+        } else if (item.type === 'setting') {
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO workspace_template_items
+                         (id, template_id, type, plugin_id, page_config,
+                          setting_key, setting_value, sort_order, created_at)
+                       VALUES
+                         (gen_random_uuid(), ${templateId}::uuid, 'setting',
+                          NULL, NULL, ${item.settingKey},
+                          ${JSON.stringify(item.settingValue ?? null)}::jsonb,
+                          ${sortOrder}, NOW())`
+          );
+        } else {
+          // page
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO workspace_template_items
+                         (id, template_id, type, plugin_id, page_config,
+                          setting_key, setting_value, sort_order, created_at)
+                       VALUES
+                         (gen_random_uuid(), ${templateId}::uuid, 'page',
+                          NULL, ${JSON.stringify(item.pageConfig)}::jsonb,
+                          NULL, NULL, ${sortOrder}, NOW())`
+          );
+        }
+      }
+
+      return templateId;
+    });
+
+    return this.getTemplate(newId);
   }
 
   /**
-   * Replace all items of an existing template.
-   * Fully implemented in T011-15 (Phase 3).
+   * Replace all items of an existing plugin-provided template.
+   *
+   * Only the plugin that originally created the template may update it.
+   * All existing items are deleted and replaced atomically.
+   *
+   * @param pluginId   - ID of the plugin owning the template
+   * @param templateId - ID of the template to update
+   * @param dto        - Validated RegisterTemplateDto from request body
    */
   async updateTemplate(
-    _pluginId: string,
-    _templateId: string,
-    _dto: RegisterTemplateDto
+    pluginId: string,
+    templateId: string,
+    dto: RegisterTemplateDto
   ): Promise<TemplateWithItems> {
-    throw new Error('Not implemented: updateTemplate will be completed in T011-15 (Phase 3)');
+    this.logger.debug(
+      { pluginId, templateId, name: dto.name },
+      'workspace-template: updating template'
+    );
+
+    if (dto.items.length > 50) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.TEMPLATE_ITEM_LIMIT_EXCEEDED,
+        `Template item count ${dto.items.length} exceeds maximum of 50`,
+        { count: dto.items.length }
+      );
+    }
+
+    await this.db.$transaction(async (tx) => {
+      // Verify template exists and is owned by this plugin
+      const rows = await tx.$queryRaw<Array<{ provided_by_plugin_id: string }>>(
+        Prisma.sql`SELECT provided_by_plugin_id
+                     FROM workspace_templates
+                    WHERE id = ${templateId}::uuid
+                    LIMIT 1`
+      );
+
+      if (rows.length === 0) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
+          `Template ${templateId} not found`,
+          { templateId }
+        );
+      }
+
+      if (rows[0].provided_by_plugin_id !== pluginId) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          `Plugin ${pluginId} does not own template ${templateId}`,
+          { pluginId, templateId }
+        );
+      }
+
+      // Update template metadata
+      await tx.$executeRaw(
+        Prisma.sql`UPDATE workspace_templates
+                      SET name        = ${dto.name},
+                          description = ${dto.description ?? null},
+                          is_default  = ${dto.isDefault ?? false},
+                          metadata    = ${JSON.stringify(dto.metadata ?? {})}::jsonb,
+                          updated_at  = NOW()
+                    WHERE id = ${templateId}::uuid`
+      );
+
+      // Delete all existing items
+      await tx.$executeRaw(
+        Prisma.sql`DELETE FROM workspace_template_items
+                    WHERE template_id = ${templateId}::uuid`
+      );
+
+      // Insert new items
+      for (let i = 0; i < dto.items.length; i++) {
+        const item = dto.items[i];
+        const sortOrder = item.sortOrder ?? i;
+
+        if (item.type === 'plugin') {
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO workspace_template_items
+                         (id, template_id, type, plugin_id, page_config,
+                          setting_key, setting_value, sort_order, created_at)
+                       VALUES
+                         (gen_random_uuid(), ${templateId}::uuid, 'plugin',
+                          ${item.pluginId}, NULL, NULL, NULL, ${sortOrder}, NOW())`
+          );
+        } else if (item.type === 'setting') {
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO workspace_template_items
+                         (id, template_id, type, plugin_id, page_config,
+                          setting_key, setting_value, sort_order, created_at)
+                       VALUES
+                         (gen_random_uuid(), ${templateId}::uuid, 'setting',
+                          NULL, NULL, ${item.settingKey},
+                          ${JSON.stringify(item.settingValue ?? null)}::jsonb,
+                          ${sortOrder}, NOW())`
+          );
+        } else {
+          // page
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO workspace_template_items
+                         (id, template_id, type, plugin_id, page_config,
+                          setting_key, setting_value, sort_order, created_at)
+                       VALUES
+                         (gen_random_uuid(), ${templateId}::uuid, 'page',
+                          NULL, ${JSON.stringify(item.pageConfig)}::jsonb,
+                          NULL, NULL, ${sortOrder}, NOW())`
+          );
+        }
+      }
+    });
+
+    return this.getTemplate(templateId);
   }
 
   /**
-   * Delete a template and all its items.
-   * Fully implemented in T011-15 (Phase 3).
+   * Delete a plugin-provided template and all its items (via CASCADE FK).
+   *
+   * Only the plugin that originally created the template may delete it.
+   *
+   * @param pluginId   - ID of the plugin owning the template
+   * @param templateId - ID of the template to delete
    */
-  async deleteTemplate(_pluginId: string, _templateId: string): Promise<void> {
-    throw new Error('Not implemented: deleteTemplate will be completed in T011-15 (Phase 3)');
+  async deleteTemplate(pluginId: string, templateId: string): Promise<void> {
+    this.logger.debug({ pluginId, templateId }, 'workspace-template: deleting template');
+
+    // Verify ownership before delete
+    const rows = await this.db.$queryRaw<Array<{ provided_by_plugin_id: string }>>(
+      Prisma.sql`SELECT provided_by_plugin_id
+                   FROM workspace_templates
+                  WHERE id = ${templateId}::uuid
+                  LIMIT 1`
+    );
+
+    if (rows.length === 0) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
+        `Template ${templateId} not found`,
+        { templateId }
+      );
+    }
+
+    if (rows[0].provided_by_plugin_id !== pluginId) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+        `Plugin ${pluginId} does not own template ${templateId}`,
+        { pluginId, templateId }
+      );
+    }
+
+    // CASCADE FK on workspace_template_items deletes items automatically
+    await this.db.$executeRaw(
+      Prisma.sql`DELETE FROM workspace_templates
+                  WHERE id = ${templateId}::uuid
+                    AND provided_by_plugin_id = ${pluginId}`
+    );
+
+    this.logger.info({ pluginId, templateId }, 'workspace-template: template deleted');
   }
 
   // ---------------------------------------------------------------------------

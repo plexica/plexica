@@ -352,29 +352,95 @@ describe('WorkspaceTemplateService.applyTemplate', () => {
 // registerTemplate / updateTemplate / deleteTemplate (stubs)
 // ---------------------------------------------------------------------------
 
-describe('WorkspaceTemplateService Phase 3 stubs', () => {
+describe('WorkspaceTemplateService Phase 3 — registerTemplate / updateTemplate / deleteTemplate', () => {
+  interface MockDbWithTx extends MockDb {
+    $transaction: Mock;
+  }
+
+  function createMockDbWithTx(): MockDbWithTx {
+    const base = createMockDb();
+    const txClient: MockDb = createMockDb();
+    return {
+      ...base,
+      $transaction: vi.fn().mockImplementation(async (fn: (tx: MockDb) => Promise<unknown>) => {
+        return fn(txClient);
+      }),
+      // expose txClient via getter for test setup
+    } as MockDbWithTx;
+  }
+
+  let mockDb: MockDbWithTx;
   let service: WorkspaceTemplateService;
 
   beforeEach(() => {
-    service = new WorkspaceTemplateService();
+    mockDb = createMockDbWithTx();
+    service = new WorkspaceTemplateService(mockDb as unknown as PrismaClient);
   });
 
-  it('registerTemplate should throw "Not implemented" until Phase 3', async () => {
+  it('registerTemplate should throw TEMPLATE_ITEM_LIMIT_EXCEEDED when items > 50', async () => {
+    const items = Array.from({ length: 51 }, (_, i) => ({
+      type: 'plugin' as const,
+      pluginId: `plugin-${i}`,
+      sortOrder: i,
+    }));
     await expect(
       service.registerTemplate('plugin-a', {
-        name: 'test',
+        name: 'too-many-items',
+        isDefault: false,
+        metadata: {},
+        items,
+      })
+    ).rejects.toThrow(/50/);
+  });
+
+  it('updateTemplate should throw TEMPLATE_NOT_FOUND when template does not exist', async () => {
+    // Inside the transaction lambda, tx.$queryRaw should return empty
+    mockDb.$transaction.mockImplementationOnce(async (fn: (tx: MockDb) => Promise<unknown>) => {
+      const tx: MockDb = {
+        $queryRaw: vi.fn().mockResolvedValueOnce([]), // not found
+        $executeRaw: vi.fn(),
+      };
+      return fn(tx);
+    });
+
+    await expect(
+      service.updateTemplate('plugin-a', 'tmpl-does-not-exist', {
+        name: 'updated',
+        isDefault: false,
+        metadata: {},
         items: [],
       })
-    ).rejects.toThrow(/Not implemented/);
+    ).rejects.toThrow(/not found/i);
   });
 
-  it('updateTemplate should throw "Not implemented" until Phase 3', async () => {
+  it('updateTemplate should throw INSUFFICIENT_PERMISSIONS when plugin does not own template', async () => {
+    mockDb.$transaction.mockImplementationOnce(async (fn: (tx: MockDb) => Promise<unknown>) => {
+      const tx: MockDb = {
+        $queryRaw: vi.fn().mockResolvedValueOnce([{ provided_by_plugin_id: 'plugin-other' }]),
+        $executeRaw: vi.fn(),
+      };
+      return fn(tx);
+    });
+
     await expect(
-      service.updateTemplate('plugin-a', 'tmpl-001', { name: 'test', items: [] })
-    ).rejects.toThrow(/Not implemented/);
+      service.updateTemplate('plugin-a', 'tmpl-001', {
+        name: 'updated',
+        isDefault: false,
+        metadata: {},
+        items: [],
+      })
+    ).rejects.toThrow(/does not own/i);
   });
 
-  it('deleteTemplate should throw "Not implemented" until Phase 3', async () => {
-    await expect(service.deleteTemplate('plugin-a', 'tmpl-001')).rejects.toThrow(/Not implemented/);
+  it('deleteTemplate should throw TEMPLATE_NOT_FOUND when template does not exist', async () => {
+    mockDb.$queryRaw.mockResolvedValueOnce([]);
+
+    await expect(service.deleteTemplate('plugin-a', 'tmpl-missing')).rejects.toThrow(/not found/i);
+  });
+
+  it('deleteTemplate should throw INSUFFICIENT_PERMISSIONS when plugin does not own template', async () => {
+    mockDb.$queryRaw.mockResolvedValueOnce([{ provided_by_plugin_id: 'plugin-other' }]);
+
+    await expect(service.deleteTemplate('plugin-a', 'tmpl-001')).rejects.toThrow(/does not own/i);
   });
 });

@@ -64,6 +64,10 @@ function createMockDb(overrides: {
     user: {
       findUnique: vi.fn().mockResolvedValue(overrides.userFindUnique ?? null),
     },
+    // Required by PluginHookService.getHookSubscribers (Phase 3)
+    tenantPlugin: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     // Expose tx mock for assertions
     _tx: mockTx,
   };

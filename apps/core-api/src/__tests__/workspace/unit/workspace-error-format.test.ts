@@ -14,7 +14,7 @@ import {
 } from '../../../modules/workspace/utils/error-formatter.js';
 
 describe('WorkspaceErrorCode', () => {
-  it('should define all 21 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, and Spec 011 Phase 2 template/plugin codes', () => {
+  it('should define all 22 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, Spec 011 Phase 2 template/plugin codes, and Spec 011 Phase 3 hook codes', () => {
     const expectedCodes = [
       // Spec 009 core codes
       'WORKSPACE_NOT_FOUND',
@@ -40,10 +40,12 @@ describe('WorkspaceErrorCode', () => {
       'WORKSPACE_PLUGIN_EXISTS',
       'WORKSPACE_PLUGIN_NOT_FOUND',
       'PLUGIN_NOT_TENANT_ENABLED',
+      // Spec 011 Phase 3 hook codes
+      'HOOK_REJECTED_CREATION',
     ];
 
     const actualCodes = Object.values(WorkspaceErrorCode);
-    expect(actualCodes).toHaveLength(21);
+    expect(actualCodes).toHaveLength(22);
 
     for (const code of expectedCodes) {
       expect(actualCodes).toContain(code);

@@ -821,22 +821,22 @@ pattern.
 
 **Acceptance Criteria:**
 
-- [ ] `SystemHooks` in `plugin-hooks.ts` gains three new entries:
-  - [ ] `WORKSPACE_BEFORE_CREATE: 'workspace.before_create'`
+- [x] `SystemHooks` in `plugin-hooks.ts` gains three new entries:
+  - [x] `WORKSPACE_BEFORE_CREATE: 'workspace.before_create'`
         (sequential, canReject: true)
-  - [ ] `WORKSPACE_CREATED: 'workspace.created'`
+  - [x] `WORKSPACE_CREATED: 'workspace.created'`
         (parallel, canReject: false)
-  - [ ] `WORKSPACE_DELETED: 'workspace.deleted'`
+  - [x] `WORKSPACE_DELETED: 'workspace.deleted'`
         (parallel, canReject: false)
-- [ ] Plugin manifest Zod schema in `plugin.service.ts` extended with:
-  - [ ] `capabilities: z.array(z.enum(['workspace.template-provider']))
+- [x] Plugin manifest Zod schema in `plugin.service.ts` extended with:
+  - [x] `capabilities: z.array(z.enum(['workspace.template-provider']))
 .optional().default([])`
-  - [ ] `hooks: z.object({ workspace: z.object({ before_create: z.string().url().optional(), created: z.string().url().optional(), deleted: z.string().url().optional() }).optional() }).optional()`
-- [ ] Manifest validation rejects unknown capabilities with error
+  - [x] `hooks: z.object({ workspace: z.object({ before_create: z.string().url().optional(), created: z.string().url().optional(), deleted: z.string().url().optional() }).optional() }).optional()`
+- [x] Manifest validation rejects unknown capabilities with error
       `INVALID_CAPABILITY` (400) and message
       `"Unknown capability: {value}"`
-- [ ] Hook URLs are validated to be well-formed URLs
-- [ ] Existing plugin manifest validation tests pass (no regressions)
+- [x] Hook URLs are validated to be well-formed URLs
+- [x] Existing plugin manifest validation tests pass (no regressions)
 - [ ] `Plugin.manifest` JSON stored in database includes `capabilities`
       and `hooks` fields when provided
 - [ ] Plugs with no `capabilities` / `hooks` fields remain valid
@@ -875,35 +875,35 @@ pointing outside their own service boundary).
 
 **Acceptance Criteria:**
 
-- [ ] `PluginHookService` exported with injectable constructor
+- [x] `PluginHookService` exported with injectable constructor
       `(customDb?, customLogger?)`
-- [ ] `getHookSubscribers(hookType, tenantId)` — queries `plugins` + `tenant_plugins`
+- [x] `getHookSubscribers(hookType, tenantId)` — queries `plugins` + `tenant_plugins`
       to find all enabled plugins with the given hook type in their manifest
-- [ ] `invokeHook(plugin, hookType, payload, timeout)` — HTTP POST to
+- [x] `invokeHook(plugin, hookType, payload, timeout)` — HTTP POST to
       plugin's handler URL; includes headers `X-Tenant-ID`, `X-Trace-ID`;
       uses `AbortController` with `setTimeout(timeout)` for 5s timeout;
       throws on non-2xx response
-- [ ] Hook URL validated to be within plugin's `apiBasePath` before invocation
+- [x] Hook URL validated to be within plugin's `apiBasePath` before invocation
       (security)
-- [ ] `runBeforeCreateHooks(workspaceData, tenantCtx)` — sequential invocation;
+- [x] `runBeforeCreateHooks(workspaceData, tenantCtx)` — sequential invocation;
       if any plugin returns `{ approve: false }`, returns
       `{ approved: false, reason, pluginId }`; timeout/network error = fail-open
       (implicit approve + warn log); returns `{ approved: true }` if all pass
-- [ ] `runCreatedHooks(workspaceId, templateId, tenantCtx)` — fire-and-forget
+- [x] `runCreatedHooks(workspaceId, templateId, tenantCtx)` — fire-and-forget
       (no await on outer function); parallel invocation with `Promise.allSettled`;
       failures logged at WARN level; workspace creation unaffected
-- [ ] `runDeletedHooks(workspaceId, tenantCtx)` — same pattern as `runCreatedHooks`
-- [ ] `HOOK_TIMEOUT_MS = 5_000` constant used throughout
-- [ ] `WorkspaceService.create()` orchestration:
-  - [ ] Step 1: call `hookService.runBeforeCreateHooks()` (before transaction)
-  - [ ] Step 2: if `!result.approved`, throw `HOOK_REJECTED_CREATION` (400)
+- [x] `runDeletedHooks(workspaceId, tenantCtx)` — same pattern as `runCreatedHooks`
+- [x] `HOOK_TIMEOUT_MS = 5_000` constant used throughout
+- [x] `WorkspaceService.create()` orchestration:
+  - [x] Step 1: call `hookService.runBeforeCreateHooks()` (before transaction)
+  - [x] Step 2: if `!result.approved`, throw `HOOK_REJECTED_CREATION` (400)
         with `{ reason, pluginId }` detail
-  - [ ] Step 3: proceed with transaction (create workspace + apply template)
-  - [ ] Step 4: after transaction commit, call `hookService.runCreatedHooks()`
+  - [x] Step 3: proceed with transaction (create workspace + apply template)
+  - [x] Step 4: after transaction commit, call `hookService.runCreatedHooks()`
         (fire-and-forget — do NOT await)
-- [ ] `hook.types.ts` exports `HookResult`, `HookResponse`, `BeforeCreatePayload`
+- [x] `hook.types.ts` exports `HookResult`, `HookResponse`, `BeforeCreatePayload`
       as defined in `plan.md` §4.5
-- [ ] No plugin hooks registered = before_create returns `{ approved: true }` immediately
+- [x] No plugin hooks registered = before_create returns `{ approved: true }` immediately
 
 **Technical notes:**
 
@@ -939,28 +939,28 @@ The `modules/plugin/` directory does not currently exist — create it:
 
 **Acceptance Criteria:**
 
-- [ ] `POST /api/plugins/:pluginId/templates` — calls
+- [x] `POST /api/plugins/:pluginId/templates` — calls
       `templateService.registerTemplate(pluginId, dto)`;
       auth: super admin OR plugin service token; returns 201 with template
-- [ ] `PUT /api/plugins/:pluginId/templates/:templateId` — calls
+- [x] `PUT /api/plugins/:pluginId/templates/:templateId` — calls
       `templateService.updateTemplate()`; replaces all items (cascade delete
       old items + insert new); returns 200
-- [ ] `DELETE /api/plugins/:pluginId/templates/:templateId` — calls
+- [x] `DELETE /api/plugins/:pluginId/templates/:templateId` — calls
       `templateService.deleteTemplate()`; cascade-deletes all items;
       returns 204
-- [ ] `pluginId` in route param must match `template.providedByPluginId`
+- [x] `pluginId` in route param must match `template.providedByPluginId`
       (authorization: plugins can only manage their own templates)
-- [ ] `RegisterTemplateSchema` Zod schema validates:
-  - [ ] `name: z.string().min(1).max(200)`
-  - [ ] `description: z.string().max(1000).optional()`
-  - [ ] `isDefault: z.boolean().optional().default(false)`
-  - [ ] `metadata: z.record(z.unknown()).optional().default({})`
-  - [ ] `items: z.array(TemplateItemSchema).min(0).max(50)`
-  - [ ] `TemplateItemSchema` is a Zod `discriminatedUnion('type', [...])` with
+- [x] `RegisterTemplateSchema` Zod schema validates:
+  - [x] `name: z.string().min(1).max(200)`
+  - [x] `description: z.string().max(1000).optional()`
+  - [x] `isDefault: z.boolean().optional().default(false)`
+  - [x] `metadata: z.record(z.unknown()).optional().default({})`
+  - [x] `items: z.array(TemplateItemSchema).min(0).max(50)`
+  - [x] `TemplateItemSchema` is a Zod `discriminatedUnion('type', [...])` with
         branches for `plugin`, `setting`, `page` as defined in `plan.md` §7.4
-- [ ] Max 50 template items enforced (prevents large transaction bloat)
-- [ ] `registerTemplate()` fully implemented (removes the `throw new Error('Not implemented')` stub from T011-10)
-- [ ] New error code `TEMPLATE_ITEM_LIMIT_EXCEEDED` (400) when items > 50
+- [x] Max 50 template items enforced (prevents large transaction bloat)
+- [x] `registerTemplate()` fully implemented (removes the `throw new Error('Not implemented')` stub from T011-10)
+- [x] New error code `TEMPLATE_ITEM_LIMIT_EXCEEDED` (400) when items > 50
 
 **Technical notes:**
 
@@ -989,18 +989,18 @@ the exact schema in `plan.md` §7.4 verbatim.
 
 **Acceptance Criteria:**
 
-- [ ] After successful workspace creation (transaction committed),
+- [x] After successful workspace creation (transaction committed),
       `eventBus.publish('core.workspace.created', { workspaceId, tenantId,
 parentId?, templateId? })` is called (non-blocking, wrapped in try-catch)
-- [ ] After successful workspace deletion, `eventBus.publish(
+- [x] After successful workspace deletion, `eventBus.publish(
 'core.workspace.deleted', { workspaceId, tenantId })` is called
       (non-blocking)
-- [ ] EventBus failure does NOT fail workspace creation or deletion (try-catch,
+- [x] EventBus failure does NOT fail workspace creation or deletion (try-catch,
       error logged at WARN)
-- [ ] If `eventBus` is not available (null/undefined in constructor), events
+- [x] If `eventBus` is not available (null/undefined in constructor), events
       are silently skipped with a DEBUG log
-- [ ] Event payload is typed (no `any`) with inline interface or exported type
-- [ ] Existing `WorkspaceService` EventBus usage pattern is preserved
+- [x] Event payload is typed (no `any`) with inline interface or exported type
+- [x] Existing `WorkspaceService` EventBus usage pattern is preserved
       (check current `workspace.service.ts` for existing event patterns)
 
 **Technical notes:**

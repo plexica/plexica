@@ -63,6 +63,10 @@ function createMockDb(overrides: any = {}): any {
     },
     $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(async (callback: any) => await callback(mockTx)),
+    // Required by PluginHookService.getHookSubscribers (Phase 3)
+    tenantPlugin: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     ...overrides,
   };
 }
@@ -72,6 +76,15 @@ describe('Workspace Integration Tests', () => {
 
   beforeEach(() => {
     workspaceService = new WorkspaceService();
+    // Phase 3: PluginHookService is auto-created inside WorkspaceService and
+    // would hit the real Prisma client.  Stub it out so unit tests remain
+    // isolated from database infrastructure.
+    vi.spyOn(workspaceService as any, 'hookService', 'get').mockReturnValue({
+      runBeforeCreateHooks: vi.fn().mockResolvedValue({ approved: true }),
+      runCreatedHooks: vi.fn().mockResolvedValue(undefined),
+      runDeletedHooks: vi.fn().mockResolvedValue(undefined),
+      getHookSubscribers: vi.fn().mockResolvedValue([]),
+    });
   });
 
   describe('Create Workspace', () => {

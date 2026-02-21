@@ -160,6 +160,14 @@ export const SystemHooks = {
 
   // Custom hooks
   CUSTOM: 'custom',
+
+  // Workspace lifecycle (Spec 011 Phase 3 — T011-13)
+  /** Sequential, canReject: true — plugin can block workspace creation */
+  WORKSPACE_BEFORE_CREATE: 'workspace.before_create',
+  /** Parallel, canReject: false — fire-and-forget after workspace created */
+  WORKSPACE_CREATED: 'workspace.created',
+  /** Parallel, canReject: false — fire-and-forget after workspace deleted */
+  WORKSPACE_DELETED: 'workspace.deleted',
 } as const;
 
 /**
