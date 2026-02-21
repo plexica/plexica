@@ -103,7 +103,7 @@ describe('Template & Plugin Lifecycle E2E', () => {
     try {
       // Clean up global tables written by the plugin lifecycle tests
       await db.$executeRaw`DELETE FROM workspace_plugins WHERE plugin_id = ${TEST_PLUGIN_ID}`;
-      await db.$executeRaw`DELETE FROM tenant_plugins WHERE plugin_id = ${TEST_PLUGIN_ID}`;
+      await db.$executeRaw`DELETE FROM tenant_plugins WHERE "pluginId" = ${TEST_PLUGIN_ID}`;
     } catch {
       /* ignore */
     }
@@ -148,9 +148,9 @@ describe('Template & Plugin Lifecycle E2E', () => {
 
       // Register the plugin at tenant level so enablePlugin doesn't reject it
       await db.$executeRaw`
-        INSERT INTO tenant_plugins (tenant_id, plugin_id, enabled, configuration, created_at, updated_at)
-        VALUES (${testTenantId}::uuid, ${TEST_PLUGIN_ID}, true, '{}'::jsonb, NOW(), NOW())
-        ON CONFLICT (tenant_id, plugin_id) DO NOTHING
+        INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+        VALUES (${testTenantId}, ${TEST_PLUGIN_ID}, true, '{}'::jsonb, NOW())
+        ON CONFLICT ("tenantId", "pluginId") DO NOTHING
       `;
     });
 
@@ -200,9 +200,9 @@ describe('Template & Plugin Lifecycle E2E', () => {
 
       // Ensure tenant plugin exists (may already exist from Test 3)
       await db.$executeRaw`
-        INSERT INTO tenant_plugins (tenant_id, plugin_id, enabled, configuration, created_at, updated_at)
-        VALUES (${testTenantId}::uuid, ${TEST_PLUGIN_ID}, true, '{}'::jsonb, NOW(), NOW())
-        ON CONFLICT (tenant_id, plugin_id) DO NOTHING
+        INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+        VALUES (${testTenantId}, ${TEST_PLUGIN_ID}, true, '{}'::jsonb, NOW())
+        ON CONFLICT ("tenantId", "pluginId") DO NOTHING
       `;
 
       // Enable plugin with initial config
@@ -256,9 +256,9 @@ describe('Template & Plugin Lifecycle E2E', () => {
 
       // Register cascade plugin at tenant level
       await db.$executeRaw`
-        INSERT INTO tenant_plugins (tenant_id, plugin_id, enabled, configuration, created_at, updated_at)
-        VALUES (${testTenantId}::uuid, ${CASCADE_PLUGIN_ID}, true, '{}'::jsonb, NOW(), NOW())
-        ON CONFLICT (tenant_id, plugin_id) DO NOTHING
+        INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+        VALUES (${testTenantId}, ${CASCADE_PLUGIN_ID}, true, '{}'::jsonb, NOW())
+        ON CONFLICT ("tenantId", "pluginId") DO NOTHING
       `;
 
       const ctx = tenantContext;

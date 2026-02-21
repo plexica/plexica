@@ -163,9 +163,8 @@ describe('Plugin Hook Lifecycle E2E', () => {
       approvalPluginId = `hook-approving-${Date.now()}`;
 
       await db.$executeRawUnsafe(
-        `INSERT INTO plugins (id, name, version, description, category, status, metadata, manifest, created_at, updated_at)
+        `INSERT INTO plugins (id, name, version, description, category, status, manifest, created_at, updated_at)
          VALUES ($1, 'Approving Hook Plugin', '1.0.0', 'Approves all workspaces', 'test', 'PUBLISHED',
-                 '{}',
                  '{"hooks":{"workspace":{"before_create":"http://plugin-approving:8080/hooks/before_create"}},"api":{"services":[{"baseUrl":"http://plugin-approving:8080"}]}}'::jsonb,
                  NOW(), NOW())
          ON CONFLICT (id) DO NOTHING`,
@@ -173,9 +172,9 @@ describe('Plugin Hook Lifecycle E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO tenant_plugins (tenant_id, plugin_id, enabled, configuration, installed_at, updated_at)
-         VALUES ($1::uuid, $2, true, '{}', NOW(), NOW())
-         ON CONFLICT (tenant_id, plugin_id) DO UPDATE SET enabled = true`,
+        `INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+         VALUES ($1, $2, true, '{}', NOW())
+         ON CONFLICT ("tenantId", "pluginId") DO UPDATE SET enabled = true`,
         testTenantId,
         approvalPluginId
       );
@@ -184,7 +183,7 @@ describe('Plugin Hook Lifecycle E2E', () => {
     afterEach(async () => {
       // Remove tenant_plugin + plugin
       await db.$executeRawUnsafe(
-        `DELETE FROM tenant_plugins WHERE plugin_id = $1`,
+        `DELETE FROM tenant_plugins WHERE "pluginId" = $1`,
         approvalPluginId
       );
       await db.$executeRawUnsafe(`DELETE FROM plugins WHERE id = $1`, approvalPluginId);
@@ -227,9 +226,8 @@ describe('Plugin Hook Lifecycle E2E', () => {
       rejectPluginId = `hook-rejecting-${Date.now()}`;
 
       await db.$executeRawUnsafe(
-        `INSERT INTO plugins (id, name, version, description, category, status, metadata, manifest, created_at, updated_at)
+        `INSERT INTO plugins (id, name, version, description, category, status, manifest, created_at, updated_at)
          VALUES ($1, 'Rejecting Hook Plugin', '1.0.0', 'Rejects all workspaces', 'test', 'PUBLISHED',
-                 '{}',
                  '{"hooks":{"workspace":{"before_create":"http://plugin-rejecting:8080/hooks/before_create"}},"api":{"services":[{"baseUrl":"http://plugin-rejecting:8080"}]}}'::jsonb,
                  NOW(), NOW())
          ON CONFLICT (id) DO NOTHING`,
@@ -237,16 +235,19 @@ describe('Plugin Hook Lifecycle E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO tenant_plugins (tenant_id, plugin_id, enabled, configuration, installed_at, updated_at)
-         VALUES ($1::uuid, $2, true, '{}', NOW(), NOW())
-         ON CONFLICT (tenant_id, plugin_id) DO UPDATE SET enabled = true`,
+        `INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+         VALUES ($1, $2, true, '{}', NOW())
+         ON CONFLICT ("tenantId", "pluginId") DO UPDATE SET enabled = true`,
         testTenantId,
         rejectPluginId
       );
     });
 
     afterEach(async () => {
-      await db.$executeRawUnsafe(`DELETE FROM tenant_plugins WHERE plugin_id = $1`, rejectPluginId);
+      await db.$executeRawUnsafe(
+        `DELETE FROM tenant_plugins WHERE "pluginId" = $1`,
+        rejectPluginId
+      );
       await db.$executeRawUnsafe(`DELETE FROM plugins WHERE id = $1`, rejectPluginId);
     });
 
@@ -286,9 +287,8 @@ describe('Plugin Hook Lifecycle E2E', () => {
       ffPluginId = `hook-ff-${Date.now()}`;
 
       await db.$executeRawUnsafe(
-        `INSERT INTO plugins (id, name, version, description, category, status, metadata, manifest, created_at, updated_at)
+        `INSERT INTO plugins (id, name, version, description, category, status, manifest, created_at, updated_at)
          VALUES ($1, 'Fire-and-Forget Plugin', '1.0.0', 'Subscribes to created/deleted', 'test', 'PUBLISHED',
-                 '{}',
                  '{"hooks":{"workspace":{"created":"http://plugin-ff:8080/hooks/created","deleted":"http://plugin-ff:8080/hooks/deleted"}},"api":{"services":[{"baseUrl":"http://plugin-ff:8080"}]}}'::jsonb,
                  NOW(), NOW())
          ON CONFLICT (id) DO NOTHING`,
@@ -296,16 +296,16 @@ describe('Plugin Hook Lifecycle E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO tenant_plugins (tenant_id, plugin_id, enabled, configuration, installed_at, updated_at)
-         VALUES ($1::uuid, $2, true, '{}', NOW(), NOW())
-         ON CONFLICT (tenant_id, plugin_id) DO UPDATE SET enabled = true`,
+        `INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+         VALUES ($1, $2, true, '{}', NOW())
+         ON CONFLICT ("tenantId", "pluginId") DO UPDATE SET enabled = true`,
         testTenantId,
         ffPluginId
       );
     });
 
     afterEach(async () => {
-      await db.$executeRawUnsafe(`DELETE FROM tenant_plugins WHERE plugin_id = $1`, ffPluginId);
+      await db.$executeRawUnsafe(`DELETE FROM tenant_plugins WHERE "pluginId" = $1`, ffPluginId);
       await db.$executeRawUnsafe(`DELETE FROM plugins WHERE id = $1`, ffPluginId);
     });
 
