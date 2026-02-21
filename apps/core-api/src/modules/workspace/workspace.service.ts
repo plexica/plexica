@@ -273,43 +273,46 @@ export class WorkspaceService {
       );
 
       // Create workspace using parameterized values
+      // Note: settings must be cast to jsonb explicitly so Postgres accepts
+      // the JSON string parameter when the column type is jsonb.
+      const settingsJson = JSON.stringify(dto.settings ?? {});
       const tableName = Prisma.raw(`"${schemaName}"."workspaces"`);
       if (dto.parentId) {
-        await tx.$executeRaw`
-           INSERT INTO ${tableName}
+        await tx.$executeRaw(
+          Prisma.sql`INSERT INTO ${tableName}
            (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
            VALUES (
              ${newWorkspaceId},
-             ${tenantContext.tenantId},
-             ${dto.parentId},
+             ${tenantContext.tenantId}::uuid,
+             ${dto.parentId}::uuid,
              ${newDepth},
              ${newPath},
              ${dto.slug},
              ${dto.name},
-             ${dto.description},
-             ${dto.settings || {}},
+             ${dto.description ?? null},
+             ${settingsJson}::jsonb,
              NOW(),
              NOW()
-           )
-         `;
+           )`
+        );
       } else {
-        await tx.$executeRaw`
-           INSERT INTO ${tableName}
+        await tx.$executeRaw(
+          Prisma.sql`INSERT INTO ${tableName}
            (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
            VALUES (
              ${newWorkspaceId},
-             ${tenantContext.tenantId},
+             ${tenantContext.tenantId}::uuid,
              NULL,
              ${newDepth},
              ${newPath},
              ${dto.slug},
              ${dto.name},
-             ${dto.description},
-             ${dto.settings || {}},
+             ${dto.description ?? null},
+             ${settingsJson}::jsonb,
              NOW(),
              NOW()
-           )
-         `;
+           )`
+        );
       }
 
       // Create workspace member (creator as admin)

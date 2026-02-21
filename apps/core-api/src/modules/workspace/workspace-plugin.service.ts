@@ -206,8 +206,8 @@ export class WorkspacePluginService {
     const rows = await this.db.$queryRaw<Array<{ enabled: boolean }>>(
       Prisma.sql`SELECT enabled
                  FROM tenant_plugins
-                 WHERE tenant_id = ${tenantId}::uuid
-                   AND plugin_id = ${pluginId}
+                 WHERE "tenantId" = ${tenantId}::uuid
+                   AND "pluginId" = ${pluginId}
                  LIMIT 1`
     );
 
