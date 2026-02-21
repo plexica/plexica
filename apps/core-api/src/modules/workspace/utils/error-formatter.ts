@@ -179,23 +179,49 @@ const SERVICE_ERROR_MAPPINGS: ErrorMapping[] = [
 /**
  * Map a service-layer error to a WorkspaceError.
  *
- * Inspects the error message against known patterns and returns a
- * WorkspaceError with the appropriate code and HTTP status. If no
- * pattern matches, returns null (caller should re-throw as 500).
+ * Inspects the error's `.code` property first (set by hierarchy and resource
+ * service methods via `(err as NodeJS.ErrnoException).code = '...'`), then
+ * falls back to message-pattern matching for services that throw plain Errors.
+ *
+ * If no pattern matches, returns null (caller should re-throw as 500).
  *
  * @param error - The caught error from the workspace service
  * @returns WorkspaceError if a pattern matches, null otherwise
  */
+
+/**
+ * Map from the `.code` string set on plain Error objects (by hierarchy /
+ * resource services) to a WorkspaceErrorCode.  Only codes that are actually
+ * used by the service layer need to be listed here.
+ */
+const ERROR_CODE_MAP: Record<string, WorkspaceErrorCode> = {
+  HIERARCHY_DEPTH_EXCEEDED: WorkspaceErrorCode.HIERARCHY_DEPTH_EXCEEDED,
+  PARENT_WORKSPACE_NOT_FOUND: WorkspaceErrorCode.PARENT_WORKSPACE_NOT_FOUND,
+  PARENT_PERMISSION_DENIED: WorkspaceErrorCode.PARENT_PERMISSION_DENIED,
+  REPARENT_CYCLE_DETECTED: WorkspaceErrorCode.REPARENT_CYCLE_DETECTED,
+  WORKSPACE_SLUG_CONFLICT: WorkspaceErrorCode.WORKSPACE_SLUG_CONFLICT,
+  SHARING_DISABLED: WorkspaceErrorCode.SHARING_DISABLED,
+  RESOURCE_ALREADY_SHARED: WorkspaceErrorCode.RESOURCE_ALREADY_SHARED,
+  RESOURCE_NOT_FOUND: WorkspaceErrorCode.WORKSPACE_NOT_FOUND,
+};
+
 export function mapServiceError(error: unknown): WorkspaceError | null {
   if (!(error instanceof Error)) return null;
 
   const message = error.message;
 
-  // Check member-specific patterns first (more specific before general)
+  // ── 1. Check .code property first (set by hierarchy / resource services) ──
+  const errCode = (error as NodeJS.ErrnoException).code;
+  if (errCode && errCode in ERROR_CODE_MAP) {
+    return new WorkspaceError(ERROR_CODE_MAP[errCode], message);
+  }
+
+  // ── 2. Check member-specific patterns first (more specific before general) ──
   if (/member.*not found/i.test(message)) {
     return new WorkspaceError(WorkspaceErrorCode.MEMBER_NOT_FOUND, message);
   }
 
+  // ── 3. Fall back to message-pattern matching ──────────────────────────────
   for (const mapping of SERVICE_ERROR_MAPPINGS) {
     const matches =
       typeof mapping.pattern === 'string'

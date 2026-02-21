@@ -17,6 +17,7 @@ import { authRoutes } from './routes/auth.js';
 import { pluginRoutes } from './routes/plugin.js';
 import { pluginUploadRoutes } from './routes/plugin-upload.js';
 import { workspaceRoutes } from './routes/workspace.js';
+import { workspaceTemplatesRoutes } from './routes/workspace-templates.js';
 import { adminRoutes } from './routes/admin.js';
 import { marketplaceRoutes } from './routes/marketplace.js';
 import { pluginGatewayRoutes } from './routes/plugin-gateway.js';
@@ -80,6 +81,7 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(authRoutes, { prefix: '/api' });
   await app.register(tenantRoutes, { prefix: '/api' });
   await app.register(workspaceRoutes, { prefix: '/api' });
+  await app.register(workspaceTemplatesRoutes, { prefix: '/api' }); // Spec 011 Phase 2 — FR-021, FR-022
   await app.register(pluginRoutes, { prefix: '/api' });
   await app.register(pluginUploadRoutes, { prefix: '/api' });
   await app.register(marketplaceRoutes, { prefix: '/api' });
