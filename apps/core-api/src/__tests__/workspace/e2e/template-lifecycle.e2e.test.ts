@@ -121,7 +121,9 @@ describe('Template & Plugin Lifecycle E2E', () => {
 
   it('should throw TEMPLATE_NOT_FOUND for an unknown template UUID', async () => {
     const unknownId = '00000000-0000-4000-a000-000000000000';
-    const error = await templateService.getTemplate(unknownId).catch((e: unknown) => e);
+    const error = await templateService
+      .getTemplate(unknownId, testTenantId)
+      .catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(WorkspaceError);
     expect((error as WorkspaceError).code).toBe(WorkspaceErrorCode.TEMPLATE_NOT_FOUND);

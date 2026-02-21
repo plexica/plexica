@@ -189,7 +189,7 @@ describe('PluginHookService.invokeHook', () => {
     // H3 fix: the error message now uses URL-parsed origin comparison.
     // Origin mismatch message: "does not match plugin basePath origin"
     await expect(
-      service.invokeHook(plugin, 'workspace.before_create', BASE_PAYLOAD, 5000)
+      service.invokeHook(plugin, 'workspace.before_create', BASE_PAYLOAD, TENANT_CTX.tenantId, 5000)
     ).rejects.toThrow(/basePath/);
 
     expect(mockFetch).not.toHaveBeenCalled();
@@ -216,7 +216,7 @@ describe('PluginHookService.invokeHook', () => {
     };
 
     await expect(
-      service.invokeHook(plugin, 'workspace.before_create', BASE_PAYLOAD, 5000)
+      service.invokeHook(plugin, 'workspace.before_create', BASE_PAYLOAD, TENANT_CTX.tenantId, 5000)
     ).rejects.toThrow(/500/);
   });
 
@@ -243,6 +243,7 @@ describe('PluginHookService.invokeHook', () => {
       plugin,
       'workspace.before_create',
       { ...BASE_PAYLOAD, tenantId: TENANT_CTX.tenantId },
+      TENANT_CTX.tenantId,
       5000
     );
 

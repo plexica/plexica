@@ -14,7 +14,7 @@
 //   using Redis sliding-window counters (rateLimiter factory).
 //   This is in addition to the global LRU-based rate limiter.
 
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { workspaceService } from '../modules/workspace/workspace.service.js';
 import { WorkspaceResourceService } from '../modules/workspace/workspace-resource.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
@@ -40,7 +40,6 @@ import { workspacePluginService } from '../modules/workspace/workspace-plugin.se
 import {
   WorkspaceError,
   WorkspaceErrorCode,
-  mapServiceError,
   handleServiceError,
 } from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
