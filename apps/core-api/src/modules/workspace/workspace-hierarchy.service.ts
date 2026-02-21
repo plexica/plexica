@@ -251,9 +251,11 @@ export class WorkspaceHierarchyService {
           ) AS ancestor_id
         ),
         member_counts AS (
-          SELECT workspace_id, COUNT(*) AS cnt
-          FROM ${membersTable}
-          GROUP BY workspace_id
+          SELECT wm.workspace_id, COUNT(*) AS cnt
+          FROM ${membersTable} wm
+          JOIN ${wsTable} w ON w.id = wm.workspace_id
+          WHERE w.tenant_id = ${tenantId}
+          GROUP BY wm.workspace_id
         ),
         visible_workspaces AS (
           SELECT w.id, w.parent_id, w.depth, w.path, w.slug, w.name,

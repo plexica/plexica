@@ -104,11 +104,14 @@ export class WorkspaceTemplateService {
     const rows = await this.db.$queryRaw<TemplateListItem[]>(
       Prisma.sql`SELECT wt.id, wt.name, wt.description, wt.provided_by_plugin_id,
                         wt.is_default, wt.metadata, wt.created_at,
-                        (SELECT COUNT(*)
-                           FROM workspace_template_items wti
-                          WHERE wti.template_id = wt.id) as item_count
+                        COALESCE(ic.cnt, 0) AS item_count
                    FROM workspace_templates wt
                    JOIN tenant_plugins tp ON tp.plugin_id = wt.provided_by_plugin_id
+                   LEFT JOIN (
+                     SELECT template_id, COUNT(*) AS cnt
+                       FROM workspace_template_items
+                      GROUP BY template_id
+                   ) ic ON ic.template_id = wt.id
                   WHERE tp.tenant_id = ${tenantId}::uuid
                     AND tp.enabled = true
                   ORDER BY wt.name ASC`
@@ -558,6 +561,9 @@ export class WorkspaceTemplateService {
   /**
    * Validate all plugin-type template items are tenant-enabled.
    * Uses the transaction client to stay within the same transaction.
+   *
+   * Performance: single batched query instead of one query per plugin item
+   * (avoids N+1 inside the transaction — plan.md §14.3).
    */
   private async validateTemplatePluginsInTx(
     template: TemplateWithItems,
@@ -565,18 +571,23 @@ export class WorkspaceTemplateService {
     tx: PrismaTransaction
   ): Promise<void> {
     const pluginItems = template.items.filter((i) => i.type === 'plugin' && i.plugin_id);
+    if (pluginItems.length === 0) return;
+
+    const pluginIds = pluginItems.map((i) => i.plugin_id!);
+
+    // Single query: fetch enabled status for all required plugins at once.
+    const rows = await tx.$queryRaw<Array<{ plugin_id: string; enabled: boolean }>>(
+      Prisma.sql`SELECT plugin_id, enabled
+                   FROM tenant_plugins
+                  WHERE tenant_id = ${tenantId}::uuid
+                    AND plugin_id = ANY(${pluginIds}::text[])`
+    );
+
+    const enabledSet = new Set(rows.filter((r) => r.enabled).map((r) => r.plugin_id));
 
     for (const item of pluginItems) {
       const pluginId = item.plugin_id!;
-      const rows = await tx.$queryRaw<Array<{ enabled: boolean }>>(
-        Prisma.sql`SELECT enabled
-                     FROM tenant_plugins
-                    WHERE tenant_id = ${tenantId}::uuid
-                      AND plugin_id = ${pluginId}
-                    LIMIT 1`
-      );
-
-      if (rows.length === 0 || !rows[0].enabled) {
+      if (!enabledSet.has(pluginId)) {
         throw new WorkspaceError(
           WorkspaceErrorCode.TEMPLATE_PLUGIN_NOT_INSTALLED,
           `Template requires plugin ${pluginId} which is not enabled for tenant ${tenantId}`,

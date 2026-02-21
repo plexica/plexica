@@ -218,30 +218,35 @@ export function getStatusForCode(code: WorkspaceErrorCode): number {
 }
 
 /**
- * Map a caught service error to a Constitution Art. 6.2 structured response
- * and send it directly via the Fastify reply object.
+ * Map a caught service error and re-throw it as a WorkspaceError so that
+ * Fastify's global error handler produces a Constitution Art. 6.2 response.
  *
- * This helper is shared across route files to avoid duplicating the same
- * mapping logic (M5 deduplication). It never returns normally — it either
- * sends a mapped error response or re-throws the original error so Fastify's
- * global handler can produce a 500.
+ * If the error is already a WorkspaceError it is re-thrown as-is.
+ * If the message matches a known pattern it is mapped to the appropriate
+ * WorkspaceError and thrown.
+ * Otherwise the original error is re-thrown so Fastify returns a 500.
+ *
+ * This function always throws — callers do not need to return its result.
  *
  * Usage in route handlers:
  *   } catch (error) {
  *     handleServiceError(error, reply);
  *   }
+ *
+ * NOTE: The `reply` parameter is retained for API compatibility but is no
+ * longer used to send the response directly. Sending is handled by the global
+ * Fastify error handler, which prevents the double-response crash that would
+ * occur if reply.send() were called inside a catch block and Fastify also
+ * tried to handle the re-thrown error (Constitution Art. 6.1).
  */
-export function handleServiceError(error: unknown, reply: FastifyReply): never {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function handleServiceError(error: unknown, _reply: FastifyReply): never {
+  if (error instanceof WorkspaceError) {
+    throw error;
+  }
   const mapped = mapServiceError(error);
   if (mapped) {
-    reply.status(mapped.statusCode).send({
-      error: {
-        code: mapped.code,
-        message: mapped.message,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      },
-    });
-    throw new Error('Response sent');
+    throw mapped;
   }
   throw error;
 }

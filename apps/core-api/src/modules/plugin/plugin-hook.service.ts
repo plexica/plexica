@@ -100,6 +100,7 @@ export class PluginHookService {
             workspaceData,
             tenantId: tenantCtx.tenantId,
           },
+          tenantCtx.tenantId,
           HOOK_TIMEOUT_MS
         );
 
@@ -138,6 +139,7 @@ export class PluginHookService {
               templateId,
               tenantId: tenantCtx.tenantId,
             },
+            tenantCtx.tenantId,
             HOOK_TIMEOUT_MS
           ).catch((error: unknown) => {
             this.log.warn(
@@ -168,6 +170,7 @@ export class PluginHookService {
               workspaceId,
               tenantId: tenantCtx.tenantId,
             },
+            tenantCtx.tenantId,
             HOOK_TIMEOUT_MS
           ).catch((error: unknown) => {
             this.log.warn(
@@ -252,15 +255,17 @@ export class PluginHookService {
    * Validates the hook URL is within the plugin's declared apiBasePath (security).
    * Throws on non-2xx response, timeout, or URL outside basePath.
    *
-   * @param plugin   - Plugin info (id, apiBasePath, hooks)
-   * @param hookType - e.g. 'workspace.before_create'
-   * @param payload  - JSON body to send to the plugin
-   * @param timeout  - Milliseconds before aborting (default HOOK_TIMEOUT_MS)
+   * @param plugin    - Plugin info (id, apiBasePath, hooks)
+   * @param hookType  - e.g. 'workspace.before_create'
+   * @param payload   - JSON body to send to the plugin
+   * @param tenantId  - Tenant ID for the X-Tenant-ID header (required; never empty)
+   * @param timeout   - Milliseconds before aborting (default HOOK_TIMEOUT_MS)
    */
   async invokeHook(
     plugin: PluginInfo,
     hookType: string,
     payload: object,
+    tenantId: string,
     timeout: number
   ): Promise<HookResponse> {
     const hookUrl = getHookUrl(plugin, hookType);
@@ -305,13 +310,11 @@ export class PluginHookService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
-    const payloadWithTenant = payload as Record<string, unknown>;
-    const tenantId =
-      (payloadWithTenant.tenantId as string | undefined) ??
-      ((payloadWithTenant.workspaceData as Record<string, unknown> | undefined)?.tenantId as
-        | string
-        | undefined) ??
-      '';
+    if (!tenantId) {
+      throw new Error(
+        `invokeHook called without tenantId for plugin ${plugin.id} hook ${hookType}`
+      );
+    }
 
     try {
       const response = await fetch(hookUrl, {

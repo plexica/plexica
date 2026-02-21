@@ -871,18 +871,21 @@ export class WorkspaceService {
       `;
     });
 
-    // Invalidate all member cache entries for this workspace (pattern-based cleanup)
+    // Invalidate member cache entries for this workspace using deterministic keys.
+    // KEYS is intentionally avoided (O(N) blocking Redis command).
+    // The member cache key format mirrors the pattern used in addMember / removeMember:
+    //   tenant:<tenantId>:<PREFIX>:<workspaceId>:member:<userId>
+    // On delete we cannot enumerate all members without a DB query, so we invalidate
+    // the workspace-level aggregation key and rely on per-member TTL expiry for the
+    // individual entries. The aggregation key is always present after the first read.
     if (this.cache) {
       try {
-        const pattern = `tenant:${tenantId}:${CACHE_KEY_PREFIX}:${id}:member:*`;
-        const keys = await this.cache.keys(pattern);
-        if (keys.length > 0) {
-          await this.cache.del(...keys);
-          this.log.debug(
-            { workspaceId: id, invalidatedKeys: keys.length },
-            'Workspace member cache invalidated on workspace delete'
-          );
-        }
+        const aggKey = `tenant:${tenantId}:${CACHE_KEY_PREFIX}:${id}:members:agg`;
+        await this.cache.del(aggKey);
+        this.log.debug(
+          { workspaceId: id },
+          'Workspace member aggregation cache invalidated on workspace delete'
+        );
       } catch (cacheError) {
         this.log.warn(
           { workspaceId: id, error: String(cacheError) },

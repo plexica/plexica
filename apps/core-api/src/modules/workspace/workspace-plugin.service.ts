@@ -87,6 +87,9 @@ export class WorkspacePluginService {
    * Disable a plugin for a workspace (sets enabled = false, preserves config).
    *
    * Throws WORKSPACE_PLUGIN_NOT_FOUND if no record exists.
+   *
+   * Security: the UPDATE is scoped to the caller's tenant via a JOIN on workspaces,
+   * preventing cross-tenant mutation even if workspaceId belongs to another tenant.
    */
   async disablePlugin(
     workspaceId: string,
@@ -99,10 +102,13 @@ export class WorkspacePluginService {
     );
 
     const result = await this.db.$executeRaw(
-      Prisma.sql`UPDATE workspace_plugins
+      Prisma.sql`UPDATE workspace_plugins wp
                  SET enabled = false, updated_at = NOW()
-                 WHERE workspace_id = ${workspaceId}::uuid
-                   AND plugin_id = ${pluginId}`
+                 FROM workspaces w
+                 WHERE wp.workspace_id = w.id
+                   AND wp.workspace_id = ${workspaceId}::uuid
+                   AND wp.plugin_id = ${pluginId}
+                   AND w.tenant_id = ${tenantCtx.tenantId}::uuid`
     );
 
     if (result === 0) {
@@ -123,6 +129,9 @@ export class WorkspacePluginService {
    * Update the configuration JSON for a workspace plugin.
    *
    * Throws WORKSPACE_PLUGIN_NOT_FOUND if no record exists.
+   *
+   * Security: the UPDATE is scoped to the caller's tenant via a JOIN on workspaces,
+   * preventing cross-tenant mutation even if workspaceId belongs to another tenant.
    */
   async updateConfig(
     workspaceId: string,
@@ -137,11 +146,15 @@ export class WorkspacePluginService {
 
     const configJson = JSON.stringify(config);
     const rows = await this.db.$queryRaw<WorkspacePluginRow[]>(
-      Prisma.sql`UPDATE workspace_plugins
+      Prisma.sql`UPDATE workspace_plugins wp
                  SET configuration = ${configJson}::jsonb, updated_at = NOW()
-                 WHERE workspace_id = ${workspaceId}::uuid
-                   AND plugin_id = ${pluginId}
-                 RETURNING workspace_id, plugin_id, enabled, configuration, created_at, updated_at`
+                 FROM workspaces w
+                 WHERE wp.workspace_id = w.id
+                   AND wp.workspace_id = ${workspaceId}::uuid
+                   AND wp.plugin_id = ${pluginId}
+                   AND w.tenant_id = ${tenantCtx.tenantId}::uuid
+                 RETURNING wp.workspace_id, wp.plugin_id, wp.enabled,
+                           wp.configuration, wp.created_at, wp.updated_at`
     );
 
     if (rows.length === 0) {
@@ -157,6 +170,10 @@ export class WorkspacePluginService {
 
   /**
    * List all plugin records for a workspace (both enabled and disabled).
+   *
+   * Security: the SELECT is scoped to the caller's tenant via a JOIN on workspaces,
+   * preventing cross-tenant information disclosure even if workspaceId belongs to
+   * another tenant (Constitution Art. 1.2§2, Art. 5.1§5).
    */
   async listPlugins(workspaceId: string, tenantCtx: TenantContext): Promise<WorkspacePluginRow[]> {
     this.logger.debug(
@@ -165,10 +182,13 @@ export class WorkspacePluginService {
     );
 
     return this.db.$queryRaw<WorkspacePluginRow[]>(
-      Prisma.sql`SELECT workspace_id, plugin_id, enabled, configuration, created_at, updated_at
-                 FROM workspace_plugins
-                 WHERE workspace_id = ${workspaceId}::uuid
-                 ORDER BY created_at ASC`
+      Prisma.sql`SELECT wp.workspace_id, wp.plugin_id, wp.enabled,
+                        wp.configuration, wp.created_at, wp.updated_at
+                 FROM workspace_plugins wp
+                 JOIN workspaces w ON w.id = wp.workspace_id
+                 WHERE wp.workspace_id = ${workspaceId}::uuid
+                   AND w.tenant_id = ${tenantCtx.tenantId}::uuid
+                 ORDER BY wp.created_at ASC`
     );
   }
 

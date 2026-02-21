@@ -109,7 +109,7 @@ export async function workspaceTemplatesRoutes(fastify: FastifyInstance): Promis
           type: 'object',
           required: ['id'],
           properties: {
-            id: { type: 'string', description: 'Template UUID' },
+            id: { type: 'string', format: 'uuid', description: 'Template UUID' },
           },
         },
         response: {
