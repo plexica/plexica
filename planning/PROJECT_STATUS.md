@@ -1,38 +1,39 @@
 # Plexica - Project Status
 
-**Last Updated**: February 17, 2026  
+**Last Updated**: February 21, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Workspace Management  
-**Current Milestone**: **Spec 002 - Authentication System** ✅ (OAuth 2.0) — 50 tasks complete, 7 phases done  
-**Previous Milestone**: Security Hardening ✅ (Completed Feb 17) — 9 vulnerabilities resolved  
+**Current Milestone**: **Spec 011 - Workspace Hierarchy & Templates** 🟡 (All 3 phases implemented, adversarial review fixes applied — ready for merge)  
+**Previous Milestone**: Spec 002 Authentication System ✅ (OAuth 2.0, Feb 17) — Security Hardening ✅ (9 vulnerabilities resolved, Feb 17)  
 **Version**: 0.9.0
 
 ---
 
 ## 📊 Quick Overview
 
-| Metric                       | Value                                                 | Status                        |
-| ---------------------------- | ----------------------------------------------------- | ----------------------------- |
-| **Current Phase**            | Phase 2 + i18n + Workspace Mgmt + Auth ✅             | 🟢 Active Development         |
-| **Current Focus**            | Spec 002 OAuth 2.0 Complete + Test Stabilization      | ✅ OAuth Ready for Deployment |
-| **Spec 002 Status**          | Authentication System (7 phases, 50 tasks)            | ✅ 100% Complete (Feb 17)     |
-| **Sprint 3 Status**          | Workspace Foundation Complete (5/5 tasks)             | ✅ Closed (Feb 17, 2026)      |
-| **Sprint 4 Status**          | Security + Test Fixes (9 vulnerabilities resolved)    | ✅ Closed (Feb 17, 2026)      |
-| **Sprint Velocity**          | Sprint 1: 23 pts, Sprint 2: 5 pts, Sprint 3: 24 pts   | 🎯 17 pts avg velocity        |
-| **Total Commits (Last 10d)** | 65+ commits (41 + 12 Sprint 3 + 1 security + 11 auth) | 🟢 High velocity              |
-| **Security Vulnerabilities** | 0 known vulnerabilities (9 resolved Feb 17)           | ✅ Excellent                  |
-| **Total TypeScript Files**   | 1,435+ files                                          | 🟢 Growing                    |
-| **Backend MVP**              | Core + Multi-tenancy + **Auth OAuth 2.0** + Plugins   | ✅ **100% Complete** 🎉       |
-| **Frontend MVP**             | Tenant App + Super-Admin Panel                        | 🟡 **60% Complete** 🎯        |
-| **Frontend Production**      | Error Boundaries + Theming + Widgets + Tests          | 🔴 **0% (Spec 010)** 🚨       |
-| **Workspaces**               | Organizational layer within tenants                   | ✅ **90% Complete** 🎯        |
-| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P                   | ✅ 67% Complete (4/6)         |
-| **i18n System**              | Backend + Frontend + Tests + Docs                     | ✅ **100% Complete** 🎉       |
-| **Shared Packages**          | sdk, types, api-client, ui, event-bus, **i18n**       | ✅ All operational            |
-| **Total Tests**              | ~2,200+ across all packages (2,118 + 82+)             | 🟢 Growing                    |
-| **Test Coverage (core-api)** | Core API Lines Coverage                               | 🟡 **~77% (target: 80%)**     |
-| **Test Coverage (frontend)** | Frontend Lines Coverage                               | 🔴 **~2.4% (target: 80%)** 🚨 |
-| **i18n Test Coverage**       | Backend: 94.9%, Frontend: 95% average                 | ✅ **Exceeds 80%**            |
-| **Team Size**                | 1 developer (AI-assisted)                             | -                             |
+| Metric                       | Value                                                 | Status                              |
+| ---------------------------- | ----------------------------------------------------- | ----------------------------------- |
+| **Current Phase**            | Phase 2 + i18n + Workspace Mgmt + Auth ✅             | 🟢 Active Development               |
+| **Current Focus**            | Spec 011 Hierarchy & Templates — ready for merge      | 🟡 Review fixes applied             |
+| **Spec 002 Status**          | Authentication System (7 phases, 50 tasks)            | ✅ 100% Complete (Feb 17)           |
+| **Spec 011 Status**          | Workspace Hierarchy + Templates + Plugin Hooks        | 🟡 Implemented, pending merge       |
+| **Sprint 3 Status**          | Workspace Foundation Complete (5/5 tasks)             | ✅ Closed (Feb 17, 2026)            |
+| **Sprint 4 Status**          | Security + Test Fixes (9 vulnerabilities resolved)    | ✅ Closed (Feb 17, 2026)            |
+| **Sprint Velocity**          | Sprint 1: 23 pts, Sprint 2: 5 pts, Sprint 3: 24 pts   | 🎯 17 pts avg velocity              |
+| **Total Commits (Last 10d)** | 69+ commits (+ 4 Spec 011 Phase 1-3 + review fixes)   | 🟢 High velocity                    |
+| **Security Vulnerabilities** | 0 known vulnerabilities (9 resolved Feb 17)           | ✅ Excellent                        |
+| **Total TypeScript Files**   | 1,460+ files                                          | 🟢 Growing                          |
+| **Backend MVP**              | Core + Multi-tenancy + **Auth OAuth 2.0** + Plugins   | ✅ **100% Complete** 🎉             |
+| **Frontend MVP**             | Tenant App + Super-Admin Panel                        | 🟡 **60% Complete** 🎯              |
+| **Frontend Production**      | Error Boundaries + Theming + Widgets + Tests          | 🔴 **0% (Spec 010)** 🚨             |
+| **Workspaces**               | Hierarchy + Templates + Plugin Hooks (Spec 011)       | 🟡 **95% Complete** (pending merge) |
+| **Plugin Ecosystem**         | Event Bus + Module Federation + P2P                   | ✅ 67% Complete (4/6)               |
+| **i18n System**              | Backend + Frontend + Tests + Docs                     | ✅ **100% Complete** 🎉             |
+| **Shared Packages**          | sdk, types, api-client, ui, event-bus, **i18n**       | ✅ All operational                  |
+| **Total Tests**              | ~2,300+ across all packages (2,118 + 82+ + 1321 unit) | 🟢 Growing                          |
+| **Test Coverage (core-api)** | Core API Lines Coverage                               | 🟡 **~77% (target: 80%)**           |
+| **Test Coverage (frontend)** | Frontend Lines Coverage                               | 🔴 **~2.4% (target: 80%)** 🚨       |
+| **i18n Test Coverage**       | Backend: 94.9%, Frontend: 95% average                 | ✅ **Exceeds 80%**                  |
+| **Team Size**                | 1 developer (AI-assisted)                             | -                                   |
 
 ---
 
@@ -78,6 +79,72 @@ Develop advanced plugin capabilities including event-driven architecture, module
 **Workspace Management Progress** (Spec 009): ████████████░░░░ 71% (5/7 tasks, 29/37 story points)
 
 **Summary**: Foundational workspace features complete (event publishing, Redis caching, cross-workspace resource sharing, error standardization, rate limiting). Remaining: Settings configuration (5 pts) and test coverage improvement (3 pts).
+
+---
+
+### Phase 6 - Workspace Hierarchy & Templates (Spec 011) ✅ IMPLEMENTED
+
+| Sprint       | Name                                     | Duration | Status     | Velocity         | Completion Date |
+| ------------ | ---------------------------------------- | -------- | ---------- | ---------------- | --------------- |
+| **Sprint 3** | Phase 1: Hierarchy Foundation            | 3 days   | ✅ Closed  | 23/23 pts (100%) | Feb 20, 2026    |
+| **Sprint 4** | Phase 2: Templates + Phase 3 start       | 2 days   | ✅ Closed  | 18/18 pts (100%) | Feb 21, 2026    |
+| **Sprint 5** | Phase 3: Plugin Integration (completion) | 1 day    | ✅ Closed  | 8/8 pts (100%)   | Feb 21, 2026    |
+| **Review**   | Adversarial review + H1–H4 + M1–M5 fixes | 0.5 day  | ✅ Applied | —                | Feb 21, 2026    |
+
+**Spec 011 Progress**: ████████████████ 100% ✅ **IMPLEMENTED** (18 tasks, 49 story points, 1321/1321 unit tests pass)
+
+**Commits**:
+
+- `23e369a` — feat: Phase 1 — workspace hierarchy foundation
+- `0607a63` — feat: Phase 2 — workspace templates and plugin enablement
+- `35f7d9b` — feat: Phase 3 — plugin hooks, manifest extension, template registration API
+- `2a2bff4` — fix: resolve all FORGE adversarial review issues (H1–H4, M1–M5)
+
+**Key Deliverables**:
+
+- ✅ **Phase 1: Hierarchy Foundation** (23 pts, Sprint 3)
+  - Schema migration: `parentId`, `depth`, `path` (materialised path, ADR-013)
+  - `WorkspaceHierarchyService`: tree queries, descendants, ancestor admin check, aggregated counts
+  - Hierarchical guard: ancestor-admin fallback on direct-membership miss
+  - New endpoints: `GET /workspaces/tree`, `GET /workspaces/:id/children`
+  - `WorkspaceService.create/update/delete` extended with hierarchy invariants
+  - Performance hardening: `varchar_pattern_ops` index, Redis tree cache, chunked re-parent (T011-07b)
+
+- ✅ **Phase 2: Templates + Plugin Scoping** (13 pts, Sprint 4)
+  - Schema migration: `WorkspacePlugin`, `WorkspaceTemplate`, `WorkspaceTemplateItem`, `WorkspacePage`
+  - `WorkspacePluginService`: enable/disable/update-config + cascade disable on tenant plugin removal (ADR-014)
+  - `WorkspaceTemplateService`: CRUD + transactional apply (full rollback on failure)
+  - New endpoints: workspace plugins CRUD, workspace templates list/apply
+
+- ✅ **Phase 3: Plugin Hooks + EventBus** (13 pts, Sprint 4–5)
+  - Plugin manifest: `capabilities` and `hooks` fields validated via Zod
+  - `PluginHookService.runBeforeCreateHooks()`: sequential, can-reject, 5s timeout fail-open
+  - `PluginHookService.runCreatedHooks()` / `runDeletedHooks()`: parallel fire-and-forget
+  - Plugin template registration API: `POST/PUT/DELETE /api/plugins/:pluginId/templates`
+  - EventBus: `core.workspace.created` and `core.workspace.deleted` events published
+
+**Adversarial Review Fixes** (commit `2a2bff4`):
+
+| Severity | Issue                                                | Fix Applied                                               |
+| -------- | ---------------------------------------------------- | --------------------------------------------------------- |
+| HIGH     | H1: Non-deterministic Redis cache key                | `SHA-256` hash of sorted tenant+path key                  |
+| HIGH     | H2: `getTemplate` missing tenant scope               | Added `tenantId` filter; 403 on cross-tenant access       |
+| HIGH     | H3: SSRF via hook URL — no origin check              | `URL` origin validated against `apiBasePath` allowlist    |
+| HIGH     | H4: Self-exclusion CASE missing in CTE               | `AND w.id != ${selfId}` added to ancestor query           |
+| MEDIUM   | M1: Non-atomic `DELETE` + `INSERT` in updateTemplate | `DELETE…RETURNING` + single-statement `INSERT…SELECT`     |
+| MEDIUM   | M2: `getTree` missing Redis cache                    | Tree result cached with `SHA-256` key + 300s TTL          |
+| MEDIUM   | M3: Non-atomic `enablePlugin` INSERT                 | `INSERT…ON CONFLICT DO NOTHING`                           |
+| MEDIUM   | M4: Unhandled service errors in `plugin.ts`          | `handleServiceError()` wrapper on all 3 new routes        |
+| MEDIUM   | M5: Duplicate error-mapping logic across 3 routes    | Centralised `error-formatter.ts` — single source of truth |
+
+**Test Results**: ✅ 1321/1321 unit tests pass — TypeScript build clean
+
+**ADRs**:
+
+- [ADR-013: Materialised Path for Workspace Hierarchy](.forge/knowledge/adr/adr-013-materialised-path.md)
+- [ADR-014: WorkspacePlugin Scoping](.forge/knowledge/adr/adr-014-workspace-plugin-scoping.md)
+
+**Status**: 🟡 **Implemented — pending merge to main branch**
 
 ---
 
@@ -1520,6 +1587,26 @@ pnpm clean                    # Clean build artifacts
 ---
 
 ## 📝 Recent Updates
+
+### 2026-02-21
+
+**Spec 011 — Workspace Hierarchy & Templates: All 3 Phases Implemented + Adversarial Review Fixes Applied ✅**:
+
+- ✅ **Phase 1 (23 pts)** — Workspace hierarchy foundation: materialised-path schema migration, `WorkspaceHierarchyService` (tree queries, descendants, ancestor admin, aggregated counts), hierarchical guard (ancestor-admin fallback), new `GET /workspaces/tree` and `GET /workspaces/:id/children` endpoints, `WorkspaceService` extended with parent validation and depth constraints, performance hardening (T011-07b: `varchar_pattern_ops` B-TREE index, Redis tree cache, chunked re-parent batching)
+- ✅ **Phase 2 (13 pts)** — Workspace templates: schema migration for `WorkspacePlugin`, `WorkspaceTemplate`, `WorkspaceTemplateItem`, `WorkspacePage`, `WorkspacePluginService` (enable/disable/cascade-disable), `WorkspaceTemplateService` (CRUD + transactional apply with full rollback), new workspace plugins and templates endpoints
+- ✅ **Phase 3 (13 pts)** — Plugin integration: manifest extended with `capabilities` and `hooks` Zod validation, `PluginHookService.runBeforeCreateHooks()` (sequential, can-reject, 5s timeout fail-open), fire-and-forget `runCreatedHooks()` / `runDeletedHooks()`, plugin template registration API (`POST/PUT/DELETE /api/plugins/:pluginId/templates`), EventBus `core.workspace.created` + `core.workspace.deleted` events
+- ✅ **Adversarial Review** — `/forge-review` identified 4 HIGH + 5 MEDIUM issues; all 9 resolved in commit `2a2bff4`: H1 deterministic cache key (SHA-256), H2 tenant-scoped template fetch, H3 SSRF URL origin allowlist, H4 CASE self-exclusion in CTE, M1 atomic DELETE…RETURNING, M2 Redis tree cache, M3 atomic INSERT ON CONFLICT, M4 handleServiceError in plugin.ts, M5 centralised error-formatter
+- ✅ **Test suite**: 1321/1321 unit tests pass — TypeScript build clean — `pnpm lint` clean
+- ✅ **ADRs**: ADR-013 (Materialised Path) + ADR-014 (WorkspacePlugin Scoping)
+- ✅ **Documentation**: `tasks.md` and `PROJECT_STATUS.md` updated to reflect completion
+
+**Commits**: `23e369a` (Phase 1) → `0607a63` (Phase 2) → `35f7d9b` (Phase 3) → `2a2bff4` (review fixes)
+
+**Branch**: `feature/workspace-hierarchical-visibility-templates` — pending merge to main.
+
+**What's next**: Merge Spec 011 to main → begin Spec 010 (Frontend Production Readiness, Phase 1: Error Boundaries).
+
+---
 
 ### 2026-02-11
 

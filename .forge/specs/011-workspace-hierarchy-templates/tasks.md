@@ -4,13 +4,16 @@
 > Created by the `forge-scrum` agent via `/forge-tasks`.
 > Updated 2026-02-20: added T011-07b (performance hardening, 2pts) from performance impact analysis.
 
-| Field  | Value                |
-| ------ | -------------------- |
-| Status | In Progress          |
-| Author | forge-scrum          |
-| Date   | 2026-02-20           |
-| Spec   | [spec.md](./spec.md) |
-| Plan   | [plan.md](./plan.md) |
+| Field         | Value                                                 |
+| ------------- | ----------------------------------------------------- |
+| Status        | ✅ Implemented — Adversarial Review Fixes Applied     |
+| Author        | forge-scrum                                           |
+| Date          | 2026-02-20                                            |
+| Last Updated  | 2026-02-21                                            |
+| Spec          | [spec.md](./spec.md)                                  |
+| Plan          | [plan.md](./plan.md)                                  |
+| Branch        | `feature/workspace-hierarchical-visibility-templates` |
+| Review Commit | `2a2bff4` — fix(spec-011): resolve H1-H4, M1-M5       |
 
 ---
 
@@ -19,19 +22,25 @@
 Every task in this file is considered **DONE** only when all of the following
 are true:
 
-- [ ] Implementation matches the acceptance criteria listed in the task
-- [ ] All referenced functional requirements (FR-NNN) are satisfied
-- [ ] New code has ≥ 85% test coverage (Constitution Art. 4.1)
-- [ ] No TypeScript compilation errors (`pnpm build` passes)
-- [ ] ESLint passes with no new errors (`pnpm lint` passes)
-- [ ] All parameterized queries use `Prisma.sql` / `$queryRaw` — never string
+- [x] Implementation matches the acceptance criteria listed in the task
+- [x] All referenced functional requirements (FR-NNN) are satisfied
+- [x] New code has ≥ 85% test coverage (Constitution Art. 4.1)
+- [x] No TypeScript compilation errors (`pnpm build` passes)
+- [x] ESLint passes with no new errors (`pnpm lint` passes)
+- [x] All parameterized queries use `Prisma.sql` / `$queryRaw` — never string
       interpolation (Constitution Art. 5.3, `docs/SECURITY.md`)
-- [ ] No `any` type without documented justification
-- [ ] All file imports use explicit `.js` extensions for relative paths
-- [ ] Existing test suite remains green (zero regressions)
-- [ ] Error responses follow Constitution Art. 6.2 format:
+- [x] No `any` type without documented justification
+- [x] All file imports use explicit `.js` extensions for relative paths
+- [x] Existing test suite remains green (zero regressions)
+- [x] Error responses follow Constitution Art. 6.2 format:
       `{ error: { code, message, details? } }`
-- [ ] Pino structured logging includes `requestId`, `userId`, `tenantId`
+- [x] Pino structured logging includes `requestId`, `userId`, `tenantId`
+
+> **Review fixes applied** (commit `2a2bff4`, 2026-02-21):
+> H1 deterministic cache, H2 tenant-scoped getTemplate, H3 SSRF URL origin,
+> H4 CASE selfId, M1 atomic DELETE…RETURNING, M2 Redis tree cache + CTE,
+> M3 atomic INSERT ON CONFLICT, M4 handleServiceError in plugin.ts,
+> M5 centralised error-formatter. Unit test suite: **1321/1321 pass**.
 
 ---
 
@@ -1076,29 +1085,30 @@ plugin HTTP endpoints. Do not make real network calls in CI.
 
 ## Sprint Assignment Summary
 
-| Task                 | Title                                               | Phase | Sprint | Points | Priority | Dependencies       |
-| -------------------- | --------------------------------------------------- | ----- | ------ | ------ | -------- | ------------------ |
-| T011-01              | Schema migration: workspace hierarchy fields        | 1     | 3      | 3      | CRITICAL | —                  |
-| T011-02              | Data migration: backfill path for existing data     | 1     | 3      | 2      | CRITICAL | T011-01            |
-| T011-03              | WorkspaceHierarchyService: core implementation      | 1     | 3      | 5      | CRITICAL | T011-01, T011-02   |
-| T011-04              | Extend `workspace.guard.ts` for hierarchical access | 1     | 3      | 3      | HIGH     | T011-03            |
-| T011-05              | New endpoints: tree view and children list          | 1     | 3      | 3      | HIGH     | T011-03, T011-04   |
-| T011-06              | Modify WorkspaceService create/update/delete        | 1     | 3      | 3      | HIGH     | T011-03            |
-| T011-07              | Phase 1 tests: hierarchy (51 tests)                 | 1     | 3      | 2      | HIGH     | T011-01→T011-06    |
-| **Phase 1 subtotal** |                                                     |       |        | **21** |          |                    |
-| T011-08              | Schema migration: template and plugin models        | 2     | 4      | 3      | CRITICAL | Phase 1 complete   |
-| T011-09              | WorkspacePluginService                              | 2     | 4      | 3      | HIGH     | T011-08            |
-| T011-10              | WorkspaceTemplateService: CRUD + apply              | 2     | 4      | 3      | HIGH     | T011-08, T011-09   |
-| T011-11              | New endpoints: workspace plugins + templates        | 2     | 4      | 2      | HIGH     | T011-09, T011-10   |
-| T011-12              | Phase 2 tests: templates and plugins (30 tests)     | 2     | 4      | 2      | HIGH     | T011-08→T011-11    |
-| **Phase 2 subtotal** |                                                     |       |        | **13** |          |                    |
-| T011-13              | Plugin manifest: capabilities and hooks             | 3     | 4      | 2      | CRITICAL | — (parallelizable) |
-| T011-14              | PluginHookService: runLifecycleHook()               | 3     | 4      | 3      | HIGH     | T011-13            |
-| T011-15              | Plugin template registration endpoints              | 3     | 5      | 2      | MEDIUM   | T011-10, T011-13   |
-| T011-16              | EventBus workspace events                           | 3     | 5      | 2      | MEDIUM   | T011-14            |
-| T011-17              | Phase 3 tests: hooks and manifest (24 tests)        | 3     | 5      | 4      | HIGH     | T011-13→T011-16    |
-| **Phase 3 subtotal** |                                                     |       |        | **13** |          |                    |
-| **TOTAL**            |                                                     |       |        | **47** |          |                    |
+| Task                 | Title                                               | Phase | Sprint | Points | Priority | Status           |
+| -------------------- | --------------------------------------------------- | ----- | ------ | ------ | -------- | ---------------- |
+| T011-01              | Schema migration: workspace hierarchy fields        | 1     | 3      | 3      | CRITICAL | ✅ Done          |
+| T011-02              | Data migration: backfill path for existing data     | 1     | 3      | 2      | CRITICAL | ✅ Done          |
+| T011-03              | WorkspaceHierarchyService: core implementation      | 1     | 3      | 5      | CRITICAL | ✅ Done          |
+| T011-04              | Extend `workspace.guard.ts` for hierarchical access | 1     | 3      | 3      | HIGH     | ✅ Done          |
+| T011-05              | New endpoints: tree view and children list          | 1     | 3      | 3      | HIGH     | ✅ Done          |
+| T011-06              | Modify WorkspaceService create/update/delete        | 1     | 3      | 3      | HIGH     | ✅ Done          |
+| T011-07              | Phase 1 tests: hierarchy (51 tests)                 | 1     | 3      | 2      | HIGH     | ✅ Done          |
+| T011-07b             | Performance hardening: indexes, cache, benchmarks   | 1     | 3      | 2      | HIGH     | ✅ Done          |
+| **Phase 1 subtotal** |                                                     |       |        | **23** |          | ✅ Complete      |
+| T011-08              | Schema migration: template and plugin models        | 2     | 4      | 3      | CRITICAL | ✅ Done          |
+| T011-09              | WorkspacePluginService                              | 2     | 4      | 3      | HIGH     | ✅ Done          |
+| T011-10              | WorkspaceTemplateService: CRUD + apply              | 2     | 4      | 3      | HIGH     | ✅ Done          |
+| T011-11              | New endpoints: workspace plugins + templates        | 2     | 4      | 2      | HIGH     | ✅ Done          |
+| T011-12              | Phase 2 tests: templates and plugins (30 tests)     | 2     | 4      | 2      | HIGH     | ✅ Done          |
+| **Phase 2 subtotal** |                                                     |       |        | **13** |          | ✅ Complete      |
+| T011-13              | Plugin manifest: capabilities and hooks             | 3     | 4      | 2      | CRITICAL | ✅ Done          |
+| T011-14              | PluginHookService: runLifecycleHook()               | 3     | 4      | 3      | HIGH     | ✅ Done          |
+| T011-15              | Plugin template registration endpoints              | 3     | 5      | 2      | MEDIUM   | ✅ Done          |
+| T011-16              | EventBus workspace events                           | 3     | 5      | 2      | MEDIUM   | ✅ Done          |
+| T011-17              | Phase 3 tests: hooks and manifest (24 tests)        | 3     | 5      | 4      | HIGH     | ✅ Done          |
+| **Phase 3 subtotal** |                                                     |       |        | **13** |          | ✅ Complete      |
+| **TOTAL**            |                                                     |       |        | **49** |          | ✅ **49/49 pts** |
 
 ### Sprint 3 — Phase 1: Hierarchy (21 pts)
 
@@ -1125,19 +1135,22 @@ T011-16 (2 pts) ──► T011-17
 
 ## Summary
 
-| Metric               | Value                                           |
-| -------------------- | ----------------------------------------------- |
-| Total tasks          | 17                                              |
-| Total phases         | 3                                               |
-| Total story points   | 47                                              |
-| Sprints              | 3 (Sprint 3, 4, 5)                              |
-| New files            | 25                                              |
-| Modified files       | 9                                               |
-| Planned tests        | 105 (52 unit + 36 integration + 17 E2E)         |
-| Requirements covered | FR-001 to FR-033 (all)                          |
-| CRITICAL tasks       | 5 (T011-01, T011-02, T011-03, T011-08, T011-13) |
-| HIGH tasks           | 10                                              |
-| MEDIUM tasks         | 2                                               |
+| Metric               | Value                                                 |
+| -------------------- | ----------------------------------------------------- |
+| Total tasks          | 18 (17 original + T011-07b performance hardening)     |
+| Total phases         | 3                                                     |
+| Total story points   | 49 (Phase 1: 23, Phase 2: 13, Phase 3: 13)            |
+| Sprints              | 3 (Sprint 3, 4, 5)                                    |
+| New files            | 25                                                    |
+| Modified files       | 9                                                     |
+| Planned tests        | 105 (52 unit + 36 integration + 17 E2E)               |
+| Requirements covered | FR-001 to FR-033 (all)                                |
+| CRITICAL tasks       | 5 (T011-01, T011-02, T011-03, T011-08, T011-13)       |
+| HIGH tasks           | 11                                                    |
+| MEDIUM tasks         | 2                                                     |
+| **Implementation**   | ✅ All 3 phases implemented (commits 23e369a–35f7d9b) |
+| **Review fixes**     | ✅ H1–H4 + M1–M5 applied (commit 2a2bff4, 2026-02-21) |
+| **Test suite**       | ✅ 1321/1321 unit tests pass, TypeScript build clean  |
 
 ---
 
@@ -1158,10 +1171,11 @@ T011-16 (2 pts) ──► T011-17
 
 **End of Tasks 011 - Workspace Hierarchical Visibility & Templates**
 
-_Document Version: 1.0_
+_Document Version: 1.1_
 _Created: 2026-02-20_
-_Last Updated: 2026-02-20_
+_Last Updated: 2026-02-21_
 _Author: forge-scrum_
 _Track: Epic_
-_Total Story Points: 47 (Phase 1: 21, Phase 2: 13, Phase 3: 13)_
+_Total Story Points: 49 (Phase 1: 23, Phase 2: 13, Phase 3: 13)_
 _Total Tests Planned: 105 (52 unit + 36 integration + 17 E2E)_
+_Status: ✅ All 3 phases implemented + adversarial review fixes applied_
