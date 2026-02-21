@@ -295,9 +295,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
@@ -422,7 +419,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -489,8 +485,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          401: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -499,16 +493,18 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = request.user?.id;
       if (!userId) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-        });
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
       }
 
       const tenantCtx = request.tenant;
       if (!tenantCtx) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'Tenant context not found' },
-        });
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'Tenant context not found'
+        );
       }
 
       try {
@@ -566,8 +562,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string' },
             },
           },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -619,9 +613,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string' },
             },
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -689,8 +680,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Workspace deleted successfully',
             type: 'null',
           },
-          400: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -762,10 +751,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          401: errorResponseSchema,
-          403: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -777,9 +762,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
 
       const tenantCtx = request.tenant;
       if (!tenantCtx) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'Tenant context not found' },
-        });
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'Tenant context not found'
+        );
       }
 
       try {
@@ -851,9 +837,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         summary: 'List workspace members',
         description:
           'Returns all members of a workspace with their roles, supporting filtering and pagination',
-        response: {
-          429: errorResponseSchema,
-        },
+        response: {},
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
@@ -907,8 +891,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -966,10 +948,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1045,11 +1023,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         tags: ['workspaces'],
         summary: 'Update member role',
         description: 'Changes the role of a workspace member. Requires ADMIN role.',
-        response: {
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
-        },
+        response: {},
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
@@ -1119,9 +1093,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Member removed successfully',
             type: 'null',
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1189,11 +1160,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               path: { type: 'string' },
             },
           },
-          400: errorResponseSchema,
-          403: errorResponseSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1220,12 +1186,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       const userId = request.user?.id;
 
       if (!userId) {
-        return reply.status(401).send({
-          error: {
-            code: WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
-            message: 'User not authenticated',
-          },
-        });
+        throw new WorkspaceError(
+          WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
+          'User not authenticated'
+        );
       }
 
       try {
@@ -1254,9 +1218,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         tags: ['workspaces'],
         summary: 'List workspace teams',
         description: 'Returns all teams in the workspace',
-        response: {
-          429: errorResponseSchema,
-        },
+        response: {},
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
       preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
@@ -1320,7 +1282,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               workspaceId: { type: 'string' },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1417,10 +1378,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               createdAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: errorResponseSchema,
-          403: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
@@ -1550,7 +1507,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -1595,8 +1551,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Resource unshared successfully',
             type: 'null',
           },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
@@ -1674,10 +1628,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          409: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1765,7 +1715,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               },
             },
           },
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
@@ -1841,9 +1790,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: errorResponseSchema,
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
@@ -1925,8 +1871,6 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           'Disables a plugin for this workspace (preserves configuration). Requires ADMIN role.',
         response: {
           204: { description: 'Plugin disabled successfully', type: 'null' },
-          404: errorResponseSchema,
-          429: errorResponseSchema,
         },
       },
       onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],

@@ -72,15 +72,15 @@ describe('Plugin Template Registration API Integration', () => {
 
     // Insert two minimal plugin rows so FK constraints are satisfied
     await db.$executeRawUnsafe(
-      `INSERT INTO plugins (id, name, version, description, category, status, metadata, manifest, created_at, updated_at)
-       VALUES ($1, $2, '1.0.0', 'Integration test plugin A', 'test', 'PUBLISHED', '{}', '{}', NOW(), NOW())
+      `INSERT INTO plugins (id, name, version, description, category, status, manifest, created_at, updated_at)
+       VALUES ($1, $2, '1.0.0', 'Integration test plugin A', 'test', 'PUBLISHED', '{}', NOW(), NOW())
        ON CONFLICT (id) DO NOTHING`,
       pluginIdA,
       'Hook Test Plugin A'
     );
     await db.$executeRawUnsafe(
-      `INSERT INTO plugins (id, name, version, description, category, status, metadata, manifest, created_at, updated_at)
-       VALUES ($1, $2, '1.0.0', 'Integration test plugin B', 'test', 'PUBLISHED', '{}', '{}', NOW(), NOW())
+      `INSERT INTO plugins (id, name, version, description, category, status, manifest, created_at, updated_at)
+       VALUES ($1, $2, '1.0.0', 'Integration test plugin B', 'test', 'PUBLISHED', '{}', NOW(), NOW())
        ON CONFLICT (id) DO NOTHING`,
       pluginIdB,
       'Hook Test Plugin B'
