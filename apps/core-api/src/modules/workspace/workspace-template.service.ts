@@ -121,10 +121,14 @@ export class WorkspaceTemplateService {
   /**
    * Get a single template with its items, ordered by sort_order.
    *
-   * Throws TEMPLATE_NOT_FOUND if no template with that ID exists.
+   * Requires tenantId to ensure the providing plugin is enabled for the
+   * requesting tenant — prevents cross-tenant information disclosure.
+   *
+   * Throws TEMPLATE_NOT_FOUND if no template with that ID exists or the
+   * template's plugin is not enabled for the tenant.
    */
-  async getTemplate(templateId: string): Promise<TemplateWithItems> {
-    this.logger.debug({ templateId }, 'workspace-template: getting template');
+  async getTemplate(templateId: string, tenantId: string): Promise<TemplateWithItems> {
+    this.logger.debug({ templateId, tenantId }, 'workspace-template: getting template');
 
     const templateRows = await this.db.$queryRaw<
       Array<{
@@ -138,10 +142,13 @@ export class WorkspaceTemplateService {
         updated_at: Date;
       }>
     >(
-      Prisma.sql`SELECT id, name, description, provided_by_plugin_id, is_default,
-                        metadata, created_at, updated_at
-                   FROM workspace_templates
-                  WHERE id = ${templateId}::uuid
+      Prisma.sql`SELECT wt.id, wt.name, wt.description, wt.provided_by_plugin_id,
+                        wt.is_default, wt.metadata, wt.created_at, wt.updated_at
+                   FROM workspace_templates wt
+                   JOIN tenant_plugins tp ON tp.plugin_id = wt.provided_by_plugin_id
+                  WHERE wt.id = ${templateId}::uuid
+                    AND tp.tenant_id = ${tenantId}::uuid
+                    AND tp.enabled = true
                   LIMIT 1`
     );
 
@@ -314,7 +321,8 @@ export class WorkspaceTemplateService {
       return templateId;
     });
 
-    return this.getTemplate(newId);
+    // Use internal fetch (no tenant check needed — we just wrote the record)
+    return this.getTemplateInternal(newId);
   }
 
   /**
@@ -427,7 +435,8 @@ export class WorkspaceTemplateService {
       }
     });
 
-    return this.getTemplate(templateId);
+    // Use internal fetch (no tenant check needed — we just wrote the record)
+    return this.getTemplateInternal(templateId);
   }
 
   /**
@@ -441,36 +450,36 @@ export class WorkspaceTemplateService {
   async deleteTemplate(pluginId: string, templateId: string): Promise<void> {
     this.logger.debug({ pluginId, templateId }, 'workspace-template: deleting template');
 
-    // Verify ownership before delete
-    const rows = await this.db.$queryRaw<Array<{ provided_by_plugin_id: string }>>(
-      Prisma.sql`SELECT provided_by_plugin_id
-                   FROM workspace_templates
+    // Atomic ownership check + delete in a single statement to avoid TOCTOU race.
+    // Returns the deleted row id if the plugin owns the template, empty if not.
+    // CASCADE FK on workspace_template_items deletes items automatically.
+    const deleted = await this.db.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`DELETE FROM workspace_templates
                   WHERE id = ${templateId}::uuid
-                  LIMIT 1`
+                    AND provided_by_plugin_id = ${pluginId}
+                 RETURNING id`
     );
 
-    if (rows.length === 0) {
-      throw new WorkspaceError(
-        WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
-        `Template ${templateId} not found`,
-        { templateId }
+    if (deleted.length === 0) {
+      // Distinguish "not found" from "wrong owner" — check existence first for
+      // a helpful error message, but keep it as a single extra query only on
+      // the failure path (happy path is single-round-trip).
+      const exists = await this.db.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`SELECT id FROM workspace_templates WHERE id = ${templateId}::uuid LIMIT 1`
       );
-    }
-
-    if (rows[0].provided_by_plugin_id !== pluginId) {
+      if (exists.length === 0) {
+        throw new WorkspaceError(
+          WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
+          `Template ${templateId} not found`,
+          { templateId }
+        );
+      }
       throw new WorkspaceError(
         WorkspaceErrorCode.INSUFFICIENT_PERMISSIONS,
         `Plugin ${pluginId} does not own template ${templateId}`,
         { pluginId, templateId }
       );
     }
-
-    // CASCADE FK on workspace_template_items deletes items automatically
-    await this.db.$executeRaw(
-      Prisma.sql`DELETE FROM workspace_templates
-                  WHERE id = ${templateId}::uuid
-                    AND provided_by_plugin_id = ${pluginId}`
-    );
 
     this.logger.info({ pluginId, templateId }, 'workspace-template: template deleted');
   }
@@ -518,6 +527,32 @@ export class WorkspaceTemplateService {
     );
 
     return { ...templateRows[0], items: itemRows };
+  }
+
+  /**
+   * Fetch a template with items using the instance DB client (no tenant check).
+   *
+   * For INTERNAL use only — called after a write operation where we already hold
+   * ownership of the record (registerTemplate, updateTemplate). The public
+   * getTemplate() enforces tenant scoping; this method intentionally skips it
+   * because the tenant check is guaranteed by the write transaction above.
+   */
+  private async getTemplateInternal(templateId: string): Promise<TemplateWithItems> {
+    // Re-use fetchTemplateWithItems with the instance db cast as PrismaTransaction.
+    // db does not have $transaction/$connect etc but the omit type is structurally
+    // compatible because we only call $queryRaw inside fetchTemplateWithItems.
+    const result = await this.fetchTemplateWithItems(
+      this.db as unknown as Parameters<typeof this.fetchTemplateWithItems>[0],
+      templateId
+    );
+    if (!result) {
+      throw new WorkspaceError(
+        WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
+        `Template ${templateId} not found after write`,
+        { templateId }
+      );
+    }
+    return result;
   }
 
   /**

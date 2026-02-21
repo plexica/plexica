@@ -64,19 +64,20 @@ describe('WorkspacePluginService.enablePlugin', () => {
   });
 
   it('should enable a plugin and return the created row', async () => {
-    // Arrange: validateTenantPluginEnabled → existing check → INSERT RETURNING
+    // Arrange: validateTenantPluginEnabled → INSERT ON CONFLICT RETURNING
+    // M3 fix: enablePlugin now uses 2 queries (tenant-check + atomic INSERT),
+    // no longer has a separate SELECT-existing check.
     const row = makeRow();
     mockDb.$queryRaw
       .mockResolvedValueOnce([{ enabled: true }]) // tenant plugin OK
-      .mockResolvedValueOnce([]) // no existing record
-      .mockResolvedValueOnce([row]); // INSERT result
+      .mockResolvedValueOnce([row]); // INSERT RETURNING result
 
     // Act
     const result = await service.enablePlugin('wsid-001', 'plugin-a', {}, TENANT_CTX);
 
     // Assert
     expect(result).toEqual(row);
-    expect(mockDb.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(mockDb.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('should throw PLUGIN_NOT_TENANT_ENABLED when plugin not in tenant_plugins', async () => {
@@ -105,10 +106,11 @@ describe('WorkspacePluginService.enablePlugin', () => {
   });
 
   it('should throw WORKSPACE_PLUGIN_EXISTS when plugin already enabled', async () => {
-    // Arrange
+    // Arrange: M3 fix — atomic INSERT ON CONFLICT DO NOTHING RETURNING.
+    // Empty RETURNING means the row already existed (conflict). No separate SELECT.
     mockDb.$queryRaw
       .mockResolvedValueOnce([{ enabled: true }]) // tenant plugin OK
-      .mockResolvedValueOnce([makeRow()]); // existing record found
+      .mockResolvedValueOnce([]); // INSERT returns nothing → conflict
 
     // Act & Assert
     const error = await service
@@ -120,8 +122,8 @@ describe('WorkspacePluginService.enablePlugin', () => {
   });
 
   it('should include workspaceId and pluginId in error details for WORKSPACE_PLUGIN_EXISTS', async () => {
-    // Arrange
-    mockDb.$queryRaw.mockResolvedValueOnce([{ enabled: true }]).mockResolvedValueOnce([makeRow()]);
+    // Arrange: M3 fix — empty INSERT RETURNING = conflict
+    mockDb.$queryRaw.mockResolvedValueOnce([{ enabled: true }]).mockResolvedValueOnce([]);
 
     // Act & Assert
     const error = await service
@@ -134,12 +136,9 @@ describe('WorkspacePluginService.enablePlugin', () => {
   });
 
   it('should pass config to the INSERT and return the row with that config', async () => {
-    // Arrange
+    // Arrange: M3 fix — 2 queries (tenant-check + atomic INSERT RETURNING)
     const row = makeRow({ configuration: { theme: 'dark' } });
-    mockDb.$queryRaw
-      .mockResolvedValueOnce([{ enabled: true }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([row]);
+    mockDb.$queryRaw.mockResolvedValueOnce([{ enabled: true }]).mockResolvedValueOnce([row]);
 
     // Act
     const result = await service.enablePlugin(

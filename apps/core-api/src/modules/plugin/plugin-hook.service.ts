@@ -268,9 +268,38 @@ export class PluginHookService {
       throw new Error(`Plugin ${plugin.id} has no handler for ${hookType}`);
     }
 
-    // Security: validate hook URL is within the plugin's declared basePath
-    if (!hookUrl.startsWith(plugin.apiBasePath)) {
-      throw new Error(`Hook URL ${hookUrl} is outside plugin basePath ${plugin.apiBasePath}`);
+    // Security: validate hook URL is within the plugin's declared basePath.
+    // Use URL parsing to prevent prefix-bypass attacks (e.g. a hook URL of
+    // "http://plugin-foo:8080.evil.com/hook" would pass a naive startsWith
+    // check against basePath "http://plugin-foo:8080").
+    // We compare origins (scheme+host+port) and require the hook path to
+    // start with the basePath pathname prefix.
+    let parsedHook: URL;
+    let parsedBase: URL;
+    try {
+      parsedHook = new URL(hookUrl);
+      parsedBase = new URL(plugin.apiBasePath);
+    } catch {
+      throw new Error(`Invalid hook URL or apiBasePath for plugin ${plugin.id}`);
+    }
+    if (parsedHook.origin !== parsedBase.origin) {
+      throw new Error(
+        `Hook URL origin ${parsedHook.origin} does not match plugin basePath origin ${parsedBase.origin}`
+      );
+    }
+    // Ensure hook path falls within the base path prefix (add trailing slash to
+    // base to avoid "/api-v2" matching "/api" as a prefix).
+    const basePathname = parsedBase.pathname.endsWith('/')
+      ? parsedBase.pathname
+      : parsedBase.pathname + '/';
+    if (
+      parsedBase.pathname !== '/' &&
+      !parsedHook.pathname.startsWith(basePathname) &&
+      parsedHook.pathname !== parsedBase.pathname
+    ) {
+      throw new Error(
+        `Hook URL path ${parsedHook.pathname} is outside plugin basePath ${parsedBase.pathname}`
+      );
     }
 
     const controller = new AbortController();

@@ -10,31 +10,12 @@
 // Template listing is filtered to only include templates whose providing
 // plugin is enabled for the tenant.
 
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { workspaceTemplateService } from '../modules/workspace/workspace-template.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { mapServiceError } from '../modules/workspace/utils/error-formatter.js';
+import { handleServiceError } from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
-
-/**
- * Map service errors to structured Art. 6.2 responses.
- * Sends the response directly to avoid FST_ERR_FAILED_ERROR_SERIALIZATION.
- */
-function handleServiceError(error: unknown, reply: FastifyReply): never {
-  const mapped = mapServiceError(error);
-  if (mapped) {
-    reply.status(mapped.statusCode).send({
-      error: {
-        code: mapped.code,
-        message: mapped.message,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      },
-    });
-    throw new Error('Response sent');
-  }
-  throw error;
-}
 
 // --- Shared error response schema (Constitution Art. 6.2) ---
 const errorResponseSchema = {
@@ -185,7 +166,8 @@ export async function workspaceTemplatesRoutes(fastify: FastifyInstance): Promis
     async (request, reply) => {
       const { id } = request.params;
       try {
-        const template = await workspaceTemplateService.getTemplate(id);
+        const tenantId = request.tenant!.tenantId;
+        const template = await workspaceTemplateService.getTemplate(id, tenantId);
         return reply.send(template);
       } catch (error) {
         handleServiceError(error, reply);

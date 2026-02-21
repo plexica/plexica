@@ -208,10 +208,15 @@ export class WorkspaceHierarchyService {
    *     (included for context, with memberRole = null)
    *
    * Results are ordered by depth, then name.
+   * Results are cached per-user for CACHE_TTL_SECONDS.
    */
   async getTree(userId: string, tenantCtx: TenantContext): Promise<TreeNode[]> {
     const { schemaName, tenantId } = tenantCtx;
     this.assertValidSchema(schemaName);
+
+    const cacheKey = `tenant:${tenantId}:workspace:hierarchy:tree:${userId}`;
+    const cached = await this.getFromCache<TreeNode[]>(cacheKey);
+    if (cached) return cached;
 
     const wsTable = Prisma.raw(`"${schemaName}"."workspaces"`);
     const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
@@ -219,6 +224,9 @@ export class WorkspaceHierarchyService {
     // Fetch all workspaces visible to the user:
     // 1. Direct member workspaces
     // 2. Ancestor workspaces of member workspaces (path prefix matching)
+    //
+    // direct_member_count is computed via a pre-aggregated CTE (not a
+    // correlated subquery per row) to avoid O(N) DB round-trips (M2 fix).
     const rows = await this.db.$queryRaw<
       Array<WorkspaceHierarchyRow & { member_role: string | null; direct_member_count: bigint }>
     >(
@@ -242,13 +250,19 @@ export class WorkspaceHierarchyService {
             )
           ) AS ancestor_id
         ),
+        member_counts AS (
+          SELECT workspace_id, COUNT(*) AS cnt
+          FROM ${membersTable}
+          GROUP BY workspace_id
+        ),
         visible_workspaces AS (
           SELECT w.id, w.parent_id, w.depth, w.path, w.slug, w.name,
                  w.description, w.tenant_id, w.settings, w.created_at, w.updated_at,
                  uw.member_role,
-                 (SELECT COUNT(*) FROM ${membersTable} m WHERE m.workspace_id = w.id) AS direct_member_count
+                 COALESCE(mc.cnt, 0) AS direct_member_count
           FROM ${wsTable} w
           LEFT JOIN user_workspaces uw ON w.id = uw.id
+          LEFT JOIN member_counts mc ON mc.workspace_id = w.id
           WHERE w.id IN (SELECT id FROM user_workspaces)
              OR w.id IN (SELECT ancestor_id FROM ancestor_paths)
         )
@@ -257,7 +271,9 @@ export class WorkspaceHierarchyService {
       `
     );
 
-    return this.buildTree(rows);
+    const tree = this.buildTree(rows);
+    await this.setInCache(cacheKey, tree);
+    return tree;
   }
 
   /**
@@ -279,6 +295,9 @@ export class WorkspaceHierarchyService {
     const wsTable = Prisma.raw(`"${schemaName}"."workspaces"`);
     const membersTable = Prisma.raw(`"${schemaName}"."workspace_members"`);
     const pathPrefix = `${workspacePath}/%`;
+    // selfId is the last segment of the path — exclude it from child_count
+    // (the CASE must exclude the workspace being queried, not the tree root).
+    const selfId = workspacePath.split('/').pop()!;
 
     // Single-pass JOIN: gets member counts and child counts together.
     // Avoids two correlated subqueries (plan.md §14.3).
@@ -286,7 +305,7 @@ export class WorkspaceHierarchyService {
       Prisma.sql`
         SELECT
           COUNT(DISTINCT wm.user_id) AS member_count,
-          COUNT(DISTINCT CASE WHEN w.id != ${workspacePath.split('/')[0]} THEN w.id END) AS child_count
+          COUNT(DISTINCT CASE WHEN w.id != ${selfId} THEN w.id END) AS child_count
         FROM ${wsTable} w
         LEFT JOIN ${membersTable} wm ON wm.workspace_id = w.id
         WHERE w.tenant_id = ${tenantId}
@@ -382,38 +401,61 @@ export class WorkspaceHierarchyService {
   /**
    * Invalidate descendant and aggregated count caches for a workspace path.
    * Call this whenever a workspace is created, reparented, or deleted.
+   *
+   * All cache keys are computed deterministically from the materialised path —
+   * no KEYS pattern scan is used (Redis KEYS is O(N) and blocks the server).
+   * Ancestor paths are reconstructed as prefixes of workspacePath.
    */
   async invalidateHierarchyCache(workspacePath: string, tenantId: string): Promise<void> {
     if (!this.cache) return;
 
-    const keys = [
+    const keys: string[] = [
       `tenant:${tenantId}:workspace:hierarchy:descendants:${workspacePath}`,
       `tenant:${tenantId}:workspace:hierarchy:agg_counts:${workspacePath}`,
     ];
 
-    // Also invalidate all ancestor caches (their counts changed)
-    const ancestorIds = workspacePath.split('/').slice(0, -1);
-    for (const ancestorId of ancestorIds) {
-      // We don't know the full path of the ancestor here, but we know its id
-      // is a prefix of our path. We use a pattern scan for safety.
-      keys.push(`tenant:${tenantId}:workspace:hierarchy:agg_counts:*${ancestorId}*`);
+    // Ancestor paths are all prefix segments of workspacePath.
+    // e.g. path "root/parent/child" → ancestor paths "root", "root/parent"
+    // Each ancestor's agg_counts cache entry is keyed by its own path.
+    const segments = workspacePath.split('/');
+    for (let i = 1; i < segments.length; i++) {
+      const ancestorPath = segments.slice(0, i).join('/');
+      keys.push(`tenant:${tenantId}:workspace:hierarchy:agg_counts:${ancestorPath}`);
+      keys.push(`tenant:${tenantId}:workspace:hierarchy:descendants:${ancestorPath}`);
     }
 
     try {
-      for (const key of keys) {
-        if (key.includes('*')) {
-          const matching = await this.cache.keys(key);
-          if (matching.length > 0) {
-            await this.cache.del(...matching);
-          }
-        } else {
-          await this.cache.del(key);
-        }
+      // Delete all keys in a single pipeline to minimise round-trips.
+      if (keys.length > 0) {
+        await this.cache.del(...keys);
       }
     } catch (err) {
       this.log.warn(
         { err, workspacePath, tenantId },
         'workspace-hierarchy: cache invalidation failed'
+      );
+    }
+  }
+
+  /**
+   * Invalidate the tree cache for a specific user within a tenant.
+   *
+   * Call this after any workspace membership or hierarchy mutation that
+   * affects what workspaces a user can see. The tree cache is keyed by
+   * userId, so only the affected user's cache needs to be dropped.
+   *
+   * If userId is not known (e.g. bulk operations), pass null to skip
+   * (the cache will expire naturally after CACHE_TTL_SECONDS).
+   */
+  async invalidateTreeCache(userId: string | null, tenantId: string): Promise<void> {
+    if (!this.cache || !userId) return;
+    const key = `tenant:${tenantId}:workspace:hierarchy:tree:${userId}`;
+    try {
+      await this.cache.del(key);
+    } catch (err) {
+      this.log.warn(
+        { err, userId, tenantId },
+        'workspace-hierarchy: tree cache invalidation failed'
       );
     }
   }

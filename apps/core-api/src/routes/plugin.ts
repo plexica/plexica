@@ -8,6 +8,7 @@ import {
   RegisterTemplateSchema,
   type RegisterTemplateDto,
 } from '../modules/plugin/dto/register-template.dto.js';
+import { handleServiceError } from '../modules/workspace/utils/error-formatter.js';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
   // =====================================
@@ -683,9 +684,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(201).send(template);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        handleServiceError(error, reply);
       }
     }
   );
@@ -759,9 +758,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(template);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        handleServiceError(error, reply);
       }
     }
   );
@@ -807,9 +804,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(204).send();
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        handleServiceError(error, reply);
       }
     }
   );

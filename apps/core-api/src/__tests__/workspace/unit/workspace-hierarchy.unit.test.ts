@@ -148,13 +148,14 @@ describe('WorkspaceHierarchyService.invalidateHierarchyCache', () => {
 
     await service.invalidateHierarchyCache(path, tenantId);
 
-    // Should have called del for the two direct keys
-    expect(mockCache.del).toHaveBeenCalledWith(
-      `tenant:${tenantId}:workspace:hierarchy:descendants:${path}`
-    );
-    expect(mockCache.del).toHaveBeenCalledWith(
-      `tenant:${tenantId}:workspace:hierarchy:agg_counts:${path}`
-    );
+    // H1 fix: invalidateHierarchyCache uses a single cache.del(...keys) spread call
+    // (not individual per-key calls) for efficiency. With path 'aaaa-0001/bbbb-0002',
+    // 4 keys are built: descendants+agg_counts for the workspace itself, plus
+    // agg_counts+descendants for the ancestor 'aaaa-0001'.
+    expect(mockCache.del).toHaveBeenCalledTimes(1);
+    const callArgs = (mockCache.del as ReturnType<typeof vi.fn>).mock.calls[0] as string[];
+    expect(callArgs).toContain(`tenant:${tenantId}:workspace:hierarchy:descendants:${path}`);
+    expect(callArgs).toContain(`tenant:${tenantId}:workspace:hierarchy:agg_counts:${path}`);
   });
 
   it('should still succeed when cache.del throws an error (fail-safe)', async () => {

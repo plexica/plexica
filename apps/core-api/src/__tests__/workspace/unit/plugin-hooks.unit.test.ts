@@ -186,9 +186,11 @@ describe('PluginHookService.invokeHook', () => {
       },
     };
 
+    // H3 fix: the error message now uses URL-parsed origin comparison.
+    // Origin mismatch message: "does not match plugin basePath origin"
     await expect(
       service.invokeHook(plugin, 'workspace.before_create', BASE_PAYLOAD, 5000)
-    ).rejects.toThrow(/outside plugin basePath/);
+    ).rejects.toThrow(/basePath/);
 
     expect(mockFetch).not.toHaveBeenCalled();
   });

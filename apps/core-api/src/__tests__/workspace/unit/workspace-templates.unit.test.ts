@@ -184,7 +184,8 @@ describe('WorkspaceTemplateService.getTemplate', () => {
       .mockResolvedValueOnce(itemRows); // items
 
     // Act
-    const result = await service.getTemplate(TEMPLATE_ID);
+    // H2 fix: getTemplate now requires tenantId for tenant scoping
+    const result = await service.getTemplate(TEMPLATE_ID, TENANT_ID);
 
     // Assert
     expect(result.id).toBe(TEMPLATE_ID);
@@ -196,7 +197,7 @@ describe('WorkspaceTemplateService.getTemplate', () => {
     mockDb.$queryRaw.mockResolvedValueOnce([]); // no template
 
     // Act & Assert
-    const error = await service.getTemplate('nonexistent-id').catch((e: unknown) => e);
+    const error = await service.getTemplate('nonexistent-id', TENANT_ID).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(WorkspaceError);
     expect((error as WorkspaceError).code).toBe(WorkspaceErrorCode.TEMPLATE_NOT_FOUND);
     expect((error as WorkspaceError).statusCode).toBe(404);
@@ -207,7 +208,7 @@ describe('WorkspaceTemplateService.getTemplate', () => {
     mockDb.$queryRaw.mockResolvedValueOnce([]);
 
     // Act & Assert
-    const error = await service.getTemplate('missing-id').catch((e: unknown) => e);
+    const error = await service.getTemplate('missing-id', TENANT_ID).catch((e: unknown) => e);
     expect((error as WorkspaceError).details).toMatchObject({ templateId: 'missing-id' });
   });
 
@@ -217,7 +218,7 @@ describe('WorkspaceTemplateService.getTemplate', () => {
     mockDb.$queryRaw.mockResolvedValueOnce([templateRow]).mockResolvedValueOnce([]); // no items
 
     // Act
-    const result = await service.getTemplate(TEMPLATE_ID);
+    const result = await service.getTemplate(TEMPLATE_ID, TENANT_ID);
 
     // Assert
     expect(result.items).toEqual([]);
@@ -439,7 +440,13 @@ describe('WorkspaceTemplateService Phase 3 — registerTemplate / updateTemplate
   });
 
   it('deleteTemplate should throw INSUFFICIENT_PERMISSIONS when plugin does not own template', async () => {
-    mockDb.$queryRaw.mockResolvedValueOnce([{ provided_by_plugin_id: 'plugin-other' }]);
+    // M1 fix: deleteTemplate now uses atomic DELETE...RETURNING.
+    // If DELETE returns empty (plugin doesn't own it), a second SELECT checks existence.
+    // 1st query: DELETE WHERE id=... AND provided_by_plugin_id=... → [] (conflict: wrong owner)
+    // 2nd query: SELECT id WHERE id=... → [{ id }] (template exists, but owned by another plugin)
+    mockDb.$queryRaw
+      .mockResolvedValueOnce([]) // DELETE returned nothing (wrong owner)
+      .mockResolvedValueOnce([{ id: 'tmpl-001' }]); // template exists
 
     await expect(service.deleteTemplate('plugin-a', 'tmpl-001')).rejects.toThrow(/does not own/i);
   });

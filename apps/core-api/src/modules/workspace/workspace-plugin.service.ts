@@ -54,30 +54,27 @@ export class WorkspacePluginService {
 
     await this.validateTenantPluginEnabled(pluginId, tenantCtx.tenantId);
 
-    // Check for duplicate
-    const existing = await this.db.$queryRaw<WorkspacePluginRow[]>(
-      Prisma.sql`SELECT workspace_id, plugin_id, enabled, configuration, created_at, updated_at
-                 FROM workspace_plugins
-                 WHERE workspace_id = ${workspaceId}::uuid
-                   AND plugin_id = ${pluginId}
-                 LIMIT 1`
+    const configJson = JSON.stringify(config);
+
+    // Atomic INSERT — if the (workspace_id, plugin_id) unique constraint fires,
+    // ON CONFLICT DO NOTHING returns 0 rows, which means the plugin is already
+    // enabled. This removes the TOCTOU race between the previous SELECT + INSERT.
+    const rows = await this.db.$queryRaw<WorkspacePluginRow[]>(
+      Prisma.sql`INSERT INTO workspace_plugins
+                   (workspace_id, plugin_id, enabled, configuration, created_at, updated_at)
+                 VALUES
+                   (${workspaceId}::uuid, ${pluginId}, true, ${configJson}::jsonb, NOW(), NOW())
+                 ON CONFLICT (workspace_id, plugin_id) DO NOTHING
+                 RETURNING workspace_id, plugin_id, enabled, configuration, created_at, updated_at`
     );
-    if (existing.length > 0) {
+
+    if (rows.length === 0) {
       throw new WorkspaceError(
         WorkspaceErrorCode.WORKSPACE_PLUGIN_EXISTS,
         `Plugin ${pluginId} is already enabled for workspace ${workspaceId}`,
         { workspaceId, pluginId }
       );
     }
-
-    const configJson = JSON.stringify(config);
-    const rows = await this.db.$queryRaw<WorkspacePluginRow[]>(
-      Prisma.sql`INSERT INTO workspace_plugins
-                   (workspace_id, plugin_id, enabled, configuration, created_at, updated_at)
-                 VALUES
-                   (${workspaceId}::uuid, ${pluginId}, true, ${configJson}::jsonb, NOW(), NOW())
-                 RETURNING workspace_id, plugin_id, enabled, configuration, created_at, updated_at`
-    );
 
     this.logger.info(
       { workspaceId, pluginId, tenantId: tenantCtx.tenantId },

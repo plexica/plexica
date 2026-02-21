@@ -41,6 +41,7 @@ import {
   WorkspaceError,
   WorkspaceErrorCode,
   mapServiceError,
+  handleServiceError,
 } from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
 
@@ -188,36 +189,8 @@ const memberParamsSchema = {
   },
 };
 
-/**
- * Handle a service error by mapping it to a WorkspaceError and sending
- * the appropriate error response. If the error cannot be mapped, re-throw
- * it so Fastify's global error handler processes it as a 500.
- *
- * This approach avoids the FST_ERR_FAILED_ERROR_SERIALIZATION error that
- * occurs when throwing custom error classes with statusCode properties in
- * async route handlers.
- *
- * @param error - The error caught from the service layer
- * @param reply - The Fastify reply object
- * @returns Never returns normally (either sends response or throws)
- */
-function handleServiceError(error: unknown, reply: FastifyReply): never {
-  const mapped = mapServiceError(error);
-  if (mapped) {
-    // Send error response directly to avoid Fastify serialization issues
-    reply.status(mapped.statusCode).send({
-      error: {
-        code: mapped.code,
-        message: mapped.message,
-        ...(mapped.details ? { details: mapped.details } : {}),
-      },
-    });
-    // TypeScript needs this to understand control flow
-    throw new Error('Response sent');
-  }
-  // If not mapped, re-throw so Fastify's error handler processes it as 500
-  throw error;
-}
+// handleServiceError is imported from error-formatter.ts (M5 deduplication).
+// See: modules/workspace/utils/error-formatter.ts
 
 /**
  * DEPRECATED: Helper function for deprecated throwMappedError pattern.

@@ -10,6 +10,9 @@
 //   1. Typed error codes (from Spec 009 Section 6.5)
 //   2. A WorkspaceError class extending Error with statusCode + code
 //   3. A mapServiceError() helper that classifies service exceptions
+//   4. A handleServiceError() helper shared across route files (M5)
+
+import type { FastifyReply } from 'fastify';
 
 /**
  * Workspace error codes defined in Spec 009 Section 6.5.
@@ -212,4 +215,33 @@ export function mapServiceError(error: unknown): WorkspaceError | null {
  */
 export function getStatusForCode(code: WorkspaceErrorCode): number {
   return ERROR_STATUS_MAP[code];
+}
+
+/**
+ * Map a caught service error to a Constitution Art. 6.2 structured response
+ * and send it directly via the Fastify reply object.
+ *
+ * This helper is shared across route files to avoid duplicating the same
+ * mapping logic (M5 deduplication). It never returns normally — it either
+ * sends a mapped error response or re-throws the original error so Fastify's
+ * global handler can produce a 500.
+ *
+ * Usage in route handlers:
+ *   } catch (error) {
+ *     handleServiceError(error, reply);
+ *   }
+ */
+export function handleServiceError(error: unknown, reply: FastifyReply): never {
+  const mapped = mapServiceError(error);
+  if (mapped) {
+    reply.status(mapped.statusCode).send({
+      error: {
+        code: mapped.code,
+        message: mapped.message,
+        ...(mapped.details ? { details: mapped.details } : {}),
+      },
+    });
+    throw new Error('Response sent');
+  }
+  throw error;
 }
