@@ -3,8 +3,8 @@
 > Technical implementation plan for workspace hierarchy (parent-child
 > relationships with materialised path), workspace templates, and template
 > provider plugin integration with lifecycle hooks. This is a **GREENFIELD**
-> plan — none of the 3 pillars exist today. The plan covers 17 tasks across
-> 3 phases (~47 story points, 90–125 hours).
+> plan — none of the 3 pillars exist today. The plan covers 18 tasks across
+> 3 phases (~49 story points, 90–125 hours).
 >
 > Created by the `forge-architect` agent via `/forge-plan`.
 

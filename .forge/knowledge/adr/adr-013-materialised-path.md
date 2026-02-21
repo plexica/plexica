@@ -28,8 +28,11 @@ The hierarchy must support:
    workspace for hierarchical read access (FR-010, FR-011).
 4. **Tree rendering**: Building a nested tree structure for the workspace
    switcher UI (FR-012).
-5. **Immutability**: Once created, a workspace's parent cannot change
-   (FR-005). Re-parenting is explicitly out of scope.
+5. **Immutability**: Once created, a workspace's `parentId` is immutable at
+   the schema level. Re-parenting (moving a workspace to a different parent)
+   is supported via a dedicated `PATCH /parent` endpoint that performs a
+   transactional bulk UPDATE of all descendant paths (see Decision §4 and
+   FR-005, FR-006).
 
 The hierarchy operates within the schema-per-tenant architecture (ADR-002).
 All queries use `Prisma.$queryRaw` with `SET LOCAL search_path` per the

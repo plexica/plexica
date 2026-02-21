@@ -463,14 +463,14 @@ or clean up when it is deleted.
 
 | ID     | Requirement                                                                                         | Priority | Story Ref      | Status      |
 | ------ | --------------------------------------------------------------------------------------------------- | -------- | -------------- | ----------- |
-| FR-026 | Plugin manifest shall support `capabilities` array including `workspace.template-provider`          | Must     | US-008         | 🔴 Not Impl |
-| FR-027 | Plugin manifest shall support `hooks` object with `workspace.created` and `workspace.before_create` | Must     | US-008, US-009 | 🔴 Not Impl |
-| FR-028 | Template provider plugins shall be able to register templates via API                               | Must     | US-008         | 🔴 Not Impl |
-| FR-029 | `workspace.before_create` hook shall be invoked sequentially and can reject creation                | Must     | US-009         | 🔴 Not Impl |
-| FR-030 | `workspace.created` hook shall be invoked in parallel (non-blocking, fire-and-forget)               | Must     | US-009         | 🔴 Not Impl |
-| FR-031 | Hook invocation shall have a 5-second timeout per plugin handler                                    | Must     | US-009         | 🔴 Not Impl |
-| FR-032 | `runLifecycleHook()` stub in PluginHookSystem shall be implemented                                  | Must     | US-009         | 🔴 Not Impl |
-| FR-033 | System shall publish `core.workspace.created` and `core.workspace.deleted` events to EventBus       | Must     | US-009         | 🔴 Not Impl |
+| FR-027 | Plugin manifest shall support `capabilities` array including `workspace.template-provider`          | Must     | US-008         | 🔴 Not Impl |
+| FR-028 | Plugin manifest shall support `hooks` object with `workspace.created` and `workspace.before_create` | Must     | US-008, US-009 | 🔴 Not Impl |
+| FR-029 | Template provider plugins shall be able to register templates via API                               | Must     | US-008         | 🔴 Not Impl |
+| FR-030 | `workspace.before_create` hook shall be invoked sequentially and can reject creation                | Must     | US-009         | 🔴 Not Impl |
+| FR-031 | `workspace.created` hook shall be invoked in parallel (non-blocking, fire-and-forget)               | Must     | US-009         | 🔴 Not Impl |
+| FR-032 | Hook invocation shall have a 5-second timeout per plugin handler                                    | Must     | US-009         | 🔴 Not Impl |
+| FR-033 | `runLifecycleHook()` stub in PluginHookSystem shall be implemented                                  | Must     | US-009         | 🔴 Not Impl |
+| FR-034 | System shall publish `core.workspace.created` and `core.workspace.deleted` events to EventBus       | Must     | US-009         | 🔴 Not Impl |
 
 ---
 
@@ -1364,41 +1364,51 @@ const descendants = await this.db.$queryRaw<WorkspaceRow[]>(
 
 ## 8. Non-Functional Requirements
 
-| ID      | Category    | Requirement                                                   | Target         | Status      |
-| ------- | ----------- | ------------------------------------------------------------- | -------------- | ----------- |
-| NFR-001 | Performance | Hierarchy tree query response time (up to 100 workspaces)     | < 200ms (P95)  | 🔴 Not Impl |
-| NFR-002 | Performance | Descendant aggregation query (materialised path LIKE)         | < 50ms (P95)   | 🔴 Not Impl |
-| NFR-003 | Performance | Template application time (up to 10 items)                    | < 1000ms (P95) | 🔴 Not Impl |
-| NFR-004 | Performance | Workspace creation with template (end-to-end)                 | < 1500ms (P95) | 🔴 Not Impl |
-| NFR-005 | Performance | Plugin hook invocation timeout                                | 5s max         | 🔴 Not Impl |
-| NFR-006 | Scalability | Maximum workspaces per tenant (with hierarchy)                | 500+           | 🔴 Not Impl |
-| NFR-007 | Scalability | Maximum children per parent workspace                         | 50+            | 🔴 Not Impl |
-| NFR-008 | Scalability | Maximum templates per tenant                                  | 100+           | 🔴 Not Impl |
-| NFR-009 | Reliability | Template application atomicity (all-or-nothing)               | 100%           | 🔴 Not Impl |
-| NFR-010 | Reliability | Hook failure does not block workspace creation (created hook) | 100%           | 🔴 Not Impl |
-| NFR-011 | Quality     | Test coverage for new hierarchy code                          | ≥ 85%          | 🔴 Not Impl |
-| NFR-012 | Quality     | Test coverage for template application code                   | ≥ 85%          | 🔴 Not Impl |
-| NFR-013 | Security    | All new queries use parameterized inputs                      | 100%           | 🔴 Not Impl |
-| NFR-014 | Security    | Hierarchical access checks on every descendant query          | 100%           | 🔴 Not Impl |
+| ID      | Category    | Requirement                                                              | Target         | Status      |
+| ------- | ----------- | ------------------------------------------------------------------------ | -------------- | ----------- |
+| NFR-001 | Performance | Hierarchy tree query response time (up to 100 workspaces)                | < 200ms (P95)  | 🔴 Not Impl |
+| NFR-002 | Performance | Descendant aggregation query (materialised path LIKE)                    | < 50ms (P95)   | 🔴 Not Impl |
+| NFR-003 | Performance | Template application time (up to 10 items)                               | < 1000ms (P95) | 🔴 Not Impl |
+| NFR-004 | Performance | Workspace creation with template (end-to-end)                            | < 1500ms (P95) | 🔴 Not Impl |
+| NFR-005 | Performance | Plugin hook invocation timeout                                           | 5s max         | 🔴 Not Impl |
+| NFR-006 | Scalability | Maximum workspaces per tenant (with hierarchy)                           | 500+           | 🔴 Not Impl |
+| NFR-007 | Scalability | Maximum children per parent workspace                                    | 50+            | 🔴 Not Impl |
+| NFR-008 | Scalability | Maximum templates per tenant                                             | 100+           | 🔴 Not Impl |
+| NFR-009 | Reliability | Template application atomicity (all-or-nothing)                          | 100%           | 🔴 Not Impl |
+| NFR-010 | Reliability | Hook failure does not block workspace creation (created hook)            | 100%           | 🔴 Not Impl |
+| NFR-011 | Quality     | Test coverage for new hierarchy code                                     | ≥ 85%          | 🔴 Not Impl |
+| NFR-012 | Quality     | Test coverage for template application code                              | ≥ 85%          | 🔴 Not Impl |
+| NFR-013 | Security    | All new queries use parameterized inputs                                 | 100%           | 🔴 Not Impl |
+| NFR-014 | Security    | Hierarchical access checks on every descendant query                     | 100%           | 🔴 Not Impl |
+| NFR-P01 | Performance | `getDescendants` P95 latency for tenants with ≤500 workspaces (uncached) | < 50ms (P95)   | 🔴 Not Impl |
+| NFR-P02 | Performance | `getAggregatedCounts` P95 latency (uncached) / cache hit                 | < 30ms / < 2ms | 🔴 Not Impl |
+| NFR-P03 | Performance | Re-parenting a 50-node subtree (single transaction)                      | < 200ms (P95)  | 🔴 Not Impl |
+| NFR-P04 | Performance | `idx_workspaces_path` uses `varchar_pattern_ops` for LIKE sargability    | 100%           | 🔴 Not Impl |
+| NFR-P05 | Performance | `idx_workspace_members_workspace_id` exists before any hierarchy query   | 100%           | 🔴 Not Impl |
 
 ### NFR Measurement Methods
 
-| NFR     | Measurement Method                                                          |
-| ------- | --------------------------------------------------------------------------- |
-| NFR-001 | P95 latency via Pino request duration; load test with 100 workspace tree    |
-| NFR-002 | PostgreSQL `EXPLAIN ANALYZE` on `WHERE path LIKE 'root/%'` with path index  |
-| NFR-003 | P95 latency of `WorkspaceTemplateService.applyTemplate()` with 10 items     |
-| NFR-004 | End-to-end timing from POST to 201 response including template + hooks      |
-| NFR-005 | Integration test: mock plugin handler with 6s delay, verify timeout error   |
-| NFR-006 | Load test: create 500 workspaces in hierarchy, verify no degradation        |
-| NFR-007 | Load test: create 50 children under single parent, verify query performance |
-| NFR-008 | Load test: create 100 templates, verify listing response < 200ms            |
-| NFR-009 | Integration test: force template item failure, verify workspace rollback    |
-| NFR-010 | Integration test: mock hook failure, verify workspace still created         |
-| NFR-011 | Vitest coverage report on `workspace/hierarchy/` module                     |
-| NFR-012 | Vitest coverage report on `workspace/templates/` module                     |
-| NFR-013 | Code audit: grep for `$queryRawUnsafe` or interpolation in new modules      |
-| NFR-014 | Integration test: child member attempts ancestor query, verify 403          |
+| NFR     | Measurement Method                                                                          |
+| ------- | ------------------------------------------------------------------------------------------- |
+| NFR-001 | P95 latency via Pino request duration; load test with 100 workspace tree                    |
+| NFR-002 | PostgreSQL `EXPLAIN ANALYZE` on `WHERE path LIKE 'root/%'` with path index                  |
+| NFR-003 | P95 latency of `WorkspaceTemplateService.applyTemplate()` with 10 items                     |
+| NFR-004 | End-to-end timing from POST to 201 response including template + hooks                      |
+| NFR-005 | Integration test: mock plugin handler with 6s delay, verify timeout error                   |
+| NFR-006 | Load test: create 500 workspaces in hierarchy, verify no degradation                        |
+| NFR-007 | Load test: create 50 children under single parent, verify query performance                 |
+| NFR-008 | Load test: create 100 templates, verify listing response < 200ms                            |
+| NFR-009 | Integration test: force template item failure, verify workspace rollback                    |
+| NFR-010 | Integration test: mock hook failure, verify workspace still created                         |
+| NFR-011 | Vitest coverage report on `workspace/hierarchy/` module                                     |
+| NFR-012 | Vitest coverage report on `workspace/templates/` module                                     |
+| NFR-013 | Code audit: grep for `$queryRawUnsafe` or interpolation in new modules                      |
+| NFR-014 | Integration test: child member attempts ancestor query, verify 403                          |
+| NFR-P01 | Vitest benchmark fixture: `getDescendants` with 500-workspace tenant, P95 assertion         |
+| NFR-P02 | Vitest benchmark fixture: `getAggregatedCounts` cold + warm cache, P95 assertion            |
+| NFR-P03 | Integration test timing: PATCH /parent on 50-node subtree, assert total time < 200ms        |
+| NFR-P04 | Migration review: confirm `varchar_pattern_ops` operator class on `idx_workspaces_path`     |
+| NFR-P05 | Migration review: confirm `idx_workspace_members_workspace_id` present in T011-01 migration |
 
 ---
 
@@ -1768,13 +1778,13 @@ return await this.db.$transaction(async (tx) => {
 | 19  | Enable plugin for workspace when not enabled at tenant   | 400 `PLUGIN_NOT_TENANT_ENABLED`                                                                                                                                                  | 2      | 🔴     |
 | 20  | Duplicate plugin enablement for workspace                | 409 `WORKSPACE_PLUGIN_EXISTS`                                                                                                                                                    | 2      | 🔴     |
 | 21  | before_create hook returns { approve: false }            | 400 `HOOK_REJECTED_CREATION` with plugin's reason message                                                                                                                        | 3      | 🔴     |
-| 19  | before_create hook times out (>5s)                       | Timeout logged; creation continues (timeout = implicit approve)                                                                                                                  | 3      | 🔴     |
-| 20  | created hook fails (plugin endpoint down)                | Workspace created successfully; hook failure logged at warn                                                                                                                      | 3      | 🔴     |
-| 21  | Multiple before_create hooks, second rejects             | Creation aborted; first hook's side effects should be idempotent                                                                                                                 | 3      | 🔴     |
-| 22  | Plugin manifest has unknown capability                   | 400 `INVALID_CAPABILITY` during manifest validation                                                                                                                              | 3      | 🔴     |
-| 23  | Template + hierarchy combined: child with template       | Child workspace created with template applied at correct depth                                                                                                                   | 1, 2   | 🔴     |
-| 24  | Concurrent child creation under same parent (same slug)  | One succeeds, one gets 409 (database unique constraint)                                                                                                                          | 1      | 🔴     |
-| 25  | Workspace tree query with 100+ workspaces                | Response < 200ms using path index, paginated if needed                                                                                                                           | 1      | 🔴     |
+| 22  | before_create hook times out (>5s)                       | Timeout logged; creation continues (timeout = implicit approve)                                                                                                                  | 3      | 🔴     |
+| 23  | created hook fails (plugin endpoint down)                | Workspace created successfully; hook failure logged at warn                                                                                                                      | 3      | 🔴     |
+| 24  | Multiple before_create hooks, second rejects             | Creation aborted; first hook's side effects should be idempotent                                                                                                                 | 3      | 🔴     |
+| 25  | Plugin manifest has unknown capability                   | 400 `INVALID_CAPABILITY` during manifest validation                                                                                                                              | 3      | 🔴     |
+| 26  | Template + hierarchy combined: child with template       | Child workspace created with template applied at correct depth                                                                                                                   | 1, 2   | 🔴     |
+| 27  | Concurrent child creation under same parent (same slug)  | One succeeds, one gets 409 (database unique constraint)                                                                                                                          | 1      | 🔴     |
+| 28  | Workspace tree query with 100+ workspaces                | Response < 200ms using path index, paginated if needed                                                                                                                           | 1      | 🔴     |
 
 ---
 
@@ -2012,15 +2022,21 @@ integration test realism. Mitigated by E2E tests with real plugin containers.
 
 ### 18.1 Workspace Re-parenting (Move to Different Parent)
 
-**Priority**: LOW
-**Estimated Effort**: 16-24 hours
-
-Allow moving a workspace to a different parent, which requires:
-
-- Recalculating `path` for the moved workspace and all its descendants
-- Validating depth constraints (target parent depth + subtree depth ≤ 2)
-- Updating slug uniqueness under new parent
-- Atomic operation to prevent inconsistent state during path recalculation
+> **⚠️ Note: Re-parenting is IN SCOPE for this spec.**
+>
+> This section previously listed re-parenting as a future enhancement. That
+> was an error. Re-parenting is fully specified and implemented as part of
+> **Pillar 1** of this specification:
+>
+> - **US-001b** — Move Workspace to Different Parent (§3.2)
+> - **FR-005** — Tenant ADMIN may move a workspace to a different parent (§4.1)
+> - **FR-006** — `parentId` immutability constraint is enforced at schema level; re-parenting uses a dedicated `PATCH /parent` endpoint (§4.1)
+> - **NFR-P03** — Re-parenting a 50-node subtree must complete in < 200ms P95 (§8)
+> - **ADR-013** — Materialised path pattern chosen in part because re-parenting cost is bounded: O(n) subtree UPDATE in a single transaction (§9)
+>
+> Refer to those sections for full acceptance criteria, constraints, and
+> implementation details. There are no remaining future enhancements related
+> to basic re-parenting.
 
 ### 18.2 Template Versioning
 
