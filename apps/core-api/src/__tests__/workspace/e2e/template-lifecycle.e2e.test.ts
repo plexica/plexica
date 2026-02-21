@@ -151,7 +151,7 @@ describe('Template & Plugin Lifecycle E2E', () => {
       // Ensure plugin record exists in core plugins table (required by FK)
       await db.$executeRaw`
         INSERT INTO plugins (id, name, version, manifest, status, updated_at)
-        VALUES (${TEST_PLUGIN_ID}, ${TEST_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE', NOW())
+        VALUES (${TEST_PLUGIN_ID}, ${TEST_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE'::"PluginStatus", NOW())
         ON CONFLICT (id) DO NOTHING
       `;
 
@@ -210,7 +210,7 @@ describe('Template & Plugin Lifecycle E2E', () => {
       // Ensure tenant plugin exists (may already exist from Test 3)
       await db.$executeRaw`
         INSERT INTO plugins (id, name, version, manifest, status, updated_at)
-        VALUES (${TEST_PLUGIN_ID}, ${TEST_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE', NOW())
+        VALUES (${TEST_PLUGIN_ID}, ${TEST_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE'::"PluginStatus", NOW())
         ON CONFLICT (id) DO NOTHING
       `;
       await db.$executeRaw`
@@ -271,7 +271,7 @@ describe('Template & Plugin Lifecycle E2E', () => {
       // Register cascade plugin at tenant level
       await db.$executeRaw`
         INSERT INTO plugins (id, name, version, manifest, status, updated_at)
-        VALUES (${CASCADE_PLUGIN_ID}, ${CASCADE_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE', NOW())
+        VALUES (${CASCADE_PLUGIN_ID}, ${CASCADE_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE'::"PluginStatus", NOW())
         ON CONFLICT (id) DO NOTHING
       `;
       await db.$executeRaw`
