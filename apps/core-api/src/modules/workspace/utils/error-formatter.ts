@@ -25,7 +25,7 @@ export enum WorkspaceErrorCode {
   WORKSPACE_SLUG_CONFLICT = 'WORKSPACE_SLUG_CONFLICT',
   /** 400 — Cannot delete workspace with existing teams */
   WORKSPACE_HAS_TEAMS = 'WORKSPACE_HAS_TEAMS',
-  /** 400 — Cannot delete workspace with existing child workspaces */
+  /** 409 — Cannot delete workspace with existing child workspaces */
   WORKSPACE_HAS_CHILDREN = 'WORKSPACE_HAS_CHILDREN',
   /** 404 — Membership does not exist */
   MEMBER_NOT_FOUND = 'MEMBER_NOT_FOUND',
@@ -74,7 +74,7 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.WORKSPACE_NOT_FOUND]: 404,
   [WorkspaceErrorCode.WORKSPACE_SLUG_CONFLICT]: 409,
   [WorkspaceErrorCode.WORKSPACE_HAS_TEAMS]: 400,
-  [WorkspaceErrorCode.WORKSPACE_HAS_CHILDREN]: 400,
+  [WorkspaceErrorCode.WORKSPACE_HAS_CHILDREN]: 409,
   [WorkspaceErrorCode.MEMBER_NOT_FOUND]: 404,
   [WorkspaceErrorCode.MEMBER_ALREADY_EXISTS]: 409,
   [WorkspaceErrorCode.LAST_ADMIN_VIOLATION]: 400,

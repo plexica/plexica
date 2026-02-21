@@ -107,7 +107,7 @@ export class WorkspacePluginService {
                  FROM workspaces w
                  WHERE wp.workspace_id = w.id
                    AND wp.workspace_id = ${workspaceId}::uuid
-                   AND wp.plugin_id = ${pluginId}
+                   AND wp.plugin_id = ${pluginId}::uuid
                    AND w.tenant_id = ${tenantCtx.tenantId}::uuid`
     );
 
@@ -151,7 +151,7 @@ export class WorkspacePluginService {
                  FROM workspaces w
                  WHERE wp.workspace_id = w.id
                    AND wp.workspace_id = ${workspaceId}::uuid
-                   AND wp.plugin_id = ${pluginId}
+                   AND wp.plugin_id = ${pluginId}::uuid
                    AND w.tenant_id = ${tenantCtx.tenantId}::uuid
                  RETURNING wp.workspace_id, wp.plugin_id, wp.enabled,
                            wp.configuration, wp.created_at, wp.updated_at`
@@ -207,7 +207,7 @@ export class WorkspacePluginService {
       Prisma.sql`SELECT enabled
                  FROM tenant_plugins
                  WHERE "tenantId" = ${tenantId}::uuid
-                   AND "pluginId" = ${pluginId}
+                   AND "pluginId" = ${pluginId}::uuid
                  LIMIT 1`
     );
 
@@ -241,7 +241,7 @@ export class WorkspacePluginService {
                  SET enabled = false, updated_at = NOW()
                  FROM workspaces w
                  WHERE wp.workspace_id = w.id
-                   AND wp.plugin_id = ${pluginId}
+                   AND wp.plugin_id = ${pluginId}::uuid
                    AND w.tenant_id = ${tenantId}::uuid
                    AND wp.enabled = true`
     );

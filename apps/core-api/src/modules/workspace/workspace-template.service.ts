@@ -106,7 +106,7 @@ export class WorkspaceTemplateService {
                         wt.is_default, wt.metadata, wt.created_at,
                         COALESCE(ic.cnt, 0) AS item_count
                    FROM workspace_templates wt
-                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id
+                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id::uuid
                    LEFT JOIN (
                      SELECT template_id, COUNT(*) AS cnt
                        FROM workspace_template_items
@@ -148,7 +148,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`SELECT wt.id, wt.name, wt.description, wt.provided_by_plugin_id,
                         wt.is_default, wt.metadata, wt.created_at, wt.updated_at
                    FROM workspace_templates wt
-                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id
+                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id::uuid
                   WHERE wt.id = ${templateId}::uuid
                     AND tp."tenantId" = ${tenantId}::uuid
                     AND tp.enabled = true

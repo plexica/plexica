@@ -78,7 +78,7 @@ export class WorkspaceResourceService {
     // Check if cross-workspace sharing is enabled for this workspace
     const workspace = await this.db.$queryRaw<Array<{ id: string; settings: unknown }>>(
       Prisma.sql`SELECT id, settings FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
-       WHERE id = ${workspaceId} LIMIT 1`
+       WHERE id = ${workspaceId}::uuid LIMIT 1`
     );
 
     if (workspace.length === 0) {
