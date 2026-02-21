@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Plexica Super Admin App
 
 # Stage 1: Base - Setup base environment
-FROM node:20-alpine AS base
+FROM node:25-alpine AS base
 WORKDIR /app
 RUN corepack enable pnpm
 
