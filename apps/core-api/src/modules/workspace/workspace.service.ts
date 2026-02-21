@@ -669,106 +669,102 @@ export class WorkspaceService {
       // Note: schemaName is validated with regex above
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      try {
-        const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+      const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
 
-        // Build UPDATE statement with parameterized values
-        // We need to use conditional logic to handle optional fields
-        let updateCount: number;
+      // Build UPDATE statement with parameterized values.
+      // Note: settings must be cast to jsonb explicitly (same as create()).
+      // Errors are NOT wrapped so mapServiceError can match .code / message.
+      let updateCount: number;
+      const settingsJson = dto.settings !== undefined ? JSON.stringify(dto.settings) : undefined;
 
-        if (dto.name !== undefined && dto.description !== undefined && dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
+      if (dto.name !== undefined && dto.description !== undefined && settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
              SET name = ${dto.name},
                  description = ${dto.description},
-                 settings = ${dto.settings},
+                 settings = ${settingsJson}::jsonb,
                  updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else if (dto.name !== undefined && dto.description !== undefined) {
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.name !== undefined && dto.description !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET name = ${dto.name},
                 description = ${dto.description},
                 updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        } else if (dto.name !== undefined && dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.name !== undefined && settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
              SET name = ${dto.name},
-                 settings = ${dto.settings},
+                 settings = ${settingsJson}::jsonb,
                  updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else if (dto.description !== undefined && dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.description !== undefined && settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
              SET description = ${dto.description},
-                 settings = ${dto.settings},
+                 settings = ${settingsJson}::jsonb,
                  updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else if (dto.name !== undefined) {
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.name !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET name = ${dto.name}, updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        } else if (dto.description !== undefined) {
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (dto.description !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET description = ${dto.description}, updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        } else if (dto.settings !== undefined) {
-          updateCount = await tx.$executeRaw`
-             UPDATE ${workspacesTable}
-             SET settings = ${dto.settings}, updated_at = NOW()
-             WHERE id = ${id} AND tenant_id = ${tenantId}
-           `;
-        } else {
-          // No fields to update, just update the timestamp
-          updateCount = await tx.$executeRaw`
-            UPDATE ${workspacesTable}
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else if (settingsJson !== undefined) {
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
+             SET settings = ${settingsJson}::jsonb, updated_at = NOW()
+             WHERE id = ${id} AND tenant_id = ${tenantId}`
+        );
+      } else {
+        // No fields to update, just update the timestamp
+        updateCount = await tx.$executeRaw(
+          Prisma.sql`UPDATE ${workspacesTable}
             SET updated_at = NOW()
-            WHERE id = ${id} AND tenant_id = ${tenantId}
-          `;
-        }
-
-        if (updateCount === 0) {
-          throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
-        }
-
-        // Fetch updated workspace
-        const workspaces = await tx.$queryRaw<WorkspaceRow[]>`
-          SELECT * FROM ${workspacesTable}
-          WHERE id = ${id} AND tenant_id = ${tenantId}
-        `;
-
-        if (!workspaces || workspaces.length === 0) {
-          throw new Error(`Workspace ${id} not found after update`);
-        }
-
-        // Event published after transaction (see below)
-
-        const workspace = workspaces[0];
-        const result = {
-          id: workspace.id,
-          tenantId: workspace.tenant_id,
-          slug: workspace.slug,
-          name: workspace.name,
-          description: workspace.description,
-          settings: workspace.settings,
-          createdAt: workspace.created_at,
-          updatedAt: workspace.updated_at,
-        };
-        return result;
-      } catch (error) {
-        throw new Error(
-          `Failed to update workspace: ${error instanceof Error ? error.message : 'Unknown error'}`
+            WHERE id = ${id} AND tenant_id = ${tenantId}`
         );
       }
+
+      if (updateCount === 0) {
+        throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
+      }
+
+      // Fetch updated workspace
+      const workspaces = await tx.$queryRaw<WorkspaceRow[]>(
+        Prisma.sql`SELECT * FROM ${workspacesTable}
+          WHERE id = ${id} AND tenant_id = ${tenantId}`
+      );
+
+      if (!workspaces || workspaces.length === 0) {
+        throw new Error(`Workspace ${id} not found after update`);
+      }
+
+      // Event published after transaction (see below)
+
+      const workspace = workspaces[0];
+      const result = {
+        id: workspace.id,
+        tenantId: workspace.tenant_id,
+        slug: workspace.slug,
+        name: workspace.name,
+        description: workspace.description,
+        settings: workspace.settings,
+        createdAt: workspace.created_at,
+        updatedAt: workspace.updated_at,
+      };
+      return result;
     });
 
     // Publish workspace updated event after successful transaction
