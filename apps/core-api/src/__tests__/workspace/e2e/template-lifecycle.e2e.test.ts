@@ -104,6 +104,8 @@ describe('Template & Plugin Lifecycle E2E', () => {
       // Clean up global tables written by the plugin lifecycle tests
       await db.$executeRaw`DELETE FROM workspace_plugins WHERE plugin_id = ${TEST_PLUGIN_ID}`;
       await db.$executeRaw`DELETE FROM tenant_plugins WHERE "pluginId" = ${TEST_PLUGIN_ID}`;
+      await db.$executeRaw`DELETE FROM plugins WHERE id = ${TEST_PLUGIN_ID}`;
+      await db.$executeRaw`DELETE FROM plugins WHERE id LIKE 'cascade-plugin-%'`;
     } catch {
       /* ignore */
     }
@@ -145,6 +147,13 @@ describe('Template & Plugin Lifecycle E2E', () => {
       );
       workspaceId = ws.id;
       createdWorkspaceIds.push(workspaceId);
+
+      // Ensure plugin record exists in core plugins table (required by FK)
+      await db.$executeRaw`
+        INSERT INTO plugins (id, name, version, manifest, status, updated_at)
+        VALUES (${TEST_PLUGIN_ID}, ${TEST_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE', NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
 
       // Register the plugin at tenant level so enablePlugin doesn't reject it
       await db.$executeRaw`
@@ -199,6 +208,11 @@ describe('Template & Plugin Lifecycle E2E', () => {
       createdWorkspaceIds.push(workspaceId);
 
       // Ensure tenant plugin exists (may already exist from Test 3)
+      await db.$executeRaw`
+        INSERT INTO plugins (id, name, version, manifest, status, updated_at)
+        VALUES (${TEST_PLUGIN_ID}, ${TEST_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE', NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
       await db.$executeRaw`
         INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
         VALUES (${testTenantId}, ${TEST_PLUGIN_ID}, true, '{}'::jsonb, NOW())
@@ -255,6 +269,11 @@ describe('Template & Plugin Lifecycle E2E', () => {
       createdWorkspaceIds.push(wsId2);
 
       // Register cascade plugin at tenant level
+      await db.$executeRaw`
+        INSERT INTO plugins (id, name, version, manifest, status, updated_at)
+        VALUES (${CASCADE_PLUGIN_ID}, ${CASCADE_PLUGIN_ID}, '1.0.0', '{}'::jsonb, 'AVAILABLE', NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
       await db.$executeRaw`
         INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
         VALUES (${testTenantId}, ${CASCADE_PLUGIN_ID}, true, '{}'::jsonb, NOW())

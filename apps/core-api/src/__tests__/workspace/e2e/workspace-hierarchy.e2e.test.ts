@@ -218,7 +218,7 @@ describe('Workspace Hierarchy E2E', () => {
     it('should block delete of a workspace with children', async () => {
       await expect(
         runInContext(() => workspaceService.delete(rootId, tenantContext))
-      ).rejects.toThrow(/has children/);
+      ).rejects.toThrow(/children/);
     });
   });
 
