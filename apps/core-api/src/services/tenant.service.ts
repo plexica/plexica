@@ -256,24 +256,51 @@ export class TenantService {
       )
     `);
 
-    // Create workspace tables
+    // Create workspace tables (Spec 011: includes hierarchy columns parent_id, depth, path)
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspaces" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id TEXT NOT NULL,
+        parent_id TEXT DEFAULT NULL,
+        depth INTEGER NOT NULL DEFAULT 0,
+        path VARCHAR NOT NULL DEFAULT '',
         slug TEXT NOT NULL,
         name TEXT NOT NULL,
         description TEXT,
         settings JSONB NOT NULL DEFAULT '{}',
         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (tenant_id, slug)
+        CONSTRAINT "fk_workspaces_parent" FOREIGN KEY (parent_id)
+          REFERENCES "${schemaName}"."workspaces"(id) ON DELETE RESTRICT,
+        CONSTRAINT "chk_workspaces_depth" CHECK (depth >= 0),
+        CONSTRAINT "uq_workspaces_parent_slug" UNIQUE (parent_id, slug)
       )
     `);
 
     await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "workspaces_tenant_id_idx" 
+      CREATE INDEX IF NOT EXISTS "workspaces_tenant_id_idx"
       ON "${schemaName}"."workspaces"(tenant_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "idx_workspaces_parent"
+      ON "${schemaName}"."workspaces"(parent_id)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "idx_workspaces_path"
+      ON "${schemaName}"."workspaces" USING btree (path varchar_pattern_ops)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "idx_workspaces_depth"
+      ON "${schemaName}"."workspaces"(depth)
+    `);
+
+    await this.db.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "idx_workspace_root_slug_unique"
+      ON "${schemaName}"."workspaces" (tenant_id, slug)
+      WHERE parent_id IS NULL
     `);
 
     await this.db.$executeRawUnsafe(`
