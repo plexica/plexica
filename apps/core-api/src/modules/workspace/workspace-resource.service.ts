@@ -78,7 +78,7 @@ export class WorkspaceResourceService {
     // Check if cross-workspace sharing is enabled for this workspace
     const workspace = await this.db.$queryRaw<Array<{ id: string; settings: unknown }>>(
       Prisma.sql`SELECT id, settings FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
-       WHERE id = ${workspaceId}::uuid LIMIT 1`
+       WHERE id = ${workspaceId} LIMIT 1`
     );
 
     if (workspace.length === 0) {
@@ -99,9 +99,9 @@ export class WorkspaceResourceService {
     // Check if resource is already shared (duplicate check)
     const existingResource = await this.db.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspace_resources"`)}
-       WHERE workspace_id = ${workspaceId}::uuid
+       WHERE workspace_id = ${workspaceId}
        AND resource_type = ${dto.resourceType}
-       AND resource_id = ${dto.resourceId}::uuid
+       AND resource_id = ${dto.resourceId}
        LIMIT 1`
     );
 
@@ -135,10 +135,10 @@ export class WorkspaceResourceService {
         INSERT INTO ${tableName}
         (id, workspace_id, resource_type, resource_id, created_at)
         VALUES (
-          ${newResourceId}::uuid,
-          ${workspaceId}::uuid,
+          ${newResourceId},
+          ${workspaceId},
           ${dto.resourceType},
-          ${dto.resourceId}::uuid,
+          ${dto.resourceId},
           NOW()
         )
       `;
@@ -241,7 +241,7 @@ export class WorkspaceResourceService {
     const resourceLink = await this.db.$queryRaw<Array<WorkspaceResourceRow>>(
       Prisma.sql`SELECT id, workspace_id, resource_type, resource_id, created_at
        FROM ${Prisma.raw(`"${schemaName}"."workspace_resources"`)}
-       WHERE id = ${resourceId}::uuid AND workspace_id = ${workspaceId}::uuid
+       WHERE id = ${resourceId} AND workspace_id = ${workspaceId}
        LIMIT 1`
     );
 
@@ -262,7 +262,7 @@ export class WorkspaceResourceService {
       const tableName = Prisma.raw(`"${schemaName}"."workspace_resources"`);
       await tx.$executeRaw`
         DELETE FROM ${tableName}
-        WHERE id = ${resourceId}::uuid AND workspace_id = ${workspaceId}::uuid
+        WHERE id = ${resourceId} AND workspace_id = ${workspaceId}
       `;
     });
 
@@ -359,7 +359,7 @@ export class WorkspaceResourceService {
       resources = await this.db.$queryRaw<Array<WorkspaceResourceRow>>`
         SELECT id, workspace_id, resource_type, resource_id, created_at
         FROM ${tableName}
-        WHERE workspace_id = ${workspaceId}::uuid AND resource_type = ${resourceType}
+        WHERE workspace_id = ${workspaceId} AND resource_type = ${resourceType}
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
@@ -367,7 +367,7 @@ export class WorkspaceResourceService {
       const countResult = await this.db.$queryRaw<Array<{ count: number }>>`
         SELECT COUNT(*)::int as count
         FROM ${tableName}
-        WHERE workspace_id = ${workspaceId}::uuid AND resource_type = ${resourceType}
+        WHERE workspace_id = ${workspaceId} AND resource_type = ${resourceType}
       `;
       totalCount = countResult[0].count;
     } else {
@@ -375,7 +375,7 @@ export class WorkspaceResourceService {
       resources = await this.db.$queryRaw<Array<WorkspaceResourceRow>>`
         SELECT id, workspace_id, resource_type, resource_id, created_at
         FROM ${tableName}
-        WHERE workspace_id = ${workspaceId}::uuid
+        WHERE workspace_id = ${workspaceId}
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
@@ -383,7 +383,7 @@ export class WorkspaceResourceService {
       const countResult = await this.db.$queryRaw<Array<{ count: number }>>`
         SELECT COUNT(*)::int as count
         FROM ${tableName}
-        WHERE workspace_id = ${workspaceId}::uuid
+        WHERE workspace_id = ${workspaceId}
       `;
       totalCount = countResult[0].count;
     }
@@ -439,7 +439,7 @@ export class WorkspaceResourceService {
     const resources = await this.db.$queryRaw<Array<WorkspaceResourceRow>>(
       Prisma.sql`SELECT id, workspace_id, resource_type, resource_id, created_at
        FROM ${Prisma.raw(`"${schemaName}"."workspace_resources"`)}
-       WHERE id = ${resourceId}::uuid AND workspace_id = ${workspaceId}::uuid
+       WHERE id = ${resourceId} AND workspace_id = ${workspaceId}
        LIMIT 1`
     );
 
@@ -483,9 +483,9 @@ export class WorkspaceResourceService {
 
     const resources = await this.db.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspace_resources"`)}
-       WHERE workspace_id = ${workspaceId}::uuid
+       WHERE workspace_id = ${workspaceId}
        AND resource_type = ${resourceType}
-       AND resource_id = ${resourceId}::uuid
+       AND resource_id = ${resourceId}
        LIMIT 1`
     );
 

@@ -63,7 +63,7 @@ export class WorkspacePluginService {
       Prisma.sql`INSERT INTO workspace_plugins
                    (workspace_id, plugin_id, enabled, configuration, created_at, updated_at)
                  VALUES
-                   (${workspaceId}::uuid, ${pluginId}, true, ${configJson}::jsonb, NOW(), NOW())
+                   (${workspaceId}, ${pluginId}, true, ${configJson}::jsonb, NOW(), NOW())
                  ON CONFLICT (workspace_id, plugin_id) DO NOTHING
                  RETURNING workspace_id, plugin_id, enabled, configuration, created_at, updated_at`
     );
@@ -106,9 +106,9 @@ export class WorkspacePluginService {
                  SET enabled = false, updated_at = NOW()
                  FROM workspaces w
                  WHERE wp.workspace_id = w.id
-                   AND wp.workspace_id = ${workspaceId}::uuid
-                   AND wp.plugin_id = ${pluginId}::uuid
-                   AND w.tenant_id = ${tenantCtx.tenantId}::uuid`
+                   AND wp.workspace_id = ${workspaceId}
+                   AND wp.plugin_id = ${pluginId}
+                   AND w.tenant_id = ${tenantCtx.tenantId}`
     );
 
     if (result === 0) {
@@ -150,9 +150,9 @@ export class WorkspacePluginService {
                  SET configuration = ${configJson}::jsonb, updated_at = NOW()
                  FROM workspaces w
                  WHERE wp.workspace_id = w.id
-                   AND wp.workspace_id = ${workspaceId}::uuid
-                   AND wp.plugin_id = ${pluginId}::uuid
-                   AND w.tenant_id = ${tenantCtx.tenantId}::uuid
+                   AND wp.workspace_id = ${workspaceId}
+                   AND wp.plugin_id = ${pluginId}
+                   AND w.tenant_id = ${tenantCtx.tenantId}
                  RETURNING wp.workspace_id, wp.plugin_id, wp.enabled,
                            wp.configuration, wp.created_at, wp.updated_at`
     );
@@ -186,8 +186,8 @@ export class WorkspacePluginService {
                         wp.configuration, wp.created_at, wp.updated_at
                  FROM workspace_plugins wp
                  JOIN workspaces w ON w.id = wp.workspace_id
-                 WHERE wp.workspace_id = ${workspaceId}::uuid
-                   AND w.tenant_id = ${tenantCtx.tenantId}::uuid
+                 WHERE wp.workspace_id = ${workspaceId}
+                   AND w.tenant_id = ${tenantCtx.tenantId}
                  ORDER BY wp.created_at ASC`
     );
   }
@@ -206,8 +206,8 @@ export class WorkspacePluginService {
     const rows = await this.db.$queryRaw<Array<{ enabled: boolean }>>(
       Prisma.sql`SELECT enabled
                  FROM tenant_plugins
-                 WHERE "tenantId" = ${tenantId}::uuid
-                   AND "pluginId" = ${pluginId}::uuid
+                 WHERE "tenantId" = ${tenantId}
+                   AND "pluginId" = ${pluginId}
                  LIMIT 1`
     );
 
@@ -241,8 +241,8 @@ export class WorkspacePluginService {
                  SET enabled = false, updated_at = NOW()
                  FROM workspaces w
                  WHERE wp.workspace_id = w.id
-                   AND wp.plugin_id = ${pluginId}::uuid
-                   AND w.tenant_id = ${tenantId}::uuid
+                   AND wp.plugin_id = ${pluginId}
+                   AND w.tenant_id = ${tenantId}
                    AND wp.enabled = true`
     );
 

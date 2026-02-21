@@ -106,13 +106,13 @@ export class WorkspaceTemplateService {
                         wt.is_default, wt.metadata, wt.created_at,
                         COALESCE(ic.cnt, 0) AS item_count
                    FROM workspace_templates wt
-                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id::uuid
+                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id
                    LEFT JOIN (
                      SELECT template_id, COUNT(*) AS cnt
                        FROM workspace_template_items
                       GROUP BY template_id
                    ) ic ON ic.template_id = wt.id
-                  WHERE tp."tenantId" = ${tenantId}::uuid
+                  WHERE tp."tenantId" = ${tenantId}
                     AND tp.enabled = true
                   ORDER BY wt.name ASC`
     );
@@ -148,9 +148,9 @@ export class WorkspaceTemplateService {
       Prisma.sql`SELECT wt.id, wt.name, wt.description, wt.provided_by_plugin_id,
                         wt.is_default, wt.metadata, wt.created_at, wt.updated_at
                    FROM workspace_templates wt
-                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id::uuid
-                  WHERE wt.id = ${templateId}::uuid
-                    AND tp."tenantId" = ${tenantId}::uuid
+                   JOIN tenant_plugins tp ON tp."pluginId" = wt.provided_by_plugin_id
+                  WHERE wt.id = ${templateId}
+                    AND tp."tenantId" = ${tenantId}
                     AND tp.enabled = true
                   LIMIT 1`
     );
@@ -167,7 +167,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`SELECT id, template_id, type, plugin_id, page_config,
                         setting_key, setting_value, sort_order, created_at
                    FROM workspace_template_items
-                  WHERE template_id = ${templateId}::uuid
+                  WHERE template_id = ${templateId}
                   ORDER BY sort_order ASC, created_at ASC`
     );
 
@@ -293,7 +293,7 @@ export class WorkspaceTemplateService {
                          (id, template_id, type, plugin_id, page_config,
                           setting_key, setting_value, sort_order, created_at)
                        VALUES
-                         (gen_random_uuid(), ${templateId}::uuid, 'plugin',
+                         (gen_random_uuid(), ${templateId}, 'plugin',
                           ${item.pluginId}, NULL, NULL, NULL, ${sortOrder}, NOW())`
           );
         } else if (item.type === 'setting') {
@@ -302,7 +302,7 @@ export class WorkspaceTemplateService {
                          (id, template_id, type, plugin_id, page_config,
                           setting_key, setting_value, sort_order, created_at)
                        VALUES
-                         (gen_random_uuid(), ${templateId}::uuid, 'setting',
+                         (gen_random_uuid(), ${templateId}, 'setting',
                           NULL, NULL, ${item.settingKey},
                           ${JSON.stringify(item.settingValue ?? null)}::jsonb,
                           ${sortOrder}, NOW())`
@@ -314,7 +314,7 @@ export class WorkspaceTemplateService {
                          (id, template_id, type, plugin_id, page_config,
                           setting_key, setting_value, sort_order, created_at)
                        VALUES
-                         (gen_random_uuid(), ${templateId}::uuid, 'page',
+                         (gen_random_uuid(), ${templateId}, 'page',
                           NULL, ${JSON.stringify(item.pageConfig)}::jsonb,
                           NULL, NULL, ${sortOrder}, NOW())`
           );
@@ -361,7 +361,7 @@ export class WorkspaceTemplateService {
       const rows = await tx.$queryRaw<Array<{ provided_by_plugin_id: string }>>(
         Prisma.sql`SELECT provided_by_plugin_id
                      FROM workspace_templates
-                    WHERE id = ${templateId}::uuid
+                    WHERE id = ${templateId}
                     LIMIT 1`
       );
 
@@ -389,13 +389,13 @@ export class WorkspaceTemplateService {
                           is_default  = ${dto.isDefault ?? false},
                           metadata    = ${JSON.stringify(dto.metadata ?? {})}::jsonb,
                           updated_at  = NOW()
-                    WHERE id = ${templateId}::uuid`
+                    WHERE id = ${templateId}`
       );
 
       // Delete all existing items
       await tx.$executeRaw(
         Prisma.sql`DELETE FROM workspace_template_items
-                    WHERE template_id = ${templateId}::uuid`
+                    WHERE template_id = ${templateId}`
       );
 
       // Insert new items
@@ -409,7 +409,7 @@ export class WorkspaceTemplateService {
                          (id, template_id, type, plugin_id, page_config,
                           setting_key, setting_value, sort_order, created_at)
                        VALUES
-                         (gen_random_uuid(), ${templateId}::uuid, 'plugin',
+                         (gen_random_uuid(), ${templateId}, 'plugin',
                           ${item.pluginId}, NULL, NULL, NULL, ${sortOrder}, NOW())`
           );
         } else if (item.type === 'setting') {
@@ -418,7 +418,7 @@ export class WorkspaceTemplateService {
                          (id, template_id, type, plugin_id, page_config,
                           setting_key, setting_value, sort_order, created_at)
                        VALUES
-                         (gen_random_uuid(), ${templateId}::uuid, 'setting',
+                         (gen_random_uuid(), ${templateId}, 'setting',
                           NULL, NULL, ${item.settingKey},
                           ${JSON.stringify(item.settingValue ?? null)}::jsonb,
                           ${sortOrder}, NOW())`
@@ -430,7 +430,7 @@ export class WorkspaceTemplateService {
                          (id, template_id, type, plugin_id, page_config,
                           setting_key, setting_value, sort_order, created_at)
                        VALUES
-                         (gen_random_uuid(), ${templateId}::uuid, 'page',
+                         (gen_random_uuid(), ${templateId}, 'page',
                           NULL, ${JSON.stringify(item.pageConfig)}::jsonb,
                           NULL, NULL, ${sortOrder}, NOW())`
           );
@@ -458,7 +458,7 @@ export class WorkspaceTemplateService {
     // CASCADE FK on workspace_template_items deletes items automatically.
     const deleted = await this.db.$queryRaw<Array<{ id: string }>>(
       Prisma.sql`DELETE FROM workspace_templates
-                  WHERE id = ${templateId}::uuid
+                  WHERE id = ${templateId}
                     AND provided_by_plugin_id = ${pluginId}
                  RETURNING id`
     );
@@ -468,7 +468,7 @@ export class WorkspaceTemplateService {
       // a helpful error message, but keep it as a single extra query only on
       // the failure path (happy path is single-round-trip).
       const exists = await this.db.$queryRaw<Array<{ id: string }>>(
-        Prisma.sql`SELECT id FROM workspace_templates WHERE id = ${templateId}::uuid LIMIT 1`
+        Prisma.sql`SELECT id FROM workspace_templates WHERE id = ${templateId} LIMIT 1`
       );
       if (exists.length === 0) {
         throw new WorkspaceError(
@@ -513,7 +513,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`SELECT id, name, description, provided_by_plugin_id, is_default,
                         metadata, created_at, updated_at
                    FROM workspace_templates
-                  WHERE id = ${templateId}::uuid
+                  WHERE id = ${templateId}
                   LIMIT 1`
     );
 
@@ -525,7 +525,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`SELECT id, template_id, type, plugin_id, page_config,
                         setting_key, setting_value, sort_order, created_at
                    FROM workspace_template_items
-                  WHERE template_id = ${templateId}::uuid
+                  WHERE template_id = ${templateId}
                   ORDER BY sort_order ASC, created_at ASC`
     );
 
@@ -579,7 +579,7 @@ export class WorkspaceTemplateService {
     const rows = await tx.$queryRaw<Array<{ plugin_id: string; enabled: boolean }>>(
       Prisma.sql`SELECT "pluginId" AS plugin_id, enabled
                    FROM tenant_plugins
-                  WHERE "tenantId" = ${tenantId}::uuid
+                  WHERE "tenantId" = ${tenantId}
                     AND "pluginId" = ANY(${pluginIds}::text[])`
     );
 
@@ -616,7 +616,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`INSERT INTO workspace_plugins
                    (workspace_id, plugin_id, enabled, configuration, created_at, updated_at)
                  VALUES
-                   (${workspaceId}::uuid, ${item.plugin_id}, true, '{}'::jsonb, NOW(), NOW())
+                   (${workspaceId}, ${item.plugin_id}, true, '{}'::jsonb, NOW(), NOW())
                  ON CONFLICT (workspace_id, plugin_id) DO NOTHING`
     );
   }
@@ -642,7 +642,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`UPDATE workspaces
                     SET settings = settings || jsonb_build_object(${item.setting_key}, ${settingValueJson}::jsonb),
                         updated_at = NOW()
-                  WHERE id = ${workspaceId}::uuid`
+                  WHERE id = ${workspaceId}`
     );
   }
 
@@ -670,7 +670,7 @@ export class WorkspaceTemplateService {
       Prisma.sql`INSERT INTO workspace_pages
                    (id, workspace_id, slug, title, config, sort_order, created_at, updated_at)
                  VALUES
-                   (gen_random_uuid(), ${workspaceId}::uuid, ${slug}, ${title},
+                   (gen_random_uuid(), ${workspaceId}, ${slug}, ${title},
                     ${configJson}::jsonb, ${item.sort_order}, NOW(), NOW())
                  ON CONFLICT (workspace_id, slug) DO NOTHING`
     );
