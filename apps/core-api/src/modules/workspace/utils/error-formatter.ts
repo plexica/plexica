@@ -12,7 +12,7 @@
 //   3. A mapServiceError() helper that classifies service exceptions
 //   4. A handleServiceError() helper shared across route files (M5)
 
-import type { FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 
 /**
  * Workspace error codes defined in Spec 009 Section 6.5.
@@ -274,4 +274,77 @@ export function handleServiceError(error: unknown, _reply: FastifyReply): never 
     throw mapped;
   }
   throw error;
+}
+
+/**
+ * Register a local Fastify error handler that produces Constitution Art. 6.2
+ * compliant responses for WorkspaceError instances.
+ *
+ * IMPORTANT — Fastify v5 child scope issue:
+ *   When route plugins are registered via `app.register(fn, { prefix })`, Fastify
+ *   creates a child encapsulation scope that captures the error handler **at
+ *   registration time** — before `setupErrorHandler(app)` is called at the end
+ *   of `buildTestApp()` / `server.ts`. This means the global custom handler is
+ *   NOT active inside route plugin scopes.
+ *
+ *   Fix: call `registerWorkspaceErrorHandler(fastify)` as the **first line**
+ *   inside every route plugin function that throws WorkspaceError.
+ *
+ * Usage:
+ *   export async function myRoutes(fastify: FastifyInstance) {
+ *     registerWorkspaceErrorHandler(fastify);
+ *     // ... route definitions
+ *   }
+ */
+export function registerWorkspaceErrorHandler(fastify: FastifyInstance): void {
+  fastify.setErrorHandler((error, _request, reply) => {
+    // WorkspaceError: use its .code and .statusCode directly
+    if (error instanceof WorkspaceError) {
+      return reply.status(error.statusCode).send({
+        error: {
+          code: error.code,
+          message: error.message,
+          ...(error.details ? { details: error.details } : {}),
+        },
+      });
+    }
+
+    // Fastify validation errors (schema validation, FST_ERR_*)
+    const err = error as { statusCode?: number; message?: string };
+    const statusCode = err.statusCode ?? 500;
+    const message = err.message ?? 'Unknown error';
+
+    if (statusCode === 400) {
+      return reply.status(400).send({
+        error: {
+          code: 'BAD_REQUEST',
+          message,
+        },
+      });
+    }
+    if (statusCode === 401) {
+      return reply.status(401).send({
+        error: {
+          code: 'UNAUTHORIZED',
+          message,
+        },
+      });
+    }
+    if (statusCode === 403) {
+      return reply.status(403).send({
+        error: {
+          code: 'FORBIDDEN',
+          message,
+        },
+      });
+    }
+
+    // All other errors: 500
+    return reply.status(500).send({
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'An unexpected error occurred',
+      },
+    });
+  });
 }

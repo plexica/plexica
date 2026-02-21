@@ -215,7 +215,7 @@ describe('Plugin Template Registration API Integration', () => {
   // ---------------------------------------------------------------------------
 
   describe('PUT /api/plugins/:pluginId/templates/:templateId', () => {
-    it('should return 400 when template does not exist', async () => {
+    it('should return 404 when template does not exist', async () => {
       const nonExistentId = '00000000-0000-4000-8000-000000000099';
 
       const response = await app.inject({
@@ -233,8 +233,8 @@ describe('Plugin Template Registration API Integration', () => {
         },
       });
 
-      // Service throws TEMPLATE_NOT_FOUND → route returns 400
-      expect(response.statusCode).toBe(400);
+      // Service throws TEMPLATE_NOT_FOUND → HTTP 404 per ERROR_STATUS_MAP
+      expect(response.statusCode).toBe(404);
     });
 
     it('should return 400 when plugin does not own the template', async () => {
@@ -273,8 +273,8 @@ describe('Plugin Template Registration API Integration', () => {
         },
       });
 
-      // Service throws INSUFFICIENT_PERMISSIONS → route returns 400
-      expect(updateResp.statusCode).toBe(400);
+      // Service throws INSUFFICIENT_PERMISSIONS → HTTP 403 per ERROR_STATUS_MAP
+      expect(updateResp.statusCode).toBe(403);
     });
   });
 
@@ -324,8 +324,8 @@ describe('Plugin Template Registration API Integration', () => {
         },
       });
 
-      // Service throws TEMPLATE_NOT_FOUND → route returns 400
-      expect(response.statusCode).toBe(400);
+      // Service throws TEMPLATE_NOT_FOUND → HTTP 404 per ERROR_STATUS_MAP
+      expect(response.statusCode).toBe(404);
     });
   });
 });

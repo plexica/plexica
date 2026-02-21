@@ -14,7 +14,10 @@ import type { FastifyInstance } from 'fastify';
 import { workspaceTemplateService } from '../modules/workspace/workspace-template.service.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { handleServiceError } from '../modules/workspace/utils/error-formatter.js';
+import {
+  handleServiceError,
+  registerWorkspaceErrorHandler,
+} from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
 
 // --- Shared error response schema (Constitution Art. 6.2) ---
@@ -35,6 +38,11 @@ const errorResponseSchema = {
 };
 
 export async function workspaceTemplatesRoutes(fastify: FastifyInstance): Promise<void> {
+  // Register local error handler — required because Fastify v5 child plugin
+  // scopes capture the error handler at registration time, before the global
+  // setupErrorHandler() is called in buildTestApp()/server.ts.
+  registerWorkspaceErrorHandler(fastify);
+
   // ────────────────────────────────────────────────────────────────
   // GET /workspace-templates — List templates available to tenant
   // Spec 011 Phase 2, FR-021 — authenticated tenant context required

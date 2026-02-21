@@ -8,9 +8,17 @@ import {
   RegisterTemplateSchema,
   type RegisterTemplateDto,
 } from '../modules/plugin/dto/register-template.dto.js';
-import { handleServiceError } from '../modules/workspace/utils/error-formatter.js';
+import {
+  handleServiceError,
+  registerWorkspaceErrorHandler,
+} from '../modules/workspace/utils/error-formatter.js';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
+  // Register local error handler — required because Fastify v5 child plugin
+  // scopes capture the error handler at registration time, before the global
+  // setupErrorHandler() is called in buildTestApp()/server.ts.
+  registerWorkspaceErrorHandler(fastify);
+
   // =====================================
   // Global Plugin Registry Routes
   // =====================================

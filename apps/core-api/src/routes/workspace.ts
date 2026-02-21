@@ -41,6 +41,7 @@ import {
   WorkspaceError,
   WorkspaceErrorCode,
   handleServiceError,
+  registerWorkspaceErrorHandler,
 } from '../modules/workspace/utils/error-formatter.js';
 import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../middleware/rate-limiter.js';
 
@@ -233,6 +234,11 @@ const memberParamsSchema = {
  * - DELETE /api/workspaces/:workspaceId/resources/:resourceId - Unshare resource (admin only)
  */
 export async function workspaceRoutes(fastify: FastifyInstance) {
+  // Register local error handler — required because Fastify v5 child plugin
+  // scopes capture the error handler at registration time, before the global
+  // setupErrorHandler() is called in buildTestApp()/server.ts.
+  registerWorkspaceErrorHandler(fastify);
+
   // Instantiate WorkspaceResourceService for resource sharing endpoints
   const resourceService = new WorkspaceResourceService();
   // ────────────────────────────────────────────────────────────────
