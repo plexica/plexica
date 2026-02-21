@@ -84,45 +84,6 @@ const JwksParamsSchema = z.object({
 
 export async function authRoutes(fastify: FastifyInstance) {
   /**
-   * Error Handler: Transform Fastify validation errors to Constitution format
-   *
-   * Fastify's built-in schema validation returns errors like:
-   * { statusCode: 400, code: 'FST_ERR_VALIDATION', error: 'Bad Request', message: '...' }
-   *
-   * We transform these to Constitution Article 6.2 format:
-   * { error: { code: 'VALIDATION_ERROR', message: '...', details: {...} } }
-   */
-  fastify.setErrorHandler((error, _request, reply) => {
-    const errorAny = error as any;
-
-    // Check if this is a Fastify validation error (by validation property or error code)
-    if (errorAny.validation || errorAny.code === 'FST_ERR_VALIDATION') {
-      // Map Fastify's technical messages to user-friendly messages
-      const message = errorAny.message || '';
-      let userMessage = 'Validation failed';
-
-      if (message.includes('querystring')) {
-        userMessage = 'Invalid query parameters';
-      } else if (message.includes('body')) {
-        userMessage = 'Invalid request body';
-      } else if (message.includes('params')) {
-        userMessage = 'Invalid path parameters';
-      }
-
-      return reply.code(400).send({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: userMessage,
-          details: errorAny.validation || { message: errorAny.message },
-        },
-      });
-    }
-
-    // For other errors, use default handler
-    return reply.send(error);
-  });
-
-  /**
    * GET /auth/login
    *
    * Build OAuth 2.0 authorization URL for tenant login
