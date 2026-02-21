@@ -84,6 +84,70 @@ const JwksParamsSchema = z.object({
 
 export async function authRoutes(fastify: FastifyInstance) {
   /**
+   * Error Handler: Transform Fastify validation errors to Constitution format
+   *
+   * Fastify's built-in schema validation returns errors like:
+   * { statusCode: 400, code: 'FST_ERR_VALIDATION', error: 'Bad Request', message: '...' }
+   *
+   * We transform these to Constitution Article 6.2 format:
+   * { error: { code: 'VALIDATION_ERROR', message: '...', details: {...} } }
+   *
+   * For non-validation errors we also ensure the Constitution-compliant object
+   * format so that workspace (and other) errors propagated into this scope are
+   * serialised correctly even when setupErrorHandler has not been registered
+   * (e.g. in unit-test environments that use a bare Fastify instance).
+   */
+  fastify.setErrorHandler((error, _request, reply) => {
+    const errorAny = error as any;
+
+    // Check if this is a Fastify validation error (by validation property or error code)
+    if (errorAny.validation || errorAny.code === 'FST_ERR_VALIDATION') {
+      // Map Fastify's technical messages to user-friendly messages
+      const message = errorAny.message || '';
+      let userMessage = 'Validation failed';
+
+      if (message.includes('querystring')) {
+        userMessage = 'Invalid query parameters';
+      } else if (message.includes('body')) {
+        userMessage = 'Invalid request body';
+      } else if (message.includes('params')) {
+        userMessage = 'Invalid path parameters';
+      }
+
+      return reply.code(400).send({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: userMessage,
+          details: errorAny.validation || { message: errorAny.message },
+        },
+      });
+    }
+
+    // For all other errors produce a Constitution Art. 6.2 compliant response.
+    // Using error.code (if it looks like a stable error code) or a generic fallback.
+    const statusCode: number = errorAny.statusCode || 500;
+    const code: string =
+      typeof errorAny.code === 'string' && errorAny.code.includes('_')
+        ? errorAny.code
+        : statusCode === 401
+          ? 'UNAUTHORIZED'
+          : statusCode === 403
+            ? 'FORBIDDEN'
+            : statusCode === 404
+              ? 'NOT_FOUND'
+              : statusCode === 409
+                ? 'CONFLICT'
+                : 'INTERNAL_SERVER_ERROR';
+
+    return reply.code(statusCode).send({
+      error: {
+        code,
+        message: errorAny.message || 'An error occurred',
+      },
+    });
+  });
+
+  /**
    * GET /auth/login
    *
    * Build OAuth 2.0 authorization URL for tenant login
