@@ -56,6 +56,13 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'warn', // Performance issue but not critical for migration
     },
   },
+  // TanStack Router route files export Route objects alongside component functions
+  {
+    files: ['**/routes/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
   // Test files - more lenient rules
   {
     files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
