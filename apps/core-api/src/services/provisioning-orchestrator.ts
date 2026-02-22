@@ -185,7 +185,7 @@ export class ProvisioningOrchestrator {
       // Use jsonb_set for a single atomic read-modify-write — avoids the double-query
       // race condition of the previous read-then-update pattern.
       await this.db.$executeRaw`
-        UPDATE "Tenant"
+        UPDATE "tenants"
         SET settings = jsonb_set(
           COALESCE(settings, '{}'::jsonb),
           '{provisioningState}',
@@ -203,7 +203,7 @@ export class ProvisioningOrchestrator {
     try {
       // Atomic update via jsonb_set — no read-then-write race
       await this.db.$executeRaw`
-        UPDATE "Tenant"
+        UPDATE "tenants"
         SET settings = jsonb_set(
           jsonb_set(
             COALESCE(settings, '{}'::jsonb),

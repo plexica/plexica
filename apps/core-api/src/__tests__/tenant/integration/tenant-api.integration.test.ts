@@ -111,6 +111,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: uniqueSlug,
           name: 'New Tenant',
+          adminEmail: 'admin@new-tenant.test',
           settings: { feature1: true },
         },
       });
@@ -197,6 +198,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: uniqueSlug,
           name: 'Duplicate Test 1',
+          adminEmail: 'admin@duplicate-test.test',
         },
       });
 
@@ -283,6 +285,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: `with-settings-${Date.now()}`,
           name: 'With Settings',
+          adminEmail: 'admin@with-settings.test',
           settings,
         },
       });
@@ -308,6 +311,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: `with-theme-${Date.now()}`,
           name: 'With Theme',
+          adminEmail: 'admin@with-theme.test',
           theme,
         },
       });
@@ -327,7 +331,7 @@ describe('Tenant API Integration', () => {
         headers: {
           authorization: `Bearer ${superAdminToken}`,
         },
-        payload: { slug: 'list-test-1', name: 'List Test 1' },
+        payload: { slug: 'list-test-1', name: 'List Test 1', adminEmail: 'admin@list-test-1.test' },
       });
 
       await app.inject({
@@ -336,7 +340,7 @@ describe('Tenant API Integration', () => {
         headers: {
           authorization: `Bearer ${superAdminToken}`,
         },
-        payload: { slug: 'list-test-2', name: 'List Test 2' },
+        payload: { slug: 'list-test-2', name: 'List Test 2', adminEmail: 'admin@list-test-2.test' },
       });
 
       await app.inject({
@@ -345,7 +349,7 @@ describe('Tenant API Integration', () => {
         headers: {
           authorization: `Bearer ${superAdminToken}`,
         },
-        payload: { slug: 'list-test-3', name: 'List Test 3' },
+        payload: { slug: 'list-test-3', name: 'List Test 3', adminEmail: 'admin@list-test-3.test' },
       });
     });
 
@@ -482,6 +486,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: 'get-test',
           name: 'Get Test Tenant',
+          adminEmail: 'admin@get-test.test',
           settings: { test: true },
           theme: { color: 'red' },
         },
@@ -554,6 +559,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: 'update-test',
           name: 'Update Test Tenant',
+          adminEmail: 'admin@update-test.test',
           settings: { old: 'value' },
         },
       });
@@ -710,6 +716,7 @@ describe('Tenant API Integration', () => {
         payload: {
           slug: 'delete-test',
           name: 'Delete Test Tenant',
+          adminEmail: 'admin@delete-test.test',
         },
       });
 

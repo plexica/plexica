@@ -1,6 +1,7 @@
 // File: apps/core-api/src/services/minio-client.ts
 
 import { Client } from 'minio';
+import { config } from '../config/index.js';
 
 export interface MinIOConfig {
   endPoint: string;
@@ -294,7 +295,6 @@ let _minioClient: MinIOClientService | null = null;
 
 export function getMinioClient(): MinIOClientService {
   if (!_minioClient) {
-    const { config } = require('../config');
     const [endPoint, port] = config.storageEndpoint.split(':');
     const minioConfig = {
       endPoint,
