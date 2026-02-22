@@ -296,10 +296,10 @@ GET    /api/tenants/:id/plugins                       # List tenant plugins
 
 ### Specifications (FORGE)
 
-- **[Spec 002 — Authentication](./forge/specs/002-authentication/)** ✅ OAuth 2.0
-- **[Spec 006 — i18n System](./forge/specs/006-i18n/)** ✅ Complete
-- **[Spec 009 — Workspace Management](./forge/specs/009-workspace-management/)** 🟡 71%
-- **[Spec 010 — Frontend Production Readiness](./forge/specs/010-frontend-production-readiness/)** 🔴 Planned
+- **[Spec 002 — Authentication](./.forge/specs/002-authentication/)** ✅ OAuth 2.0
+- **[Spec 006 — i18n System](./.forge/specs/006-i18n/)** ✅ Complete
+- **[Spec 009 — Workspace Management](./.forge/specs/009-workspace-management/)** 🟡 71%
+- **[Spec 010 — Frontend Production Readiness](./.forge/specs/010-frontend-production-readiness/)** 🔴 Planned
 
 ### Planning
 
