@@ -136,7 +136,7 @@ describe('Keycloak JWT Functions', () => {
   });
 
   describe('verifyTokenWithTenant', () => {
-    it('should extract tenant from custom claim', async () => {
+    it('should extract tenant from issuer URL (iss takes priority over custom claim)', async () => {
       const mockPayload: KeycloakJwtPayload = {
         sub: 'user-123',
         preferred_username: 'testuser',
@@ -157,7 +157,8 @@ describe('Keycloak JWT Functions', () => {
       const token = 'valid.jwt.token';
       const result = await verifyTokenWithTenant(token);
 
-      expect(result.tenantSlug).toBe('tenant-slug');
+      // ISSUE-006 fix: issuer URL takes priority over custom tenant claim
+      expect(result.tenantSlug).toBe('custom-realm');
       expect(result.sub).toBe('user-123');
     });
 
@@ -239,7 +240,8 @@ describe('Keycloak JWT Functions', () => {
       expect(result.email_verified).toBe(true);
       expect(result.name).toBe('Test User');
       expect(result.realm_access?.roles).toEqual(['admin', 'user']);
-      expect(result.tenantSlug).toBe('test-tenant');
+      // ISSUE-006 fix: issuer URL takes priority; test-realm extracted from iss
+      expect(result.tenantSlug).toBe('test-realm');
     });
 
     it('should handle invalid issuer format', async () => {
@@ -308,7 +310,7 @@ describe('Keycloak JWT Functions', () => {
       expect(result.tenantSlug).toBe('child');
     });
 
-    it('should prefer custom tenant claim over issuer', async () => {
+    it('should prefer issuer URL over custom tenant claim (ISSUE-006 fix)', async () => {
       const mockPayload: KeycloakJwtPayload = {
         sub: 'user-123',
         preferred_username: 'testuser',
@@ -326,7 +328,8 @@ describe('Keycloak JWT Functions', () => {
       const token = 'valid.jwt.token';
       const result = await verifyTokenWithTenant(token);
 
-      expect(result.tenantSlug).toBe('custom-tenant');
+      // Issuer realm wins; legacy tenant claim is only used when iss is absent
+      expect(result.tenantSlug).toBe('issuer-tenant');
     });
   });
 

@@ -923,13 +923,31 @@
       - Documentation complete, no further action needed for Task 7.1
       - Proceed to Task 7.2: Run `/forge-review` for security analysis
 
-- [ ] **7.2** `[S]` `[ALL]` Run `/forge-review` for adversarial security review
+- [x] **7.2** `[S]` `[ALL]` Run `/forge-review` for adversarial security review ✅ **COMPLETE** (Feb 17, 2026)
   - **File**: N/A (command execution)
   - **Type**: Review command
   - **Description**: Run `/forge-review .forge/specs/002-authentication/` to identify security issues; address all HIGH severity findings; document MEDIUM findings with justification
   - **Spec Reference**: Constitution Art. 4.2
   - **Dependencies**: All implementation complete
   - **Estimated**: 1h
+  - **Actual**: 3h
+  - **Status**: ✅ COMPLETE — review executed, findings fully documented in `spec.md §12`
+  - **Findings Summary**: 11 issues identified (2 CRITICAL, 4 HIGH, 3 MEDIUM, 2 LOW). 9 of 11 resolved.
+  - **Fixed Issues**:
+    - CRITICAL #1: Redirect URI open redirect → allowlist validation added
+    - CRITICAL #2: SSRF in JWKS endpoint → tenant slug regex validation added
+    - HIGH #3: PII in error messages → `sanitizeKeycloakError()` added
+    - HIGH #4: Rate limiter fail-open → changed to fail-closed (reject on Redis error)
+    - HIGH #5: Rate limit only on `/auth/login` → expanded to `/auth/callback`
+    - HIGH #6: Cross-tenant JWT bypass via `BYPASS_AUTH` → scope restricted to master realm
+    - MEDIUM #7: Log injection via tenant slug → slug sanitized before logging
+    - MEDIUM #8: Inconsistent slug regex across files → **DEFERRED** (tracked in spec.md §12)
+    - LOW #9: JWKS endpoint lacks rate limiting → rate limiter applied
+    - LOW #10: Duplicated error code mapping → **DEFERRED** (low impact, tracked in spec.md §12)
+  - **Deferred Issues** (2 total):
+    - MEDIUM #8: Inconsistent slug validation regex across files — low risk, refactor in Sprint 5
+    - LOW #10: Duplicated error code mapping in error-handler — cosmetic, cleanup in Sprint 5
+  - **Files Modified by Review**: `auth.ts` (routes), `auth.ts` (middleware), `auth-rate-limit.ts`, `jwt.ts`, `keycloak.service.ts`, `error-handler.ts`, `auth.service.ts`
 
 - [x] **7.3** `[S]` `[ALL]` Verify Constitution compliance checklist ✅ **COMPLETE** (Feb 17, 2026)
   - **File**: `.forge/specs/002-authentication/spec.md`
@@ -993,38 +1011,270 @@
 
 ---
 
+## Phase 7a: Frontend Implementation
+
+**Objective**: Implement all Plexica-owned frontend surfaces for the authentication
+system — login landing page, OAuth callback, session expiry modal, rate limit UI,
+error pages, auth store, and user profile menu.
+
+**Design source**: `.forge/specs/002-authentication/design-spec.md` (10 screens)  
+**User journeys**: `.forge/specs/002-authentication/user-journey.md` (3 personas, 5 journeys)  
+**Dependencies**: Phase 4 (backend OAuth routes must be live)  
+**Estimated Total**: ~31h, ~60 tests  
+**Status**: ⏳ Not started
+
+### 7a.1 Auth Store + HTTP Client Foundation
+
+- [ ] **T7-1** `[M]` `[FR-016]` `[FR-014]` `[US-001]` Create auth store
+  - **File**: `apps/web/src/stores/auth.store.ts`
+  - **Type**: Create new file (~200 lines)
+  - **Description**: Token state management in memory (not localStorage). Silent refresh: detect token expiry 60s before `exp`, call `POST /auth/refresh`. Session expiry: if silent refresh fails → emit `sessionExpired` event. Deep-link preservation: save current URL to `sessionStorage` before redirect, restore after re-auth. Logout: call `POST /api/v1/auth/logout`, clear store, redirect to `/{tenant}/login`. Auth callback: parse JWT from `/auth/callback` response, extract `user` from claims (FR-003).
+  - **Spec Reference**: FR-016, FR-014, FR-003, plan.md §7a Auth Store Design
+  - **Dependencies**: None
+  - **Estimated**: 3h
+
+- [ ] **T7-2** `[M]` `[US-002]` `[P]` Create auth HTTP client wrapper
+  - **File**: `apps/web/src/lib/auth-client.ts`
+  - **Type**: Create new file (~120 lines)
+  - **Description**: HTTP client wrapper that attaches Bearer token from auth store to every request. Intercepts 401 responses: triggers `sessionExpired` event in auth store rather than throwing. Re-uses existing `fetch`/axios patterns in the web app.
+  - **Spec Reference**: US-002, NFR-006, plan.md §7a Files to Modify
+  - **Dependencies**: Task T7-1
+  - **Estimated**: 2h
+
+### 7a.2 Core UI Components
+
+- [ ] **T7-3** `[L]` `[FR-016]` `[US-001]` Redesign login route as AuthLandingPage
+  - **File**: `apps/web/src/routes/login.tsx`
+  - **Type**: Modify existing
+  - **Description**: Redesign to `AuthLandingPage` component — tenant branding (logo, name), 7 visual states: loading-init (skeleton), loading-redirect (button spinner), rate-limited (`RateLimitCountdown` alert), cross-tenant (info alert banner, Screen 7), keycloak-error (destructive alert + Retry, Screen 8), tenant-not-found (→ `AuthErrorPage`, Screen 4), tenant-suspended (→ `AuthErrorPage`, Screen 5). Responsive: full-bleed ≤375px, card wrapper ≥768px (`max-width: 420px`). Single focusable Sign In element, touch target ≥44px.
+  - **Spec Reference**: FR-016, US-001, plan.md §7a AuthLandingPage spec, design-spec.md Screen 1
+  - **Dependencies**: Tasks T7-1, T7-6, T7-7
+  - **Estimated**: 4h
+
+- [ ] **T7-4** `[M]` `[FR-016]` `[P]` Create OAuth callback route
+  - **File**: `apps/web/src/routes/auth/callback.tsx`
+  - **Type**: Create new file (~80 lines)
+  - **Description**: Loading spinner page shown while auth store exchanges authorization code (`POST /auth/callback` via auth store). `role="status"` `aria-live="polite"` — no user interaction required. On success: redirect to preserved deep-link URL or tenant home. On error: redirect to `AuthErrorPage`.
+  - **Spec Reference**: FR-016, US-001, design-spec.md Screen 2
+  - **Dependencies**: Task T7-1
+  - **Estimated**: 2h
+
+- [ ] **T7-5** `[M]` `[US-002]` `[P]` Create SessionExpiredModal component
+  - **File**: `apps/web/src/components/auth/SessionExpiredModal.tsx`
+  - **Type**: Create new file (~120 lines)
+  - **Description**: Focus-trapped dialog that appears when auth store emits `sessionExpired`. Uses `Dialog` from `@plexica/ui` as base. `role="dialog"` `aria-modal="true"`. Non-dismissible: Esc key has no effect. Tab cycles to Sign In button only. Stores current URL to `sessionStorage` before redirect for deep-link. Triggered by `AppShell` (Task T7-10).
+  - **Spec Reference**: US-002, plan.md §7a SessionExpiredModal spec, design-spec.md Screen 3
+  - **Dependencies**: Task T7-1
+  - **Estimated**: 2h
+
+- [ ] **T7-6** `[M]` `[FR-013]` `[NFR-008]` `[P]` Create RateLimitCountdown component
+  - **File**: `apps/web/src/components/auth/RateLimitCountdown.tsx`
+  - **Type**: Create new file (~100 lines)
+  - **Description**: Alert component shown when `GET /auth/login` returns HTTP 429. `retryAfterSeconds` prop from `Retry-After` response header (default: 60). `setInterval` countdown; fires `onExpired` callback at 0. `aria-live="polite"` announces remaining time every 15 seconds (not every tick). Displays countdown in monospace `0:47`. Parent disables Sign In button via `disabled` prop while counting.
+  - **Spec Reference**: FR-013, NFR-008, plan.md §7a RateLimitCountdown spec, design-spec.md Screen 6
+  - **Dependencies**: None
+  - **Estimated**: 2h
+
+- [ ] **T7-7** `[M]` `[FR-012]` `[P]` Create AuthErrorPage component
+  - **File**: `apps/web/src/components/auth/AuthErrorPage.tsx`
+  - **Type**: Create new file (~100 lines)
+  - **Description**: Full-screen error layout with `variant: 'not-found' | 'suspended' | 'keycloak-error'`. Shows tenant logo if available from cache. For `not-found`: displays slug in monospace. For `keycloak-error`: shows Retry button (`aria-label="Retry connection to authentication service"`). `role="alert"` on error container for screen reader announcement.
+  - **Spec Reference**: FR-012, plan.md §7a AuthErrorPage spec, design-spec.md Screens 4–5
+  - **Dependencies**: None
+  - **Estimated**: 2h
+
+- [ ] **T7-8** `[S]` `[US-005]` `[P]` Update Super Admin login route
+  - **File**: `apps/web/src/routes/admin/login.tsx`
+  - **Type**: Modify existing
+  - **Description**: Use `AuthLandingPage` with `variant="admin"`, Shield icon (`aria-hidden="true"`), platform branding ("Plexica Platform"). Single Sign In button with `aria-label`. Delegates to master realm Keycloak flow.
+  - **Spec Reference**: US-005, design-spec.md Screen 10
+  - **Dependencies**: Task T7-3
+  - **Estimated**: 1h
+
+- [ ] **T7-9** `[M]` `[FR-003]` `[US-001]` Redesign UserProfileMenu component
+  - **File**: `apps/web/src/components/shell/UserProfileMenu.tsx`
+  - **Type**: Modify existing
+  - **Description**: Show display name, email, role badge. Conditional "Manage Tenant" link (shown only when `roles` includes `tenant_admin`). Sign Out: calls `POST /api/v1/auth/logout` via auth store, clears store, redirects to `/{tenant}/login`. Keyboard: arrow keys navigate items, Esc closes, Tab past last item closes. ARIA: `aria-haspopup`, `aria-expanded`, `role="menu"`, `role="menuitem"`.
+  - **Spec Reference**: FR-003, US-001, plan.md §7a UserProfileMenu spec, design-spec.md Screen 9
+  - **Dependencies**: Task T7-1
+  - **Estimated**: 3h
+
+- [ ] **T7-10** `[S]` `[US-002]` Integrate SessionExpiredModal into AppShell
+  - **File**: `apps/web/src/components/shell/AppShell.tsx`
+  - **Type**: Modify existing
+  - **Description**: Subscribe to auth store `sessionExpired` event. Render `<SessionExpiredModal>` when event fires. Pass current route URL for deep-link preservation.
+  - **Spec Reference**: US-002, plan.md §7a Files to Modify
+  - **Dependencies**: Task T7-5
+  - **Estimated**: 1h
+
+### 7a.3 Design Tokens
+
+- [ ] **T7-DT** `[S]` `[ALL]` `[P]` Add auth design tokens
+  - **File**: `apps/web/src/styles/tokens.css` (or equivalent design token file)
+  - **Type**: Modify existing
+  - **Description**: Add 2 new CSS tokens from design-spec §5: `--auth-bg-gradient-from` (light: `#F0F4FF`, dark: `#0A0E1A`) and `--auth-bg-gradient-to` (light: `#FFFFFF`, dark: `#0A0A0A`).
+  - **Spec Reference**: design-spec.md §5, plan.md §7a Design Token Usage
+  - **Dependencies**: None
+  - **Estimated**: 15min
+
+### 7a.4 Auth Error Route
+
+- [ ] **T7-ER** `[S]` `[FR-012]` `[P]` Create auth error route
+  - **File**: `apps/web/src/routes/auth/error.tsx`
+  - **Type**: Create new file (~60 lines)
+  - **Description**: Route wrapper that reads error type from URL params (e.g., `?reason=not-found`) and renders `<AuthErrorPage>` with appropriate variant.
+  - **Spec Reference**: FR-012, design-spec.md Screens 4–5
+  - **Dependencies**: Task T7-7
+  - **Estimated**: 30min
+
+### 7a.5 Tests
+
+- [ ] **T7-11** `[M]` `[FR-016]` `[US-001]` Write component tests for AuthLandingPage
+  - **File**: `apps/web/src/__tests__/auth/AuthLandingPage.test.tsx`
+  - **Type**: Create new file (~150 lines, ~15 tests)
+  - **Description**: Test all 7 visual states (loading, redirect, rate-limited, cross-tenant, keycloak-error, not-found, suspended). Verify accessibility: single focusable element, touch target ≥44px, ARIA roles. Test keyboard interactions. Test responsive behavior via JSDOM viewport.
+  - **Spec Reference**: FR-016, Constitution Art. 1.3 (WCAG 2.1 AA), Art. 8.2
+  - **Dependencies**: Task T7-3
+  - **Estimated**: 3h
+
+- [ ] **T7-12** `[M]` `[US-002]` `[FR-013]` `[FR-012]` `[P]` Write component tests for modal and error components
+  - **File**: `apps/web/src/__tests__/auth/SessionExpiredModal.test.tsx`, `RateLimitCountdown.test.tsx`, `AuthErrorPage.test.tsx`, `AuthCallbackPage.test.tsx`
+  - **Type**: Create new files (~120 + 80 + 80 + 80 lines = ~360 lines total, ~20 tests)
+  - **Description**: `SessionExpiredModal`: focus trap enforcement, Esc key disabled, Sign In redirect triggers deep-link save, keyboard navigation. `RateLimitCountdown`: countdown timer accuracy, `aria-live` fires every 15s not every tick, `onExpired` callback, monospace display. `AuthErrorPage`: all 3 variants render correctly, `role="alert"` present, Retry button shown only for keycloak-error. `AuthCallbackPage`: loading state, success redirect, error redirect.
+  - **Spec Reference**: US-002, FR-013, FR-012, Constitution Art. 1.3, Art. 8.2
+  - **Dependencies**: Tasks T7-4, T7-5, T7-6, T7-7
+  - **Estimated**: 3h
+
+- [ ] **T7-13** `[M]` `[FR-016]` `[FR-014]` `[P]` Write unit tests for auth store
+  - **File**: `apps/web/src/__tests__/auth/auth.store.test.ts`
+  - **Type**: Create new file (~150 lines, ~20 tests)
+  - **Description**: Silent refresh: mock token with `exp` 55s in the future → verify refresh called. Session expiry: mock failed refresh → verify `sessionExpired` event emitted. Deep-link: verify URL saved to `sessionStorage` before redirect, restored after re-auth. Logout: verify `POST /api/v1/auth/logout` called, store cleared, redirect triggered. Auth callback: verify JWT parsed, user claims extracted.
+  - **Spec Reference**: FR-016, FR-014, US-001, Constitution Art. 8.2
+  - **Dependencies**: Task T7-1
+  - **Estimated**: 2h
+
+- [ ] **T7-14** `[S]` `[ALL]` Accessibility audit — WCAG 2.1 AA verification
+  - **File**: N/A (audit + minor fixes)
+  - **Type**: Verification
+  - **Description**: Verify WCAG 2.1 AA compliance for all 10 screens against design-spec §6 checklist. Verify each screen's key requirement from plan.md §7a Accessibility Requirements table: `role="status"` on callback, focus trap on modal, `role="alert"` on errors, `aria-live="polite"` every 15s on rate limit, `aria-haspopup`/`aria-expanded` on profile menu.
+  - **Spec Reference**: Constitution Art. 1.3 (WCAG 2.1 AA), design-spec.md §6
+  - **Dependencies**: All T7-3 through T7-10 complete
+  - **Estimated**: 1h
+
+---
+
+## Phase 8: TD-003 Remediation — KeycloakService Test Coverage
+
+**Objective**: Bring `keycloak.service.ts` (937 lines, 2.83% coverage) to ≥85%
+coverage, resolving TD-003 and enabling the auth module to meet the Constitution
+Art. 4.1 ≥85% core module target.
+
+**Dependencies**: Sprint 5 scheduling; running Keycloak for integration tests  
+**Estimated Total**: 10-14h, ~55 tests  
+**Target Sprint**: Sprint 5  
+**Tracked As**: TD-003 (decision log)
+
+### 8.1 Unit Tests — Mocked KcAdminClient
+
+- [ ] **8.1** `[L]` `[FR-001]` `[FR-005]` `[FR-006]` Write unit tests for KeycloakService core provisioning methods
+  - **File**: `apps/core-api/src/__tests__/auth/unit/keycloak.service.test.ts` (NEW)
+  - **Type**: Create new file
+  - **Description**: Unit tests for `createRealm()`, `provisionRealmClients()`, `provisionRealmRoles()` using a fully mocked `@keycloak/keycloak-admin-client`. Cover success paths, failure paths, retry logic, and error sanitization via `KeycloakSanitizedError`.
+  - **Spec Reference**: FR-001, FR-005, FR-006, Plan §4.2, Appendix D Gap 1
+  - **Dependencies**: None (all Keycloak HTTP calls mocked)
+  - **Estimated**: 3-4h
+  - **Target Tests**:
+    - `createRealm()`: success, Keycloak 409 conflict, network error, retry exhausted
+    - `provisionRealmClients()`: creates plexica-web (public) + plexica-api (confidential), client already exists (idempotent), Keycloak error
+    - `provisionRealmRoles()`: creates tenant_admin + user roles, role already exists (idempotent), Keycloak error
+    - Admin token re-authentication (50s TTL expiry triggers re-auth)
+
+- [ ] **8.2** `[L]` `[FR-012]` `[FR-014]` Write unit tests for KeycloakService lifecycle management methods
+  - **File**: `apps/core-api/src/__tests__/auth/unit/keycloak.service.test.ts`
+  - **Type**: Modify existing (add to 8.1 file)
+  - **Description**: Unit tests for `setRealmEnabled()`, `configureRefreshTokenRotation()`, `exchangeAuthorizationCode()`, `refreshToken()`, `revokeToken()` using mocked HTTP calls.
+  - **Spec Reference**: FR-012, FR-014, FR-016, Plan §4.2, Appendix D Gap 1
+  - **Dependencies**: Task 8.1
+  - **Estimated**: 3-4h
+  - **Target Tests**:
+    - `setRealmEnabled()`: enable realm, disable realm, realm not found (404), Keycloak error
+    - `configureRefreshTokenRotation()`: success, Keycloak error
+    - `exchangeAuthorizationCode()`: success response (tokens returned), invalid code (401), network error
+    - `refreshToken()`: success with rotated tokens, expired refresh token (401), Keycloak error
+    - `revokeToken()`: revoke access token, revoke refresh token, token already revoked (204), Keycloak error
+    - `KeycloakSanitizedError`: PII scrubbing from error messages, error code preservation
+  - **Total Target**: ~40 unit tests in keycloak.service.test.ts
+
+### 8.2 Integration Tests — Real Keycloak
+
+- [ ] **8.3** `[XL]` `[FR-001]` `[FR-005]` `[FR-006]` `[FR-012]` `[FR-014]` Write integration tests for KeycloakService against real Keycloak
+  - **File**: `apps/core-api/src/__tests__/auth/integration/keycloak.integration.test.ts` (NEW)
+  - **Type**: Create new file
+  - **Description**: Integration tests against the running Keycloak 26+ instance from test-infrastructure. Cover the full realm lifecycle and token operations with real Keycloak responses.
+  - **Spec Reference**: FR-001, FR-005, FR-006, FR-012, FR-014, FR-016, Plan §8.2, Appendix D Gap 1
+  - **Dependencies**: Running Keycloak instance (`test-infrastructure/scripts/test-setup.sh`)
+  - **Estimated**: 4-6h
+  - **Target Tests** (~15 tests):
+    - Realm lifecycle: `createRealm()` → `provisionRealmClients()` → `provisionRealmRoles()` → verify in Keycloak admin
+    - Realm enable/disable: `setRealmEnabled(false)` → verify login blocked; `setRealmEnabled(true)` → verify login works
+    - Refresh token rotation: `configureRefreshTokenRotation()` → verify realm setting in Keycloak
+    - Token exchange: `exchangeAuthorizationCode()` against real realm → valid token response
+    - Token revocation: `revokeToken()` → subsequent use returns 401
+    - Error handling: actual Keycloak error responses (conflict, not found, unauthorized)
+    - Cleanup: realm deletion after each test suite
+
+### 8.3 Coverage Verification
+
+- [ ] **8.4** `[S]` `[ALL]` Run coverage report and verify TD-003 resolved
+  - **File**: N/A (command execution)
+  - **Type**: Verification command
+  - **Description**: Run `pnpm test:coverage` in `apps/core-api/` with all test infrastructure running. Verify `keycloak.service.ts` ≥75% (unit) + ≥85% (unit + integration combined). Verify auth module overall ≥85%. Update decision log to mark TD-003 resolved.
+  - **Spec Reference**: Constitution Art. 4.1
+  - **Dependencies**: Tasks 8.1, 8.2, 8.3 complete; full test infrastructure running
+  - **Estimated**: 30min
+  - **Success Criteria**:
+    - `keycloak.service.ts` line coverage ≥75% (unit tests alone)
+    - Auth module overall ≥85% (Constitution Art. 4.1)
+    - Overall project coverage ≥80% (Constitution Art. 4.1)
+    - TD-003 closed in decision log
+
+---
+
 ## Summary
 
 | Metric                 | Value                                                                       |
 | ---------------------- | --------------------------------------------------------------------------- |
-| Total tasks            | 50                                                                          |
-| Total phases           | 7                                                                           |
-| Parallelizable tasks   | 16 (tasks marked `[P]`)                                                     |
+| Total tasks            | 70 (50 complete + 16 Phase 7a pending + 4 Phase 8 pending)                  |
+| Total phases           | 9 (8 original + Phase 7a frontend)                                          |
+| Parallelizable tasks   | 25 (16 original `[P]` + 9 Phase 7a `[P]`)                                   |
 | Requirements covered   | FR: 16/16 (100%), NFR: 8/8 (100%), Edge Cases: 12/12 (100%), US: 5/5 (100%) |
-| Estimated total effort | 71-82 hours                                                                 |
-| Estimated test count   | 95-120 tests (unit + integration + E2E)                                     |
+| Estimated total effort | 112-127 hours (71-82h backend + ~31h Phase 7a + 10-14h Phase 8)             |
+| Estimated test count   | 210-235 tests (532 actual Phase 1-7 + ~60 Phase 7a + ~55 Phase 8)           |
 | Target test coverage   | Auth module: ≥85%, Security code: 100%, Overall: ≥80%                       |
 
 ### Breakdown by Phase
 
-| Phase | Name                            | Tasks | Effort | Tests |
-| ----- | ------------------------------- | ----- | ------ | ----- |
-| 1     | Foundation (errors, JWT, types) | 9     | 8h     | ~15   |
-| 2     | Data Layer (repository)         | 4     | 6h     | ~15   |
-| 3     | Keycloak Service (provisioning) | 9     | 11h    | ~20   |
-| 4     | Auth Service + OAuth Routes     | 7     | 24h    | ~30   |
-| 5     | Event-Driven User Sync          | 6     | 12h    | ~20   |
-| 6     | Integration Testing + E2E       | 4     | 10h    | ~15   |
-| 7     | Documentation and Review        | 3     | 3h     | N/A   |
+| Phase | Name                            | Tasks | Effort | Tests | Status         |
+| ----- | ------------------------------- | ----- | ------ | ----- | -------------- |
+| 1     | Foundation (errors, JWT, types) | 9     | 8h     | ~15   | ✅ Complete    |
+| 2     | Data Layer (repository)         | 4     | 6h     | ~15   | ✅ Complete    |
+| 3     | Keycloak Service (provisioning) | 9     | 11h    | ~20   | ✅ Complete    |
+| 4     | Auth Service + OAuth Routes     | 7     | 24h    | ~30   | ✅ Complete    |
+| 5     | Event-Driven User Sync          | 6     | 12h    | ~20   | ✅ Complete    |
+| 6     | Integration Testing + E2E       | 4     | 10h    | ~15   | ✅ Complete    |
+| 7     | Documentation and Review        | 3     | 3h     | N/A   | ✅ Complete    |
+| 7a    | Frontend Implementation         | 16    | ~31h   | ~60   | ⏳ Not started |
+| 8     | TD-003: Keycloak Coverage       | 4     | 10-14h | ~55   | ⏳ Sprint 5    |
 
 ### Breakdown by Size
 
-| Size | Count | Percentage |
-| ---- | ----- | ---------- |
-| S    | 16    | 32%        |
-| M    | 20    | 40%        |
-| L    | 12    | 24%        |
-| XL   | 2     | 4%         |
+| Size | Count | Percentage                                       |
+| ---- | ----- | ------------------------------------------------ |
+| S    | 21    | 30%                                              |
+| M    | 28    | 40%                                              |
+| L    | 13    | 19%                                              |
+| XL   | 2     | 3%                                               |
+| —    | 6     | 8% (T7-DT, T7-ER, T7-14, and verification tasks) |
 
 ### Critical Path Dependencies
 

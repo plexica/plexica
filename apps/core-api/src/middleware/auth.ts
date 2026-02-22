@@ -37,7 +37,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     if (!token) {
       return reply.code(401).send({
         error: {
-          code: 'AUTH_TOKEN_MISSING',
+          code: 'AUTH_MISSING_TOKEN',
           message: 'Missing or invalid Authorization header',
         },
       });

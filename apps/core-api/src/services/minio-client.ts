@@ -250,6 +250,31 @@ export class MinIOClientService {
   }
 
   /**
+   * Ensure a dedicated per-tenant bucket exists (create if absent).
+   * Bucket name format: tenant-{slug}
+   */
+  async ensureTenantBucket(tenantSlug: string): Promise<void> {
+    const bucketName = `tenant-${tenantSlug}`;
+    await this.ensureBucket(bucketName);
+  }
+
+  /**
+   * Remove a per-tenant bucket (used during rollback / hard delete).
+   */
+  async removeTenantBucket(tenantSlug: string): Promise<void> {
+    const bucketName = `tenant-${tenantSlug}`;
+    try {
+      const exists = await this.client.bucketExists(bucketName);
+      if (exists) {
+        await this.client.removeBucket(bucketName);
+      }
+    } catch (error) {
+      console.error(`[MinIO] Failed to remove tenant bucket ${bucketName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Health check
    */
   async healthCheck(): Promise<boolean> {

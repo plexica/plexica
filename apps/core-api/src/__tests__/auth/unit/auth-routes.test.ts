@@ -226,7 +226,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(body.error.code).toBe('VALIDATION_ERROR');
     });
 
-    it('should return 403 AUTH_TENANT_NOT_FOUND when tenant does not exist', async () => {
+    it('should return 404 AUTH_TENANT_NOT_FOUND when tenant does not exist', async () => {
       vi.mocked(authService.buildLoginUrl).mockRejectedValue({
         error: {
           code: 'AUTH_TENANT_NOT_FOUND',
@@ -244,7 +244,7 @@ describe('Auth Routes - OAuth 2.0', () => {
         },
       });
 
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(404);
       const body = response.json();
       expect(body.error.code).toBe('AUTH_TENANT_NOT_FOUND');
       expect(body.error.details.tenantSlug).toBe('nonexistent-tenant');
@@ -298,7 +298,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(response.json().error.code).toBe('AUTH_RATE_LIMITED');
     });
 
-    it('should return 500 INTERNAL_ERROR on unexpected error', async () => {
+    it('should return 500 AUTH_KEYCLOAK_ERROR on unexpected error', async () => {
       vi.mocked(authService.buildLoginUrl).mockRejectedValue(new Error('Unexpected error'));
 
       const response = await app.inject({
@@ -312,7 +312,7 @@ describe('Auth Routes - OAuth 2.0', () => {
 
       expect(response.statusCode).toBe(500);
       const body = response.json();
-      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.code).toBe('AUTH_KEYCLOAK_ERROR');
       expect(body.error.message).toBe('Failed to build authorization URL');
     });
   });
@@ -445,7 +445,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(body.error.code).toBe('AUTH_CODE_EXCHANGE_FAILED');
     });
 
-    it('should return 403 AUTH_TENANT_NOT_FOUND when tenant does not exist', async () => {
+    it('should return 404 AUTH_TENANT_NOT_FOUND when tenant does not exist', async () => {
       vi.mocked(authService.exchangeCode).mockRejectedValue({
         error: {
           code: 'AUTH_TENANT_NOT_FOUND',
@@ -463,7 +463,7 @@ describe('Auth Routes - OAuth 2.0', () => {
         },
       });
 
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(404);
       const body = response.json();
       expect(body.error.code).toBe('AUTH_TENANT_NOT_FOUND');
     });
@@ -515,7 +515,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(response.json().error.code).toBe('AUTH_RATE_LIMITED');
     });
 
-    it('should return 500 INTERNAL_ERROR on unexpected error', async () => {
+    it('should return 500 AUTH_KEYCLOAK_ERROR on unexpected error', async () => {
       vi.mocked(authService.exchangeCode).mockRejectedValue(
         new Error('Database connection failed')
       );
@@ -531,7 +531,7 @@ describe('Auth Routes - OAuth 2.0', () => {
 
       expect(response.statusCode).toBe(500);
       const body = response.json();
-      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.code).toBe('AUTH_KEYCLOAK_ERROR');
       expect(body.error.message).toBe('Failed to exchange authorization code');
     });
   });
@@ -632,7 +632,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(body.error.code).toBe('AUTH_TOKEN_REFRESH_FAILED');
     });
 
-    it('should return 403 AUTH_TENANT_NOT_FOUND when tenant does not exist', async () => {
+    it('should return 404 AUTH_TENANT_NOT_FOUND when tenant does not exist', async () => {
       vi.mocked(authService.refreshTokens).mockRejectedValue({
         error: {
           code: 'AUTH_TENANT_NOT_FOUND',
@@ -650,7 +650,7 @@ describe('Auth Routes - OAuth 2.0', () => {
         },
       });
 
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(404);
       const body = response.json();
       expect(body.error.code).toBe('AUTH_TENANT_NOT_FOUND');
     });
@@ -678,7 +678,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(body.error.code).toBe('AUTH_TENANT_SUSPENDED');
     });
 
-    it('should return 500 INTERNAL_ERROR on unexpected error', async () => {
+    it('should return 500 AUTH_KEYCLOAK_ERROR on unexpected error', async () => {
       vi.mocked(authService.refreshTokens).mockRejectedValue(new Error('Keycloak unreachable'));
 
       const response = await app.inject({
@@ -692,7 +692,7 @@ describe('Auth Routes - OAuth 2.0', () => {
 
       expect(response.statusCode).toBe(500);
       const body = response.json();
-      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.code).toBe('AUTH_KEYCLOAK_ERROR');
       expect(body.error.message).toBe('Failed to refresh token');
     });
   });
@@ -1043,7 +1043,7 @@ describe('Auth Routes - OAuth 2.0', () => {
       expect(body.error.code).toBe('JWKS_FETCH_FAILED');
     });
 
-    it('should return 500 INTERNAL_ERROR on unexpected error', async () => {
+    it('should return 500 AUTH_KEYCLOAK_ERROR on unexpected error', async () => {
       vi.mocked(redis.get).mockRejectedValue(new Error('Redis connection failed'));
 
       const response = await app.inject({
@@ -1053,7 +1053,7 @@ describe('Auth Routes - OAuth 2.0', () => {
 
       expect(response.statusCode).toBe(500);
       const body = response.json();
-      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.code).toBe('AUTH_KEYCLOAK_ERROR');
       expect(body.error.message).toBe('Failed to retrieve JWKS');
     });
   });

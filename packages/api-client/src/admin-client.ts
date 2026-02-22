@@ -48,7 +48,12 @@ export class AdminApiClient extends HttpClient {
     return this.get<TenantDetail>(`/api/admin/tenants/${id}`);
   }
 
-  async createTenant(data: { name: string; slug: string }) {
+  async createTenant(data: {
+    name: string;
+    slug: string;
+    adminEmail: string;
+    pluginIds?: string[];
+  }) {
     return this.post<Tenant>('/api/admin/tenants', data);
   }
 
@@ -73,6 +78,16 @@ export class AdminApiClient extends HttpClient {
 
   async activateTenant(id: string) {
     return this.post<Tenant>(`/api/admin/tenants/${id}/activate`);
+  }
+
+  async checkSlugAvailability(slug: string) {
+    return this.get<{ slug: string; available: boolean }>('/api/admin/tenants/check-slug', {
+      slug,
+    });
+  }
+
+  async resendInvite(id: string) {
+    return this.post<{ message: string; sentAt: string }>(`/api/admin/tenants/${id}/resend-invite`);
   }
 
   // ===== PLUGIN MANAGEMENT (GLOBAL REGISTRY) =====

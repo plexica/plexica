@@ -12,6 +12,45 @@ const mockTenantPluginCreate = vi.fn();
 const mockTenantPluginFindUnique = vi.fn();
 const mockTenantPluginDelete = vi.fn();
 const mockExecuteRawUnsafe = vi.fn();
+const mockExecuteRaw = vi.fn();
+
+// MinIO mock
+const mockRemoveTenantBucket = vi.fn();
+vi.mock('../../../services/minio-client.js', () => ({
+  getMinioClient: () => ({
+    removeTenantBucket: mockRemoveTenantBucket,
+  }),
+}));
+
+// Redis mock
+const mockRedisScan = vi.fn();
+const mockRedisDel = vi.fn();
+vi.mock('../../../lib/redis.js', () => ({
+  redis: {
+    scan: (...args: any[]) => mockRedisScan(...args),
+    del: (...args: any[]) => mockRedisDel(...args),
+  },
+}));
+
+// ProvisioningOrchestrator mock — prevents real step execution in unit tests
+const mockProvision = vi.fn();
+vi.mock('../../../services/provisioning-orchestrator.js', () => ({
+  ProvisioningOrchestrator: vi.fn().mockImplementation(() => ({
+    provision: mockProvision,
+  })),
+  provisioningOrchestrator: { provision: vi.fn() },
+}));
+
+// Mock provisioning steps so they don't try to import real clients
+vi.mock('../../../services/provisioning-steps/index.js', () => ({
+  SchemaStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakRealmStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakClientsStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakRolesStep: vi.fn().mockImplementation(() => ({})),
+  MinioBucketStep: vi.fn().mockImplementation(() => ({})),
+  AdminUserStep: vi.fn().mockImplementation(() => ({})),
+  InvitationStep: vi.fn().mockImplementation(() => ({})),
+}));
 
 // Mock @plexica/database WITHOUT importOriginal to prevent the real PrismaClient
 // from ever being instantiated (getPrismaClient() opens a real pg Pool).
@@ -47,6 +86,7 @@ vi.mock('../../../lib/db.js', () => ({
       delete: (...args: any[]) => mockTenantPluginDelete(...args),
     },
     $executeRawUnsafe: (...args: any[]) => mockExecuteRawUnsafe(...args),
+    $executeRaw: (...args: any[]) => mockExecuteRaw(...args),
   },
 }));
 
@@ -113,57 +153,74 @@ describe('TenantService', () => {
     vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
     vi.mocked(permissionService.initializeDefaultRoles).mockResolvedValue(undefined);
 
+    // Default MinIO / Redis happy path
+    mockRemoveTenantBucket.mockResolvedValue(undefined);
+    mockRedisScan.mockResolvedValue(['0', []]);
+    mockRedisDel.mockResolvedValue(1);
+
+    // Default orchestrator succeeds
+    mockProvision.mockResolvedValue({ success: true, completedSteps: [] });
+
     service = new TenantService();
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // validateSlug
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('validateSlug', () => {
     it('should accept valid slugs via createTenant', async () => {
-      const validSlugs = ['acme-corp', 'a', '123', 'my-tenant-42'];
+      // 3-char min, starts with letter, ends with alphanumeric
+      const validSlugs = ['acm', 'acme-corp', 'abc123', 'my-tenant-42'];
 
       for (const slug of validSlugs) {
         vi.clearAllMocks();
-        vi.mocked(keycloakService.createRealm).mockResolvedValue(undefined);
-        vi.mocked(permissionService.initializeDefaultRoles).mockResolvedValue(undefined);
+        mockProvision.mockResolvedValue({ success: true, completedSteps: [] });
 
         const tenant = makeMockTenant({ slug, status: TenantStatus.PROVISIONING });
         mockTenantCreate.mockResolvedValue(tenant);
-        mockExecuteRawUnsafe.mockResolvedValue(undefined);
         mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
 
-        await expect(service.createTenant({ slug, name: 'Test' })).resolves.not.toThrow();
+        await expect(
+          service.createTenant({ slug, name: 'Test', adminEmail: 'admin@example.com' })
+        ).resolves.not.toThrow();
       }
     });
 
     it('should reject uppercase letters', async () => {
-      await expect(service.createTenant({ slug: 'ACME-Corp', name: 'Test' })).rejects.toThrow(
-        /slug must be/i
-      );
+      await expect(
+        service.createTenant({ slug: 'ACME-Corp', name: 'Test', adminEmail: 'admin@example.com' })
+      ).rejects.toThrow(/slug must be/i);
 
       expect(mockTenantCreate).not.toHaveBeenCalled();
     });
 
     it('should reject special characters', async () => {
-      await expect(service.createTenant({ slug: 'acme@corp!', name: 'Test' })).rejects.toThrow(
-        /slug must be/i
-      );
+      await expect(
+        service.createTenant({ slug: 'acme@corp!', name: 'Test', adminEmail: 'a@b.com' })
+      ).rejects.toThrow(/slug must be/i);
 
       expect(mockTenantCreate).not.toHaveBeenCalled();
     });
 
-    it('should reject slugs longer than 50 chars', async () => {
-      await expect(service.createTenant({ slug: 'a'.repeat(51), name: 'Test' })).rejects.toThrow(
-        /slug must be/i
-      );
+    it('should reject slugs longer than 64 chars', async () => {
+      await expect(
+        service.createTenant({ slug: 'a'.repeat(65), name: 'Test', adminEmail: 'a@b.com' })
+      ).rejects.toThrow(/slug must be/i);
 
       expect(mockTenantCreate).not.toHaveBeenCalled();
     });
 
     it('should reject empty slug', async () => {
-      await expect(service.createTenant({ slug: '', name: 'Test' })).rejects.toThrow(
-        /slug must be/i
-      );
+      await expect(
+        service.createTenant({ slug: '', name: 'Test', adminEmail: 'a@b.com' })
+      ).rejects.toThrow(/slug must be/i);
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // getSchemaName
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('getSchemaName', () => {
     it('should generate valid schema name from slug', () => {
@@ -182,18 +239,22 @@ describe('TenantService', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // createTenant
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('createTenant', () => {
-    it('should create tenant and provision all resources', async () => {
+    it('should create tenant record and provision via orchestrator', async () => {
       const provisioningTenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
       const activeTenant = makeMockTenant({ status: TenantStatus.ACTIVE });
 
       mockTenantCreate.mockResolvedValue(provisioningTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue(activeTenant);
 
       const input: CreateTenantInput = {
         slug: 'acme-corp',
         name: 'ACME Corporation',
+        adminEmail: 'admin@acme.com',
       };
 
       const result = await service.createTenant(input);
@@ -209,34 +270,20 @@ describe('TenantService', () => {
         },
       });
 
-      // Verify schema creation SQL was called (multiple tables)
-      expect(mockExecuteRawUnsafe).toHaveBeenCalled();
-      const sqlCalls = mockExecuteRawUnsafe.mock.calls.map((c: any[]) => c[0]);
-      expect(sqlCalls.some((sql: string) => sql.includes('CREATE SCHEMA'))).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('"users"'))).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('"roles"'))).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('"user_roles"'))).toBe(true);
-
-      // Verify Keycloak realm created
-      expect(keycloakService.createRealm).toHaveBeenCalledWith('acme-corp', 'ACME Corporation');
-
-      // Verify default roles initialized with correct schema name
-      expect(permissionService.initializeDefaultRoles).toHaveBeenCalledWith('tenant_acme_corp');
+      // Verify orchestrator was invoked
+      expect(mockProvision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: 'tenant-123',
+          tenantSlug: 'acme-corp',
+          adminEmail: 'admin@acme.com',
+        }),
+        expect.any(Array)
+      );
 
       // Verify status updated to ACTIVE
       expect(mockTenantUpdate).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
         data: { status: TenantStatus.ACTIVE },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          status: true,
-          settings: true,
-          theme: true,
-          createdAt: true,
-          updatedAt: true,
-        },
       });
 
       expect(result.status).toBe(TenantStatus.ACTIVE);
@@ -248,12 +295,12 @@ describe('TenantService', () => {
       const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING, settings, theme });
 
       mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
 
       await service.createTenant({
         slug: 'acme-corp',
         name: 'ACME Corporation',
+        adminEmail: 'admin@acme.com',
         settings,
         theme,
       });
@@ -269,53 +316,32 @@ describe('TenantService', () => {
       mockTenantCreate.mockRejectedValue(prismaError);
 
       await expect(
-        service.createTenant({ slug: 'acme-corp', name: 'ACME Corporation' })
+        service.createTenant({ slug: 'acme-corp', name: 'ACME', adminEmail: 'a@b.com' })
       ).rejects.toThrow(/already exists/i);
     });
 
     it('should rethrow non-P2002 database errors', async () => {
       mockTenantCreate.mockRejectedValue(new Error('Connection lost'));
 
-      await expect(service.createTenant({ slug: 'acme-corp', name: 'ACME' })).rejects.toThrow(
-        'Connection lost'
-      );
+      await expect(
+        service.createTenant({ slug: 'acme-corp', name: 'ACME', adminEmail: 'a@b.com' })
+      ).rejects.toThrow('Connection lost');
     });
 
-    it('should set status to SUSPENDED on provisioning failure', async () => {
+    it('should throw provisioning error when orchestrator fails', async () => {
       const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
       mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockRejectedValue(new Error('Schema creation failed'));
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.PROVISIONING });
+      mockProvision.mockResolvedValue({ success: false, error: 'Schema creation failed' });
 
-      await expect(service.createTenant({ slug: 'acme-corp', name: 'ACME' })).rejects.toThrow(
-        'Failed to provision tenant: Schema creation failed'
-      );
-
-      expect(mockTenantUpdate).toHaveBeenCalledWith({
-        where: { id: 'tenant-123' },
-        data: expect.objectContaining({
-          status: TenantStatus.PROVISIONING,
-          settings: expect.objectContaining({
-            provisioningError: 'Schema creation failed',
-          }),
-        }),
-      });
-    });
-
-    it('should handle status update failure during provisioning rollback gracefully', async () => {
-      const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
-      mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockRejectedValue(new Error('Schema creation failed'));
-      // The status update itself fails (tenant might have been deleted concurrently)
-      mockTenantUpdate.mockRejectedValue(new Error('Record not found'));
-
-      await expect(service.createTenant({ slug: 'acme-corp', name: 'ACME' })).rejects.toThrow(
-        'Failed to provision tenant'
-      );
-
-      expect(logger.warn).toHaveBeenCalled();
+      await expect(
+        service.createTenant({ slug: 'acme-corp', name: 'ACME', adminEmail: 'a@b.com' })
+      ).rejects.toThrow('Failed to provision tenant: Schema creation failed');
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // getTenant / getTenantBySlug
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('getTenant', () => {
     it('should retrieve tenant by ID with plugins included', async () => {
@@ -370,6 +396,10 @@ describe('TenantService', () => {
       await expect(service.getTenantBySlug('nonexistent')).rejects.toThrow('Tenant not found');
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // listTenants
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('listTenants', () => {
     it('should list all tenants with default pagination', async () => {
@@ -465,6 +495,10 @@ describe('TenantService', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // updateTenant
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('updateTenant', () => {
     it('should update tenant name', async () => {
       const tenant = makeMockTenant();
@@ -483,18 +517,6 @@ describe('TenantService', () => {
           theme: undefined,
         },
       });
-    });
-
-    it('should update tenant status', async () => {
-      const tenant = makeMockTenant();
-      mockTenantFindUnique.mockResolvedValue(tenant);
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.SUSPENDED });
-
-      const result = await service.updateTenant('tenant-123', {
-        status: TenantStatus.SUSPENDED,
-      });
-
-      expect(result.status).toBe(TenantStatus.SUSPENDED);
     });
 
     it('should update tenant settings', async () => {
@@ -530,8 +552,79 @@ describe('TenantService', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // suspendTenant — new method (HIGH-3 fix)
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  describe('suspendTenant', () => {
+    it('should suspend an ACTIVE tenant (ACTIVE → SUSPENDED)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.ACTIVE });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.SUSPENDED });
+
+      const result = await service.suspendTenant('tenant-123');
+
+      expect(mockTenantUpdate).toHaveBeenCalledWith({
+        where: { id: 'tenant-123' },
+        data: { status: TenantStatus.SUSPENDED },
+      });
+      expect(result.status).toBe(TenantStatus.SUSPENDED);
+    });
+
+    it('should throw when tenant not found', async () => {
+      mockTenantFindUnique.mockResolvedValue(null);
+
+      await expect(service.suspendTenant('nonexistent')).rejects.toThrow('Tenant not found');
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is already SUSPENDED', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.SUSPENDED });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.suspendTenant('tenant-123')).rejects.toThrow(
+        /Cannot suspend tenant with status: SUSPENDED/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is PROVISIONING (state machine guard)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.suspendTenant('tenant-123')).rejects.toThrow(
+        /Cannot suspend tenant with status: PROVISIONING/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is PENDING_DELETION (state machine guard)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PENDING_DELETION });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.suspendTenant('tenant-123')).rejects.toThrow(
+        /Cannot suspend tenant with status: PENDING_DELETION/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is DELETED (state machine guard)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.DELETED });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.suspendTenant('tenant-123')).rejects.toThrow(
+        /Cannot suspend tenant with status: DELETED/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // deleteTenant — now with service-layer guards (MEDIUM-5 fix)
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('deleteTenant', () => {
-    it('should soft delete tenant by setting status to PENDING_DELETION', async () => {
+    it('should soft delete an ACTIVE tenant (ACTIVE → PENDING_DELETION)', async () => {
       const tenant = makeMockTenant({ status: TenantStatus.ACTIVE });
       mockTenantFindUnique.mockResolvedValue(tenant);
       mockTenantUpdate.mockResolvedValue({
@@ -539,11 +632,28 @@ describe('TenantService', () => {
         status: TenantStatus.PENDING_DELETION,
       });
 
+      const result = await service.deleteTenant('tenant-123');
+
+      expect(mockTenantUpdate).toHaveBeenCalledWith({
+        where: { id: 'tenant-123' },
+        data: expect.objectContaining({
+          status: TenantStatus.PENDING_DELETION,
+          deletionScheduledAt: expect.any(Date),
+        }),
+      });
+      expect(result).toHaveProperty('deletionScheduledAt');
+    });
+
+    it('should soft delete a SUSPENDED tenant (SUSPENDED → PENDING_DELETION)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.SUSPENDED });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.PENDING_DELETION });
+
       await service.deleteTenant('tenant-123');
 
       expect(mockTenantUpdate).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
-        data: { status: TenantStatus.PENDING_DELETION },
+        data: expect.objectContaining({ status: TenantStatus.PENDING_DELETION }),
       });
     });
 
@@ -551,32 +661,203 @@ describe('TenantService', () => {
       mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.deleteTenant('nonexistent')).rejects.toThrow('Tenant not found');
-
       expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is already PENDING_DELETION (service-layer guard)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PENDING_DELETION });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.deleteTenant('tenant-123')).rejects.toThrow(
+        /Cannot delete tenant with status: PENDING_DELETION/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is DELETED (service-layer guard)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.DELETED });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.deleteTenant('tenant-123')).rejects.toThrow(
+        /Cannot delete tenant with status: DELETED/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when tenant is PROVISIONING (service-layer guard)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.deleteTenant('tenant-123')).rejects.toThrow(
+        /Cannot delete tenant with status: PROVISIONING/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should schedule deletion 30 days in the future', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.ACTIVE });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.PENDING_DELETION });
+
+      const before = Date.now();
+      const result = await service.deleteTenant('tenant-123');
+      const after = Date.now();
+
+      const expectedMs = 30 * 24 * 60 * 60 * 1000;
+      const scheduledMs = result.deletionScheduledAt.getTime();
+      expect(scheduledMs).toBeGreaterThanOrEqual(before + expectedMs - 1000);
+      expect(scheduledMs).toBeLessThanOrEqual(after + expectedMs + 1000);
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // activateTenant — new method
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  describe('activateTenant', () => {
+    it('should reactivate a SUSPENDED tenant (SUSPENDED → ACTIVE)', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.SUSPENDED });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
+
+      const result = await service.activateTenant('tenant-123');
+
+      expect(mockTenantUpdate).toHaveBeenCalledWith({
+        where: { id: 'tenant-123' },
+        data: { status: TenantStatus.ACTIVE },
+      });
+      expect(result.status).toBe(TenantStatus.ACTIVE);
+    });
+
+    it('should rescue a PENDING_DELETION tenant (PENDING_DELETION → SUSPENDED, clears date)', async () => {
+      const tenant = makeMockTenant({
+        status: TenantStatus.PENDING_DELETION,
+        deletionScheduledAt: new Date(),
+      });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.SUSPENDED });
+
+      const result = await service.activateTenant('tenant-123');
+
+      expect(mockTenantUpdate).toHaveBeenCalledWith({
+        where: { id: 'tenant-123' },
+        data: { status: TenantStatus.SUSPENDED, deletionScheduledAt: null },
+      });
+      expect(result.status).toBe(TenantStatus.SUSPENDED);
+    });
+
+    it('should throw when tenant not found', async () => {
+      mockTenantFindUnique.mockResolvedValue(null);
+
+      await expect(service.activateTenant('nonexistent')).rejects.toThrow('Tenant not found');
+    });
+
+    it('should throw when trying to activate an ACTIVE tenant', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.ACTIVE });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.activateTenant('tenant-123')).rejects.toThrow(
+        /Cannot activate tenant with status: ACTIVE/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when trying to activate a PROVISIONING tenant', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.activateTenant('tenant-123')).rejects.toThrow(
+        /Cannot activate tenant with status: PROVISIONING/
+      );
+    });
+
+    it('should throw when trying to activate a DELETED tenant', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.DELETED });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+
+      await expect(service.activateTenant('tenant-123')).rejects.toThrow(
+        /Cannot activate tenant with status: DELETED/
+      );
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // hardDeleteTenant — now cleans MinIO + Redis (HIGH-1 fix)
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('hardDeleteTenant', () => {
-    it('should delete keycloak realm, drop schema, and delete record', async () => {
+    it('should delete Keycloak realm, MinIO bucket, Redis keys, drop schema, and delete record', async () => {
       const tenant = makeMockTenant({ status: TenantStatus.PENDING_DELETION });
       mockTenantFindUnique.mockResolvedValue(tenant);
       mockTenantDelete.mockResolvedValue(tenant);
       mockExecuteRawUnsafe.mockResolvedValue(undefined);
+      // Simulate one iteration of Redis SCAN returning 2 keys, then done
+      mockRedisScan
+        .mockResolvedValueOnce(['1', ['tenant:acme-corp:session', 'tenant:acme-corp:cache']])
+        .mockResolvedValueOnce(['0', []]);
 
       await service.hardDeleteTenant('tenant-123');
 
-      // Verify Keycloak realm deletion
+      // Keycloak realm deleted
       expect(keycloakService.deleteRealm).toHaveBeenCalledWith('acme-corp');
 
-      // Verify schema drop
+      // MinIO bucket removed
+      expect(mockRemoveTenantBucket).toHaveBeenCalledWith('acme-corp');
+
+      // Redis scan + del
+      expect(mockRedisScan).toHaveBeenCalledWith('0', 'MATCH', 'tenant:acme-corp:*', 'COUNT', 100);
+      expect(mockRedisDel).toHaveBeenCalledWith(
+        'tenant:acme-corp:session',
+        'tenant:acme-corp:cache'
+      );
+
+      // Schema drop
       expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
         'DROP SCHEMA IF EXISTS "tenant_acme_corp" CASCADE'
       );
 
-      // Verify tenant record deletion
+      // Tenant record deleted
       expect(mockTenantDelete).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
       });
+    });
+
+    it('should skip Redis del when scan returns no keys', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PENDING_DELETION });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantDelete.mockResolvedValue(tenant);
+      mockExecuteRawUnsafe.mockResolvedValue(undefined);
+      mockRedisScan.mockResolvedValue(['0', []]); // no keys
+
+      await service.hardDeleteTenant('tenant-123');
+
+      expect(mockRedisDel).not.toHaveBeenCalled();
+    });
+
+    it('should continue after MinIO failure (non-fatal) and still delete record', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PENDING_DELETION });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantDelete.mockResolvedValue(tenant);
+      mockExecuteRawUnsafe.mockResolvedValue(undefined);
+      mockRemoveTenantBucket.mockRejectedValue(new Error('MinIO unavailable'));
+
+      await service.hardDeleteTenant('tenant-123');
+
+      expect(logger.warn).toHaveBeenCalled();
+      expect(mockTenantDelete).toHaveBeenCalled();
+    });
+
+    it('should continue after Redis failure (non-fatal) and still delete record', async () => {
+      const tenant = makeMockTenant({ status: TenantStatus.PENDING_DELETION });
+      mockTenantFindUnique.mockResolvedValue(tenant);
+      mockTenantDelete.mockResolvedValue(tenant);
+      mockExecuteRawUnsafe.mockResolvedValue(undefined);
+      mockRedisScan.mockRejectedValue(new Error('Redis unavailable'));
+
+      await service.hardDeleteTenant('tenant-123');
+
+      expect(logger.warn).toHaveBeenCalled();
+      expect(mockTenantDelete).toHaveBeenCalled();
     });
 
     it('should throw error when tenant not found', async () => {
@@ -586,16 +867,6 @@ describe('TenantService', () => {
 
       expect(keycloakService.deleteRealm).not.toHaveBeenCalled();
       expect(mockTenantDelete).not.toHaveBeenCalled();
-    });
-
-    it('should wrap keycloak deletion failure in descriptive error', async () => {
-      const tenant = makeMockTenant();
-      mockTenantFindUnique.mockResolvedValue(tenant);
-      vi.mocked(keycloakService.deleteRealm).mockRejectedValue(new Error('Keycloak unavailable'));
-
-      await expect(service.hardDeleteTenant('tenant-123')).rejects.toThrow(
-        'Failed to delete tenant: Keycloak unavailable'
-      );
     });
 
     it('should wrap schema drop failure in descriptive error', async () => {
@@ -608,7 +879,7 @@ describe('TenantService', () => {
       );
     });
 
-    it('should validate slug before using in SQL', async () => {
+    it('should validate slug before using in SQL (HIGH-2 guard)', async () => {
       // Tenant with an invalid slug stored in database should still be validated
       const tenant = makeMockTenant({ slug: 'INVALID_SLUG!' });
       mockTenantFindUnique.mockResolvedValue(tenant);
@@ -619,6 +890,10 @@ describe('TenantService', () => {
       expect(keycloakService.deleteRealm).not.toHaveBeenCalled();
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // installPlugin / uninstallPlugin
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('installPlugin', () => {
     it('should install plugin for tenant', async () => {
@@ -734,101 +1009,6 @@ describe('TenantService', () => {
       mockTenantPluginDelete.mockRejectedValue(prismaError);
 
       await expect(service.uninstallPlugin('tenant-123', 'nonexistent')).rejects.toThrow();
-    });
-  });
-
-  describe('Schema Management', () => {
-    it('should create dedicated PostgreSQL schema with correct name', async () => {
-      const tenant = makeMockTenant({ slug: 'acme-corp', status: TenantStatus.PROVISIONING });
-      mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
-
-      await service.createTenant({ slug: 'acme-corp', name: 'ACME' });
-
-      const firstCall = mockExecuteRawUnsafe.mock.calls[0][0] as string;
-      expect(firstCall).toContain('CREATE SCHEMA IF NOT EXISTS "tenant_acme_corp"');
-    });
-
-    it('should grant privileges to database user', async () => {
-      const tenant = makeMockTenant({ slug: 'acme-corp', status: TenantStatus.PROVISIONING });
-      mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
-
-      await service.createTenant({ slug: 'acme-corp', name: 'ACME' });
-
-      const sqlCalls = mockExecuteRawUnsafe.mock.calls.map((c: any[]) => c[0]);
-      expect(sqlCalls.some((sql: string) => sql.includes('GRANT ALL PRIVILEGES ON SCHEMA'))).toBe(
-        true
-      );
-    });
-
-    it('should create users, roles, and user_roles tables', async () => {
-      const tenant = makeMockTenant({ slug: 'acme-corp', status: TenantStatus.PROVISIONING });
-      mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
-
-      await service.createTenant({ slug: 'acme-corp', name: 'ACME' });
-
-      const sqlCalls = mockExecuteRawUnsafe.mock.calls.map((c: any[]) => c[0]);
-      expect(sqlCalls.some((sql: string) => sql.includes('"tenant_acme_corp"."users"'))).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('"tenant_acme_corp"."roles"'))).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('"tenant_acme_corp"."user_roles"'))).toBe(
-        true
-      );
-    });
-
-    it('should create workspace and team tables with foreign keys', async () => {
-      const tenant = makeMockTenant({ slug: 'acme-corp', status: TenantStatus.PROVISIONING });
-      mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
-      mockTenantUpdate.mockResolvedValue({ ...tenant, status: TenantStatus.ACTIVE });
-
-      await service.createTenant({ slug: 'acme-corp', name: 'ACME' });
-
-      const sqlCalls = mockExecuteRawUnsafe.mock.calls.map((c: any[]) => c[0]);
-      expect(sqlCalls.some((sql: string) => sql.includes('"tenant_acme_corp"."workspaces"'))).toBe(
-        true
-      );
-      expect(
-        sqlCalls.some((sql: string) => sql.includes('"tenant_acme_corp"."workspace_members"'))
-      ).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('"tenant_acme_corp"."teams"'))).toBe(true);
-      expect(sqlCalls.some((sql: string) => sql.includes('FOREIGN KEY'))).toBe(true);
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle P2002 unique constraint violation on createTenant', async () => {
-      const error = { code: 'P2002', message: 'Unique constraint failed on slug' };
-      mockTenantCreate.mockRejectedValue(error);
-
-      await expect(service.createTenant({ slug: 'duplicate', name: 'Test' })).rejects.toThrow(
-        /already exists/
-      );
-    });
-
-    it('should store provisioning error message in tenant settings', async () => {
-      const tenant = makeMockTenant({ status: TenantStatus.PROVISIONING });
-      mockTenantCreate.mockResolvedValue(tenant);
-      mockExecuteRawUnsafe.mockRejectedValue(new Error('Connection refused'));
-      mockTenantUpdate.mockResolvedValue({});
-
-      await expect(service.createTenant({ slug: 'acme-corp', name: 'ACME' })).rejects.toThrow(
-        'Failed to provision tenant'
-      );
-
-      expect(mockTenantUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            settings: expect.objectContaining({
-              provisioningError: 'Connection refused',
-            }),
-          }),
-        })
-      );
     });
   });
 });

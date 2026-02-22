@@ -156,7 +156,7 @@ describe('authMiddleware', () => {
     expect(mockReply.send).not.toHaveBeenCalled();
   });
 
-  it('should return 401 AUTH_TOKEN_MISSING when no bearer token', async () => {
+  it('should return 401 AUTH_MISSING_TOKEN when no bearer token', async () => {
     const mockRequest = createMockRequest({
       headers: {},
     });
@@ -169,7 +169,7 @@ describe('authMiddleware', () => {
     expect(mockReply.code).toHaveBeenCalledWith(401);
     expect(mockReply.send).toHaveBeenCalledWith({
       error: {
-        code: 'AUTH_TOKEN_MISSING',
+        code: 'AUTH_MISSING_TOKEN',
         message: 'Missing or invalid Authorization header',
       },
     });

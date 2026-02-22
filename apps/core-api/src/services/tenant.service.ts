@@ -1,14 +1,28 @@
-import { PrismaClient, TenantStatus } from '@plexica/database';
+import { PrismaClient, TenantStatus, type Tenant } from '@plexica/database';
 import { keycloakService } from './keycloak.service.js';
 import { permissionService } from './permission.service.js';
 import { db } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
+import { redis } from '../lib/redis.js';
+import { getMinioClient } from './minio-client.js';
+import { ProvisioningOrchestrator, type ProvisioningContext } from './provisioning-orchestrator.js';
+import {
+  SchemaStep,
+  KeycloakRealmStep,
+  KeycloakClientsStep,
+  KeycloakRolesStep,
+  MinioBucketStep,
+  AdminUserStep,
+  InvitationStep,
+} from './provisioning-steps/index.js';
 
 export interface CreateTenantInput {
   slug: string;
   name: string;
+  adminEmail: string;
   settings?: Record<string, any>;
   theme?: Record<string, any>;
+  pluginIds?: string[];
 }
 
 export interface UpdateTenantInput {
@@ -20,18 +34,23 @@ export interface UpdateTenantInput {
 
 export class TenantService {
   private db: PrismaClient;
+  private orchestrator: ProvisioningOrchestrator;
 
-  constructor() {
-    this.db = db;
+  constructor(dbClient?: PrismaClient) {
+    this.db = dbClient ?? db;
+    this.orchestrator = new ProvisioningOrchestrator(this.db);
   }
 
   /**
    * Validate tenant slug to prevent SQL injection
    */
   private validateSlug(slug: string): void {
-    const slugPattern = /^[a-z0-9-]{1,50}$/;
+    // 3-64 chars, must start with a letter, end with alphanumeric, no leading/trailing hyphens
+    const slugPattern = /^[a-z][a-z0-9-]{1,62}[a-z0-9]$/;
     if (!slugPattern.test(slug)) {
-      throw new Error('Tenant slug must be 1-50 chars, lowercase alphanumeric with hyphens only');
+      throw new Error(
+        'Tenant slug must be 3-64 chars, start with a lowercase letter, end with alphanumeric, and contain only lowercase letters, digits, and hyphens'
+      );
     }
   }
 
@@ -43,21 +62,18 @@ export class TenantService {
   }
 
   /**
-   * Create a new tenant with full provisioning
+   * Create a new tenant with full provisioning via ProvisioningOrchestrator (ADR-015).
    *
-   * This includes:
-   * 1. Creating the tenant record in the database
-   * 2. Creating a dedicated PostgreSQL schema for the tenant
-   * 3. Creating a Keycloak realm for authentication
-   * 4. Setting up MinIO bucket for storage (future)
+   * Steps: schema → keycloak realm → keycloak clients → keycloak roles →
+   *        minio bucket → admin user → invitation email
    */
-  async createTenant(input: CreateTenantInput): Promise<any> {
-    const { slug, name, settings = {}, theme = {} } = input;
+  async createTenant(input: CreateTenantInput): Promise<Tenant> {
+    const { slug, name, adminEmail, settings = {}, theme = {}, pluginIds = [] } = input;
 
     // Validate slug format
     this.validateSlug(slug);
 
-    // Attempt to create tenant with unique constraint
+    // Create tenant record (status: PROVISIONING)
     let tenant;
     try {
       tenant = await this.db.tenant.create({
@@ -70,11 +86,8 @@ export class TenantService {
         },
       });
     } catch (error: any) {
-      // Handle unique constraint violation
-      // Prisma error code P2002 indicates unique constraint failure
       const errorMessage = error?.message?.toString() || '';
       const errorString = error?.toString?.() || '';
-
       if (
         error.code === 'P2002' ||
         errorMessage.includes('Unique constraint failed') ||
@@ -85,316 +98,51 @@ export class TenantService {
       throw error;
     }
 
-    try {
-      // Step 1: Create PostgreSQL schema for tenant
-      await this.createTenantSchema(slug);
+    const context: ProvisioningContext = {
+      tenantId: tenant.id,
+      tenantSlug: slug,
+      adminEmail,
+      pluginIds,
+    };
 
-      // Step 2: Create Keycloak realm for tenant
-      await keycloakService.createRealm(slug, name);
+    const steps = [
+      new SchemaStep(this.db, slug),
+      new KeycloakRealmStep(slug, name),
+      new KeycloakClientsStep(slug),
+      new KeycloakRolesStep(slug),
+      new MinioBucketStep(slug),
+      new AdminUserStep(slug, adminEmail),
+      new InvitationStep(slug, adminEmail, tenant.id, this.db),
+    ];
 
-      // Step 3: Provision Keycloak clients (plexica-web, plexica-api)
-      await keycloakService.provisionRealmClients(slug);
+    const result = await this.orchestrator.provision(context, steps);
 
-      // Step 4: Provision Keycloak roles (tenant_admin, user)
-      await keycloakService.provisionRealmRoles(slug);
-
-      // Step 5: Configure refresh token rotation for security
-      await keycloakService.configureRefreshTokenRotation(slug);
-
-      // Step 6: Initialize default roles and permissions
-      const schemaName = this.getSchemaName(slug);
-      await permissionService.initializeDefaultRoles(schemaName);
-
-      // Step 7: Create MinIO bucket (to be implemented)
-      // await this.createMinIOBucket(slug);
-
-      // Update tenant status to ACTIVE
-      const activeTenant = await this.db.tenant.update({
-        where: { id: tenant.id },
-        data: { status: TenantStatus.ACTIVE },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          status: true,
-          settings: true,
-          theme: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-
-      return activeTenant;
-    } catch (error) {
-      // Rollback: Attempt to delete Keycloak realm if provisioning failed
-      // This prevents orphaned realms from previous failed attempts
-      try {
-        await keycloakService.deleteRealm(slug);
-        logger.info(
-          { tenantSlug: slug },
-          'Successfully rolled back Keycloak realm after tenant creation failure'
-        );
-      } catch (rollbackError) {
-        // Log rollback failure but don't mask original error
-        logger.warn(
-          {
-            tenantSlug: slug,
-            error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
-          },
-          'Failed to rollback Keycloak realm - manual cleanup required'
-        );
-      }
-
-      // If provisioning fails, attempt to update tenant status to indicate failure.
-      // Per Spec 002 §5 (line 77), §6 (line 128), and Plan §7 (line 719):
-      // Status must remain PROVISIONING (not SUSPENDED) to allow retry/recovery.
-      // It's possible the tenant record was removed concurrently (tests/cleanup), so
-      // guard the update and log if the record no longer exists instead of throwing
-      // an additional error that masks the original provisioning failure.
-      try {
-        await this.db.tenant.update({
-          where: { id: tenant.id },
-          data: {
-            status: TenantStatus.PROVISIONING,
-            settings: {
-              ...settings,
-              provisioningError: error instanceof Error ? error.message : 'Unknown error',
-            },
-          },
-        });
-      } catch (updateErr) {
-        logger.warn(
-          {
-            tenantId: tenant?.id,
-            error: updateErr instanceof Error ? updateErr.message : String(updateErr),
-          },
-          'Could not update tenant status after provisioning failure'
-        );
-      }
-
-      throw new Error(
-        `Failed to provision tenant: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  /**
-   * Create a dedicated PostgreSQL schema for the tenant
-   */
-  private async createTenantSchema(slug: string): Promise<void> {
-    // Validate slug before using in SQL
-    this.validateSlug(slug);
-
-    const schemaName = this.getSchemaName(slug);
-
-    // Create schema
-    await this.db.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-
-    // Grant privileges to the current database user
-    // In production: plexica, in test: plexica_test
-    // Quote the identifier to avoid SQL errors if the username contains special chars
-    const dbUser = process.env.DATABASE_USER || 'plexica';
-    try {
-      await this.db.$executeRawUnsafe(
-        `GRANT ALL PRIVILEGES ON SCHEMA "${schemaName}" TO "${dbUser}"`
-      );
-    } catch (err) {
-      // Surface helpful debugging information for CI/local debugging
-      // Re-throw after logging so provisioning fails loudly instead of producing cryptic downstream errors
-      // (e.g. missing privileges causing later CREATE TABLE to silently fail)
-      logger.error(
-        {
-          tenantSlug: slug,
-          schemaName,
-          dbUser,
-          error: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined,
-        },
-        'Failed to create tenant-specific schema'
-      );
-      throw err;
+    if (!result.success) {
+      // Keep PROVISIONING status with error stored by orchestrator
+      throw new Error(`Failed to provision tenant: ${result.error}`);
     }
 
-    // Create initial tables for tenant (users, roles, etc.)
-    // This will be expanded with actual tenant-specific tables
-    await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."users" (
-        id TEXT PRIMARY KEY,
-        keycloak_id TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        first_name TEXT,
-        last_name TEXT,
-        display_name TEXT,
-        avatar_url TEXT,
-        locale TEXT,
-        preferences JSONB DEFAULT '{}',
-        status TEXT DEFAULT 'ACTIVE',
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Install initial plugins if requested (T001-09)
+    if (pluginIds.length > 0) {
+      for (const pluginId of pluginIds) {
+        try {
+          await this.installPlugin(tenant.id, pluginId);
+        } catch (err) {
+          logger.warn(
+            { tenantId: tenant.id, pluginId, error: err },
+            'Plugin install failed during provisioning (non-blocking)'
+          );
+        }
+      }
+    }
 
-    await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."roles" (
-        id TEXT PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
-        description TEXT,
-        permissions JSONB NOT NULL DEFAULT '[]',
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Update tenant status to ACTIVE
+    const activeTenant = await this.db.tenant.update({
+      where: { id: tenant.id },
+      data: { status: TenantStatus.ACTIVE },
+    });
 
-    await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."user_roles" (
-        user_id TEXT NOT NULL,
-        role_id TEXT NOT NULL,
-        assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, role_id),
-        FOREIGN KEY (user_id) REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE,
-        FOREIGN KEY (role_id) REFERENCES "${schemaName}"."roles"(id) ON DELETE CASCADE
-      )
-    `);
-
-    // Create workspace tables (Spec 011: includes hierarchy columns parent_id, depth, path)
-    await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspaces" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id TEXT NOT NULL,
-        parent_id TEXT DEFAULT NULL,
-        depth INTEGER NOT NULL DEFAULT 0,
-        path VARCHAR NOT NULL DEFAULT '',
-        slug TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        settings JSONB NOT NULL DEFAULT '{}',
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "fk_workspaces_parent" FOREIGN KEY (parent_id)
-          REFERENCES "${schemaName}"."workspaces"(id) ON DELETE RESTRICT,
-        CONSTRAINT "chk_workspaces_depth" CHECK (depth >= 0),
-        CONSTRAINT "uq_workspaces_parent_slug" UNIQUE (parent_id, slug)
-      )
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "workspaces_tenant_id_idx"
-      ON "${schemaName}"."workspaces"(tenant_id)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "idx_workspaces_parent"
-      ON "${schemaName}"."workspaces"(parent_id)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "idx_workspaces_path"
-      ON "${schemaName}"."workspaces" USING btree (path varchar_pattern_ops)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "idx_workspaces_depth"
-      ON "${schemaName}"."workspaces"(depth)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "idx_workspace_root_slug_unique"
-      ON "${schemaName}"."workspaces" (tenant_id, slug)
-      WHERE parent_id IS NULL
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_members" (
-        workspace_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        invited_by TEXT NOT NULL,
-        joined_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (workspace_id, user_id),
-        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE,
-        FOREIGN KEY (invited_by) REFERENCES "${schemaName}"."users"(id)
-      )
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "workspace_members_user_id_idx" 
-      ON "${schemaName}"."workspace_members"(user_id)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "workspace_members_workspace_id_idx" 
-      ON "${schemaName}"."workspace_members"(workspace_id)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schemaName}"."teams" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        workspace_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        owner_id TEXT NOT NULL,
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE,
-        FOREIGN KEY (owner_id) REFERENCES "${schemaName}"."users"(id)
-      )
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "teams_workspace_id_idx" 
-      ON "${schemaName}"."teams"(workspace_id)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-       CREATE INDEX IF NOT EXISTS "teams_owner_id_idx" 
-       ON "${schemaName}"."teams"(owner_id)
-     `);
-
-    // Create team members table with CASCADE DELETE on user removal
-    await this.db.$executeRawUnsafe(`
-       CREATE TABLE IF NOT EXISTS "${schemaName}"."TeamMember" (
-         "teamId" TEXT NOT NULL,
-         "user_id" TEXT NOT NULL,
-         "role" TEXT NOT NULL DEFAULT 'MEMBER',
-         "joined_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-         PRIMARY KEY ("teamId", "user_id"),
-         FOREIGN KEY ("teamId") REFERENCES "${schemaName}"."teams"(id) ON DELETE CASCADE,
-         FOREIGN KEY ("user_id") REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE
-       )
-     `);
-
-    await this.db.$executeRawUnsafe(`
-       CREATE INDEX IF NOT EXISTS "team_member_user_id_idx" 
-       ON "${schemaName}"."TeamMember"("user_id")
-     `);
-
-    await this.db.$executeRawUnsafe(`
-       CREATE INDEX IF NOT EXISTS "team_member_team_id_idx" 
-       ON "${schemaName}"."TeamMember"("teamId")
-     `);
-
-    await this.db.$executeRawUnsafe(`
-       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
-        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        workspace_id TEXT NOT NULL,
-        resource_type TEXT NOT NULL,
-        resource_id TEXT NOT NULL,
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (workspace_id, resource_type, resource_id),
-        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE
-      )
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "workspace_resources_workspace_id_idx" 
-      ON "${schemaName}"."workspace_resources"(workspace_id)
-    `);
-
-    await this.db.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS "workspace_resources_type_id_idx" 
-      ON "${schemaName}"."workspace_resources"(resource_type, resource_id)
-    `);
+    return activeTenant;
   }
 
   /**
@@ -513,33 +261,98 @@ export class TenantService {
   }
 
   /**
-   * Delete tenant (soft delete by marking as PENDING_DELETION)
+   * Suspend a tenant.
+   * Only ACTIVE tenants may be suspended — prevents corrupting the lifecycle state machine.
+   * PROVISIONING, PENDING_DELETION, DELETED, and already-SUSPENDED tenants are rejected.
    */
-  async deleteTenant(id: string): Promise<void> {
-    const tenant = await this.db.tenant.findUnique({
-      where: { id },
-    });
+  async suspendTenant(id: string): Promise<Tenant> {
+    const tenant = await this.db.tenant.findUnique({ where: { id } });
 
     if (!tenant) {
       throw new Error('Tenant not found');
     }
 
-    // Mark as pending deletion
+    if (tenant.status !== TenantStatus.ACTIVE) {
+      throw new Error(`Cannot suspend tenant with status: ${tenant.status}`);
+    }
+
+    return this.db.tenant.update({
+      where: { id },
+      data: { status: TenantStatus.SUSPENDED },
+    });
+  }
+
+  /**
+   * Delete tenant (soft delete: PENDING_DELETION + schedule hard delete in 30 days).
+   * Only ACTIVE and SUSPENDED tenants may be soft-deleted.
+   */
+  async deleteTenant(id: string): Promise<{ deletionScheduledAt: Date }> {
+    const tenant = await this.db.tenant.findUnique({ where: { id } });
+
+    if (!tenant) {
+      throw new Error('Tenant not found');
+    }
+
+    // State machine guard: only allow deletion from lifecycle-valid states
+    if (
+      tenant.status === TenantStatus.DELETED ||
+      tenant.status === TenantStatus.PENDING_DELETION ||
+      tenant.status === TenantStatus.PROVISIONING
+    ) {
+      throw new Error(`Cannot delete tenant with status: ${tenant.status}`);
+    }
+
+    const deletionScheduledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 days
+
     await this.db.tenant.update({
       where: { id },
-      data: { status: TenantStatus.PENDING_DELETION },
+      data: {
+        status: TenantStatus.PENDING_DELETION,
+        deletionScheduledAt,
+      },
     });
 
-    // In a production system, you would queue a background job to:
-    // 1. Delete Keycloak realm
-    // 2. Drop PostgreSQL schema
-    // 3. Delete MinIO bucket
-    // 4. Finally delete the tenant record
+    return { deletionScheduledAt };
+  }
+
+  /**
+   * Activate / reactivate a tenant.
+   * - PENDING_DELETION → SUSPENDED (clears deletionScheduledAt)
+   * - SUSPENDED → ACTIVE
+   */
+  async activateTenant(id: string): Promise<Tenant> {
+    const tenant = await this.db.tenant.findUnique({ where: { id } });
+
+    if (!tenant) {
+      throw new Error('Tenant not found');
+    }
+
+    let newStatus: TenantStatus;
+    let clearDeletion = false;
+
+    if (tenant.status === TenantStatus.PENDING_DELETION) {
+      newStatus = TenantStatus.SUSPENDED;
+      clearDeletion = true;
+    } else if (tenant.status === TenantStatus.SUSPENDED) {
+      newStatus = TenantStatus.ACTIVE;
+    } else {
+      throw new Error(`Cannot activate tenant with status: ${tenant.status}`);
+    }
+
+    return this.db.tenant.update({
+      where: { id },
+      data: {
+        status: newStatus,
+        ...(clearDeletion ? { deletionScheduledAt: null } : {}),
+      },
+    });
   }
 
   /**
    * Hard delete tenant and all associated resources
    * WARNING: This permanently deletes all tenant data
+   *
+   * Cleanup order: Keycloak → MinIO bucket → Redis keys → PostgreSQL schema → DB record
    */
   async hardDeleteTenant(id: string): Promise<void> {
     const tenant = await this.db.tenant.findUnique({
@@ -553,15 +366,51 @@ export class TenantService {
     // Validate tenant slug before using in SQL
     this.validateSlug(tenant.slug);
 
-    try {
-      // Delete Keycloak realm
-      await keycloakService.deleteRealm(tenant.slug);
+    const schemaName = this.getSchemaName(tenant.slug);
 
-      // Drop PostgreSQL schema
-      const schemaName = this.getSchemaName(tenant.slug);
+    // 1. Delete Keycloak realm
+    try {
+      await keycloakService.deleteRealm(tenant.slug);
+    } catch (err) {
+      logger.warn(
+        { tenantId: id, slug: tenant.slug, error: err },
+        'Keycloak realm deletion failed (continuing)'
+      );
+    }
+
+    // 2. Remove per-tenant MinIO bucket (FR-007: complete data removal)
+    try {
+      await getMinioClient().removeTenantBucket(tenant.slug);
+    } catch (err) {
+      logger.warn(
+        { tenantId: id, slug: tenant.slug, error: err },
+        'MinIO bucket removal failed (continuing)'
+      );
+    }
+
+    // 3. Remove all Redis keys belonging to this tenant (FR-007)
+    try {
+      const pattern = `tenant:${tenant.slug}:*`;
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        if (keys.length > 0) {
+          await redis.del(...keys);
+        }
+      } while (cursor !== '0');
+    } catch (err) {
+      logger.warn(
+        { tenantId: id, slug: tenant.slug, error: err },
+        'Redis key cleanup failed (continuing)'
+      );
+    }
+
+    try {
+      // 4. Drop PostgreSQL schema
       await this.db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
 
-      // Delete tenant record
+      // 5. Delete tenant record
       await this.db.tenant.delete({
         where: { id },
       });

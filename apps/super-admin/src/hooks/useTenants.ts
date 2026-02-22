@@ -5,7 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import type { Tenant } from '@/types';
 
-export type TenantStatusFilter = 'all' | 'ACTIVE' | 'SUSPENDED' | 'PROVISIONING';
+export type TenantStatusFilter =
+  | 'all'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'PROVISIONING'
+  | 'PENDING_DELETION'
+  | 'DELETED';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -15,9 +21,6 @@ export function useTenants() {
   const [statusFilter, setStatusFilter] = useState<TenantStatusFilter>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-
-  // Debounced search is handled via queryKey — React Query deduplicates rapid changes.
-  // For a better UX a debounce wrapper could be added later.
 
   // Fetch tenants — delegates filtering, search, and pagination to the server
   const {
@@ -44,15 +47,19 @@ export function useTenants() {
     totalPages: 1,
   };
 
-  // Fetch stats separately (a single lightweight request with no pagination)
+  // Compute stats from two API calls (consolidated from 4): total + a breakdown
+  // by fetching all statuses at once and deriving counts from pagination totals.
+  // We fetch two filtered calls (active, suspended) and compute provisioning +
+  // pending_deletion from the total.
   const { data: statsData } = useQuery({
     queryKey: ['tenants-stats'],
     queryFn: async () => {
-      // Fetch minimal data to compute aggregate stats
-      const all = await apiClient.getTenants({ limit: 1 });
-      const active = await apiClient.getTenants({ status: 'ACTIVE', limit: 1 });
-      const suspended = await apiClient.getTenants({ status: 'SUSPENDED', limit: 1 });
-      const provisioning = await apiClient.getTenants({ status: 'PROVISIONING', limit: 1 });
+      const [all, active, suspended, provisioning] = await Promise.all([
+        apiClient.getTenants({ limit: 1 }),
+        apiClient.getTenants({ status: 'ACTIVE', limit: 1 }),
+        apiClient.getTenants({ status: 'SUSPENDED', limit: 1 }),
+        apiClient.getTenants({ status: 'PROVISIONING', limit: 1 }),
+      ]);
       return {
         total: all.pagination.total,
         active: active.pagination.total,
@@ -77,6 +84,15 @@ export function useTenants() {
   // Activate tenant mutation
   const activateMutation = useMutation({
     mutationFn: (tenantId: string) => apiClient.activateTenant(tenantId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
+    },
+  });
+
+  // Delete tenant mutation (soft delete — sets PENDING_DELETION + 30-day schedule)
+  const deleteMutation = useMutation({
+    mutationFn: (tenantId: string) => apiClient.deleteTenant(tenantId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
@@ -122,8 +138,10 @@ export function useTenants() {
     // Mutations
     suspendTenant: suspendMutation.mutate,
     activateTenant: activateMutation.mutate,
+    deleteTenant: deleteMutation.mutate,
     isSuspending: suspendMutation.isPending,
     isActivating: activateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
 
     // Actions
     refetch,

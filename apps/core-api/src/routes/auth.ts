@@ -176,8 +176,17 @@ export async function authRoutes(fastify: FastifyInstance) {
           type: 'object',
           required: ['tenantSlug', 'redirectUri'],
           properties: {
-            tenantSlug: { type: 'string', description: 'Tenant identifier' },
-            redirectUri: { type: 'string', description: 'OAuth callback URL' },
+            tenantSlug: {
+              type: 'string',
+              description: 'Tenant identifier',
+              pattern: '^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$',
+            },
+            redirectUri: {
+              type: 'string',
+              format: 'uri',
+              pattern: '^https?://',
+              description: 'OAuth callback URL',
+            },
             state: { type: 'string', description: 'CSRF protection token' },
           },
         },
@@ -239,19 +248,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        // Validate query parameters
-        const validation = LoginQuerySchema.safeParse(request.query);
-        if (!validation.success) {
-          return reply.code(400).send({
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'Invalid query parameters',
-              details: validation.error.flatten(),
-            },
-          });
-        }
-
-        const { tenantSlug, redirectUri, state } = validation.data;
+        const { tenantSlug, redirectUri, state } = request.query;
 
         // Build authorization URL via AuthService
         const authUrl = await authService.buildLoginUrl(tenantSlug, redirectUri, state);
@@ -271,10 +268,11 @@ export async function authRoutes(fastify: FastifyInstance) {
         // AuthService throws Constitution-compliant errors
         if (error.error && error.error.code) {
           const statusCode =
-            error.error.code === 'AUTH_TENANT_NOT_FOUND' ||
-            error.error.code === 'AUTH_TENANT_SUSPENDED'
-              ? 403
-              : 500;
+            error.error.code === 'AUTH_TENANT_NOT_FOUND'
+              ? 404
+              : error.error.code === 'AUTH_TENANT_SUSPENDED'
+                ? 403
+                : 500;
 
           return reply.code(statusCode).send(error);
         }
@@ -291,7 +289,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
         return reply.code(500).send({
           error: {
-            code: 'INTERNAL_ERROR',
+            code: 'AUTH_KEYCLOAK_ERROR',
             message: 'Failed to build authorization URL',
           },
         });
@@ -330,7 +328,11 @@ export async function authRoutes(fastify: FastifyInstance) {
           required: ['code', 'tenantSlug'],
           properties: {
             code: { type: 'string', description: 'Authorization code' },
-            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            tenantSlug: {
+              type: 'string',
+              description: 'Tenant identifier',
+              pattern: '^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$',
+            },
             state: { type: 'string', description: 'CSRF token' },
             codeVerifier: { type: 'string', description: 'PKCE code verifier' },
           },
@@ -412,19 +414,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        // Validate query parameters
-        const validation = CallbackQuerySchema.safeParse(request.query);
-        if (!validation.success) {
-          return reply.code(400).send({
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'Invalid query parameters',
-              details: validation.error.flatten(),
-            },
-          });
-        }
-
-        const { code, tenantSlug, state } = validation.data;
+        const { code, tenantSlug, state } = request.query;
 
         // Exchange authorization code for tokens
         // Note: redirectUri must match the one used in /auth/login
@@ -433,7 +423,7 @@ export async function authRoutes(fastify: FastifyInstance) {
           tenantSlug,
           code,
           redirectUri,
-          validation.data.codeVerifier
+          request.query.codeVerifier
         );
 
         logger.info(
@@ -460,10 +450,11 @@ export async function authRoutes(fastify: FastifyInstance) {
           const statusCode =
             error.error.code === 'AUTH_CODE_EXCHANGE_FAILED'
               ? 401
-              : error.error.code === 'AUTH_TENANT_NOT_FOUND' ||
-                  error.error.code === 'AUTH_TENANT_SUSPENDED'
-                ? 403
-                : 500;
+              : error.error.code === 'AUTH_TENANT_NOT_FOUND'
+                ? 404
+                : error.error.code === 'AUTH_TENANT_SUSPENDED'
+                  ? 403
+                  : 500;
 
           return reply.code(statusCode).send(error);
         }
@@ -480,7 +471,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
         return reply.code(500).send({
           error: {
-            code: 'INTERNAL_ERROR',
+            code: 'AUTH_KEYCLOAK_ERROR',
             message: 'Failed to exchange authorization code',
           },
         });
@@ -516,7 +507,11 @@ export async function authRoutes(fastify: FastifyInstance) {
           type: 'object',
           required: ['tenantSlug', 'refreshToken'],
           properties: {
-            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            tenantSlug: {
+              type: 'string',
+              description: 'Tenant identifier',
+              pattern: '^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$',
+            },
             refreshToken: { type: 'string', description: 'Refresh token' },
           },
         },
@@ -582,19 +577,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        // Validate body
-        const validation = RefreshBodySchema.safeParse(request.body);
-        if (!validation.success) {
-          return reply.code(400).send({
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'Invalid request body',
-              details: validation.error.flatten(),
-            },
-          });
-        }
-
-        const { tenantSlug, refreshToken } = validation.data;
+        const { tenantSlug, refreshToken } = request.body;
 
         // Refresh tokens via AuthService
         const tokens = await authService.refreshTokens(tenantSlug, refreshToken);
@@ -621,10 +604,11 @@ export async function authRoutes(fastify: FastifyInstance) {
           const statusCode =
             error.error.code === 'AUTH_TOKEN_REFRESH_FAILED'
               ? 401
-              : error.error.code === 'AUTH_TENANT_NOT_FOUND' ||
-                  error.error.code === 'AUTH_TENANT_SUSPENDED'
-                ? 403
-                : 500;
+              : error.error.code === 'AUTH_TENANT_NOT_FOUND'
+                ? 404
+                : error.error.code === 'AUTH_TENANT_SUSPENDED'
+                  ? 403
+                  : 500;
 
           return reply.code(statusCode).send(error);
         }
@@ -641,7 +625,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
         return reply.code(500).send({
           error: {
-            code: 'INTERNAL_ERROR',
+            code: 'AUTH_KEYCLOAK_ERROR',
             message: 'Failed to refresh token',
           },
         });
@@ -681,7 +665,11 @@ export async function authRoutes(fastify: FastifyInstance) {
           type: 'object',
           required: ['tenantSlug', 'refreshToken'],
           properties: {
-            tenantSlug: { type: 'string', description: 'Tenant identifier' },
+            tenantSlug: {
+              type: 'string',
+              description: 'Tenant identifier',
+              pattern: '^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$',
+            },
             refreshToken: { type: 'string', description: 'Refresh token' },
           },
         },
@@ -728,19 +716,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        // Validate body
-        const validation = LogoutBodySchema.safeParse(request.body);
-        if (!validation.success) {
-          return reply.code(400).send({
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'Invalid request body',
-              details: validation.error.flatten(),
-            },
-          });
-        }
-
-        const { tenantSlug, refreshToken } = validation.data;
+        const { tenantSlug, refreshToken } = request.body;
 
         // Revoke tokens (best-effort - doesn't throw on failure)
         await authService.revokeTokens(tenantSlug, refreshToken, 'refresh_token');
@@ -1057,7 +1033,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
         return reply.code(500).send({
           error: {
-            code: 'INTERNAL_ERROR',
+            code: 'AUTH_KEYCLOAK_ERROR',
             message: 'Failed to retrieve JWKS',
           },
         });

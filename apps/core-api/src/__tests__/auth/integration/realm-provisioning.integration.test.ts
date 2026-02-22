@@ -227,6 +227,7 @@ describe('Realm Provisioning Integration', () => {
       const tenant = await tenantService.createTenant({
         slug: testTenantSlug,
         name: 'Test Corporation',
+        adminEmail: 'admin@test.example.com',
         settings: {},
         theme: {},
       });

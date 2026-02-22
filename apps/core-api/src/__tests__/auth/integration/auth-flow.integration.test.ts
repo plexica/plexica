@@ -88,7 +88,7 @@ describe('Auth Flow Integration', () => {
       expect(body).toHaveProperty('error');
       expect(body.error).toHaveProperty('code');
       expect(body.error).toHaveProperty('message');
-      expect(body.error.code).toBe('AUTH_TOKEN_MISSING');
+      expect(body.error.code).toBe('AUTH_MISSING_TOKEN');
     });
 
     it('should reject request with invalid token', async () => {

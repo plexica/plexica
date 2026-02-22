@@ -1,0 +1,35 @@
+# Sprint 005 - Completed
+# Closed: 2026-02-21
+
+version: 1
+sprint_number: 5
+sprint_goal: 'Complete Spec 011 Phase 3 (plugin hooks + EventBus integration) and resolve all adversarial review findings (H1–H4, M1–M5)'
+start_date: '2026-02-21'
+end_date: '2026-02-21'
+velocity_target: 8
+actual_velocity: 8
+
+stories:
+  - id: 'S011-Phase3'
+    title: 'Plugin Hooks + EventBus — PluginHookService, before_create/created/deleted hooks, plugin template registration API, core.workspace.* events'
+    status: done
+    points: 8
+    commits:
+      - '35f7d9b'
+
+carried_over: []
+
+adversarial_review:
+  status: applied
+  commit: '2a2bff4'
+  findings_resolved:
+    HIGH: 4 # H1 non-deterministic cache key, H2 missing tenant scope, H3 SSRF, H4 self-exclusion CTE
+    MEDIUM: 5 # M1 non-atomic delete+insert, M2 missing tree cache, M3 non-atomic enablePlugin, M4 unhandled errors, M5 duplicated error-mapping
+
+metrics:
+  unit_tests_total: 1321
+  unit_tests_passing: 1321
+  typescript_build: clean
+  spec_011_total_points: 49
+  spec_011_status: 'Implemented — pending merge to main branch'
+  branch: 'feature/workspace-hierarchical-visibility-templates'

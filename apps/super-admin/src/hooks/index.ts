@@ -6,3 +6,4 @@ export * from './usePlugins';
 export * from './useUsers';
 export * from './useAnalytics';
 export * from './use-toast';
+export * from './useWizardState';

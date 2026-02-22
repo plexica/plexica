@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TenantService, type CreateTenantInput } from '../../../services/tenant.service.js';
+import { TenantService } from '../../../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
 import { permissionService } from '../../../services/permission.service.js';
 import { keycloakService } from '../../../services/keycloak.service.js';
@@ -21,6 +21,41 @@ const mockTenantUpdate = vi.fn();
 const mockTenantFindUnique = vi.fn();
 const mockTenantDelete = vi.fn();
 const mockExecuteRawUnsafe = vi.fn();
+const mockExecuteRaw = vi.fn();
+
+// MinIO mock (required because hardDeleteTenant uses it)
+vi.mock('../../../services/minio-client.js', () => ({
+  getMinioClient: () => ({
+    removeTenantBucket: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+// Redis mock (required because hardDeleteTenant uses it)
+vi.mock('../../../lib/redis.js', () => ({
+  redis: {
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    del: vi.fn().mockResolvedValue(0),
+  },
+}));
+
+// ProvisioningOrchestrator mock — prevents real step execution in unit tests
+const mockProvision = vi.fn();
+vi.mock('../../../services/provisioning-orchestrator.js', () => ({
+  ProvisioningOrchestrator: vi.fn().mockImplementation(() => ({
+    provision: mockProvision,
+  })),
+  provisioningOrchestrator: { provision: vi.fn() },
+}));
+
+vi.mock('../../../services/provisioning-steps/index.js', () => ({
+  SchemaStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakRealmStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakClientsStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakRolesStep: vi.fn().mockImplementation(() => ({})),
+  MinioBucketStep: vi.fn().mockImplementation(() => ({})),
+  AdminUserStep: vi.fn().mockImplementation(() => ({})),
+  InvitationStep: vi.fn().mockImplementation(() => ({})),
+}));
 
 vi.mock('../../../lib/db.js', () => ({
   db: {
@@ -31,6 +66,7 @@ vi.mock('../../../lib/db.js', () => ({
       delete: (...args: any[]) => mockTenantDelete(...args),
     },
     $executeRawUnsafe: (...args: any[]) => mockExecuteRawUnsafe(...args),
+    $executeRaw: (...args: any[]) => mockExecuteRaw(...args),
   },
 }));
 
@@ -50,6 +86,9 @@ vi.mock('../../../services/permission.service.js', () => ({
   },
 }));
 
+// Shared admin email constant
+const ADMIN_EMAIL = 'admin@example.com';
+
 describe('Tenant Lifecycle', () => {
   let service: TenantService;
 
@@ -64,8 +103,15 @@ describe('Tenant Lifecycle', () => {
     vi.mocked(keycloakService.configureRefreshTokenRotation).mockResolvedValue(undefined);
     vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
 
+    // Default orchestrator succeeds
+    mockProvision.mockResolvedValue({ success: true, completedSteps: [] });
+
     service = new TenantService();
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // State Transitions
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('State Transitions', () => {
     it('should transition from PROVISIONING to ACTIVE on successful creation', async () => {
@@ -83,7 +129,6 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue({
         ...mockTenant,
         status: TenantStatus.ACTIVE,
@@ -92,26 +137,17 @@ describe('Tenant Lifecycle', () => {
       const result = await service.createTenant({
         slug: 'test-tenant',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       });
 
       expect(result.status).toBe(TenantStatus.ACTIVE);
       expect(mockTenantUpdate).toHaveBeenCalledWith({
         where: { id: 'tenant-123' },
         data: { status: TenantStatus.ACTIVE },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          status: true,
-          settings: true,
-          theme: true,
-          createdAt: true,
-          updatedAt: true,
-        },
       });
     });
 
-    it('should transition from ACTIVE to SUSPENDED via updateTenant', async () => {
+    it('should transition from ACTIVE to SUSPENDED via suspendTenant', async () => {
       const mockTenant = {
         id: 'tenant-123',
         slug: 'test-tenant',
@@ -131,14 +167,16 @@ describe('Tenant Lifecycle', () => {
         status: TenantStatus.SUSPENDED,
       });
 
-      const result = await service.updateTenant('tenant-123', {
-        status: TenantStatus.SUSPENDED,
-      });
+      const result = await service.suspendTenant('tenant-123');
 
       expect(result.status).toBe(TenantStatus.SUSPENDED);
+      expect(mockTenantUpdate).toHaveBeenCalledWith({
+        where: { id: 'tenant-123' },
+        data: { status: TenantStatus.SUSPENDED },
+      });
     });
 
-    it('should transition from SUSPENDED to ACTIVE (reactivate)', async () => {
+    it('should transition from SUSPENDED to ACTIVE via activateTenant', async () => {
       const mockTenant = {
         id: 'tenant-123',
         slug: 'test-tenant',
@@ -158,14 +196,34 @@ describe('Tenant Lifecycle', () => {
         status: TenantStatus.ACTIVE,
       });
 
-      const result = await service.updateTenant('tenant-123', {
-        status: TenantStatus.ACTIVE,
-      });
+      const result = await service.activateTenant('tenant-123');
 
       expect(result.status).toBe(TenantStatus.ACTIVE);
     });
 
-    it('should mark tenant as SUSPENDED on provisioning failure', async () => {
+    it('should transition from ACTIVE to PENDING_DELETION via deleteTenant', async () => {
+      const mockTenant = {
+        id: 'tenant-123',
+        slug: 'test-tenant',
+        name: 'Test Tenant',
+        status: TenantStatus.ACTIVE,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
+        theme: {},
+      };
+
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.PENDING_DELETION });
+
+      const result = await service.deleteTenant('tenant-123');
+
+      expect(result).toHaveProperty('deletionScheduledAt');
+    });
+
+    it('should report provisioning error when orchestrator fails', async () => {
       const mockTenant = {
         id: 'tenant-123',
         slug: 'test-tenant',
@@ -180,43 +238,35 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockRejectedValue(new Error('Schema creation failed'));
-      mockTenantUpdate.mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.SUSPENDED,
+      mockProvision.mockResolvedValue({
+        success: false,
+        error: 'Schema creation failed',
+        completedSteps: [],
       });
 
       await expect(
         service.createTenant({
           slug: 'test-tenant',
           name: 'Test Tenant',
+          adminEmail: ADMIN_EMAIL,
         })
-      ).rejects.toThrow('Failed to provision tenant');
-
-      expect(mockTenantUpdate).toHaveBeenCalledWith({
-        where: { id: 'tenant-123' },
-        data: expect.objectContaining({
-          status: TenantStatus.PROVISIONING,
-          settings: expect.objectContaining({
-            provisioningError: 'Schema creation failed',
-          }),
-        }),
-      });
+      ).rejects.toThrow('Failed to provision tenant: Schema creation failed');
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Slug Validation
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('Slug Validation', () => {
     it('should accept valid lowercase alphanumeric slug with hyphens', async () => {
-      const validSlugs = [
-        'test-tenant',
-        'acme-corp',
-        'my-company-123',
-        'a',
-        'a-b-c-d-e',
-        '123-456',
-      ];
+      // Must be 3+ chars, start with letter, end with alphanumeric
+      const validSlugs = ['tes', 'test-tenant', 'acme-corp', 'my-company-123', 'abc-def'];
 
       for (const slug of validSlugs) {
+        vi.clearAllMocks();
+        mockProvision.mockResolvedValue({ success: true, completedSteps: [] });
+
         const mockTenant = {
           id: 'tenant-id',
           slug,
@@ -231,17 +281,18 @@ describe('Tenant Lifecycle', () => {
         };
 
         mockTenantCreate.mockResolvedValue(mockTenant);
-        mockExecuteRawUnsafe.mockResolvedValue(undefined);
         mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
 
-        await expect(service.createTenant({ slug, name: 'Test' })).resolves.not.toThrow();
+        await expect(
+          service.createTenant({ slug, name: 'Test', adminEmail: ADMIN_EMAIL })
+        ).resolves.not.toThrow();
       }
     });
 
     it('should reject slug with uppercase letters', async () => {
-      await expect(service.createTenant({ slug: 'Test-Tenant', name: 'Test' })).rejects.toThrow(
-        /slug must be.*lowercase/i
-      );
+      await expect(
+        service.createTenant({ slug: 'Test-Tenant', name: 'Test', adminEmail: ADMIN_EMAIL })
+      ).rejects.toThrow(/slug must be/i);
     });
 
     it('should reject slug with special characters', async () => {
@@ -255,25 +306,29 @@ describe('Tenant Lifecycle', () => {
       ];
 
       for (const slug of invalidSlugs) {
-        await expect(service.createTenant({ slug, name: 'Test' })).rejects.toThrow(/slug must be/i);
+        await expect(
+          service.createTenant({ slug, name: 'Test', adminEmail: ADMIN_EMAIL })
+        ).rejects.toThrow(/slug must be/i);
       }
     });
 
     it('should reject slug that is too short (empty)', async () => {
-      await expect(service.createTenant({ slug: '', name: 'Test' })).rejects.toThrow(
-        /slug must be/i
-      );
+      await expect(
+        service.createTenant({ slug: '', name: 'Test', adminEmail: ADMIN_EMAIL })
+      ).rejects.toThrow(/slug must be/i);
     });
 
-    it('should reject slug that is too long (>50 chars)', async () => {
-      const longSlug = 'a'.repeat(51);
-      await expect(service.createTenant({ slug: longSlug, name: 'Test' })).rejects.toThrow(
-        /slug must be/i
-      );
+    it('should reject slug that is too long (>64 chars)', async () => {
+      const longSlug = 'a'.repeat(65);
+      await expect(
+        service.createTenant({ slug: longSlug, name: 'Test', adminEmail: ADMIN_EMAIL })
+      ).rejects.toThrow(/slug must be/i);
     });
 
-    it('should accept slug at maximum length (50 chars)', async () => {
-      const maxSlug = 'a'.repeat(50);
+    it('should accept slug at maximum length (64 chars)', async () => {
+      // pattern: /^[a-z][a-z0-9-]{1,62}[a-z0-9]$/ → max 64 chars total
+      // prefix: 'a', body: 62 chars, suffix: 'b'
+      const maxSlug = 'a' + 'b'.repeat(62) + 'c';
       const mockTenant = {
         id: 'tenant-id',
         slug: maxSlug,
@@ -288,12 +343,17 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
 
-      await expect(service.createTenant({ slug: maxSlug, name: 'Test' })).resolves.not.toThrow();
+      await expect(
+        service.createTenant({ slug: maxSlug, name: 'Test', adminEmail: ADMIN_EMAIL })
+      ).resolves.not.toThrow();
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Schema Name Generation
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('Schema Name Generation', () => {
     it('should generate schema name with tenant_ prefix', () => {
@@ -317,6 +377,10 @@ describe('Tenant Lifecycle', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Edge Cases
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('Edge Cases', () => {
     it('should reject duplicate slug', async () => {
       mockTenantCreate.mockRejectedValue({
@@ -324,12 +388,12 @@ describe('Tenant Lifecycle', () => {
         meta: { target: ['slug'] },
       });
 
-      await expect(service.createTenant({ slug: 'existing-tenant', name: 'Test' })).rejects.toThrow(
-        /already exists/i
-      );
+      await expect(
+        service.createTenant({ slug: 'existing-tenant', name: 'Test', adminEmail: ADMIN_EMAIL })
+      ).rejects.toThrow(/already exists/i);
     });
 
-    it('should handle provisioning failure and not leave orphaned data', async () => {
+    it('should propagate provisioning failure through orchestrator', async () => {
       const mockTenant = {
         id: 'tenant-123',
         slug: 'test-tenant',
@@ -344,104 +408,23 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockRejectedValueOnce(new Error('Database error'));
-      mockTenantUpdate.mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.PROVISIONING,
-        settings: { provisioningError: 'Database error' },
-      });
+      mockProvision.mockResolvedValue({ success: false, error: 'Database error' });
 
-      await expect(service.createTenant({ slug: 'test-tenant', name: 'Test' })).rejects.toThrow(
-        'Failed to provision tenant'
-      );
-
-      // Should update status to indicate failure
-      expect(mockTenantUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'tenant-123' },
-          data: expect.objectContaining({
-            status: TenantStatus.PROVISIONING,
-            settings: expect.objectContaining({
-              provisioningError: 'Database error',
-            }),
-          }),
-        })
-      );
-    });
-
-    it('should handle Keycloak realm creation failure', async () => {
-      const mockTenant = {
-        id: 'tenant-123',
-        slug: 'test-tenant',
-        name: 'Test Tenant',
-        status: TenantStatus.PROVISIONING,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
-
-      mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined); // Schema creation succeeds
-
-      const { keycloakService } = await import('../../../services/keycloak.service.js');
-      vi.mocked(keycloakService.createRealm).mockRejectedValue(
-        new Error('Keycloak connection failed')
-      );
-
-      mockTenantUpdate.mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.SUSPENDED,
-      });
-
-      await expect(service.createTenant({ slug: 'test-tenant', name: 'Test' })).rejects.toThrow(
-        'Failed to provision tenant'
-      );
-    });
-
-    it('should handle permission initialization failure', async () => {
-      const mockTenant = {
-        id: 'tenant-123',
-        slug: 'test-tenant',
-        name: 'Test Tenant',
-        status: TenantStatus.PROVISIONING,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
-
-      mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
-
-      const { keycloakService } = await import('../../../services/keycloak.service.js');
-      vi.mocked(keycloakService.createRealm).mockResolvedValue(undefined);
-
-      const { permissionService } = await import('../../../services/permission.service.js');
-      vi.mocked(permissionService.initializeDefaultRoles).mockRejectedValue(
-        new Error('Permission setup failed')
-      );
-
-      mockTenantUpdate.mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.SUSPENDED,
-      });
-
-      await expect(service.createTenant({ slug: 'test-tenant', name: 'Test' })).rejects.toThrow(
-        'Failed to provision tenant'
-      );
+      await expect(
+        service.createTenant({ slug: 'test-tenant', name: 'Test', adminEmail: ADMIN_EMAIL })
+      ).rejects.toThrow('Failed to provision tenant');
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Input Validation
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('Input Validation', () => {
     it('should accept valid tenant name', async () => {
       const mockTenant = {
         id: 'tenant-id',
-        slug: 'test',
+        slug: 'tst',
         name: 'Test Tenant Name',
         status: TenantStatus.PROVISIONING,
         createdAt: new Date(),
@@ -453,12 +436,12 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
 
       const result = await service.createTenant({
-        slug: 'test',
+        slug: 'tst',
         name: 'Test Tenant Name',
+        adminEmail: ADMIN_EMAIL,
       });
 
       expect(result.name).toBe('Test Tenant Name');
@@ -468,7 +451,7 @@ describe('Tenant Lifecycle', () => {
       const settings = { theme: 'dark', language: 'en' };
       const mockTenant = {
         id: 'tenant-id',
-        slug: 'test',
+        slug: 'tst',
         name: 'Test',
         status: TenantStatus.PROVISIONING,
         createdAt: new Date(),
@@ -478,12 +461,12 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
 
       const result = await service.createTenant({
-        slug: 'test',
+        slug: 'tst',
         name: 'Test',
+        adminEmail: ADMIN_EMAIL,
         settings,
       });
 
@@ -494,7 +477,7 @@ describe('Tenant Lifecycle', () => {
       const theme = { primaryColor: '#007bff', logo: 'logo.png' };
       const mockTenant = {
         id: 'tenant-id',
-        slug: 'test',
+        slug: 'tst',
         name: 'Test',
         status: TenantStatus.PROVISIONING,
         createdAt: new Date(),
@@ -506,18 +489,22 @@ describe('Tenant Lifecycle', () => {
       };
 
       mockTenantCreate.mockResolvedValue(mockTenant);
-      mockExecuteRawUnsafe.mockResolvedValue(undefined);
       mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
 
       const result = await service.createTenant({
-        slug: 'test',
+        slug: 'tst',
         name: 'Test',
+        adminEmail: ADMIN_EMAIL,
         theme,
       });
 
       expect(result.theme).toEqual(theme);
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Get Operations
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('Get Operations', () => {
     it('should get tenant by ID', async () => {
@@ -585,6 +572,10 @@ describe('Tenant Lifecycle', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Update Operations
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('Update Operations', () => {
     it('should update tenant name', async () => {
       const mockTenant = {
@@ -649,8 +640,12 @@ describe('Tenant Lifecycle', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Delete Operations
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('Delete Operations', () => {
-    it('should soft delete tenant by updating status', async () => {
+    it('should soft delete ACTIVE tenant to PENDING_DELETION', async () => {
       const mockTenant = {
         id: 'tenant-123',
         slug: 'test-tenant',
@@ -667,22 +662,66 @@ describe('Tenant Lifecycle', () => {
       mockTenantFindUnique.mockResolvedValue(mockTenant);
       mockTenantUpdate.mockResolvedValue({
         ...mockTenant,
-        status: TenantStatus.SUSPENDED,
+        status: TenantStatus.PENDING_DELETION,
       });
 
-      await service.deleteTenant('tenant-123');
+      const result = await service.deleteTenant('tenant-123');
 
       expect(mockTenantUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'tenant-123' },
+          data: expect.objectContaining({ status: TenantStatus.PENDING_DELETION }),
         })
       );
+      expect(result).toHaveProperty('deletionScheduledAt');
     });
 
     it('should throw error when deleting nonexistent tenant', async () => {
       mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.deleteTenant('nonexistent')).rejects.toThrow('Tenant not found');
+    });
+
+    it('should throw when trying to delete PENDING_DELETION tenant (service guard)', async () => {
+      const mockTenant = {
+        id: 'tenant-123',
+        slug: 'test-tenant',
+        name: 'Test',
+        status: TenantStatus.PENDING_DELETION,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
+        theme: {},
+      };
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+
+      await expect(service.deleteTenant('tenant-123')).rejects.toThrow(
+        /Cannot delete tenant with status: PENDING_DELETION/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should throw when trying to delete PROVISIONING tenant (service guard)', async () => {
+      const mockTenant = {
+        id: 'tenant-123',
+        slug: 'test-tenant',
+        name: 'Test',
+        status: TenantStatus.PROVISIONING,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
+        theme: {},
+      };
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+
+      await expect(service.deleteTenant('tenant-123')).rejects.toThrow(
+        /Cannot delete tenant with status: PROVISIONING/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
     });
   });
 });

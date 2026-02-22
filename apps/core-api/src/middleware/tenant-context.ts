@@ -142,26 +142,37 @@ export async function tenantContextMiddleware(
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
-          message: `Tenant '${tenantSlug}' not found`,
-          details: {
-            tenantSlug,
-          },
+          message: 'Tenant not found',
         },
       });
     }
 
-    // Check tenant status
-    if (tenant.status !== 'ACTIVE') {
-      return reply.code(403).send({
+    // Check tenant status — T001-07
+    // DELETED tenants are invisible to everyone (404)
+    if (tenant.status === 'DELETED') {
+      return reply.code(404).send({
         error: {
-          code: 'TENANT_NOT_ACTIVE',
-          message: `Tenant '${tenantSlug}' is not active (status: ${tenant.status})`,
-          details: {
-            tenantSlug,
-            status: tenant.status,
-          },
+          code: 'TENANT_NOT_FOUND',
+          message: 'Tenant not found',
         },
       });
+    }
+
+    // SUSPENDED / PENDING_DELETION: Super Admins can still access; regular users get 403
+    if (tenant.status !== 'ACTIVE') {
+      const user = (request as any).user;
+      const roles: string[] = user?.roles ?? user?.realm_access?.roles ?? [];
+      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
+
+      if (!isSuperAdmin) {
+        // Do NOT reveal the specific status or slug to prevent tenant enumeration
+        return reply.code(403).send({
+          error: {
+            code: 'TENANT_NOT_ACTIVE',
+            message: 'Access to this tenant is not permitted',
+          },
+        });
+      }
     }
 
     // Create tenant context
@@ -198,10 +209,7 @@ export async function tenantContextMiddleware(
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
-          message: `Tenant '${tenantSlug}' not found`,
-          details: {
-            tenantSlug,
-          },
+          message: 'Tenant not found',
         },
       });
     }

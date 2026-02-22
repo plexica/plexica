@@ -898,7 +898,7 @@ describe('Complete Auth Lifecycle E2E Tests', { skip: SKIP_E2E_TESTS }, () => {
 
       expect(noAuthResponse.statusCode).toBe(401);
       const noAuthError = JSON.parse(noAuthResponse.body);
-      expect(noAuthError.error.code).toBe('AUTH_TOKEN_MISSING');
+      expect(noAuthError.error.code).toBe('AUTH_MISSING_TOKEN');
     });
   });
 });

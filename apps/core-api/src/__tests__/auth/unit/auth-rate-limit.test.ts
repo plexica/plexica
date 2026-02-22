@@ -159,6 +159,17 @@ describe('AuthRateLimiter', () => {
 });
 
 describe('getClientIP()', () => {
+  // The socket IPs used in these tests are in 10.0.0.0/8 and 192.168.0.0/16.
+  // TRUSTED_PROXY_CIDRS must be set so isTrustedProxy() honours X-Forwarded-For
+  // (the env var is read on each call, not cached at module load — see ISSUE-005 fix).
+  beforeEach(() => {
+    process.env['TRUSTED_PROXY_CIDRS'] = '10.0.0.0/8,192.168.0.0/16';
+  });
+
+  afterEach(() => {
+    delete process.env['TRUSTED_PROXY_CIDRS'];
+  });
+
   it('should extract IP from X-Forwarded-For header (single IP)', () => {
     const request = {
       headers: {
@@ -239,6 +250,10 @@ describe('authRateLimitHook()', () => {
   let mockReply: Partial<FastifyReply>;
 
   beforeEach(() => {
+    // Treat 192.168.0.0/16 as a trusted proxy range so that X-Forwarded-For
+    // is honoured when the socket IP is 192.168.1.100 (see ISSUE-005 fix).
+    process.env['TRUSTED_PROXY_CIDRS'] = '192.168.0.0/16';
+
     mockRequest = {
       headers: {},
       ip: '192.168.1.100',
@@ -254,6 +269,10 @@ describe('authRateLimitHook()', () => {
       send: vi.fn().mockReturnThis(),
       header: vi.fn().mockReturnThis(),
     };
+  });
+
+  afterEach(() => {
+    delete process.env['TRUSTED_PROXY_CIDRS'];
   });
 
   it('should allow request when under rate limit', async () => {

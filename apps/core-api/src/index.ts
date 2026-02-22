@@ -30,7 +30,8 @@ import { csrfProtectionMiddleware } from './middleware/csrf-protection.js';
 import { advancedRateLimitMiddleware } from './middleware/advanced-rate-limit.js';
 import { setupErrorHandler } from './middleware/error-handler.js';
 import { RedpandaClient, EventBusService } from '@plexica/event-bus';
-import { UserSyncConsumer } from './services/user-sync.consumer.js';
+import { initUserSyncConsumer } from './services/user-sync.consumer.js';
+import { deletionScheduler } from './services/deletion-scheduler.js';
 
 // Initialize Fastify instance
 const server = fastify({
@@ -67,7 +68,7 @@ const redpandaClient = new RedpandaClient({
 });
 
 const eventBusService = new EventBusService(redpandaClient);
-const userSyncConsumer = new UserSyncConsumer(eventBusService);
+const userSyncConsumer = initUserSyncConsumer(eventBusService);
 
 // Register plugins
 async function registerPlugins() {
@@ -222,6 +223,13 @@ async function closeGracefully(signal: string) {
       server.log.info('UserSyncConsumer stopped successfully');
     }
 
+    // Stop DeletionScheduler
+    if (deletionScheduler.isRunning()) {
+      server.log.info('Stopping DeletionScheduler...');
+      deletionScheduler.stop();
+      server.log.info('DeletionScheduler stopped');
+    }
+
     // Disconnect Redpanda client
     server.log.info('Disconnecting Redpanda client...');
     await redpandaClient.disconnect();
@@ -272,6 +280,11 @@ async function start() {
     server.log.info('Starting UserSyncConsumer...');
     await userSyncConsumer.start();
     server.log.info('✅ UserSyncConsumer started successfully');
+
+    // Start DeletionScheduler
+    server.log.info('Starting DeletionScheduler...');
+    deletionScheduler.start();
+    server.log.info('✅ DeletionScheduler started (runs every 6 hours)');
   } catch (err) {
     server.log.error(err);
     process.exit(1);

@@ -265,8 +265,8 @@ describe('Cross-Tenant Security E2E', () => {
       });
 
       // authMiddleware calls tenantService.getTenantBySlug('nonexistent-tenant')
-      // which fails → 403 AUTH_TENANT_NOT_FOUND
-      expect(response.statusCode).toBe(403);
+      // which fails → 404 AUTH_TENANT_NOT_FOUND
+      expect(response.statusCode).toBe(404);
       expect(response.json()).toMatchObject({
         error: {
           code: 'AUTH_TENANT_NOT_FOUND',
@@ -372,8 +372,8 @@ describe('Cross-Tenant Security E2E', () => {
         },
       });
 
-      // Token defaults to plexica-test tenant which doesn't exist → 403
-      expect(response.statusCode).toBe(403);
+      // Token defaults to plexica-test tenant which doesn't exist → 404
+      expect(response.statusCode).toBe(404);
       expect(response.json()).toMatchObject({
         error: {
           code: 'AUTH_TENANT_NOT_FOUND',

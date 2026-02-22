@@ -127,17 +127,73 @@ class AuthRateLimiter {
 const authRateLimiter = new AuthRateLimiter();
 
 /**
- * Extract client IP from request
- * Checks X-Forwarded-For header first (for proxies), then falls back to socket IP
+ * Parse a comma-separated list of trusted proxy CIDRs from the environment.
+ * Supports only IPv4 CIDR notation (e.g. "10.0.0.0/8,172.16.0.0/12").
+ * An empty string or absent variable means no proxies are trusted.
+ */
+function parseTrustedProxyCidrs(): Array<{ base: number; mask: number }> {
+  const raw = (process.env['TRUSTED_PROXY_CIDRS'] ?? '').trim();
+  if (!raw) return [];
+
+  return raw.split(',').flatMap((cidr) => {
+    const trimmed = cidr.trim();
+    const [ip, prefix] = trimmed.split('/');
+    if (!ip || prefix === undefined) return [];
+
+    const parts = ip.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return [];
+
+    const prefixLen = Number(prefix);
+    if (isNaN(prefixLen) || prefixLen < 0 || prefixLen > 32) return [];
+
+    const base = ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0;
+    const mask = prefixLen === 0 ? 0 : (~0 << (32 - prefixLen)) >>> 0;
+    return [{ base: base & mask, mask }];
+  });
+}
+
+/**
+ * Returns true if the given dotted-decimal IPv4 address falls within
+ * any of the trusted proxy CIDR ranges.
+ *
+ * NOTE: CIDR list is intentionally read from the environment on each call
+ * (not cached at module load) so that tests can set TRUSTED_PROXY_CIDRS
+ * before calling getClientIP without needing module resets.
+ * The parsing cost is negligible (short string split) compared to the
+ * Redis round-trip that follows every auth request.
+ */
+function isTrustedProxy(ip: string): boolean {
+  const cidrs = parseTrustedProxyCidrs();
+  if (cidrs.length === 0) return false;
+
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((p) => isNaN(p))) return false;
+
+  const addr = ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0;
+  return cidrs.some(({ base, mask }: { base: number; mask: number }) => (addr & mask) === base);
+}
+
+/**
+ * Extract client IP from request.
+ *
+ * X-Forwarded-For is only trusted when the immediate connection IP
+ * (request.ip) belongs to a configured trusted proxy CIDR range
+ * (TRUSTED_PROXY_CIDRS env var, comma-separated IPv4 CIDRs).
+ * This prevents rate-limit bypass via IP spoofing from untrusted clients.
  */
 function getClientIP(request: FastifyRequest): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  if (forwarded) {
-    // X-Forwarded-For can be comma-separated list, take first IP
-    const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
-    return ip.trim();
+  const socketIp = request.ip || 'unknown';
+
+  if (isTrustedProxy(socketIp)) {
+    const forwarded = request.headers['x-forwarded-for'];
+    if (forwarded) {
+      // X-Forwarded-For can be comma-separated list; take the first (client) IP
+      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+      if (ip) return ip.trim();
+    }
   }
-  return request.ip || 'unknown';
+
+  return socketIp;
 }
 
 /**

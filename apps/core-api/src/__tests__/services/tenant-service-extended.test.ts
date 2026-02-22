@@ -6,66 +6,118 @@ import {
   type UpdateTenantInput,
 } from '../../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
-import { db } from '../../lib/db';
 
-// Mock dependencies
+// --- Mocks ---
+
+const mockTenantCreate = vi.fn();
+const mockTenantFindUnique = vi.fn();
+const mockTenantFindMany = vi.fn();
+const mockTenantUpdate = vi.fn();
+const mockTenantDelete = vi.fn();
+const mockTenantCount = vi.fn();
+const mockPluginFindUnique = vi.fn();
+const mockTenantPluginFindUnique = vi.fn();
+const mockTenantPluginCreate = vi.fn();
+const mockTenantPluginDelete = vi.fn();
+const mockExecuteRaw = vi.fn();
+const mockExecuteRawUnsafe = vi.fn();
+
 vi.mock('../../lib/db.js', () => ({
   db: {
     tenant: {
-      create: vi.fn(),
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-      count: vi.fn(),
+      create: (...args: any[]) => mockTenantCreate(...args),
+      findUnique: (...args: any[]) => mockTenantFindUnique(...args),
+      findMany: (...args: any[]) => mockTenantFindMany(...args),
+      update: (...args: any[]) => mockTenantUpdate(...args),
+      delete: (...args: any[]) => mockTenantDelete(...args),
+      count: (...args: any[]) => mockTenantCount(...args),
     },
     plugin: {
-      findUnique: vi.fn(),
+      findUnique: (...args: any[]) => mockPluginFindUnique(...args),
     },
     tenantPlugin: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      delete: vi.fn(),
+      findUnique: (...args: any[]) => mockTenantPluginFindUnique(...args),
+      create: (...args: any[]) => mockTenantPluginCreate(...args),
+      delete: (...args: any[]) => mockTenantPluginDelete(...args),
     },
-    $executeRawUnsafe: vi.fn(),
+    $executeRaw: (...args: any[]) => mockExecuteRaw(...args),
+    $executeRawUnsafe: (...args: any[]) => mockExecuteRawUnsafe(...args),
+  },
+}));
+
+// ProvisioningOrchestrator mock — prevents real step execution
+const mockProvision = vi.fn();
+vi.mock('../../services/provisioning-orchestrator.js', () => ({
+  ProvisioningOrchestrator: vi.fn().mockImplementation(() => ({
+    provision: mockProvision,
+  })),
+  provisioningOrchestrator: { provision: vi.fn() },
+}));
+
+vi.mock('../../services/provisioning-steps/index.js', () => ({
+  SchemaStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakRealmStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakClientsStep: vi.fn().mockImplementation(() => ({})),
+  KeycloakRolesStep: vi.fn().mockImplementation(() => ({})),
+  MinioBucketStep: vi.fn().mockImplementation(() => ({})),
+  AdminUserStep: vi.fn().mockImplementation(() => ({})),
+  InvitationStep: vi.fn().mockImplementation(() => ({})),
+}));
+
+// MinIO mock — required because hardDeleteTenant uses it
+vi.mock('../../services/minio-client.js', () => ({
+  getMinioClient: () => ({
+    removeTenantBucket: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+// Redis mock — required because hardDeleteTenant uses it
+vi.mock('../../lib/redis.js', () => ({
+  redis: {
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    del: vi.fn().mockResolvedValue(0),
   },
 }));
 
 vi.mock('../../services/keycloak.service.js', () => ({
   keycloakService: {
-    createRealm: vi.fn(),
-    deleteRealm: vi.fn(),
+    createRealm: vi.fn().mockResolvedValue(undefined),
+    provisionRealmClients: vi.fn().mockResolvedValue(undefined),
+    provisionRealmRoles: vi.fn().mockResolvedValue(undefined),
+    configureRefreshTokenRotation: vi.fn().mockResolvedValue(undefined),
+    deleteRealm: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
 vi.mock('../../services/permission.service.js', () => ({
   permissionService: {
-    initializeDefaultRoles: vi.fn(),
+    initializeDefaultRoles: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-import { keycloakService } from '../../services/keycloak.service.js';
-import { permissionService } from '../../services/permission.service.js';
+// --- Helpers ---
+
+const ADMIN_EMAIL = 'admin@example.com';
 
 describe('TenantService - Extended Tests', () => {
   let service: TenantService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProvision.mockResolvedValue({ success: true, completedSteps: [] });
     service = new TenantService();
-
-    // Setup default mocks
-    vi.mocked(keycloakService.createRealm).mockResolvedValue(undefined);
-    vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
-    vi.mocked(permissionService.initializeDefaultRoles).mockResolvedValue(undefined);
-    vi.mocked(db.$executeRawUnsafe).mockResolvedValue(undefined as any);
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // createTenant — Error Handling
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('createTenant - Error Handling', () => {
-    it('should throw error for invalid slug format', async () => {
+    it('should throw error for invalid slug format (uppercase)', async () => {
       const input: CreateTenantInput = {
-        slug: 'INVALID-Slug', // Has uppercase
+        slug: 'INVALID-Slug',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       };
 
       await expect(service.createTenant(input)).rejects.toThrow('Tenant slug must be');
@@ -75,15 +127,17 @@ describe('TenantService - Extended Tests', () => {
       const input: CreateTenantInput = {
         slug: 'tenant@invalid!',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       };
 
       await expect(service.createTenant(input)).rejects.toThrow('Tenant slug must be');
     });
 
-    it('should throw error for slug exceeding length limit', async () => {
+    it('should throw error for slug exceeding length limit (>64 chars)', async () => {
       const input: CreateTenantInput = {
-        slug: 'a'.repeat(51),
+        slug: 'a'.repeat(65),
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       };
 
       await expect(service.createTenant(input)).rejects.toThrow('Tenant slug must be');
@@ -93,20 +147,22 @@ describe('TenantService - Extended Tests', () => {
       const input: CreateTenantInput = {
         slug: 'acme-corp',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       };
 
       const error = new Error('Unique constraint failed');
       (error as any).code = 'P2002';
 
-      vi.mocked(db.tenant.create).mockRejectedValue(error);
+      mockTenantCreate.mockRejectedValue(error);
 
       await expect(service.createTenant(input)).rejects.toThrow('already exists');
     });
 
-    it('should handle Keycloak realm creation failure', async () => {
+    it('should throw when orchestrator reports provisioning failure', async () => {
       const input: CreateTenantInput = {
         slug: 'test-tenant',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       };
 
       const mockTenant = {
@@ -114,60 +170,35 @@ describe('TenantService - Extended Tests', () => {
         slug: input.slug,
         name: input.name,
         status: TenantStatus.PROVISIONING,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        settings: {},
+        translationOverrides: {},
+        defaultLocale: 'en',
+        theme: {},
       };
 
-      vi.mocked(db.tenant.create).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(undefined as any);
-      vi.mocked(keycloakService.createRealm).mockRejectedValue(
-        new Error('Keycloak connection failed')
-      );
-      vi.mocked(db.tenant.update).mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.SUSPENDED,
-      } as any);
-
-      await expect(service.createTenant(input)).rejects.toThrow('Failed to provision tenant');
-
-      // Verify tenant was marked as suspended
-      expect(db.tenant.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: mockTenant.id },
-          data: expect.objectContaining({
-            status: TenantStatus.SUSPENDED,
-          }),
-        })
-      );
-    });
-
-    it('should handle PostgreSQL schema creation failure', async () => {
-      const input: CreateTenantInput = {
-        slug: 'test-tenant',
-        name: 'Test Tenant',
-      };
-
-      const mockTenant = {
-        id: 'tenant-1',
-        slug: input.slug,
-        name: input.name,
-        status: TenantStatus.PROVISIONING,
-      };
-
-      vi.mocked(db.tenant.create).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockRejectedValue(new Error('Schema creation failed'));
-      vi.mocked(db.tenant.update).mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.SUSPENDED,
-      } as any);
+      mockTenantCreate.mockResolvedValue(mockTenant);
+      mockProvision.mockResolvedValue({
+        success: false,
+        error: 'Schema creation failed',
+        completedSteps: [],
+      });
 
       await expect(service.createTenant(input)).rejects.toThrow('Failed to provision tenant');
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // createTenant — Success Cases
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('createTenant - Success Cases', () => {
-    it('should successfully create tenant with all steps', async () => {
+    it('should successfully create tenant and call orchestrator', async () => {
       const input: CreateTenantInput = {
         slug: 'test-tenant',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
         settings: { theme: 'dark' },
         theme: { colors: { primary: '#000' } },
       };
@@ -179,26 +210,28 @@ describe('TenantService - Extended Tests', () => {
         status: TenantStatus.ACTIVE,
         settings: input.settings,
         theme: input.theme,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        translationOverrides: {},
+        defaultLocale: 'en',
       };
 
-      vi.mocked(db.tenant.create).mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.PROVISIONING,
-      } as any);
-      vi.mocked(db.tenant.update).mockResolvedValue(mockTenant as any);
+      mockTenantCreate.mockResolvedValue({ ...mockTenant, status: TenantStatus.PROVISIONING });
+      mockTenantUpdate.mockResolvedValue(mockTenant);
 
       const result = await service.createTenant(input);
 
       expect(result).toEqual(mockTenant);
-      expect(db.tenant.create).toHaveBeenCalled();
-      expect(keycloakService.createRealm).toHaveBeenCalledWith(input.slug, input.name);
-      expect(permissionService.initializeDefaultRoles).toHaveBeenCalled();
+      expect(mockTenantCreate).toHaveBeenCalled();
+      // Provisioning is delegated to the orchestrator (not called directly)
+      expect(mockProvision).toHaveBeenCalledTimes(1);
     });
 
     it('should create tenant with default empty settings', async () => {
       const input: CreateTenantInput = {
         slug: 'test-tenant',
         name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
       };
 
       const mockTenant = {
@@ -208,13 +241,14 @@ describe('TenantService - Extended Tests', () => {
         status: TenantStatus.ACTIVE,
         settings: {},
         theme: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        translationOverrides: {},
+        defaultLocale: 'en',
       };
 
-      vi.mocked(db.tenant.create).mockResolvedValue({
-        ...mockTenant,
-        status: TenantStatus.PROVISIONING,
-      } as any);
-      vi.mocked(db.tenant.update).mockResolvedValue(mockTenant as any);
+      mockTenantCreate.mockResolvedValue({ ...mockTenant, status: TenantStatus.PROVISIONING });
+      mockTenantUpdate.mockResolvedValue(mockTenant);
 
       const result = await service.createTenant(input);
 
@@ -222,6 +256,10 @@ describe('TenantService - Extended Tests', () => {
       expect(result.theme).toEqual({});
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // getTenant
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('getTenant', () => {
     it('should retrieve tenant by ID with plugins', async () => {
@@ -233,23 +271,27 @@ describe('TenantService - Extended Tests', () => {
         plugins: [{ pluginId: 'plugin-1', plugin: { name: 'Plugin 1' } }],
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
 
       const result = await service.getTenant('tenant-1');
 
       expect(result).toEqual(mockTenant);
-      expect(db.tenant.findUnique).toHaveBeenCalledWith({
+      expect(mockTenantFindUnique).toHaveBeenCalledWith({
         where: { id: 'tenant-1' },
         include: expect.any(Object),
       });
     });
 
     it('should throw error if tenant not found', async () => {
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.getTenant('non-existent')).rejects.toThrow('Tenant not found');
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // getTenantBySlug
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('getTenantBySlug', () => {
     it('should retrieve tenant by slug with plugins', async () => {
@@ -261,23 +303,27 @@ describe('TenantService - Extended Tests', () => {
         plugins: [],
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
 
       const result = await service.getTenantBySlug('test-tenant');
 
       expect(result).toEqual(mockTenant);
-      expect(db.tenant.findUnique).toHaveBeenCalledWith({
+      expect(mockTenantFindUnique).toHaveBeenCalledWith({
         where: { slug: 'test-tenant' },
         include: expect.any(Object),
       });
     });
 
     it('should throw error if tenant not found by slug', async () => {
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.getTenantBySlug('non-existent')).rejects.toThrow('Tenant not found');
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // listTenants
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('listTenants', () => {
     it('should list all tenants without filters', async () => {
@@ -286,8 +332,8 @@ describe('TenantService - Extended Tests', () => {
         { id: 'tenant-2', slug: 'tenant-2', name: 'Tenant 2', status: TenantStatus.ACTIVE },
       ];
 
-      vi.mocked(db.tenant.findMany).mockResolvedValue(mockTenants as any);
-      vi.mocked(db.tenant.count).mockResolvedValue(2);
+      mockTenantFindMany.mockResolvedValue(mockTenants);
+      mockTenantCount.mockResolvedValue(2);
 
       const result = await service.listTenants();
 
@@ -298,12 +344,12 @@ describe('TenantService - Extended Tests', () => {
     it('should filter tenants by status', async () => {
       const mockTenants = [{ id: 'tenant-1', status: TenantStatus.SUSPENDED }];
 
-      vi.mocked(db.tenant.findMany).mockResolvedValue(mockTenants as any);
-      vi.mocked(db.tenant.count).mockResolvedValue(1);
+      mockTenantFindMany.mockResolvedValue(mockTenants);
+      mockTenantCount.mockResolvedValue(1);
 
       await service.listTenants({ status: TenantStatus.SUSPENDED });
 
-      expect(db.tenant.findMany).toHaveBeenCalledWith(
+      expect(mockTenantFindMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: TenantStatus.SUSPENDED },
         })
@@ -311,12 +357,12 @@ describe('TenantService - Extended Tests', () => {
     });
 
     it('should apply pagination', async () => {
-      vi.mocked(db.tenant.findMany).mockResolvedValue([]);
-      vi.mocked(db.tenant.count).mockResolvedValue(100);
+      mockTenantFindMany.mockResolvedValue([]);
+      mockTenantCount.mockResolvedValue(100);
 
       await service.listTenants({ skip: 50, take: 25 });
 
-      expect(db.tenant.findMany).toHaveBeenCalledWith(
+      expect(mockTenantFindMany).toHaveBeenCalledWith(
         expect.objectContaining({
           skip: 50,
           take: 25,
@@ -324,6 +370,10 @@ describe('TenantService - Extended Tests', () => {
       );
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // updateTenant
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('updateTenant', () => {
     it('should update tenant information', async () => {
@@ -336,30 +386,26 @@ describe('TenantService - Extended Tests', () => {
 
       const updateInput: UpdateTenantInput = {
         name: 'Updated Tenant',
-        status: TenantStatus.SUSPENDED,
       };
 
-      const updatedTenant = {
-        ...mockTenant,
-        ...updateInput,
-      };
+      const updatedTenant = { ...mockTenant, ...updateInput };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.tenant.update).mockResolvedValue(updatedTenant as any);
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue(updatedTenant);
 
       const result = await service.updateTenant('tenant-1', updateInput);
 
       expect(result).toEqual(updatedTenant);
-      expect(db.tenant.update).toHaveBeenCalledWith(
+      expect(mockTenantUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'tenant-1' },
-          data: updateInput,
+          data: expect.objectContaining(updateInput),
         })
       );
     });
 
     it('should throw error if tenant not found', async () => {
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.updateTenant('non-existent', { name: 'Updated' })).rejects.toThrow(
         'Tenant not found'
@@ -374,108 +420,128 @@ describe('TenantService - Extended Tests', () => {
         settings: { key: 'value' },
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.tenant.update).mockResolvedValue(mockTenant as any);
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue(mockTenant);
 
       await service.updateTenant('tenant-1', { name: 'New Name' });
 
-      expect(db.tenant.update).toHaveBeenCalledWith(
+      expect(mockTenantUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: {
+          data: expect.objectContaining({
             name: 'New Name',
-            status: undefined,
-            settings: undefined,
-            theme: undefined,
-          },
+          }),
         })
       );
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // deleteTenant (soft delete)
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('deleteTenant (soft delete)', () => {
-    it('should mark tenant as pending deletion', async () => {
+    it('should mark tenant as PENDING_DELETION with deletionScheduledAt date', async () => {
       const mockTenant = {
         id: 'tenant-1',
         slug: 'test-tenant',
         status: TenantStatus.ACTIVE,
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.tenant.update).mockResolvedValue({
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue({
         ...mockTenant,
         status: TenantStatus.PENDING_DELETION,
-      } as any);
-
-      await service.deleteTenant('tenant-1');
-
-      expect(db.tenant.update).toHaveBeenCalledWith({
-        where: { id: 'tenant-1' },
-        data: { status: TenantStatus.PENDING_DELETION },
       });
+
+      const result = await service.deleteTenant('tenant-1');
+
+      expect(mockTenantUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'tenant-1' },
+          data: expect.objectContaining({ status: TenantStatus.PENDING_DELETION }),
+        })
+      );
+      expect(result).toHaveProperty('deletionScheduledAt');
     });
 
     it('should throw error if tenant not found', async () => {
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.deleteTenant('non-existent')).rejects.toThrow('Tenant not found');
     });
+
+    it('should throw when trying to delete a PENDING_DELETION tenant (service guard)', async () => {
+      const mockTenant = {
+        id: 'tenant-1',
+        slug: 'test-tenant',
+        status: TenantStatus.PENDING_DELETION,
+      };
+
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+
+      await expect(service.deleteTenant('tenant-1')).rejects.toThrow(
+        /Cannot delete tenant with status: PENDING_DELETION/
+      );
+      expect(mockTenantUpdate).not.toHaveBeenCalled();
+    });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // hardDeleteTenant
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('hardDeleteTenant', () => {
-    it('should permanently delete tenant and all resources', async () => {
+    it('should permanently delete tenant record and drop schema', async () => {
       const mockTenant = {
         id: 'tenant-1',
         slug: 'test-tenant',
         status: TenantStatus.ACTIVE,
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.tenant.delete).mockResolvedValue(mockTenant as any);
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockExecuteRaw.mockResolvedValue(0);
+      mockTenantDelete.mockResolvedValue(mockTenant);
 
       await service.hardDeleteTenant('tenant-1');
 
-      expect(keycloakService.deleteRealm).toHaveBeenCalledWith('test-tenant');
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(expect.stringContaining('DROP SCHEMA'));
-      expect(db.tenant.delete).toHaveBeenCalledWith({
+      // Schema drop uses $executeRaw (tagged template, not $executeRawUnsafe)
+      expect(mockExecuteRaw).toHaveBeenCalled();
+      expect(mockTenantDelete).toHaveBeenCalledWith({
         where: { id: 'tenant-1' },
       });
     });
 
     it('should throw error if tenant not found', async () => {
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.hardDeleteTenant('non-existent')).rejects.toThrow('Tenant not found');
     });
 
-    it('should throw error if Keycloak deletion fails', async () => {
+    it('should continue (non-fatal) if MinIO cleanup fails', async () => {
       const mockTenant = {
         id: 'tenant-1',
         slug: 'test-tenant',
         status: TenantStatus.ACTIVE,
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(keycloakService.deleteRealm).mockRejectedValue(
-        new Error('Keycloak deletion failed')
-      );
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockExecuteRaw.mockResolvedValue(0);
+      mockTenantDelete.mockResolvedValue(mockTenant);
 
-      await expect(service.hardDeleteTenant('tenant-1')).rejects.toThrow('Failed to delete tenant');
-    });
+      const { getMinioClient } = await import('../../services/minio-client.js');
+      vi.mocked(getMinioClient).mockReturnValueOnce({
+        removeTenantBucket: vi.fn().mockRejectedValue(new Error('MinIO unreachable')),
+      } as any);
 
-    it('should throw error if schema deletion fails', async () => {
-      const mockTenant = {
-        id: 'tenant-1',
-        slug: 'test-tenant',
-        status: TenantStatus.ACTIVE,
-      };
-
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(keycloakService.deleteRealm).mockResolvedValue(undefined);
-      vi.mocked(db.$executeRawUnsafe).mockRejectedValue(new Error('Schema deletion failed'));
-
-      await expect(service.hardDeleteTenant('tenant-1')).rejects.toThrow('Failed to delete tenant');
+      // Should NOT throw — MinIO failures are non-fatal
+      await expect(service.hardDeleteTenant('tenant-1')).resolves.not.toThrow();
+      expect(mockTenantDelete).toHaveBeenCalled();
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // installPlugin
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('installPlugin', () => {
     it('should install plugin for tenant', async () => {
@@ -493,15 +559,15 @@ describe('TenantService - Extended Tests', () => {
         plugin: mockPlugin,
       };
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
-      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
-      vi.mocked(db.tenantPlugin.create).mockResolvedValue(mockInstallation as any);
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockPluginFindUnique.mockResolvedValue(mockPlugin);
+      mockTenantPluginFindUnique.mockResolvedValue(null);
+      mockTenantPluginCreate.mockResolvedValue(mockInstallation);
 
       const result = await service.installPlugin(tenantId, pluginId, config);
 
       expect(result).toEqual(mockInstallation);
-      expect(db.tenantPlugin.create).toHaveBeenCalledWith(
+      expect(mockTenantPluginCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: {
             tenantId,
@@ -514,7 +580,7 @@ describe('TenantService - Extended Tests', () => {
     });
 
     it('should throw error if tenant not found', async () => {
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue(null);
 
       await expect(service.installPlugin('non-existent', 'plugin-1')).rejects.toThrow(
         'Tenant not found'
@@ -522,10 +588,8 @@ describe('TenantService - Extended Tests', () => {
     });
 
     it('should throw error if plugin not found', async () => {
-      const mockTenant = { id: 'tenant-1' };
-
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.plugin.findUnique).mockResolvedValue(null);
+      mockTenantFindUnique.mockResolvedValue({ id: 'tenant-1' });
+      mockPluginFindUnique.mockResolvedValue(null);
 
       await expect(service.installPlugin('tenant-1', 'non-existent')).rejects.toThrow(
         'Plugin not found'
@@ -533,13 +597,9 @@ describe('TenantService - Extended Tests', () => {
     });
 
     it('should throw error if plugin already installed', async () => {
-      const mockTenant = { id: 'tenant-1' };
-      const mockPlugin = { id: 'plugin-1' };
-      const mockExisting = { tenantId: 'tenant-1', pluginId: 'plugin-1' };
-
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
-      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(mockExisting as any);
+      mockTenantFindUnique.mockResolvedValue({ id: 'tenant-1' });
+      mockPluginFindUnique.mockResolvedValue({ id: 'plugin-1' });
+      mockTenantPluginFindUnique.mockResolvedValue({ tenantId: 'tenant-1', pluginId: 'plugin-1' });
 
       await expect(service.installPlugin('tenant-1', 'plugin-1')).rejects.toThrow(
         'already installed'
@@ -547,13 +607,17 @@ describe('TenantService - Extended Tests', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // uninstallPlugin
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('uninstallPlugin', () => {
     it('should uninstall plugin from tenant', async () => {
-      vi.mocked(db.tenantPlugin.delete).mockResolvedValue({} as any);
+      mockTenantPluginDelete.mockResolvedValue({});
 
       await service.uninstallPlugin('tenant-1', 'plugin-1');
 
-      expect(db.tenantPlugin.delete).toHaveBeenCalledWith({
+      expect(mockTenantPluginDelete).toHaveBeenCalledWith({
         where: {
           tenantId_pluginId: {
             tenantId: 'tenant-1',
@@ -563,6 +627,10 @@ describe('TenantService - Extended Tests', () => {
       });
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // getSchemaName
+  // ──────────────────────────────────────────────────────────────────────────────
 
   describe('getSchemaName', () => {
     it('should generate schema name with underscore prefix', () => {

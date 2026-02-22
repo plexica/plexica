@@ -4,7 +4,7 @@ import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTenants } from '@/hooks';
 import type { Tenant } from '@/types';
 import { StatCard } from '../tenants/StatCard';
-import { CreateTenantModal } from '../tenants/CreateTenantModal';
+import { CreateTenantWizard } from '../tenants/CreateTenantWizard';
 import { TenantDetailModal } from '../tenants/TenantDetailModal';
 import { EditTenantModal } from '../tenants/EditTenantModal';
 
@@ -113,6 +113,7 @@ export function TenantsView() {
               <option value="ACTIVE">Active</option>
               <option value="SUSPENDED">Suspended</option>
               <option value="PROVISIONING">Provisioning</option>
+              <option value="PENDING_DELETION">Pending Deletion</option>
             </select>
 
             {/* Clear Filters */}
@@ -260,7 +261,7 @@ export function TenantsView() {
 
       {/* Create Tenant Modal */}
       {showCreateModal && (
-        <CreateTenantModal
+        <CreateTenantWizard
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);

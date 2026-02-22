@@ -6,23 +6,32 @@
 >
 > Created by the `forge-architect` agent via `/forge-plan`.
 
-| Field  | Value                                                |
-| ------ | ---------------------------------------------------- |
-| Status | Draft                                                |
-| Author | forge-architect                                      |
-| Date   | 2026-02-16                                           |
-| Track  | Feature                                              |
-| Spec   | [`.forge/specs/002-authentication/spec.md`](spec.md) |
+| Field   | Value                                                   |
+| ------- | ------------------------------------------------------- |
+| Status  | Approved                                                |
+| Author  | forge-architect                                         |
+| Date    | 2026-02-16                                              |
+| Updated | 2026-02-22 (refresh #3 — Phase 7a frontend tasks added) |
+| Track   | Feature                                                 |
+| Spec    | [`.forge/specs/002-authentication/spec.md`](spec.md)    |
 
 ---
 
 ## 1. Overview
 
+> **Implementation Status**: ✅ Backend COMPLETE (44/44 tasks done) + ⏳ Phase 7a Frontend (16 tasks pending) + ⏳ Phase 8 deferred to Sprint 5
+> — updated 2026-02-22 (refresh #3: Phase 7a frontend tasks added). See
+> [Appendix C](#appendix-c-implementation-actuals) for plan-vs-actuals comparison.
+> See [Appendix E](#appendix-e-plan-vs-actuals-discrepancies-refresh-2) for
+> discrepancies found during the second refresh. See [Phase 8](#phase-8-td-003-remediation--keycloakservice-test-coverage)
+> for the open TD-003 coverage gap. See [Phase 7a](#phase-7a-frontend-implementation)
+> for the frontend implementation plan (design-spec.md + user-journey.md).
+
 This plan implements the Plexica authentication system as specified in Spec 002.
-The existing codebase has partial auth implementation (~60% complete) that uses
+The existing codebase had partial auth implementation (~60% complete) that used
 the **ROPC password grant** (`POST /auth/login` with username/password in body),
 **flat error format** (`{ error, message }`), and **24-hour JWKS cache TTL**.
-This plan refactors the existing code to comply with the spec and constitution:
+This plan refactored the existing code to comply with the spec and constitution:
 
 1. **OAuth 2.0 Authorization Code flow** — Replace ROPC `POST /auth/login` with
    `GET /auth/login` redirect + `GET /auth/callback` token exchange (FR-016)
@@ -63,49 +72,62 @@ template and the `super_admins` table exists in the core schema.
 
 #### `users` (tenant schema template)
 
-| Column         | Change | Before           | After                                            |
-| -------------- | ------ | ---------------- | ------------------------------------------------ |
-| `display_name` | ADD    | (does not exist) | `String?` — user-editable display name           |
-| `preferences`  | ADD    | (does not exist) | `Json @default("{}")` — application settings     |
-| `status`       | ADD    | (does not exist) | `String @default("active")` — active/deactivated |
-| `first_name`   | KEEP   | `String?`        | (no change — retained for Keycloak sync)         |
-| `last_name`    | KEEP   | `String?`        | (no change — retained for Keycloak sync)         |
-| `avatar`       | RENAME | `avatar String?` | `avatar_url String?` — align with spec naming    |
+| Column         | Change | Before           | After                                                          |
+| -------------- | ------ | ---------------- | -------------------------------------------------------------- |
+| `display_name` | ADD    | (does not exist) | `String?` — user-editable display name                         |
+| `preferences`  | ADD    | (does not exist) | `Json @default("{}")` — application settings                   |
+| `status`       | ADD    | (does not exist) | `UserStatus @default(ACTIVE)` — enum: ACTIVE/SUSPENDED/DELETED |
+| `first_name`   | KEEP   | `String?`        | (no change — retained for Keycloak sync)                       |
+| `last_name`    | KEEP   | `String?`        | (no change — retained for Keycloak sync)                       |
+| `avatar`       | RENAME | `avatar String?` | `avatar_url String?` — align with spec naming                  |
 
-**Prisma model change** (`packages/database/prisma/schema.prisma`, lines 307-324):
+**Prisma model change** (`packages/database/prisma/schema.prisma`, lines 312-332):
 
 ```prisma
 model User {
-  id          String   @id @default(uuid())
-  keycloakId  String   @unique @map("keycloak_id")
-  email       String   @unique
-  firstName   String?  @map("first_name")
-  lastName    String?  @map("last_name")
-  displayName String?  @map("display_name")       // NEW (FR-008)
-  avatarUrl   String?  @map("avatar_url")          // RENAMED from avatar
-  locale      String   @default("en")
-  preferences Json     @default("{}")              // NEW (FR-008)
-  status      String   @default("active")          // NEW (FR-008): "active" | "deactivated"
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id          String     @id @default(uuid())
+  keycloakId  String     @unique @map("keycloak_id")
+  email       String     @unique
+  firstName   String?    @map("first_name")
+  lastName    String?    @map("last_name")
+  displayName String?    @map("display_name")       // NEW (FR-008)
+  avatarUrl   String?    @map("avatar_url")          // RENAMED from avatar
+  locale      String     @default("en")
+  preferences Json       @default("{}")              // NEW (FR-008)
+  status      UserStatus @default(ACTIVE)            // NEW (FR-008): enum ACTIVE/SUSPENDED/DELETED
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
   workspaceMemberships WorkspaceMember[]
   teamsOwned           Team[]            @relation("TeamOwner")
   invitedBy            WorkspaceMember[] @relation("InvitedBy")
 
-  @@index([status], map: "idx_users_status")
   @@map("users")
   @@schema("core") // Template — replicated per tenant schema
 }
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+
+  @@schema("core")
+}
 ```
+
+> **Note**: The original plan specified `@@index([status], map: "idx_users_status")`
+> but the actual schema does not include this explicit index. The `UserStatus` enum
+> has a small cardinality (3 values), making a B-tree index less effective for
+> selectivity. An index could be added if performance profiling reveals slow
+> status-filtered queries. See [Appendix E, Discrepancy #2](#appendix-e-plan-vs-actuals-discrepancies-refresh-2).
 
 ### 2.3 Indexes
 
-| Table   | Index Name         | Columns       | Type   |
-| ------- | ------------------ | ------------- | ------ |
-| `users` | `idx_users_status` | `status`      | B-tree |
-| `users` | (existing)         | `keycloak_id` | Unique |
-| `users` | (existing)         | `email`       | Unique |
+| Table   | Index Name           | Columns       | Type   | Status                               |
+| ------- | -------------------- | ------------- | ------ | ------------------------------------ |
+| `users` | ~~idx_users_status~~ | `status`      | B-tree | ❌ Not implemented (low cardinality) |
+| `users` | (existing)           | `keycloak_id` | Unique | ✅ Implemented                       |
+| `users` | (existing)           | `email`       | Unique | ✅ Implemented                       |
 
 ### 2.4 Migrations
 
@@ -262,7 +284,7 @@ Art. 6.2 format: `{ error: { code: string, message: string, details?: object } }
 - **Error Responses**:
   | Status | Code | When |
   | ------ | ----------------- | --------------------------------------- |
-  | 401 | AUTH_MISSING_TOKEN | No Authorization header |
+  | 401 | AUTH_TOKEN_MISSING | No Authorization header (note: spec uses AUTH_MISSING_TOKEN) |
   | 401 | AUTH_TOKEN_EXPIRED | JWT has expired |
   | 403 | AUTH_CROSS_TENANT | JWT realm does not match target tenant |
   | 404 | AUTH_USER_NOT_FOUND| User not yet synced to internal DB |
@@ -321,9 +343,9 @@ Art. 6.2 format: `{ error: { code: string, message: string, details?: object } }
   | Method | Parameters | Returns | Description |
   | ----------------------- | ---------------------------------------------- | ---------------------------- | -------------------------------------------- |
   | `buildLoginUrl` | `tenantSlug: string, redirectUri: string, state?: string` | `string` | Build Keycloak authorization URL |
-  | `exchangeCode` | `code: string, tenantSlug: string` | `TokenResponse` | Exchange auth code for tokens |
-  | `refreshTokens` | `refreshToken: string` | `TokenResponse` | Refresh access token (with rotation) |
-  | `revokeTokens` | `accessToken: string, refreshToken?: string` | `void` | Revoke tokens in Keycloak |
+  | `exchangeCode` | `tenantSlug: string, code: string, redirectUri: string, codeVerifier?: string` | `KeycloakTokenResponse` | Exchange auth code for tokens (PKCE support) |
+  | `refreshTokens` | `tenantSlug: string, refreshToken: string` | `KeycloakTokenResponse` | Refresh access token (with rotation) |
+  | `revokeTokens` | `tenantSlug: string, token: string, tokenType: 'access_token' \| 'refresh_token'` | `void` | Revoke tokens in Keycloak (best-effort) |
   | `validateTenantForAuth` | `tenantSlug: string` | `Tenant` | Check tenant exists and is not suspended |
 
 ### 4.2 KeycloakService (extend)
@@ -715,7 +737,13 @@ roles), realm enable/disable, and token exchange/revocation methods.
 5. [ ] Implement `refreshToken(realmName, refreshToken)` — Keycloak refresh
 6. [ ] Implement `revokeToken(realmName, token, type)` — Keycloak revocation
 7. [ ] Implement `configureRefreshTokenRotation(realmName)` — realm setting (FR-014)
-8. [ ] Update `TenantService.createTenant()` to call new provisioning methods
+8. ✅ Update provisioning orchestration to call new Keycloak methods — per **ADR-015**
+   (accepted 2026-02-22), provisioning is now handled by a `ProvisioningOrchestrator`
+   state machine rather than direct calls in `TenantService.createTenant()`. Each
+   Keycloak provisioning step (`createRealm`, `provisionRealmClients`,
+   `provisionRealmRoles`, `configureRefreshTokenRotation`) is a discrete step with
+   independent `execute()` and `rollback()`. The underlying `KeycloakService` methods
+   are unchanged; only the calling layer changed. See Decision Note #5 below.
 9. [ ] Add error handling: if provisioning fails, tenant stays `PROVISIONING` (Edge Case #1)
 10. [ ] Write integration tests for full provisioning flow (≥85% coverage)
 
@@ -863,6 +891,215 @@ database, replacing request-time UPSERT.
 
 ---
 
+## 7a. Phase 7: Frontend Implementation
+
+> **Status**: ⏳ Not started — pending implementation sprint.
+> **Added**: 2026-02-22 (plan refresh #2 — frontend gap identified).
+> **Design source**: `.forge/specs/002-authentication/design-spec.md` (10 screens, 4 components).
+> **User journeys**: `.forge/specs/002-authentication/user-journey.md` (3 personas, 5 journeys).
+
+**Objective**: Implement all Plexica-owned frontend surfaces for the authentication
+system. Keycloak's hosted login page is out of scope (styled via realm theming).
+This phase covers the React/TanStack Router web app (`apps/web/`).
+
+### Files to Create
+
+| Path                                                       | Purpose                                                                                    | Estimated Size |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------- |
+| `apps/web/src/routes/auth/callback.tsx`                    | Auth Callback Loading State — exchanges code, shows spinner (Screen 2)                     | S (~80 lines)  |
+| `apps/web/src/routes/auth/error.tsx`                       | Auth Error Page route — renders `AuthErrorPage` component (Screens 4–5)                    | S (~60 lines)  |
+| `apps/web/src/components/auth/SessionExpiredModal.tsx`     | Session Expired Modal — focus-trapped dialog, non-dismissible (Screen 3)                   | M (~120 lines) |
+| `apps/web/src/components/auth/RateLimitCountdown.tsx`      | Rate Limit countdown Alert with `aria-live` timer (Screen 6)                               | M (~100 lines) |
+| `apps/web/src/components/auth/AuthErrorPage.tsx`           | Full-screen error layout for tenant not found / suspended (Screens 4–5)                    | M (~100 lines) |
+| `apps/web/src/stores/auth.store.ts`                        | Auth state: JWT, user, token refresh, session expiry detection, deep-link URL preservation | L (~200 lines) |
+| `apps/web/src/__tests__/auth/AuthLandingPage.test.tsx`     | Unit tests for pre-login landing page states and interactions                              | M (~150 lines) |
+| `apps/web/src/__tests__/auth/SessionExpiredModal.test.tsx` | Unit tests for modal (focus trap, keyboard, sign-in redirect)                              | M (~120 lines) |
+| `apps/web/src/__tests__/auth/RateLimitCountdown.test.tsx`  | Unit tests for countdown timer, aria-live announcements                                    | S (~80 lines)  |
+| `apps/web/src/__tests__/auth/AuthErrorPage.test.tsx`       | Unit tests for all error variants (not-found, suspended, keycloak)                         | S (~80 lines)  |
+| `apps/web/src/__tests__/auth/AuthCallbackPage.test.tsx`    | Unit tests for callback loading, success redirect, error redirect                          | S (~80 lines)  |
+| `apps/web/src/__tests__/auth/auth.store.test.ts`           | Unit tests for auth store: token refresh, session expiry, deep-link                        | M (~150 lines) |
+
+### Files to Modify
+
+| Path                                                | Change Description                                                                                                                    | Estimated Effort |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `apps/web/src/routes/login.tsx`                     | Redesign to `AuthLandingPage` — tenant branding, loading/redirect states, error alerts (Screen 1). Replace existing placeholder.      | L                |
+| `apps/web/src/routes/admin/login.tsx`               | Update Super Admin login to use `AuthLandingPage` admin variant with Shield icon + platform branding (Screen 10)                      | S                |
+| `apps/web/src/components/shell/UserProfileMenu.tsx` | Redesign to show display name, email, role badge, "Manage Tenant" link (tenant_admin only), Sign Out with token revocation (Screen 9) | M                |
+| `apps/web/src/components/shell/AppShell.tsx`        | Integrate `SessionExpiredModal` — subscribe to auth store session expiry events                                                       | S                |
+| `apps/web/src/lib/auth-client.ts`                   | HTTP client wrapper: attach Bearer token, handle 401 by triggering session expiry in auth store                                       | M                |
+
+### Component Specifications
+
+#### AuthLandingPage (Modify `login.tsx`)
+
+**Screens covered**: Screen 1 (Pre-Login), Screen 10 (Super Admin)
+
+**Props**:
+
+- `variant`: `'tenant' | 'admin'` — controls branding
+- `tenantName`: string — tenant display name (or "Plexica" for admin)
+- `tenantLogoUrl`: string | null — logo URL (or Shield icon for admin)
+- `onSignIn`: () => void — triggers OAuth redirect to Keycloak
+- `isLoading`: boolean — skeleton state on initial page load
+- `error`: `AuthError | null` — controls which error state to show
+
+**States to implement** (per design-spec Screen 1):
+
+| State              | Trigger            | Visual                                         |
+| ------------------ | ------------------ | ---------------------------------------------- |
+| Loading (init)     | Tenant resolving   | Skeleton placeholders                          |
+| Loading (redirect) | Sign In clicked    | Button spinner + disabled                      |
+| Rate Limited       | HTTP 429           | `RateLimitCountdown` alert + disabled button   |
+| Cross-Tenant       | JWT realm mismatch | Info alert banner (Screen 7)                   |
+| Keycloak Error     | 5xx / timeout      | Destructive alert + Retry button (Screen 8)    |
+| Tenant Not Found   | 404                | Full error page (Screen 4 via `AuthErrorPage`) |
+| Tenant Suspended   | 403                | Full error page (Screen 5 via `AuthErrorPage`) |
+
+**Responsive behavior** (per design-spec §3.1):
+
+- 375px: full-bleed layout, no card wrapper
+- 768px+: card wrapper (`max-width: 420px`, shadow, rounded)
+
+#### SessionExpiredModal (New)
+
+**Screen covered**: Screen 3
+
+- Uses existing `Dialog` from `@plexica/ui` as base
+- Focus trap: yes — Tab cycles to Sign In button only
+- `Esc`: no effect (user must re-authenticate — cannot dismiss)
+- Stores current URL in `sessionStorage` before redirect for deep-link preservation
+- Triggered by auth store `sessionExpired` event
+
+#### RateLimitCountdown (New)
+
+**Screen covered**: Screen 6 (overlay on Pre-Login Page)
+
+- `retryAfterSeconds` prop from `Retry-After` response header (default: 60)
+- Uses `setInterval` to count down; fires `onExpired` callback at 0
+- `aria-live="polite"` region announces remaining time every 15 seconds (not every second)
+- Countdown displayed in monospace: `0:47`
+- Parent disables Sign In button via `disabled` prop while counting
+
+#### AuthErrorPage (New)
+
+**Screens covered**: Screen 4 (Tenant Not Found), Screen 5 (Tenant Suspended)
+
+- `variant`: `'not-found' | 'suspended' | 'keycloak-error'`
+- `tenantLogoUrl`: shown if available from cache
+- `slug`: displayed in monospace for tenant-not-found case
+- `showRetry` + `onRetry`: shown only for keycloak-error variant
+- `role="alert"` on error container for screen reader announcement
+
+#### UserProfileMenu (Modify existing)
+
+**Screen covered**: Screen 9
+
+- `user`: `{ name, email, avatarUrl, roles }` — from auth store (JWT claims FR-003)
+- `showManageTenant`: boolean — shown only for `tenant_admin` role
+- Sign Out: calls `POST /api/v1/auth/logout`, clears auth store, redirects to login
+- Keyboard: arrow keys navigate items; Esc closes; Tab out of last item closes
+- ARIA: `aria-haspopup`, `aria-expanded`, `role="menu"`, `role="menuitem"`
+
+### Auth Store Design
+
+**Location**: `apps/web/src/stores/auth.store.ts`
+
+**Responsibilities**:
+
+1. **Token storage**: Store `access_token`, `refresh_token`, `user` profile in memory (not localStorage — security)
+2. **Silent refresh**: Detect token expiry 60s before `exp`, call `POST /auth/refresh` silently (FR-014)
+3. **Session expiry**: If silent refresh fails → emit `sessionExpired` event → triggers `SessionExpiredModal`
+4. **Deep-link preservation**: Save current URL to `sessionStorage` before redirect; restore after re-auth
+5. **Logout**: Call `POST /api/v1/auth/logout`, clear store, redirect to `/{tenant}/login`
+6. **Auth callback**: Parse JWT from `/auth/callback` response, extract `user` from claims (FR-003)
+
+### Tasks
+
+1. [ ] **T7-1** `[M]` Create `auth.store.ts` — token state management, silent refresh, session expiry detection, deep-link preservation (est. 3h)
+2. [ ] **T7-2** `[M]` Create `apps/web/src/lib/auth-client.ts` — Bearer token attachment, 401 → session expiry trigger (est. 2h)
+3. [ ] **T7-3** `[L]` Redesign `login.tsx` → `AuthLandingPage` — all 7 states + responsive card layout + accessibility (est. 4h)
+4. [ ] **T7-4** `[M]` Create `apps/web/src/routes/auth/callback.tsx` — loading spinner, exchange code via auth store, redirect on success/error (est. 2h)
+5. [ ] **T7-5** `[M]` Create `SessionExpiredModal.tsx` — focus trap, non-dismissible, Sign In redirect with deep-link preservation (est. 2h)
+6. [ ] **T7-6** `[M]` Create `RateLimitCountdown.tsx` — countdown timer with accessible aria-live announcements (est. 2h)
+7. [ ] **T7-7** `[M]` Create `AuthErrorPage.tsx` — not-found, suspended, keycloak-error variants (est. 2h)
+8. [ ] **T7-8** `[S]` Update `admin/login.tsx` → admin variant of `AuthLandingPage` with Shield icon + platform branding (est. 1h)
+9. [ ] **T7-9** `[M]` Redesign `UserProfileMenu.tsx` — display name, email, role badge, tenant_admin conditional link, Sign Out with revocation (est. 3h)
+10. [ ] **T7-10** `[S]` Integrate `SessionExpiredModal` into `AppShell.tsx` — subscribe to auth store session expiry events (est. 1h)
+11. [ ] **T7-11** `[M]` Write component tests for `AuthLandingPage` — all 7 states, accessibility, keyboard (est. 3h)
+12. [ ] **T7-12** `[M]` Write component tests for `SessionExpiredModal`, `RateLimitCountdown`, `AuthErrorPage`, `AuthCallbackPage` (est. 3h)
+13. [ ] **T7-13** `[M]` Write unit tests for `auth.store.ts` — silent refresh, session expiry, deep-link, logout (est. 2h)
+14. [ ] **T7-14** `[S]` Accessibility audit — verify WCAG 2.1 AA compliance for all 10 screens against design-spec §6 checklist (est. 1h)
+
+**Estimated total effort**: ~31h (~4 days)  
+**New tests**: ~40 component tests + ~20 store unit tests = ~60 tests
+
+### Design Token Usage
+
+New CSS tokens required (from design-spec §5):
+
+| Token                     | Light     | Dark      | Usage                              |
+| ------------------------- | --------- | --------- | ---------------------------------- |
+| `--auth-bg-gradient-from` | `#F0F4FF` | `#0A0E1A` | Pre-login page background gradient |
+| `--auth-bg-gradient-to`   | `#FFFFFF` | `#0A0A0A` | Gradient end                       |
+
+Add to `apps/web/src/styles/tokens.css` (or equivalent design token file).
+
+### Accessibility Requirements
+
+All frontend screens must meet **WCAG 2.1 AA** per Constitution Art. 1.3:
+
+| Screen                | Key Requirement                                                                  |
+| --------------------- | -------------------------------------------------------------------------------- |
+| Pre-Login Landing     | Single focusable element (Sign In). Touch target ≥ 44px. Mobile-responsive.      |
+| Auth Callback         | `role="status"` `aria-live="polite"`. No interaction required.                   |
+| Session Expired Modal | `role="dialog"` `aria-modal="true"`. Focus trap. Non-dismissible (Esc disabled). |
+| Error Pages (4–5)     | `role="alert"` for immediate announcement. Descriptive heading.                  |
+| Rate Limited          | `aria-live="polite"` every 15s (not every 1s). `aria-disabled` on button.        |
+| Cross-Tenant Alert    | `role="alert"` above normal login UI.                                            |
+| Keycloak Unavailable  | Retry button with `aria-label="Retry connection to authentication service"`.     |
+| User Profile Menu     | `aria-haspopup`, `aria-expanded`, arrow-key navigation, Esc to close.            |
+| Super Admin Login     | Shield icon `aria-hidden="true"`. Single button with `aria-label`.               |
+
+---
+
+## 7b. Phase 8: TD-003 Remediation — KeycloakService Test Coverage
+
+> **Added**: 2026-02-22 (full plan refresh). Deferred to Sprint 5.  
+> **Tracked as**: TD-003 in `.forge/knowledge/decision-log.md`
+
+**Objective**: Bring `keycloak.service.ts` (937 lines) from 2.83% to ≥85% line
+coverage, resolving TD-003 and pushing the auth module over the Constitution
+Art. 4.1 ≥85% core module target.
+
+**Why deferred**: Integration tests require a running Keycloak instance. Unit
+tests require complex mocking of `@keycloak/keycloak-admin-client`. The 4h
+estimate in Phase 3 was insufficient for the service's complexity (937 lines
+with HTTP calls, error handling, retry logic, and admin token TTL management).
+
+### Files to Create
+
+| Path                                                                        | Purpose                                                  | Est. Size |
+| --------------------------------------------------------------------------- | -------------------------------------------------------- | --------- |
+| `apps/core-api/src/__tests__/auth/unit/keycloak.service.test.ts`            | Mocked unit tests for all 9 KeycloakService methods      | ~40 tests |
+| `apps/core-api/src/__tests__/auth/integration/keycloak.integration.test.ts` | Real Keycloak integration tests for full realm lifecycle | ~15 tests |
+
+### Tasks
+
+1. [ ] **T8-1** `[L]` Create `keycloak.service.test.ts` — mock `KcAdminClient`, test `createRealm()`, `provisionRealmClients()`, `provisionRealmRoles()`, admin token re-auth (est. 3-4h)
+2. [ ] **T8-2** `[L]` Extend `keycloak.service.test.ts` — test `setRealmEnabled()`, `configureRefreshTokenRotation()`, `exchangeAuthorizationCode()`, `refreshToken()`, `revokeToken()`, `KeycloakSanitizedError` PII scrubbing (est. 3-4h)
+3. [ ] **T8-3** `[XL]` Create `keycloak.integration.test.ts` — real Keycloak realm lifecycle + token exchange + error handling (est. 4-6h)
+4. [ ] **T8-4** `[S]` Run `pnpm test:coverage`, verify keycloak.service.ts ≥75% (unit) and auth module ≥85% overall; close TD-003 in decision log (est. 30min)
+
+**Success Criteria**:
+
+- `keycloak.service.ts` line coverage ≥75% (unit tests alone)
+- Auth module overall ≥85% (Constitution Art. 4.1)
+- Overall project coverage ≥80% (Constitution Art. 4.1, TD-001)
+- TD-003 marked resolved in decision log
+
+---
+
 ## 8. Testing Strategy
 
 ### 8.1 Unit Tests
@@ -922,12 +1159,12 @@ Estimated new test count: **~95-120 tests** across unit, integration, and E2E.
 
 ## 9. Architectural Decisions
 
-| ADR     | Decision                                                  | Status   |
-| ------- | --------------------------------------------------------- | -------- |
-| ADR-002 | Schema-per-tenant database isolation                      | Accepted |
-| ADR-005 | Redpanda for event-driven user sync                       | Accepted |
-| ADR-006 | Fastify framework for route/hook patterns                 | Accepted |
-| (none)  | No new ADR required — all decisions within existing stack | N/A      |
+| ADR     | Decision                                                             | Status   |
+| ------- | -------------------------------------------------------------------- | -------- |
+| ADR-002 | Schema-per-tenant database isolation                                 | Accepted |
+| ADR-005 | Redpanda for event-driven user sync                                  | Accepted |
+| ADR-006 | Fastify framework for route/hook patterns                            | Accepted |
+| ADR-015 | Tenant provisioning orchestration (state machine with step tracking) | Accepted |
 
 ### Decision Notes
 
@@ -947,53 +1184,63 @@ Estimated new test count: **~95-120 tests** across unit, integration, and E2E.
    Per spec clarification session. Security architecture doc has known
    inconsistency that should be updated separately.
 
+5. **ADR-015 impact on Phase 3** (added 2026-02-22): Tenant provisioning now
+   uses a state machine orchestrator (`ProvisioningOrchestrator`) rather than
+   sequential calls in `TenantService.createTenant()`. Keycloak realm creation,
+   client provisioning, and role provisioning are now individual provisioning
+   steps with independent `execute()`/`rollback()` methods. This supersedes the
+   Phase 3 assumption of calling `provisionRealmClients()` and
+   `provisionRealmRoles()` directly from `TenantService.createTenant()`.
+   The underlying `KeycloakService` methods remain unchanged — only the
+   orchestration layer changed.
+
 ---
 
 ## 10. Requirement Traceability
 
-| Requirement | Plan Section                | Implementation Path                                             |
-| ----------- | --------------------------- | --------------------------------------------------------------- |
-| FR-001      | §4.2 KeycloakService        | `keycloak.service.ts` → `createRealm(slug)`                     |
-| FR-002      | §4.5, §4.7 AuthMiddleware   | `auth.ts` middleware → `requireSuperAdmin` (master realm)       |
-| FR-003      | §4.6 JwtService             | `jwt.ts` → `KeycloakJwtPayload` with realm/tenant_id/teams      |
-| FR-004      | §4.7 AuthMiddleware         | `auth.ts` middleware → JWT validation preHandler hook           |
-| FR-005      | §4.2 KeycloakService        | `keycloak.service.ts` → `provisionRealmClients()`               |
-| FR-006      | §4.2 KeycloakService        | `keycloak.service.ts` → `provisionRealmRoles()`                 |
-| FR-007      | §4.3 UserSyncConsumer       | `user-sync.consumer.ts` → Redpanda consumer                     |
-| FR-008      | §2.2 Modified Tables, §4.4  | `schema.prisma` User model + `user.repository.ts`               |
-| FR-009      | §4.7 AuthMiddleware         | `auth.ts` middleware → default auth required                    |
-| FR-010      | §4.2 KeycloakService        | Keycloak realm session config (24h idle timeout)                |
-| FR-011      | §4.6 JwtService, §4.7       | `jwt.ts` → `validateTenantMatch()` + middleware check           |
-| FR-012      | §4.2, §4.7                  | `keycloak.service.ts` → `setRealmEnabled()` + middleware        |
-| FR-013      | §4.5 AuthRateLimiter        | `auth-rate-limit.ts` → Redis INCR+EXPIRE                        |
-| FR-014      | §4.2 KeycloakService        | `keycloak.service.ts` → `configureRefreshTokenRotation()`       |
-| FR-015      | §4.8 ErrorHandler           | `error-handler.ts` → `{ error: { code, message } }`             |
-| FR-016      | §4.1 AuthService, §3.1-3.2  | `auth.service.ts` → OAuth flow + `GET /login` + `GET /callback` |
-| NFR-001     | §4.6 JwtService             | JWKS cache TTL 10min → <5ms validation                          |
-| NFR-002     | §4.3 UserSyncConsumer       | Redpanda consumer with <5s P95 processing                       |
-| NFR-003     | §4.8 ErrorHandler, §4.7     | No PII in error messages or logs                                |
-| NFR-004     | §11 Constitution Compliance | TLS enforced at infrastructure level                            |
-| NFR-005     | §4.1 AuthService, §4.2      | Graceful degradation with retry on Keycloak errors              |
-| NFR-006     | §3.1-3.2 Login Endpoint     | Generic error messages, Keycloak handles login UI               |
-| NFR-007     | §4.6 JwtService             | `cacheMaxAge: 600000` (10min) in JWKS config                    |
-| NFR-008     | §4.5 AuthRateLimiter        | 10 req/IP/min via Redis distributed counter                     |
-| US-001      | §3.1, §3.2, §7 Phase 4      | OAuth login redirect + callback                                 |
-| US-002      | §4.6, §4.7, §7 Phase 1      | JWT validation middleware                                       |
-| US-003      | §4.3, §4.4, §7 Phase 5      | Redpanda consumer + UserRepository                              |
-| US-004      | §4.2, §7 Phase 3            | KeycloakService full provisioning                               |
-| US-005      | §4.7, §7 Phase 4            | Master realm Super Admin auth                                   |
-| Edge #1     | §7 Phase 3, Task 9          | Tenant stays PROVISIONING on Keycloak failure                   |
-| Edge #2     | §7 Phase 5, Task 9          | Event queued in Redpanda, replayed after provisioning           |
-| Edge #3     | §4.6 JwtService             | Accepted if within JWKS 10min cache TTL                         |
-| Edge #4     | §3.2 Callback               | All sessions valid, independent tokens                          |
-| Edge #5     | §4.7 AuthMiddleware         | JWT valid until expiry, then fails                              |
-| Edge #6     | §4.2 (existing)             | Slug uniqueness at tenant creation                              |
-| Edge #7     | §4.3 UserSyncConsumer       | Redpanda offset replay, no data loss                            |
-| Edge #8     | §4.7 AuthMiddleware         | Super Admin bypasses tenant context                             |
-| Edge #9     | §4.7, §4.2                  | Realm disabled + middleware rejects JWTs                        |
-| Edge #10    | §4.5 AuthRateLimiter        | HTTP 429 after 10 attempts/min                                  |
-| Edge #11    | §3.3 Refresh                | Keycloak detects reuse, chain revoked (FR-014)                  |
-| Edge #12    | §3.2 Callback               | 401 AUTH_CODE_EXPIRED returned                                  |
+| Requirement | Plan Section                | Implementation Path                                                                                                                          |
+| ----------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-001      | §4.2 KeycloakService        | `keycloak.service.ts` → `createRealm(slug)`                                                                                                  |
+| FR-002      | §4.5, §4.7 AuthMiddleware   | `auth.ts` middleware → `requireSuperAdmin` (master realm)                                                                                    |
+| FR-003      | §4.6 JwtService             | `jwt.ts` → `KeycloakJwtPayload` with realm/tenant_id/teams                                                                                   |
+| FR-004      | §4.7 AuthMiddleware         | `auth.ts` middleware → JWT validation preHandler hook                                                                                        |
+| FR-005      | §4.2 KeycloakService        | `keycloak.service.ts` → `provisionRealmClients()`                                                                                            |
+| FR-006      | §4.2 KeycloakService        | `keycloak.service.ts` → `provisionRealmRoles()`                                                                                              |
+| FR-007      | §4.3 UserSyncConsumer       | `user-sync.consumer.ts` → Redpanda consumer                                                                                                  |
+| FR-008      | §2.2 Modified Tables, §4.4  | `schema.prisma` User model + `user.repository.ts`                                                                                            |
+| FR-009      | §4.7 AuthMiddleware         | `auth.ts` middleware → default auth required                                                                                                 |
+| FR-010      | §4.2 KeycloakService        | Keycloak realm session config (24h idle timeout)                                                                                             |
+| FR-011      | §4.6 JwtService, §4.7       | `jwt.ts` → `validateTenantMatch()` + middleware check; **frontend**: `auth-client.ts` → cross-tenant 401 triggers `sessionExpired` event     |
+| FR-012      | §4.2, §4.7                  | `keycloak.service.ts` → `setRealmEnabled()` + middleware; **frontend**: `AuthErrorPage` (suspended variant, Screen 5) via `auth.store.ts`    |
+| FR-013      | §4.5 AuthRateLimiter        | `auth-rate-limit.ts` → Redis INCR+EXPIRE; **frontend**: `RateLimitCountdown.tsx` (Screen 6) reads `Retry-After` header from HTTP 429         |
+| FR-014      | §4.2 KeycloakService        | `keycloak.service.ts` → `configureRefreshTokenRotation()`                                                                                    |
+| FR-015      | §4.8 ErrorHandler           | `error-handler.ts` → `{ error: { code, message } }`                                                                                          |
+| FR-016      | §4.1 AuthService, §3.1-3.2  | `auth.service.ts` → OAuth flow + `GET /login` + `GET /callback`; **frontend**: `login.tsx` → OAuth redirect; `callback.tsx` → code exchange  |
+| NFR-001     | §4.6 JwtService             | JWKS cache TTL 10min → <5ms validation                                                                                                       |
+| NFR-002     | §4.3 UserSyncConsumer       | Redpanda consumer with <5s P95 processing                                                                                                    |
+| NFR-003     | §4.8 ErrorHandler, §4.7     | No PII in error messages or logs                                                                                                             |
+| NFR-004     | §11 Constitution Compliance | TLS enforced at infrastructure level                                                                                                         |
+| NFR-005     | §4.1 AuthService, §4.2      | Graceful degradation with retry on Keycloak errors; **frontend**: `AuthLandingPage` Keycloak-error state (Screen 8) + Retry button           |
+| NFR-006     | §3.1-3.2 Login Endpoint     | Generic error messages, Keycloak handles login UI; **frontend**: `AuthLandingPage` delegates auth UI to Keycloak, shows error only on return |
+| NFR-007     | §4.6 JwtService             | `cacheMaxAge: 600000` (10min) in JWKS config                                                                                                 |
+| NFR-008     | §4.5 AuthRateLimiter        | 10 req/IP/min via Redis distributed counter; **frontend**: `RateLimitCountdown.tsx` disables Sign In button during lockout (Screen 6)        |
+| US-001      | §3.1, §3.2, §7 Phase 4      | OAuth login redirect + callback; **frontend**: `login.tsx` (AuthLandingPage, Screen 1) + `callback.tsx` (Screen 2) + `auth.store.ts`         |
+| US-002      | §4.6, §4.7, §7 Phase 1      | JWT validation middleware; **frontend**: `auth-client.ts` attaches Bearer token; `SessionExpiredModal.tsx` on 401 (Screen 3)                 |
+| US-003      | §4.3, §4.4, §7 Phase 5      | Redpanda consumer + UserRepository                                                                                                           |
+| US-004      | §4.2, §7 Phase 3            | KeycloakService full provisioning                                                                                                            |
+| US-005      | §4.7, §7 Phase 4            | Master realm Super Admin auth; **frontend**: `admin/login.tsx` → admin variant of `AuthLandingPage` with Shield icon (Screen 10)             |
+| Edge #1     | §7 Phase 3, Task 9          | Tenant stays PROVISIONING on Keycloak failure                                                                                                |
+| Edge #2     | §7 Phase 5, Task 9          | Event queued in Redpanda, replayed after provisioning                                                                                        |
+| Edge #3     | §4.6 JwtService             | Accepted if within JWKS 10min cache TTL                                                                                                      |
+| Edge #4     | §3.2 Callback               | All sessions valid, independent tokens                                                                                                       |
+| Edge #5     | §4.7 AuthMiddleware         | JWT valid until expiry, then fails                                                                                                           |
+| Edge #6     | §4.2 (existing)             | Slug uniqueness at tenant creation                                                                                                           |
+| Edge #7     | §4.3 UserSyncConsumer       | Redpanda offset replay, no data loss                                                                                                         |
+| Edge #8     | §4.7 AuthMiddleware         | Super Admin bypasses tenant context                                                                                                          |
+| Edge #9     | §4.7, §4.2                  | Realm disabled + middleware rejects JWTs                                                                                                     |
+| Edge #10    | §4.5 AuthRateLimiter        | HTTP 429 after 10 attempts/min                                                                                                               |
+| Edge #11    | §3.3 Refresh                | Keycloak detects reuse, chain revoked (FR-014)                                                                                               |
+| Edge #12    | §3.2 Callback               | 401 AUTH_CODE_EXPIRED returned                                                                                                               |
 
 ---
 
@@ -1004,7 +1251,7 @@ Estimated new test count: **~95-120 tests** across unit, integration, and E2E.
 | Art. 1  | ✅     | Security-first: rate limiting (FR-013), token rotation (FR-014), suspended tenant blocking (FR-012), tenant isolation (FR-011). Zero-downtime: all schema changes backward compatible. API-first: all auth via versioned REST endpoints.                                                                                                                                                              |
 | Art. 2  | ✅     | Uses approved stack only: Keycloak 26+ (auth), Fastify ^5.7 (routes), Redis/ioredis ^5.9 (rate limiting, caching), Redpanda/KafkaJS ^2.2 (user sync), Prisma ^6.8 (data), Vitest ^4.0 (tests). No new dependencies added.                                                                                                                                                                             |
 | Art. 3  | ✅     | Layered architecture: Routes (controllers) → AuthService → UserRepository. Feature modules: auth module with clear boundaries. Prisma ORM with parameterized queries only. REST conventions: `/api/v1/auth/*`. API versioning: v1. Error format: `{ error: { code, message, details? } }`.                                                                                                            |
-| Art. 4  | ✅     | Auth module target: ≥85% coverage. Security code: 100% coverage for auth/tenant isolation logic. ~95-120 new tests across unit/integration/E2E. No regressions — existing tests updated.                                                                                                                                                                                                              |
+| Art. 4  | ⚠️     | Auth module target: ≥85% coverage. 532 tests implemented (plan estimated ~115). **keycloak.service.ts at 2.83% coverage (TD-003)** — single biggest gap. Remediation plan in [Phase 8](#7b-phase-8-td-003-remediation--keycloakservice-test-coverage) and Appendix D. **Target: Sprint 5**. Overall compliance PARTIAL until TD-003 is resolved.                                                      |
 | Art. 5  | ✅     | Keycloak Auth for all authentication (5.1). Default auth required, public endpoints explicit (5.1). RBAC via Keycloak roles (5.1). 24h session expiry (5.1). Tenant validation every request (5.1). TLS 1.2+ (5.2). No PII in logs (5.2). No secrets in Git (5.2). Zod validation on all inputs (5.3). SQL injection prevention via Prisma (5.3). CSRF protection via state parameter on OAuth (5.3). |
 | Art. 6  | ✅     | Error classification implemented (6.1): operational (tenant not found), validation (bad input), tenant isolation (cross-tenant). Error format: `{ error: { code, message, details? } }` with 13 stable codes (6.2). Pino JSON logging with standard fields (6.3). No sensitive data in logs (6.3).                                                                                                    |
 | Art. 7  | ✅     | Files: kebab-case (`auth.service.ts`, `user-sync.consumer.ts`). Classes: PascalCase (`AuthService`, `UserSyncConsumer`). Functions: camelCase (`buildLoginUrl`, `exchangeCode`). Constants: UPPER_SNAKE_CASE. DB: snake_case tables/columns. API: REST plural nouns, versioned.                                                                                                                       |
@@ -1022,36 +1269,69 @@ slug.
 Security architecture doc should be updated separately to reflect raw slug
 naming. This is tracked as a documentation update, not a code change.
 
+### Post-Implementation Compliance Notes (added 2026-02-22)
+
+**Art. 4.1 Tension**: keycloak.service.ts at 2.83% coverage violates the ≥85%
+core module coverage target. This is tracked as TD-003 in the decision log.
+See [Appendix D](#appendix-d-post-implementation-gaps-added-2026-02-22) for
+the remediation plan. Overall auth module compliance with Art. 4.1 is
+**PARTIAL** until TD-003 is resolved.
+
+**Art. 3.2 Update (ADR-015)**: Provisioning orchestration changed from direct
+service calls to state machine pattern per ADR-015. This strengthens compliance
+with Art. 3.2 (service layer encapsulation) and Art. 1.2 (reliability — retry
+and rollback). No constitution conflict.
+
+**Art. 7.1 Minor Issue (Refresh #2)**: Error code `AUTH_TOKEN_MISSING` in
+`auth.ts` middleware differs from spec-defined `AUTH_MISSING_TOKEN`. Both are
+valid but inconsistent. See [Appendix E, Discrepancy #4](#appendix-e-plan-vs-actuals-discrepancies-refresh-2).
+Impact on Art. 6.2 (stable error codes): LOW — the code is stable, just
+named differently than the spec.
+
 ---
 
 ## Cross-References
 
-| Document                   | Path                                                     |
-| -------------------------- | -------------------------------------------------------- |
-| Spec                       | `.forge/specs/002-authentication/spec.md`                |
-| Architecture               | `.forge/architecture/system-architecture.md`             |
-| Security Architecture      | `.forge/architecture/security-architecture.md`           |
-| Constitution               | `.forge/constitution.md`                                 |
-| ADR-002: Multi-Tenancy DB  | `.forge/knowledge/adr/adr-002-database-multi-tenancy.md` |
-| ADR-005: Event System      | `.forge/knowledge/adr/adr-005-event-system-redpanda.md`  |
-| ADR-006: Fastify Framework | `.forge/knowledge/adr/adr-006-fastify-framework.md`      |
-| Decision Log               | `.forge/knowledge/decision-log.md`                       |
-| Security Guidelines        | `docs/SECURITY.md`                                       |
-| Tasks                      | <!-- Created by /forge-tasks -->                         |
+| Document                    | Path                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Spec                        | `.forge/specs/002-authentication/spec.md`                                                               |
+| Tasks                       | `.forge/specs/002-authentication/tasks.md`                                                              |
+| Design Spec (UX/UI)         | `.forge/specs/002-authentication/design-spec.md` — 10 screens, 4 components, design tokens, WCAG 2.1 AA |
+| User Journeys               | `.forge/specs/002-authentication/user-journey.md` — 3 personas, 5 journeys with edge cases              |
+| Architecture                | `.forge/architecture/system-architecture.md`                                                            |
+| Security Architecture       | `.forge/architecture/security-architecture.md`                                                          |
+| Constitution                | `.forge/constitution.md`                                                                                |
+| ADR-002: Multi-Tenancy DB   | `.forge/knowledge/adr/adr-002-database-multi-tenancy.md`                                                |
+| ADR-005: Event System       | `.forge/knowledge/adr/adr-005-event-system-redpanda.md`                                                 |
+| ADR-006: Fastify Framework  | `.forge/knowledge/adr/adr-006-fastify-framework.md`                                                     |
+| ADR-015: Provisioning Orch. | `.forge/knowledge/adr/adr-015-tenant-provisioning-orchestration.md`                                     |
+| ADR-017: ABAC Engine        | `.forge/knowledge/adr/adr-017-abac-engine.md` (interacts with auth middleware)                          |
+| Decision Log                | `.forge/knowledge/decision-log.md`                                                                      |
+| Security Guidelines         | `docs/SECURITY.md`                                                                                      |
 
 ---
 
 ## Appendix A: Estimated Effort Summary
 
-| Phase     | Name                               | Estimated Effort | New Tests |
-| --------- | ---------------------------------- | ---------------- | --------- |
-| 1         | Foundation (errors, JWT, types)    | 8h               | ~15       |
-| 2         | Data Layer (repository, migration) | 6h               | ~15       |
-| 3         | Keycloak Service (provisioning)    | 11h              | ~20       |
-| 4         | Auth Service + OAuth Routes        | 24h              | ~30       |
-| 5         | Event-Driven User Sync             | 12h              | ~20       |
-| 6         | Integration Testing + E2E          | 10h              | ~15       |
-| **Total** |                                    | **~71h**         | **~115**  |
+| Phase     | Name                               | Estimated Effort | Actual Status          | New Tests (Est) | New Tests (Actual) |
+| --------- | ---------------------------------- | ---------------- | ---------------------- | --------------- | ------------------ |
+| 1         | Foundation (errors, JWT, types)    | 8h               | ✅ Complete            | ~15             | —                  |
+| 2         | Data Layer (repository, migration) | 6h               | ✅ Complete            | ~15             | —                  |
+| 3         | Keycloak Service (provisioning)    | 11h              | ✅ Complete            | ~20             | —                  |
+| 4         | Auth Service + OAuth Routes        | 24h              | ✅ Complete            | ~30             | —                  |
+| 5         | Event-Driven User Sync             | 12h              | ✅ Complete            | ~20             | —                  |
+| 6         | Integration Testing + E2E          | 10h              | ✅ Complete            | ~15             | —                  |
+| 7         | Documentation and Review           | 3h               | ✅ Complete            | N/A             | —                  |
+| 7a        | Frontend Implementation            | ~31h             | ⏳ Not started         | ~60             | —                  |
+| 8         | TD-003: Keycloak Coverage          | 10-14h           | ⏳ Deferred (Sprint 5) | ~55             | —                  |
+| **Total** |                                    | **~112-127h**    | **Phases 1-7 done**    | **~230**        | **532**            |
+
+> **Note**: Actual backend test count (532) significantly exceeded the ~115 estimate
+> because security hardening (Task 7.2/7.3) added substantial additional
+> tests for cross-tenant security, token refresh edge cases, and rate
+> limiting scenarios that were not anticipated at planning time.
+> Phase 7a (~60 tests) and Phase 8 (~55 tests) are not yet included in the
+> 532 actual count — they are still to be implemented.
 
 ## Appendix B: Migration Strategy (ROPC → OAuth)
 
@@ -1067,3 +1347,236 @@ is a **breaking change** for API consumers. Migration strategy:
 
 This satisfies Constitution Art. 1.2 (zero-downtime, backward compatible) and
 Art. 9.1 (feature flags for user-facing changes, fast rollback).
+
+## Appendix C: Implementation Actuals (added 2026-02-22)
+
+### File Size Comparison (Plan vs Actual)
+
+| File                              | Plan Estimate | Actual Lines | Delta |
+| --------------------------------- | ------------- | ------------ | ----- |
+| `services/auth.service.ts`        | ~300 lines    | 337 lines    | +12%  |
+| `services/user-sync.consumer.ts`  | ~200 lines    | 524 lines    | +162% |
+| `repositories/user.repository.ts` | ~150 lines    | 388 lines    | +159% |
+| `middleware/auth-rate-limit.ts`   | ~80 lines     | 179 lines    | +124% |
+| `types/auth.types.ts`             | ~100 lines    | 157 lines    | +57%  |
+| `routes/auth.ts` (rewrite)        | ~437 lines    | 1,067 lines  | +144% |
+| `services/keycloak.service.ts`    | (extend)      | 937 lines    | N/A   |
+
+**Key observation**: All files grew substantially beyond estimates. The
+user-sync consumer grew 2.6× due to robust idempotency guards, event
+ordering verification, and Edge Case #2 retry logic. Auth routes grew
+2.4× due to comprehensive Zod validation, detailed error handling per
+endpoint, and JWKS proxy caching logic.
+
+### Test Coverage Status
+
+| Component               | Plan Target | Actual Status                  | Notes                            |
+| ----------------------- | ----------- | ------------------------------ | -------------------------------- |
+| `auth.service.ts`       | ≥90%        | ✅ Tested (26 tests)           | Meets target                     |
+| `user-sync.consumer.ts` | ≥90%        | ✅ Tested (48 tests)           | Meets target                     |
+| `user.repository.ts`    | ≥85%        | ✅ Tested (42 tests)           | Meets target                     |
+| `auth-rate-limit.ts`    | ≥90%        | ✅ Tested (28 tests)           | Meets target                     |
+| `jwt.ts`                | ≥90%        | ✅ Tested (24+35 tests)        | Meets target (2 test files)      |
+| `auth.ts` middleware    | ≥85%        | ✅ Tested (54+38 tests)        | Meets target (2 test files)      |
+| `auth.ts` routes        | ≥85%        | ✅ Tested (46 tests)           | Meets target                     |
+| `keycloak.service.ts`   | ≥85%        | ❌ **2.83% coverage (TD-003)** | CRITICAL GAP — see §12 below     |
+| Auth module overall     | ≥85%        | ⚠️ Partial                     | Dragged down by keycloak.service |
+
+**Total auth test count**: 532 tests (385 unit + 76 integration + 71 E2E)
+
+### Test Files Not in Original Plan (Added During Implementation)
+
+| File                                         | Tests | Reason Added                                       |
+| -------------------------------------------- | ----- | -------------------------------------------------- |
+| `unit/auth-middleware.test.ts`               | 38    | Dedicated middleware tests (separated from routes) |
+| `unit/keycloak-jwt.test.ts`                  | 24    | JWT validation against real Keycloak token format  |
+| `unit/permission.service.test.ts`            | 20    | Permission service tests (related to RBAC)         |
+| `integration/auth-flow.integration.test.ts`  | 13    | Legacy auth flow integration (retained)            |
+| `integration/permission.integration.test.ts` | 21    | Permission integration tests                       |
+| `e2e/security-hardening.e2e.test.ts`         | 25    | Security hardening from Task 7.2 review            |
+| `e2e/cross-tenant-security.e2e.test.ts`      | 12    | Cross-tenant isolation E2E (Task 7.2)              |
+| `e2e/token-refresh.e2e.test.ts`              | 20    | Token refresh and rotation E2E                     |
+
+## Appendix D: Post-Implementation Gaps (added 2026-02-22)
+
+### Gap 1: keycloak.service.ts Coverage (TD-003 — HIGH)
+
+**Problem**: `keycloak.service.ts` (937 lines) has only **2.83% test coverage**,
+making it the single biggest drag on overall auth module coverage. This file
+contains 7 critical methods planned in §4.2 plus the existing `createRealm()`
+and admin API client management.
+
+**Root cause**: Integration tests require a running Keycloak instance. Unit
+testing requires complex mocking of `@keycloak/keycloak-admin-client`. The
+plan's Phase 3 testing estimate (4h) was insufficient for the service's
+complexity (937 lines with HTTP calls, error handling, retry logic).
+
+**Impact**: Auth module coverage below the ≥85% target (Art. 4.1). Overall
+project coverage at 76.5% vs 80% target (TD-001).
+
+**Recommended remediation** (target: Sprint 5):
+
+1. Create `apps/core-api/src/__tests__/auth/unit/keycloak.service.test.ts`
+   with mocked `KcAdminClient` (~40 tests, est. 6-8h):
+   - `createRealm()` — success, failure, retry
+   - `provisionRealmClients()` — creates plexica-web + plexica-api clients
+   - `provisionRealmRoles()` — creates tenant_admin + user roles
+   - `setRealmEnabled()` — enable/disable realm
+   - `exchangeAuthorizationCode()` — code exchange success/failure
+   - `refreshToken()` — refresh with rotation
+   - `revokeToken()` — token revocation
+   - `configureRefreshTokenRotation()` — realm config update
+   - Error sanitization via `KeycloakSanitizedError`
+   - Admin token re-authentication (50s TTL)
+2. Add to `apps/core-api/src/__tests__/auth/integration/keycloak.integration.test.ts`
+   with real Keycloak (~15 tests, est. 4-6h):
+   - Full realm lifecycle: create → provision clients → provision roles → disable → enable → delete
+   - Token exchange against real realm
+   - Error handling with actual Keycloak error responses
+3. **Expected coverage gain**: From 2.83% → ~75-85% (target: ≥85%)
+4. **Expected overall project impact**: +3-5% overall coverage (76.5% → ~80%)
+
+### Gap 2: Adversarial Review (Task 7.2 — Partially Complete)
+
+**Problem**: Task 7.2 (`/forge-review`) was executed and produced findings
+(11 issues: 2 CRITICAL, 4 HIGH, 3 MEDIUM, 2 LOW). 9 of 11 issues were fixed.
+2 issues deferred (1 MEDIUM, 1 LOW). The task checkbox remains unchecked in
+tasks.md because the full review cycle was not formally closed.
+
+**Recommended action**: Mark Task 7.2 as complete in tasks.md with a note
+documenting the 2 deferred issues.
+
+### Gap 3: ADR-015 Provisioning Orchestration Alignment
+
+**Problem**: Phase 3 of this plan assumed `TenantService.createTenant()` would
+call `provisionRealmClients()` and `provisionRealmRoles()` directly. ADR-015
+(accepted 2026-02-22) introduced a `ProvisioningOrchestrator` with step-based
+execution, retry, and rollback. The underlying `KeycloakService` methods are
+unchanged, but the orchestration layer is different from what the plan described.
+
+**Impact**: Low — the plan's architectural intent is preserved (Keycloak
+provisioning with retry and rollback), but the implementation uses a more
+robust pattern than originally planned. This is an improvement, not a
+regression.
+
+**Action**: No code changes needed. This appendix documents the deviation for
+traceability.
+
+## Appendix E: Plan-vs-Actuals Discrepancies (Refresh #2)
+
+> **Added**: 2026-02-22 (refresh #2). These discrepancies were identified by
+> comparing the plan against the current codebase. All are documentation-only
+> corrections — the implementation is correct; the plan was stale.
+
+### Discrepancy #1: User Status Type — String vs Enum (CORRECTED)
+
+| Aspect                    | Plan (before)                 | Actual                           | Corrected       |
+| ------------------------- | ----------------------------- | -------------------------------- | --------------- |
+| §2.2 `status` column type | `String @default("active")`   | `UserStatus @default(ACTIVE)`    | ✅ §2.2 updated |
+| Status values             | `"active" \| "deactivated"`   | `ACTIVE \| SUSPENDED \| DELETED` | ✅ §2.2 updated |
+| §4.3 `softDelete`         | Sets `status = "deactivated"` | Sets `status = DELETED`          | ⚠️ Note only    |
+
+**Assessment**: The enum is stricter than the planned string type. The
+`SUSPENDED` value (not in original plan) supports tenant-level user suspension.
+The `DELETED` value replaces the plan's `"deactivated"` string. This is an
+improvement — enums provide type safety and prevent invalid status values.
+
+### Discrepancy #2: Missing `idx_users_status` Index (DOCUMENTED)
+
+| Aspect                 | Plan                                         | Actual                |
+| ---------------------- | -------------------------------------------- | --------------------- |
+| §2.3 Index on `status` | `@@index([status], map: "idx_users_status")` | Not present in schema |
+
+**Assessment**: The `UserStatus` enum has only 3 values (`ACTIVE`, `SUSPENDED`,
+`DELETED`). With such low cardinality, a B-tree index provides poor selectivity
+and may be counterproductive (index maintenance cost > query benefit). The plan's
+index was reasonable for a string column but is less useful for a 3-value enum.
+If query profiling shows slow status-filtered queries at scale, the index can
+be added. No action required now.
+
+### Discrepancy #3: AuthService Method Signatures (CORRECTED)
+
+| Method          | Plan Signature                 | Actual Signature                                 | Change                                                              |
+| --------------- | ------------------------------ | ------------------------------------------------ | ------------------------------------------------------------------- |
+| `exchangeCode`  | `(code, tenantSlug)`           | `(tenantSlug, code, redirectUri, codeVerifier?)` | Param order swapped; `redirectUri` added; PKCE `codeVerifier` added |
+| `refreshTokens` | `(refreshToken)`               | `(tenantSlug, refreshToken)`                     | `tenantSlug` added as first param                                   |
+| `revokeTokens`  | `(accessToken, refreshToken?)` | `(tenantSlug, token, tokenType)`                 | Complete signature change; uses `tokenType` discriminator           |
+
+**Assessment**: All changes are improvements. Adding `tenantSlug` to every
+method ensures tenant validation occurs in the service layer (Art. 3.2, Art. 5.1).
+PKCE support (`codeVerifier`) enhances security for public clients (Art. 1.2).
+The `tokenType` discriminator in `revokeTokens` is cleaner than separate params.
+Plan §4.1 corrected.
+
+### Discrepancy #4: Error Code — AUTH_TOKEN_MISSING vs AUTH_MISSING_TOKEN
+
+| Location                     | Code Used                       |
+| ---------------------------- | ------------------------------- |
+| Plan §3.5 (GET `/auth/me`)   | `AUTH_MISSING_TOKEN` (original) |
+| Spec Section 8 error codes   | `AUTH_MISSING_TOKEN`            |
+| `auth.ts` middleware line 40 | `AUTH_TOKEN_MISSING`            |
+
+**Assessment**: The implementation uses `AUTH_TOKEN_MISSING` while the spec
+defines `AUTH_MISSING_TOKEN`. Both are valid error codes conveying the same
+meaning. This is a minor naming inconsistency.
+
+**Recommended action**: Either update the spec to match the implementation
+(`AUTH_TOKEN_MISSING`) or update the middleware to match the spec
+(`AUTH_MISSING_TOKEN`). The middleware is the more practical fix since it's
+a single line change. Severity: LOW.
+
+**Plan correction**: §3.5 updated to show `AUTH_TOKEN_MISSING` (matching
+the implementation) with a note about the spec inconsistency.
+
+### Discrepancy #5: Possible Test File Duplication
+
+| File                           | Tests | Lines |
+| ------------------------------ | ----- | ----- |
+| `unit/auth-middleware.test.ts` | 38    | 988   |
+| `unit/auth.middleware.test.ts` | ~54   | 1,296 |
+
+**Assessment**: Two test files with near-identical names (`auth-middleware` vs
+`auth.middleware`) exist for middleware tests. Both are listed in Appendix C
+as containing valid tests. This may be intentional (different aspects of the
+middleware) or accidental duplication. Needs investigation during Sprint 5.
+
+**Recommended action**: Review both files for overlapping test coverage. If
+duplicate, consolidate into one file following the kebab-case convention
+(`auth-middleware.test.ts` per Art. 7.1). Severity: LOW.
+
+### Discrepancy #6: Return Type — TokenResponse vs KeycloakTokenResponse
+
+| Method          | Plan Return Type | Actual Return Type      |
+| --------------- | ---------------- | ----------------------- |
+| `exchangeCode`  | `TokenResponse`  | `KeycloakTokenResponse` |
+| `refreshTokens` | `TokenResponse`  | `KeycloakTokenResponse` |
+
+**Assessment**: The plan defined a generic `TokenResponse` interface in
+`auth.types.ts`, but the implementation directly uses `KeycloakTokenResponse`
+from `keycloak.service.ts`. This tighter coupling to the Keycloak type is
+acceptable since Keycloak is the only auth provider. If a second provider
+is added in the future, a mapping layer would be needed. Corrected in §4.1.
+
+### Discrepancy #7: ADR-017 (ABAC Engine) Not Cross-Referenced
+
+**Assessment**: ADR-017 defines an ABAC (Attribute-Based Access Control) engine
+for Spec 003 (Authorization). The ABAC engine interacts with the auth middleware
+(`auth.ts`) for permission evaluation. This ADR was not in the plan's
+cross-references. Added to cross-references table.
+
+### Summary
+
+| #   | Discrepancy                              | Severity                  | Action Taken                  |
+| --- | ---------------------------------------- | ------------------------- | ----------------------------- |
+| 1   | UserStatus enum vs String                | LOW (improvement)         | §2.2 corrected                |
+| 2   | Missing idx_users_status                 | LOW (by design)           | §2.3 documented               |
+| 3   | AuthService method signatures            | MEDIUM (plan stale)       | §4.1 corrected                |
+| 4   | AUTH_TOKEN_MISSING vs AUTH_MISSING_TOKEN | LOW (naming only)         | §3.5 updated, fix recommended |
+| 5   | Possible test file duplication           | LOW                       | Investigate in Sprint 5       |
+| 6   | TokenResponse vs KeycloakTokenResponse   | LOW (acceptable coupling) | §4.1 corrected                |
+| 7   | ADR-017 not cross-referenced             | LOW                       | Cross-references updated      |
+
+**Overall assessment**: No architectural issues. All discrepancies are
+documentation corrections or minor naming inconsistencies. The implementation
+is correct and improves on the plan's original design in several areas
+(enum type safety, PKCE support, tenant-scoped method signatures).
