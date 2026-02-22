@@ -14,6 +14,40 @@ import { db } from '../lib/db.js';
 // SECURITY: customCss is sanitized to block data-exfiltration vectors (url(), @import, expression())
 const CSS_DISALLOWED_PATTERN = /url\s*\(|@import\s|expression\s*\(/i;
 
+/**
+ * Internal provisioning keys written to `settings` by the orchestrator / invitation step.
+ * These are operational metadata and must never be exposed in API responses.
+ */
+const INTERNAL_SETTINGS_KEYS = [
+  'provisioningState',
+  'invitationStatus',
+  'invitationError',
+  'provisioningError',
+  'provisioningFailedStep',
+] as const;
+
+/**
+ * Strip internal provisioning keys from the tenant settings object before
+ * returning to callers.  The keys remain in the DB for operational debugging.
+ */
+function sanitizeTenantSettings(
+  settings: Record<string, any> | null | undefined
+): Record<string, any> {
+  if (!settings || typeof settings !== 'object') return {};
+  const sanitized = { ...settings };
+  for (const key of INTERNAL_SETTINGS_KEYS) {
+    delete sanitized[key];
+  }
+  return sanitized;
+}
+
+/**
+ * Return a tenant object safe for API responses: settings stripped of internal keys.
+ */
+function sanitizeTenant<T extends { settings?: any }>(tenant: T): T {
+  return { ...tenant, settings: sanitizeTenantSettings(tenant.settings) };
+}
+
 const TenantThemeSchema = z.object({
   logoUrl: z.string().url().optional(),
   faviconUrl: z.string().url().optional(),
@@ -150,7 +184,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const totalPages = Math.ceil(result.total / limit);
 
         return reply.send({
-          data: result.tenants,
+          data: result.tenants.map(sanitizeTenant),
           pagination: {
             page,
             limit,
@@ -294,24 +328,39 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Invalid input or validation error',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
           409: {
             description: 'Tenant with this slug already exists',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
           500: {
             description: 'Provisioning failed',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -354,7 +403,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         request.log.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant created successfully');
 
-        return reply.code(201).send(tenant);
+        return reply.code(201).send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, body: request.body }, 'Failed to create tenant');
 
@@ -448,7 +497,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.getTenant(request.params.id);
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to get tenant');
 
@@ -513,7 +562,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.suspendTenant(request.params.id);
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to suspend tenant');
 
@@ -588,7 +637,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.activateTenant(request.params.id);
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to activate tenant');
 
@@ -912,7 +961,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         request.log.info({ tenantId: tenant.id }, 'Tenant updated successfully');
 
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to update tenant');
 

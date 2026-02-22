@@ -58,62 +58,33 @@ export async function tenantContextMiddleware(
       jwtTenantSlug = user.tenantSlug; // Remember JWT tenant for validation
     }
 
+    // Always validate custom headers (needed for both auth and unauth paths)
+    const headerValidation = validateCustomHeaders(request.headers);
+
+    // Log any header validation errors
+    if (headerValidation.errors.length > 0) {
+      headerValidation.errors.forEach((error) => {
+        logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
+      });
+      return reply.code(400).send({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid header format',
+          details: headerValidation.errors,
+        },
+      });
+    }
+
     // Method 2: Fallback to X-Tenant-Slug header for public/unauthenticated requests
     if (!tenantSlug) {
-      // SECURITY: Validate and extract custom headers
-      const headerValidation = validateCustomHeaders(request.headers);
-
-      // Log any header validation errors
-      if (headerValidation.errors.length > 0) {
-        headerValidation.errors.forEach((error) => {
-          logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
-        });
-        return reply.code(400).send({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid header format',
-            details: headerValidation.errors,
-          },
-        });
-      }
-
       // Use validated tenant slug from header
       if (headerValidation.tenantSlug) {
         tenantSlug = headerValidation.tenantSlug;
       }
-    } else if (jwtTenantSlug) {
-      // SECURITY: If user is authenticated, validate that any tenant header matches JWT tenant
-      // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation)
-      // EXCEPTION: Super admins can access any tenant (they operate platform-wide)
-      const headerValidation = validateCustomHeaders(request.headers);
-      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
-      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
-
-      if (
-        headerValidation.tenantSlug &&
-        headerValidation.tenantSlug !== jwtTenantSlug &&
-        !isSuperAdmin
-      ) {
-        request.log.warn(
-          { jwtTenant: jwtTenantSlug, headerTenant: headerValidation.tenantSlug, userId: user.id },
-          'Cross-tenant access attempt detected'
-        );
-        return reply.code(403).send({
-          error: {
-            code: 'AUTH_CROSS_TENANT',
-            message: 'Token not valid for requested tenant',
-            details: {
-              jwtTenant: jwtTenantSlug,
-              requestedTenant: headerValidation.tenantSlug,
-            },
-          },
-        });
-      }
-
-      // If super admin is accessing a different tenant via header, use the header tenant
-      if (isSuperAdmin && headerValidation.tenantSlug) {
-        tenantSlug = headerValidation.tenantSlug;
-      }
+    } else if (jwtTenantSlug && headerValidation.tenantSlug) {
+      // If authenticated user sends a header slug too, use the header slug as the
+      // resolved tenant (cross-tenant check comes AFTER we know the tenant exists/status)
+      tenantSlug = headerValidation.tenantSlug;
     }
 
     // Method 3: Extract tenant from subdomain (future)
@@ -151,7 +122,8 @@ export async function tenantContextMiddleware(
     }
 
     // Check tenant status — T001-07
-    // DELETED tenants are invisible to everyone (404)
+    // DELETED tenants are invisible to everyone (404) — checked BEFORE cross-tenant guard
+    // so that DELETED tenants never leak info via 403 responses.
     if (tenant.status === 'DELETED') {
       return reply.code(404).send({
         error: {
@@ -164,9 +136,34 @@ export async function tenantContextMiddleware(
       });
     }
 
+    // SECURITY: If user is authenticated, validate that the resolved tenant matches JWT tenant.
+    // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation).
+    // EXCEPTION: Super admins can access any tenant (they operate platform-wide).
+    // NOTE: This check runs AFTER the DELETED check so deleted tenants always return 404.
+    if (jwtTenantSlug && tenantSlug !== jwtTenantSlug) {
+      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
+      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
+
+      if (!isSuperAdmin) {
+        request.log.warn(
+          { jwtTenant: jwtTenantSlug, headerTenant: tenantSlug, userId: user.id },
+          'Cross-tenant access attempt detected'
+        );
+        return reply.code(403).send({
+          error: {
+            code: 'AUTH_CROSS_TENANT',
+            message: 'Token not valid for requested tenant',
+            details: {
+              jwtTenant: jwtTenantSlug,
+              requestedTenant: tenantSlug,
+            },
+          },
+        });
+      }
+    }
+
     // SUSPENDED / PENDING_DELETION: Super Admins can still access; regular users get 403
     if (tenant.status !== 'ACTIVE') {
-      const user = (request as any).user;
       const roles: string[] = user?.roles ?? user?.realm_access?.roles ?? [];
       const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
 
@@ -190,7 +187,7 @@ export async function tenantContextMiddleware(
       tenantSlug: tenant.slug,
       schemaName: tenantService.getSchemaName(tenant.slug),
       // SECURITY: Set workspace ID if provided and validated
-      workspaceId: user ? undefined : validateCustomHeaders(request.headers).workspaceId,
+      workspaceId: user ? undefined : headerValidation.workspaceId,
     };
 
     // Store context in AsyncLocalStorage using enterWith

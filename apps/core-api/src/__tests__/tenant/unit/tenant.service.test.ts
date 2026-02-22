@@ -680,13 +680,11 @@ describe('TenantService', () => {
       expect(mockTenantUpdate).not.toHaveBeenCalled();
     });
 
-    it('should throw when tenant is DELETED (service-layer guard)', async () => {
+    it('should throw "Tenant not found" when tenant is DELETED (invisible, returns 404)', async () => {
       const tenant = makeMockTenant({ status: TenantStatus.DELETED });
       mockTenantFindUnique.mockResolvedValue(tenant);
 
-      await expect(service.deleteTenant('tenant-123')).rejects.toThrow(
-        /Cannot delete tenant with status: DELETED/
-      );
+      await expect(service.deleteTenant('tenant-123')).rejects.toThrow('Tenant not found');
       expect(mockTenantUpdate).not.toHaveBeenCalled();
     });
 

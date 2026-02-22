@@ -293,8 +293,11 @@ export class TenantService {
     }
 
     // State machine guard: only allow deletion from lifecycle-valid states
+    // DELETED tenants are invisible — treat as not found (returns 404 to caller)
+    if (tenant.status === TenantStatus.DELETED) {
+      throw new Error('Tenant not found');
+    }
     if (
-      tenant.status === TenantStatus.DELETED ||
       tenant.status === TenantStatus.PENDING_DELETION ||
       tenant.status === TenantStatus.PROVISIONING
     ) {
