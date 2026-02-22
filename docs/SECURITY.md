@@ -469,7 +469,7 @@ Always use HTTPS in production:
 
 ```typescript
 // ✅ Good: Enforce HTTPS
-if (process.env.NODE_ENV === 'production' && !request.protocol === 'https') {
+if (process.env.NODE_ENV === 'production' && request.protocol !== 'https') {
   throw new UnauthorizedException('HTTPS required');
 }
 ```

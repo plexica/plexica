@@ -9,7 +9,7 @@
 
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
-**Version**: 0.1.0  
+**Version**: 0.9.0  
 **Status**: Phase 2 — Plugin Ecosystem + Workspace Management + Auth OAuth 2.0 ✅  
 **Last Updated**: February 19, 2026
 
@@ -75,13 +75,17 @@ cd apps/super-admin && pnpm dev
 
 ### Access Points
 
-| Service     | URL                          | Credentials                         |
-| ----------- | ---------------------------- | ----------------------------------- |
-| Tenant App  | http://localhost:3001        | `admin@acme-corp.com` / `Admin123!` |
-| Super Admin | http://localhost:3002        | `admin@plexica.com` / `admin`       |
-| Core API    | http://localhost:3000        | —                                   |
-| API Health  | http://localhost:3000/health | —                                   |
-| Keycloak    | http://localhost:8080        | `admin` / `admin`                   |
+| Service     | URL                          | Credentials                                                         |
+| ----------- | ---------------------------- | ------------------------------------------------------------------- |
+| Tenant App  | http://localhost:3001        | See `.env` / `test-infrastructure/scripts/test-setup.sh`            |
+| Super Admin | http://localhost:3002        | ⚠️ Dev default — **MUST CHANGE IN PRODUCTION** (see `.env.example`) |
+| Core API    | http://localhost:3000        | —                                                                   |
+| API Health  | http://localhost:3000/health | —                                                                   |
+| Keycloak    | http://localhost:8080        | ⚠️ Dev default `admin/admin` — **MUST CHANGE IN PRODUCTION**        |
+
+> **Security Notice**: Default credentials above are for local development only.
+> Never deploy with these defaults. Set strong credentials via environment
+> variables before any non-local deployment. See [Security Guidelines](./docs/SECURITY.md).
 
 ---
 
@@ -307,7 +311,7 @@ GET    /api/tenants/:id/plugins                       # List tenant plugins
 
 - **[Quick Start](./docs/QUICKSTART.md)** — 5-minute setup
 - **[Frontend Architecture](./docs/ARCHITECTURE.md)** — Full frontend overview
-- **[i18n Usage Guide](./docs/I18N_USAGE.md)** — Internationalization developer guide
+- **[i18n Usage Guide](./apps/web/docs/I18N_USAGE.md)** — Internationalization developer guide
 - **[Security Guidelines](./docs/SECURITY.md)** 🔒 — MANDATORY for all contributors
 - **[Contributing](./docs/CONTRIBUTING.md)** — Contribution guidelines
 - **[Agent Guidelines](./AGENTS.md)** — For AI coding agents

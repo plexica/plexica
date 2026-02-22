@@ -1,14 +1,14 @@
 # Plexica - Architectural Decision Records (ADR)
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
-**Owner**: Engineering Team  
-**Document Type**: Developer Guide
-
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
+**Last Updated**: February 22, 2026  
+**Status**: Active  
 **Owner**: Engineering Team  
 **Document Type**: Architectural Decisions
+
+> **Note**: ADRs ADR-001 through ADR-012 were converted into individual
+> FORGE-format documents on February 13, 2026 and are maintained in
+> `.forge/knowledge/adr/`. This file is kept as a consolidated reference.
+> For the authoritative index see [`.forge/knowledge/adr/README.md`](../.forge/knowledge/adr/README.md).
 
 Log of important architectural decisions made during project development.
 
@@ -582,5 +582,120 @@ Required dynamic loading of frontend plugins without rebuilding the host applica
 
 ---
 
+## ADR-012: ICU MessageFormat Library (FormatJS)
+
+**Date**: 2026-02-13  
+**Status**: Accepted
+
+### Context
+
+Spec 006 (i18n) requires full ICU MessageFormat support for plurals, select
+expressions, and interpolation across all CLDR plural categories. The library
+must work in both Node.js (backend) and React (frontend), support compile-time
+message compilation for performance, and enable per-tenant locale resolution.
+The previously listed i18next 23.x in the architecture doc was never installed
+and had no ADR.
+
+### Decision
+
+**Chosen**: FormatJS (`@formatjs/intl` + `react-intl`)
+
+FormatJS provides the best combination of: compile-time ICU parsing (zero
+runtime overhead), full CLDR plural support, official React integration via
+`react-intl`, TypeScript-first design, 10M+ weekly npm downloads, and
+compatibility with both Node.js and the browser bundle.
+
+### Consequences
+
+- `@plexica/i18n` shared package uses FormatJS for all ICU parsing
+- Messages compiled at build time via `@formatjs/cli` — no runtime ICU parser
+- Frontend uses `<IntlProvider>` from `react-intl`; hooks (`useIntl`) for
+  component-level translation
+- Plugin namespaces lazy-loaded via dynamic import
+
+### Related Decisions
+
+- Spec 006, ADR-001, Constitution Art. 2
+
+---
+
+## ADR-013: Materialised Path for Workspace Hierarchy
+
+**Date**: 2026-02-20  
+**Status**: Accepted
+
+### Context
+
+Spec 011 introduces parent-child workspace relationships with unlimited
+hierarchy depth. The pattern must support descendant queries, ancestor lookups,
+top-down aggregation, and tree rendering — all within the schema-per-tenant
+architecture (ADR-002). Three options were evaluated: adjacency list (recursive
+CTEs), nested sets (lft/rgt), and materialised path (path string).
+
+### Decision
+
+**Chosen**: Materialised Path — each workspace stores a `/`-delimited `path`
+column (e.g., `"rootId/childId/selfId"`). Descendant queries use
+`WHERE path LIKE 'rootId/%'` which is sargable with a `varchar_pattern_ops`
+B-TREE index.
+
+Rationale: O(log n) descendant reads, O(1) ancestor extraction (split string),
+O(1) writes (only insert new row), bounded re-parenting cost (O(subtree size)).
+Nested sets were rejected due to O(n) write amplification on every insert.
+
+### Consequences
+
+- New `path varchar`, `depth integer` columns on `workspaces` table
+- B-TREE index with `varchar_pattern_ops` operator class required for sargable
+  `LIKE 'prefix%'` queries
+- Re-parenting supported via dedicated `PATCH /parent` endpoint with bulk UPDATE
+- `parentId` is immutable at schema level; re-parenting uses path recalculation
+
+### Related Decisions
+
+- Spec 011, ADR-002, ADR-007, Constitution Art. 3.3
+
+---
+
+## ADR-014: WorkspacePlugin Scoping (Separate Table)
+
+**Date**: 2026-02-20  
+**Status**: Accepted
+
+### Context
+
+Spec 011 adds per-workspace plugin enablement. Today, plugins are enabled at
+the tenant level via `tenant_plugins`. The requirement adds a workspace-level
+layer: workspace admins can enable/disable a subset of tenant-installed plugins.
+Two options were evaluated: a separate `workspace_plugins` table vs. extending
+the existing `tenant_plugins` table with a nullable `workspace_id` column.
+
+### Decision
+
+**Chosen**: Separate `workspace_plugins` join table with
+`(workspace_id, plugin_id)` as composite primary key.
+
+Rationale: Clear DDD bounded-context separation (Constitution Art. 3.2),
+independent workspace configuration, no NULL-in-unique-key complexity, and
+clean cascade delete via FK `ON DELETE CASCADE`. The two-level lookup overhead
+(check both tenant and workspace enablement) is acceptable.
+
+Cascade rules: disabling a tenant plugin cascades to all workspace plugins;
+re-enabling does NOT cascade (deliberate — workspace admins must explicitly
+re-enable).
+
+### Consequences
+
+- New `workspace_plugins` migration in Sprint 3
+- Plugin availability check requires two-table query
+- Template application inserts workspace plugin rows within the workspace
+  creation transaction
+
+### Related Decisions
+
+- Spec 011, ADR-002, Constitution Art. 3.2, Art. 5
+
+---
+
 _Architectural Decision Records - Plexica v1.1_  
-_Last Updated: February 11, 2026_
+_Last Updated: February 22, 2026_
