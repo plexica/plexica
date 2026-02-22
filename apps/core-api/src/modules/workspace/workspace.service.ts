@@ -1727,10 +1727,14 @@ export class WorkspaceService {
 
       // First, delete team memberships for this user in teams within this workspace.
       // The team_members table may not exist in all tenant schemas (it is provisioned
-      // optionally). Wrap in try/catch so a missing table does not block member removal.
+      // optionally). Use a SAVEPOINT so a missing-table error does not abort the
+      // outer transaction — catching the Prisma JS error alone is not enough because
+      // PostgreSQL marks the connection as "transaction aborted" after any error,
+      // causing all subsequent statements in the same $transaction to fail with 25P02.
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
       const teamMembersTable = Prisma.raw(`"${schemaName}"."team_members"`);
 
+      await tx.$executeRaw(Prisma.raw('SAVEPOINT before_team_members_delete'));
       try {
         await tx.$executeRaw`
            DELETE FROM ${teamMembersTable}
@@ -1740,8 +1744,11 @@ export class WorkspaceService {
            )
            AND "user_id" = ${userId}
          `;
+        await tx.$executeRaw(Prisma.raw('RELEASE SAVEPOINT before_team_members_delete'));
       } catch {
-        // team_members table does not exist in this tenant schema — safe to ignore
+        // team_members table does not exist in this tenant schema — roll back to
+        // the savepoint to clear the aborted-transaction state, then continue.
+        await tx.$executeRaw(Prisma.raw('ROLLBACK TO SAVEPOINT before_team_members_delete'));
       }
 
       // Delete the member
