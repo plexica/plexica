@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { tenantService } from '../services/tenant.service.js';
+import { keycloakService } from '../services/keycloak.service.js';
 import { analyticsService } from '../services/analytics.service.js';
 import { marketplaceService } from '../services/marketplace.service.js';
 import { adminService } from '../services/admin.service.js';
@@ -7,6 +9,37 @@ import { pluginRegistryService } from '../services/plugin.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { db } from '../lib/db.js';
+import { sanitizeTenant } from '../lib/tenant-sanitize.js';
+
+// Theme validation schema (T001-13)
+// SECURITY: customCss is sanitized to block data-exfiltration vectors (url(), @import, expression())
+const CSS_DISALLOWED_PATTERN = /url\s*\(|@import\s|expression\s*\(/i;
+
+const TenantThemeSchema = z.object({
+  logoUrl: z.string().url().optional(),
+  faviconUrl: z.string().url().optional(),
+  primaryColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  secondaryColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  fontFamily: z.string().max(100).optional(),
+  customCss: z
+    .string()
+    .max(10240)
+    .refine(
+      (css) => !CSS_DISALLOWED_PATTERN.test(css),
+      'customCss must not contain url(), @import, or expression() to prevent data exfiltration'
+    )
+    .optional(),
+});
 
 /**
  * Admin Routes for Super Admin Application
@@ -79,6 +112,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
                     slug: { type: 'string' },
                     name: { type: 'string' },
                     status: { type: 'string' },
+                    deletionScheduledAt: { type: 'string', format: 'date-time', nullable: true },
                     createdAt: { type: 'string', format: 'date-time' },
                     updatedAt: { type: 'string', format: 'date-time' },
                   },
@@ -117,7 +151,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const totalPages = Math.ceil(result.total / limit);
 
         return reply.send({
-          data: result.tenants,
+          data: result.tenants.map(sanitizeTenant),
           pagination: {
             page,
             limit,
@@ -132,29 +166,85 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // Check slug availability
+  fastify.get<{
+    Querystring: { slug: string };
+  }>(
+    '/admin/tenants/check-slug',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Check if a tenant slug is available (super-admin only)',
+        tags: ['admin', 'tenants'],
+        querystring: {
+          type: 'object',
+          required: ['slug'],
+          properties: {
+            slug: {
+              type: 'string',
+              description: 'Slug to check',
+            },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              slug: { type: 'string' },
+              available: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Querystring: { slug: string } }>, reply: FastifyReply) => {
+      const { slug } = request.query;
+
+      // Validate format
+      const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}[a-z0-9]$/;
+      if (!SLUG_REGEX.test(slug)) {
+        return reply.code(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message:
+              'Invalid slug format. Must be 3–64 chars, start with a letter, end with alphanumeric, lowercase only.',
+            details: { slug },
+          },
+        });
+      }
+
+      const existing = await db.tenant.findUnique({ where: { slug } });
+      return reply.send({ slug, available: existing === null });
+    }
+  );
+
   // Create a new tenant (with full provisioning)
   fastify.post<{
     Body: {
       slug: string;
       name: string;
+      adminEmail: string;
+      pluginIds?: string[];
       settings?: Record<string, any>;
       theme?: Record<string, any>;
     };
   }>(
     '/admin/tenants',
     {
+      attachValidation: true,
       preHandler: [requireSuperAdmin],
       schema: {
         description: 'Create a new tenant with full provisioning (super-admin only)',
         tags: ['admin', 'tenants'],
         body: {
           type: 'object',
-          required: ['slug', 'name'],
+          required: ['slug', 'name', 'adminEmail'],
           properties: {
             slug: {
               type: 'string',
-              pattern: '^[a-z0-9-]{1,50}$',
-              description: 'Unique tenant slug (lowercase alphanumeric with hyphens)',
+              pattern: '^[a-z][a-z0-9-]{1,62}[a-z0-9]$',
+              description:
+                'Unique tenant slug (3-64 chars, starts with letter, ends with alphanumeric)',
               examples: ['acme-corp', 'globex-inc'],
             },
             name: {
@@ -163,6 +253,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
               maxLength: 255,
               description: 'Tenant display name',
               examples: ['Acme Corporation', 'Globex Inc'],
+            },
+            adminEmail: {
+              type: 'string',
+              format: 'email',
+              description: 'Email address for the initial tenant admin user',
+            },
+            pluginIds: {
+              type: 'array',
+              items: { type: 'string', format: 'uuid' },
+              description: 'Optional list of plugin UUIDs to install after provisioning',
+              default: [],
             },
             settings: {
               type: 'object',
@@ -185,8 +286,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
@@ -195,24 +296,39 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Invalid input or validation error',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
           409: {
             description: 'Tenant with this slug already exists',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
           500: {
             description: 'Provisioning failed',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -223,14 +339,42 @@ export async function adminRoutes(fastify: FastifyInstance) {
         Body: {
           slug: string;
           name: string;
+          adminEmail: string;
+          pluginIds?: string[];
           settings?: Record<string, any>;
           theme?: Record<string, any>;
         };
       }>,
       reply: FastifyReply
     ) => {
+      // Handle schema-level validation failures (required fields, format: 'email', etc.)
+      // attachValidation: true prevents Fastify from auto-sending a 400, so we intercept here.
+      if ((request as any).validationError) {
+        const ve = (request as any).validationError;
+        return reply.code(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: ve.message ?? 'Request body validation failed',
+          },
+        });
+      }
+
       try {
-        const { slug, name, settings, theme } = request.body;
+        const { slug, name, adminEmail, pluginIds, settings, theme } = request.body;
+
+        // Validate theme fields when provided (same validation as PATCH handler)
+        if (theme !== undefined) {
+          const themeResult = TenantThemeSchema.safeParse(theme);
+          if (!themeResult.success) {
+            return reply.code(400).send({
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Invalid theme configuration',
+                details: themeResult.error.flatten().fieldErrors,
+              },
+            });
+          }
+        }
 
         // Create tenant with full provisioning
         // This will:
@@ -238,48 +382,61 @@ export async function adminRoutes(fastify: FastifyInstance) {
         // 2. Create PostgreSQL schema for tenant
         // 3. Create Keycloak realm for authentication
         // 4. Initialize default roles and permissions
-        // 5. Update status to ACTIVE (or SUSPENDED if provisioning fails)
+        // 5. Create MinIO bucket for tenant assets
+        // 6. Create initial admin user in Keycloak
+        // 7. Send invitation email to admin
+        // 8. Update status to ACTIVE (or SUSPENDED if provisioning fails)
         const tenant = await tenantService.createTenant({
           slug,
           name,
+          adminEmail,
+          pluginIds: pluginIds ?? [],
           settings,
           theme,
         });
 
         request.log.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant created successfully');
 
-        return reply.code(201).send(tenant);
+        return reply.code(201).send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, body: request.body }, 'Failed to create tenant');
 
         // Handle validation errors
         if (error.message.includes('must be')) {
           return reply.code(400).send({
-            error: 'Bad Request',
-            message: error.message,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: error.message,
+            },
           });
         }
 
         // Handle duplicate slug errors
         if (error.message.includes('already exists')) {
           return reply.code(409).send({
-            error: 'Conflict',
-            message: error.message,
+            error: {
+              code: 'SLUG_CONFLICT',
+              message: error.message,
+            },
           });
         }
 
         // Handle provisioning errors
         if (error.message.includes('Failed to provision')) {
           return reply.code(500).send({
-            error: 'Provisioning Failed',
-            message: error.message,
+            error: {
+              code: 'PROVISIONING_FAILED',
+              message: error.message,
+            },
           });
         }
 
         // Generic server error
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to create tenant',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to create tenant',
+          },
         });
       }
     }
@@ -311,8 +468,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
               plugins: {
@@ -334,20 +491,24 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.getTenant(request.params.id);
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to get tenant');
 
         if (error.message === 'Tenant not found') {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: 'Tenant not found',
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve tenant details',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to retrieve tenant details',
+          },
         });
       }
     }
@@ -394,23 +555,34 @@ export async function adminRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
-        const tenant = await tenantService.updateTenant(request.params.id, {
-          status: TenantStatus.SUSPENDED,
-        });
-        return reply.send(tenant);
+        const tenant = await tenantService.suspendTenant(request.params.id);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to suspend tenant');
 
         if (error.message === 'Tenant not found') {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: 'Tenant not found',
+            },
+          });
+        }
+
+        if (error.message?.startsWith('Cannot suspend tenant with status:')) {
+          return reply.code(409).send({
+            error: {
+              code: 'INVALID_TENANT_STATE',
+              message: error.message,
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to suspend tenant',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to suspend tenant',
+          },
         });
       }
     }
@@ -442,6 +614,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
+              deletionScheduledAt: { type: 'string', format: 'date-time', nullable: true },
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
@@ -457,10 +630,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
-        const tenant = await tenantService.updateTenant(request.params.id, {
-          status: TenantStatus.ACTIVE,
-        });
-        return reply.send(tenant);
+        const tenant = await tenantService.activateTenant(request.params.id);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to activate tenant');
 
@@ -471,9 +642,109 @@ export async function adminRoutes(fastify: FastifyInstance) {
           });
         }
 
+        if (error.message?.startsWith('Cannot activate tenant with status:')) {
+          return reply.code(400).send({
+            error: {
+              code: 'INVALID_STATUS_TRANSITION',
+              message: error.message,
+            },
+          });
+        }
+
         return reply.code(500).send({
           error: 'Internal Server Error',
           message: 'Failed to activate tenant',
+        });
+      }
+    }
+  );
+
+  // Resend invitation email to tenant admin
+  fastify.post<{
+    Params: { id: string };
+  }>(
+    '/admin/tenants/:id/resend-invite',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Resend invitation email to tenant admin (super-admin only)',
+        tags: ['admin', 'tenants'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              sentAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        const tenant = await db.tenant.findUnique({ where: { id: request.params.id } });
+
+        if (!tenant) {
+          return reply.code(404).send({
+            error: { code: 'TENANT_NOT_FOUND', message: 'Tenant not found' },
+          });
+        }
+
+        const settings = (tenant.settings ?? {}) as Record<string, any>;
+        const adminEmail: string | undefined = settings.adminEmail;
+
+        if (!adminEmail) {
+          return reply.code(400).send({
+            error: { code: 'NO_ADMIN_EMAIL', message: 'No admin email configured for this tenant' },
+          });
+        }
+
+        if (settings.invitationStatus === 'accepted') {
+          return reply.code(400).send({
+            error: {
+              code: 'INVITATION_ALREADY_ACCEPTED',
+              message: 'The invitation has already been accepted',
+            },
+          });
+        }
+
+        // Find the admin user in Keycloak by email and resend required action email
+        const users = await keycloakService.listUsers(tenant.slug, { search: adminEmail, max: 10 });
+        const adminUser = users.find((u) => u.email === adminEmail);
+
+        if (!adminUser) {
+          return reply.code(400).send({
+            error: { code: 'NO_ADMIN_EMAIL', message: 'Admin user not found in Keycloak' },
+          });
+        }
+
+        await keycloakService.sendRequiredActionEmail(tenant.slug, adminUser.id!, [
+          'UPDATE_PASSWORD',
+          'VERIFY_EMAIL',
+        ]);
+
+        // Update invitationStatus to 'pending' (reset if it was 'failed')
+        await db.tenant.update({
+          where: { id: tenant.id },
+          data: { settings: { ...settings, invitationStatus: 'pending' } },
+        });
+
+        const sentAt = new Date().toISOString();
+        request.log.info({ tenantId: tenant.id, adminEmail }, 'Invitation email resent');
+
+        return reply.send({ message: 'Invitation email sent successfully', sentAt });
+      } catch (error: any) {
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to resend invitation');
+
+        return reply.code(500).send({
+          error: { code: 'EMAIL_SEND_FAILED', message: 'Failed to send invitation email' },
         });
       }
     }
@@ -501,8 +772,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Tenant marked for deletion',
             type: 'object',
             properties: {
+              id: { type: 'string' },
+              status: { type: 'string' },
+              deletionScheduledAt: { type: 'string', format: 'date-time' },
               message: { type: 'string' },
-              tenantId: { type: 'string' },
+            },
+          },
+          400: {
+            description: 'Tenant already scheduled for deletion',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
           404: {
@@ -518,27 +804,46 @@ export async function adminRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
-        await tenantService.deleteTenant(request.params.id);
+        const { deletionScheduledAt } = await tenantService.deleteTenant(request.params.id);
 
         request.log.info({ tenantId: request.params.id }, 'Tenant marked for deletion');
 
         return reply.send({
-          message: 'Tenant marked for deletion',
-          tenantId: request.params.id,
+          id: request.params.id,
+          status: 'PENDING_DELETION',
+          deletionScheduledAt: deletionScheduledAt.toISOString(),
+          message: 'Tenant scheduled for deletion in 30 days',
         });
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to delete tenant');
 
         if (error.message === 'Tenant not found') {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: 'Tenant not found',
+            },
+          });
+        }
+
+        if (error.message?.startsWith('Cannot delete tenant with status:')) {
+          // Map PENDING_DELETION back to 400, other invalid states to 409
+          const isPendingDeletion = error.message.includes('PENDING_DELETION');
+          return reply.code(isPendingDeletion ? 400 : 409).send({
+            error: {
+              code: isPendingDeletion ? 'ALREADY_PENDING_DELETION' : 'INVALID_TENANT_STATE',
+              message: isPendingDeletion
+                ? 'Tenant is already scheduled for deletion'
+                : error.message,
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to delete tenant',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to delete tenant',
+          },
         });
       }
     }
@@ -597,8 +902,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
@@ -631,12 +936,27 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (name !== undefined) updateData.name = name;
         if (settings !== undefined) updateData.settings = settings;
-        if (theme !== undefined) updateData.theme = theme;
+        if (theme !== undefined) {
+          // Validate theme fields with TenantThemeSchema
+          const themeResult = TenantThemeSchema.safeParse(theme);
+          if (!themeResult.success) {
+            return reply.code(400).send({
+              error: {
+                code: 'THEME_VALIDATION',
+                message: 'Invalid theme configuration',
+                details: themeResult.error.flatten().fieldErrors,
+              },
+            });
+          }
+          updateData.theme = themeResult.data;
+        }
 
         if (Object.keys(updateData).length === 0) {
           return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'At least one field (name, settings, theme) must be provided',
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'At least one field (name, settings, theme) must be provided',
+            },
           });
         }
 
@@ -644,20 +964,24 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         request.log.info({ tenantId: tenant.id }, 'Tenant updated successfully');
 
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to update tenant');
 
         if (error.message === 'Tenant not found') {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: 'Tenant not found',
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to update tenant',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to update tenant',
+          },
         });
       }
     }

@@ -1,0 +1,30 @@
+# Sprint 004 - Completed
+# Closed: 2026-02-21
+
+version: 1
+sprint_number: 4
+sprint_goal: 'Implement Spec 011 Phases 1 and 2: workspace hierarchy foundation (materialised path), plugin scoping, and workspace templates'
+start_date: '2026-02-18'
+end_date: '2026-02-20'
+velocity_target: 36
+actual_velocity: 36
+
+stories:
+  - id: 'S011-Phase1'
+    title: 'Workspace Hierarchy Foundation — materialised path, WorkspaceHierarchyService, tree endpoints, performance hardening (ADR-013)'
+    status: done
+    points: 23
+    commits:
+      - '23e369a'
+  - id: 'S011-Phase2'
+    title: 'Workspace Templates + WorkspacePlugin Scoping — migrations, services, CRUD endpoints, transactional apply (ADR-014)'
+    status: done
+    points: 13
+    commits:
+      - '0607a63'
+
+metrics:
+  tests_added: 900
+  test_pass_rate: 100
+  constitution_violations: 0
+  adrs_created: 2

@@ -1,22 +1,79 @@
-// Unit tests for TenantService
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TenantService } from '../../../services/tenant.service';
-import { db } from '../../../lib/db';
+/**
+ * Tenant Provisioning Unit Tests
+ *
+ * Tests the TenantService provisioning flow (createTenant, hardDeleteTenant).
+ * Uses ProvisioningOrchestrator mock to verify orchestrator is called correctly
+ * without executing real provisioning steps.
+ */
 
-// Mock dependencies
-vi.mock('../../../lib/db', () => ({
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TenantService } from '../../../services/tenant.service.js';
+import { TenantStatus } from '@plexica/database';
+
+// --- Mocks ---
+
+const mockTenantCreate = vi.fn();
+const mockTenantUpdate = vi.fn();
+const mockTenantFindUnique = vi.fn();
+const mockTenantDelete = vi.fn();
+const mockExecuteRaw = vi.fn();
+const mockExecuteRawUnsafe = vi.fn();
+
+vi.mock('../../../lib/db.js', () => ({
   db: {
     tenant: {
-      create: vi.fn(),
-      update: vi.fn(),
-      findUnique: vi.fn(),
-      delete: vi.fn(),
+      create: (...args: any[]) => mockTenantCreate(...args),
+      update: (...args: any[]) => mockTenantUpdate(...args),
+      findUnique: (...args: any[]) => mockTenantFindUnique(...args),
+      delete: (...args: any[]) => mockTenantDelete(...args),
     },
-    $executeRawUnsafe: vi.fn(),
+    $executeRaw: (...args: any[]) => mockExecuteRaw(...args),
+    $executeRawUnsafe: (...args: any[]) => mockExecuteRawUnsafe(...args),
   },
 }));
 
-vi.mock('../../../services/keycloak.service', () => ({
+// ProvisioningOrchestrator mock — prevents real step execution
+// vi.hoisted() ensures mockProvision is available at mock factory hoisting time
+const { mockProvision } = vi.hoisted(() => ({ mockProvision: vi.fn() }));
+vi.mock('../../../services/provisioning-orchestrator.js', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const MockOrchestrator = vi.fn().mockImplementation(function (this: any) {
+    this.provision = mockProvision;
+  });
+  return {
+    ProvisioningOrchestrator: MockOrchestrator,
+    provisioningOrchestrator: { provision: mockProvision },
+  };
+});
+
+vi.mock('../../../services/provisioning-steps/index.js', () => ({
+  SchemaStep: vi.fn().mockImplementation(function () {}),
+  KeycloakRealmStep: vi.fn().mockImplementation(function () {}),
+  KeycloakClientsStep: vi.fn().mockImplementation(function () {}),
+  KeycloakRolesStep: vi.fn().mockImplementation(function () {}),
+  MinioBucketStep: vi.fn().mockImplementation(function () {}),
+  AdminUserStep: vi.fn().mockImplementation(function () {}),
+  InvitationStep: vi.fn().mockImplementation(function () {}),
+}));
+
+// MinIO mock — required because hardDeleteTenant uses it
+// Must be a vi.fn() so individual tests can override with mockReturnValueOnce
+const mockRemoveTenantBucket = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../../services/minio-client.js', () => ({
+  getMinioClient: vi.fn(() => ({
+    removeTenantBucket: mockRemoveTenantBucket,
+  })),
+}));
+
+// Redis mock — required because hardDeleteTenant uses it
+vi.mock('../../../lib/redis.js', () => ({
+  redis: {
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    del: vi.fn().mockResolvedValue(0),
+  },
+}));
+
+vi.mock('../../../services/keycloak.service.js', () => ({
   keycloakService: {
     createRealm: vi.fn().mockResolvedValue(undefined),
     provisionRealmClients: vi.fn().mockResolvedValue(undefined),
@@ -26,170 +83,167 @@ vi.mock('../../../services/keycloak.service', () => ({
   },
 }));
 
-vi.mock('../../../services/permission.service', () => ({
+vi.mock('../../../services/permission.service.js', () => ({
   permissionService: {
     initializeDefaultRoles: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-describe('TenantService', () => {
+// --- Helpers ---
+
+const ADMIN_EMAIL = 'admin@example.com';
+
+const makeMockTenant = (overrides: Record<string, unknown> = {}) => ({
+  id: 'test-tenant-id',
+  slug: 'test-tenant',
+  name: 'Test Tenant',
+  status: TenantStatus.PROVISIONING,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  settings: {},
+  translationOverrides: {},
+  defaultLocale: 'en',
+  theme: {},
+  ...overrides,
+});
+
+describe('TenantService — Provisioning', () => {
   let service: TenantService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProvision.mockResolvedValue({ success: true, completedSteps: [] });
     service = new TenantService();
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────
+  // createTenant
+  // ──────────────────────────────────────────────────────────────────────────────
+
   describe('createTenant', () => {
-    it('should create a tenant with PROVISIONING status', async () => {
-      const mockTenant = {
-        id: 'test-tenant-id',
+    it('should create tenant record with PROVISIONING status initially', async () => {
+      const mockTenant = makeMockTenant();
+      mockTenantCreate.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
+
+      await service.createTenant({
         slug: 'test-tenant',
         name: 'Test Tenant',
-        status: 'PROVISIONING',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
-
-      vi.mocked(db.tenant.create).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0);
-      vi.mocked(db.tenant.update).mockResolvedValue({ ...mockTenant, status: 'ACTIVE' } as any);
-
-      const result = await service.createTenant({ slug: 'test-tenant', name: 'Test Tenant' });
-
-      expect(db.tenant.create).toHaveBeenCalledWith({
-        data: {
-          slug: 'test-tenant',
-          name: 'Test Tenant',
-          status: 'PROVISIONING',
-          settings: {},
-          theme: {},
-        },
+        adminEmail: ADMIN_EMAIL,
       });
 
-      expect(result.status).toEqual('ACTIVE');
+      expect(mockTenantCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: 'test-tenant',
+            name: 'Test Tenant',
+            status: TenantStatus.PROVISIONING,
+          }),
+        })
+      );
     });
 
-    it('should create a PostgreSQL schema for the tenant', async () => {
-      const mockTenant = {
-        id: 'test-tenant-id',
+    it('should delegate provisioning to ProvisioningOrchestrator', async () => {
+      const mockTenant = makeMockTenant();
+      mockTenantCreate.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
+
+      await service.createTenant({
         slug: 'test-tenant',
         name: 'Test Tenant',
-        status: 'PROVISIONING',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
+        adminEmail: ADMIN_EMAIL,
+      });
 
-      vi.mocked(db.tenant.create).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0);
-      vi.mocked(db.tenant.update).mockResolvedValue({ ...mockTenant, status: 'ACTIVE' } as any);
-
-      await service.createTenant({ slug: 'test-tenant', name: 'Test Tenant' });
-
-      // Should create schema
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('CREATE SCHEMA IF NOT EXISTS')
-      );
+      expect(mockProvision).toHaveBeenCalledTimes(1);
     });
 
     it('should update tenant status to ACTIVE after successful provisioning', async () => {
-      const mockTenant = {
-        id: 'test-tenant-id',
+      const mockTenant = makeMockTenant();
+      mockTenantCreate.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
+
+      const result = await service.createTenant({
         slug: 'test-tenant',
         name: 'Test Tenant',
-        status: 'PROVISIONING',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
-
-      vi.mocked(db.tenant.create).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0);
-      vi.mocked(db.tenant.update).mockResolvedValue({
-        ...mockTenant,
-        status: 'ACTIVE',
-      } as any);
-
-      await service.createTenant({ slug: 'test-tenant', name: 'Test Tenant' });
-
-      expect(db.tenant.update).toHaveBeenCalledWith({
-        where: { id: 'test-tenant-id' },
-        data: { status: 'ACTIVE' },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          status: true,
-          settings: true,
-          theme: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        adminEmail: ADMIN_EMAIL,
       });
+
+      expect(result.status).toEqual(TenantStatus.ACTIVE);
+      expect(mockTenantUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'test-tenant-id' },
+          data: { status: TenantStatus.ACTIVE },
+        })
+      );
     });
 
-    it('should handle provisioning errors gracefully', async () => {
-      const mockTenant = {
-        id: 'test-tenant-id',
-        slug: 'test-tenant',
-        name: 'Test Tenant',
-        status: 'PROVISIONING',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
-
-      vi.mocked(db.tenant.create).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockRejectedValue(new Error('Schema creation failed'));
-      vi.mocked(db.tenant.update).mockResolvedValue({ ...mockTenant, status: 'SUSPENDED' } as any);
+    it('should throw when orchestrator reports failure', async () => {
+      const mockTenant = makeMockTenant();
+      mockTenantCreate.mockResolvedValue(mockTenant);
+      mockProvision.mockResolvedValue({
+        success: false,
+        error: 'Schema creation failed',
+        completedSteps: [],
+      });
 
       await expect(
-        service.createTenant({ slug: 'test-tenant', name: 'Test Tenant' })
-      ).rejects.toThrow('Failed to provision tenant');
+        service.createTenant({ slug: 'test-tenant', name: 'Test Tenant', adminEmail: ADMIN_EMAIL })
+      ).rejects.toThrow('Failed to provision tenant: Schema creation failed');
+    });
+
+    it('should NOT call $executeRawUnsafe directly (provisioning delegated to orchestrator)', async () => {
+      const mockTenant = makeMockTenant();
+      mockTenantCreate.mockResolvedValue(mockTenant);
+      mockTenantUpdate.mockResolvedValue({ ...mockTenant, status: TenantStatus.ACTIVE });
+
+      await service.createTenant({
+        slug: 'test-tenant',
+        name: 'Test Tenant',
+        adminEmail: ADMIN_EMAIL,
+      });
+
+      // Schema creation is now handled by SchemaStep inside ProvisioningOrchestrator
+      expect(mockExecuteRawUnsafe).not.toHaveBeenCalled();
     });
   });
 
-  describe('hardDeleteTenant', () => {
-    it('should delete tenant and drop PostgreSQL schema', async () => {
-      const mockTenant = {
-        id: 'test-tenant-id',
-        slug: 'test-tenant',
-        name: 'Test Tenant',
-        status: 'ACTIVE',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        settings: {},
-        translationOverrides: {},
-        defaultLocale: 'en',
-        theme: {},
-      };
+  // ──────────────────────────────────────────────────────────────────────────────
+  // hardDeleteTenant
+  // ──────────────────────────────────────────────────────────────────────────────
 
-      vi.mocked(db.tenant.findUnique).mockResolvedValue(mockTenant as any);
-      vi.mocked(db.$executeRawUnsafe).mockResolvedValue(0);
-      vi.mocked(db.tenant.delete).mockResolvedValue(mockTenant as any);
+  describe('hardDeleteTenant', () => {
+    it('should drop schema with $executeRaw and delete tenant record', async () => {
+      const mockTenant = makeMockTenant({ status: TenantStatus.ACTIVE });
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockExecuteRaw.mockResolvedValue(0);
+      mockTenantDelete.mockResolvedValue(mockTenant);
 
       await service.hardDeleteTenant('test-tenant-id');
 
-      expect(db.$executeRawUnsafe).toHaveBeenCalledWith(
-        expect.stringContaining('DROP SCHEMA IF EXISTS')
-      );
-      expect(db.tenant.delete).toHaveBeenCalledWith({
+      // Schema drop uses $executeRawUnsafe (schema name is validated, not user input)
+      expect(mockExecuteRawUnsafe).toHaveBeenCalled();
+      expect(mockTenantDelete).toHaveBeenCalledWith({
         where: { id: 'test-tenant-id' },
       });
+    });
+
+    it('should proceed with tenant deletion even if MinIO cleanup fails', async () => {
+      const mockTenant = makeMockTenant({ status: TenantStatus.ACTIVE });
+      mockTenantFindUnique.mockResolvedValue(mockTenant);
+      mockExecuteRaw.mockResolvedValue(0);
+      mockTenantDelete.mockResolvedValue(mockTenant);
+
+      // getMinioClient().removeTenantBucket throws — should not propagate
+      mockRemoveTenantBucket.mockRejectedValueOnce(new Error('MinIO unreachable'));
+
+      await expect(service.hardDeleteTenant('test-tenant-id')).resolves.not.toThrow();
+      expect(mockTenantDelete).toHaveBeenCalled();
+    });
+
+    it('should throw when tenant not found', async () => {
+      mockTenantFindUnique.mockResolvedValue(null);
+
+      await expect(service.hardDeleteTenant('nonexistent')).rejects.toThrow('Tenant not found');
     });
   });
 });

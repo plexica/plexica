@@ -517,8 +517,21 @@ export class UserSyncConsumer {
   }
 }
 
-// Export singleton instance (default export for server integration)
-export const userSyncConsumer = new UserSyncConsumer(
-  // EventBusService instance will be injected at server startup
-  null as any // Placeholder - will be initialized in index.ts
-);
+// Lazy factory — avoids initialising the consumer with a null bus at module load time.
+// Call initUserSyncConsumer(bus) during server startup, then getUserSyncConsumer()
+// wherever a reference is needed.
+let _instance: UserSyncConsumer | null = null;
+
+export function initUserSyncConsumer(bus: EventBusService): UserSyncConsumer {
+  _instance = new UserSyncConsumer(bus);
+  return _instance;
+}
+
+export function getUserSyncConsumer(): UserSyncConsumer {
+  if (!_instance) {
+    throw new Error(
+      'UserSyncConsumer has not been initialised — call initUserSyncConsumer() first'
+    );
+  }
+  return _instance;
+}

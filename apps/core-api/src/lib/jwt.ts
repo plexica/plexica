@@ -178,13 +178,17 @@ export async function verifyTokenWithTenant(
   // Extract tenant from issuer or custom claim
   let tenantSlug: string = 'master';
 
-  if (payload.tenant) {
-    tenantSlug = payload.tenant;
-  } else if (payload.iss) {
+  if (payload.iss) {
     const issuerMatch = payload.iss.match(/\/realms\/([^/]+)$/);
     if (issuerMatch) {
       tenantSlug = issuerMatch[1];
     }
+  } else if (payload.tenant) {
+    // Legacy custom claim fallback — prefer issuer URL when present
+    console.warn('[jwt] Token uses legacy tenant claim instead of issuer URL', {
+      sub: payload.sub,
+    });
+    tenantSlug = payload.tenant;
   }
 
   // Verify token with the detected realm

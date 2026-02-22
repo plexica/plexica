@@ -6,6 +6,7 @@ import {
 } from '../services/tenant.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
+import { sanitizeTenant } from '../lib/tenant-sanitize.js';
 
 // Request schemas
 const createTenantSchema = {
@@ -177,7 +178,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Body: CreateTenantInput }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.createTenant(request.body);
-        return reply.code(201).send(tenant);
+        return reply.code(201).send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error(error);
         return reply.code(400).send({ error: error.message });
@@ -225,7 +226,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const result = await tenantService.listTenants(request.query);
-        return reply.send(result);
+        return reply.send({ ...result, tenants: result.tenants.map(sanitizeTenant) });
       } catch (error: any) {
         request.log.error(error);
         return reply.code(500).send({ error: error.message });
@@ -332,7 +333,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.getTenant(request.params.id);
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error(error);
         return reply.code(404).send({ error: error.message });
@@ -382,7 +383,7 @@ export async function tenantRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const tenant = await tenantService.updateTenant(request.params.id, request.body);
-        return reply.send(tenant);
+        return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error(error);
         return reply.code(404).send({ error: error.message });

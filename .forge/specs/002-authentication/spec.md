@@ -203,6 +203,7 @@ All auth endpoints return errors in the Constitution-compliant format:
 | AUTH_TOKEN_INVALID        | 401         | JWT signature or format is invalid                | JWT fails signature verification or has malformed structure                     |
 | AUTH_MISSING_TOKEN        | 401         | No Authorization header provided                  | Request to protected endpoint without Bearer token                              |
 | AUTH_CODE_EXPIRED         | 401         | OAuth authorization code has expired              | Authorization code used after Keycloak's code TTL window                        |
+| AUTH_CODE_EXCHANGE_FAILED | 401         | OAuth authorization code exchange failed          | Code exchange with Keycloak failed (invalid, expired, or already-used code)     |
 | AUTH_REFRESH_TOKEN_REUSED | 401         | Refresh token reuse detected, revoked             | Rotation detects a previously-used refresh token; entire chain revoked          |
 | AUTH_CROSS_TENANT         | 403         | JWT realm does not match target tenant            | JWT issued for realm `acme-corp` used against tenant `globex`                   |
 | AUTH_TENANT_SUSPENDED     | 403         | Tenant is suspended, all auth blocked             | Any auth operation attempted on a tenant with status SUSPENDED                  |

@@ -113,6 +113,7 @@ describe('User Sync Pipeline Integration Tests', () => {
     const tenant = await tenantService.createTenant({
       name: `Test Sync Tenant ${uniqueSlug}`,
       slug: uniqueSlug,
+      adminEmail: 'admin@test.example.com',
     });
     return { id: tenant.id, slug: tenant.slug };
   }

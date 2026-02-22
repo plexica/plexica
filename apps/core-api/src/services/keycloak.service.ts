@@ -868,6 +868,57 @@ export class KeycloakService {
   }
 
   /**
+   * Assign a realm role to a user by role name.
+   * Used during tenant admin user provisioning.
+   */
+  async assignRealmRoleToUser(tenantSlug: string, userId: string, roleName: string): Promise<void> {
+    this.validateRealmName(tenantSlug);
+    await this.ensureAuth();
+
+    await this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        // Look up the role by name
+        const roles = await this.client.roles.find({ search: roleName });
+        const role = roles.find((r) => r.name === roleName);
+        if (!role || !role.id) {
+          throw new Error(`Role '${roleName}' not found in realm '${tenantSlug}'`);
+        }
+
+        await this.client.users.addRealmRoleMappings({
+          id: userId,
+          roles: [{ id: role.id, name: role.name! }],
+        });
+
+        logger.info({ tenantSlug, userId, roleName }, 'Realm role assigned to user');
+      })
+    );
+  }
+
+  /**
+   * Send an email action (e.g. UPDATE_PASSWORD) to a Keycloak user.
+   * This triggers Keycloak's built-in email flow.
+   */
+  async sendRequiredActionEmail(
+    tenantSlug: string,
+    userId: string,
+    actions: string[]
+  ): Promise<void> {
+    this.validateRealmName(tenantSlug);
+    await this.ensureAuth();
+
+    await this.withRetry(() =>
+      this.withRealmScope(tenantSlug, async () => {
+        await this.client.users.executeActionsEmail({
+          id: userId,
+          actions,
+          lifespan: 86400, // 24 hours
+        });
+        logger.info({ tenantSlug, userId, actions }, 'Required-action email sent');
+      })
+    );
+  }
+
+  /**
    * Verify Keycloak is healthy
    */
   async healthCheck(): Promise<boolean> {

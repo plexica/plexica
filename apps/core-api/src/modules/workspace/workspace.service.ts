@@ -1725,18 +1725,31 @@ export class WorkspaceService {
         throw new Error('Cannot remove the last admin from workspace');
       }
 
-      // First, delete team memberships for this user in teams within this workspace
+      // First, delete team memberships for this user in teams within this workspace.
+      // The team_members table may not exist in all tenant schemas (it is provisioned
+      // optionally). Use a SAVEPOINT so a missing-table error does not abort the
+      // outer transaction — catching the Prisma JS error alone is not enough because
+      // PostgreSQL marks the connection as "transaction aborted" after any error,
+      // causing all subsequent statements in the same $transaction to fail with 25P02.
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
-      const teamMembersTable = Prisma.raw(`"${schemaName}"."TeamMember"`);
+      const teamMembersTable = Prisma.raw(`"${schemaName}"."team_members"`);
 
-      await tx.$executeRaw`
-         DELETE FROM ${teamMembersTable}
-         WHERE "teamId" IN (
-           SELECT id FROM ${teamsTable}
-           WHERE workspace_id = ${workspaceId}
-         )
-         AND "user_id" = ${userId}
-       `;
+      await tx.$executeRaw(Prisma.raw('SAVEPOINT before_team_members_delete'));
+      try {
+        await tx.$executeRaw`
+           DELETE FROM ${teamMembersTable}
+           WHERE "team_id" IN (
+             SELECT id FROM ${teamsTable}
+             WHERE workspace_id = ${workspaceId}
+           )
+           AND "user_id" = ${userId}
+         `;
+        await tx.$executeRaw(Prisma.raw('RELEASE SAVEPOINT before_team_members_delete'));
+      } catch {
+        // team_members table does not exist in this tenant schema — roll back to
+        // the savepoint to clear the aborted-transaction state, then continue.
+        await tx.$executeRaw(Prisma.raw('ROLLBACK TO SAVEPOINT before_team_members_delete'));
+      }
 
       // Delete the member
       await tx.$executeRaw`
@@ -2010,7 +2023,8 @@ export class WorkspaceService {
 
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
-      const teamMembersTable = Prisma.raw(`"${schemaName}"."TeamMember"`);
+      // Note: team_members table is optional and may not exist in all tenant schemas.
+      // member_count is therefore hardcoded to 0 until the table is provisioned.
 
       const teams = await tx.$queryRaw<TeamRow[]>`
         SELECT 
@@ -2025,7 +2039,7 @@ export class WorkspaceService {
           u.email AS owner_email,
           u.first_name AS owner_first_name,
           u.last_name AS owner_last_name,
-          (SELECT COUNT(*)::int FROM ${teamMembersTable} tm WHERE tm."teamId" = t.id) AS member_count
+          0 AS member_count
         FROM ${teamsTable} t
         LEFT JOIN ${usersTable} u ON t.owner_id = u.id
         WHERE t.workspace_id = ${workspaceId}

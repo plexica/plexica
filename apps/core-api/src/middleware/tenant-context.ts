@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { Prisma } from '@plexica/database';
+import { Prisma, TenantStatus } from '@plexica/database';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
 
@@ -58,62 +58,33 @@ export async function tenantContextMiddleware(
       jwtTenantSlug = user.tenantSlug; // Remember JWT tenant for validation
     }
 
+    // Always validate custom headers (needed for both auth and unauth paths)
+    const headerValidation = validateCustomHeaders(request.headers);
+
+    // Log any header validation errors
+    if (headerValidation.errors.length > 0) {
+      headerValidation.errors.forEach((error) => {
+        logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
+      });
+      return reply.code(400).send({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid header format',
+          details: headerValidation.errors,
+        },
+      });
+    }
+
     // Method 2: Fallback to X-Tenant-Slug header for public/unauthenticated requests
     if (!tenantSlug) {
-      // SECURITY: Validate and extract custom headers
-      const headerValidation = validateCustomHeaders(request.headers);
-
-      // Log any header validation errors
-      if (headerValidation.errors.length > 0) {
-        headerValidation.errors.forEach((error) => {
-          logSuspiciousHeader('custom-header', JSON.stringify(request.headers), error);
-        });
-        return reply.code(400).send({
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid header format',
-            details: headerValidation.errors,
-          },
-        });
-      }
-
       // Use validated tenant slug from header
       if (headerValidation.tenantSlug) {
         tenantSlug = headerValidation.tenantSlug;
       }
-    } else if (jwtTenantSlug) {
-      // SECURITY: If user is authenticated, validate that any tenant header matches JWT tenant
-      // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation)
-      // EXCEPTION: Super admins can access any tenant (they operate platform-wide)
-      const headerValidation = validateCustomHeaders(request.headers);
-      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
-      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
-
-      if (
-        headerValidation.tenantSlug &&
-        headerValidation.tenantSlug !== jwtTenantSlug &&
-        !isSuperAdmin
-      ) {
-        request.log.warn(
-          { jwtTenant: jwtTenantSlug, headerTenant: headerValidation.tenantSlug, userId: user.id },
-          'Cross-tenant access attempt detected'
-        );
-        return reply.code(403).send({
-          error: {
-            code: 'AUTH_CROSS_TENANT',
-            message: 'Token not valid for requested tenant',
-            details: {
-              jwtTenant: jwtTenantSlug,
-              requestedTenant: headerValidation.tenantSlug,
-            },
-          },
-        });
-      }
-
-      // If super admin is accessing a different tenant via header, use the header tenant
-      if (isSuperAdmin && headerValidation.tenantSlug) {
-        tenantSlug = headerValidation.tenantSlug;
-      }
+    } else if (jwtTenantSlug && headerValidation.tenantSlug) {
+      // If authenticated user sends a header slug too, use the header slug as the
+      // resolved tenant (cross-tenant check comes AFTER we know the tenant exists/status)
+      tenantSlug = headerValidation.tenantSlug;
     }
 
     // Method 3: Extract tenant from subdomain (future)
@@ -150,18 +121,78 @@ export async function tenantContextMiddleware(
       });
     }
 
-    // Check tenant status
-    if (tenant.status !== 'ACTIVE') {
-      return reply.code(403).send({
+    // Check tenant status — T001-07
+    // DELETED tenants are invisible to everyone (404) — checked BEFORE cross-tenant guard
+    // so that DELETED tenants never leak info via 403 responses.
+    if (tenant.status === TenantStatus.DELETED) {
+      return reply.code(404).send({
         error: {
-          code: 'TENANT_NOT_ACTIVE',
-          message: `Tenant '${tenantSlug}' is not active (status: ${tenant.status})`,
+          code: 'TENANT_NOT_FOUND',
+          message: `Tenant '${tenantSlug}' not found`,
           details: {
             tenantSlug,
-            status: tenant.status,
           },
         },
       });
+    }
+
+    // SECURITY: If user is authenticated, validate that the resolved tenant matches JWT tenant.
+    // This prevents cross-tenant access attacks (Constitution Art. 1.2 - Multi-Tenancy Isolation).
+    // EXCEPTION: Super admins can access any tenant (they operate platform-wide).
+    // NOTE: This check runs AFTER the DELETED check so deleted tenants always return 404.
+    if (jwtTenantSlug && tenantSlug !== jwtTenantSlug) {
+      // Belt-and-suspenders: DELETED tenants must return 404 even when reached via the
+      // cross-tenant path (e.g. regular user sends x-tenant-slug for a DELETED tenant).
+      // This ensures spec T001-07 is enforced regardless of execution order edge-cases.
+      if (tenant.status === TenantStatus.DELETED) {
+        return reply.code(404).send({
+          error: {
+            code: 'TENANT_NOT_FOUND',
+            message: `Tenant '${tenantSlug}' not found`,
+            details: { tenantSlug },
+          },
+        });
+      }
+
+      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
+      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
+
+      if (!isSuperAdmin) {
+        request.log.warn(
+          { jwtTenant: jwtTenantSlug, headerTenant: tenantSlug, userId: user.id },
+          'Cross-tenant access attempt detected'
+        );
+        return reply.code(403).send({
+          error: {
+            code: 'AUTH_CROSS_TENANT',
+            message: 'Token not valid for requested tenant',
+            details: {
+              jwtTenant: jwtTenantSlug,
+              requestedTenant: tenantSlug,
+            },
+          },
+        });
+      }
+    }
+
+    // SUSPENDED / PENDING_DELETION: Super Admins can still access; regular users get 403
+    // Note: DELETED is already handled above — this guard is for SUSPENDED / PENDING_DELETION only.
+    if (tenant.status !== TenantStatus.ACTIVE) {
+      const roles: string[] = user?.roles ?? user?.realm_access?.roles ?? [];
+      const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
+
+      if (!isSuperAdmin) {
+        return reply.code(403).send({
+          error: {
+            code: 'TENANT_NOT_ACTIVE',
+            message: `Tenant '${tenant.slug}' is not active (status: ${tenant.status})`,
+            details: {
+              tenantSlug: tenant.slug,
+              status: tenant.status,
+            },
+          },
+        });
+      }
     }
 
     // Create tenant context
@@ -170,7 +201,7 @@ export async function tenantContextMiddleware(
       tenantSlug: tenant.slug,
       schemaName: tenantService.getSchemaName(tenant.slug),
       // SECURITY: Set workspace ID if provided and validated
-      workspaceId: user ? undefined : validateCustomHeaders(request.headers).workspaceId,
+      workspaceId: user ? undefined : headerValidation.workspaceId,
     };
 
     // Store context in AsyncLocalStorage using enterWith
@@ -185,22 +216,22 @@ export async function tenantContextMiddleware(
   } catch (error) {
     // Handle tenant-not-found separately (getTenantBySlug throws instead of returning null)
     if (error instanceof Error && error.message === 'Tenant not found') {
-      const tenantSlug =
+      const resolvedSlug =
         (request as any).user?.tenantSlug ||
         (request.headers['x-tenant-slug'] as string) ||
         'unknown';
 
       request.log.warn(
-        { tenantSlug, error: error.message },
+        { tenantSlug: resolvedSlug, error: error.message },
         'Tenant not found in tenant-context middleware'
       );
 
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
-          message: `Tenant '${tenantSlug}' not found`,
+          message: `Tenant '${resolvedSlug}' not found`,
           details: {
-            tenantSlug,
+            tenantSlug: resolvedSlug,
           },
         },
       });

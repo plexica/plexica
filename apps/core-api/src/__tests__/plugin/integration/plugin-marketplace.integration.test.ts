@@ -39,6 +39,8 @@ describe('Plugin Marketplace Integration Tests', () => {
       payload: {
         slug: 'acme',
         name: 'ACME Corporation',
+        adminEmail: 'admin@acme.test',
+        adminPassword: 'test123',
       },
     });
 
@@ -58,6 +60,8 @@ describe('Plugin Marketplace Integration Tests', () => {
       payload: {
         slug: 'demo',
         name: 'Demo Company',
+        adminEmail: 'admin@demo.test',
+        adminPassword: 'test123',
       },
     });
 

@@ -27,6 +27,8 @@ export interface Tenant {
   theme: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  /** ISO timestamp when deletion is scheduled (set on soft-delete). Null otherwise. */
+  deletionScheduledAt: string | null;
 }
 
 /**

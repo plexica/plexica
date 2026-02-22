@@ -64,7 +64,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className={cn(className)}>
+      {/* role="alertdialog" per WCAG 2.1 AA — ensures screen readers announce dialog as alert */}
+      <DialogContent className={cn(className)} role="alertdialog" aria-modal="true">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

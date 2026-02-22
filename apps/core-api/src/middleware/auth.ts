@@ -37,7 +37,7 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     if (!token) {
       return reply.code(401).send({
         error: {
-          code: 'AUTH_TOKEN_MISSING',
+          code: 'AUTH_MISSING_TOKEN',
           message: 'Missing or invalid Authorization header',
         },
       });
@@ -55,43 +55,61 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
 
     // Validate tenant exists and is not suspended (FR-012, Edge Case #9)
     // SKIP tenant validation for super admins (they operate platform-wide)
+    //
+    // CROSS-TENANT NOTE: When a regular user sends an x-tenant-slug header pointing to a
+    // DIFFERENT tenant than their JWT tenant, this is a cross-tenant request. In that case
+    // we skip the JWT-tenant DB lookup here — tenantContextMiddleware runs after authMiddleware
+    // and is fully responsible for validating the resolved tenant (including DELETED → 404,
+    // SUSPENDED → 403, and cross-tenant guard → 403). Looking up the JWT tenant for cross-tenant
+    // requests is redundant and incorrectly 403s when the JWT tenant no longer exists in DB
+    // (e.g. after a test resetAll() or a real tenant deletion while token is still valid).
     let tenant;
     if (!isSuperAdmin) {
-      try {
-        tenant = await tenantService.getTenantBySlug(payload.tenantSlug);
-      } catch (error: any) {
-        request.log.warn(
-          { tenantSlug: payload.tenantSlug, error: error.message },
-          'Tenant not found for authenticated user'
-        );
-        return reply.code(403).send({
-          error: {
-            code: 'AUTH_TENANT_NOT_FOUND',
-            message: 'The tenant associated with this token does not exist',
-            details: {
-              tenantSlug: payload.tenantSlug,
-            },
-          },
-        });
-      }
+      const headerTenantSlug = request.headers['x-tenant-slug'] as string | undefined;
+      const isCrossTenantRequest =
+        headerTenantSlug &&
+        headerTenantSlug.trim() !== '' &&
+        headerTenantSlug !== payload.tenantSlug;
 
-      // Reject suspended tenants (FR-012, Edge Case #9)
-      if (tenant.status === 'SUSPENDED') {
-        request.log.warn(
-          { tenantSlug: payload.tenantSlug, tenantId: tenant.id },
-          'Authentication denied for suspended tenant'
-        );
-        return reply.code(403).send({
-          error: {
-            code: 'AUTH_TENANT_SUSPENDED',
-            message: 'This tenant account is currently suspended. Please contact support.',
-            details: {
-              tenantSlug: payload.tenantSlug,
-              status: 'SUSPENDED',
+      if (!isCrossTenantRequest) {
+        // Same-tenant request: validate JWT tenant exists and is not suspended
+        try {
+          tenant = await tenantService.getTenantBySlug(payload.tenantSlug);
+        } catch (error: any) {
+          request.log.warn(
+            { tenantSlug: payload.tenantSlug, error: error.message },
+            'Tenant not found for authenticated user'
+          );
+          return reply.code(403).send({
+            error: {
+              code: 'AUTH_TENANT_NOT_FOUND',
+              message: 'The tenant associated with this token does not exist',
+              details: {
+                tenantSlug: payload.tenantSlug,
+              },
             },
-          },
-        });
+          });
+        }
+
+        // Reject suspended tenants (FR-012, Edge Case #9)
+        if (tenant.status === 'SUSPENDED') {
+          request.log.warn(
+            { tenantSlug: payload.tenantSlug, tenantId: tenant.id },
+            'Authentication denied for suspended tenant'
+          );
+          return reply.code(403).send({
+            error: {
+              code: 'AUTH_TENANT_SUSPENDED',
+              message: 'This tenant account is currently suspended. Please contact support.',
+              details: {
+                tenantSlug: payload.tenantSlug,
+                status: 'SUSPENDED',
+              },
+            },
+          });
+        }
       }
+      // Cross-tenant requests: tenantContextMiddleware handles all tenant status validation
     }
 
     // Cross-tenant validation (FR-011)

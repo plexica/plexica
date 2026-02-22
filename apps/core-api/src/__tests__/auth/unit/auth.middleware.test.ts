@@ -176,7 +176,7 @@ describe('Auth Middleware - authMiddleware', () => {
       expect(reply.code).toHaveBeenCalledWith(401);
       expect(reply.send).toHaveBeenCalledWith({
         error: {
-          code: 'AUTH_TOKEN_MISSING',
+          code: 'AUTH_MISSING_TOKEN',
           message: 'Missing or invalid Authorization header',
         },
       });
@@ -194,7 +194,7 @@ describe('Auth Middleware - authMiddleware', () => {
       expect(reply.code).toHaveBeenCalledWith(401);
       expect(reply.send).toHaveBeenCalledWith({
         error: {
-          code: 'AUTH_TOKEN_MISSING',
+          code: 'AUTH_MISSING_TOKEN',
           message: 'Missing or invalid Authorization header',
         },
       });
