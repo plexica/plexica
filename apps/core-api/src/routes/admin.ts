@@ -286,8 +286,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
@@ -361,6 +361,20 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
       try {
         const { slug, name, adminEmail, pluginIds, settings, theme } = request.body;
+
+        // Validate theme fields when provided (same validation as PATCH handler)
+        if (theme !== undefined) {
+          const themeResult = TenantThemeSchema.safeParse(theme);
+          if (!themeResult.success) {
+            return reply.code(400).send({
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Invalid theme configuration',
+                details: themeResult.error.flatten().fieldErrors,
+              },
+            });
+          }
+        }
 
         // Create tenant with full provisioning
         // This will:
@@ -454,8 +468,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
               plugins: {
@@ -888,8 +902,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               slug: { type: 'string' },
               name: { type: 'string' },
               status: { type: 'string' },
-              settings: { type: 'object' },
-              theme: { type: 'object' },
+              settings: { type: 'object', additionalProperties: true },
+              theme: { type: 'object', additionalProperties: true },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
             },

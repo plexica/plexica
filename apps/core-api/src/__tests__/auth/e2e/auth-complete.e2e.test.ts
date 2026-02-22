@@ -89,6 +89,12 @@ describe('Complete Auth Lifecycle E2E Tests', { skip: SKIP_E2E_TESTS }, () => {
   };
 
   beforeAll(async () => {
+    // Enable trusted proxy so x-forwarded-for IPs are respected by the rate limiter.
+    // Without this, getClientIP() falls back to the socket IP (127.0.0.1) and all
+    // requests — including those from previous test suites — accumulate against a
+    // single key, exhausting the limit before the rate-limit test even starts.
+    process.env['TRUSTED_PROXY_CIDRS'] = '127.0.0.1/32';
+
     // Build the full test app with all middleware
     app = await buildTestApp();
     await app.ready();
@@ -162,6 +168,9 @@ describe('Complete Auth Lifecycle E2E Tests', { skip: SKIP_E2E_TESTS }, () => {
     } catch (error) {
       console.warn('Failed to delete test tenant:', error);
     }
+
+    // Restore env
+    delete process.env['TRUSTED_PROXY_CIDRS'];
 
     // Close app connections
     await app.close();
