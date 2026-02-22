@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { Prisma } from '@plexica/database';
+import { Prisma, TenantStatus } from '@plexica/database';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
 
@@ -124,7 +124,7 @@ export async function tenantContextMiddleware(
     // Check tenant status — T001-07
     // DELETED tenants are invisible to everyone (404) — checked BEFORE cross-tenant guard
     // so that DELETED tenants never leak info via 403 responses.
-    if (tenant.status === 'DELETED') {
+    if (tenant.status === TenantStatus.DELETED) {
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
@@ -163,7 +163,8 @@ export async function tenantContextMiddleware(
     }
 
     // SUSPENDED / PENDING_DELETION: Super Admins can still access; regular users get 403
-    if (tenant.status !== 'ACTIVE') {
+    // Note: DELETED is already handled above — this guard is for SUSPENDED / PENDING_DELETION only.
+    if (tenant.status !== TenantStatus.ACTIVE) {
       const roles: string[] = user?.roles ?? user?.realm_access?.roles ?? [];
       const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
 

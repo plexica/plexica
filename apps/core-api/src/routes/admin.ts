@@ -9,44 +9,11 @@ import { pluginRegistryService } from '../services/plugin.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { db } from '../lib/db.js';
+import { sanitizeTenant } from '../lib/tenant-sanitize.js';
 
 // Theme validation schema (T001-13)
 // SECURITY: customCss is sanitized to block data-exfiltration vectors (url(), @import, expression())
 const CSS_DISALLOWED_PATTERN = /url\s*\(|@import\s|expression\s*\(/i;
-
-/**
- * Internal provisioning keys written to `settings` by the orchestrator / invitation step.
- * These are operational metadata and must never be exposed in API responses.
- */
-const INTERNAL_SETTINGS_KEYS = [
-  'provisioningState',
-  'invitationStatus',
-  'invitationError',
-  'provisioningError',
-  'provisioningFailedStep',
-] as const;
-
-/**
- * Strip internal provisioning keys from the tenant settings object before
- * returning to callers.  The keys remain in the DB for operational debugging.
- */
-function sanitizeTenantSettings(
-  settings: Record<string, any> | null | undefined
-): Record<string, any> {
-  if (!settings || typeof settings !== 'object') return {};
-  const sanitized = { ...settings };
-  for (const key of INTERNAL_SETTINGS_KEYS) {
-    delete sanitized[key];
-  }
-  return sanitized;
-}
-
-/**
- * Return a tenant object safe for API responses: settings stripped of internal keys.
- */
-function sanitizeTenant<T extends { settings?: any }>(tenant: T): T {
-  return { ...tenant, settings: sanitizeTenantSettings(tenant.settings) };
-}
 
 const TenantThemeSchema = z.object({
   logoUrl: z.string().url().optional(),
@@ -264,6 +231,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   }>(
     '/admin/tenants',
     {
+      attachValidation: true,
       preHandler: [requireSuperAdmin],
       schema: {
         description: 'Create a new tenant with full provisioning (super-admin only)',
@@ -379,6 +347,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }>,
       reply: FastifyReply
     ) => {
+      // Handle schema-level validation failures (required fields, format: 'email', etc.)
+      // attachValidation: true prevents Fastify from auto-sending a 400, so we intercept here.
+      if ((request as any).validationError) {
+        const ve = (request as any).validationError;
+        return reply.code(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: ve.message ?? 'Request body validation failed',
+          },
+        });
+      }
+
       try {
         const { slug, name, adminEmail, pluginIds, settings, theme } = request.body;
 
@@ -787,6 +767,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
           400: {
             description: 'Tenant already scheduled for deletion',
             type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
           404: {
             description: 'Tenant not found',
