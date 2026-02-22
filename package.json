@@ -57,7 +57,13 @@
       "eslint>ajv": "^6.12.6",
       "axios": ">=1.13.5",
       "esbuild": ">=0.25.0"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "@prisma/engines",
+      "esbuild",
+      "msw",
+      "prisma"
+    ]
   },
   "dependencies": {
     "jwt-decode": "^4.0.0",

@@ -125,6 +125,9 @@ describe('OAuth Flow Integration Tests', { skip: SKIP_INTEGRATION_TESTS }, () =>
   }, 60_000); // 60s for Keycloak provisioning
 
   afterAll(async () => {
+    // Clean up TRUSTED_PROXY_CIDRS env var set in beforeEach to avoid
+    // leaking it to other test files.
+    delete process.env['TRUSTED_PROXY_CIDRS'];
     await app.close();
   });
 
@@ -139,6 +142,13 @@ describe('OAuth Flow Integration Tests', { skip: SKIP_INTEGRATION_TESTS }, () =>
     // Clear JWKS cache
     const jwksKeys = await redis.keys('auth:jwks:*');
     if (jwksKeys.length > 0) await redis.del(...jwksKeys);
+
+    // Trust the loopback address so that X-Forwarded-For is honoured by
+    // authRateLimitHook.  Fastify's inject() uses 127.0.0.1 as the socket IP,
+    // and getClientIP() only reads the header when the socket belongs to a
+    // trusted proxy CIDR — without this the IP-isolation rate-limit test
+    // would see both "different" IPs resolved to the same 127.0.0.1.
+    process.env['TRUSTED_PROXY_CIDRS'] = '127.0.0.1/32';
   });
 
   // ===== Test Suite 1: Authorization URL Building (FR-016) =====
