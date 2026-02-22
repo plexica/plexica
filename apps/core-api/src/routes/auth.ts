@@ -38,6 +38,8 @@ import { logger } from '../lib/logger.js';
  */
 const TENANT_SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
 
+// Schema variables are used only for z.infer<typeof ...> type inference below.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const LoginQuerySchema = z.object({
   tenantSlug: z
     .string()
@@ -47,6 +49,7 @@ const LoginQuerySchema = z.object({
   state: z.string().optional(),
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CallbackQuerySchema = z.object({
   code: z.string().min(1, 'Authorization code is required'),
   tenantSlug: z
@@ -57,6 +60,7 @@ const CallbackQuerySchema = z.object({
   codeVerifier: z.string().optional(),
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RefreshBodySchema = z.object({
   tenantSlug: z
     .string()
@@ -65,6 +69,7 @@ const RefreshBodySchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const LogoutBodySchema = z.object({
   tenantSlug: z
     .string()

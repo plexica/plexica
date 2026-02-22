@@ -348,6 +348,7 @@ function ThemeStep({ initial, onChange }: ThemeStepProps) {
     };
     const result = themeSchema.safeParse(data);
     if (result.success) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setErrors({});
       onChange(result.data);
     } else {
@@ -664,6 +665,7 @@ function ProvisioningView({ tenantId, onSuccess, onError }: ProvisioningViewProp
   }, [tenantId, onSuccess, onError, stopPolling]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     poll();
     pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
     return stopPolling;

@@ -1,6 +1,5 @@
 import { PrismaClient, TenantStatus, type Tenant } from '@plexica/database';
 import { keycloakService } from './keycloak.service.js';
-import { permissionService } from './permission.service.js';
 import { db } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
