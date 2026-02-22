@@ -18,7 +18,8 @@ import {
 export interface CreateTenantInput {
   slug: string;
   name: string;
-  adminEmail: string;
+  /** Optional — when omitted the admin_user and invitation_sent steps are skipped */
+  adminEmail?: string;
   settings?: Record<string, any>;
   theme?: Record<string, any>;
   pluginIds?: string[];

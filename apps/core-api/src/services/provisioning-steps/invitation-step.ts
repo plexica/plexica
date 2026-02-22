@@ -19,7 +19,7 @@ export class InvitationStep implements ProvisioningStep {
 
   constructor(
     private readonly slug: string,
-    private readonly adminEmail: string,
+    private readonly adminEmail: string | undefined,
     private readonly tenantId: string,
     private readonly dbClient: PrismaClient = db
   ) {}
@@ -29,6 +29,11 @@ export class InvitationStep implements ProvisioningStep {
    * Never throws — failure is stored in tenant settings and logged.
    */
   async execute(): Promise<void> {
+    if (!this.adminEmail) {
+      logger.info({ tenantSlug: this.slug }, 'InvitationStep skipped — no adminEmail provided');
+      return;
+    }
+
     logger.info(
       { tenantSlug: this.slug, adminEmail: this.adminEmail },
       'Sending invitation email to tenant admin'

@@ -25,7 +25,8 @@ export interface ProvisioningStep {
 export interface ProvisioningContext {
   tenantId: string;
   tenantSlug: string;
-  adminEmail: string;
+  /** Optional — admin_user and invitation_sent steps are skipped when absent */
+  adminEmail?: string;
   pluginIds?: string[];
 }
 

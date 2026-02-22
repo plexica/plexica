@@ -13,10 +13,15 @@ export class AdminUserStep implements ProvisioningStep {
 
   constructor(
     private readonly slug: string,
-    private readonly adminEmail: string
+    private readonly adminEmail: string | undefined
   ) {}
 
   async execute(): Promise<void> {
+    if (!this.adminEmail) {
+      logger.info({ tenantSlug: this.slug }, 'AdminUserStep skipped — no adminEmail provided');
+      return;
+    }
+
     logger.info(
       { tenantSlug: this.slug, adminEmail: this.adminEmail },
       'Creating tenant admin user'
