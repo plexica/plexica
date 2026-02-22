@@ -141,6 +141,19 @@ export async function tenantContextMiddleware(
     // EXCEPTION: Super admins can access any tenant (they operate platform-wide).
     // NOTE: This check runs AFTER the DELETED check so deleted tenants always return 404.
     if (jwtTenantSlug && tenantSlug !== jwtTenantSlug) {
+      // Belt-and-suspenders: DELETED tenants must return 404 even when reached via the
+      // cross-tenant path (e.g. regular user sends x-tenant-slug for a DELETED tenant).
+      // This ensures spec T001-07 is enforced regardless of execution order edge-cases.
+      if (tenant.status === TenantStatus.DELETED) {
+        return reply.code(404).send({
+          error: {
+            code: 'TENANT_NOT_FOUND',
+            message: `Tenant '${tenantSlug}' not found`,
+            details: { tenantSlug },
+          },
+        });
+      }
+
       const roles = user?.roles ?? user?.realm_access?.roles ?? [];
       const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
 
