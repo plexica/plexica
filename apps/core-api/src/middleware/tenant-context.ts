@@ -142,7 +142,10 @@ export async function tenantContextMiddleware(
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
-          message: 'Tenant not found',
+          message: `Tenant '${tenantSlug}' not found`,
+          details: {
+            tenantSlug,
+          },
         },
       });
     }
@@ -153,7 +156,10 @@ export async function tenantContextMiddleware(
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
-          message: 'Tenant not found',
+          message: `Tenant '${tenantSlug}' not found`,
+          details: {
+            tenantSlug,
+          },
         },
       });
     }
@@ -165,11 +171,14 @@ export async function tenantContextMiddleware(
       const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
 
       if (!isSuperAdmin) {
-        // Do NOT reveal the specific status or slug to prevent tenant enumeration
         return reply.code(403).send({
           error: {
             code: 'TENANT_NOT_ACTIVE',
-            message: 'Access to this tenant is not permitted',
+            message: `Tenant '${tenant.slug}' is not active (status: ${tenant.status})`,
+            details: {
+              tenantSlug: tenant.slug,
+              status: tenant.status,
+            },
           },
         });
       }
@@ -196,20 +205,23 @@ export async function tenantContextMiddleware(
   } catch (error) {
     // Handle tenant-not-found separately (getTenantBySlug throws instead of returning null)
     if (error instanceof Error && error.message === 'Tenant not found') {
-      const tenantSlug =
+      const resolvedSlug =
         (request as any).user?.tenantSlug ||
         (request.headers['x-tenant-slug'] as string) ||
         'unknown';
 
       request.log.warn(
-        { tenantSlug, error: error.message },
+        { tenantSlug: resolvedSlug, error: error.message },
         'Tenant not found in tenant-context middleware'
       );
 
       return reply.code(404).send({
         error: {
           code: 'TENANT_NOT_FOUND',
-          message: 'Tenant not found',
+          message: `Tenant '${resolvedSlug}' not found`,
+          details: {
+            tenantSlug: resolvedSlug,
+          },
         },
       });
     }

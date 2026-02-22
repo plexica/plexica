@@ -33,29 +33,36 @@ vi.mock('../../../lib/db.js', () => ({
 }));
 
 // ProvisioningOrchestrator mock — prevents real step execution
-const mockProvision = vi.fn();
-vi.mock('../../../services/provisioning-orchestrator.js', () => ({
-  ProvisioningOrchestrator: vi.fn().mockImplementation(() => ({
-    provision: mockProvision,
-  })),
-  provisioningOrchestrator: { provision: vi.fn() },
-}));
+// vi.hoisted() ensures mockProvision is available at mock factory hoisting time
+const { mockProvision } = vi.hoisted(() => ({ mockProvision: vi.fn() }));
+vi.mock('../../../services/provisioning-orchestrator.js', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const MockOrchestrator = vi.fn().mockImplementation(function (this: any) {
+    this.provision = mockProvision;
+  });
+  return {
+    ProvisioningOrchestrator: MockOrchestrator,
+    provisioningOrchestrator: { provision: mockProvision },
+  };
+});
 
 vi.mock('../../../services/provisioning-steps/index.js', () => ({
-  SchemaStep: vi.fn().mockImplementation(() => ({})),
-  KeycloakRealmStep: vi.fn().mockImplementation(() => ({})),
-  KeycloakClientsStep: vi.fn().mockImplementation(() => ({})),
-  KeycloakRolesStep: vi.fn().mockImplementation(() => ({})),
-  MinioBucketStep: vi.fn().mockImplementation(() => ({})),
-  AdminUserStep: vi.fn().mockImplementation(() => ({})),
-  InvitationStep: vi.fn().mockImplementation(() => ({})),
+  SchemaStep: vi.fn().mockImplementation(function () {}),
+  KeycloakRealmStep: vi.fn().mockImplementation(function () {}),
+  KeycloakClientsStep: vi.fn().mockImplementation(function () {}),
+  KeycloakRolesStep: vi.fn().mockImplementation(function () {}),
+  MinioBucketStep: vi.fn().mockImplementation(function () {}),
+  AdminUserStep: vi.fn().mockImplementation(function () {}),
+  InvitationStep: vi.fn().mockImplementation(function () {}),
 }));
 
 // MinIO mock — required because hardDeleteTenant uses it
+// Must be a vi.fn() so individual tests can override with mockReturnValueOnce
+const mockRemoveTenantBucket = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../../services/minio-client.js', () => ({
-  getMinioClient: () => ({
-    removeTenantBucket: vi.fn().mockResolvedValue(undefined),
-  }),
+  getMinioClient: vi.fn(() => ({
+    removeTenantBucket: mockRemoveTenantBucket,
+  })),
 }));
 
 // Redis mock — required because hardDeleteTenant uses it
@@ -213,8 +220,8 @@ describe('TenantService — Provisioning', () => {
 
       await service.hardDeleteTenant('test-tenant-id');
 
-      // Schema drop uses tagged $executeRaw (parameterized-safe)
-      expect(mockExecuteRaw).toHaveBeenCalled();
+      // Schema drop uses $executeRawUnsafe (schema name is validated, not user input)
+      expect(mockExecuteRawUnsafe).toHaveBeenCalled();
       expect(mockTenantDelete).toHaveBeenCalledWith({
         where: { id: 'test-tenant-id' },
       });
@@ -227,10 +234,7 @@ describe('TenantService — Provisioning', () => {
       mockTenantDelete.mockResolvedValue(mockTenant);
 
       // getMinioClient().removeTenantBucket throws — should not propagate
-      const { getMinioClient } = await import('../../../services/minio-client.js');
-      vi.mocked(getMinioClient).mockReturnValueOnce({
-        removeTenantBucket: vi.fn().mockRejectedValue(new Error('MinIO unreachable')),
-      } as any);
+      mockRemoveTenantBucket.mockRejectedValueOnce(new Error('MinIO unreachable'));
 
       await expect(service.hardDeleteTenant('test-tenant-id')).resolves.not.toThrow();
       expect(mockTenantDelete).toHaveBeenCalled();

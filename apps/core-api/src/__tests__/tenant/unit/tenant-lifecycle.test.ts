@@ -39,22 +39,27 @@ vi.mock('../../../lib/redis.js', () => ({
 }));
 
 // ProvisioningOrchestrator mock — prevents real step execution in unit tests
-const mockProvision = vi.fn();
-vi.mock('../../../services/provisioning-orchestrator.js', () => ({
-  ProvisioningOrchestrator: vi.fn().mockImplementation(() => ({
-    provision: mockProvision,
-  })),
-  provisioningOrchestrator: { provision: vi.fn() },
-}));
+// vi.hoisted() ensures mockProvision is available at mock factory hoisting time
+const { mockProvision } = vi.hoisted(() => ({ mockProvision: vi.fn() }));
+vi.mock('../../../services/provisioning-orchestrator.js', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const MockOrchestrator = vi.fn().mockImplementation(function (this: any) {
+    this.provision = mockProvision;
+  });
+  return {
+    ProvisioningOrchestrator: MockOrchestrator,
+    provisioningOrchestrator: { provision: mockProvision },
+  };
+});
 
 vi.mock('../../../services/provisioning-steps/index.js', () => ({
-  SchemaStep: vi.fn().mockImplementation(() => ({})),
-  KeycloakRealmStep: vi.fn().mockImplementation(() => ({})),
-  KeycloakClientsStep: vi.fn().mockImplementation(() => ({})),
-  KeycloakRolesStep: vi.fn().mockImplementation(() => ({})),
-  MinioBucketStep: vi.fn().mockImplementation(() => ({})),
-  AdminUserStep: vi.fn().mockImplementation(() => ({})),
-  InvitationStep: vi.fn().mockImplementation(() => ({})),
+  SchemaStep: vi.fn().mockImplementation(function () {}),
+  KeycloakRealmStep: vi.fn().mockImplementation(function () {}),
+  KeycloakClientsStep: vi.fn().mockImplementation(function () {}),
+  KeycloakRolesStep: vi.fn().mockImplementation(function () {}),
+  MinioBucketStep: vi.fn().mockImplementation(function () {}),
+  AdminUserStep: vi.fn().mockImplementation(function () {}),
+  InvitationStep: vi.fn().mockImplementation(function () {}),
 }));
 
 vi.mock('../../../lib/db.js', () => ({

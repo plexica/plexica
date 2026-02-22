@@ -50,6 +50,7 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
       theme: {},
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-02-01T00:00:00Z',
+      deletionScheduledAt: null,
     };
 
     // Set user and tenant in store (don't use setToken — it tries to save to secure storage)
