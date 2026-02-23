@@ -74,8 +74,8 @@ importers:
         specifier: ^5.2.5
         version: 5.2.5
       '@keycloak/keycloak-admin-client':
-        specifier: ^26.5.1
-        version: 26.5.1
+        specifier: ^26.5.4
+        version: 26.5.4
       '@plexica/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -1690,8 +1690,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@keycloak/keycloak-admin-client@26.5.1':
-    resolution: {integrity: sha512-9c1N/5UZK0zIz5CIFnjrlR2Qbb/CJervmPEMi04hF87VWmAKivMcsI68DxWSTrkht8Zd9z9lgWxwieDL5QP73g==}
+  '@keycloak/keycloak-admin-client@26.5.4':
+    resolution: {integrity: sha512-pVhr35J11tvKf9rPJLNZbpNVzVk8Ri5HGi2QGEGw119bSHoriOjmovpd7tJ6+yiYTk0uHKGP9IcBZtq4oRqDUw==}
     engines: {node: '>=18'}
 
   '@lukeed/ms@2.0.2':
@@ -7108,7 +7108,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@keycloak/keycloak-admin-client@26.5.1':
+  '@keycloak/keycloak-admin-client@26.5.4':
     dependencies:
       camelize-ts: 3.0.0
       url-template: 3.1.1
