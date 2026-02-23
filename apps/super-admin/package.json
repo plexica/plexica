@@ -22,7 +22,7 @@
     "@plexica/types": "workspace:*",
     "@plexica/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.21",
-    "@tanstack/react-router": "^1.161.4",
+    "@tanstack/react-router": "^1.162.6",
     "axios": "^1.13.5",
     "clsx": "^2.1.1",
     "keycloak-js": "^26.2.2",
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.0",
     "@tailwindcss/postcss": "^4.1.18",
-    "@tanstack/router-plugin": "^1.161.4",
+    "@tanstack/router-plugin": "^1.162.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
