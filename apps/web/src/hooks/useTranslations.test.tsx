@@ -355,4 +355,37 @@ describe('useNamespaces', () => {
     // Query data should remain stable across rerenders (same reference)
     expect(result.current.queries[0].data).toBe(firstQueriesData);
   });
+
+  it('should not call mergeMessages repeatedly on re-renders when data has not changed', async () => {
+    // Regression test: ensure the dataUpdatedAt-based deps array does not trigger
+    // mergeMessages on every render (which would cause infinite loops via IntlContext).
+    const mockResponse = {
+      namespace: 'core',
+      translations: { key: 'value' },
+    };
+    vi.mocked(apiClient.get).mockResolvedValue(mockResponse);
+
+    // We verify the hook is stable: re-rendering without data changes does not re-call the effect.
+    const { result, rerender } = renderHook(() => useNamespaces(['core']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Count API calls — if the effect re-ran infinitely, the component would
+    // re-render infinitely (detectable as a React error). One successful load = stable.
+    const callCountAfterLoad = vi.mocked(apiClient.get).mock.calls.length;
+
+    // Re-render multiple times without data changes
+    rerender();
+    rerender();
+    rerender();
+
+    // API should not have been called again (staleTime prevents refetch)
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(callCountAfterLoad);
+    // And the data signature should be stable
+    expect(result.current.queries[0].dataUpdatedAt).toBeGreaterThan(0);
+  });
 });

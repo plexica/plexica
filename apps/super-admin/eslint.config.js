@@ -75,12 +75,24 @@ export default defineConfig([
       'prefer-const': 'warn',
     },
   },
-  // Provider and context components with performance issues
+  // Provider and context components with performance issues.
+  // These files intentionally export both components and hooks/utilities,
+  // so react-refresh/only-export-components is not applicable here.
   {
     files: ['**/contexts/**/*.{ts,tsx}', '**/*Provider.tsx'],
     rules: {
+      'react-refresh/only-export-components': 'off',
       'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/rules-of-hooks': 'warn',
+      // rules-of-hooks remains 'error' (the default) — hook rule violations
+      // cause React runtime crashes and must always block merging.
+    },
+  },
+  // TanStack Router route files export Route objects alongside component functions.
+  // The Route export is not a React component, so react-refresh warns incorrectly.
+  {
+    files: ['**/routes/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ]);

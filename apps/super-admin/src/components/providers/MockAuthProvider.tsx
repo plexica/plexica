@@ -59,7 +59,7 @@ export const MockAuthProvider: React.FC<MockAuthProviderProps> = ({ children }) 
     console.log('[MockAuthProvider] Mock user authenticated:', mockUser);
 
     setLoading(false);
-  }, []);
+  }, [isAuthenticated, setAuth, setLoading]);
 
   const login = () => {
     console.log('[MockAuthProvider] Mock login called (no-op in test mode)');

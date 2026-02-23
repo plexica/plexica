@@ -5,7 +5,7 @@
  * submitted by developers for marketplace publication.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button, Badge, Card } from '@plexica/ui';
 import { Check, X, Eye, Clock, AlertCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
@@ -277,7 +277,7 @@ export function PluginReviewQueue() {
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
   const { toast } = useToast();
 
-  const fetchPendingPlugins = async () => {
+  const fetchPendingPlugins = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await apiClient.searchMarketplace({
@@ -297,11 +297,11 @@ export function PluginReviewQueue() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchPendingPlugins();
-  }, []);
+  }, [fetchPendingPlugins]);
 
   const handleReviewComplete = () => {
     fetchPendingPlugins();

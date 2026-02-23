@@ -715,6 +715,35 @@ export function CreateTenantWizard({ onClose, onSuccess }: CreateTenantWizardPro
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
+  // Defined before handleNext so it can be included in handleNext's deps array.
+  const handleSubmit = useCallback(async () => {
+    const { basics, plugins, theme } = wizardState.data;
+    if (!basics) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      dispatch({ type: 'START_PROVISIONING' });
+      const tenant = await apiClient.createTenant({
+        name: basics.name,
+        slug: basics.slug,
+        adminEmail: basics.adminEmail,
+        pluginIds: plugins?.pluginIds ?? [],
+        // theme is sent via a separate update or via the create body
+        ...(theme && Object.keys(theme).length > 0 ? { theme } : {}),
+      } as Parameters<typeof apiClient.createTenant>[0]);
+
+      setProvisioningTenantId(tenant.id);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create tenant';
+      setSubmitError(msg);
+      dispatch({ type: 'PROVISIONING_ERROR', error: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [wizardState, dispatch]);
+
   const handleNext = useCallback(async () => {
     if (wizardState.phase !== 'filling') return;
 
@@ -745,7 +774,7 @@ export function CreateTenantWizard({ onClose, onSuccess }: CreateTenantWizardPro
         break;
       }
     }
-  }, [wizardState, basicsLive, pluginsLive, themeLive, dispatch]);
+  }, [wizardState, basicsLive, pluginsLive, themeLive, dispatch, handleSubmit]);
 
   const handleBack = useCallback(() => {
     dispatch({ type: 'GO_BACK' });
@@ -770,34 +799,6 @@ export function CreateTenantWizard({ onClose, onSuccess }: CreateTenantWizardPro
     },
     [dispatch]
   );
-
-  const handleSubmit = useCallback(async () => {
-    const { basics, plugins, theme } = wizardState.data;
-    if (!basics) return;
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      dispatch({ type: 'START_PROVISIONING' });
-      const tenant = await apiClient.createTenant({
-        name: basics.name,
-        slug: basics.slug,
-        adminEmail: basics.adminEmail,
-        pluginIds: plugins?.pluginIds ?? [],
-        // theme is sent via a separate update or via the create body
-        ...(theme && Object.keys(theme).length > 0 ? { theme } : {}),
-      } as Parameters<typeof apiClient.createTenant>[0]);
-
-      setProvisioningTenantId(tenant.id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to create tenant';
-      setSubmitError(msg);
-      dispatch({ type: 'PROVISIONING_ERROR', error: msg });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [wizardState, dispatch]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 

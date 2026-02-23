@@ -147,21 +147,19 @@ export function useNamespaces(namespaces: string[]) {
     })),
   });
 
-  // Merge all successful translations into IntlContext
-  // Track each query's data individually to avoid infinite loops
+  // Merge all successful translations into IntlContext.
+  // We derive a stable `dataSignature` from `dataUpdatedAt` timestamps (O(1) per query)
+  // rather than JSON.stringify(data) (O(n) over translation payload size) to avoid
+  // expensive serialization on every render while still detecting actual data changes.
+  const dataSignature = queries.map((q) => q.dataUpdatedAt).join(',');
   useEffect(() => {
     queries.forEach((query) => {
       if (query.data?.translations) {
         mergeMessages(query.data.translations);
       }
     });
-    // Dependencies: Only re-run when actual data changes, not when queries array reference changes
-    // We depend on stringified data to detect actual content changes
-  }, [
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    JSON.stringify(queries.map((q) => q.data)),
-    mergeMessages,
-  ]);
+  }, [dataSignature, mergeMessages]);
 
   const isLoading = queries.some((q) => q.isLoading);
   const errors = queries
