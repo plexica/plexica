@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '../AuthProvider';
-import { useAuthStore } from '@/stores/auth-store';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
-import { LogOut, Settings, Menu, Search, Bell } from 'lucide-react';
+import { Menu, Search, Bell } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { LanguageSelector } from '@plexica/ui';
 import { useIntl } from '@/contexts';
+import { UserProfileMenu } from '@/components/shell/UserProfileMenu';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -26,19 +26,12 @@ const AVAILABLE_LOCALES = [
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  const { user, tenant } = useAuthStore();
+  const { user } = useAuthStore();
   const { locale, setLocale } = useIntl();
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-  };
-
-  // User initials for avatar (handle empty strings)
-  const userInitials =
-    user?.name?.trim()?.[0]?.toUpperCase() || user?.email?.trim()?.[0]?.toUpperCase() || 'U';
+  // Derive tenant name from JWT claim (tenantId is slug in token, use displayName fallback)
+  const tenantName = user?.tenantId ?? 'Plexica';
 
   return (
     <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4">
@@ -62,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
             P
           </div>
           <span className="hidden md:block text-lg font-semibold text-foreground">
-            {tenant?.name || 'Plexica'}
+            {tenantName}
           </span>
         </div>
       </div>
@@ -133,72 +126,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </div>
 
         {/* User Menu (Extension Point: header.userMenu) */}
-        <div className="relative">
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-3 px-3 py-2 hover:bg-muted rounded-lg transition-colors"
-          >
-            {/* Avatar */}
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm">
-              {userInitials}
-            </div>
-
-            {/* User Info (hidden on mobile) */}
-            <div className="hidden lg:block text-left">
-              <p className="text-sm font-medium text-foreground">{user?.name || 'User'}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
-            </div>
-          </button>
-
-          {/* User Menu Dropdown */}
-          {showUserMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-              <div className="absolute right-0 mt-2 w-64 bg-background border border-border rounded-lg shadow-lg z-50">
-                {/* User Info */}
-                <div className="p-4 border-b border-border">
-                  <p className="text-sm font-medium text-foreground">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  {tenant && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      <span className="font-medium">Tenant:</span> {tenant.name}
-                    </p>
-                  )}
-                </div>
-
-                {/* Menu Items */}
-                <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      navigate({ to: '/settings' });
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Workspace Settings
-                  </button>
-                </div>
-
-                <hr className="border-t border-border" />
-
-                {/* Logout */}
-                <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      handleLogout();
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <UserProfileMenu />
       </div>
     </header>
   );

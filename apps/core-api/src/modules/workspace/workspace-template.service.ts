@@ -58,7 +58,7 @@ export interface TemplateWithItems {
 export type { RegisterTemplateDto } from '../plugin/dto/register-template.dto.js';
 
 /** Minimal Prisma transaction client shape */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type PrismaTransaction = Omit<
   PrismaClient,
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'

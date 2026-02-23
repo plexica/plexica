@@ -1,8 +1,9 @@
 // File: apps/web/src/components/Layout/AppLayout.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { SessionExpiredModal } from '@/components/auth/SessionExpiredModal';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -11,6 +12,14 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children, showFooter = true }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Listen for the global session-expired event dispatched by auth.store.ts
+  useEffect(() => {
+    const handler = () => setSessionExpired(true);
+    window.addEventListener('plexica:session-expired', handler);
+    return () => window.removeEventListener('plexica:session-expired', handler);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -45,6 +54,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, showFooter = tru
           </div>
         </footer>
       )}
+
+      {/* Session Expired Modal — rendered at root so it overlays everything */}
+      <SessionExpiredModal isOpen={sessionExpired} />
     </div>
   );
 };

@@ -74,8 +74,8 @@ function createMockReply(): FastifyReply & {
   _body: unknown;
 } {
   const headers: Record<string, string> = {};
-  let statusCode = 200;
-  let body: unknown = undefined;
+  const statusCode = 200;
+  const body: unknown = undefined;
 
   const reply = {
     _headers: headers,

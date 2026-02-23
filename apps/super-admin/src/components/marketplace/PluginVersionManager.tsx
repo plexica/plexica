@@ -8,7 +8,7 @@
  * - View changelog for each version
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button, Input, Badge, Card } from '@plexica/ui';
 import { X, Plus, CheckCircle, Clock, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
@@ -41,11 +41,7 @@ export function PluginVersionManager({ plugin, onClose, onSuccess }: PluginVersi
     setAsLatest: true,
   });
 
-  useEffect(() => {
-    loadVersions();
-  }, [plugin.id]);
-
-  const loadVersions = async () => {
+  const loadVersions = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await apiClient.getMarketplacePlugin(plugin.id, true);
@@ -60,7 +56,11 @@ export function PluginVersionManager({ plugin, onClose, onSuccess }: PluginVersi
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [plugin.id, toast]);
+
+  useEffect(() => {
+    loadVersions();
+  }, [loadVersions]);
 
   const handlePublishVersion = async () => {
     if (!newVersion.version.trim() || !newVersion.changelog.trim()) {

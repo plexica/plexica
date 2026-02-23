@@ -42,7 +42,7 @@ vi.mock('../../../lib/redis.js', () => ({
 // vi.hoisted() ensures mockProvision is available at mock factory hoisting time
 const { mockProvision } = vi.hoisted(() => ({ mockProvision: vi.fn() }));
 vi.mock('../../../services/provisioning-orchestrator.js', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const MockOrchestrator = vi.fn().mockImplementation(function (this: any) {
     this.provision = mockProvision;
   });

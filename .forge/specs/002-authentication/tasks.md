@@ -1021,11 +1021,11 @@ error pages, auth store, and user profile menu.
 **User journeys**: `.forge/specs/002-authentication/user-journey.md` (3 personas, 5 journeys)  
 **Dependencies**: Phase 4 (backend OAuth routes must be live)  
 **Estimated Total**: ~31h, ~60 tests  
-**Status**: ⏳ Not started
+**Status**: ✅ Complete
 
 ### 7a.1 Auth Store + HTTP Client Foundation
 
-- [ ] **T7-1** `[M]` `[FR-016]` `[FR-014]` `[US-001]` Create auth store
+- [x] **T7-1** `[M]` `[FR-016]` `[FR-014]` `[US-001]` Create auth store
   - **File**: `apps/web/src/stores/auth.store.ts`
   - **Type**: Create new file (~200 lines)
   - **Description**: Token state management in memory (not localStorage). Silent refresh: detect token expiry 60s before `exp`, call `POST /auth/refresh`. Session expiry: if silent refresh fails → emit `sessionExpired` event. Deep-link preservation: save current URL to `sessionStorage` before redirect, restore after re-auth. Logout: call `POST /api/v1/auth/logout`, clear store, redirect to `/{tenant}/login`. Auth callback: parse JWT from `/auth/callback` response, extract `user` from claims (FR-003).
@@ -1033,7 +1033,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: None
   - **Estimated**: 3h
 
-- [ ] **T7-2** `[M]` `[US-002]` `[P]` Create auth HTTP client wrapper
+- [x] **T7-2** `[M]` `[US-002]` `[P]` Create auth HTTP client wrapper
   - **File**: `apps/web/src/lib/auth-client.ts`
   - **Type**: Create new file (~120 lines)
   - **Description**: HTTP client wrapper that attaches Bearer token from auth store to every request. Intercepts 401 responses: triggers `sessionExpired` event in auth store rather than throwing. Re-uses existing `fetch`/axios patterns in the web app.
@@ -1043,7 +1043,7 @@ error pages, auth store, and user profile menu.
 
 ### 7a.2 Core UI Components
 
-- [ ] **T7-3** `[L]` `[FR-016]` `[US-001]` Redesign login route as AuthLandingPage
+- [x] **T7-3** `[L]` `[FR-016]` `[US-001]` Redesign login route as AuthLandingPage
   - **File**: `apps/web/src/routes/login.tsx`
   - **Type**: Modify existing
   - **Description**: Redesign to `AuthLandingPage` component — tenant branding (logo, name), 7 visual states: loading-init (skeleton), loading-redirect (button spinner), rate-limited (`RateLimitCountdown` alert), cross-tenant (info alert banner, Screen 7), keycloak-error (destructive alert + Retry, Screen 8), tenant-not-found (→ `AuthErrorPage`, Screen 4), tenant-suspended (→ `AuthErrorPage`, Screen 5). Responsive: full-bleed ≤375px, card wrapper ≥768px (`max-width: 420px`). Single focusable Sign In element, touch target ≥44px.
@@ -1051,7 +1051,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Tasks T7-1, T7-6, T7-7
   - **Estimated**: 4h
 
-- [ ] **T7-4** `[M]` `[FR-016]` `[P]` Create OAuth callback route
+- [x] **T7-4** `[M]` `[FR-016]` `[P]` Create OAuth callback route
   - **File**: `apps/web/src/routes/auth/callback.tsx`
   - **Type**: Create new file (~80 lines)
   - **Description**: Loading spinner page shown while auth store exchanges authorization code (`POST /auth/callback` via auth store). `role="status"` `aria-live="polite"` — no user interaction required. On success: redirect to preserved deep-link URL or tenant home. On error: redirect to `AuthErrorPage`.
@@ -1059,7 +1059,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Task T7-1
   - **Estimated**: 2h
 
-- [ ] **T7-5** `[M]` `[US-002]` `[P]` Create SessionExpiredModal component
+- [x] **T7-5** `[M]` `[US-002]` `[P]` Create SessionExpiredModal component
   - **File**: `apps/web/src/components/auth/SessionExpiredModal.tsx`
   - **Type**: Create new file (~120 lines)
   - **Description**: Focus-trapped dialog that appears when auth store emits `sessionExpired`. Uses `Dialog` from `@plexica/ui` as base. `role="dialog"` `aria-modal="true"`. Non-dismissible: Esc key has no effect. Tab cycles to Sign In button only. Stores current URL to `sessionStorage` before redirect for deep-link. Triggered by `AppShell` (Task T7-10).
@@ -1067,7 +1067,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Task T7-1
   - **Estimated**: 2h
 
-- [ ] **T7-6** `[M]` `[FR-013]` `[NFR-008]` `[P]` Create RateLimitCountdown component
+- [x] **T7-6** `[M]` `[FR-013]` `[NFR-008]` `[P]` Create RateLimitCountdown component
   - **File**: `apps/web/src/components/auth/RateLimitCountdown.tsx`
   - **Type**: Create new file (~100 lines)
   - **Description**: Alert component shown when `GET /auth/login` returns HTTP 429. `retryAfterSeconds` prop from `Retry-After` response header (default: 60). `setInterval` countdown; fires `onExpired` callback at 0. `aria-live="polite"` announces remaining time every 15 seconds (not every tick). Displays countdown in monospace `0:47`. Parent disables Sign In button via `disabled` prop while counting.
@@ -1075,7 +1075,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: None
   - **Estimated**: 2h
 
-- [ ] **T7-7** `[M]` `[FR-012]` `[P]` Create AuthErrorPage component
+- [x] **T7-7** `[M]` `[FR-012]` `[P]` Create AuthErrorPage component
   - **File**: `apps/web/src/components/auth/AuthErrorPage.tsx`
   - **Type**: Create new file (~100 lines)
   - **Description**: Full-screen error layout with `variant: 'not-found' | 'suspended' | 'keycloak-error'`. Shows tenant logo if available from cache. For `not-found`: displays slug in monospace. For `keycloak-error`: shows Retry button (`aria-label="Retry connection to authentication service"`). `role="alert"` on error container for screen reader announcement.
@@ -1083,7 +1083,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: None
   - **Estimated**: 2h
 
-- [ ] **T7-8** `[S]` `[US-005]` `[P]` Update Super Admin login route
+- [x] **T7-8** `[S]` `[US-005]` `[P]` Update Super Admin login route
   - **File**: `apps/web/src/routes/admin/login.tsx`
   - **Type**: Modify existing
   - **Description**: Use `AuthLandingPage` with `variant="admin"`, Shield icon (`aria-hidden="true"`), platform branding ("Plexica Platform"). Single Sign In button with `aria-label`. Delegates to master realm Keycloak flow.
@@ -1091,7 +1091,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Task T7-3
   - **Estimated**: 1h
 
-- [ ] **T7-9** `[M]` `[FR-003]` `[US-001]` Redesign UserProfileMenu component
+- [x] **T7-9** `[M]` `[FR-003]` `[US-001]` Redesign UserProfileMenu component
   - **File**: `apps/web/src/components/shell/UserProfileMenu.tsx`
   - **Type**: Modify existing
   - **Description**: Show display name, email, role badge. Conditional "Manage Tenant" link (shown only when `roles` includes `tenant_admin`). Sign Out: calls `POST /api/v1/auth/logout` via auth store, clears store, redirects to `/{tenant}/login`. Keyboard: arrow keys navigate items, Esc closes, Tab past last item closes. ARIA: `aria-haspopup`, `aria-expanded`, `role="menu"`, `role="menuitem"`.
@@ -1099,7 +1099,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Task T7-1
   - **Estimated**: 3h
 
-- [ ] **T7-10** `[S]` `[US-002]` Integrate SessionExpiredModal into AppShell
+- [x] **T7-10** `[S]` `[US-002]` Integrate SessionExpiredModal into AppShell
   - **File**: `apps/web/src/components/shell/AppShell.tsx`
   - **Type**: Modify existing
   - **Description**: Subscribe to auth store `sessionExpired` event. Render `<SessionExpiredModal>` when event fires. Pass current route URL for deep-link preservation.
@@ -1109,7 +1109,7 @@ error pages, auth store, and user profile menu.
 
 ### 7a.3 Design Tokens
 
-- [ ] **T7-DT** `[S]` `[ALL]` `[P]` Add auth design tokens
+- [x] **T7-DT** `[S]` `[ALL]` `[P]` Add auth design tokens
   - **File**: `apps/web/src/styles/tokens.css` (or equivalent design token file)
   - **Type**: Modify existing
   - **Description**: Add 2 new CSS tokens from design-spec §5: `--auth-bg-gradient-from` (light: `#F0F4FF`, dark: `#0A0E1A`) and `--auth-bg-gradient-to` (light: `#FFFFFF`, dark: `#0A0A0A`).
@@ -1119,7 +1119,7 @@ error pages, auth store, and user profile menu.
 
 ### 7a.4 Auth Error Route
 
-- [ ] **T7-ER** `[S]` `[FR-012]` `[P]` Create auth error route
+- [x] **T7-ER** `[S]` `[FR-012]` `[P]` Create auth error route
   - **File**: `apps/web/src/routes/auth/error.tsx`
   - **Type**: Create new file (~60 lines)
   - **Description**: Route wrapper that reads error type from URL params (e.g., `?reason=not-found`) and renders `<AuthErrorPage>` with appropriate variant.
@@ -1129,7 +1129,7 @@ error pages, auth store, and user profile menu.
 
 ### 7a.5 Tests
 
-- [ ] **T7-11** `[M]` `[FR-016]` `[US-001]` Write component tests for AuthLandingPage
+- [x] **T7-11** `[M]` `[FR-016]` `[US-001]` Write component tests for AuthLandingPage
   - **File**: `apps/web/src/__tests__/auth/AuthLandingPage.test.tsx`
   - **Type**: Create new file (~150 lines, ~15 tests)
   - **Description**: Test all 7 visual states (loading, redirect, rate-limited, cross-tenant, keycloak-error, not-found, suspended). Verify accessibility: single focusable element, touch target ≥44px, ARIA roles. Test keyboard interactions. Test responsive behavior via JSDOM viewport.
@@ -1137,7 +1137,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Task T7-3
   - **Estimated**: 3h
 
-- [ ] **T7-12** `[M]` `[US-002]` `[FR-013]` `[FR-012]` `[P]` Write component tests for modal and error components
+- [x] **T7-12** `[M]` `[US-002]` `[FR-013]` `[FR-012]` `[P]` Write component tests for modal and error components
   - **File**: `apps/web/src/__tests__/auth/SessionExpiredModal.test.tsx`, `RateLimitCountdown.test.tsx`, `AuthErrorPage.test.tsx`, `AuthCallbackPage.test.tsx`
   - **Type**: Create new files (~120 + 80 + 80 + 80 lines = ~360 lines total, ~20 tests)
   - **Description**: `SessionExpiredModal`: focus trap enforcement, Esc key disabled, Sign In redirect triggers deep-link save, keyboard navigation. `RateLimitCountdown`: countdown timer accuracy, `aria-live` fires every 15s not every tick, `onExpired` callback, monospace display. `AuthErrorPage`: all 3 variants render correctly, `role="alert"` present, Retry button shown only for keycloak-error. `AuthCallbackPage`: loading state, success redirect, error redirect.
@@ -1145,7 +1145,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Tasks T7-4, T7-5, T7-6, T7-7
   - **Estimated**: 3h
 
-- [ ] **T7-13** `[M]` `[FR-016]` `[FR-014]` `[P]` Write unit tests for auth store
+- [x] **T7-13** `[M]` `[FR-016]` `[FR-014]` `[P]` Write unit tests for auth store
   - **File**: `apps/web/src/__tests__/auth/auth.store.test.ts`
   - **Type**: Create new file (~150 lines, ~20 tests)
   - **Description**: Silent refresh: mock token with `exp` 55s in the future → verify refresh called. Session expiry: mock failed refresh → verify `sessionExpired` event emitted. Deep-link: verify URL saved to `sessionStorage` before redirect, restored after re-auth. Logout: verify `POST /api/v1/auth/logout` called, store cleared, redirect triggered. Auth callback: verify JWT parsed, user claims extracted.
@@ -1153,7 +1153,7 @@ error pages, auth store, and user profile menu.
   - **Dependencies**: Task T7-1
   - **Estimated**: 2h
 
-- [ ] **T7-14** `[S]` `[ALL]` Accessibility audit — WCAG 2.1 AA verification
+- [x] **T7-14** `[S]` `[ALL]` Accessibility audit — WCAG 2.1 AA verification
   - **File**: N/A (audit + minor fixes)
   - **Type**: Verification
   - **Description**: Verify WCAG 2.1 AA compliance for all 10 screens against design-spec §6 checklist. Verify each screen's key requirement from plan.md §7a Accessibility Requirements table: `role="status"` on callback, focus trap on modal, `role="alert"` on errors, `aria-live="polite"` every 15s on rate limit, `aria-haspopup`/`aria-expanded` on profile menu.
@@ -1176,7 +1176,7 @@ Art. 4.1 ≥85% core module target.
 
 ### 8.1 Unit Tests — Mocked KcAdminClient
 
-- [ ] **8.1** `[L]` `[FR-001]` `[FR-005]` `[FR-006]` Write unit tests for KeycloakService core provisioning methods
+- [x] **8.1** `[L]` `[FR-001]` `[FR-005]` `[FR-006]` Write unit tests for KeycloakService core provisioning methods
   - **File**: `apps/core-api/src/__tests__/auth/unit/keycloak.service.test.ts` (NEW)
   - **Type**: Create new file
   - **Description**: Unit tests for `createRealm()`, `provisionRealmClients()`, `provisionRealmRoles()` using a fully mocked `@keycloak/keycloak-admin-client`. Cover success paths, failure paths, retry logic, and error sanitization via `KeycloakSanitizedError`.
@@ -1189,7 +1189,7 @@ Art. 4.1 ≥85% core module target.
     - `provisionRealmRoles()`: creates tenant_admin + user roles, role already exists (idempotent), Keycloak error
     - Admin token re-authentication (50s TTL expiry triggers re-auth)
 
-- [ ] **8.2** `[L]` `[FR-012]` `[FR-014]` Write unit tests for KeycloakService lifecycle management methods
+- [x] **8.2** `[L]` `[FR-012]` `[FR-014]` Write unit tests for KeycloakService lifecycle management methods
   - **File**: `apps/core-api/src/__tests__/auth/unit/keycloak.service.test.ts`
   - **Type**: Modify existing (add to 8.1 file)
   - **Description**: Unit tests for `setRealmEnabled()`, `configureRefreshTokenRotation()`, `exchangeAuthorizationCode()`, `refreshToken()`, `revokeToken()` using mocked HTTP calls.
@@ -1207,7 +1207,7 @@ Art. 4.1 ≥85% core module target.
 
 ### 8.2 Integration Tests — Real Keycloak
 
-- [ ] **8.3** `[XL]` `[FR-001]` `[FR-005]` `[FR-006]` `[FR-012]` `[FR-014]` Write integration tests for KeycloakService against real Keycloak
+- [x] **8.3** `[XL]` `[FR-001]` `[FR-005]` `[FR-006]` `[FR-012]` `[FR-014]` Write integration tests for KeycloakService against real Keycloak
   - **File**: `apps/core-api/src/__tests__/auth/integration/keycloak.integration.test.ts` (NEW)
   - **Type**: Create new file
   - **Description**: Integration tests against the running Keycloak 26+ instance from test-infrastructure. Cover the full realm lifecycle and token operations with real Keycloak responses.
@@ -1225,7 +1225,7 @@ Art. 4.1 ≥85% core module target.
 
 ### 8.3 Coverage Verification
 
-- [ ] **8.4** `[S]` `[ALL]` Run coverage report and verify TD-003 resolved
+- [x] **8.4** `[S]` `[ALL]` Run coverage report and verify TD-003 resolved
   - **File**: N/A (command execution)
   - **Type**: Verification command
   - **Description**: Run `pnpm test:coverage` in `apps/core-api/` with all test infrastructure running. Verify `keycloak.service.ts` ≥75% (unit) + ≥85% (unit + integration combined). Verify auth module overall ≥85%. Update decision log to mark TD-003 resolved.
@@ -1244,7 +1244,7 @@ Art. 4.1 ≥85% core module target.
 
 | Metric                 | Value                                                                       |
 | ---------------------- | --------------------------------------------------------------------------- |
-| Total tasks            | 70 (50 complete + 16 Phase 7a pending + 4 Phase 8 pending)                  |
+| Total tasks            | 70 (54 complete + 16 Phase 7a pending)                                      |
 | Total phases           | 9 (8 original + Phase 7a frontend)                                          |
 | Parallelizable tasks   | 25 (16 original `[P]` + 9 Phase 7a `[P]`)                                   |
 | Requirements covered   | FR: 16/16 (100%), NFR: 8/8 (100%), Edge Cases: 12/12 (100%), US: 5/5 (100%) |

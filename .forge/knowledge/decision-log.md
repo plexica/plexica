@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 20, 2026
+**Last Updated**: February 23, 2026
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
@@ -15,14 +15,14 @@
 
 ### Technical Debt
 
-| ID     | Description                                               | Impact  | Severity | Tracked In           | Target Sprint |
-| ------ | --------------------------------------------------------- | ------- | -------- | -------------------- | ------------- |
-| TD-001 | Test coverage at 76.5%, target 80%                        | Quality | MEDIUM   | CI report 2026-02-18 | Next Sprint   |
-| TD-002 | Core modules (auth, tenant, workspace) need 85% coverage  | Quality | HIGH     | `AGENTS.md`          | Q1 2026       |
-| TD-003 | keycloak.service.ts at 2.83% coverage                     | Quality | HIGH     | CI report 2026-02-18 | Next Sprint   |
-| TD-004 | 24 integration tests deferred (oauth-flow + ws-resources) | Quality | MEDIUM   | CI report 2026-02-18 | Sprint 5      |
-| TD-005 | 3 flaky E2E tests in tenant-concurrent need investigation | Quality | LOW      | CI report 2026-02-19 | Sprint 5      |
-| TD-006 | 40 deprecated E2E tests (ROPC flow) need removal          | Quality | LOW      | CI report 2026-02-18 | Sprint 5      |
+| ID         | Description                                               | Impact  | Severity | Tracked In               | Target Sprint                                                |
+| ---------- | --------------------------------------------------------- | ------- | -------- | ------------------------ | ------------------------------------------------------------ |
+| TD-001     | Test coverage at 76.5%, target 80%                        | Quality | MEDIUM   | CI report 2026-02-18     | Next Sprint                                                  |
+| TD-002     | Core modules (auth, tenant, workspace) need 85% coverage  | Quality | HIGH     | `AGENTS.md`              | Q1 2026                                                      |
+| ~~TD-003~~ | ~~keycloak.service.ts at 2.83% coverage~~                 | Quality | ~~HIGH~~ | ~~CI report 2026-02-18~~ | ✅ **CLOSED 2026-02-23** — 96.1% unit + 19 integration tests |
+| TD-004     | 24 integration tests deferred (oauth-flow + ws-resources) | Quality | MEDIUM   | CI report 2026-02-18     | Sprint 5                                                     |
+| TD-005     | 3 flaky E2E tests in tenant-concurrent need investigation | Quality | LOW      | CI report 2026-02-19     | Sprint 5                                                     |
+| TD-006     | 40 deprecated E2E tests (ROPC flow) need removal          | Quality | LOW      | CI report 2026-02-18     | Sprint 5                                                     |
 
 ### Deferred Decisions
 
