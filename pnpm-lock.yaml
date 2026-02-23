@@ -625,8 +625,8 @@ importers:
         version: 4.3.6
     devDependencies:
       '@types/archiver':
-        specifier: ^6.0.3
-        version: 6.0.4
+        specifier: ^7.0.0
+        version: 7.0.0
       '@types/fs-extra':
         specifier: ^11.0.4
         version: 11.0.4
@@ -2916,8 +2916,8 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@types/archiver@6.0.4':
-    resolution: {integrity: sha512-ULdQpARQ3sz9WH4nb98mJDYA0ft2A8C4f4fovvUcFwINa1cgGjY36JCAYuP5YypRq4mco1lJp1/7jEMS2oR0Hg==}
+  '@types/archiver@7.0.0':
+    resolution: {integrity: sha512-/3vwGwx9n+mCQdYZ2IKGGHEFL30I96UgBlk8EtRDDFQ9uxM1l4O5Ci6r00EMAkiDaTqD9DQ6nVrWRICnBPtzzg==}
 
   '@types/argparse@1.0.38':
     resolution: {integrity: sha512-ebDJ9b0e702Yr7pWgB0jzm+CX4Srzz8RcXtLJDJB+BSccqMa36uyH/zUsSYao5+BD1ytv3k3rPYCq4mAE1hsXA==}
@@ -8316,7 +8316,7 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.0
 
-  '@types/archiver@6.0.4':
+  '@types/archiver@7.0.0':
     dependencies:
       '@types/readdir-glob': 1.1.5
 
