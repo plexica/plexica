@@ -165,8 +165,8 @@ importers:
         specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.4)
+        specifier: ^0.575.0
+        version: 0.575.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -232,8 +232,8 @@ importers:
         specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.4)
+        specifier: ^0.575.0
+        version: 0.575.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -299,8 +299,8 @@ importers:
         specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.4)
+        specifier: ^0.575.0
+        version: 0.575.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -472,8 +472,8 @@ importers:
         specifier: ^26.2.2
         version: 26.2.2
       lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.4)
+        specifier: ^0.575.0
+        version: 0.575.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -821,8 +821,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^0.562.0
-        version: 0.562.0(react@19.2.4)
+        specifier: ^0.575.0
+        version: 0.575.0(react@19.2.4)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -4799,8 +4799,8 @@ packages:
     resolution: {integrity: sha512-DqC6n3QQ77zdFpCMASA1a3Jlb64Hv2N2DciFGkO/4L9+q/IpIAuRlKOvCXabtRW6cQf8usbmM6BE/TOPysCdIA==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
 
-  lucide-react@0.562.0:
-    resolution: {integrity: sha512-82hOAu7y0dbVuFfmO4bYF1XEwYk/mEbM5E+b1jgci/udUBEE/R7LF5Ip0CCEmXe8AybRM8L+04eP+LGZeDvkiw==}
+  lucide-react@0.575.0:
+    resolution: {integrity: sha512-VuXgKZrk0uiDlWjGGXmKV6MSk9Yy4l10qgVvzGn2AWBx1Ylt0iBexKOAoA6I7JO3m+M9oeovJd3yYENfkUbOeg==}
     peerDependencies:
       react: ^19.2.3
 
@@ -10498,7 +10498,7 @@ snapshots:
 
   lru.min@1.1.4: {}
 
-  lucide-react@0.562.0(react@19.2.4):
+  lucide-react@0.575.0(react@19.2.4):
     dependencies:
       react: 19.2.4
 
