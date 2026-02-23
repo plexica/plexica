@@ -17,6 +17,8 @@ import { Route as PluginsPluginIdRouteImport } from './routes/plugins.$pluginId'
 import { Route as MembersManagementRouteImport } from './routes/members-management';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as ActivityLogRouteImport } from './routes/activity-log';
+import { Route as AuthErrorRouteImport } from './routes/auth/error';
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback';
 import { Route as IndexRouteImport } from './routes/index';
 
 const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
@@ -59,6 +61,16 @@ const ActivityLogRoute = ActivityLogRouteImport.update({
   path: '/activity-log',
   getParentRoute: () => rootRouteImport,
 } as any);
+const AuthErrorRoute = AuthErrorRouteImport.update({
+  id: '/auth/error',
+  path: '/auth/error',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -68,6 +80,8 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/activity-log': typeof ActivityLogRoute;
+  '/auth/callback': typeof AuthCallbackRoute;
+  '/auth/error': typeof AuthErrorRoute;
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
@@ -79,6 +93,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/activity-log': typeof ActivityLogRoute;
+  '/auth/callback': typeof AuthCallbackRoute;
+  '/auth/error': typeof AuthErrorRoute;
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
@@ -91,6 +107,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
   '/activity-log': typeof ActivityLogRoute;
+  '/auth/callback': typeof AuthCallbackRoute;
+  '/auth/error': typeof AuthErrorRoute;
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
@@ -104,6 +122,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity-log'
+    | '/auth/callback'
+    | '/auth/error'
     | '/login'
     | '/members-management'
     | '/plugins'
@@ -115,6 +135,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity-log'
+    | '/auth/callback'
+    | '/auth/error'
     | '/login'
     | '/members-management'
     | '/plugins'
@@ -126,6 +148,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity-log'
+    | '/auth/callback'
+    | '/auth/error'
     | '/login'
     | '/members-management'
     | '/plugins'
@@ -138,6 +162,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   ActivityLogRoute: typeof ActivityLogRoute;
+  AuthCallbackRoute: typeof AuthCallbackRoute;
+  AuthErrorRoute: typeof AuthErrorRoute;
   LoginRoute: typeof LoginRoute;
   MembersManagementRoute: typeof MembersManagementRoute;
   PluginsRoute: typeof PluginsRoute;
@@ -205,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityLogRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/auth/callback': {
+      id: '/auth/callback';
+      path: '/auth/callback';
+      fullPath: '/auth/callback';
+      preLoaderRoute: typeof AuthCallbackRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/auth/error': {
+      id: '/auth/error';
+      path: '/auth/error';
+      fullPath: '/auth/error';
+      preLoaderRoute: typeof AuthErrorRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/': {
       id: '/';
       path: '/';
@@ -218,6 +258,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityLogRoute: ActivityLogRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
+  AuthErrorRoute: AuthErrorRoute,
   LoginRoute: LoginRoute,
   MembersManagementRoute: MembersManagementRoute,
   PluginsRoute: PluginsRoute,

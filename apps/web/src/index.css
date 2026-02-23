@@ -2,3 +2,15 @@
 @import 'tw-animate-css';
 @import '@fontsource-variable/jetbrains-mono';
 @import '@plexica/ui/src/styles/globals.css';
+
+/* Auth design tokens (Spec 002 Phase 7a) */
+:root {
+  --auth-bg-gradient-from: #f0f4ff;
+  --auth-bg-gradient-to: #ffffff;
+  --auth-card-max-width: 420px;
+}
+
+.dark {
+  --auth-bg-gradient-from: #0a0e1a;
+  --auth-bg-gradient-to: #0a0a0a;
+}
