@@ -137,9 +137,7 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
-          // Slug uniqueness check — no existing workspace
-          [],
-          // gen_random_uuid() result
+          // gen_random_uuid() result (inside transaction)
           [{ id: WORKSPACE_ID }],
           // Fetch created workspace with relations
           [
@@ -293,15 +291,16 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
-          // hasChildren check — no children (BigInt because COUNT returns bigint in Prisma raw)
-          [{ count: BigInt(0) }],
-          // Workspace exists check
+          // Workspace existence check (inside transaction)
           [{ id: WORKSPACE_ID }],
+          // Child count check — no children
+          [{ count: 0 }],
           // Team count check — no teams
           [{ count: 0 }],
         ],
         executeRawResults: [
           1, // SET LOCAL search_path
+          1, // SELECT FOR UPDATE (lock parent row)
           1, // DELETE workspace
         ],
       });
@@ -612,7 +611,6 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
-          [],
           [{ id: WORKSPACE_ID }],
           [
             {
@@ -658,7 +656,6 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
-          [],
           [{ id: WORKSPACE_ID }],
           [
             {
@@ -706,12 +703,14 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
-          // hasChildren check — no children
-          [{ count: BigInt(0) }],
+          // Workspace existence check (inside transaction)
           [{ id: WORKSPACE_ID }],
+          // Child count check — no children
+          [{ count: 0 }],
+          // Team count check — no teams
           [{ count: 0 }],
         ],
-        executeRawResults: [1, 1],
+        executeRawResults: [1, 1, 1],
       });
 
       service = new WorkspaceService(
@@ -739,7 +738,6 @@ describe('WorkspaceService Event Publishing', () => {
 
       const mockDb = createMockDb({
         queryRawResults: [
-          [],
           [{ id: WORKSPACE_ID }],
           [
             {

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { WorkspaceRole } from '@plexica/database';
+import { WorkspaceRole, Prisma } from '@plexica/database';
 import { WorkspaceService } from '../../../modules/workspace/workspace.service.js';
 import type { CreateWorkspaceDto, AddMemberDto } from '../../../modules/workspace/dto/index.js';
 
@@ -147,8 +147,23 @@ describe('Workspace Integration Tests', () => {
     });
 
     it('should reject duplicate workspace slug within tenant', async () => {
+      // The old pre-check is gone. Uniqueness is now enforced inside the
+      // transaction by catching P2002. Simulate that here.
+      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`slug`)',
+        { code: 'P2002', clientVersion: '6.0.0', meta: { target: ['slug'] } }
+      );
       const mockDb = createMockDb({
-        $queryRaw: vi.fn().mockResolvedValueOnce([{ id: 'existing-1' }]), // check slug uniqueness - found existing
+        $transaction: vi.fn(async (callback: any) => {
+          const mockTx = {
+            $executeRaw: vi
+              .fn()
+              .mockResolvedValueOnce(undefined) // SET LOCAL search_path
+              .mockRejectedValueOnce(p2002Error), // INSERT throws P2002
+            $queryRaw: vi.fn().mockResolvedValueOnce([{ id: 'new-uuid-1' }]), // gen_random_uuid
+          };
+          return await callback(mockTx);
+        }),
       });
 
       vi.spyOn(workspaceService as any, 'db', 'get').mockReturnValue(mockDb);
@@ -828,11 +843,13 @@ describe('Workspace Integration Tests', () => {
       const mockDb = createMockDb({
         $transaction: vi.fn(async (callback: any) => {
           const mockTx = {
+            // 3 $executeRaw calls: SET search_path, SELECT FOR UPDATE, DELETE
             $executeRaw: vi.fn().mockResolvedValue(undefined),
             $queryRaw: vi
               .fn()
-              .mockResolvedValueOnce([{ id: 'workspace-1' }]) // verify workspace exists
-              .mockResolvedValueOnce([{ count: 0 }]), // check team count - no teams
+              .mockResolvedValueOnce([{ id: 'workspace-1' }]) // workspace existence check
+              .mockResolvedValueOnce([{ count: 0 }]) // child count — no children
+              .mockResolvedValueOnce([{ count: 0 }]), // team count — no teams
           };
           return await callback(mockTx);
         }),
@@ -850,8 +867,9 @@ describe('Workspace Integration Tests', () => {
             $executeRaw: vi.fn().mockResolvedValue(undefined),
             $queryRaw: vi
               .fn()
-              .mockResolvedValueOnce([{ id: 'workspace-1' }]) // verify workspace exists
-              .mockResolvedValueOnce([{ count: 2 }]), // check team count - has teams
+              .mockResolvedValueOnce([{ id: 'workspace-1' }]) // workspace existence check
+              .mockResolvedValueOnce([{ count: 0 }]) // child count — no children
+              .mockResolvedValueOnce([{ count: 2 }]), // team count — has teams
           };
           return await callback(mockTx);
         }),

@@ -6,7 +6,7 @@ import {
   type KeycloakJwtPayload,
   type UserInfo,
 } from '../lib/jwt.js';
-import { permissionService } from '../services/permission.service.js';
+import { authorizationService } from '../modules/authorization/authorization.service.js';
 import { tenantService } from '../services/tenant.service.js';
 import { MASTER_TENANT_SLUG, USER_ROLES } from '../constants/index.js';
 
@@ -234,14 +234,11 @@ export function requireRole(...roles: string[]) {
     const hasRequiredRole = roles.some((role) => userRoles.includes(role));
 
     if (!hasRequiredRole) {
+      // NFR-004: Do NOT expose required role names in the response body
       return reply.code(403).send({
         error: {
           code: 'AUTH_INSUFFICIENT_ROLE',
-          message: `Required role(s): ${roles.join(', ')}`,
-          details: {
-            requiredRoles: roles,
-            userRoles,
-          },
+          message: 'You do not have the required role to perform this action',
         },
       });
     }
@@ -250,13 +247,15 @@ export function requireRole(...roles: string[]) {
 
 /**
  * Permission-based access control middleware
- * Checks if user has specific permissions
+ * Delegates to AuthorizationService (Redis-cached RBAC + wildcard matching).
  *
- * Permissions should be stored in the tenant's database
- * This middleware fetches and caches them
+ * Spec 003 Task 2.8
+ * - NFR-003: Audit log on every decision (emitted inside AuthorizationService)
+ * - NFR-004: 403 body MUST NOT contain permission names
+ * - NFR-005: Fail-closed — any unexpected error returns DENY (not 500)
  *
  * Usage:
- * fastify.get('/posts', { preHandler: [authMiddleware, requirePermission('posts.read')] }, handler)
+ * fastify.get('/posts', { preHandler: [authMiddleware, requirePermission('posts:read')] }, handler)
  *
  * Constitution Compliance: Article 6.2 (error format)
  */
@@ -271,46 +270,39 @@ export function requirePermission(...permissions: string[]) {
       });
     }
 
+    const { id: userId, tenantSlug } = request.user;
+    const schemaName = tenantService.getSchemaName(tenantSlug);
+
+    // Resolve tenantId from slug — needed for the authorization cache key.
+    // tenantService.getSchemaName() is pure (no I/O); getTenantBySlug() is
+    // lightweight (cached in-process). On failure: fail-closed → DENY.
+    let tenantId: string;
     try {
-      // Fetch user permissions from database
-      const userPermissions = await getUserPermissions(request.user.id, request.user.tenantSlug);
-
-      const hasRequiredPermission = permissions.some((permission) =>
-        userPermissions.includes(permission)
-      );
-
-      if (!hasRequiredPermission) {
-        return reply.code(403).send({
-          error: {
-            code: 'AUTH_INSUFFICIENT_PERMISSION',
-            message: `Required permission(s): ${permissions.join(', ')}`,
-            details: {
-              requiredPermissions: permissions,
-            },
-          },
-        });
-      }
-    } catch (error: any) {
-      request.log.error({ error: error.message }, 'Permission check failed');
-      return reply.code(500).send({
+      const tenant = await tenantService.getTenantBySlug(tenantSlug);
+      tenantId = tenant.id;
+    } catch {
+      // Unknown / suspended tenant — deny access (NFR-005 fail-closed)
+      return reply.code(403).send({
         error: {
-          code: 'PERMISSION_CHECK_FAILED',
-          message: 'Failed to verify permissions',
-          details: {
-            reason: error.message,
-          },
+          code: 'AUTH_INSUFFICIENT_PERMISSION',
+          message: 'You do not have permission to perform this action',
+        },
+      });
+    }
+
+    // AuthorizationService is fail-closed: it never throws; it returns DENY on errors (NFR-005)
+    const result = await authorizationService.authorize(userId, tenantId, schemaName, permissions);
+
+    if (!result.permitted) {
+      // NFR-004: No permission names in the response body
+      return reply.code(403).send({
+        error: {
+          code: 'AUTH_INSUFFICIENT_PERMISSION',
+          message: 'You do not have permission to perform this action',
         },
       });
     }
   };
-}
-
-/**
- * Fetch user permissions from database
- */
-async function getUserPermissions(userId: string, tenantSlug: string): Promise<string[]> {
-  const schemaName = tenantService.getSchemaName(tenantSlug);
-  return await permissionService.getUserPermissions(userId, schemaName);
 }
 
 /**
@@ -372,10 +364,6 @@ export async function requireSuperAdmin(
       error: {
         code: 'AUTH_SUPER_ADMIN_REQUIRED',
         message: 'Super admin access required',
-        details: {
-          userRealm: request.user.tenantSlug,
-          validRealms,
-        },
       },
     });
   }
@@ -394,9 +382,6 @@ export async function requireSuperAdmin(
       error: {
         code: 'AUTH_SUPER_ADMIN_REQUIRED',
         message: 'Super admin role required',
-        details: {
-          userRoles: request.user.roles,
-        },
       },
     });
   }
@@ -438,10 +423,6 @@ export async function requireTenantOwner(
       error: {
         code: 'AUTH_TENANT_OWNER_REQUIRED',
         message: 'Tenant owner or admin access required',
-        details: {
-          userRoles: request.user.roles,
-          requiredRoles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
-        },
       },
     });
   }

@@ -1,9 +1,12 @@
 // File: apps/core-api/src/services/provisioning-steps/schema-step.ts
 // Spec 001 T001-03: PostgreSQL schema creation provisioning step
+// Spec 003 Task 1.4: Normalized authorization tables (roles, permissions,
+//   role_permissions, user_roles) replacing legacy JSONB roles.permissions column.
 
 import { PrismaClient } from '@plexica/database';
 import { logger } from '../../lib/logger.js';
-import { permissionService } from '../permission.service.js';
+import { permissionRegistrationService } from '../../modules/authorization/permission-registration.service.js';
+import { SYSTEM_ROLES } from '../../modules/authorization/constants.js';
 import type { ProvisioningStep } from '../provisioning-orchestrator.js';
 
 export class SchemaStep implements ProvisioningStep {
@@ -20,6 +23,19 @@ export class SchemaStep implements ProvisioningStep {
 
   async execute(): Promise<void> {
     const schemaName = this.getSchemaName();
+    // Derive tenantId from slug — the tenant row will already exist in core.tenants
+    // (the Prisma client uses DATABASE_URL with ?schema=core, so core is the search path)
+    // at this point (provisioned by TenantStep), so we read it.
+    const tenantRow = await this.db.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM "core"."tenants" WHERE slug = $1 LIMIT 1`,
+      this.slug
+    );
+    const tenantId = tenantRow[0]?.id;
+    if (!tenantId) {
+      throw new Error(
+        `SchemaStep: tenant record not found for slug "${this.slug}" — TenantStep must run first`
+      );
+    }
 
     // Validate DATABASE_USER to prevent SQL injection via env var
     // Only allow alphanumeric + underscore identifiers (PostgreSQL role names)
@@ -40,7 +56,9 @@ export class SchemaStep implements ProvisioningStep {
       `GRANT ALL PRIVILEGES ON SCHEMA "${schemaName}" TO "${dbUser}"`
     );
 
-    // Base tables
+    // -------------------------------------------------------------------------
+    // users
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."users" (
         id TEXT PRIMARY KEY,
@@ -58,28 +76,122 @@ export class SchemaStep implements ProvisioningStep {
       )
     `);
 
+    // -------------------------------------------------------------------------
+    // roles  — normalized, no more JSONB permissions column (Spec 003 Task 1.4)
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."roles" (
-        id TEXT PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
         description TEXT,
-        permissions JSONB NOT NULL DEFAULT '[]',
+        is_system BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "uq_roles_tenant_name" UNIQUE (tenant_id, name)
       )
     `);
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_roles_tenant_id" ON "${schemaName}"."roles"(tenant_id)`
+    );
 
+    // -------------------------------------------------------------------------
+    // permissions
+    // -------------------------------------------------------------------------
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."permissions" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        plugin_id TEXT,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "uq_permissions_tenant_key" UNIQUE (tenant_id, key)
+      )
+    `);
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_permissions_tenant_id" ON "${schemaName}"."permissions"(tenant_id)`
+    );
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_permissions_plugin_id" ON "${schemaName}"."permissions"(plugin_id) WHERE plugin_id IS NOT NULL`
+    );
+
+    // -------------------------------------------------------------------------
+    // role_permissions  (join table)
+    // -------------------------------------------------------------------------
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."role_permissions" (
+        role_id TEXT NOT NULL,
+        permission_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        PRIMARY KEY (role_id, permission_id),
+        FOREIGN KEY (role_id) REFERENCES "${schemaName}"."roles"(id) ON DELETE CASCADE,
+        FOREIGN KEY (permission_id) REFERENCES "${schemaName}"."permissions"(id) ON DELETE CASCADE
+      )
+    `);
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_role_permissions_permission_id" ON "${schemaName}"."role_permissions"(permission_id)`
+    );
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_role_permissions_tenant_id" ON "${schemaName}"."role_permissions"(tenant_id)`
+    );
+
+    // -------------------------------------------------------------------------
+    // user_roles
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."user_roles" (
         user_id TEXT NOT NULL,
         role_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
         assigned_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, role_id),
-        FOREIGN KEY (user_id) REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE,
         FOREIGN KEY (role_id) REFERENCES "${schemaName}"."roles"(id) ON DELETE CASCADE
       )
     `);
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_user_roles_user_id" ON "${schemaName}"."user_roles"(user_id)`
+    );
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_user_roles_tenant_id" ON "${schemaName}"."user_roles"(tenant_id)`
+    );
 
+    // -------------------------------------------------------------------------
+    // policies  (ABAC deny-only overlay — Spec 003 Task 4.1)
+    // -------------------------------------------------------------------------
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."policies" (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        effect TEXT NOT NULL CHECK (effect IN ('DENY', 'FILTER')),
+        conditions JSONB NOT NULL DEFAULT '{}',
+        priority INTEGER NOT NULL DEFAULT 0,
+        source TEXT NOT NULL CHECK (source IN ('core', 'plugin', 'super_admin', 'tenant_admin')),
+        plugin_id TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "uq_policies_tenant_name" UNIQUE (tenant_id, name),
+        CONSTRAINT "chk_policies_conditions_object" CHECK (jsonb_typeof(conditions) = 'object'),
+        CONSTRAINT "chk_policies_conditions_size" CHECK (octet_length(conditions::text) <= 65536)
+      )
+    `);
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_policies_tenant_id" ON "${schemaName}"."policies"(tenant_id)`
+    );
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_policies_resource" ON "${schemaName}"."policies"(tenant_id, resource)`
+    );
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_policies_source" ON "${schemaName}"."policies"(tenant_id, source)`
+    );
+
+    // -------------------------------------------------------------------------
+    // workspaces
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspaces" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,6 +230,9 @@ export class SchemaStep implements ProvisioningStep {
       WHERE parent_id IS NULL
     `);
 
+    // -------------------------------------------------------------------------
+    // workspace_members
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_members" (
         workspace_id TEXT NOT NULL,
@@ -141,6 +256,9 @@ export class SchemaStep implements ProvisioningStep {
       ON "${schemaName}"."workspace_members"(workspace_id)
     `);
 
+    // -------------------------------------------------------------------------
+    // teams
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."teams" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -155,6 +273,9 @@ export class SchemaStep implements ProvisioningStep {
       )
     `);
 
+    // -------------------------------------------------------------------------
+    // workspace_resources
+    // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."workspace_resources" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,8 +288,31 @@ export class SchemaStep implements ProvisioningStep {
       )
     `);
 
-    // Initialize default roles and permissions
-    await permissionService.initializeDefaultRoles(schemaName);
+    // -------------------------------------------------------------------------
+    // Seed system roles (is_system = true)
+    // -------------------------------------------------------------------------
+    const systemRoleNames = [
+      SYSTEM_ROLES.SUPER_ADMIN,
+      SYSTEM_ROLES.TENANT_ADMIN,
+      SYSTEM_ROLES.TEAM_ADMIN,
+      SYSTEM_ROLES.USER,
+    ];
+
+    for (const roleName of systemRoleNames) {
+      await this.db.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}"."roles"
+           (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1, $2, true, NOW(), NOW())
+         ON CONFLICT (tenant_id, name) DO NOTHING`,
+        tenantId,
+        roleName
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Seed core permissions and role-permission mappings
+    // -------------------------------------------------------------------------
+    await permissionRegistrationService.registerCorePermissions(tenantId, schemaName);
 
     logger.info({ tenantSlug: this.slug, schemaName }, 'Tenant schema created successfully');
   }

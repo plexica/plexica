@@ -48,9 +48,16 @@ vi.mock('../../../services/permission.service.js', () => ({
   },
 }));
 
+vi.mock('../../../modules/authorization/authorization.service.js', () => ({
+  authorizationService: {
+    authorize: vi.fn(),
+    getUserEffectivePermissions: vi.fn(),
+  },
+}));
+
 import * as jwtLib from '../../../lib/jwt.js';
 import { tenantService } from '../../../services/tenant.service.js';
-import { permissionService } from '../../../services/permission.service.js';
+import { authorizationService } from '../../../modules/authorization/authorization.service.js';
 
 // Test helpers
 function createMockRequest(overrides?: Partial<FastifyRequest>): FastifyRequest {
@@ -91,6 +98,7 @@ function createMockTenant(overrides?: Partial<Tenant>): Tenant {
     defaultLocale: 'en',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
+    deletionScheduledAt: null,
     ...overrides,
   };
 }
@@ -405,14 +413,11 @@ describe('requireRole', () => {
     await middleware(mockRequest, mockReply);
 
     expect(mockReply.code).toHaveBeenCalledWith(403);
+    // NFR-004: No role names exposed in the response body (Task 2.9 security fix)
     expect(mockReply.send).toHaveBeenCalledWith({
       error: {
         code: 'AUTH_INSUFFICIENT_ROLE',
-        message: 'Required role(s): admin',
-        details: {
-          requiredRoles: ['admin'],
-          userRoles: ['user', 'viewer'],
-        },
+        message: 'You do not have the required role to perform this action',
       },
     });
   });
@@ -480,24 +485,40 @@ describe('requirePermission', () => {
     });
     const mockReply = createMockReply();
 
-    vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.write']);
+    // authorizationService.authorize returns DENY
+    vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+      id: 'tenant-id-1',
+      name: 'Acme Corp',
+      slug: 'acme-corp',
+      status: 'ACTIVE' as const,
+      settings: {},
+      theme: {},
+      translationOverrides: {},
+      defaultLocale: 'en',
+      deletionScheduledAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(authorizationService.authorize).mockResolvedValue({
+      permitted: false,
+      reason: 'no_permission',
+    } as any);
 
     const middleware = requirePermission('posts.delete');
     await middleware(mockRequest, mockReply);
 
     expect(mockReply.code).toHaveBeenCalledWith(403);
+    // NFR-004: No permission names in the response body
     expect(mockReply.send).toHaveBeenCalledWith({
       error: {
         code: 'AUTH_INSUFFICIENT_PERMISSION',
-        message: 'Required permission(s): posts.delete',
-        details: {
-          requiredPermissions: ['posts.delete'],
-        },
+        message: 'You do not have permission to perform this action',
       },
     });
   });
 
-  it('should return 500 PERMISSION_CHECK_FAILED on database error', async () => {
+  it('should return 403 AUTH_INSUFFICIENT_PERMISSION on authorization service error (fail-closed)', async () => {
+    // NFR-005: Fail-closed — any error returns DENY (403), never 500
     const mockRequest = createMockRequest({
       user: {
         ...createMockUserInfo(),
@@ -506,21 +527,19 @@ describe('requirePermission', () => {
     });
     const mockReply = createMockReply();
 
-    vi.mocked(permissionService.getUserPermissions).mockRejectedValue(
+    // getTenantBySlug fails → fail-closed 403
+    vi.mocked(tenantService.getTenantBySlug).mockRejectedValue(
       new Error('Database connection failed')
     );
 
     const middleware = requirePermission('posts.read');
     await middleware(mockRequest, mockReply);
 
-    expect(mockReply.code).toHaveBeenCalledWith(500);
+    expect(mockReply.code).toHaveBeenCalledWith(403);
     expect(mockReply.send).toHaveBeenCalledWith({
       error: {
-        code: 'PERMISSION_CHECK_FAILED',
-        message: 'Failed to verify permissions',
-        details: {
-          reason: 'Database connection failed',
-        },
+        code: 'AUTH_INSUFFICIENT_PERMISSION',
+        message: 'You do not have permission to perform this action',
       },
     });
   });
@@ -534,10 +553,23 @@ describe('requirePermission', () => {
     });
     const mockReply = createMockReply();
 
-    vi.mocked(permissionService.getUserPermissions).mockResolvedValue([
-      'posts.read',
-      'posts.write',
-    ]);
+    vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+      id: 'tenant-id-1',
+      name: 'Acme Corp',
+      slug: 'acme-corp',
+      status: 'ACTIVE' as const,
+      settings: {},
+      theme: {},
+      translationOverrides: {},
+      defaultLocale: 'en',
+      deletionScheduledAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(authorizationService.authorize).mockResolvedValue({
+      permitted: true,
+      reason: 'rbac',
+    } as any);
 
     const middleware = requirePermission('posts.read');
     await middleware(mockRequest, mockReply);
@@ -628,10 +660,6 @@ describe('requireSuperAdmin', () => {
       error: {
         code: 'AUTH_SUPER_ADMIN_REQUIRED',
         message: 'Super admin access required',
-        details: {
-          userRealm: 'acme-corp',
-          validRealms: [MASTER_TENANT_SLUG, 'plexica-admin'],
-        },
       },
     });
   });
@@ -652,9 +680,6 @@ describe('requireSuperAdmin', () => {
       error: {
         code: 'AUTH_SUPER_ADMIN_REQUIRED',
         message: 'Super admin role required',
-        details: {
-          userRoles: ['admin'],
-        },
       },
     });
   });
@@ -773,10 +798,6 @@ describe('requireTenantOwner', () => {
       error: {
         code: 'AUTH_TENANT_OWNER_REQUIRED',
         message: 'Tenant owner or admin access required',
-        details: {
-          userRoles: ['user'],
-          requiredRoles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
-        },
       },
     });
   });

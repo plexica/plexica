@@ -19,6 +19,8 @@ import { marketplaceRoutes } from './routes/marketplace';
 // import metricsRoutes from './routes/metrics';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
 import { translationRoutes } from './modules/i18n/i18n.controller.js';
+import { authorizationRoutes } from './routes/authorization.js';
+import { policiesRoutes } from './routes/policies.js';
 import { minioClient } from './services/minio-client';
 import { db } from './lib/db';
 import { redis } from './lib/redis';
@@ -182,6 +184,8 @@ async function registerRoutes() {
   await server.register(pluginUploadRoutes, { prefix: '/api' });
   await server.register(marketplaceRoutes, { prefix: '/api' }); // Marketplace routes (M2.4)
   await server.register(translationRoutes, { prefix: '/api/v1' }); // Translation routes (i18n system)
+  await server.register(authorizationRoutes, { prefix: '/api' }); // Authorization routes (Spec 003 RBAC)
+  await server.register(policiesRoutes, { prefix: '/api' }); // ABAC policy routes (Spec 003)
   await server.register(adminRoutes, { prefix: '/api' }); // Super-admin routes
   // TODO: Fix TypeScript errors in DLQ and Metrics routes before enabling
   // await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });

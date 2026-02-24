@@ -23,6 +23,9 @@ vi.mock('../../../lib/db', () => ({
       delete: vi.fn(),
       count: vi.fn(),
     },
+    tenant: {
+      findUnique: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));

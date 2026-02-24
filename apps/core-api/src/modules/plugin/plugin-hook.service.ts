@@ -18,6 +18,7 @@ import type { PrismaClient } from '@plexica/database';
 import { db } from '../../lib/db.js';
 import { logger as rootLogger } from '../../lib/logger.js';
 import type { Logger } from 'pino';
+import { z } from 'zod';
 import type {
   HookResult,
   HookResponse,
@@ -32,6 +33,42 @@ import type { TenantContext } from '../../middleware/tenant-context.js';
 
 /** Maximum time to wait for a single plugin hook to respond (per NFR-005) */
 const HOOK_TIMEOUT_MS = 5_000;
+
+// ---------------------------------------------------------------------------
+// Manifest schema (Zod)
+// ---------------------------------------------------------------------------
+
+/**
+ * Zod schema for the hooks section of a plugin manifest.
+ * Malformed manifests are safely discarded (parse returns null) instead of
+ * silently returning zero subscribers with an opaque cast.
+ */
+const ManifestHooksSchema = z
+  .object({
+    hooks: z
+      .object({
+        workspace: z
+          .object({
+            before_create: z.string().url().optional(),
+            created: z.string().url().optional(),
+            deleted: z.string().url().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    api: z
+      .object({
+        services: z
+          .array(
+            z.object({
+              baseUrl: z.string().url().optional(),
+            })
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,7 +189,9 @@ export class PluginHookService {
       })
       .catch((error: unknown) => {
         this.log.error({ error }, 'Failed to discover hook subscribers for workspace.created');
-      });
+      })
+      // Terminal safety net: prevent unhandled rejection crash in Node.js ≥20
+      .catch(() => {});
   }
 
   /**
@@ -183,7 +222,9 @@ export class PluginHookService {
       })
       .catch((error: unknown) => {
         this.log.error({ error }, 'Failed to discover hook subscribers for workspace.deleted');
-      });
+      })
+      // Terminal safety net: prevent unhandled rejection crash in Node.js ≥20
+      .catch(() => {});
   }
 
   /**
@@ -212,32 +253,34 @@ export class PluginHookService {
     const subscribers: PluginInfo[] = [];
 
     for (const tp of tenantPlugins) {
-      const manifest = tp.plugin.manifest as Record<string, unknown> | null;
-      if (!manifest) continue;
+      // Parse manifest with Zod — malformed manifests are skipped with a WARN
+      // instead of silently returning zero subscribers via opaque casts.
+      const parseResult = ManifestHooksSchema.safeParse(tp.plugin.manifest);
+      if (!parseResult.success) {
+        this.log.warn(
+          { pluginId: tp.plugin.id, issues: parseResult.error.issues },
+          'Plugin manifest failed schema validation — skipping hook subscription'
+        );
+        continue;
+      }
+      const manifest = parseResult.data;
 
       // Extract workspace hooks from manifest
-      const hooks = manifest.hooks as Record<string, unknown> | undefined;
-      const wsHooks = hooks?.workspace as Record<string, string | undefined> | undefined;
+      const wsHooks = manifest.hooks?.workspace;
 
       // Determine the hook name from the hookType (e.g., 'workspace.before_create' → 'before_create')
       const [ns, name] = hookType.split('.');
-      if (ns !== 'workspace' || !wsHooks || !wsHooks[name]) continue;
+      if (ns !== 'workspace' || !wsHooks || !wsHooks[name as keyof typeof wsHooks]) continue;
 
       // Determine apiBasePath: use first service baseUrl, or fall back to plugin id convention
-      const api = manifest.api as Record<string, unknown> | undefined;
-      const services = api?.services as Array<Record<string, unknown>> | undefined;
       const apiBasePath =
-        (services?.[0]?.baseUrl as string | undefined) ?? `http://plugin-${tp.plugin.id}:8080`;
+        manifest.api?.services?.[0]?.baseUrl ?? `http://plugin-${tp.plugin.id}:8080`;
 
       subscribers.push({
         id: tp.plugin.id,
         apiBasePath,
         hooks: {
-          workspace: wsHooks as {
-            before_create?: string;
-            created?: string;
-            deleted?: string;
-          },
+          workspace: wsHooks,
         },
       });
     }

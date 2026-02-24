@@ -15,7 +15,7 @@
  */
 
 import 'dotenv/config';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { WorkspaceService } from '../../../modules/workspace/workspace.service.js';
 import { WorkspaceHierarchyService } from '../../../modules/workspace/workspace-hierarchy.service.js';
 import { db } from '../../../lib/db.js';
@@ -171,15 +171,33 @@ describe('Workspace Hierarchy E2E', () => {
       expect(ws.parentId).toBe(childId);
     });
 
-    it('should block creation of a workspace at depth=3 (MAX_DEPTH exceeded)', async () => {
-      await expect(
-        runInContext(() =>
-          workspaceService.create(
-            { slug: `too-deep-${Date.now()}`, name: 'Too Deep', parentId: grandchildId },
-            testUserId
+    describe('MAX_DEPTH enforcement (override to 2 for test speed)', () => {
+      let savedMaxDepth: string | undefined;
+
+      beforeEach(() => {
+        savedMaxDepth = process.env.WORKSPACE_MAX_DEPTH;
+        process.env.WORKSPACE_MAX_DEPTH = '2';
+      });
+
+      afterEach(() => {
+        if (savedMaxDepth === undefined) {
+          delete process.env.WORKSPACE_MAX_DEPTH;
+        } else {
+          process.env.WORKSPACE_MAX_DEPTH = savedMaxDepth;
+        }
+      });
+
+      it('should block creation of a workspace at depth=2 when MAX_DEPTH=2 (MAX_DEPTH exceeded)', async () => {
+        // grandchildId is depth=2; with MAX_DEPTH=2, a child of grandchild would be at depth=3 — rejected
+        await expect(
+          runInContext(() =>
+            workspaceService.create(
+              { slug: `too-deep-${Date.now()}`, name: 'Too Deep', parentId: grandchildId },
+              testUserId
+            )
           )
-        )
-      ).rejects.toThrow(/maximum hierarchy depth/);
+        ).rejects.toThrow(/maximum hierarchy depth/);
+      });
     });
 
     it('should return getDirectChildren of root correctly', async () => {

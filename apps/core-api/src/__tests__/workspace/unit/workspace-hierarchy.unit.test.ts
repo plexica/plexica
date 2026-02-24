@@ -105,17 +105,21 @@ describe('WorkspaceHierarchyService.validateDepthConstraint', () => {
     expect(() => service.validateDepthConstraint(1)).not.toThrow();
   });
 
-  it('should throw HIERARCHY_DEPTH_EXCEEDED when parent depth equals MAX_DEPTH (2)', () => {
-    expect(() => service.validateDepthConstraint(2)).toThrowError(/maximum hierarchy depth/);
+  it('should not throw when parent depth is 19 (one below new MAX_DEPTH of 20)', () => {
+    expect(() => service.validateDepthConstraint(19)).not.toThrow();
+  });
+
+  it('should throw HIERARCHY_DEPTH_EXCEEDED when parent depth equals MAX_DEPTH (20)', () => {
+    expect(() => service.validateDepthConstraint(20)).toThrowError(/maximum hierarchy depth/);
   });
 
   it('should throw HIERARCHY_DEPTH_EXCEEDED when parent depth exceeds MAX_DEPTH', () => {
-    expect(() => service.validateDepthConstraint(3)).toThrowError(/maximum hierarchy depth/);
+    expect(() => service.validateDepthConstraint(21)).toThrowError(/maximum hierarchy depth/);
   });
 
   it('should attach error code HIERARCHY_DEPTH_EXCEEDED', () => {
     try {
-      service.validateDepthConstraint(2);
+      service.validateDepthConstraint(20);
     } catch (err) {
       expect((err as NodeJS.ErrnoException).code).toBe('HIERARCHY_DEPTH_EXCEEDED');
     }

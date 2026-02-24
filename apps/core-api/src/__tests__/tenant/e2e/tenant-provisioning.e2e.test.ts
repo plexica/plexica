@@ -177,18 +177,23 @@ describe('Tenant Provisioning E2E', () => {
 
       expect(roles.length).toBeGreaterThan(0);
       const roleNames = roles.map((r) => r.name);
-      expect(roleNames).toContain('admin');
+      // Spec 003: system roles are tenant_admin, team_admin, user, super_admin
+      expect(roleNames).toContain('tenant_admin');
       expect(roleNames).toContain('user');
-      expect(roleNames).toContain('guest');
 
-      // Step 7: Verify admin role has correct permissions
-      const adminRole = await db.$queryRawUnsafe<Array<{ name: string; permissions: string[] }>>(
-        `SELECT name, permissions FROM "${schemaName}"."roles" WHERE name = 'admin'`
+      // Step 7: Verify tenant_admin role has correct permissions via normalized schema
+      const adminPerms = await db.$queryRawUnsafe<Array<{ key: string }>>(
+        `SELECT p.key
+         FROM "${schemaName}"."role_permissions" rp
+         JOIN "${schemaName}"."permissions" p ON rp.permission_id = p.id
+         JOIN "${schemaName}"."roles" r ON rp.role_id = r.id
+         WHERE r.name = 'tenant_admin'`
       );
+      const adminPermKeys = adminPerms.map((p) => p.key);
 
-      expect(adminRole[0].permissions).toContain('users.read');
-      expect(adminRole[0].permissions).toContain('users.write');
-      expect(adminRole[0].permissions).toContain('settings.write');
+      expect(adminPermKeys).toContain('users:read');
+      expect(adminPermKeys).toContain('users:write');
+      expect(adminPermKeys).toContain('settings:write');
     });
 
     it('should maintain data integrity across provisioning steps', async () => {
@@ -489,25 +494,34 @@ describe('Tenant Provisioning E2E', () => {
       });
       expect(createResp.statusCode).toBe(201);
 
-      // Query admin role
-      const adminRoles = await db.$queryRawUnsafe<
-        Array<{ name: string; permissions: string[]; description: string }>
-      >(`SELECT name, permissions, description FROM "${schemaName}"."roles" WHERE name = 'admin'`);
+      // Query tenant_admin role via normalized schema (Spec 003: no permissions column on roles)
+      const adminRoles = await db.$queryRawUnsafe<Array<{ name: string; description: string }>>(
+        `SELECT name, description FROM "${schemaName}"."roles" WHERE name = 'tenant_admin'`
+      );
 
       expect(adminRoles).toHaveLength(1);
       const adminRole = adminRoles[0];
 
-      expect(adminRole.name).toBe('admin');
-      expect(adminRole.description).toContain('Administrator');
-      expect(adminRole.permissions).toContain('users.read');
-      expect(adminRole.permissions).toContain('users.write');
-      expect(adminRole.permissions).toContain('users.delete');
-      expect(adminRole.permissions).toContain('roles.read');
-      expect(adminRole.permissions).toContain('roles.write');
-      expect(adminRole.permissions).toContain('settings.read');
-      expect(adminRole.permissions).toContain('settings.write');
-      expect(adminRole.permissions).toContain('plugins.read');
-      expect(adminRole.permissions).toContain('plugins.write');
+      expect(adminRole.name).toBe('tenant_admin');
+
+      // Verify permissions through the normalized role_permissions join table
+      const permRows = await db.$queryRawUnsafe<Array<{ key: string }>>(
+        `SELECT p.key
+         FROM "${schemaName}"."role_permissions" rp
+         JOIN "${schemaName}"."permissions" p ON rp.permission_id = p.id
+         JOIN "${schemaName}"."roles" r ON rp.role_id = r.id
+         WHERE r.name = 'tenant_admin'`
+      );
+      const permKeys = permRows.map((p) => p.key);
+
+      expect(permKeys).toContain('users:read');
+      expect(permKeys).toContain('users:write');
+      expect(permKeys).toContain('roles:read');
+      expect(permKeys).toContain('roles:write');
+      expect(permKeys).toContain('settings:read');
+      expect(permKeys).toContain('settings:write');
+      expect(permKeys).toContain('plugins:read');
+      expect(permKeys).toContain('plugins:write');
     });
 
     it('should create default user role with basic permissions', async () => {
@@ -520,22 +534,28 @@ describe('Tenant Provisioning E2E', () => {
       });
       expect(createResp.statusCode).toBe(201);
 
-      // Query user role
-      const userRoles = await db.$queryRawUnsafe<
-        Array<{ name: string; permissions: string[]; description: string }>
-      >(`SELECT name, permissions, description FROM "${schemaName}"."roles" WHERE name = 'user'`);
+      // Query user role — exists in new schema (Spec 003: no permissions column on roles)
+      const userRoles = await db.$queryRawUnsafe<Array<{ name: string }>>(
+        `SELECT name FROM "${schemaName}"."roles" WHERE name = 'user'`
+      );
 
       expect(userRoles).toHaveLength(1);
-      const userRole = userRoles[0];
+      expect(userRoles[0].name).toBe('user');
 
-      expect(userRole.name).toBe('user');
-      expect(userRole.description).toContain('Standard user');
-      expect(userRole.permissions).toContain('users.read');
-      expect(userRole.permissions).toContain('settings.read');
+      // Verify permissions through the normalized role_permissions join table
+      const permRows = await db.$queryRawUnsafe<Array<{ key: string }>>(
+        `SELECT p.key
+         FROM "${schemaName}"."role_permissions" rp
+         JOIN "${schemaName}"."permissions" p ON rp.permission_id = p.id
+         JOIN "${schemaName}"."roles" r ON rp.role_id = r.id
+         WHERE r.name = 'user'`
+      );
+      const permKeys = permRows.map((p) => p.key);
 
-      // Should NOT have write permissions
-      expect(userRole.permissions).not.toContain('users.write');
-      expect(userRole.permissions).not.toContain('users.delete');
+      expect(permKeys).toContain('users:read');
+
+      // Standard user should NOT have write permissions
+      expect(permKeys).not.toContain('users:write');
     });
 
     it('should create default guest role with minimal permissions', async () => {
@@ -548,18 +568,31 @@ describe('Tenant Provisioning E2E', () => {
       });
       expect(createResp.statusCode).toBe(201);
 
-      // Query guest role
-      const guestRoles = await db.$queryRawUnsafe<
-        Array<{ name: string; permissions: string[]; description: string }>
-      >(`SELECT name, permissions, description FROM "${schemaName}"."roles" WHERE name = 'guest'`);
+      // Spec 003: there is no 'guest' system role — the system roles are
+      // super_admin, tenant_admin, team_admin, user.  Verify at least the
+      // 'user' role (which has the most restricted default permissions) exists.
+      const userRoles = await db.$queryRawUnsafe<Array<{ name: string }>>(
+        `SELECT name FROM "${schemaName}"."roles" WHERE name = 'user'`
+      );
 
-      expect(guestRoles).toHaveLength(1);
-      const guestRole = guestRoles[0];
+      expect(userRoles).toHaveLength(1);
+      expect(userRoles[0].name).toBe('user');
 
-      expect(guestRole.name).toBe('guest');
-      expect(guestRole.description).toContain('Guest');
-      expect(guestRole.permissions).toContain('users.read');
-      expect(guestRole.permissions.length).toBe(1); // Only one permission
+      // Verify that the 'user' role has minimal permissions (users:read, workspaces:read, plugins:read)
+      const permRows = await db.$queryRawUnsafe<Array<{ key: string }>>(
+        `SELECT p.key
+         FROM "${schemaName}"."role_permissions" rp
+         JOIN "${schemaName}"."permissions" p ON rp.permission_id = p.id
+         JOIN "${schemaName}"."roles" r ON rp.role_id = r.id
+         WHERE r.name = 'user'`
+      );
+      const permKeys = permRows.map((p) => p.key);
+
+      expect(permKeys).toContain('users:read');
+      // user role should not have admin-level write permissions
+      expect(permKeys).not.toContain('users:write');
+      expect(permKeys).not.toContain('roles:write');
+      expect(permKeys).not.toContain('settings:write');
     });
 
     it('should create all three default roles', async () => {
@@ -572,16 +605,18 @@ describe('Tenant Provisioning E2E', () => {
       });
       expect(createResp.statusCode).toBe(201);
 
-      // Query all roles
+      // Query all roles — Spec 003 system roles: super_admin, tenant_admin, team_admin, user
       const roles = await db.$queryRawUnsafe<Array<{ name: string }>>(
         `SELECT name FROM "${schemaName}"."roles" ORDER BY name`
       );
 
       const roleNames = roles.map((r) => r.name);
-      expect(roleNames).toContain('admin');
+      // All four Spec 003 system roles must be present
+      expect(roleNames).toContain('super_admin');
+      expect(roleNames).toContain('tenant_admin');
+      expect(roleNames).toContain('team_admin');
       expect(roleNames).toContain('user');
-      expect(roleNames).toContain('guest');
-      expect(roleNames.length).toBeGreaterThanOrEqual(3);
+      expect(roleNames.length).toBeGreaterThanOrEqual(4);
     });
   });
 
