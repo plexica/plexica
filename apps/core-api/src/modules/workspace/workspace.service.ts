@@ -297,12 +297,29 @@ export class WorkspaceService {
           );
         }
       } catch (insertErr) {
-        // P2002 = unique constraint violation. Re-throw as WorkspaceError so
-        // the Fastify handler returns 409 WORKSPACE_SLUG_CONFLICT instead of 500.
-        if (
-          insertErr instanceof Prisma.PrismaClientKnownRequestError &&
-          insertErr.code === 'P2002'
-        ) {
+        // Detect Postgres unique-constraint violations regardless of whether
+        // Prisma surfaces them as P2002 (model operations) or P2010 (raw
+        // queries via the pg driver adapter). Also handles plain Error objects
+        // whose message contains the postgres 23505 code (e.g. thrown by
+        // older driver versions or test mocks).
+        //
+        // When a violation is detected, re-throw as WorkspaceError so the
+        // Fastify route handler returns 409 WORKSPACE_SLUG_CONFLICT.
+        const isUniqueViolation = (err: unknown): boolean => {
+          if (err instanceof Prisma.PrismaClientKnownRequestError) {
+            if (err.code === 'P2002') return true;
+            if (err.code === 'P2010') {
+              // meta.message contains "Raw query failed. Code: `23505`. …"
+              const msg = String((err.meta as Record<string, unknown> | undefined)?.message ?? '');
+              if (msg.includes('23505')) return true;
+            }
+          }
+          // Fallback: check the stringified error for the postgres error code.
+          // Covers driver adapter errors that may not be PrismaClientKnownRequestError.
+          const errStr = String(err instanceof Error ? err.message : err);
+          return errStr.includes('23505') || errStr.toLowerCase().includes('unique constraint');
+        };
+        if (isUniqueViolation(insertErr)) {
           throw new WorkspaceError(
             WorkspaceErrorCode.WORKSPACE_SLUG_CONFLICT,
             `Workspace with slug '${dto.slug}' already exists`
