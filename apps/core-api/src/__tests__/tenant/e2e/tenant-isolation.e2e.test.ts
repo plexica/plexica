@@ -208,8 +208,8 @@ describe('Tenant Isolation E2E', () => {
 
       // Try to query tenant 1 table without schema prefix - should fail or return empty
       // Note: This would require table not to exist in current schema
-      const result = await db
-        .$queryRawUnsafe<Array<any>>(`SELECT * FROM "${tenant1Schema}"."users" LIMIT 1`)
+      await db
+        .$queryRawUnsafe<Array<unknown>>(`SELECT * FROM "${tenant1Schema}"."users" LIMIT 1`)
         .catch(() => ({ length: 0 }));
 
       // Even if query succeeds, it should be explicit cross-schema access
@@ -222,43 +222,96 @@ describe('Tenant Isolation E2E', () => {
     });
 
     it('should isolate role data between tenants', async () => {
-      // Create custom role in tenant 1
+      // Create custom role in tenant 1 using normalized schema (Spec 003)
       const role1Id = crypto.randomUUID();
+      const perm1Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant1Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         role1Id,
-        'custom-role-1',
-        JSON.stringify(['custom.permission1'])
+        tenant1Id,
+        'custom-role-1'
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."permissions" (id, tenant_id, key, name, created_at)
+         VALUES ($1, $2, $3, $3, NOW())
+         ON CONFLICT (tenant_id, key) DO NOTHING`,
+        perm1Id,
+        tenant1Id,
+        'custom.permission1'
+      );
+      // Re-fetch the actual permission id in case of conflict
+      const perm1Rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM "${tenant1Schema}"."permissions" WHERE tenant_id = $1 AND key = $2`,
+        tenant1Id,
+        'custom.permission1'
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."role_permissions" (role_id, permission_id, tenant_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        role1Id,
+        perm1Rows[0].id,
+        tenant1Id
       );
 
       // Create role with same name in tenant 2
       const role2Id = crypto.randomUUID();
+      const perm2Id = crypto.randomUUID();
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant2Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         role2Id,
-        'custom-role-1',
-        JSON.stringify(['custom.permission2'])
+        tenant2Id,
+        'custom-role-1'
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant2Schema}"."permissions" (id, tenant_id, key, name, created_at)
+         VALUES ($1, $2, $3, $3, NOW())
+         ON CONFLICT (tenant_id, key) DO NOTHING`,
+        perm2Id,
+        tenant2Id,
+        'custom.permission2'
+      );
+      const perm2Rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM "${tenant2Schema}"."permissions" WHERE tenant_id = $1 AND key = $2`,
+        tenant2Id,
+        'custom.permission2'
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant2Schema}"."role_permissions" (role_id, permission_id, tenant_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        role2Id,
+        perm2Rows[0].id,
+        tenant2Id
       );
 
-      // Verify roles are isolated
-      const tenant1Roles = await db.$queryRawUnsafe<Array<{ id: string; permissions: string[] }>>(
-        `SELECT id, permissions FROM "${tenant1Schema}"."roles" WHERE name = 'custom-role-1'`
+      // Verify roles are isolated — query permissions via JOIN
+      const tenant1Perms = await db.$queryRawUnsafe<Array<{ id: string; key: string }>>(
+        `SELECT r.id, p.key
+         FROM "${tenant1Schema}"."roles" r
+         JOIN "${tenant1Schema}"."role_permissions" rp ON rp.role_id = r.id
+         JOIN "${tenant1Schema}"."permissions" p ON p.id = rp.permission_id
+         WHERE r.name = 'custom-role-1'`
       );
 
-      const tenant2Roles = await db.$queryRawUnsafe<Array<{ id: string; permissions: string[] }>>(
-        `SELECT id, permissions FROM "${tenant2Schema}"."roles" WHERE name = 'custom-role-1'`
+      const tenant2Perms = await db.$queryRawUnsafe<Array<{ id: string; key: string }>>(
+        `SELECT r.id, p.key
+         FROM "${tenant2Schema}"."roles" r
+         JOIN "${tenant2Schema}"."role_permissions" rp ON rp.role_id = r.id
+         JOIN "${tenant2Schema}"."permissions" p ON p.id = rp.permission_id
+         WHERE r.name = 'custom-role-1'`
       );
 
-      expect(tenant1Roles[0].id).toBe(role1Id);
-      expect(tenant1Roles[0].permissions).toContain('custom.permission1');
+      expect(tenant1Perms[0].id).toBe(role1Id);
+      expect(tenant1Perms[0].key).toBe('custom.permission1');
 
-      expect(tenant2Roles[0].id).toBe(role2Id);
-      expect(tenant2Roles[0].permissions).toContain('custom.permission2');
+      expect(tenant2Perms[0].id).toBe(role2Id);
+      expect(tenant2Perms[0].key).toBe('custom.permission2');
 
       // Verify they have different IDs
-      expect(tenant1Roles[0].id).not.toBe(tenant2Roles[0].id);
+      expect(tenant1Perms[0].id).not.toBe(tenant2Perms[0].id);
     });
   });
 
@@ -276,19 +329,47 @@ describe('Tenant Isolation E2E', () => {
         `permuser1-${suffix}@test.com`
       );
 
+      // Insert role (Spec 003: no permissions column — use normalized tables)
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant1Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         role1Id,
-        'tenant1-role',
-        JSON.stringify(['tenant1.read', 'tenant1.write'])
+        tenant1Id,
+        'tenant1-role'
       );
 
+      // Insert permissions and link them
+      for (const permKey of ['tenant1.read', 'tenant1.write']) {
+        const permId = crypto.randomUUID();
+        await db.$executeRawUnsafe(
+          `INSERT INTO "${tenant1Schema}"."permissions" (id, tenant_id, key, name, created_at)
+           VALUES ($1, $2, $3, $3, NOW())
+           ON CONFLICT (tenant_id, key) DO NOTHING`,
+          permId,
+          tenant1Id,
+          permKey
+        );
+        const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM "${tenant1Schema}"."permissions" WHERE tenant_id = $1 AND key = $2`,
+          tenant1Id,
+          permKey
+        );
+        await db.$executeRawUnsafe(
+          `INSERT INTO "${tenant1Schema}"."role_permissions" (role_id, permission_id, tenant_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
+          role1Id,
+          rows[0].id,
+          tenant1Id
+        );
+      }
+
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id)
-         VALUES ($1, $2)`,
+        `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id, tenant_id)
+         VALUES ($1, $2, $3)`,
         user1Id,
-        role1Id
+        role1Id,
+        tenant1Id
       );
 
       // Create user and role in tenant 2
@@ -304,18 +385,42 @@ describe('Tenant Isolation E2E', () => {
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant2Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         role2Id,
-        'tenant2-role',
-        JSON.stringify(['tenant2.admin'])
+        tenant2Id,
+        'tenant2-role'
+      );
+
+      const perm2Id = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant2Schema}"."permissions" (id, tenant_id, key, name, created_at)
+         VALUES ($1, $2, $3, $3, NOW())
+         ON CONFLICT (tenant_id, key) DO NOTHING`,
+        perm2Id,
+        tenant2Id,
+        'tenant2.admin'
+      );
+      const perm2Rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM "${tenant2Schema}"."permissions" WHERE tenant_id = $1 AND key = $2`,
+        tenant2Id,
+        'tenant2.admin'
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant2Schema}"."role_permissions" (role_id, permission_id, tenant_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        role2Id,
+        perm2Rows[0].id,
+        tenant2Id
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant2Schema}"."user_roles" (user_id, role_id)
-         VALUES ($1, $2)`,
+        `INSERT INTO "${tenant2Schema}"."user_roles" (user_id, role_id, tenant_id)
+         VALUES ($1, $2, $3)`,
         user2Id,
-        role2Id
+        role2Id,
+        tenant2Id
       );
 
       // Get permissions for user 1 in tenant 1
@@ -347,19 +452,44 @@ describe('Tenant Isolation E2E', () => {
       );
 
       const roleId = crypto.randomUUID();
+      // Insert role using normalized schema (Spec 003)
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant1Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         roleId,
-        'cross-role',
-        JSON.stringify(['cross.permission'])
+        tenant1Id,
+        'cross-role'
+      );
+
+      const crossPermId = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."permissions" (id, tenant_id, key, name, created_at)
+         VALUES ($1, $2, $3, $3, NOW())
+         ON CONFLICT (tenant_id, key) DO NOTHING`,
+        crossPermId,
+        tenant1Id,
+        'cross.permission'
+      );
+      const crossPermRows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM "${tenant1Schema}"."permissions" WHERE tenant_id = $1 AND key = $2`,
+        tenant1Id,
+        'cross.permission'
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO "${tenant1Schema}"."role_permissions" (role_id, permission_id, tenant_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        roleId,
+        crossPermRows[0].id,
+        tenant1Id
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id)
-         VALUES ($1, $2)`,
+        `INSERT INTO "${tenant1Schema}"."user_roles" (user_id, role_id, tenant_id)
+         VALUES ($1, $2, $3)`,
         userId,
-        roleId
+        roleId,
+        tenant1Id
       );
 
       // Check permission in tenant 1 - should have permission
@@ -430,13 +560,13 @@ describe('Tenant Isolation E2E', () => {
         `fktest-${suffix}@test.com`
       );
 
-      // Create role in tenant 2
+      // Create role in tenant 2 using normalized schema (Spec 003)
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant2Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         role2Id,
-        'fk-role',
-        JSON.stringify(['test'])
+        tenant2Id,
+        'fk-role'
       );
 
       // Try to create user_role relationship across schemas - should fail
@@ -681,21 +811,21 @@ describe('Tenant Isolation E2E', () => {
       const roleId1 = crypto.randomUUID();
       const roleId2 = crypto.randomUUID();
 
-      // Create roles in both tenants
+      // Create roles in both tenants using normalized schema (Spec 003)
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant1Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant1Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         roleId1,
-        `delete-test-role-${suffix}`,
-        JSON.stringify(['test'])
+        tenant1Id,
+        `delete-test-role-${suffix}`
       );
 
       await db.$executeRawUnsafe(
-        `INSERT INTO "${tenant2Schema}"."roles" (id, name, permissions)
-         VALUES ($1, $2, $3::jsonb)`,
+        `INSERT INTO "${tenant2Schema}"."roles" (id, tenant_id, name, is_system, created_at, updated_at)
+         VALUES ($1, $2, $3, false, NOW(), NOW())`,
         roleId2,
-        `delete-test-role-${suffix}`,
-        JSON.stringify(['test'])
+        tenant2Id,
+        `delete-test-role-${suffix}`
       );
 
       // Delete from tenant 1
