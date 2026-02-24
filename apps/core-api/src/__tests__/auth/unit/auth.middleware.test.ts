@@ -16,7 +16,6 @@ import {
   requireTenantOwner,
 } from '../../../middleware/auth.js';
 import * as jwtLib from '../../../lib/jwt.js';
-import { permissionService } from '../../../services/permission.service.js';
 import { tenantService } from '../../../services/tenant.service.js';
 import { MASTER_TENANT_SLUG, USER_ROLES } from '../../../constants/index.js';
 
@@ -24,6 +23,14 @@ import { MASTER_TENANT_SLUG, USER_ROLES } from '../../../constants/index.js';
 vi.mock('../../../lib/jwt.js');
 vi.mock('../../../services/permission.service.js');
 vi.mock('../../../services/tenant.service.js');
+vi.mock('../../../modules/authorization/authorization.service.js', () => ({
+  authorizationService: {
+    authorize: vi.fn(),
+    getUserEffectivePermissions: vi.fn(),
+  },
+}));
+
+import { authorizationService } from '../../../modules/authorization/authorization.service.js';
 
 // Helper to create mock request/reply
 function createMockRequest(): Partial<FastifyRequest> {
@@ -604,11 +611,7 @@ describe('Auth Middleware - requireRole', () => {
       expect(reply.send).toHaveBeenCalledWith({
         error: {
           code: 'AUTH_INSUFFICIENT_ROLE',
-          message: 'Required role(s): admin',
-          details: {
-            requiredRoles: ['admin'],
-            userRoles: ['user'],
-          },
+          message: 'You do not have the required role to perform this action',
         },
       });
     });
@@ -650,11 +653,7 @@ describe('Auth Middleware - requireRole', () => {
       expect(reply.send).toHaveBeenCalledWith({
         error: {
           code: 'AUTH_INSUFFICIENT_ROLE',
-          message: 'Required role(s): admin, moderator, editor',
-          details: {
-            requiredRoles: ['admin', 'moderator', 'editor'],
-            userRoles: ['user', 'viewer'],
-          },
+          message: 'You do not have the required role to perform this action',
         },
       });
     });
@@ -702,6 +701,22 @@ describe('Auth Middleware - requireRole', () => {
 describe('Auth Middleware - requirePermission', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // tenantService.getTenantBySlug resolves by default
+    vi.mocked(tenantService.getTenantBySlug).mockResolvedValue({
+      id: 'tenant-id-1',
+      name: 'Test Tenant',
+      slug: 'test-tenant',
+      status: 'ACTIVE' as const,
+      settings: {},
+      theme: {},
+      translationOverrides: {},
+      defaultLocale: 'en',
+      deletionScheduledAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
   });
 
   describe('With Valid Permission', () => {
@@ -717,13 +732,12 @@ describe('Auth Middleware - requirePermission', () => {
         tenantSlug: 'test-tenant',
       };
 
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue([
-        'posts.read',
-        'posts.write',
-      ]);
+      vi.mocked(authorizationService.authorize).mockResolvedValue({
+        permitted: true,
+        reason: 'rbac',
+      } as any);
 
-      const middleware = requirePermission('posts.read');
+      const middleware = requirePermission('posts:read');
       await middleware(request, reply);
 
       expect(reply.code).not.toHaveBeenCalled();
@@ -741,41 +755,15 @@ describe('Auth Middleware - requirePermission', () => {
         tenantSlug: 'test-tenant',
       };
 
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue([
-        'posts.write',
-        'comments.read',
-      ]);
+      vi.mocked(authorizationService.authorize).mockResolvedValue({
+        permitted: true,
+        reason: 'rbac',
+      } as any);
 
-      const middleware = requirePermission('posts.read', 'posts.write', 'posts.delete');
+      const middleware = requirePermission('posts:read', 'posts:write', 'posts:delete');
       await middleware(request, reply);
 
       expect(reply.code).not.toHaveBeenCalled();
-    });
-
-    it('should fetch permissions from correct tenant schema', async () => {
-      const request = createMockRequest() as FastifyRequest;
-      const reply = createMockReply() as FastifyReply;
-
-      request.user = {
-        id: 'user-123',
-        username: 'user123',
-        email: 'user@example.com',
-        roles: ['user'],
-        tenantSlug: 'acme-corp',
-      };
-
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_acme_corp');
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.read']);
-
-      const middleware = requirePermission('posts.read');
-      await middleware(request, reply);
-
-      expect(tenantService.getSchemaName).toHaveBeenCalledWith('acme-corp');
-      expect(permissionService.getUserPermissions).toHaveBeenCalledWith(
-        'user-123',
-        'tenant_acme_corp'
-      );
     });
   });
 
@@ -792,25 +780,25 @@ describe('Auth Middleware - requirePermission', () => {
         tenantSlug: 'test-tenant',
       };
 
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.read']);
+      vi.mocked(authorizationService.authorize).mockResolvedValue({
+        permitted: false,
+        reason: 'no_permission',
+      } as any);
 
-      const middleware = requirePermission('posts.delete');
+      const middleware = requirePermission('posts:delete');
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
+      // NFR-004: No permission names in 403 body (Task 2.8 security fix)
       expect(reply.send).toHaveBeenCalledWith({
         error: {
           code: 'AUTH_INSUFFICIENT_PERMISSION',
-          message: 'Required permission(s): posts.delete',
-          details: {
-            requiredPermissions: ['posts.delete'],
-          },
+          message: 'You do not have permission to perform this action',
         },
       });
     });
 
-    it('should return 403 when user has no permissions', async () => {
+    it('should return 403 when user has no permissions at all', async () => {
       const request = createMockRequest() as FastifyRequest;
       const reply = createMockReply() as FastifyReply;
 
@@ -822,48 +810,20 @@ describe('Auth Middleware - requirePermission', () => {
         tenantSlug: 'test-tenant',
       };
 
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue([]);
+      vi.mocked(authorizationService.authorize).mockResolvedValue({
+        permitted: false,
+        reason: 'no_permission',
+      } as any);
 
-      const middleware = requirePermission('posts.read');
+      const middleware = requirePermission('posts:read');
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(403);
-    });
-
-    it('should return 403 when none of multiple required permissions match', async () => {
-      const request = createMockRequest() as FastifyRequest;
-      const reply = createMockReply() as FastifyReply;
-
-      request.user = {
-        id: 'user-123',
-        username: 'user123',
-        email: 'user@example.com',
-        roles: ['user'],
-        tenantSlug: 'test-tenant',
-      };
-
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockResolvedValue(['posts.read']);
-
-      const middleware = requirePermission('posts.delete', 'posts.admin', 'comments.delete');
-      await middleware(request, reply);
-
-      expect(reply.code).toHaveBeenCalledWith(403);
-      expect(reply.send).toHaveBeenCalledWith({
-        error: {
-          code: 'AUTH_INSUFFICIENT_PERMISSION',
-          message: 'Required permission(s): posts.delete, posts.admin, comments.delete',
-          details: {
-            requiredPermissions: ['posts.delete', 'posts.admin', 'comments.delete'],
-          },
-        },
-      });
     });
   });
 
-  describe('Permission Service Errors', () => {
-    it('should return 500 when permission service fails', async () => {
+  describe('Fail-closed behavior (NFR-005)', () => {
+    it('should return 403 when tenant lookup fails (fail-closed)', async () => {
       const request = createMockRequest() as FastifyRequest;
       const reply = createMockReply() as FastifyReply;
 
@@ -875,49 +835,21 @@ describe('Auth Middleware - requirePermission', () => {
         tenantSlug: 'test-tenant',
       };
 
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockRejectedValue(
+      vi.mocked(tenantService.getTenantBySlug).mockRejectedValue(
         new Error('Database connection failed')
       );
 
-      const middleware = requirePermission('posts.read');
+      const middleware = requirePermission('posts:read');
       await middleware(request, reply);
 
-      expect(reply.code).toHaveBeenCalledWith(500);
+      // NFR-005: fail-closed — unknown tenant → DENY, not 500
+      expect(reply.code).toHaveBeenCalledWith(403);
       expect(reply.send).toHaveBeenCalledWith({
         error: {
-          code: 'PERMISSION_CHECK_FAILED',
-          message: 'Failed to verify permissions',
-          details: {
-            reason: 'Database connection failed',
-          },
+          code: 'AUTH_INSUFFICIENT_PERMISSION',
+          message: 'You do not have permission to perform this action',
         },
       });
-    });
-
-    it('should log permission check errors', async () => {
-      const request = createMockRequest() as FastifyRequest;
-      const reply = createMockReply() as FastifyReply;
-
-      request.user = {
-        id: 'user-123',
-        username: 'user123',
-        email: 'user@example.com',
-        roles: ['user'],
-        tenantSlug: 'test-tenant',
-      };
-
-      const error = new Error('Permission service error');
-      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
-      vi.mocked(permissionService.getUserPermissions).mockRejectedValue(error);
-
-      const middleware = requirePermission('posts.read');
-      await middleware(request, reply);
-
-      expect(request.log.error).toHaveBeenCalledWith(
-        { error: 'Permission service error' },
-        'Permission check failed'
-      );
     });
   });
 
@@ -928,7 +860,7 @@ describe('Auth Middleware - requirePermission', () => {
 
       request.user = undefined;
 
-      const middleware = requirePermission('posts.read');
+      const middleware = requirePermission('posts:read');
       await middleware(request, reply);
 
       expect(reply.code).toHaveBeenCalledWith(401);
@@ -1003,10 +935,6 @@ describe('Auth Middleware - requireSuperAdmin', () => {
         error: {
           code: 'AUTH_SUPER_ADMIN_REQUIRED',
           message: 'Super admin access required',
-          details: {
-            userRealm: 'other-tenant',
-            validRealms: expect.arrayContaining(['master', 'plexica-admin']),
-          },
         },
       });
     });
@@ -1052,9 +980,6 @@ describe('Auth Middleware - requireSuperAdmin', () => {
         error: {
           code: 'AUTH_SUPER_ADMIN_REQUIRED',
           message: 'Super admin role required',
-          details: {
-            userRoles: ['admin', 'user'],
-          },
         },
       });
     });
@@ -1232,10 +1157,6 @@ describe('Auth Middleware - requireTenantOwner', () => {
         error: {
           code: 'AUTH_TENANT_OWNER_REQUIRED',
           message: 'Tenant owner or admin access required',
-          details: {
-            userRoles: ['user', 'viewer'],
-            requiredRoles: [USER_ROLES.TENANT_OWNER, USER_ROLES.ADMIN],
-          },
         },
       });
     });

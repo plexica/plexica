@@ -26,10 +26,24 @@ const CACHE_TTL_SECONDS = 300; // 5 minutes
 
 /**
  * Maximum depth allowed for a workspace hierarchy.
- * Root (depth=0) → child (depth=1) → grandchild (depth=2).
- * A parent at depth=2 would produce a child at depth=3, which is rejected.
+ *
+ * The spec (FR-006) requires unlimited depth in principle. This constant acts
+ * as a configurable safety cap to prevent runaway nesting in production while
+ * still supporting deep organisational hierarchies.
+ *
+ * Default: 20 levels (root at depth=0 → leaf at depth=20).
+ * Override at runtime via the WORKSPACE_MAX_DEPTH environment variable.
  */
-const MAX_DEPTH = 2;
+const DEFAULT_MAX_DEPTH = 20;
+
+function getMaxDepth(): number {
+  const env = process.env.WORKSPACE_MAX_DEPTH;
+  if (env) {
+    const parsed = parseInt(env, 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return DEFAULT_MAX_DEPTH;
+}
 
 export class WorkspaceHierarchyService {
   private db: PrismaClient;
@@ -127,9 +141,10 @@ export class WorkspaceHierarchyService {
    * at MAX_DEPTH (because the child would be at MAX_DEPTH+1).
    */
   validateDepthConstraint(parentDepth: number): void {
-    if (parentDepth >= MAX_DEPTH) {
+    const maxDepth = getMaxDepth();
+    if (parentDepth >= maxDepth) {
       const err = new Error(
-        `Cannot create child workspace: maximum hierarchy depth of ${MAX_DEPTH} exceeded`
+        `Cannot create child workspace: maximum hierarchy depth of ${maxDepth} exceeded`
       );
       (err as NodeJS.ErrnoException).code = 'HIERARCHY_DEPTH_EXCEEDED';
       throw err;

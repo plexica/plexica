@@ -1,37 +1,43 @@
 # Authorization System (RBAC + ABAC)
 
-**Last Updated**: February 16, 2026  
-**Status**: ⚠️ Partially Implemented (RBAC only)  
+**Last Updated**: February 24, 2026  
+**Status**: ✅ Implemented (RBAC + ABAC deny-only overlay)  
 **Spec Reference**: [`.forge/specs/003-authorization/spec.md`](../.forge/specs/003-authorization/spec.md)
+
+> ⚠️ **Model Update (Spec 003)**: The prior authorization model described in earlier versions of this document — specifically the ABAC `ALLOW` effect and `INCONCLUSIVE` evaluation state — has been **superseded** by [Spec 003](../.forge/specs/003-authorization/spec.md). The authoritative model is now:
+>
+> - **ABAC is deny-only**: effects are `DENY` and `FILTER` only; ABAC policies cannot grant access that RBAC would not already allow.
+> - **No `INCONCLUSIVE` state**: policy evaluation is fail-closed — if ABAC evaluation fails, access is denied.
+>
+> See [Spec 003 §10](../.forge/specs/003-authorization/spec.md) for the complete authoritative specification.
 
 ---
 
 ## 📋 Implementation Status
 
-| Component              | Status         | Completion | Notes                                  |
-| ---------------------- | -------------- | ---------- | -------------------------------------- |
-| RBAC (Role-Based)      | ✅ Implemented | 100%       | Fully functional, production-ready     |
-| Custom Roles           | ✅ Implemented | 100%       | Tenant admins can create custom roles  |
-| Permission Management  | ✅ Implemented | 100%       | CRUD operations for roles/permissions  |
-| ABAC (Attribute-Based) | ❌ Not Started | 0%         | **Critical gap** - planned for Phase 2 |
-| Policy Engine          | ❌ Not Started | 0%         | Required for ABAC implementation       |
-| Plugin Permissions     | ⚠️ Partial     | 40%        | Manual registration only (no auto)     |
+| Component              | Status         | Completion | Notes                                                                 |
+| ---------------------- | -------------- | ---------- | --------------------------------------------------------------------- |
+| RBAC (Role-Based)      | ✅ Implemented | 100%       | Fully functional, production-ready                                    |
+| Custom Roles           | ✅ Implemented | 100%       | Tenant admins can create up to 50 custom roles                        |
+| Permission Management  | ✅ Implemented | 100%       | CRUD operations for roles/permissions, plugin permission registration |
+| ABAC (Attribute-Based) | ✅ Implemented | 100%       | Deny-only overlay — policies can DENY or FILTER; cannot grant access  |
+| Policy Engine          | ✅ Implemented | 100%       | ConditionValidator + PolicyService with Redis-cached evaluation       |
+| Plugin Permissions     | ✅ Implemented | 100%       | Auto-registration on plugin install via PermissionRegistrationService |
 
-**Overall Completion**: 60%
+**Overall Completion**: 100%
 
-> ⚠️ **Critical Note**: The specification (Spec 003) requires a **hybrid RBAC + ABAC** model.
-> Currently, only RBAC is implemented. ABAC is planned for the next sprint.
+> See [Spec 003](../.forge/specs/003-authorization/spec.md) for the full authoritative specification.
 
 ---
 
 ## Overview
 
-Plexica's authorization system is designed as a **hybrid RBAC + ABAC** model:
+Plexica's authorization system is a **hybrid RBAC + ABAC** model:
 
 - **RBAC (Role-Based Access Control)**: Simple, performant role-to-permission mappings for common access patterns
-- **ABAC (Attribute-Based Access Control)**: Dynamic, attribute-based policy evaluation for fine-grained access control
+- **ABAC (Attribute-Based Access Control)**: Deny-only overlay for fine-grained access control — policies can DENY or FILTER access but cannot grant what RBAC does not already allow
 
-### Current Architecture (RBAC Only)
+### Architecture
 
 ```
 ┌─────────────┐

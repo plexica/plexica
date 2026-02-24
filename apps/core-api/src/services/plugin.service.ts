@@ -10,6 +10,11 @@ import {
 import { validatePluginManifest } from '../schemas/plugin-manifest.schema.js';
 import { ServiceRegistryService } from './service-registry.service.js';
 import { DependencyResolutionService } from './dependency-resolution.service.js';
+import { tenantService } from './tenant.service.js';
+import {
+  permissionRegistrationService,
+  type PluginPermissionInput,
+} from '../modules/authorization/permission-registration.service.js';
 import { redis } from '../lib/redis.js';
 import semver from 'semver';
 import { TENANT_STATUS } from '../constants/index.js';
@@ -600,6 +605,47 @@ export class PluginLifecycleService {
       );
     }
 
+    // AFTER transaction succeeds: Register plugin permissions (FR-011, FR-012)
+    // Done outside the transaction so that a permission conflict aborts install cleanly.
+    // Edge Case #4: if registerPluginPermissions throws PERMISSION_KEY_CONFLICT, we
+    // must undo the DB installation and re-throw so the caller gets an actionable error.
+    if (manifest.permissions && manifest.permissions.length > 0) {
+      const tenant = await db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { slug: true },
+      });
+      if (tenant) {
+        const schemaName = tenantService.getSchemaName(tenant.slug);
+        const permInputs: PluginPermissionInput[] = manifest.permissions.map((p) => ({
+          key: `${p.resource}:${p.action}`,
+          name: `${p.resource} ${p.action}`,
+          description: p.description,
+        }));
+
+        try {
+          await permissionRegistrationService.registerPluginPermissions(
+            tenantId,
+            schemaName,
+            pluginId,
+            permInputs
+          );
+        } catch (permError: unknown) {
+          // Rollback: remove the tenantPlugin row we just created
+          try {
+            await db.tenantPlugin.delete({ where: { tenantId_pluginId: { tenantId, pluginId } } });
+          } catch (rollbackErr: unknown) {
+            const rollbackMsg =
+              rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr);
+            this.logger.error(
+              { tenantId, pluginId, error: rollbackMsg },
+              'Failed to rollback tenantPlugin after permission conflict'
+            );
+          }
+          throw permError;
+        }
+      }
+    }
+
     // AFTER transaction succeeds: Register services for this tenant
     // This is done outside the transaction to avoid orphaned service registrations
     // if the transaction rolls back. If service registration fails here, the installation
@@ -753,6 +799,22 @@ export class PluginLifecycleService {
         pluginId,
         configuration: installation.configuration,
       });
+    }
+
+    // Remove plugin permissions (FR-013) before deleting the installation row
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
+    if (tenant) {
+      const schemaName = tenantService.getSchemaName(tenant.slug);
+      try {
+        await permissionRegistrationService.removePluginPermissions(tenantId, schemaName, pluginId);
+      } catch (permError: unknown) {
+        const permMsg = permError instanceof Error ? permError.message : String(permError);
+        this.logger.error(
+          { tenantId, pluginId, error: permMsg },
+          'Failed to remove plugin permissions during uninstall (non-blocking)'
+        );
+        // Non-blocking: proceed with uninstall even if permission cleanup fails
+      }
     }
 
     // Remove installation

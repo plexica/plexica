@@ -58,11 +58,23 @@ export interface TemplateWithItems {
 export type { RegisterTemplateDto } from '../plugin/dto/register-template.dto.js';
 
 /** Minimal Prisma transaction client shape */
- 
+
 type PrismaTransaction = Omit<
   PrismaClient,
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
+
+/**
+ * Minimal interface required by fetchTemplateWithItems.
+ * Both PrismaClient and PrismaTransaction structurally satisfy this interface,
+ * avoiding the need for `as unknown as` double-casts.
+ */
+interface PrismaQueryable {
+  $queryRaw<T = unknown>(
+    query: TemplateStringsArray | Prisma.Sql,
+    ...values: unknown[]
+  ): Promise<T>;
+}
 
 /**
  * Manages workspace templates: listing, retrieval, and transactional application.
@@ -189,12 +201,14 @@ export class WorkspaceTemplateService {
    * @param templateId  - ID of the template to apply
    * @param tenantId    - Owning tenant ID (for plugin validation)
    * @param tx          - Active Prisma transaction client
+   * @param schemaName  - Tenant schema name (for fully-qualified table references)
    */
   async applyTemplate(
     workspaceId: string,
     templateId: string,
     tenantId: string,
-    tx: PrismaTransaction
+    tx: PrismaTransaction,
+    schemaName: string
   ): Promise<void> {
     this.logger.debug(
       { workspaceId, templateId, tenantId },
@@ -221,7 +235,7 @@ export class WorkspaceTemplateService {
           await this.applyPluginItem(workspaceId, item, tx);
           break;
         case 'setting':
-          await this.applySettingItem(workspaceId, item, tx);
+          await this.applySettingItem(workspaceId, item, tx, schemaName);
           break;
         case 'page':
           await this.applyPageItem(workspaceId, item, tx);
@@ -492,10 +506,12 @@ export class WorkspaceTemplateService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Fetch template and items within a transaction context.
+   * Fetch template and items within a transaction context (or plain db client).
+   * Accepts PrismaQueryable so both PrismaClient and PrismaTransaction can be
+   * passed without unsafe double-casting.
    */
   private async fetchTemplateWithItems(
-    tx: PrismaTransaction,
+    tx: PrismaQueryable,
     templateId: string
   ): Promise<TemplateWithItems | null> {
     const templateRows = await tx.$queryRaw<
@@ -541,13 +557,8 @@ export class WorkspaceTemplateService {
    * because the tenant check is guaranteed by the write transaction above.
    */
   private async getTemplateInternal(templateId: string): Promise<TemplateWithItems> {
-    // Re-use fetchTemplateWithItems with the instance db cast as PrismaTransaction.
-    // db does not have $transaction/$connect etc but the omit type is structurally
-    // compatible because we only call $queryRaw inside fetchTemplateWithItems.
-    const result = await this.fetchTemplateWithItems(
-      this.db as unknown as Parameters<typeof this.fetchTemplateWithItems>[0],
-      templateId
-    );
+    // PrismaClient satisfies PrismaQueryable structurally — no cast needed.
+    const result = await this.fetchTemplateWithItems(this.db, templateId);
     if (!result) {
       throw new WorkspaceError(
         WorkspaceErrorCode.TEMPLATE_NOT_FOUND,
@@ -623,11 +634,14 @@ export class WorkspaceTemplateService {
 
   /**
    * Apply a 'setting' template item: merge key/value into workspace settings JSON.
+   *
+   * Uses a fully-qualified table name to avoid implicit search_path coupling.
    */
   private async applySettingItem(
     workspaceId: string,
     item: TemplateItemRow,
-    tx: PrismaTransaction
+    tx: PrismaTransaction,
+    schemaName: string
   ): Promise<void> {
     if (!item.setting_key) {
       throw new WorkspaceError(
@@ -636,10 +650,11 @@ export class WorkspaceTemplateService {
       );
     }
 
+    const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
     const settingValueJson = JSON.stringify(item.setting_value ?? null);
     // Merge using jsonb || operator — sets the key, preserving other settings
     await tx.$executeRaw(
-      Prisma.sql`UPDATE workspaces
+      Prisma.sql`UPDATE ${workspacesTable}
                     SET settings = settings || jsonb_build_object(${item.setting_key}, ${settingValueJson}::jsonb),
                         updated_at = NOW()
                   WHERE id = ${workspaceId}`

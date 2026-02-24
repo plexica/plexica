@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { db } from '../lib/db.js';
+import { authorizationService } from '../modules/authorization/authorization.service.js';
 
 /**
  * Permission format: resource.action
@@ -28,6 +29,10 @@ export interface UserWithRoles {
 }
 
 /**
+ * @deprecated Use `AuthorizationService` from `modules/authorization/authorization.service.ts`
+ * instead. This class is retained for backward compatibility during the Spec 003 migration and
+ * will be removed in a future release.
+ *
  * Permission Service
  * Manages roles and permissions within a tenant's schema
  */
@@ -45,12 +50,37 @@ export class PermissionService {
   }
 
   /**
-   * Get all permissions for a user in a tenant
+   * Get all permissions for a user in a tenant.
+   *
+   * @deprecated Delegates to `AuthorizationService.getUserEffectivePermissions()`.
+   * Call that method directly for new code. The `schemaName` parameter is preserved
+   * for backward compatibility; `tenantId` is derived from the schema name.
    */
   async getUserPermissions(userId: string, schemaName: string): Promise<Permission[]> {
     // Validate schema name to prevent SQL injection
     this.validateSchemaName(schemaName);
 
+    // Derive tenantId by looking up the tenant record whose schema matches.
+    // For the legacy callers that only have schemaName, we convert back to the slug
+    // (schema = "tenant_<slug_with_underscores>") and query the DB.
+    // Fall back to the direct DB query if the tenant cannot be found.
+    try {
+      // schema pattern: tenant_<slug_underscored>  → slug = replace underscores with hyphens
+      const slug = schemaName.replace(/^tenant_/, '').replace(/_/g, '-');
+      const tenant = await db.tenant.findUnique({ where: { slug }, select: { id: true } });
+      if (tenant) {
+        const result = await authorizationService.getUserEffectivePermissions(
+          userId,
+          tenant.id,
+          schemaName
+        );
+        return result.data;
+      }
+    } catch {
+      // Fall through to legacy implementation below
+    }
+
+    // Legacy fallback: direct DB query (kept for safety during migration)
     return db.$transaction(async (tx) => {
       // SET LOCAL is scoped to the transaction — automatically reverts on commit/rollback
       await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}"`);

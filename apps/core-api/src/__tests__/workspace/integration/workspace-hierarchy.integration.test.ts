@@ -11,7 +11,7 @@
  * Pattern: buildTestApp() + testContext.auth.createMockToken() (from workspace-crud.integration.test.ts)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp } from '../../../test-app.js';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
@@ -218,32 +218,51 @@ describe('Workspace Hierarchy Integration', () => {
       expect(ws.parentId).toBe(childId);
     });
 
-    it('should reject creation at depth=3 (MAX_DEPTH exceeded)', async () => {
-      // Create depth=2 grandchild first
-      const childRes = await createWorkspace(
-        `child-for-depth3-${Date.now()}`,
-        'Child',
-        adminToken,
-        { parentId: rootId }
-      );
-      const childId = childRes.json().id;
+    describe('MAX_DEPTH enforcement (override to 2 for test speed)', () => {
+      let savedMaxDepth: string | undefined;
 
-      const grandchildRes = await createWorkspace(
-        `grandchild-for-depth3-${Date.now()}`,
-        'Grandchild',
-        adminToken,
-        { parentId: childId }
-      );
-      const grandchildId = grandchildRes.json().id;
-
-      // This one would be at depth=3 — should fail
-      const res = await createWorkspace(`too-deep-${Date.now()}`, 'Too Deep', adminToken, {
-        parentId: grandchildId,
+      beforeEach(() => {
+        savedMaxDepth = process.env.WORKSPACE_MAX_DEPTH;
+        process.env.WORKSPACE_MAX_DEPTH = '2';
       });
 
-      expect(res.statusCode).toBe(400);
-      const body = res.json();
-      expect(body.error.code).toBe('HIERARCHY_DEPTH_EXCEEDED');
+      afterEach(() => {
+        if (savedMaxDepth === undefined) {
+          delete process.env.WORKSPACE_MAX_DEPTH;
+        } else {
+          process.env.WORKSPACE_MAX_DEPTH = savedMaxDepth;
+        }
+      });
+
+      it('should reject creation at depth=2 when MAX_DEPTH=2 (HIERARCHY_DEPTH_EXCEEDED)', async () => {
+        // Create depth=1 child
+        const childRes = await createWorkspace(
+          `child-for-depth-limit-${Date.now()}`,
+          'Child',
+          adminToken,
+          { parentId: rootId }
+        );
+        const childId = childRes.json().id;
+
+        // depth=2 grandchild — at the limit, should still succeed
+        const grandchildRes = await createWorkspace(
+          `grandchild-for-depth-limit-${Date.now()}`,
+          'Grandchild',
+          adminToken,
+          { parentId: childId }
+        );
+        expect(grandchildRes.statusCode).toBe(201);
+        const grandchildId = grandchildRes.json().id;
+
+        // depth=3 would exceed MAX_DEPTH=2 — should fail
+        const res = await createWorkspace(`too-deep-${Date.now()}`, 'Too Deep', adminToken, {
+          parentId: grandchildId,
+        });
+
+        expect(res.statusCode).toBe(400);
+        const body = res.json();
+        expect(body.error.code).toBe('HIERARCHY_DEPTH_EXCEEDED');
+      });
     });
 
     it('should reject 409 when sibling slug already exists under same parent', async () => {

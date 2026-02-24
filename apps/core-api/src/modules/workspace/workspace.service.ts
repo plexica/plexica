@@ -52,6 +52,7 @@ interface WorkspaceDetailRow extends WorkspaceRow {
   teams?: unknown[] | null;
   member_count: number;
   team_count: number;
+  child_count: number;
 }
 
 /** Workspace list row with the requesting user's membership info */
@@ -60,6 +61,7 @@ interface WorkspaceListRow extends WorkspaceRow {
   joined_at: Date;
   member_count: string | number;
   team_count: string | number;
+  child_count: string | number;
 }
 /** Row with only an id column */
 interface IdRow {
@@ -228,33 +230,10 @@ export class WorkspaceService {
       );
     }
 
-    // Check slug uniqueness scoped to parent_id:
-    //   - root workspaces: unique per (tenant_id, slug) WHERE parent_id IS NULL
-    //   - child workspaces: unique per (parent_id, slug)
-    const existing = await (async () => {
-      if (!dto.parentId) {
-        return this.db.$queryRaw<Array<{ id: string }>>(
-          Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
-           WHERE tenant_id = ${tenantContext.tenantId}
-             AND slug = ${dto.slug}
-             AND parent_id IS NULL
-           LIMIT 1`
-        );
-      } else {
-        return this.db.$queryRaw<Array<{ id: string }>>(
-          Prisma.sql`SELECT id FROM ${Prisma.raw(`"${schemaName}"."workspaces"`)}
-           WHERE parent_id = ${dto.parentId}
-             AND slug = ${dto.slug}
-           LIMIT 1`
-        );
-      }
-    })();
-
-    if (existing.length > 0) {
-      throw new Error(`Workspace with slug '${dto.slug}' already exists in this tenant`);
-    }
-
-    // Use a transaction to ensure workspace and member are created together
+    // Use a transaction to ensure workspace and member are created together.
+    // Slug uniqueness is enforced by the DB unique constraint inside the
+    // transaction (TOCTOU-safe). P2002 on slug columns is caught and re-thrown
+    // as WORKSPACE_SLUG_CONFLICT so the caller receives a 409, not a raw 500.
     const createdWorkspace = await this.db.$transaction(async (tx) => {
       // Set search path for this transaction to use the tenant schema
       // Note: schemaName is validated with regex above, so this is safe
@@ -275,44 +254,61 @@ export class WorkspaceService {
       // Create workspace using parameterized values
       // Note: settings must be cast to jsonb explicitly so Postgres accepts
       // the JSON string parameter when the column type is jsonb.
+      // P2002 (unique constraint violation on slug) is caught here so
+      // concurrent inserts that race past pre-checks surface as a clean 409.
       const settingsJson = JSON.stringify(dto.settings ?? {});
       const tableName = Prisma.raw(`"${schemaName}"."workspaces"`);
-      if (dto.parentId) {
-        await tx.$executeRaw(
-          Prisma.sql`INSERT INTO ${tableName}
-           (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
-           VALUES (
-             ${newWorkspaceId},
-             ${tenantContext.tenantId}::uuid,
-             ${dto.parentId}::uuid,
-             ${newDepth},
-             ${newPath},
-             ${dto.slug},
-             ${dto.name},
-             ${dto.description ?? null},
-             ${settingsJson}::jsonb,
-             NOW(),
-             NOW()
-           )`
-        );
-      } else {
-        await tx.$executeRaw(
-          Prisma.sql`INSERT INTO ${tableName}
-           (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
-           VALUES (
-             ${newWorkspaceId},
-             ${tenantContext.tenantId}::uuid,
-             NULL,
-             ${newDepth},
-             ${newPath},
-             ${dto.slug},
-             ${dto.name},
-             ${dto.description ?? null},
-             ${settingsJson}::jsonb,
-             NOW(),
-             NOW()
-           )`
-        );
+      try {
+        if (dto.parentId) {
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO ${tableName}
+             (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
+             VALUES (
+               ${newWorkspaceId},
+               ${tenantContext.tenantId}::uuid,
+               ${dto.parentId}::uuid,
+               ${newDepth},
+               ${newPath},
+               ${dto.slug},
+               ${dto.name},
+               ${dto.description ?? null},
+               ${settingsJson}::jsonb,
+               NOW(),
+               NOW()
+             )`
+          );
+        } else {
+          await tx.$executeRaw(
+            Prisma.sql`INSERT INTO ${tableName}
+             (id, tenant_id, parent_id, depth, path, slug, name, description, settings, created_at, updated_at)
+             VALUES (
+               ${newWorkspaceId},
+               ${tenantContext.tenantId}::uuid,
+               NULL,
+               ${newDepth},
+               ${newPath},
+               ${dto.slug},
+               ${dto.name},
+               ${dto.description ?? null},
+               ${settingsJson}::jsonb,
+               NOW(),
+               NOW()
+             )`
+          );
+        }
+      } catch (insertErr) {
+        // P2002 = unique constraint violation. Re-throw as WorkspaceError so
+        // the Fastify handler returns 409 WORKSPACE_SLUG_CONFLICT instead of 500.
+        if (
+          insertErr instanceof Prisma.PrismaClientKnownRequestError &&
+          insertErr.code === 'P2002'
+        ) {
+          throw new WorkspaceError(
+            WorkspaceErrorCode.WORKSPACE_SLUG_CONFLICT,
+            `Workspace with slug '${dto.slug}' already exists`
+          );
+        }
+        throw insertErr;
       }
 
       // Create workspace member (creator as admin)
@@ -335,7 +331,8 @@ export class WorkspaceService {
           newWorkspaceId,
           dto.templateId,
           tenantContext.tenantId,
-          tx
+          tx,
+          schemaName
         );
       }
 
@@ -360,7 +357,8 @@ export class WorkspaceService {
             )
           ) as members,
           (SELECT COUNT(*) FROM ${membersTable} WHERE workspace_id = w.id)::int as member_count,
-          (SELECT COUNT(*) FROM ${Prisma.raw(`"${schemaName}"."teams"`)} WHERE workspace_id = w.id)::int as team_count
+          (SELECT COUNT(*) FROM ${Prisma.raw(`"${schemaName}"."teams"`)} WHERE workspace_id = w.id)::int as team_count,
+          (SELECT COUNT(*) FROM ${workspacesTable} WHERE parent_id = w.id)::int as child_count
          FROM ${workspacesTable} w
          LEFT JOIN ${membersTable} wm ON w.id = wm.workspace_id
          LEFT JOIN ${Prisma.raw(`"${schemaName}"."users"`)} u ON wm.user_id = u.id
@@ -392,7 +390,7 @@ export class WorkspaceService {
         _count: {
           members: result.member_count,
           teams: result.team_count,
-          children: 0,
+          children: result.child_count,
         },
       };
     });
@@ -508,11 +506,16 @@ export class WorkspaceService {
       // Build ORDER BY with literal string (sortColumn is pre-validated)
       const orderByClause = `${sortColumn} ${sortOrder}`;
 
-      // Explicitly select columns to ensure proper mapping
+      // Explicitly select columns to ensure proper mapping.
+      // member_count, team_count, child_count use a single-pass LEFT JOIN with
+      // COUNT(DISTINCT ...) to avoid N+1 correlated subqueries (plan.md §14.3).
       const result = await tx.$queryRaw<WorkspaceListRow[]>`
         SELECT 
           w.id,
           w.tenant_id,
+          w.parent_id,
+          w.depth,
+          w.path,
           w.slug,
           w.name,
           w.description,
@@ -521,12 +524,18 @@ export class WorkspaceService {
           w.updated_at,
           wm.role as member_role,
           wm.joined_at,
-          (SELECT COUNT(*) FROM ${membersTable} WHERE workspace_id = w.id) as member_count,
-          (SELECT COUNT(*) FROM ${teamsTable} WHERE workspace_id = w.id) as team_count
+          COUNT(DISTINCT wm2.user_id)::int as member_count,
+          COUNT(DISTINCT t.id)::int as team_count,
+          COUNT(DISTINCT ch.id)::int as child_count
         FROM ${workspacesTable} w
-        INNER JOIN ${membersTable} wm ON w.id = wm.workspace_id
-        WHERE wm.user_id = ${userId}
-          AND w.tenant_id = ${tenantId}
+        INNER JOIN ${membersTable} wm ON w.id = wm.workspace_id AND wm.user_id = ${userId}
+        LEFT JOIN ${membersTable} wm2 ON w.id = wm2.workspace_id
+        LEFT JOIN ${teamsTable} t ON w.id = t.workspace_id
+        LEFT JOIN ${workspacesTable} ch ON ch.parent_id = w.id
+        WHERE w.tenant_id = ${tenantId}
+        GROUP BY w.id, w.tenant_id, w.parent_id, w.depth, w.path, w.slug, w.name,
+                 w.description, w.settings, w.created_at, w.updated_at,
+                 wm.role, wm.joined_at
         ORDER BY ${Prisma.raw(orderByClause)}
         LIMIT ${limit}
         OFFSET ${offset}
@@ -549,7 +558,7 @@ export class WorkspaceService {
         _count: {
           members: Number(row.member_count),
           teams: Number(row.team_count),
-          children: 0,
+          children: Number(row.child_count),
         },
       }));
     });
@@ -609,7 +618,8 @@ export class WorkspaceService {
             )
           ) FILTER (WHERE t.id IS NOT NULL) as teams,
           COUNT(DISTINCT wm.user_id) as member_count,
-          COUNT(DISTINCT t.id) as team_count
+          COUNT(DISTINCT t.id) as team_count,
+          (SELECT COUNT(*) FROM ${workspacesTable} WHERE parent_id = w.id)::int as child_count
         FROM ${workspacesTable} w
         LEFT JOIN ${membersTable} wm ON w.id = wm.workspace_id
         LEFT JOIN ${usersTable} u ON wm.user_id = u.id
@@ -641,7 +651,7 @@ export class WorkspaceService {
         _count: {
           members: Number(workspace.member_count),
           teams: Number(workspace.team_count),
-          children: 0,
+          children: Number(workspace.child_count),
         },
       };
     });
@@ -826,14 +836,6 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    // Check for child workspaces before opening the transaction
-    const childExists = await this.hierarchyService.hasChildren(id, tenantContext);
-    if (childExists) {
-      throw new Error(
-        'Cannot delete workspace with existing children. Remove child workspaces first.'
-      );
-    }
-
     await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       // Note: schemaName is validated with regex above
@@ -850,6 +852,25 @@ export class WorkspaceService {
 
       if (!workspaces || workspaces.length === 0) {
         throw new Error(`Workspace ${id} not found or does not belong to tenant ${tenantId}`);
+      }
+
+      // Check for child workspaces INSIDE the transaction (TOCTOU-safe).
+      // SELECT FOR UPDATE on the parent row prevents concurrent inserts from
+      // racing between this check and the DELETE below.
+      await tx.$executeRaw(
+        Prisma.sql`SELECT id FROM ${workspacesTable}
+          WHERE id = ${id}
+          FOR UPDATE`
+      );
+      const childCounts = await tx.$queryRaw<CountRow[]>(
+        Prisma.sql`SELECT COUNT(*) AS count FROM ${workspacesTable}
+          WHERE parent_id = ${id}
+            AND tenant_id = ${tenantId}`
+      );
+      if (Number(childCounts[0]?.count ?? 0) > 0) {
+        throw new Error(
+          'Cannot delete workspace with existing children. Remove child workspaces first.'
+        );
       }
 
       // Check if workspace has teams

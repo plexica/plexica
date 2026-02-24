@@ -350,15 +350,17 @@ describe('WorkspaceService Membership Caching', () => {
       // invalidates only the aggregation key; per-member entries expire via TTL.
 
       // hasChildren() calls this.db.$queryRaw directly (outside transaction)
-      mockDb.$queryRaw.mockResolvedValueOnce([{ count: BigInt(0) }]);
+      // NOTE: With the TOCTOU fix, all checks are now inside the transaction.
+      // The old db-level mock is no longer needed; remove it.
 
       mockDb.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
         const txMock = {
           $executeRaw: vi.fn().mockResolvedValue(undefined),
           $queryRaw: vi
             .fn()
-            .mockResolvedValueOnce([{ id: workspaceId }]) // Workspace exists
-            .mockResolvedValueOnce([{ count: 0 }]), // No teams
+            .mockResolvedValueOnce([{ id: workspaceId }]) // workspace existence check
+            .mockResolvedValueOnce([{ count: 0 }]) // child count — no children
+            .mockResolvedValueOnce([{ count: 0 }]), // team count — no teams
         };
         return callback(txMock);
       });
