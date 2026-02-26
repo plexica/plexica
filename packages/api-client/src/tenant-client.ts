@@ -219,6 +219,44 @@ export class TenantApiClient extends HttpClient {
   // Health check
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Tenant-scoped plugin endpoints (extensions page)
+  // ---------------------------------------------------------------------------
+
+  async getTenantActivePlugins() {
+    return this.get<TenantPlugin[]>('/api/v1/tenant/plugins');
+  }
+
+  async enableTenantPlugin(pluginId: string) {
+    return this.post<TenantPlugin>(`/api/v1/tenant/plugins/${pluginId}/enable`);
+  }
+
+  async disableTenantPlugin(pluginId: string) {
+    return this.post<TenantPlugin>(`/api/v1/tenant/plugins/${pluginId}/disable`);
+  }
+
+  async updateTenantPluginConfig(pluginId: string, config: Record<string, unknown>) {
+    return this.put<TenantPlugin>(`/api/v1/tenant/plugins/${pluginId}/config`, config);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plugin health endpoint (super-admin, polled by PluginDetailModal)
+  // ---------------------------------------------------------------------------
+
+  async getPluginHealth(pluginId: string) {
+    return this.get<{
+      status: 'healthy' | 'unhealthy' | 'starting';
+      uptime?: number;
+      cpu?: number;
+      memory?: number;
+      endpoints?: Array<{ path: string; method: string; status: string }>;
+    }>(`/api/v1/plugins/${pluginId}/health`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Health check
+  // ---------------------------------------------------------------------------
+
   async healthCheck() {
     return this.get<{ status: string }>('/health');
   }

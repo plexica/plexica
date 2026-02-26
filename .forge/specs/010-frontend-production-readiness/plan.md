@@ -744,7 +744,7 @@ export default defineConfig({
       shared: {
         react: { singleton: true, requiredVersion: '^19.0.0' },
         'react-dom': { singleton: true, requiredVersion: '^19.0.0' },
-        'react-router-dom': { singleton: true },
+        '@tanstack/react-router': { singleton: true },
       },
     }),
   ],
@@ -964,14 +964,13 @@ describe('PluginErrorBoundary', () => {
 ```typescript
 // apps/web/src/contexts/ThemeContext.test.tsx (integration)
 import { renderHook, waitFor } from '@testing-library/react';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { ThemeProvider, useTheme } from './ThemeContext';
 
 const server = setupServer(
-  rest.get('/api/v1/tenant/settings', (req, res, ctx) => {
-    return res(
-      ctx.json({
+  http.get('/api/v1/tenant/settings', () => {
+    return HttpResponse.json({
         tenantId: 'test-tenant',
         settings: {
           theme: {
@@ -980,8 +979,7 @@ const server = setupServer(
             fonts: { heading: 'Arial' },
           },
         },
-      })
-    );
+    });
   })
 );
 

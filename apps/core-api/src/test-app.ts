@@ -24,6 +24,8 @@ import { pluginGatewayRoutes } from './routes/plugin-gateway.js';
 import { translationRoutes } from './modules/i18n/i18n.controller.js';
 import { authorizationRoutes } from './routes/authorization.js';
 import { policiesRoutes } from './routes/policies.js';
+import { pluginV1Routes } from './routes/plugin-v1.js';
+import { tenantPluginsV1Routes } from './routes/tenant-plugins-v1.js';
 import { db } from './lib/db.js';
 import { redis } from './lib/redis.js';
 import { ServiceRegistryService } from './services/service-registry.service.js';
@@ -89,6 +91,8 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(marketplaceRoutes, { prefix: '/api' });
   await app.register(adminRoutes, { prefix: '/api' });
   await app.register(translationRoutes, { prefix: '/api/v1' });
+  await app.register(pluginV1Routes, { prefix: '/api/v1' }); // Spec 004 T004-09/T004-11
+  await app.register(tenantPluginsV1Routes, { prefix: '/api/v1' }); // Spec 004 T004-10
   await app.register(authorizationRoutes, { prefix: '/api' }); // Authorization routes (Spec 003 RBAC)
   await app.register(policiesRoutes, { prefix: '/api' }); // ABAC policy routes (Spec 003)
 

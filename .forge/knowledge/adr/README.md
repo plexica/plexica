@@ -96,22 +96,27 @@ Use `/forge-adr <decision-topic>` to create a new ADR. The template includes:
 
 ## ADR Index
 
-| ID      | Title                                                                           | Status   | Date       | Related To                               |
-| ------- | ------------------------------------------------------------------------------- | -------- | ---------- | ---------------------------------------- |
-| ADR-001 | [Monorepo Strategy (Turborepo + pnpm)](adr-001-monorepo-strategy.md)            | Accepted | 2025-01-13 | Constitution Art. 2.1                    |
-| ADR-002 | [Database Multi-Tenancy (Schema-per-Tenant)](adr-002-database-multi-tenancy.md) | Accepted | 2025-01-13 | Constitution Art. 1.2, 5.2               |
-| ADR-003 | [Plugin Language Support (TypeScript Only)](adr-003-plugin-language-support.md) | Accepted | 2025-01-13 | Constitution Art. 2.1                    |
-| ADR-004 | [Frontend Module Federation](adr-004-module-federation.md)                      | Accepted | 2025-01-13 | ADR-011, Constitution Art. 2.1           |
-| ADR-005 | [Event System (Redpanda)](adr-005-event-system-redpanda.md)                     | Accepted | 2025-01-13 | Constitution Art. 2.1                    |
-| ADR-006 | [API Framework (Fastify)](adr-006-fastify-framework.md)                         | Accepted | 2025-01-13 | Constitution Art. 2.1, 3.4               |
-| ADR-007 | [ORM Choice (Prisma)](adr-007-prisma-orm.md)                                    | Accepted | 2025-01-13 | ADR-002, Constitution Art. 3.3           |
-| ADR-008 | [Playwright for Frontend E2E Testing](adr-008-playwright-e2e.md)                | Accepted | 2026-02-11 | Constitution Art. 4.1, 8.1               |
-| ADR-009 | [TailwindCSS v4 Semantic Tokens](adr-009-tailwindcss-v4-tokens.md)              | Accepted | 2026-02-11 | ADR-004, Constitution Art. 1.3           |
-| ADR-010 | [@plexica/types Shared Package](adr-010-shared-types-package.md)                | Accepted | 2026-02-11 | ADR-001, Constitution Art. 7.1           |
-| ADR-011 | [Vite Module Federation for Plugins](adr-011-vite-module-federation.md)         | Accepted | 2026-02-11 | ADR-004, ADR-009, ADR-010                |
-| ADR-012 | [ICU MessageFormat Library (FormatJS)](adr-012-icu-messageformat-library.md)    | Accepted | 2026-02-13 | Spec 006, Constitution Art. 2            |
-| ADR-013 | [Materialised Path for Workspace Hierarchy](adr-013-materialised-path.md)       | Accepted | 2026-02-20 | Spec 011, ADR-002                        |
-| ADR-014 | [WorkspacePlugin Scoping (Separate Table)](adr-014-workspace-plugin-scoping.md) | Accepted | 2026-02-20 | Spec 011, ADR-002, Constitution Art. 3.2 |
+| ID      | Title                                                                                           | Status   | Date       | Related To                                    |
+| ------- | ----------------------------------------------------------------------------------------------- | -------- | ---------- | --------------------------------------------- |
+| ADR-001 | [Monorepo Strategy (Turborepo + pnpm)](adr-001-monorepo-strategy.md)                            | Accepted | 2025-01-13 | Constitution Art. 2.1                         |
+| ADR-002 | [Database Multi-Tenancy (Schema-per-Tenant)](adr-002-database-multi-tenancy.md)                 | Accepted | 2025-01-13 | Constitution Art. 1.2, 5.2                    |
+| ADR-003 | [Plugin Language Support (TypeScript Only)](adr-003-plugin-language-support.md)                 | Accepted | 2025-01-13 | Constitution Art. 2.1                         |
+| ADR-004 | [Frontend Module Federation](adr-004-module-federation.md)                                      | Accepted | 2025-01-13 | ADR-011, Constitution Art. 2.1                |
+| ADR-005 | [Event System (Redpanda)](adr-005-event-system-redpanda.md)                                     | Accepted | 2025-01-13 | Constitution Art. 2.1                         |
+| ADR-006 | [API Framework (Fastify)](adr-006-fastify-framework.md)                                         | Accepted | 2025-01-13 | Constitution Art. 2.1, 3.4                    |
+| ADR-007 | [ORM Choice (Prisma)](adr-007-prisma-orm.md)                                                    | Accepted | 2025-01-13 | ADR-002, Constitution Art. 3.3                |
+| ADR-008 | [Playwright for Frontend E2E Testing](adr-008-playwright-e2e.md)                                | Accepted | 2026-02-11 | Constitution Art. 4.1, 8.1                    |
+| ADR-009 | [TailwindCSS v4 Semantic Tokens](adr-009-tailwindcss-v4-tokens.md)                              | Accepted | 2026-02-11 | ADR-004, Constitution Art. 1.3                |
+| ADR-010 | [@plexica/types Shared Package](adr-010-shared-types-package.md)                                | Accepted | 2026-02-11 | ADR-001, Constitution Art. 7.1                |
+| ADR-011 | [Vite Module Federation for Plugins](adr-011-vite-module-federation.md)                         | Accepted | 2026-02-11 | ADR-004, ADR-009, ADR-010                     |
+| ADR-012 | [ICU MessageFormat Library (FormatJS)](adr-012-icu-messageformat-library.md)                    | Accepted | 2026-02-13 | Spec 006, Constitution Art. 2                 |
+| ADR-013 | [Materialised Path for Workspace Hierarchy](adr-013-materialised-path.md)                       | Accepted | 2026-02-20 | Spec 011, ADR-002                             |
+| ADR-014 | [WorkspacePlugin Scoping (Separate Table)](adr-014-workspace-plugin-scoping.md)                 | Accepted | 2026-02-20 | Spec 011, ADR-002, Constitution Art. 3.2      |
+| ADR-015 | [Tenant Provisioning Orchestration](adr-015-tenant-provisioning-orchestration.md)               | Accepted | 2026-02-20 | Spec 001, ADR-002                             |
+| ADR-016 | [Frontend Wizard State](adr-016-frontend-wizard-state.md)                                       | Accepted | 2026-02-20 | Spec 010, ADR-011                             |
+| ADR-017 | [ABAC Condition Evaluation Engine](adr-017-abac-engine.md)                                      | Accepted | 2026-02-22 | Spec 003, ADR-007, Constitution Art. 5        |
+| ADR-018 | [Plugin Lifecycle vs Marketplace Status (Separate Columns)](adr-018-plugin-lifecycle-status.md) | Accepted | 2026-02-24 | Spec 004, ADR-007, Constitution Art. 9.1      |
+| ADR-019 | [Pluggable Container Adapter](adr-019-pluggable-container-adapter.md)                           | Accepted | 2026-02-24 | Spec 004, ADR-018, Constitution Art. 1.2, 2.2 |
 
 ---
 
@@ -121,4 +126,4 @@ These ADRs were converted from `planning/DECISIONS.md` into individual FORGE-for
 
 ---
 
-_Last Updated: February 22, 2026_
+_Last Updated: February 24, 2026_

@@ -45,3 +45,15 @@ export type {
   PaginatedResponse,
   RequestOptions,
 } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Schemas (runtime validation)
+// ---------------------------------------------------------------------------
+
+export {
+  PluginStatusSchema,
+  PluginLifecycleStatusSchema,
+  PluginEntitySchema,
+  PaginatedPluginEntitySchema,
+  PluginStatsSchema,
+} from './schemas.js';

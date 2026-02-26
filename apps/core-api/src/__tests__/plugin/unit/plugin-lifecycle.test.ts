@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PluginRegistryService, PluginLifecycleService } from '../../../services/plugin.service';
 import { db } from '../../../lib/db';
-import { PluginStatus } from '@plexica/database';
+import { PluginStatus, PluginLifecycleStatus } from '@plexica/database';
 
 // Mock database
 vi.mock('../../../lib/db', () => ({
@@ -58,7 +58,7 @@ describe('PluginRegistryService', () => {
   let registryService: PluginRegistryService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     registryService = new PluginRegistryService();
   });
 
@@ -482,7 +482,7 @@ describe('PluginLifecycleService', () => {
   let lifecycleService: PluginLifecycleService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks(); // Reset queued mockResolvedValueOnce values AND call history
     lifecycleService = new PluginLifecycleService();
   });
 
@@ -508,6 +508,7 @@ describe('PluginLifecycleService', () => {
         id: pluginId,
         status: PluginStatus.PUBLISHED,
         manifest: validManifest,
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
       };
 
       const mockInstallation = {
@@ -518,9 +519,18 @@ describe('PluginLifecycleService', () => {
         configuration,
       };
 
-      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
+      // Call 1: registry.getPlugin() — full plugin object
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(mockPlugin as any);
+      // Call 2: transitionLifecycleStatus(INSTALLING) — select lifecycleStatus
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+      } as any);
+      // Call 3: transitionLifecycleStatus(INSTALLED) after success — select lifecycleStatus
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.INSTALLING,
+      } as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
-      vi.mocked(db.$transaction).mockImplementation(async (fn) => fn({} as any));
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
       // Mock transaction methods
       const mockTx = {
@@ -544,6 +554,7 @@ describe('PluginLifecycleService', () => {
         id: pluginId,
         status: PluginStatus.DEPRECATED,
         manifest: validManifest,
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
       };
 
       vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
@@ -561,6 +572,7 @@ describe('PluginLifecycleService', () => {
         id: pluginId,
         status: PluginStatus.PUBLISHED,
         manifest: validManifest,
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
       };
 
       const existingInstallation = {
@@ -596,10 +608,21 @@ describe('PluginLifecycleService', () => {
         id: pluginId,
         status: PluginStatus.PUBLISHED,
         manifest: manifestWithConfig,
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
       };
 
-      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
+      // Call 1: registry.getPlugin()
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(mockPlugin as any);
+      // Call 2: transitionLifecycleStatus(INSTALLING)
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+      } as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+      // transitionLifecycleStatus(REGISTERED) rollback on validation error
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.INSTALLING,
+      } as any);
 
       // Missing required config field
       await expect(lifecycleService.installPlugin(tenantId, pluginId, {})).rejects.toThrow(
@@ -628,9 +651,21 @@ describe('PluginLifecycleService', () => {
         id: pluginId,
         status: PluginStatus.PUBLISHED,
         manifest: manifestWithDeps,
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
       };
 
-      vi.mocked(db.plugin.findUnique).mockResolvedValue(mockPlugin as any);
+      // Call 1: registry.getPlugin()
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(mockPlugin as any);
+      // Call 2: transitionLifecycleStatus(INSTALLING)
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+      } as any);
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+      // transitionLifecycleStatus(REGISTERED) rollback on dependency error
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.INSTALLING,
+      } as any);
+
       vi.mocked(db.tenantPlugin.findUnique)
         .mockResolvedValueOnce(null) // First call: check if already installed
         .mockResolvedValueOnce(null); // Second call: check dependency
@@ -659,6 +694,11 @@ describe('PluginLifecycleService', () => {
       };
 
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(mockInstallation as any);
+      // transitionLifecycleStatus(ACTIVE): plugin must be in INSTALLED state
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.INSTALLED,
+      } as any);
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.update).mockResolvedValue(activatedInstallation as any);
 
       const result = await lifecycleService.activatePlugin(tenantId, pluginId);
@@ -706,6 +746,11 @@ describe('PluginLifecycleService', () => {
       };
 
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(mockInstallation as any);
+      // transitionLifecycleStatus(DISABLED): plugin must be in ACTIVE state
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.ACTIVE,
+      } as any);
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.update).mockResolvedValue(deactivatedInstallation as any);
 
       const result = await lifecycleService.deactivatePlugin(tenantId, pluginId);
@@ -748,7 +793,17 @@ describe('PluginLifecycleService', () => {
       };
 
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(mockInstallation as any);
+      // transitionLifecycleStatus(UNINSTALLING): plugin must be INSTALLED or DISABLED
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.INSTALLED,
+      } as any);
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+      vi.mocked(db.tenant.findUnique).mockResolvedValue(null); // no tenant slug needed for this path
       vi.mocked(db.tenantPlugin.delete).mockResolvedValue({} as any);
+      // transitionLifecycleStatus(UNINSTALLED): plugin must be UNINSTALLING
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: PluginLifecycleStatus.UNINSTALLING,
+      } as any);
 
       await lifecycleService.uninstallPlugin(tenantId, pluginId);
 
@@ -822,5 +877,84 @@ describe('PluginLifecycleService', () => {
         })
       );
     });
+  });
+});
+
+// ============================================================================
+// T004-03: lifecycleStatus state machine smoke tests
+// ============================================================================
+
+describe('PluginLifecycleService — state machine (T004-03)', () => {
+  let lifecycleService: PluginLifecycleService;
+
+  beforeEach(() => {
+    vi.resetAllMocks(); // Reset queued mock values AND call history
+    lifecycleService = new PluginLifecycleService();
+  });
+
+  it('should accept REGISTERED → INSTALLING transition', async () => {
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+    } as any);
+    vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+
+    // Access private method via casting for unit test
+    const svc = lifecycleService as any;
+    await expect(
+      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.INSTALLING)
+    ).resolves.not.toThrow();
+
+    expect(db.plugin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'test-plugin' },
+        data: { lifecycleStatus: PluginLifecycleStatus.INSTALLING },
+      })
+    );
+  });
+
+  it('should reject REGISTERED → ACTIVE transition (invalid shortcut)', async () => {
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+    } as any);
+
+    const svc = lifecycleService as any;
+    await expect(
+      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.ACTIVE)
+    ).rejects.toThrow("Plugin 'test-plugin' cannot transition from REGISTERED to ACTIVE");
+  });
+
+  it('should reject UNINSTALLED → REGISTERED transition (no going back)', async () => {
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.UNINSTALLED,
+    } as any);
+
+    const svc = lifecycleService as any;
+    await expect(
+      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.REGISTERED)
+    ).rejects.toThrow("Plugin 'test-plugin' cannot transition from UNINSTALLED to REGISTERED");
+  });
+
+  it('should accept INSTALLING → INSTALLED transition', async () => {
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.INSTALLING,
+    } as any);
+    vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+
+    const svc = lifecycleService as any;
+    await expect(
+      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.INSTALLED)
+    ).resolves.not.toThrow();
+  });
+
+  it('should accept INSTALLING → REGISTERED rollback transition', async () => {
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.INSTALLING,
+    } as any);
+    vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+
+    const svc = lifecycleService as any;
+    await expect(
+      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.REGISTERED)
+    ).resolves.not.toThrow();
   });
 });

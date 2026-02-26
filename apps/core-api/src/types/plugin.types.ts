@@ -205,6 +205,10 @@ export interface PluginManifest {
   frontend?: {
     modules?: PluginFrontendModule[];
     assets?: string[];
+    /** Module Federation remoteEntry URL on MinIO CDN (T004-13 / ADR-011) */
+    remoteEntry?: string;
+    /** Frontend route prefix for this plugin (e.g., '/crm') */
+    routePrefix?: string;
   };
 
   // API Communication (M2.3 - Plugin-to-Plugin Communication)
@@ -229,6 +233,24 @@ export interface PluginManifest {
     uninstall?: string;
     activate?: string;
     deactivate?: string;
+  };
+
+  // Event capabilities (T004-12 / Spec 004 FR-006)
+  events?: {
+    /** Event names this plugin publishes (e.g., ['deal.won', 'contact.created']) */
+    publishes?: string[];
+    /** Event names this plugin subscribes to */
+    subscribes?: string[];
+  };
+
+  // Runtime configuration (T004-08 — container image etc.)
+  runtime?: {
+    type?: string;
+    image?: string;
+    resources?: {
+      cpu?: string;
+      memory?: string;
+    };
   };
 }
 
