@@ -85,7 +85,7 @@ export function ThemePreview({
       {/* Scoped style injection */}
       {scopedCss && (
         <style
-          // eslint-disable-next-line react/no-danger
+           
           dangerouslySetInnerHTML={{ __html: scopedCss }}
         />
       )}

@@ -118,7 +118,7 @@ export function createContainerAdapter(): ContainerAdapter {
 
   if (adapterType === 'docker') {
     // Lazy import to avoid pulling in dockerode when running tests without Docker.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const { DockerContainerAdapter } = require('./docker-container-adapter.js') as {
       DockerContainerAdapter: new () => ContainerAdapter;
     };

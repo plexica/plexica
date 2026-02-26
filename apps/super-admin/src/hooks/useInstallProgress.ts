@@ -19,7 +19,7 @@
 //   5. Frontend Registration
 //   6. Health Check
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 
 // ---------------------------------------------------------------------------
@@ -173,8 +173,14 @@ export function useInstallProgress({
 
   // Track which step index is currently "running" during simulated progression
   const runningStepIdxRef = useRef(0);
-  const startTimeRef = useRef(Date.now());
+  const startTimeRef = useRef<number>(0);
   const isCancelledRef = useRef(false);
+
+  // Initialize start time on mount — done in useLayoutEffect to avoid calling
+  // the impure Date.now() during render (React Compiler purity rule).
+  useLayoutEffect(() => {
+    startTimeRef.current = Date.now();
+  }, []);
 
   // --------------------------------------------------------------------------
   // Elapsed timer — 100 ms ticks
