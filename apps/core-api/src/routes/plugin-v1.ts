@@ -104,7 +104,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const { plugins, total } = await pluginRegistryService.listPlugins({
+        const { plugins } = await pluginRegistryService.listPlugins({
           status: request.query.status as any,
           category: undefined,
         });

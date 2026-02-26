@@ -24,7 +24,6 @@ import type { FastifyInstance } from 'fastify';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper';
 import { buildTestApp } from '../../../test-app';
 import { db } from '../../../lib/db';
-import { PluginLifecycleStatus } from '@plexica/database';
 
 // ---------------------------------------------------------------------------
 // Fixtures

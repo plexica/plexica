@@ -11,7 +11,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TenantMigrationService } from '../../../services/tenant-migration.service.js';
 import { db } from '../../../lib/db.js';
-import { TENANT_STATUS } from '../../../constants/index.js';
 
 // ---------------------------------------------------------------------------
 // Mocks

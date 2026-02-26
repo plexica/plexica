@@ -391,8 +391,10 @@ describe('Milestone 4 Security Fixes', () => {
         id: 'plugin-redos-attack',
         manifest: manifestWithReDoS,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
 
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
 
       const lifecycleService = new PluginLifecycleService();
@@ -433,8 +435,10 @@ describe('Milestone 4 Security Fixes', () => {
         id: 'plugin-alternation-attack',
         manifest: manifestWithAlternationReDoS,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
 
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
 
       const lifecycleService = new PluginLifecycleService();
@@ -470,12 +474,23 @@ describe('Milestone 4 Security Fixes', () => {
         ],
       };
 
-      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      // Call 1: getPlugin() — full plugin record
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         id: 'plugin-safe-regex',
         manifest: manifestWithSafeRegex,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
+      } as any);
+      // Call 2: transitionLifecycleStatus(INSTALLING) — only lifecycleStatus selected
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'REGISTERED',
+      } as any);
+      // Call 3: transitionLifecycleStatus(INSTALLED) — only lifecycleStatus selected
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'INSTALLING',
       } as any);
 
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
 
       vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
@@ -528,8 +543,10 @@ describe('Milestone 4 Security Fixes', () => {
         id: 'plugin-nested-star',
         manifest: manifestWithNestedStar,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
 
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
 
       const lifecycleService = new PluginLifecycleService();
@@ -579,7 +596,10 @@ describe('Milestone 4 Security Fixes', () => {
         id: 'plugin-dashboard',
         manifest: pluginManifest,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
+
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
       vi.mocked(db.tenantPlugin.findUnique)
         .mockResolvedValueOnce(null)
@@ -615,11 +635,23 @@ describe('Milestone 4 Security Fixes', () => {
         version: '2.3.1',
       };
 
-      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      // Call 1: getPlugin() — full plugin record
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         id: 'plugin-dashboard',
         manifest: pluginManifest,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
+      // Call 2: transitionLifecycleStatus(INSTALLING) — only lifecycleStatus selected
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'REGISTERED',
+      } as any);
+      // Call 3: transitionLifecycleStatus(INSTALLED) — only lifecycleStatus selected
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'INSTALLING',
+      } as any);
+
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
       vi.mocked(db.tenantPlugin.findUnique)
         .mockResolvedValueOnce(null)
@@ -669,7 +701,10 @@ describe('Milestone 4 Security Fixes', () => {
         id: 'plugin-strict',
         manifest: pluginManifest,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
+
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
       vi.mocked(db.tenantPlugin.findUnique)
         .mockResolvedValueOnce(null)
@@ -702,11 +737,22 @@ describe('Milestone 4 Security Fixes', () => {
         version: '1.8.3',
       };
 
-      vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         id: 'plugin-flexible',
         manifest: pluginManifest,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
+      // Call 2: transitionLifecycleStatus(INSTALLING)
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'REGISTERED',
+      } as any);
+      // Call 3: transitionLifecycleStatus(INSTALLED)
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'INSTALLING',
+      } as any);
+
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
       vi.mocked(db.tenantPlugin.findUnique)
         .mockResolvedValueOnce(null)
@@ -749,7 +795,10 @@ describe('Milestone 4 Security Fixes', () => {
         id: 'plugin-test',
         manifest: pluginManifest,
         status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
       } as any);
+
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
       vi.mocked(db.tenantPlugin.findUnique)
         .mockResolvedValueOnce(null)
