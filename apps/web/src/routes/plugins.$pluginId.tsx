@@ -23,6 +23,7 @@ import { pluginLoader } from '../lib/plugin-loader';
 import { Button } from '@plexica/ui';
 import { Alert, AlertDescription } from '@plexica/ui';
 import { AlertCircle, ArrowLeft, Puzzle } from 'lucide-react';
+import { PluginErrorBoundary } from '../components/ErrorBoundary/PluginErrorBoundary';
 
 export const Route = createFileRoute('/plugins/$pluginId')({
   component: PluginPageWrapper,
@@ -159,14 +160,22 @@ function PluginPage() {
     return <PluginErrorState pluginId={pluginId} message={loadError} />;
   }
 
-  // 5. Component resolved — render it
+  // 5. Component resolved — render it inside an error boundary so runtime
+  //    errors thrown by the plugin don't crash the host shell.
   if (PluginComponent) {
     return (
-      <div className="h-full">
-        <Suspense fallback={<PluginLoadingSkeleton />}>
-          <PluginComponent {...pluginProps} />
-        </Suspense>
-      </div>
+      <PluginErrorBoundary
+        pluginId={pluginId}
+        pluginName={loadedPlugin.manifest.name}
+        tenantSlug={tenant?.slug}
+        userId={user?.id}
+      >
+        <div className="h-full">
+          <Suspense fallback={<PluginLoadingSkeleton />}>
+            <PluginComponent {...pluginProps} />
+          </Suspense>
+        </div>
+      </PluginErrorBoundary>
     );
   }
 
