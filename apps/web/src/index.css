@@ -14,3 +14,36 @@
   --auth-bg-gradient-from: #0a0e1a;
   --auth-bg-gradient-to: #0a0a0a;
 }
+
+/* Tenant brand tokens (Spec 010 Phase 2) — set at runtime by ThemeProvider.
+   Default values here prevent FOUC before ThemeProvider applies theme. */
+:root {
+  --tenant-primary: #1976d2;
+  --tenant-secondary: #dc004e;
+  --tenant-background: #ffffff;
+  --tenant-surface: #f5f5f5;
+  --tenant-text: #212121;
+  --tenant-text-secondary: #757575;
+  --tenant-error: #f44336;
+  --tenant-success: #4caf50;
+  --tenant-warning: #ff9800;
+  --tenant-font-heading: Inter, system-ui, sans-serif;
+  --tenant-font-body: Inter, system-ui, sans-serif;
+  --tenant-font-mono: 'JetBrains Mono Variable', monospace;
+}
+
+/* Register tenant token utilities with Tailwind v4 */
+@theme inline {
+  --color-tenant-primary: var(--tenant-primary);
+  --color-tenant-secondary: var(--tenant-secondary);
+  --color-tenant-background: var(--tenant-background);
+  --color-tenant-surface: var(--tenant-surface);
+  --color-tenant-text: var(--tenant-text);
+  --color-tenant-text-secondary: var(--tenant-text-secondary);
+  --color-tenant-error: var(--tenant-error);
+  --color-tenant-success: var(--tenant-success);
+  --color-tenant-warning: var(--tenant-warning);
+  --font-tenant-heading: var(--tenant-font-heading);
+  --font-tenant-body: var(--tenant-font-body);
+  --font-tenant-mono: var(--tenant-font-mono);
+}
