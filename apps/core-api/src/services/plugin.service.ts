@@ -497,8 +497,11 @@ const VALID_TRANSITIONS: Record<PluginLifecycleStatus, PluginLifecycleStatus[]> 
     PluginLifecycleStatus.ACTIVE,
     PluginLifecycleStatus.UNINSTALLING,
   ],
-  [PluginLifecycleStatus.UNINSTALLING]: [PluginLifecycleStatus.UNINSTALLED],
-  [PluginLifecycleStatus.UNINSTALLED]: [],
+  [PluginLifecycleStatus.UNINSTALLING]: [
+    PluginLifecycleStatus.UNINSTALLED,
+    PluginLifecycleStatus.REGISTERED, // Reset to REGISTERED when last tenant uninstalls (allows reinstall)
+  ],
+  [PluginLifecycleStatus.UNINSTALLED]: [PluginLifecycleStatus.REGISTERED], // Re-registration path
 };
 
 export class PluginLifecycleService {
@@ -561,8 +564,18 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already installed`);
     }
 
-    // Transition lifecycle: REGISTERED → INSTALLING
-    await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLING);
+    // Check how many other tenant installations already exist.
+    // The lifecycleStatus is on the *global* Plugin record, not per-tenant.
+    // Only perform lifecycle transitions on the first installation (or after
+    // all tenants have uninstalled and the plugin was reset to REGISTERED).
+    const existingInstallations = await db.tenantPlugin.count({ where: { pluginId } });
+    const isFirstInstall =
+      existingInstallations === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
+
+    if (isFirstInstall) {
+      // Transition lifecycle: REGISTERED → INSTALLING
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLING);
+    }
 
     // Validate configuration
     const manifest = plugin.manifest as unknown as PluginManifest;
@@ -647,20 +660,24 @@ export class PluginLifecycleService {
         return newInstallation;
       });
 
-      // Transition lifecycle: INSTALLING → INSTALLED
-      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLED);
+      // Transition lifecycle: INSTALLING → INSTALLED (first install only)
+      if (isFirstInstall) {
+        await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLED);
+      }
     } catch (error: unknown) {
-      // Rollback lifecycle status: INSTALLING → REGISTERED
-      try {
-        await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
-      } catch (rollbackErr: unknown) {
-        this.logger.error(
-          {
-            pluginId,
-            error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
-          },
-          'Failed to rollback lifecycleStatus to REGISTERED after install failure'
-        );
+      // Rollback lifecycle status: INSTALLING → REGISTERED (first install only)
+      if (isFirstInstall) {
+        try {
+          await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
+        } catch (rollbackErr: unknown) {
+          this.logger.error(
+            {
+              pluginId,
+              error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+            },
+            'Failed to rollback lifecycleStatus to REGISTERED after install failure'
+          );
+        }
       }
       throw new Error(
         `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -1025,8 +1042,22 @@ export class PluginLifecycleService {
       },
     });
 
-    // Transition lifecycle: UNINSTALLING → UNINSTALLED
-    await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.UNINSTALLED);
+    // Check if any other tenants still have this plugin installed.
+    // The lifecycleStatus column lives on the global Plugin record, so we must
+    // only mutate it when the last tenant-installation is removed.  Transitioning
+    // to UNINSTALLED would prevent reinstallation (state machine dead-end); instead
+    // we reset to REGISTERED so the plugin remains available for future installs.
+    const remainingInstallations = await db.tenantPlugin.count({
+      where: { pluginId },
+    });
+
+    if (remainingInstallations === 0) {
+      // Last tenant uninstalled — reset global lifecycle to REGISTERED so the
+      // plugin can be installed again (by this or another tenant).
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
+    }
+    // If other tenants still have the plugin installed, leave the global
+    // lifecycleStatus as-is (INSTALLED or ACTIVE).
   }
 
   /**
