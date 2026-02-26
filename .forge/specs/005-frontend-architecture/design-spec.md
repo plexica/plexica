@@ -1274,11 +1274,11 @@ Screen reader flow:
 
 ## 7. Open Questions
 
-| #   | Question                                                                                                                                 | Impact                                          | Owner        |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------ |
-| 1   | Should the sidebar support a "Recently Used" pinned section for frequently accessed plugins? (Recommended for tenants with 10+ plugins.) | Medium — UX enhancement, not blocking           | PM/Design    |
-| 2   | Should the Theme Settings page validate logo dimensions (e.g., min 64×64, max 512×512) or accept any size with auto-scaling?             | Low — implementation detail                     | Dev          |
-| 3   | Font selector options: should available fonts be limited to a curated list (Google Fonts subset) or allow any web font URL?              | Medium — affects security (CSP) and performance | Dev/Security |
+| #   | Question                                                                                                                                 | Impact                                          | Owner        | Status                                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Should the sidebar support a "Recently Used" pinned section for frequently accessed plugins? (Recommended for tenants with 10+ plugins.) | Medium — UX enhancement, not blocking           | PM/Design    | Open                                                                                                                                   |
+| 2   | Should the Theme Settings page validate logo dimensions (e.g., min 64×64, max 512×512) or accept any size with auto-scaling?             | Low — implementation detail                     | Dev          | Open                                                                                                                                   |
+| 3   | Font selector options: should available fonts be limited to a curated list (Google Fonts subset) or allow any web font URL?              | Medium — affects security (CSP) and performance | Dev/Security | ✅ Resolved — ADR-020: self-host curated ~25 WOFF2 fonts via MinIO/CDN; Google Fonts CDN rejected (GDPR); arbitrary URL input deferred |
 
 ---
 
@@ -1294,3 +1294,4 @@ Screen reader flow:
 | ADR-004: Module Federation               | `.forge/knowledge/adr/adr-004-module-federation.md`      |
 | ADR-009: TailwindCSS Tokens              | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md`  |
 | ADR-011: Vite Federation                 | `.forge/knowledge/adr/adr-011-vite-module-federation.md` |
+| ADR-020: Font Hosting Strategy           | `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`  |

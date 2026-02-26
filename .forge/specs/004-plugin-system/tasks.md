@@ -1867,7 +1867,7 @@ propagation on all plugin-to-plugin requests (FR-010, NFR-005).
 | Phase        | 6                                              |
 | Dependencies | T004-09 (backend v1 routes), T004-13 (remotes) |
 | Parallel     | `[P]` with T004-29, T004-30, T004-31, T004-32  |
-| Status       | done                                           |
+| Status       | complete                                       |
 
 **Goal**: Redesign the existing `PluginsView` page (`apps/web/src/routes/plugins.tsx`)
 to add a lifecycle-focused "Registry" tab as the primary view for super admins, with
@@ -1962,7 +1962,7 @@ Preserve existing Marketplace and Review Queue tabs.
 | Phase        | 6                                                  |
 | Dependencies | T004-09 (install endpoint), T004-28 (card context) |
 | Parallel     | `[P]` with T004-30, T004-31, T004-32               |
-| Status       | done                                               |
+| Status       | complete                                           |
 
 **Goal**: Implement the `PluginInstallProgress` component that shows a 6-step progress
 panel during plugin installation, with real-time step status updates, elapsed time,
@@ -2049,7 +2049,7 @@ error variant with retry, cancel button, and ARIA live regions for screen reader
 | Phase        | 6                                             |
 | Dependencies | T004-09 (lifecycle endpoints)                 |
 | Parallel     | `[P]` with T004-28, T004-29, T004-31, T004-32 |
-| Status       | done                                          |
+| Status       | complete                                      |
 
 **Goal**: Implement four lifecycle confirmation dialog components using the existing
 `ConfirmDialog` from `@plexica/ui`, each with context-specific information about the
@@ -2128,7 +2128,7 @@ action's impact, warnings, and safety guards as specified in `design-spec.md` Sc
 | Phase        | 6                                             |
 | Dependencies | T004-09, T004-11 (health endpoints)           |
 | Parallel     | `[P]` with T004-28, T004-29, T004-30, T004-32 |
-| Status       | pending                                       |
+| Status       | complete                                      |
 
 **Goal**: Implement the `PluginDetailModal` for super admins showing a comprehensive
 plugin detail view with lifecycle timeline, four tabs (Overview, Health, Permissions,
@@ -2212,7 +2212,7 @@ Screen 4.
 | Phase        | 6                                             |
 | Dependencies | T004-10 (tenant plugin routes)                |
 | Parallel     | `[P]` with T004-28, T004-29, T004-30, T004-31 |
-| Status       | pending                                       |
+| Status       | complete                                      |
 
 **Goal**: Implement the Tenant Extensions page (`/extensions`) where tenant admins can
 view available plugins, enable/disable them for their tenant, and configure per-tenant
@@ -2319,7 +2319,7 @@ plugin settings via auto-generated forms from the manifest JSON Schema, as speci
 | Phase        | 7                                             |
 | Dependencies | T004-28                                       |
 | Parallel     | `[P]` with T004-34, T004-35, T004-36, T004-37 |
-| Status       | done                                          |
+| Status       | complete                                      |
 
 **Goal**: Write comprehensive tests for the redesigned PluginsView component covering
 loading/empty/error states, search debounce, lifecycle status filter, badge mapping,
@@ -2371,7 +2371,7 @@ ARIA semantics, keyboard navigation, and WCAG 2.1 AA accessibility audit.
 | Phase        | 7                                             |
 | Dependencies | T004-29                                       |
 | Parallel     | `[P]` with T004-33, T004-35, T004-36, T004-37 |
-| Status       | done                                          |
+| Status       | complete                                      |
 
 **Goal**: Write comprehensive tests for the PluginInstallProgress component covering
 step progression through all states, error variant with retry, cancel flow, elapsed
@@ -2417,7 +2417,7 @@ timer, screen reader announcements, and WCAG 2.1 AA accessibility audit.
 | Phase        | 7                                             |
 | Dependencies | T004-30                                       |
 | Parallel     | `[P]` with T004-33, T004-34, T004-36, T004-37 |
-| Status       | done                                          |
+| Status       | complete                                      |
 
 **Goal**: Write comprehensive tests for all four lifecycle confirmation dialogs
 (`EnablePluginDialog`, `DisablePluginDialog`, `UpdatePluginDialog`, `UninstallPluginDialog`)
@@ -2470,7 +2470,7 @@ WCAG 2.1 AA accessibility audit.
 | Phase        | 7                                             |
 | Dependencies | T004-31                                       |
 | Parallel     | `[P]` with T004-33, T004-34, T004-35, T004-37 |
-| Status       | pending                                       |
+| Status       | complete                                      |
 
 **Goal**: Write comprehensive tests for the PluginDetailModal component covering tab
 switching behavior, health polling, resource usage display, lifecycle timeline, tenant
@@ -2522,7 +2522,7 @@ adoption list, ARIA tablist pattern, and WCAG 2.1 AA accessibility audit.
 | Phase        | 7                                             |
 | Dependencies | T004-32                                       |
 | Parallel     | `[P]` with T004-33, T004-34, T004-35, T004-36 |
-| Status       | pending                                       |
+| Status       | complete                                      |
 
 **Goal**: Write comprehensive tests for the Tenant Extensions page covering plugin
 toggle behavior, config form auto-generation and validation, RBAC 403 guard, loading/

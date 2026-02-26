@@ -141,7 +141,7 @@ Replace the existing `Sidebar.tsx` (~161 LOC, no ARIA, no responsive overlay) wi
 - [ ] Active route item highlighted with `aria-current="page"` and `--primary` background with `--primary-foreground` text
 - [ ] On viewports < 1024 px: sidebar is hidden by default; hamburger in Header opens overlay from left with dimmed backdrop (`var(--overlay-backdrop)`)
 - [ ] Overlay has focus trap; `Esc` and backdrop click close it; first focusable item receives focus on open
-- [ ] Component is gated behind the `ff_sidebar_nav_v2` feature flag (Constitution Art. 9.1); falls back to existing `Sidebar.tsx` when flag is disabled
+- [ ] Component is gated behind the `ENABLE_NEW_SIDEBAR` feature flag (Constitution Art. 9.1); falls back to existing `Sidebar.tsx` when flag is disabled
 
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 2  
@@ -896,7 +896,7 @@ Build the admin-only Tenant Theme Settings page at `/settings/branding`. Renders
 - [ ] "Reset to Default" shows confirmation dialog before resetting; Cancel aborts reset
 - [ ] Save success shows toast: "Theme updated successfully. Users will see changes on their next page load."
 - [ ] Save error shows toast: "Unable to save theme changes. Please try again." — form data preserved
-- [ ] Page is gated behind the `ff_tenant_branding` feature flag (Constitution Art. 9.1); link in Settings navigation hidden when flag is disabled
+- [ ] Page is gated behind the `ENABLE_TENANT_THEMING` feature flag (Constitution Art. 9.1); link in Settings navigation hidden when flag is disabled
 
 ---
 
@@ -1044,7 +1044,7 @@ Build an `AuthWarningBanner` component that displays a dismissible yellow warnin
 - [ ] `role="alert"` and `aria-live="polite"` on banner container
 - [ ] `aria-label="Dismiss session warning"` on dismiss button
 - [ ] Banner disappears when `authStore.refreshFailed` resets to `false` (subsequent refresh success)
-- [ ] Component is gated behind the `ff_auth_warning_banner` feature flag (Constitution Art. 9.1); banner not rendered when flag is disabled
+- [ ] Component is gated behind the `ENABLE_AUTH_WARNING_BANNER` feature flag (Constitution Art. 9.1); banner not rendered when flag is disabled
 
 ---
 

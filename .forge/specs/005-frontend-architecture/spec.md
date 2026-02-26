@@ -86,23 +86,23 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 ## 4. Functional Requirements
 
-| ID     | Requirement                                                                                        | Priority | Story Ref |
-| ------ | -------------------------------------------------------------------------------------------------- | -------- | --------- |
-| FR-001 | React 19 SPA with Vite build tool and TanStack Router                                              | Must     | US-001    |
-| FR-002 | Module Federation via `@originjs/vite-plugin-federation` for plugin remote loading                 | Must     | US-001    |
-| FR-003 | Plugin remote entries loaded from CDN/S3 URLs declared in plugin manifest                          | Must     | US-001    |
-| FR-004 | Lazy loading of plugin routes with `React.lazy()` and Suspense fallback                            | Must     | US-001    |
-| FR-005 | Error boundaries around remote module loading to prevent shell crashes                             | Must     | US-001    |
-| FR-006 | Shell provides: base layout (header, sidebar, navigation), routing, auth context, theme, i18n      | Must     | US-005    |
-| FR-007 | Route prefix per plugin: `/{pluginId}/*` for plugin pages                                          | Must     | US-003    |
-| FR-008 | Reserved routes: `/`, `/settings`, `/admin`, `/profile` — not assignable to plugins                | Must     | US-003    |
-| FR-009 | Tenant theme: logo, color palette (primary, secondary, background, surface, text), font families   | Must     | US-002    |
-| FR-010 | Theme loaded from tenant settings on login; applied via CSS custom properties / TailwindCSS tokens | Must     | US-002    |
-| FR-011 | Widget system: plugins expose components via Module Federation `exposes` config                    | Should   | US-004    |
-| FR-012 | Auth context provider: user, tenant, roles, permissions, teams available via React context         | Must     | US-005    |
-| FR-013 | Silent token refresh before expiry (background interval check)                                     | Must     | US-005    |
-| FR-014 | Session expiry redirect to login with "session expired" message                                    | Must     | US-005    |
-| FR-015 | TailwindCSS v4 with semantic design tokens (per ADR-009)                                           | Must     | US-002    |
+| ID     | Requirement                                                                                                     | Priority | Story Ref |
+| ------ | --------------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| FR-001 | React 19 SPA with Vite build tool and TanStack Router                                                           | Must     | US-001    |
+| FR-002 | Module Federation via `@originjs/vite-plugin-federation` for plugin remote loading                              | Must     | US-001    |
+| FR-003 | Plugin remote entries loaded from CDN/S3 URLs declared in plugin manifest                                       | Must     | US-001    |
+| FR-004 | Lazy loading of plugin routes with `React.lazy()` and Suspense fallback                                         | Must     | US-001    |
+| FR-005 | Error boundaries around remote module loading to prevent shell crashes                                          | Must     | US-001    |
+| FR-006 | Shell provides: base layout (header, sidebar, navigation), routing, auth context, theme, i18n                   | Must     | US-005    |
+| FR-007 | Route prefix per plugin: `/{pluginId}/*` for plugin pages                                                       | Must     | US-003    |
+| FR-008 | Reserved routes: `/`, `/settings`, `/admin`, `/profile`, `/team`, `/login`, `/auth` — not assignable to plugins | Must     | US-003    |
+| FR-009 | Tenant theme: logo, color palette (primary, secondary, background, surface, text), font families                | Must     | US-002    |
+| FR-010 | Theme loaded from tenant settings on login; applied via CSS custom properties / TailwindCSS tokens              | Must     | US-002    |
+| FR-011 | Widget system: plugins expose components via Module Federation `exposes` config                                 | Should   | US-004    |
+| FR-012 | Auth context provider: user, tenant, roles, permissions, teams available via React context                      | Must     | US-005    |
+| FR-013 | Silent token refresh before expiry (background interval check)                                                  | Must     | US-005    |
+| FR-014 | Session expiry redirect to login with "session expired" message                                                 | Must     | US-005    |
+| FR-015 | TailwindCSS v4 with semantic design tokens (per ADR-009)                                                        | Must     | US-002    |
 
 ## 5. Non-Functional Requirements
 

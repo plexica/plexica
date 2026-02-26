@@ -517,20 +517,6 @@ Article 6.2 format.
 
 - **Design Spec**: Screen 8 wireframe, Component: WidgetContainer (design-spec.md §4)
 
-### WidgetContainer
-
-**FR**: FR-011 | **Task**: T005-05 | **Design Spec**: §4 Component Inventory
-
-A wrapper component that hosts plugin-exposed widget modules loaded via Module Federation. Provides error boundary isolation, loading state, and fallback UI for widget failures.
-
-**API surface** (per design-spec §4):
-
-- Props: `pluginId: string`, `widgetId: string`, `props?: Record<string, unknown>`
-- States: loading, loaded, error, fallback
-- The `loadWidget()` function is owned by **Spec 010 Phase 3** — WidgetContainer in Spec 005 provides the shell/wrapper; Spec 010 provides the loader implementation.
-
-**See**: `.forge/specs/010-frontend-production-readiness/spec.md` Phase 3 for `loadWidget()` API contract.
-
 ---
 
 ## 6. File Map
