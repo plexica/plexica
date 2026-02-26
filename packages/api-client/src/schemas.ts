@@ -39,7 +39,8 @@ export const PluginEntitySchema = z.object({
   updatedAt: z.string(),
 });
 
-export type PluginEntitySchema = z.infer<typeof PluginEntitySchema>;
+/** Inferred TypeScript type for a validated plugin entity. */
+export type PluginEntityData = z.infer<typeof PluginEntitySchema>;
 
 /**
  * Schema for the paginated plugin list response (GET /api/v1/plugins).

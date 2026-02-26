@@ -57,3 +57,4 @@ export {
   PaginatedPluginEntitySchema,
   PluginStatsSchema,
 } from './schemas.js';
+export type { PluginEntityData } from './schemas.js';
