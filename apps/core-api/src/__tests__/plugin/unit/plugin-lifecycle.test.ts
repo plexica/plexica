@@ -800,10 +800,11 @@ describe('PluginLifecycleService', () => {
       vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenant.findUnique).mockResolvedValue(null); // no tenant slug needed for this path
       vi.mocked(db.tenantPlugin.delete).mockResolvedValue({} as any);
-      // transitionLifecycleStatus(UNINSTALLED): plugin must be UNINSTALLING
+      // transitionLifecycleStatus(REGISTERED): plugin must be UNINSTALLING; count=0 → last uninstall
       vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         lifecycleStatus: PluginLifecycleStatus.UNINSTALLING,
       } as any);
+      vi.mocked(db.tenantPlugin.count).mockResolvedValue(0); // no remaining installations
 
       await lifecycleService.uninstallPlugin(tenantId, pluginId);
 
@@ -923,15 +924,17 @@ describe('PluginLifecycleService — state machine (T004-03)', () => {
     ).rejects.toThrow("Plugin 'test-plugin' cannot transition from REGISTERED to ACTIVE");
   });
 
-  it('should reject UNINSTALLED → REGISTERED transition (no going back)', async () => {
+  it('should reject UNINSTALLED → ACTIVE transition (invalid leap)', async () => {
+    // UNINSTALLED→REGISTERED is now a valid recovery path (ADR-018: reinstall support).
+    // UNINSTALLED→ACTIVE is still invalid — test that the state machine rejects it.
     vi.mocked(db.plugin.findUnique).mockResolvedValue({
       lifecycleStatus: PluginLifecycleStatus.UNINSTALLED,
     } as any);
 
     const svc = lifecycleService as any;
     await expect(
-      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.REGISTERED)
-    ).rejects.toThrow("Plugin 'test-plugin' cannot transition from UNINSTALLED to REGISTERED");
+      svc.transitionLifecycleStatus('test-plugin', PluginLifecycleStatus.ACTIVE)
+    ).rejects.toThrow("Plugin 'test-plugin' cannot transition from UNINSTALLED to ACTIVE");
   });
 
   it('should accept INSTALLING → INSTALLED transition', async () => {

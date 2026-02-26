@@ -38,6 +38,7 @@ vi.mock('../../../lib/db.js', () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
     },
     tenant: {
       findUnique: vi.fn(),
@@ -219,6 +220,8 @@ describe('PluginLifecycleService — state machine (via transitionLifecycleStatu
     // REGISTERED→INSTALLING and INSTALLING→INSTALLED.
     // For an invalid transition test, we simulate a plugin stuck in UNINSTALLED state
     // and call installPlugin — the first transition attempt (UNINSTALLED→INSTALLING) must fail.
+    // NOTE: UNINSTALLED→REGISTERED is now a valid recovery path (ADR-018 fix for reinstall).
+    //       We instead test UNINSTALLED→INSTALLING which is still invalid.
     vi.mocked(db.plugin.findUnique)
       .mockResolvedValueOnce(
         buildPluginRecord(PluginLifecycleStatus.UNINSTALLED) as any // getPlugin — status PUBLISHED
@@ -241,6 +244,8 @@ describe('PluginLifecycleService — state machine (via transitionLifecycleStatu
       .mockResolvedValueOnce(uninstalledPlugin as any); // transitionLifecycleStatus reads state
 
     vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    // count=0 so isFirstInstall=true and the lifecycle transition is attempted (and then fails)
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0);
 
     // The transition UNINSTALLED→INSTALLING is not in VALID_TRANSITIONS
     await expect(service.installPlugin('tenant-123', 'plugin-lifecycle-test')).rejects.toThrow(
@@ -280,6 +285,7 @@ describe('PluginLifecycleService.installPlugin()', () => {
       .mockResolvedValueOnce({ lifecycleStatus: PluginLifecycleStatus.INSTALLING } as any); // INSTALLING→INSTALLED reads current
 
     vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null); // not yet installed
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0); // no other tenants installed yet
     vi.mocked(db.plugin.update).mockResolvedValue(plugin as any);
 
     // $transaction mock returns the tenantPlugin record
@@ -333,6 +339,7 @@ describe('PluginLifecycleService.installPlugin()', () => {
       .mockResolvedValueOnce({ lifecycleStatus: PluginLifecycleStatus.INSTALLED } as any); // rollback attempt reads current (INSTALLED→REGISTERED is invalid, swallowed)
 
     vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0); // first install
     vi.mocked(db.plugin.update).mockResolvedValue(plugin as any);
     vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
     vi.mocked(db.tenantPlugin.create).mockResolvedValue(tenantPlugin as any);
@@ -365,6 +372,7 @@ describe('PluginLifecycleService.installPlugin()', () => {
       .mockResolvedValueOnce({ lifecycleStatus: PluginLifecycleStatus.INSTALLING } as any); // INSTALLING→INSTALLED
 
     vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0); // first install
     vi.mocked(db.plugin.update).mockResolvedValue(plugin as any);
     vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
     vi.mocked(db.tenantPlugin.create).mockResolvedValue(tenantPlugin as any);

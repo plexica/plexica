@@ -29,6 +29,7 @@ vi.mock('../../../lib/db', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
     },
     tenant: {
       findUnique: vi.fn(),
@@ -340,10 +341,11 @@ describe('PluginLifecycleService.uninstallPlugin (T004-08)', () => {
 
     vi.mocked(db.tenantPlugin.delete).mockResolvedValue({} as any);
 
-    // transitionLifecycleStatus(UNINSTALLED): UNINSTALLING → UNINSTALLED
+    // transitionLifecycleStatus(REGISTERED): UNINSTALLING → REGISTERED (last tenant uninstalled)
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
       lifecycleStatus: PluginLifecycleStatus.UNINSTALLING,
     } as any);
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0); // no remaining installations
 
     await svc.uninstallPlugin(tenantId, pluginId);
 
@@ -352,7 +354,7 @@ describe('PluginLifecycleService.uninstallPlugin (T004-08)', () => {
       expect.objectContaining({ where: { tenantId_pluginId: { tenantId, pluginId } } })
     );
     expect(db.plugin.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { lifecycleStatus: PluginLifecycleStatus.UNINSTALLED } })
+      expect.objectContaining({ data: { lifecycleStatus: PluginLifecycleStatus.REGISTERED } })
     );
   });
 
@@ -374,6 +376,7 @@ describe('PluginLifecycleService.uninstallPlugin (T004-08)', () => {
       .mockResolvedValueOnce({ lifecycleStatus: PluginLifecycleStatus.UNINSTALLING } as any);
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
     vi.mocked(db.tenantPlugin.delete).mockResolvedValue({} as any);
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0); // no remaining installations
 
     await expect(svc.uninstallPlugin(tenantId, pluginId)).resolves.not.toThrow();
   });
