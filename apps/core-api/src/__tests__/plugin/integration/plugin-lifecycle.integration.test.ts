@@ -345,7 +345,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
   // =========================================================================
 
   describe('DELETE /api/v1/plugins/:id (uninstall)', () => {
-    it('uninstalls a plugin → 200; lifecycleStatus becomes UNINSTALLED', async () => {
+    it('uninstalls a plugin → 200; lifecycleStatus resets to REGISTERED (last tenant)', async () => {
       // Register + install + enable + disable
       await app.inject({
         method: 'POST',
@@ -381,7 +381,9 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
       expect(body.success).toBe(true);
 
       const plugin = await db.plugin.findUnique({ where: { id: PLUGIN_ID } });
-      expect(plugin?.lifecycleStatus).toBe(PluginLifecycleStatus.UNINSTALLED);
+      // When the last tenant uninstalls, lifecycleStatus resets to REGISTERED (not UNINSTALLED)
+      // so the plugin can be reinstalled by any tenant in the future (ADR-018 fix).
+      expect(plugin?.lifecycleStatus).toBe(PluginLifecycleStatus.REGISTERED);
     });
 
     it('returns 401 without auth', async () => {
