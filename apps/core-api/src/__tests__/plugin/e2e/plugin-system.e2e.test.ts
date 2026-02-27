@@ -326,7 +326,7 @@ describe('Plugin System E2E (T004-26)', () => {
   // =========================================================================
 
   describe('Step 8 — Super-admin: uninstall plugin', () => {
-    it('DELETE /api/v1/plugins/:id → 200; lifecycleStatus becomes UNINSTALLED', async () => {
+    it('DELETE /api/v1/plugins/:id → 200; lifecycleStatus reverts to INSTALLED (per-tenant row still exists)', async () => {
       const resp = await app.inject({
         method: 'DELETE',
         url: `/api/v1/plugins/${PLUGIN_ID}`,
@@ -338,14 +338,15 @@ describe('Plugin System E2E (T004-26)', () => {
       expect(body.success).toBe(true);
 
       const plugin = await db.plugin.findUnique({ where: { id: PLUGIN_ID } });
-      expect(plugin?.lifecycleStatus).toBe(PluginLifecycleStatus.UNINSTALLED);
+      expect(plugin?.lifecycleStatus).toBe(PluginLifecycleStatus.INSTALLED);
     });
 
-    it('GET /api/v1/tenant/plugins: plugin entry has lifecycleStatus UNINSTALLED after uninstall', async () => {
+    it('GET /api/v1/tenant/plugins: plugin entry has lifecycleStatus INSTALLED after uninstall (per-tenant row still exists)', async () => {
       // uninstallPlugin removes the __global__ TenantPlugin row only.
-      // The per-tenant TenantPlugin row persists; the plugin record transitions to UNINSTALLED.
+      // The per-tenant TenantPlugin row (created in Step 4) persists, so
+      // remainingInstallations > 0 and the plugin reverts to INSTALLED.
       // getInstalledPlugins returns all TenantPlugin rows so the entry is still visible —
-      // with lifecycleStatus: UNINSTALLED — reflecting the global state change.
+      // with lifecycleStatus: INSTALLED — reflecting the revert.
       const resp = await app.inject({
         method: 'GET',
         url: '/api/v1/tenant/plugins',
@@ -359,7 +360,7 @@ describe('Plugin System E2E (T004-26)', () => {
       }>;
       const entry = body.find((p) => p.pluginId === PLUGIN_ID);
       expect(entry).toBeDefined();
-      expect(entry?.plugin.lifecycleStatus).toBe(PluginLifecycleStatus.UNINSTALLED);
+      expect(entry?.plugin.lifecycleStatus).toBe(PluginLifecycleStatus.INSTALLED);
     });
   });
 });

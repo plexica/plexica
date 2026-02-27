@@ -500,6 +500,7 @@ const VALID_TRANSITIONS: Record<PluginLifecycleStatus, PluginLifecycleStatus[]> 
   [PluginLifecycleStatus.UNINSTALLING]: [
     PluginLifecycleStatus.UNINSTALLED,
     PluginLifecycleStatus.REGISTERED, // Reset to REGISTERED when last tenant uninstalls (allows reinstall)
+    PluginLifecycleStatus.INSTALLED, // Revert to INSTALLED when other tenants still have the plugin installed
   ],
   [PluginLifecycleStatus.UNINSTALLED]: [PluginLifecycleStatus.REGISTERED], // Re-registration path
 };
@@ -1055,9 +1056,11 @@ export class PluginLifecycleService {
       // Last tenant uninstalled — reset global lifecycle to REGISTERED so the
       // plugin can be installed again (by this or another tenant).
       await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
+    } else {
+      // Other tenants still have this plugin installed — revert UNINSTALLING → INSTALLED
+      // so the global lifecycle status reflects the actual deployment state.
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLED);
     }
-    // If other tenants still have the plugin installed, leave the global
-    // lifecycleStatus as-is (INSTALLED or ACTIVE).
   }
 
   /**
