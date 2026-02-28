@@ -83,4 +83,32 @@ describe('WidgetContainer', () => {
     const section = screen.getByRole('region', { name: 'Broken Widget' });
     expect(section).toHaveAttribute('aria-busy', 'false');
   });
+
+  // ---- Test 4 ---------------------------------------------------------------
+  it('renders built-in WidgetFallback (data-testid="widget-error-fallback") when no custom errorFallback provided', async () => {
+    await act(async () => {
+      render(<WidgetContainer pluginId="crm" widgetName="BrokenWidget" title="Broken Widget" />);
+    });
+
+    // loadWidget stub always rejects — built-in error fallback should appear
+    expect(await screen.findByTestId('widget-error-fallback')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-error-fallback')).toHaveTextContent('Broken Widget');
+  });
+
+  // ---- Test 5 ---------------------------------------------------------------
+  it('renders a custom loading fallback while loading', () => {
+    const customFallback = <div data-testid="custom-loader">Custom loading…</div>;
+
+    render(
+      <WidgetContainer
+        pluginId="crm"
+        widgetName="SalesChart"
+        title="Monthly Sales"
+        fallback={customFallback}
+      />
+    );
+
+    // Before the promise resolves the loading state is active
+    expect(screen.getByTestId('custom-loader')).toBeInTheDocument();
+  });
 });

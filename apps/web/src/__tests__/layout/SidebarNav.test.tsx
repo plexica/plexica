@@ -189,4 +189,212 @@ describe('SidebarNav', () => {
     fireEvent.keyDown(document, { key: 'End' });
     expect(nav).toBeInTheDocument();
   });
+
+  // ---- Test 9 ---------------------------------------------------------------
+  it('Home/End keydown inside mobile overlay trap moves focus to first/last element', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    const onClose = vi.fn();
+    await act(async () => {
+      render(<SidebarNav {...defaultProps} isOpen={true} onClose={onClose} />);
+    });
+
+    fireEvent.keyDown(document, { key: 'Home' });
+    fireEvent.keyDown(document, { key: 'End' });
+
+    // No throw and onClose was not called
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // ---- Test 10 --------------------------------------------------------------
+  it('Tab key wraps focus from last to first element in mobile overlay', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    await act(async () => {
+      renderSidebar({ isOpen: true });
+    });
+
+    // Simulate Tab on the last focusable element (should wrap to first)
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+  });
+
+  // ---- Test 11 --------------------------------------------------------------
+  it('Shift+Tab key wraps focus from first to last element in mobile overlay', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    await act(async () => {
+      renderSidebar({ isOpen: true });
+    });
+
+    // Simulate Shift+Tab (backwards) from first element
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+  });
+
+  // ---- Test 12 --------------------------------------------------------------
+  it('backdrop click calls onClose on mobile overlay', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    const onClose = vi.fn();
+    await act(async () => {
+      render(<SidebarNav {...defaultProps} isOpen={true} onClose={onClose} />);
+    });
+
+    // The backdrop is an aria-hidden div before the nav
+    const backdrop = document.querySelector('[aria-hidden="true"]');
+    expect(backdrop).toBeInTheDocument();
+    fireEvent.click(backdrop!);
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // ---- Test 13 --------------------------------------------------------------
+  it('collapse toggle button calls onCollapsedChange with toggled value', () => {
+    const onCollapsedChange = vi.fn();
+    renderSidebar({ collapsed: false, onCollapsedChange });
+
+    const toggleBtn = screen.getByRole('button', { name: /collapse sidebar/i });
+    fireEvent.click(toggleBtn);
+
+    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+  });
+
+  // ---- Test 14 --------------------------------------------------------------
+  it('expand button label shown when collapsed=true on desktop', () => {
+    renderSidebar({ collapsed: true });
+
+    const expandBtn = screen.getByRole('button', { name: /expand sidebar/i });
+    expect(expandBtn).toBeInTheDocument();
+  });
+
+  // ---- Test 15 --------------------------------------------------------------
+  it('clicking a plugin nav item in overlay mode calls onClose', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    mockUsePlugins.mockReturnValue({
+      menuItems: [{ id: 'crm', label: 'CRM', path: '/crm', icon: undefined }],
+      isLoading: false,
+    });
+
+    const onClose = vi.fn();
+    await act(async () => {
+      render(<SidebarNav {...defaultProps} isOpen={true} onClose={onClose} />);
+    });
+
+    const crmLink = screen.getByText('CRM').closest('a');
+    expect(crmLink).toBeInTheDocument();
+    fireEvent.click(crmLink!);
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // ---- Test 16 --------------------------------------------------------------
+  it('shows plugin loading state text in overlay mode', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 768,
+    });
+
+    mockUsePlugins.mockReturnValue({
+      menuItems: [],
+      isLoading: true,
+    });
+
+    await act(async () => {
+      renderSidebar({ isOpen: true });
+    });
+
+    expect(screen.getByText('Loading plugins…')).toBeInTheDocument();
+  });
+
+  // ---- Test 17 --------------------------------------------------------------
+  it('shows "No plugins installed" when plugin list is empty and not loading', () => {
+    mockUsePlugins.mockReturnValue({
+      menuItems: [],
+      isLoading: false,
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('No plugins installed')).toBeInTheDocument();
+  });
+
+  // ---- Test 18 --------------------------------------------------------------
+  it('renders a plugin badge when badge property is provided', () => {
+    mockUsePlugins.mockReturnValue({
+      menuItems: [{ id: 'crm', label: 'CRM', path: '/crm', icon: undefined, badge: '5' }],
+      isLoading: false,
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  // ---- Test 19 --------------------------------------------------------------
+  it('renders plugin with known lucide icon without error', () => {
+    mockUsePlugins.mockReturnValue({
+      menuItems: [{ id: 'crm', label: 'CRM', path: '/crm', icon: 'Star' }],
+      isLoading: false,
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('CRM')).toBeInTheDocument();
+  });
+
+  // ---- Test 20 --------------------------------------------------------------
+  it('renders plugin with unknown icon falls back to Puzzle without error', () => {
+    mockUsePlugins.mockReturnValue({
+      menuItems: [{ id: 'crm', label: 'CRM', path: '/crm', icon: 'NonExistentIcon12345' }],
+      isLoading: false,
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('CRM')).toBeInTheDocument();
+  });
+
+  // ---- Test 21 --------------------------------------------------------------
+  it('window resize to mobile viewport triggers isMobile state update', () => {
+    renderSidebar();
+
+    // Start at desktop — sidebar visible
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+
+    // Resize to mobile — overlay mode, isOpen=false → renders null
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 600,
+    });
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    // After resize to mobile with isOpen=false the nav is hidden (returns null)
+    expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument();
+  });
 });

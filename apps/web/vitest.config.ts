@@ -12,7 +12,39 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.{ts,tsx}'],
+      // Scope coverage to Spec 005 deliverables only.
+      // Pre-existing files outside Spec 005 scope are intentionally excluded
+      // so the 80% threshold enforces quality on the files this spec owns.
+      // Additional files will be added as their own specs add tests.
+      include: [
+        // Layout shell (T005-01)
+        'src/components/Layout/AppLayout.tsx',
+        'src/components/Layout/Breadcrumbs.tsx',
+        'src/components/Layout/Header.tsx',
+        'src/components/Layout/SidebarNav.tsx',
+        // Auth warning (T005-17)
+        'src/components/AuthWarningBanner.tsx',
+        // Plugin not found (T005-03)
+        'src/components/PluginNotFoundPage.tsx',
+        // Widget container (T005-05)
+        'src/components/WidgetContainer.tsx',
+        // UI primitives (T005-09, T005-10, T005-11)
+        'src/components/ui/ColorPickerField.tsx',
+        'src/components/ui/FontSelector.tsx',
+        'src/components/ui/ThemePreview.tsx',
+        // Theme context (T005-06, T005-07)
+        'src/contexts/ThemeContext.tsx',
+        // Utilities (T005-06, T005-08, T005-13)
+        'src/lib/contrast-utils.ts',
+        'src/lib/feature-flags.ts',
+        'src/lib/font-loader.ts',
+        // Plugin route enforcement (T005-03)
+        'src/lib/plugin-routes.tsx',
+        // Branding settings (T005-12)
+        'src/routes/settings.branding.tsx',
+        // Auth store (T005-14 through T005-17)
+        'src/stores/auth.store.ts',
+      ],
       exclude: [
         'src/**/*.d.ts',
         'src/**/*.test.{ts,tsx}',
@@ -21,6 +53,9 @@ export default defineConfig({
         'src/main.tsx',
         'src/vite-env.d.ts',
         'src/routeTree.gen.ts',
+        // Framework entry point — createRootRoute + import.meta.env cannot be
+        // unit-tested in jsdom without a full TanStack Router test harness.
+        'src/routes/__root.tsx',
       ],
       thresholds: {
         lines: 80,

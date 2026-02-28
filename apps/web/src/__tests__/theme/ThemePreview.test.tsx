@@ -2,8 +2,12 @@
 //
 // T005-10: Unit tests for the ThemePreview component.
 //
-// Coverage targets (3 tests):
-//   1. Renders the preview region with correct aria-label
+// ThemePreview is a decorative, visual-only component.
+// Per plan §5.7 and UX-001 fix: the root element uses aria-hidden="true" and
+// is excluded from the accessibility tree entirely.
+//
+// Coverage targets:
+//   1. Root element has aria-hidden="true" (not a landmark)
 //   2. Applies theme colors via inline styles (primary, background, text)
 //   3. Shows logo img when theme.logo is set; falls back to placeholder otherwise
 
@@ -22,21 +26,20 @@ const BASE_THEME: TenantTheme = {
 };
 
 // ---------------------------------------------------------------------------
-// 1. aria-label / landmark
+// 1. Accessibility — aria-hidden (decorative element)
 // ---------------------------------------------------------------------------
 
-describe('ThemePreview — landmark', () => {
-  it('renders a section with the default aria-label', () => {
+describe('ThemePreview — accessibility', () => {
+  it('renders with aria-hidden="true" (excluded from accessibility tree)', () => {
     render(<ThemePreview theme={BASE_THEME} />);
-    const region = screen.getByRole('region', { name: /theme preview/i });
-    expect(region).toBeInTheDocument();
-    expect(region).toHaveAttribute('data-testid', 'theme-preview');
+    const preview = screen.getByTestId('theme-preview');
+    expect(preview).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('uses the supplied ariaLabel prop', () => {
-    render(<ThemePreview theme={BASE_THEME} ariaLabel="Custom brand preview" />);
-    const region = screen.getByRole('region', { name: /custom brand preview/i });
-    expect(region).toBeInTheDocument();
+  it('is not exposed as a landmark region', () => {
+    render(<ThemePreview theme={BASE_THEME} />);
+    // Should NOT be queryable as a region/landmark
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
   });
 });
 
