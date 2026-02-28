@@ -565,20 +565,8 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already installed`);
     }
 
-    // Check how many other tenant installations already exist.
-    // The lifecycleStatus is on the *global* Plugin record, not per-tenant.
-    // Only perform lifecycle transitions on the first installation (or after
-    // all tenants have uninstalled and the plugin was reset to REGISTERED).
-    const existingInstallations = await db.tenantPlugin.count({ where: { pluginId } });
-    const isFirstInstall =
-      existingInstallations === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
-
-    if (isFirstInstall) {
-      // Transition lifecycle: REGISTERED → INSTALLING
-      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLING);
-    }
-
-    // Validate configuration
+    // Validate configuration and dependencies BEFORE any lifecycle transitions
+    // so that failures don't leave the global lifecycle status stuck at INSTALLING.
     const manifest = plugin.manifest as unknown as PluginManifest;
 
     // Apply default configuration values
@@ -628,6 +616,19 @@ export class PluginLifecycleService {
 
     // Check old-style dependencies
     await this.checkDependencies(tenantId, manifest);
+
+    // Check how many other tenant installations already exist.
+    // The lifecycleStatus is on the *global* Plugin record, not per-tenant.
+    // Only perform lifecycle transitions on the first installation (or after
+    // all tenants have uninstalled and the plugin was reset to REGISTERED).
+    const existingInstallations = await db.tenantPlugin.count({ where: { pluginId } });
+    const isFirstInstall =
+      existingInstallations === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
+
+    if (isFirstInstall) {
+      // Transition lifecycle: REGISTERED → INSTALLING
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLING);
+    }
 
     // Create installation within transaction (without service registration to maintain atomicity)
     let installation: TenantPluginWithPluginAndTenant;
@@ -920,8 +921,14 @@ export class PluginLifecycleService {
       }
     }
 
-    // Transition lifecycle: INSTALLED → ACTIVE
-    await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.ACTIVE);
+    // Transition lifecycle: INSTALLED → ACTIVE (skip if already ACTIVE from another tenant)
+    const currentPlugin = await db.plugin.findUnique({
+      where: { id: pluginId },
+      select: { lifecycleStatus: true },
+    });
+    if (currentPlugin?.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.ACTIVE);
+    }
 
     // Enable plugin
     const updated = await db.tenantPlugin.update({
@@ -957,18 +964,29 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already inactive`);
     }
 
-    // Transition lifecycle: ACTIVE → DISABLED
-    await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.DISABLED);
+    // Transition lifecycle: ACTIVE → DISABLED only if no other tenants have the plugin enabled
+    const otherEnabled = await db.tenantPlugin.count({
+      where: {
+        pluginId,
+        tenantId: { not: tenantId },
+        enabled: true,
+      },
+    });
+    if (otherEnabled === 0) {
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.DISABLED);
+    }
 
-    // T004-08: Stop container after transitioning to DISABLED
-    try {
-      await this.adapter.stop(pluginId);
-    } catch (stopErr: unknown) {
-      this.logger.error(
-        { pluginId, error: stopErr instanceof Error ? stopErr.message : String(stopErr) },
-        'Failed to stop container during deactivation (non-blocking)'
-      );
-      // Non-blocking: plugin is already DISABLED in DB
+    // T004-08: Stop container only if no other tenants still have the plugin enabled
+    if (otherEnabled === 0) {
+      try {
+        await this.adapter.stop(pluginId);
+      } catch (stopErr: unknown) {
+        this.logger.error(
+          { pluginId, error: stopErr instanceof Error ? stopErr.message : String(stopErr) },
+          'Failed to stop container during deactivation (non-blocking)'
+        );
+        // Non-blocking: plugin is already DISABLED in DB
+      }
     }
 
     // Disable plugin

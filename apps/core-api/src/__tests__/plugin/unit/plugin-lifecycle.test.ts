@@ -694,10 +694,15 @@ describe('PluginLifecycleService', () => {
       };
 
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(mockInstallation as any);
-      // transitionLifecycleStatus(ACTIVE): plugin must be in INSTALLED state
-      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
-        lifecycleStatus: PluginLifecycleStatus.INSTALLED,
-      } as any);
+      // activatePlugin guard: check if already ACTIVE (returns INSTALLED → will transition)
+      vi.mocked(db.plugin.findUnique)
+        .mockResolvedValueOnce({
+          lifecycleStatus: PluginLifecycleStatus.INSTALLED,
+        } as any)
+        // transitionLifecycleStatus(ACTIVE): reads current status
+        .mockResolvedValueOnce({
+          lifecycleStatus: PluginLifecycleStatus.INSTALLED,
+        } as any);
       vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.update).mockResolvedValue(activatedInstallation as any);
 
@@ -746,6 +751,8 @@ describe('PluginLifecycleService', () => {
       };
 
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(mockInstallation as any);
+      // deactivatePlugin guard: check other tenants with plugin enabled (0 → will transition)
+      vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
       // transitionLifecycleStatus(DISABLED): plugin must be in ACTIVE state
       vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         lifecycleStatus: PluginLifecycleStatus.ACTIVE,

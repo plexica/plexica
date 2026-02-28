@@ -31,6 +31,7 @@ vi.mock('../../../lib/db', () => ({
     tenantPlugin: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      count: vi.fn(),
     },
     tenant: {
       findUnique: vi.fn(),
@@ -258,6 +259,8 @@ describe('T004-12: PluginLifecycleService — Redpanda topic wiring', () => {
         lifecycleStatus: PluginLifecycleStatus.ACTIVE,
       } as any,
     } as any);
+    // deactivatePlugin guard: no other tenants have plugin enabled (0 → will transition & stop)
+    vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
     vi.mocked(db.plugin.findUnique).mockResolvedValue({
       lifecycleStatus: PluginLifecycleStatus.ACTIVE,
     } as any);

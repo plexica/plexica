@@ -238,6 +238,9 @@ describe('PluginLifecycleService.deactivatePlugin (T004-08)', () => {
       plugin: { manifest: buildManifest(pluginId) } as any,
     } as any);
 
+    // deactivatePlugin guard: no other tenants have plugin enabled (0 → will transition & stop)
+    vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
+
     vi.mocked(db.plugin.findUnique).mockResolvedValue({
       lifecycleStatus: PluginLifecycleStatus.ACTIVE,
     } as any);
@@ -288,6 +291,8 @@ describe('PluginLifecycleService.deactivatePlugin (T004-08)', () => {
       enabled: true,
       plugin: { manifest: buildManifest(pluginId) } as any,
     } as any);
+    // deactivatePlugin guard: no other tenants have plugin enabled
+    vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
     vi.mocked(db.plugin.findUnique).mockResolvedValue({
       lifecycleStatus: PluginLifecycleStatus.ACTIVE,
     } as any);
