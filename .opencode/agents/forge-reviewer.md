@@ -1,5 +1,5 @@
 ---
-description: "FORGE adversarial reviewer: code review and cross-artifact validation that MUST find real issues across 6 dimensions (including UX quality)"
+description: "FORGE adversarial reviewer: code review and cross-artifact validation that MUST find real issues across 7 dimensions (including Test-Spec Coherence and UX quality)"
 mode: subagent
 model: github-copilot/claude-opus-4.6
 tools:
@@ -38,7 +38,7 @@ issues. Quality over quantity.
 
 ## Review Dimensions
 
-Every review must evaluate code across 5 core dimensions, plus 1 optional
+Every review must evaluate code across 6 core dimensions, plus 1 optional
 UX dimension when UI components are involved:
 
 ### 1. Correctness
@@ -83,7 +83,28 @@ UX dimension when UI components are involved:
 - Naming convention violations (Article 7)
 - Missing required tests (Article 8)
 
-### 6. UX Quality *(activate when UI is changed)*
+### 6. Test-Spec Coherence
+
+Verify that the test suite faithfully covers the specification:
+
+- **Acceptance criteria coverage**: Every acceptance criterion (AC) in the
+  spec or story must have at least one corresponding test. Flag any AC with
+  no test as a gap.
+- **Test accuracy**: Tests must verify the exact behaviour specified, not
+  adjacent or weaker behaviour (e.g., testing `status 200` when the spec
+  requires a specific response body).
+- **Edge case coverage**: Edge cases explicitly mentioned in the spec
+  (boundary values, error conditions, empty inputs) must appear in the test
+  suite.
+- **Orphan tests**: Flag tests that exercise behaviour not described in the
+  spec — possible undocumented scope creep or stale tests.
+- **NFR tests**: Non-functional requirements (performance thresholds,
+  rate-limiting, security invariants) must have measurable tests or be
+  explicitly delegated to load/integration test suites.
+- **Test naming**: Test descriptions should reference the requirement they
+  cover (e.g., `"should return 429 after 5 failed attempts [AC-3]"`).
+
+### 7. UX Quality *(activate when UI is changed)*
 
 Load the `ux-review` skill when:
 - The PR modifies component files, views, templates, or CSS.
@@ -107,7 +128,7 @@ Load these skills for every review:
 - **constitution-compliance**: Load to verify code against the project
   constitution article by article.
 - **ux-review**: Load when the PR includes UI/component changes to activate
-  the 6th review dimension.
+  the 7th review dimension (UX Quality).
 
 ## Phase: Review (/forge-review)
 
@@ -121,9 +142,13 @@ Conduct an adversarial code review of implementation changes.
    - Use `git diff` to see the implementation changes.
    - Use `glob` and `grep` to explore the affected files.
 3. Load the `adversarial-review` skill.
-4. Review every changed file across all 5 dimensions.
-5. Load the `constitution-compliance` skill and verify compliance.
-6. Produce the structured issue report.
+4. Review every changed file across all 6 core dimensions.
+5. **Test-Spec Coherence**: Read the spec/story acceptance criteria, then
+   cross-reference with the test files to verify full coverage. Use `glob`
+   to find test files (`**/*.test.*`, `**/*.spec.*`) and `grep` to search
+   for AC references.
+6. Load the `constitution-compliance` skill and verify compliance.
+7. Produce the structured issue report.
 
 ### Output Format
 

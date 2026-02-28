@@ -5,7 +5,7 @@
 **Spec:** 010-frontend-production-readiness  
 **Date:** 2026-02-17  
 **Status:** Draft  
-**Estimated Effort:** 115 hours across 3 sprints
+**Estimated Effort:** 136 hours across 3 sprints
 
 ---
 
@@ -401,6 +401,134 @@ export function validateTheme(theme: Partial<TenantTheme>): TenantTheme {
 }
 ```
 
+**Font Loading via FontFace API (ADR-020):**
+
+Self-hosted WOFF2 fonts served from MinIO/CDN are loaded via the FontFace API — **never** from Google Fonts CDN (GDPR risk; see ADR-020). Font names in the tenant theme are validated against the `FONT_CATALOG` before loading; arbitrary font strings are rejected.
+
+```typescript
+// packages/shared-types/src/fonts.ts
+export interface FontDefinition {
+  id: string; // kebab-case: "inter", "open-sans"
+  name: string; // Display name: "Inter", "Open Sans"
+  category: 'sans-serif' | 'serif' | 'monospace' | 'display';
+  weights: number[]; // Available weights: [400, 500, 600, 700]
+  license: string; // "SIL OFL 1.1" | "Apache 2.0"
+  fallback: string; // CSS stack: "system-ui, sans-serif"
+}
+
+export const FONT_CATALOG: FontDefinition[] = [
+  {
+    id: 'inter',
+    name: 'Inter',
+    category: 'sans-serif',
+    weights: [400, 500, 600, 700],
+    license: 'SIL OFL 1.1',
+    fallback: 'system-ui, -apple-system, sans-serif',
+  },
+  {
+    id: 'roboto',
+    name: 'Roboto',
+    category: 'sans-serif',
+    weights: [400, 500, 700],
+    license: 'Apache 2.0',
+    fallback: 'system-ui, sans-serif',
+  },
+  // ... 23 additional fonts per ADR-020 curated list
+];
+
+export const DEFAULT_HEADING_FONT = 'inter';
+export const DEFAULT_BODY_FONT = 'roboto';
+```
+
+```typescript
+// apps/web/src/lib/font-loader.ts
+import { FONT_CATALOG } from '@plexica/shared-types';
+
+export async function loadTenantFonts(headingFontId: string, bodyFontId: string): Promise<void> {
+  const toLoad = [...new Set([headingFontId, bodyFontId])];
+
+  for (const fontId of toLoad) {
+    const def = FONT_CATALOG.find((f) => f.id === fontId);
+    if (!def) continue; // Unknown font IDs rejected by validateTheme before reaching here
+
+    for (const weight of def.weights) {
+      const url = `/fonts/${fontId}/${fontId}-${weight}.woff2`;
+      const fontFace = new FontFace(def.name, `url(${url}) format('woff2')`, {
+        weight: String(weight),
+        display: 'swap',
+      });
+      await fontFace.load();
+      document.fonts.add(fontFace);
+    }
+  }
+
+  // Apply via CSS custom properties (per ADR-009)
+  const headingDef = FONT_CATALOG.find((f) => f.id === headingFontId);
+  const bodyDef = FONT_CATALOG.find((f) => f.id === bodyFontId);
+
+  if (headingDef) {
+    document.documentElement.style.setProperty(
+      '--font-heading',
+      `"${headingDef.name}", ${headingDef.fallback}`
+    );
+  }
+  if (bodyDef) {
+    document.documentElement.style.setProperty(
+      '--font-body',
+      `"${bodyDef.name}", ${bodyDef.fallback}`
+    );
+  }
+}
+```
+
+`validateTheme()` in `theme-utils.ts` must validate font IDs against `FONT_CATALOG` (not just non-empty strings):
+
+```typescript
+// Updated validation in apps/web/src/lib/theme-utils.ts
+import { FONT_CATALOG, DEFAULT_HEADING_FONT, DEFAULT_BODY_FONT } from '@plexica/shared-types';
+
+function validateFontId(id: unknown, fallback: string): string {
+  if (typeof id !== 'string') return fallback;
+  const inCatalog = FONT_CATALOG.some((f) => f.id === id);
+  if (!inCatalog) {
+    logger.warn({ fontId: id }, 'Font not in FONT_CATALOG; using default');
+    return fallback;
+  }
+  return id;
+}
+
+// In validateTheme():
+fonts: {
+  heading: validateFontId(theme.fonts?.heading, DEFAULT_HEADING_FONT),
+  body:    validateFontId(theme.fonts?.body,    DEFAULT_BODY_FONT),
+  mono:    validateFontId(theme.fonts?.mono,    'jetbrains-mono'),
+},
+```
+
+`applyTheme()` calls `loadTenantFonts()` asynchronously after setting CSS color variables:
+
+```typescript
+// Updated applyTheme in theme-utils.ts
+export function applyTheme(theme: TenantTheme): void {
+  const root = document.documentElement;
+  // ... color CSS variables (unchanged) ...
+  // Font loading delegated to font-loader (async, non-blocking)
+  loadTenantFonts(theme.fonts.heading, theme.fonts.body).catch((err) => {
+    logger.warn({ err }, 'Font loading failed; system fonts in use');
+  });
+}
+```
+
+Default fonts (Inter 400, Roboto 400) are preloaded in `apps/web/index.html` to eliminate FOIT:
+
+```html
+<!-- apps/web/index.html -->
+<link rel="preload" href="/fonts/inter/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/fonts/roboto/roboto-400.woff2" as="font" type="font/woff2" crossorigin />
+```
+
+**CSP implication:** `font-src 'self'` — no third-party origins required. Tightest possible policy.
+
 **Header Logo Integration:**
 
 ```typescript
@@ -605,27 +733,33 @@ function MyComponent() {
 
 ### Phase 2: Tenant Theming (Week 2-3)
 
-**Goal:** Enable tenant-specific branding with logo and color customization.
+**Goal:** Enable tenant-specific branding with logo, color, and font customization.
 
 **Tasks:**
 
 1. Create `ThemeContext` and `ThemeProvider` (6h)
 2. Implement theme fetching from API (3h)
-3. Implement theme validation and fallback logic (3h)
+3. Implement theme validation and fallback logic — including font ID validation against `FONT_CATALOG` (4h)
 4. Apply theme via CSS custom properties (2h)
 5. Update TailwindCSS config for theme tokens (2h)
 6. Integrate tenant logo in Header component (2h)
-7. Unit tests for theme context (6h)
-8. Integration tests for theme API (4h)
+7. **[ADR-020] Define `FontDefinition` type and `FONT_CATALOG` constant in `packages/shared-types/src/fonts.ts`** (2h)
+8. **[ADR-020] Implement `font-loader.ts` — FontFace API loading + CSS custom property application** (4h)
+9. **[ADR-020] Add `<link rel="preload">` hints for Inter 400 + Roboto 400 in `apps/web/index.html`** (1h)
+10. Unit tests for theme context + `font-loader.ts` (8h)
+11. Integration tests for theme API + font validation (5h)
 
 **Deliverables:**
 
+- `packages/shared-types/src/fonts.ts` (FontDefinition, FONT_CATALOG — **ADR-020**)
 - `apps/web/src/contexts/ThemeContext.tsx`
 - `apps/web/src/hooks/useTheme.ts`
-- `apps/web/src/lib/theme-utils.ts`
+- `apps/web/src/lib/theme-utils.ts` (with FONT_CATALOG validation)
+- `apps/web/src/lib/font-loader.ts` (FontFace API loader — **ADR-020**)
+- Updated `apps/web/index.html` (preload hints — **ADR-020**)
 - Updated `apps/web/src/components/Layout/Header.tsx`
 - Updated `apps/web/tailwind.config.ts`
-- 10 unit tests + 5 integration tests
+- 13 unit tests + 7 integration tests
 
 **Acceptance Criteria:**
 
@@ -634,6 +768,9 @@ function MyComponent() {
 - Tenant logo displayed in header ✅
 - Default theme used if fetch fails ✅
 - Invalid colors fall back to defaults with warning ✅
+- Font names validated against `FONT_CATALOG`; unknown font IDs fall back to defaults ✅ (ADR-020)
+- Fonts loaded via FontFace API from self-hosted WOFF2 files; no Google Fonts CDN calls ✅ (ADR-020)
+- Default fonts (Inter, Roboto) preloaded via `<link rel="preload">` to prevent FOIT ✅ (ADR-020)
 
 ### Phase 3: Widget System (Week 4)
 
@@ -1123,32 +1260,39 @@ If critical issues arise post-deployment:
 
 ## Appendix: File Changes Summary
 
-### New Files (17 files)
+### New Files (20 files)
 
 ```
-apps/web/src/
-├── components/
-│   ├── ErrorBoundary/
-│   │   ├── PluginErrorBoundary.tsx
-│   │   ├── PluginErrorBoundary.test.tsx
-│   │   ├── PluginErrorFallback.tsx
-│   │   └── PluginErrorFallback.test.tsx
-│   ├── WidgetLoader.tsx
-│   ├── WidgetLoader.test.tsx
-│   ├── WidgetFallback.tsx
-│   └── WidgetFallback.test.tsx
-├── contexts/
-│   ├── ThemeContext.tsx
-│   └── ThemeContext.test.tsx
-├── hooks/
-│   ├── useTheme.ts
-│   └── useTheme.test.ts
-├── lib/
-│   ├── logger.ts
-│   ├── theme-utils.ts
-│   ├── theme-utils.test.ts
-│   ├── widget-loader.ts
-│   └── widget-loader.test.ts
+packages/shared-types/src/
+└── fonts.ts                          ← ADR-020: FontDefinition type + FONT_CATALOG
+
+apps/web/
+├── index.html                        ← ADR-020: <link rel="preload"> for Inter+Roboto
+└── src/
+    ├── components/
+    │   ├── ErrorBoundary/
+    │   │   ├── PluginErrorBoundary.tsx
+    │   │   ├── PluginErrorBoundary.test.tsx
+    │   │   ├── PluginErrorFallback.tsx
+    │   │   └── PluginErrorFallback.test.tsx
+    │   ├── WidgetLoader.tsx
+    │   ├── WidgetLoader.test.tsx
+    │   ├── WidgetFallback.tsx
+    │   └── WidgetFallback.test.tsx
+    ├── contexts/
+    │   ├── ThemeContext.tsx
+    │   └── ThemeContext.test.tsx
+    ├── hooks/
+    │   ├── useTheme.ts
+    │   └── useTheme.test.ts
+    ├── lib/
+    │   ├── logger.ts
+    │   ├── font-loader.ts            ← ADR-020: FontFace API loader
+    │   ├── font-loader.test.ts
+    │   ├── theme-utils.ts
+    │   ├── theme-utils.test.ts
+    │   ├── widget-loader.ts
+    │   └── widget-loader.test.ts
 ```
 
 ### Modified Files (5 files)
@@ -1176,3 +1320,21 @@ apps/web/
 ---
 
 **Next Steps:** See `tasks.md` for detailed task breakdown with time estimates and story points.
+
+---
+
+## Cross-References
+
+| Document                        | Path                                                      |
+| ------------------------------- | --------------------------------------------------------- |
+| Spec 010                        | `.forge/specs/010-frontend-production-readiness/spec.md`  |
+| Tasks 010                       | `.forge/specs/010-frontend-production-readiness/tasks.md` |
+| Constitution                    | `.forge/constitution.md`                                  |
+| Spec 005: Frontend Architecture | `.forge/specs/005-frontend-architecture/spec.md`          |
+| Spec 004: Plugin System         | `.forge/specs/004-plugin-system/spec.md`                  |
+| ADR-004: Module Federation      | `.forge/knowledge/adr/adr-004-module-federation.md`       |
+| ADR-009: TailwindCSS Tokens     | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md`   |
+| ADR-011: Vite Module Federation | `.forge/knowledge/adr/adr-011-vite-module-federation.md`  |
+| ADR-020: Font Hosting Strategy  | `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`   |
+| Frontend App                    | `apps/web/`                                               |
+| Shared Types Package            | `packages/shared-types/`                                  |

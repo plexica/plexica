@@ -86,23 +86,40 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 ## 4. Functional Requirements
 
-| ID     | Requirement                                                                                                     | Priority | Story Ref |
-| ------ | --------------------------------------------------------------------------------------------------------------- | -------- | --------- |
-| FR-001 | React 19 SPA with Vite build tool and TanStack Router                                                           | Must     | US-001    |
-| FR-002 | Module Federation via `@originjs/vite-plugin-federation` for plugin remote loading                              | Must     | US-001    |
-| FR-003 | Plugin remote entries loaded from CDN/S3 URLs declared in plugin manifest                                       | Must     | US-001    |
-| FR-004 | Lazy loading of plugin routes with `React.lazy()` and Suspense fallback                                         | Must     | US-001    |
-| FR-005 | Error boundaries around remote module loading to prevent shell crashes                                          | Must     | US-001    |
-| FR-006 | Shell provides: base layout (header, sidebar, navigation), routing, auth context, theme, i18n                   | Must     | US-005    |
-| FR-007 | Route prefix per plugin: `/{pluginId}/*` for plugin pages                                                       | Must     | US-003    |
-| FR-008 | Reserved routes: `/`, `/settings`, `/admin`, `/profile`, `/team`, `/login`, `/auth` — not assignable to plugins | Must     | US-003    |
-| FR-009 | Tenant theme: logo, color palette (primary, secondary, background, surface, text), font families                | Must     | US-002    |
-| FR-010 | Theme loaded from tenant settings on login; applied via CSS custom properties / TailwindCSS tokens              | Must     | US-002    |
-| FR-011 | Widget system: plugins expose components via Module Federation `exposes` config                                 | Should   | US-004    |
-| FR-012 | Auth context provider: user, tenant, roles, permissions, teams available via React context                      | Must     | US-005    |
-| FR-013 | Silent token refresh before expiry (background interval check)                                                  | Must     | US-005    |
-| FR-014 | Session expiry redirect to login with "session expired" message                                                 | Must     | US-005    |
-| FR-015 | TailwindCSS v4 with semantic design tokens (per ADR-009)                                                        | Must     | US-002    |
+| ID     | Requirement                                                                                                     | Priority | Story Ref  |
+| ------ | --------------------------------------------------------------------------------------------------------------- | -------- | ---------- |
+| FR-001 | React 19 SPA with Vite build tool and TanStack Router                                                           | Must     | US-001     |
+| FR-002 | Module Federation via `@originjs/vite-plugin-federation` for plugin remote loading                              | Must     | US-001     |
+| FR-003 | Plugin remote entries loaded from CDN/S3 URLs declared in plugin manifest                                       | Must     | US-001     |
+| FR-004 | Lazy loading of plugin routes with `React.lazy()` and Suspense fallback                                         | Must     | US-001     |
+| FR-005 | Error boundaries around remote module loading to prevent shell crashes                                          | Must     | US-001     |
+| FR-006 | Shell provides: base layout (header, sidebar, navigation), routing, auth context, theme, i18n                   | Must     | US-005     |
+| FR-007 | Route prefix per plugin: `/{pluginId}/*` for plugin pages                                                       | Must     | US-003     |
+| FR-008 | Reserved routes: `/`, `/settings`, `/admin`, `/profile`, `/team`, `/login`, `/auth` — not assignable to plugins | Must     | US-003     |
+| FR-009 | Tenant theme: logo, color palette (primary, secondary, background, surface, text), font families                | Must     | US-002     |
+| FR-010 | Theme loaded from tenant settings on login; applied via CSS custom properties / TailwindCSS tokens              | Must     | US-002     |
+| FR-011 | Widget system: plugins expose components via Module Federation `exposes` config                                 | Should   | US-004     |
+| FR-012 | Auth context provider: user, tenant, roles, permissions, teams available via React context                      | Must     | US-005     |
+| FR-013 | Silent token refresh before expiry (background interval check)                                                  | Must     | US-005     |
+| FR-014 | Session expiry redirect to login with "session expired" message                                                 | Must     | US-005     |
+| FR-015 | TailwindCSS v4 with semantic design tokens (per ADR-009)                                                        | Must     | US-002     |
+| FR-016 | All user-facing shell changes gated behind feature flags for gradual rollout per Constitution Art. 9.1          | Must     | US-001–005 |
+
+### Feature Flags (FR-016)
+
+Per Constitution Article 9.1, all user-facing changes must use feature flags for gradual rollout and fast rollback. The following flags are required:
+
+| Flag Name                    | Controls                                              | Default | Tasks Gated                        |
+| ---------------------------- | ----------------------------------------------------- | ------- | ---------------------------------- |
+| `ENABLE_NEW_SIDEBAR`         | New `SidebarNav` replaces legacy `Sidebar` component  | `false` | T005-01, T005-02                   |
+| `ENABLE_TENANT_THEMING`      | Tenant Theme Settings page and font loading           | `false` | T005-09, T005-10, T005-11, T005-12 |
+| `ENABLE_AUTH_WARNING_BANNER` | `AuthWarningBanner` component display                 | `false` | T005-17                            |
+| `ENABLE_DARK_MODE`           | Dark mode token support and tenant dark-mode variants | `false` | T005-20                            |
+
+**Naming convention**: flags use `ENABLE_` prefix + `SCREAMING_SNAKE_CASE` descriptor, evaluated client-side via a `useFeatureFlag(name)` hook. Flags are configurable per-tenant via the admin API.
+
+**Rollout plan**: Enable progressively — internal tenant first, then beta tenants, then all tenants over a 2-week window. Disable at any time for instant rollback (Constitution Art. 9.1).
+| FR-016 | All user-facing shell changes gated behind feature flags for gradual rollout per Constitution Art. 9.1 | Must | US-001–005 |
 
 ## 5. Non-Functional Requirements
 
@@ -175,12 +192,14 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 Frontend consumes these APIs (defined in other specs):
 
-| Method | Path                    | Description                    | Spec Ref |
-| ------ | ----------------------- | ------------------------------ | -------- |
-| GET    | /api/v1/auth/me         | Current user + tenant context  | 002      |
-| GET    | /api/v1/tenant/plugins  | Enabled plugins with manifests | 004      |
-| GET    | /api/v1/tenant/settings | Tenant theme and configuration | 001      |
-| POST   | /api/v1/auth/refresh    | Token refresh                  | 002      |
+| Method | Path                         | Description                            | Spec Ref |
+| ------ | ---------------------------- | -------------------------------------- | -------- |
+| GET    | /api/v1/auth/me              | Current user + tenant context          | 002      |
+| GET    | /api/v1/tenant/plugins       | Enabled plugins with manifests         | 004      |
+| GET    | /api/v1/tenant/settings      | Tenant theme and configuration         | 001      |
+| PUT    | /api/v1/tenant/settings      | Update tenant theme settings (admin)   | 001      |
+| POST   | /api/v1/tenant/settings/logo | Upload tenant logo — multipart (admin) | 001      |
+| POST   | /api/v1/auth/refresh         | Token refresh                          | 002      |
 
 ## 9. UX/UI Notes
 
@@ -204,17 +223,17 @@ Frontend consumes these APIs (defined in other specs):
 
 ## 12. Constitution Compliance
 
-| Article | Status | Notes                                                                                |
-| ------- | ------ | ------------------------------------------------------------------------------------ |
-| Art. 1  | ✅     | Page load < 2s on 3G (Art. 1.3); WCAG 2.1 AA; mobile responsive                      |
-| Art. 2  | ✅     | React 19, Vite, TanStack Router — all approved stack (Art. 2.1)                      |
-| Art. 3  | ✅     | Module Federation for plugin loading; feature module organization                    |
-| Art. 4  | ✅     | Frontend test coverage via Vitest + Playwright E2E (per ADR-008)                     |
-| Art. 5  | ✅     | Auth context; token validation; no PII in frontend logs                              |
-| Art. 6  | ✅     | Actionable error messages; error boundaries prevent cascading failures               |
-| Art. 7  | ✅     | Kebab-case files; PascalCase components; camelCase functions                         |
-| Art. 8  | ✅     | Unit tests for components; E2E for plugin loading; contract tests for remote modules |
-| Art. 9  | ✅     | Feature flags for gradual rollout of UI changes                                      |
+| Article | Status | Notes                                                                                                                                                       |
+| ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Art. 1  | ✅     | Page load < 2s on 3G (Art. 1.3); WCAG 2.1 AA; mobile responsive                                                                                             |
+| Art. 2  | ✅     | React 19, Vite, TanStack Router — all approved stack (Art. 2.1)                                                                                             |
+| Art. 3  | ✅     | Module Federation for plugin loading; feature module organization                                                                                           |
+| Art. 4  | ✅     | Frontend test coverage via Vitest + Playwright E2E (per ADR-008)                                                                                            |
+| Art. 5  | ✅     | Auth context; token validation; no PII in frontend logs                                                                                                     |
+| Art. 6  | ✅     | Actionable error messages; error boundaries prevent cascading failures                                                                                      |
+| Art. 7  | ✅     | Kebab-case files; PascalCase components; camelCase functions                                                                                                |
+| Art. 8  | ⚠️     | Unit tests for components; E2E for plugin loading; contract tests for Module Federation widget API surface deferred to Spec 010 Phase 3 (tracked as TD-008) |
+| Art. 9  | ✅     | Feature flags for gradual rollout of UI changes                                                                                                             |
 
 ---
 

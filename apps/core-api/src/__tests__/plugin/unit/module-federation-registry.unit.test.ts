@@ -93,6 +93,106 @@ describe('T004-13: ModuleFederationRegistryService', () => {
   });
 
   // -----------------------------------------------------------------------
+  // registerRemoteEntry() — URL validation (SSRF / stored-XSS prevention)
+  // -----------------------------------------------------------------------
+
+  describe('registerRemoteEntry() URL validation', () => {
+    it('should reject a plain HTTP URL', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'http://cdn.example.com/crm/remoteEntry.js')
+      ).rejects.toThrow(/must use HTTPS/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a URL with no protocol', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', '//cdn.example.com/crm/remoteEntry.js')
+      ).rejects.toThrow(/invalid/i);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a completely invalid URL string', async () => {
+      await expect(svc.registerRemoteEntry('crm', 'not-a-url-at-all')).rejects.toThrow(/invalid/i);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a loopback (127.x) address — SSRF prevention', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://127.0.0.1/remoteEntry.js')
+      ).rejects.toThrow(/private or link-local/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a 10.x RFC 1918 address — SSRF prevention', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://10.0.0.1/remoteEntry.js')
+      ).rejects.toThrow(/private or link-local/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a 172.16.x RFC 1918 address — SSRF prevention', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://172.16.0.1/remoteEntry.js')
+      ).rejects.toThrow(/private or link-local/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a 192.168.x RFC 1918 address — SSRF prevention', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://192.168.1.100/remoteEntry.js')
+      ).rejects.toThrow(/private or link-local/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject a 169.254.x link-local address — SSRF prevention', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://169.254.169.254/latest/meta-data/')
+      ).rejects.toThrow(/private or link-local/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject localhost hostname — SSRF prevention', async () => {
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://localhost/remoteEntry.js')
+      ).rejects.toThrow(/private or link-local/);
+
+      expect(db.plugin.update).not.toHaveBeenCalled();
+    });
+
+    it('should accept a valid HTTPS CDN URL', async () => {
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+
+      await expect(
+        svc.registerRemoteEntry('crm', 'https://cdn.example.com/crm/remoteEntry.js', '/crm')
+      ).resolves.toBeUndefined();
+
+      expect(db.plugin.update).toHaveBeenCalledOnce();
+    });
+
+    it('should accept a valid HTTPS MinIO URL', async () => {
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+
+      await expect(
+        svc.registerRemoteEntry(
+          'hr',
+          'https://minio.plexica.io/plugins/hr/1.0.0/remoteEntry.js',
+          '/hr'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(db.plugin.update).toHaveBeenCalledOnce();
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // getActiveRemoteEntries()
   // -----------------------------------------------------------------------
 

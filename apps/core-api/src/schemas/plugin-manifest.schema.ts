@@ -195,7 +195,29 @@ export const PluginManifestSchema = z
 
     // Entry Points (both flat and nested formats supported)
     backend: z.unknown().optional(), // Can be string or complex object
-    frontend: z.unknown().optional(), // Can be string or complex object
+    // SECURITY FIX: remoteEntry is validated as HTTPS-only to prevent SSRF and
+    // stored-XSS via the public GET /api/v1/plugins/remotes endpoint (Constitution Art. 5.3).
+    frontend: z
+      .object({
+        /** Module Federation remoteEntry URL — must use HTTPS (SSRF/XSS prevention) */
+        remoteEntry: z
+          .string()
+          .url({ message: 'remoteEntry must be a valid URL' })
+          .refine((url) => new URL(url).protocol === 'https:', {
+            message: 'remoteEntry must use HTTPS',
+          })
+          .optional(),
+        /** Frontend route prefix for this plugin (e.g., '/crm') */
+        routePrefix: z
+          .string()
+          .regex(/^\/[a-z0-9\-/]*$/, {
+            message: 'routePrefix must be a valid path starting with /',
+          })
+          .optional(),
+        modules: z.array(z.unknown()).optional(),
+        assets: z.array(z.string()).optional(),
+      })
+      .optional(),
     entryPoints: z
       .object({
         backend: z.unknown().optional(),

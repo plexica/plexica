@@ -23,7 +23,9 @@ import { moduleFederationRegistryService } from '../services/module-federation-r
 import { requireSuperAdmin, authMiddleware } from '../middleware/auth.js';
 import { redis } from '../lib/redis.js';
 import type { PluginManifest } from '../types/plugin.types.js';
-import { PluginLifecycleStatus } from '@plexica/database';
+import { PluginLifecycleStatus, type Plugin } from '@plexica/database';
+import { validatePluginManifest } from '../schemas/plugin-manifest.schema.js';
+import { db } from '../lib/db.js';
 
 // Global sentinel tenantId used for platform-level (non-tenant-scoped) operations.
 const GLOBAL_TENANT_ID = '__global__';
@@ -104,18 +106,18 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const { plugins } = await pluginRegistryService.listPlugins({
-          status: request.query.status as any,
-          category: undefined,
+        const { page = 1, limit = 50, status, lifecycleStatus } = request.query;
+        const skip = (Math.max(1, page) - 1) * Math.min(limit, 100);
+        const take = Math.min(Math.max(1, limit), 100);
+
+        const { plugins, total } = await pluginRegistryService.listPlugins({
+          status: status as Plugin['status'] | undefined,
+          lifecycleStatus: lifecycleStatus as PluginLifecycleStatus | undefined,
+          skip,
+          take,
         });
 
-        // Filter by lifecycleStatus when provided
-        const { lifecycleStatus } = request.query;
-        const result = lifecycleStatus
-          ? plugins.filter((p: any) => p.lifecycleStatus === lifecycleStatus)
-          : plugins;
-
-        return reply.code(200).send({ plugins: result, total: result.length });
+        return reply.code(200).send({ plugins, total });
       } catch (error: unknown) {
         request.log.error(error, 'listPlugins failed');
         return reply.code(500).send({
@@ -136,9 +138,19 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     '/plugins',
     { preHandler: [authMiddleware, requireSuperAdmin] },
     async (request: FastifyRequest<{ Body: PluginManifest }>, reply: FastifyReply) => {
+      // Constitution Art. 5.3 §1: validate all external input with Zod before
+      // passing to the service layer. validatePluginManifest wraps PluginManifestSchema.safeParse.
+      const validation = validatePluginManifest(request.body);
+      if (!validation.valid) {
+        const detail = validation.errors?.map((e) => `${e.path}: ${e.message}`).join('; ');
+        return reply.code(400).send({
+          error: { code: 'INVALID_MANIFEST', message: `Invalid plugin manifest: ${detail}` },
+        });
+      }
       try {
         const plugin = await pluginRegistryService.registerPlugin(request.body);
-        return reply.code(200).send(plugin);
+        // Constitution Art. 3.4: resource creation responds with 201 Created.
+        return reply.code(201).send(plugin);
       } catch (error: unknown) {
         request.log.error(error, 'registerPlugin failed');
         const message = error instanceof Error ? error.message : 'Registration failed';
@@ -167,7 +179,8 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
           id,
           request.body ?? {}
         );
-        return reply.code(200).send(result);
+        // Constitution Art. 3.4: resource creation responds with 201 Created.
+        return reply.code(201).send(result);
       } catch (error: unknown) {
         request.log.error({ pluginId: id, error }, 'installPlugin failed');
         const message = error instanceof Error ? error.message : 'Installation failed';
@@ -293,7 +306,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       // Guard: plugin must be ACTIVE
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
-        if ((plugin as any).lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+        if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
           return reply.code(503).send({
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
@@ -350,7 +363,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       // Guard: plugin must be ACTIVE
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
-        if ((plugin as any).lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+        if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
           return reply.code(503).send({
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
@@ -390,7 +403,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       // Guard: plugin must be ACTIVE
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
-        if ((plugin as any).lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+        if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
           return reply.code(503).send({
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
@@ -433,12 +446,21 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware, requireSuperAdmin] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const { plugins } = await pluginRegistryService.listPlugins({});
-        const counts: Record<string, number> = { total: plugins.length };
-        for (const plugin of plugins as any[]) {
-          const ls: string = plugin.lifecycleStatus ?? 'REGISTERED';
-          counts[ls] = (counts[ls] ?? 0) + 1;
+        // Constitution Art. 4.3 (P95 < 200ms): Use database aggregation — avoid
+        // loading all plugin rows into Node.js memory for an in-process groupBy.
+        const [total, groups] = await Promise.all([
+          db.plugin.count(),
+          db.plugin.groupBy({
+            by: ['lifecycleStatus'],
+            _count: { id: true },
+          }),
+        ]);
+
+        const counts: Record<string, number> = { total };
+        for (const row of groups) {
+          counts[row.lifecycleStatus] = row._count.id;
         }
+
         return reply.code(200).send(counts);
       } catch (error: unknown) {
         request.log.error(error, 'getPluginStats failed');
@@ -455,8 +477,25 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
   // ---------------------------------------------------------------------------
   // T004-13: Public — Module Federation remote entry discovery
   // GET /api/v1/plugins/remotes
-  // No auth guard — the frontend shell calls this on startup before the user logs in.
-  // Returns all ACTIVE plugins that have a remoteEntryUrl registered.
+  //
+  // @public-route — Constitution Art. 5.1 exception: intentionally unauthenticated.
+  //
+  // Rationale: The Plexica frontend shell must load Module Federation remote
+  // entries on startup, BEFORE the user has logged in, to register plugin UI
+  // modules into the shell's dynamic import map. Requiring auth here would
+  // create a chicken-and-egg problem: the shell cannot render the login page
+  // if it cannot first discover which plugins are active.
+  //
+  // Security posture:
+  //   - Response is read-only (no mutations).
+  //   - Response shape (RemoteEntry) contains only: pluginId, remoteEntryUrl,
+  //     routePrefix. No container IDs, internal hostnames, credentials, or PII.
+  //   - remoteEntryUrl values are validated to be HTTPS, non-RFC-1918 at write
+  //     time (module-federation-registry.service.ts — SSRF prevention).
+  //   - Data is non-sensitive: the plugin IDs and public CDN URLs exposed here
+  //     are equivalent to information in a public plugin manifest.
+  //
+  // Tracked: decision-log.md (TD — Module Federation bootstrap public endpoint)
   // ---------------------------------------------------------------------------
 
   fastify.get('/remotes', async (_request: FastifyRequest, reply: FastifyReply) => {

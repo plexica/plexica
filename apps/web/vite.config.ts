@@ -44,6 +44,14 @@ export default defineConfig({
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Slug', 'X-Workspace-ID'],
       maxAge: 3600,
     },
+    // T005-15: CSP dev server header (ADR-020)
+    // NOTE: font-src 'self' enforces that fonts are only loaded from the same origin.
+    // This mirrors the meta tag in index.html. Production deployments MUST set this
+    // via HTTP response headers (Nginx / CDN / Fastify @fastify/helmet) because
+    // <meta> CSP cannot enforce frame-ancestors. See TD-007 in decision-log.md.
+    headers: {
+      'Content-Security-Policy': "font-src 'self'",
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

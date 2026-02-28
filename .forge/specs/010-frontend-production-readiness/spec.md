@@ -309,31 +309,35 @@ Frontend consumes these APIs:
 
 ## 12. Constitution Compliance
 
-| Article | Status | Notes                                                                                      |
-| ------- | ------ | ------------------------------------------------------------------------------------------ |
-| Art. 1  | ✅     | Multi-tenancy isolation (tenant theming per tenant); UX standards (error boundaries)       |
-| Art. 2  | ✅     | No new dependencies beyond existing stack (React, Vite, TanStack Router)                   |
-| Art. 3  | ✅     | Error boundaries follow React best practices; theming via context pattern                  |
-| Art. 4  | ✅     | Test coverage target ≥80% (NFR-009); critical components ≥90% (NFR-010)                    |
-| Art. 5  | ✅     | No security impact (frontend-only changes); no PII in error logs                           |
-| Art. 6  | ✅     | Error messages user-friendly (FR-017); structured logging context (FR-018)                 |
-| Art. 7  | ✅     | Naming: PascalCase components (ErrorBoundary, ThemeProvider), camelCase utils (loadWidget) |
-| Art. 8  | ✅     | Test requirements defined (FR-025); unit + integration + E2E tests planned                 |
-| Art. 9  | ✅     | Error boundaries enable zero-downtime plugin updates (isolated failures)                   |
+| Article | Status | Notes                                                                                                                                              |
+| ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Art. 1  | ✅     | Multi-tenancy isolation (tenant theming per tenant); UX standards (error boundaries)                                                               |
+| Art. 2  | ⚠️     | 3 new dependencies added: `pino` (apps/web), `@axe-core/react`, `axe-playwright`. ADR-021 and ADR-022 pending approval before implementation merge |
+| Art. 3  | ✅     | Error boundaries follow React best practices; theming via context pattern                                                                          |
+| Art. 4  | ✅     | Test coverage target ≥80% (NFR-009); critical components ≥90% (NFR-010)                                                                            |
+| Art. 5  | ✅     | No security impact (frontend-only changes); no PII in error logs                                                                                   |
+| Art. 6  | ✅     | Error messages user-friendly (FR-017); structured logging context (FR-018)                                                                         |
+| Art. 7  | ✅     | Naming: PascalCase components (ErrorBoundary, ThemeProvider), camelCase utils (loadWidget)                                                         |
+| Art. 8  | ✅     | Test requirements defined (FR-025); unit + integration + E2E tests planned                                                                         |
+| Art. 9  | ✅     | Error boundaries enable zero-downtime plugin updates (isolated failures)                                                                           |
 
 ---
 
 ## Cross-References
 
-| Document                    | Path                                                    |
-| --------------------------- | ------------------------------------------------------- |
-| Constitution                | `.forge/constitution.md`                                |
-| Spec 005: Frontend Arch     | `.forge/specs/005-frontend-architecture/spec.md`        |
-| Spec 004: Plugin System     | `.forge/specs/004-plugin-system/spec.md`                |
-| ADR-004: Module Federation  | `.forge/knowledge/adr/adr-004-module-federation.md`     |
-| ADR-009: TailwindCSS Tokens | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md` |
-| Frontend App                | `apps/web/`                                             |
-| Brownfield Analysis         | `.forge/knowledge/decision-log.md` (Feb 17, 2026 entry) |
+| Document                     | Path                                                    |
+| ---------------------------- | ------------------------------------------------------- |
+| Constitution                 | `.forge/constitution.md`                                |
+| Spec 005: Frontend Arch      | `.forge/specs/005-frontend-architecture/spec.md`        |
+| Spec 004: Plugin System      | `.forge/specs/004-plugin-system/spec.md`                |
+| ADR-004: Module Federation   | `.forge/knowledge/adr/adr-004-module-federation.md`     |
+| ADR-009: TailwindCSS Tokens  | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md` |
+| ADR-020: Font Hosting        | `.forge/knowledge/adr/adr-020-font-hosting-strategy.md` |
+| ADR-021: Pino Frontend       | `.forge/knowledge/adr/adr-021-pino-frontend.md`         |
+| ADR-022: Axe-Core/Playwright | `.forge/knowledge/adr/adr-022-axe-core-playwright.md`   |
+| Frontend App                 | `apps/web/`                                             |
+| Shared Types Package         | `packages/shared-types/`                                |
+| Brownfield Analysis          | `.forge/knowledge/decision-log.md` (Feb 17, 2026 entry) |
 
 ---
 
@@ -341,12 +345,12 @@ Frontend consumes these APIs:
 
 See `plan.md` for detailed technical design. High-level phases:
 
-1. **Phase 1: Error Boundaries** (1 week, 8h implementation + 8h tests)
-2. **Phase 2: Tenant Theming** (2 weeks, 16h implementation + 10h tests)
+1. **Phase 1: Error Boundaries** (1 week, 8h implementation + 8h tests) ✅ Complete
+2. **Phase 2: Tenant Theming** (2 weeks, 16h implementation + 10h tests + 7h ADR-020 font loading) ✅ Core complete; ADR-020 tasks pending
 3. **Phase 3: Widget System** (1.5 weeks, 12h implementation + 6h tests)
 4. **Phase 4: Test Coverage** (2 weeks, 45h tests)
 5. **Phase 5: Accessibility** (1 week, 10h fixes + audits)
 
-**Total Estimated Effort:** 115 hours across 3 sprints
+**Total Estimated Effort:** 136 hours across 3 sprints
 
 See `tasks.md` for granular task breakdown with story points.

@@ -26,6 +26,8 @@ import {
 import { AlertCircle } from 'lucide-react';
 import { useForm } from '@/hooks/useForm';
 import { toast } from '@/components/ToastProvider';
+import { useFeatureFlag } from '@/lib/feature-flags';
+import { BrandingTab } from './settings.branding';
 import { z } from 'zod';
 import type { WorkspaceMember, Team } from '../types';
 
@@ -80,15 +82,7 @@ function SettingsPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="general" className="max-w-4xl">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="members">Members</TabsTrigger>
-            <TabsTrigger value="teams">Teams</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
-            <TabsTrigger value="advanced">Advanced</TabsTrigger>
-          </TabsList>
+          <SettingsTabsList />
 
           {/* Tab Content */}
           <TabsContent value="general" className="mt-6">
@@ -138,9 +132,36 @@ function SettingsPage() {
               description="Data export, workspace transfer, debug mode, and developer options."
             />
           </TabsContent>
+          {/* Branding tab — only rendered when ENABLE_TENANT_THEMING is on */}
+          <TabsContent value="branding" className="mt-6">
+            <BrandingTab />
+          </TabsContent>
         </Tabs>
       </AppLayout>
     </ProtectedRoute>
+  );
+}
+
+// ─── Settings Tabs List ───────────────────────────────────────────────────────
+
+/**
+ * Renders the TabsList. Branding trigger is shown only when
+ * ENABLE_TENANT_THEMING feature flag is on.
+ */
+function SettingsTabsList() {
+  const brandingEnabled = useFeatureFlag('ENABLE_TENANT_THEMING');
+
+  return (
+    <TabsList className={`grid w-full ${brandingEnabled ? 'grid-cols-8' : 'grid-cols-7'}`}>
+      <TabsTrigger value="general">General</TabsTrigger>
+      <TabsTrigger value="members">Members</TabsTrigger>
+      <TabsTrigger value="teams">Teams</TabsTrigger>
+      <TabsTrigger value="security">Security</TabsTrigger>
+      <TabsTrigger value="billing">Billing</TabsTrigger>
+      <TabsTrigger value="integrations">Integrations</TabsTrigger>
+      <TabsTrigger value="advanced">Advanced</TabsTrigger>
+      {brandingEnabled && <TabsTrigger value="branding">Branding</TabsTrigger>}
+    </TabsList>
   );
 }
 

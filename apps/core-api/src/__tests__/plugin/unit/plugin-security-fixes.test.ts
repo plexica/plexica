@@ -64,7 +64,7 @@ describe('Milestone 4 Security Fixes', () => {
   let registryService: PluginRegistryService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks(); // Must use resetAllMocks — clearAllMocks does NOT reset mockImplementation
     registryService = new PluginRegistryService();
   });
 
@@ -642,7 +642,7 @@ describe('Milestone 4 Security Fixes', () => {
         status: 'PUBLISHED',
         lifecycleStatus: 'REGISTERED',
       } as any);
-      // Call 2: transitionLifecycleStatus(INSTALLING) — only lifecycleStatus selected
+      // Call 2 (inside tx): inline REGISTERED→INSTALLING transition — lifecycleStatus check
       vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         lifecycleStatus: 'REGISTERED',
       } as any);
@@ -653,14 +653,21 @@ describe('Milestone 4 Security Fixes', () => {
 
       vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
+      // Call order:
+      // 1. outer optimistic check (line ~558)
+      // 2. checkDependencies lookup for 'plugin-analytics' (line ~618)
+      // 3. in-tx TOCTOU re-check (inside $transaction callback)
       vi.mocked(db.tenantPlugin.findUnique)
-        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null) // outer optimistic check
         .mockResolvedValueOnce({
           tenantId: 'tenant-1',
           pluginId: 'plugin-analytics',
           enabled: true,
           plugin: analyticsPlugin,
-        } as any);
+        } as any) // checkDependencies: plugin-analytics installed
+        .mockResolvedValueOnce(null); // in-tx TOCTOU re-check
+
+      vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0); // in-tx isFirstInstall count
 
       vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
         return callback(db);
@@ -743,7 +750,7 @@ describe('Milestone 4 Security Fixes', () => {
         status: 'PUBLISHED',
         lifecycleStatus: 'REGISTERED',
       } as any);
-      // Call 2: transitionLifecycleStatus(INSTALLING)
+      // Call 2 (inside tx): inline REGISTERED→INSTALLING transition — lifecycleStatus check
       vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         lifecycleStatus: 'REGISTERED',
       } as any);
@@ -754,14 +761,22 @@ describe('Milestone 4 Security Fixes', () => {
 
       vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
+      // db.tenantPlugin.findUnique call order (checkDependencies runs BEFORE the tx):
+      //   1. outer optimistic check (line 558) → null
+      //   2. checkDependencies: look up 'plugin-utils' (line 618 / checkDependencies) → utilsPlugin
+      //   3. in-tx TOCTOU re-check (tx === db, same mock queue) → null
       vi.mocked(db.tenantPlugin.findUnique)
-        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null) // outer optimistic check
         .mockResolvedValueOnce({
+          // checkDependencies: plugin-utils is installed
           tenantId: 'tenant-1',
           pluginId: 'plugin-utils',
           enabled: true,
           plugin: utilsPlugin,
-        } as any);
+        } as any)
+        .mockResolvedValueOnce(null); // in-tx TOCTOU re-check (tx === db)
+
+      vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0); // in-tx isFirstInstall count
 
       vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
         return callback(db);
@@ -873,6 +888,128 @@ describe('Milestone 4 Security Fixes', () => {
       // Both should use default logger from lib/logger.ts
       expect(registryService).toBeDefined();
       expect(lifecycleService).toBeDefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // TOCTOU race condition fix (Issue #7)
+  // ---------------------------------------------------------------------------
+
+  describe('Issue #7: TOCTOU Race Condition Fix (installPlugin)', () => {
+    let lifecycleService: PluginLifecycleService;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      lifecycleService = new PluginLifecycleService();
+    });
+
+    it('should reject a concurrent install when in-tx re-check finds existing row', async () => {
+      // Arrange: outer optimistic check returns null (races past), but the in-tx
+      // re-check finds the row (simulating that another request committed first).
+      const pluginManifest = {
+        id: 'plugin-crm',
+        name: 'CRM Plugin',
+        version: '1.0.0',
+      };
+
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        id: 'plugin-crm',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
+      } as any);
+
+      // Outer optimistic check → null (passes through)
+      vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(null);
+
+      // In-tx re-check → existing row found (concurrent install committed first)
+      vi.mocked(db.$transaction).mockImplementation(async (callback: any) => {
+        // Inside the tx, tenantPlugin.findUnique returns an existing row
+        const txDb = {
+          ...db,
+          tenantPlugin: {
+            ...db.tenantPlugin,
+            findUnique: vi.fn().mockResolvedValueOnce({
+              tenantId: 'tenant-1',
+              pluginId: 'plugin-crm',
+              enabled: false,
+            }),
+            count: vi.fn().mockResolvedValueOnce(1),
+            create: vi.fn(),
+          },
+          plugin: {
+            ...db.plugin,
+            findUnique: vi.fn(),
+            update: vi.fn(),
+          },
+        };
+        return callback(txDb);
+      });
+
+      // Act & Assert
+      await expect(lifecycleService.installPlugin('tenant-1', 'plugin-crm')).rejects.toThrow(
+        /already installed/
+      );
+
+      // The tenantPlugin row must not have been created
+      expect(db.tenantPlugin.create).not.toHaveBeenCalled();
+    });
+
+    it('should succeed for a legitimate first install with atomic transaction', async () => {
+      // Arrange: clean state — no existing installation for this tenant
+      const pluginManifest = {
+        id: 'plugin-hr',
+        name: 'HR Plugin',
+        version: '2.0.0',
+      };
+
+      // db.plugin.findUnique call order (tx === db, all calls from same mock queue):
+      //   Call 1: registry.getPlugin() (outer) → full plugin
+      //   Call 2: inside tx — inline REGISTERED→INSTALLING check → lifecycleStatus: REGISTERED
+      //   Call 3: post-tx transitionLifecycleStatus(INSTALLED) → lifecycleStatus: INSTALLING
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        id: 'plugin-hr',
+        manifest: pluginManifest,
+        status: 'PUBLISHED',
+        lifecycleStatus: 'REGISTERED',
+      } as any);
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'REGISTERED', // in-tx REGISTERED→INSTALLING check
+      } as any);
+      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
+        lifecycleStatus: 'INSTALLING', // post-tx transitionLifecycleStatus(INSTALLED) check
+      } as any);
+
+      vi.mocked(db.plugin.update).mockResolvedValue({} as any);
+
+      // db.tenantPlugin.findUnique call order (tx === db):
+      //   Call 1: outer optimistic check → null
+      //   Call 2: in-tx TOCTOU re-check → null
+      vi.mocked(db.tenantPlugin.findUnique)
+        .mockResolvedValueOnce(null) // outer optimistic check
+        .mockResolvedValueOnce(null); // in-tx TOCTOU re-check
+
+      vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0); // in-tx isFirstInstall count
+
+      // $transaction: pass db as tx (tx === db pattern — all queued values consumed in order)
+      vi.mocked(db.$transaction).mockImplementation(async (callback: any) => callback(db));
+
+      vi.mocked(db.tenantPlugin.create).mockResolvedValue({
+        tenantId: 'tenant-1',
+        pluginId: 'plugin-hr',
+        enabled: false,
+        plugin: { id: 'plugin-hr' },
+        tenant: { id: 'tenant-1' },
+      } as any);
+
+      // Act
+      const result = await lifecycleService.installPlugin('tenant-1', 'plugin-hr');
+
+      // Assert
+      expect(result.pluginId).toBe('plugin-hr');
+      expect(db.tenantPlugin.create).toHaveBeenCalledOnce();
+      // INSTALLING transition happened inside tx (via db.plugin.update inside tx callback)
+      expect(db.plugin.update).toHaveBeenCalled();
     });
   });
 });

@@ -18,14 +18,19 @@
  * Constitution Compliance:
  *   - Article 1.2 §2 (Multi-Tenancy Isolation): tenantId always resolved from authenticated JWT
  *   - Article 3.4 (API Standards): versioned endpoints, standard error format
- *   - Article 5.1 (Auth): all routes require authMiddleware
+ *   - Article 5.1 (Auth): all routes require authMiddleware; mutation routes additionally
+ *     require tenant_admin / tenant_owner / admin role (requireRole guard)
  *   - Article 6.2 (Error Response Format): { error: { code, message } }
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { pluginLifecycleService } from '../services/plugin.service.js';
 import { tenantService } from '../services/tenant.service.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireRole } from '../middleware/auth.js';
+
+// Roles that are allowed to manage plugins for a tenant (enable/disable/configure).
+// Constitution Art. 5.1: RBAC on all protected mutation endpoints.
+const requireTenantPluginAdmin = requireRole('tenant_admin', 'tenant_owner', 'admin');
 
 // ---------------------------------------------------------------------------
 // Helper: resolve tenantId from JWT
@@ -114,7 +119,7 @@ export async function tenantPluginsV1Routes(fastify: FastifyInstance) {
    */
   fastify.post<{ Params: { id: string } }>(
     '/tenant/plugins/:id/enable',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireTenantPluginAdmin] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const tenantId = await resolveTenantId(request, reply);
       if (!tenantId) return;
@@ -151,7 +156,7 @@ export async function tenantPluginsV1Routes(fastify: FastifyInstance) {
    */
   fastify.post<{ Params: { id: string } }>(
     '/tenant/plugins/:id/disable',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireTenantPluginAdmin] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const tenantId = await resolveTenantId(request, reply);
       if (!tenantId) return;
@@ -177,7 +182,7 @@ export async function tenantPluginsV1Routes(fastify: FastifyInstance) {
    */
   fastify.put<{ Params: { id: string }; Body: Record<string, unknown> }>(
     '/tenant/plugins/:id/config',
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware, requireTenantPluginAdmin] },
     async (
       request: FastifyRequest<{ Params: { id: string }; Body: Record<string, unknown> }>,
       reply: FastifyReply

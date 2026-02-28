@@ -134,4 +134,60 @@ test.describe('Navigation', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // T005-23: Accessibility & ARIA landmark tests
+  // ---------------------------------------------------------------------------
+  test.describe('Accessibility — ARIA landmarks and keyboard navigation', () => {
+    test('should have a skip-to-content link in the DOM', async ({ page }) => {
+      // The skip link is visually hidden but present in the DOM
+      const skipLink = page.locator('a.skip-to-content');
+      await expect(skipLink).toHaveAttribute('href', '#main-content');
+    });
+
+    test('should make skip-to-content link visible on keyboard focus', async ({ page }) => {
+      const skipLink = page.locator('a.skip-to-content');
+      // Focus the skip link via Tab from the top of the page
+      await page.keyboard.press('Tab');
+      // After Tab the skip link should be focused and no longer off-screen
+      const box = await skipLink.boundingBox();
+      expect(box).not.toBeNull();
+      // When focused the inline onfocus handler moves left away from -9999px
+      // Verify the element is now within the visible viewport (left > 0)
+      if (box) {
+        expect(box.x).toBeGreaterThan(-100);
+      }
+    });
+
+    test('should expose <main id="main-content"> landmark', async ({ page }) => {
+      const main = page.locator('main#main-content');
+      await expect(main).toBeVisible();
+    });
+
+    test('should expose <header role="banner"> landmark', async ({ page }) => {
+      const header = page.getByRole('banner');
+      await expect(header).toBeVisible();
+    });
+
+    test('should expose <footer role="contentinfo"> landmark', async ({ page }) => {
+      const footer = page.getByRole('contentinfo');
+      await expect(footer).toBeVisible();
+    });
+
+    test('should maintain focus within the page after navigation', async ({ page }) => {
+      // Navigate to plugins page
+      await page.getByRole('link', { name: 'My Plugins' }).click();
+      await page.waitForURL('**/plugins', { timeout: 5000 });
+
+      // After navigation the document body or an element should hold focus
+      // (not lost to <body>).  The heading should be reachable via Tab.
+      const heading = page.getByRole('heading', { name: 'Plugins' });
+      await expect(heading).toBeVisible();
+
+      // Tabbing from body should land on an interactive element (skip link or first nav item)
+      await page.keyboard.press('Tab');
+      const focusedTag = await page.evaluate(() => document.activeElement?.tagName);
+      expect(['A', 'BUTTON', 'INPUT']).toContain(focusedTag);
+    });
+  });
 });

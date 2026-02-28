@@ -68,6 +68,30 @@ export class DockerContainerAdapter implements ContainerAdapter {
       // Ensure the plugin network exists
       await this.ensureNetwork();
 
+      // Idempotency guard: if a container with this name already exists and is
+      // running, return immediately (safe to call start() more than once).
+      // If it exists but is stopped/exited, remove it so we can re-create fresh.
+      try {
+        const existing = this.docker.getContainer(containerName);
+        const info = await existing.inspect();
+        if (info.State?.Running) {
+          this.log.info(
+            { pluginId, containerName },
+            'Container already running — start() is a no-op'
+          );
+          return;
+        }
+        // Exists but not running — remove it so we can start fresh
+        this.log.info({ pluginId, containerName }, 'Removing stopped container before re-create');
+        await existing.remove({ force: true });
+      } catch (existErr: unknown) {
+        const existMsg = existErr instanceof Error ? existErr.message : String(existErr);
+        // "No such container" is expected on first start — proceed normally
+        if (!existMsg.includes('No such container') && !existMsg.includes('no such container')) {
+          throw existErr;
+        }
+      }
+
       // Pull image if not already present locally
       await this.pullImageIfMissing(config.image);
 
@@ -135,7 +159,7 @@ export class DockerContainerAdapter implements ContainerAdapter {
     }
   }
 
-  async health(pluginId: string): Promise<'healthy' | 'unhealthy' | 'starting'> {
+  async health(pluginId: string): Promise<'healthy' | 'unhealthy' | 'starting' | 'not_found'> {
     const containerName = `${CONTAINER_PREFIX}${pluginId}`;
 
     try {
@@ -154,6 +178,11 @@ export class DockerContainerAdapter implements ContainerAdapter {
       return info.State?.Running ? 'healthy' : 'unhealthy';
     } catch (cause: unknown) {
       const msg = cause instanceof Error ? cause.message : String(cause);
+      // Container does not exist — distinct from unhealthy (ADR-019)
+      if (msg.includes('No such container') || msg.includes('no such container')) {
+        this.log.debug({ pluginId }, 'Container not found during health check');
+        return 'not_found';
+      }
       this.log.warn({ pluginId, error: msg }, 'Health check failed');
       return 'unhealthy';
     }

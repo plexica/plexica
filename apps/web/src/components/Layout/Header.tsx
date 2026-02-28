@@ -46,7 +46,10 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4">
+    <header
+      role="banner"
+      className="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4"
+    >
       {/* Left Section - Logo and Menu (Mobile) */}
       <div className="flex items-center gap-4">
         {/* Hamburger menu button for mobile */}

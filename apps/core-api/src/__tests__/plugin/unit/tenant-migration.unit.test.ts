@@ -154,7 +154,7 @@ describe('TenantMigrationService — DDL-only validation', () => {
 
       await expect(
         service.runPluginMigrations('evil-plugin', [{ name: `bad_migration_${keyword}`, sql }])
-      ).rejects.toThrow(`forbidden DML keyword '${keyword}'`);
+      ).rejects.toThrow(`forbidden SQL keyword '${keyword}'`);
     });
   }
 
@@ -199,6 +199,137 @@ describe('TenantMigrationService — DDL-only validation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Expanded FORBIDDEN_SQL_KEYWORDS tests (security hardening — Fix 2)
+// Each entry maps to a keyword or pattern added beyond the original 4 DML words.
+// ---------------------------------------------------------------------------
+
+describe('TenantMigrationService — expanded SQL keyword blocklist', () => {
+  let service: TenantMigrationService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new TenantMigrationService();
+    // Provide a tenant so the fail-fast validation runs (it runs before any DB call)
+    vi.mocked(db.tenant.findMany).mockResolvedValue([ACTIVE_TENANTS[0]] as any);
+  });
+
+  const expandedCases = [
+    // Destructive DDL
+    { keyword: 'DROP', sql: 'DROP TABLE crm_contacts' },
+    { keyword: 'TRUNCATE', sql: 'TRUNCATE TABLE crm_contacts' },
+    // Privilege management
+    { keyword: 'GRANT', sql: 'GRANT ALL ON crm_contacts TO app_user' },
+    { keyword: 'REVOKE', sql: 'REVOKE ALL ON crm_contacts FROM app_user' },
+    // Execution / file I/O — use SQL that ONLY contains the target keyword
+    { keyword: 'COPY', sql: 'COPY crm_contacts (name) FROM STDIN' },
+    { keyword: 'EXECUTE', sql: 'EXECUTE my_prepared_statement' },
+    { keyword: 'EXEC', sql: 'EXEC my_stored_proc' },
+    // DO uses dollar-quoting; SQL must not contain other blocked keywords
+    { keyword: 'DO', sql: "DO $$ BEGIN RAISE NOTICE 'hello'; END $$" },
+    { keyword: 'CALL', sql: 'CALL some_procedure()' },
+    // Session manipulation
+    { keyword: 'SET', sql: 'SET search_path TO public' },
+    // Stored code creation (multi-word patterns)
+    // Use SQL bodies that avoid hitting other blocked keywords
+    {
+      keyword: 'CREATE FUNCTION',
+      sql: 'CREATE FUNCTION noop() RETURNS void LANGUAGE sql AS $$ $$ ',
+    },
+    {
+      keyword: 'CREATE PROCEDURE',
+      sql: 'CREATE PROCEDURE noop() LANGUAGE sql AS $$ $$',
+    },
+    // NOTE: Standard PostgreSQL trigger syntax always contains EXECUTE FUNCTION/PROCEDURE,
+    // which hits the EXECUTE keyword before CREATE TRIGGER in the blocklist loop.
+    // The security property is still proven: any SQL that creates a trigger is rejected.
+    // We assert rejection without specifying which forbidden keyword matched.
+    {
+      keyword: 'CREATE TRIGGER',
+      sql: 'CREATE TRIGGER trg AFTER UPDATE ON crm_contacts FOR EACH ROW EXECUTE PROCEDURE noop()',
+    },
+  ];
+
+  for (const { keyword, sql } of expandedCases) {
+    it(`should reject migration containing '${keyword}' (forbidden SQL keyword)`, async () => {
+      await expect(
+        service.runPluginMigrations('evil-plugin', [
+          { name: `bad_migration_${keyword.replace(' ', '_')}`, sql },
+        ])
+      ).rejects.toThrow(
+        // CREATE TRIGGER SQL inevitably contains EXECUTE PROCEDURE/FUNCTION, so the first
+        // keyword match may be EXECUTE rather than CREATE TRIGGER. Any forbidden keyword
+        // match proves the security property: trigger-creation SQL is blocked.
+        keyword === 'CREATE TRIGGER'
+          ? /forbidden SQL keyword '/
+          : new RegExp(`forbidden SQL keyword '${keyword.replace('(', '\\(').replace(')', '\\)')}'`)
+      );
+    });
+  }
+
+  it('should reject DROP even when mixed-case (case-insensitive check)', async () => {
+    await expect(
+      service.runPluginMigrations('evil-plugin', [
+        { name: 'mixed_case_drop', sql: 'drop table crm_contacts' },
+      ])
+    ).rejects.toThrow(/forbidden SQL keyword 'DROP'/);
+  });
+
+  it('should reject TRUNCATE at start of statement', async () => {
+    await expect(
+      service.runPluginMigrations('evil-plugin', [
+        { name: 'truncate_test', sql: 'TRUNCATE crm_contacts RESTART IDENTITY' },
+      ])
+    ).rejects.toThrow(/forbidden SQL keyword 'TRUNCATE'/);
+  });
+
+  it('should NOT reject CREATE TABLE (legitimate DDL)', async () => {
+    vi.mocked(db.$transaction).mockImplementation(async (fn) => {
+      const tx = {
+        $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+      };
+      return fn(tx as any);
+    });
+
+    // Should not throw
+    const results = await service.runPluginMigrations('good-plugin', [
+      { name: '001_create', sql: 'CREATE TABLE crm_contacts (id BIGSERIAL PRIMARY KEY)' },
+    ]);
+    expect(results[0].success).toBe(true);
+  });
+
+  it('should NOT reject CREATE INDEX (legitimate DDL)', async () => {
+    vi.mocked(db.$transaction).mockImplementation(async (fn) => {
+      const tx = {
+        $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+      };
+      return fn(tx as any);
+    });
+
+    const results = await service.runPluginMigrations('good-plugin', [
+      { name: '001_index', sql: 'CREATE INDEX idx_crm_contacts_email ON crm_contacts (email)' },
+    ]);
+    expect(results[0].success).toBe(true);
+  });
+
+  it('should NOT reject CREATE TYPE (legitimate DDL)', async () => {
+    vi.mocked(db.$transaction).mockImplementation(async (fn) => {
+      const tx = {
+        $executeRawUnsafe: vi.fn().mockResolvedValue(undefined),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+      };
+      return fn(tx as any);
+    });
+
+    const results = await service.runPluginMigrations('good-plugin', [
+      { name: '001_type', sql: "CREATE TYPE contact_status AS ENUM ('active', 'inactive')" },
+    ]);
+    expect(results[0].success).toBe(true);
+  });
+});
+
 describe('TenantMigrationService.rollbackPluginMigrations', () => {
   let service: TenantMigrationService;
 
@@ -230,8 +361,11 @@ describe('TenantMigrationService.rollbackPluginMigrations', () => {
       return fn(tx as any);
     });
 
+    // NOTE: DROP is now a forbidden keyword (Fix 2 security hardening).
+    // Rollback SQL must use non-destructive DDL — e.g. rename the table so the
+    // schema change is reversible without data loss.
     const result = await service.rollbackPluginMigrations('test-plugin', ACTIVE_TENANTS[0].id, [
-      { name: '001_rollback', sql: 'DROP TABLE IF EXISTS crm_contacts' },
+      { name: '001_rollback', sql: 'ALTER TABLE crm_contacts RENAME TO crm_contacts_archived' },
     ]);
 
     expect(result.success).toBe(true);

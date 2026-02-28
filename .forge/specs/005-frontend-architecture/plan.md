@@ -73,7 +73,7 @@ SessionExpiredModal, and several route files.
 
 ### 1.2 Approach
 
-The plan is organised into **5 phases** totalling ~42 story points across
+The plan is organised into **5 phases** totalling **44 story points** across
 ~24 tasks. Phases are sequenced so foundational work (shell layout, sidebar,
 breadcrumbs) comes first, followed by theming infrastructure, then the admin
 UI, then auth UX enhancements, and finally accessibility hardening.
@@ -185,32 +185,43 @@ Per ADR-020, a static font manifest is maintained as a JSON file:
   "version": 1,
   "fonts": [
     {
-      "family": "Inter",
+      "id": "inter",
+      "name": "Inter",
       "category": "sans-serif",
-      "variants": [
-        { "weight": 400, "style": "normal", "file": "inter-400.woff2" },
-        { "weight": 500, "style": "normal", "file": "inter-500.woff2" },
-        { "weight": 600, "style": "normal", "file": "inter-600.woff2" },
-        { "weight": 700, "style": "normal", "file": "inter-700.woff2" }
-      ]
+      "weights": [400, 500, 600, 700],
+      "license": "SIL OFL 1.1",
+      "fallback": "system-ui, -apple-system, sans-serif",
+      "files": {
+        "400": "inter/inter-400.woff2",
+        "500": "inter/inter-500.woff2",
+        "600": "inter/inter-600.woff2",
+        "700": "inter/inter-700.woff2"
+      }
     },
     {
-      "family": "Roboto",
+      "id": "roboto",
+      "name": "Roboto",
       "category": "sans-serif",
-      "variants": [
-        { "weight": 400, "style": "normal", "file": "roboto-400.woff2" },
-        { "weight": 500, "style": "normal", "file": "roboto-500.woff2" },
-        { "weight": 700, "style": "normal", "file": "roboto-700.woff2" }
-      ]
+      "weights": [400, 500, 700],
+      "license": "Apache 2.0",
+      "fallback": "system-ui, -apple-system, sans-serif",
+      "files": {
+        "400": "roboto/roboto-400.woff2",
+        "500": "roboto/roboto-500.woff2",
+        "700": "roboto/roboto-700.woff2"
+      }
     }
   ]
 }
 ```
 
 The full manifest will contain ~25 font families (per ADR-020 §"Curated
-Library"). Each font includes only WOFF2 files (best compression, >98%
-browser support). Files are stored at `apps/web/public/fonts/[file]` during
-development and served from MinIO/CDN in production.
+Library"). Each entry conforms to the `FontDefinition` interface defined in
+`packages/shared-types/src/fonts.ts` — fields are `id`, `name`, `category`,
+`weights` (number array), `license`, `fallback`, and `files` (weight-keyed
+path map). Only WOFF2 files are included (best compression, >98% browser
+support). Files are stored at `apps/web/public/fonts/[id]/[id]-[weight].woff2`
+during development and served from MinIO/CDN in production.
 
 ---
 
@@ -626,7 +637,7 @@ to avoid unnecessary dependency.
 **Objective**: Redesign sidebar, add breadcrumbs, enforce route namespaces,
 add plugin 404 page, and create the WidgetContainer wrapper.
 
-**Story Points**: 11
+**Story Points**: 12
 
 **Dependencies**: Spec 010 Phase 1 (PluginErrorBoundary) should be complete
 or in progress.
@@ -1019,7 +1030,7 @@ aria-label="Main navigation">`, `<main id="main-content" role="main">`,
 
 #### Contract Tests (Deferred)
 
-Constitution Art. 8.1 requires contract tests for all plugin-to-core API interactions. Module Federation's runtime resolution provides implicit contract enforcement for remote entries; explicit Pact/contract tests for the widget API surface are deferred to Spec 010 Phase 3 or a dedicated testing spec. Tracked as technical debt (see decision-log.md TD-007).
+Constitution Art. 8.1 requires contract tests for all plugin-to-core API interactions. Module Federation's runtime resolution provides implicit contract enforcement for remote entries; explicit Pact/contract tests for the widget API surface are deferred to Spec 010 Phase 3 or a dedicated testing spec. Tracked as technical debt (see decision-log.md TD-008).
 
 ### 9.5 Total Test Count
 
@@ -1070,7 +1081,7 @@ Per Constitution Article 9.1, all user-facing changes require feature flags for 
 | ADR-004 | Module Federation for plugin loading | Accepted | Plugin remote loading architecture                    |
 | ADR-009 | TailwindCSS v4 semantic tokens       | Accepted | Runtime theme customisation via CSS custom properties |
 | ADR-011 | Vite Module Federation               | Accepted | Vite plugin for Module Federation                     |
-| ADR-020 | Self-hosted fonts via MinIO/CDN      | Proposed | Font hosting strategy — GDPR, CSP, performance        |
+| ADR-020 | Self-hosted fonts via MinIO/CDN      | Accepted | Font hosting strategy — GDPR, CSP, performance        |
 
 ### 11.1 New Decisions Made in This Plan
 

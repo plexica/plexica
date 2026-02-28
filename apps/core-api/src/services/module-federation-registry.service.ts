@@ -31,12 +31,38 @@ export class ModuleFederationRegistryService {
    * Store (or update) the remoteEntry URL and optional route prefix for a plugin.
    * Called by PluginLifecycleService.installPlugin() when the manifest declares
    * a `frontend.remoteEntry` URL.
+   *
+   * SECURITY: Validates that the URL uses HTTPS and does not target private/
+   * link-local addresses (SSRF prevention, Constitution Art. 5.3).
    */
   async registerRemoteEntry(
     pluginId: string,
     remoteEntryUrl: string,
     routePrefix?: string | null
   ): Promise<void> {
+    // Runtime SSRF guard: enforce HTTPS and block RFC 1918 / link-local addresses.
+    // Schema-level validation (plugin-manifest.schema.ts) catches this at manifest
+    // parse time, but this layer defends against callers that bypass the schema.
+    let parsed: URL;
+    try {
+      parsed = new URL(remoteEntryUrl);
+    } catch {
+      throw new Error(`remoteEntry URL is invalid: ${remoteEntryUrl}`);
+    }
+
+    if (parsed.protocol !== 'https:') {
+      throw new Error(`remoteEntry URL must use HTTPS, got: ${parsed.protocol}`);
+    }
+
+    // Block RFC 1918, loopback, and link-local addresses (SSRF prevention).
+    const RFC_1918_OR_LOCAL =
+      /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|\[::1\]$|localhost$)/i;
+    if (RFC_1918_OR_LOCAL.test(parsed.hostname)) {
+      throw new Error(
+        `remoteEntry URL must not target a private or link-local address: ${parsed.hostname}`
+      );
+    }
+
     this.logger.info(
       { pluginId, remoteEntryUrl, routePrefix },
       'T004-13: Registering Module Federation remote entry'

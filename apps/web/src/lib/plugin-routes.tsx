@@ -4,6 +4,67 @@ import { Suspense, lazy, type ComponentType } from 'react';
 import type { LoadedPlugin } from './plugin-loader';
 import { pluginLoader } from './plugin-loader';
 
+// ---------------------------------------------------------------------------
+// Reserved routes (FR-008) — plugins may NOT register these prefixes
+// ---------------------------------------------------------------------------
+
+export const RESERVED_ROUTES = [
+  '/',
+  '/settings',
+  '/admin',
+  '/profile',
+  '/team',
+  '/login',
+  '/auth',
+] as const;
+
+/**
+ * Returns `true` when `prefix` matches a reserved core shell route.
+ * Normalises trailing slashes before comparing.
+ */
+export function isReservedRoute(prefix: string): boolean {
+  const normalised = prefix.replace(/\/+$/, '') || '/';
+  return (RESERVED_ROUTES as readonly string[]).includes(normalised);
+}
+
+/**
+ * Returns `true` when `prefix` is already claimed by an existing registered plugin.
+ * Uses the singleton `pluginRouteManager` instance — call after construction.
+ */
+export function hasConflict(prefix: string, existingRoutes: Map<string, unknown>): boolean {
+  const normalised = prefix.replace(/\/+$/, '') || '/';
+  for (const [, route] of existingRoutes) {
+    const r = route as { path: string };
+    if (r.path === normalised) return true;
+  }
+  return false;
+}
+
+/**
+ * Attempt to register a plugin prefix.
+ * Returns `true` on success; `false` + `console.warn` on rejection.
+ */
+export function registerPlugin(
+  pluginId: string,
+  prefix: string,
+  existingRoutes: Map<string, unknown>
+): boolean {
+  if (isReservedRoute(prefix)) {
+    console.warn(
+      `[PluginRoutes] Rejected plugin "${pluginId}" — prefix "${prefix}" is a reserved route. ` +
+        `Reserved routes: ${RESERVED_ROUTES.join(', ')}`
+    );
+    return false;
+  }
+  if (hasConflict(prefix, existingRoutes)) {
+    console.warn(
+      `[PluginRoutes] Rejected plugin "${pluginId}" — prefix "${prefix}" conflicts with an already-registered plugin.`
+    );
+    return false;
+  }
+  return true;
+}
+
 export interface DynamicPluginRoute {
   path: string;
   pluginId: string;

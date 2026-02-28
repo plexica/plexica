@@ -3,8 +3,16 @@
 // Tests:
 //   1. registerPluginPermissions is called with correctly mapped args after install
 //   2. registerPluginPermissions is NOT called when manifest has no permissions
-//   3. On PERMISSION_KEY_CONFLICT, tenantPlugin row is deleted AND lifecycleStatus
+//   3. registerPluginPermissions is NOT called when manifest has empty permissions array
+//   4. On PERMISSION_KEY_CONFLICT, tenantPlugin row is deleted AND lifecycleStatus
 //      is reset to REGISTERED (T004-05 requirement)
+//
+// Mock call sequence for db.plugin.findUnique when $transaction uses a custom tx object:
+//   Call 1: registry.getPlugin() — full plugin (outer, uses db directly)
+//   Call 2: transitionLifecycleStatus(INSTALLED) post-tx — uses db directly
+//   NOTE: The inline REGISTERED→INSTALLING check inside the tx uses tx.plugin.findUnique,
+//         NOT db.plugin.findUnique. Do NOT queue a separate "Call 2 for INSTALLING"
+//         on db.plugin.findUnique — that would consume the Call 2 slot prematurely.
 //
 // Constitution compliance:
 //   Article 5.1 / 5.3: Permission keys validated via PermissionRegistrationService
@@ -116,6 +124,25 @@ const mockInstallation = {
   tenant: { id: TENANT_ID, slug: TENANT_SLUG },
 };
 
+// Helper: builds the full tx mock required by the TOCTOU-safe transaction block.
+// When db.$transaction is given a custom tx object, tx.plugin.findUnique handles
+// the inline REGISTERED→INSTALLING transition — NOT db.plugin.findUnique.
+function makeTx(installation = mockInstallation) {
+  return {
+    tenantPlugin: {
+      findUnique: vi.fn().mockResolvedValueOnce(null), // in-tx TOCTOU re-check → not installed
+      count: vi.fn().mockResolvedValueOnce(0),         // isFirstInstall → true
+      create: vi.fn().mockResolvedValue(installation),
+    },
+    plugin: {
+      findUnique: vi.fn().mockResolvedValueOnce({      // inline REGISTERED→INSTALLING check
+        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+      }),
+      update: vi.fn().mockResolvedValue({} as any),
+    },
+  };
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('PluginLifecycleService — permission registration wiring (T004-05)', () => {
@@ -128,21 +155,18 @@ describe('PluginLifecycleService — permission registration wiring (T004-05)', 
 
   it('should call registerPluginPermissions with correctly mapped args after successful install', async () => {
     // Arrange
-    // Call 1: registry.getPlugin() — full plugin object
+    // Call 1 (db): registry.getPlugin() — full plugin object
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(mockPlugin as any);
-    // Call 2: transitionLifecycleStatus(INSTALLING) — select lifecycleStatus
-    vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
-      lifecycleStatus: PluginLifecycleStatus.REGISTERED,
-    } as any);
-    // Call 3: transitionLifecycleStatus(INSTALLED) after success — select lifecycleStatus
+    // Call 2 (db): transitionLifecycleStatus(INSTALLED) after tx commits
+    // The REGISTERED→INSTALLING check runs inside the tx via tx.plugin.findUnique.
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
       lifecycleStatus: PluginLifecycleStatus.INSTALLING,
     } as any);
-    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    // Outer optimistic check: plugin not yet installed
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(null);
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
-    vi.mocked(db.$transaction).mockImplementation(async (fn: any) =>
-      fn({ tenantPlugin: { create: vi.fn().mockResolvedValue(mockInstallation) } })
-    );
+    // $transaction: full tx with all methods required by the TOCTOU-safe block
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(makeTx()));
     vi.mocked(db.tenant.findUnique).mockResolvedValue({ id: TENANT_ID, slug: TENANT_SLUG } as any);
     vi.mocked(permissionRegistrationService.registerPluginPermissions).mockResolvedValue(undefined);
 
@@ -168,21 +192,17 @@ describe('PluginLifecycleService — permission registration wiring (T004-05)', 
       ...mockPlugin,
       manifest: { ...manifestWithPerms, permissions: undefined },
     };
-    // Call 1: registry.getPlugin()
+    // Call 1 (db): registry.getPlugin()
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(pluginNoPerms as any);
-    // Call 2: transitionLifecycleStatus(INSTALLING)
-    vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
-      lifecycleStatus: PluginLifecycleStatus.REGISTERED,
-    } as any);
-    // Call 3: transitionLifecycleStatus(INSTALLED)
+    // Call 2 (db): transitionLifecycleStatus(INSTALLED) after tx commits
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
       lifecycleStatus: PluginLifecycleStatus.INSTALLING,
     } as any);
-    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    // Outer optimistic check: plugin not yet installed
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(null);
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
-    vi.mocked(db.$transaction).mockImplementation(async (fn: any) =>
-      fn({ tenantPlugin: { create: vi.fn().mockResolvedValue(mockInstallation) } })
-    );
+    // $transaction: full tx with all methods required by the TOCTOU-safe block
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(makeTx()));
 
     // Act
     await lifecycleService.installPlugin(TENANT_ID, PLUGIN_ID);
@@ -197,21 +217,17 @@ describe('PluginLifecycleService — permission registration wiring (T004-05)', 
       ...mockPlugin,
       manifest: { ...manifestWithPerms, permissions: [] },
     };
-    // Call 1: registry.getPlugin()
+    // Call 1 (db): registry.getPlugin()
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(pluginEmptyPerms as any);
-    // Call 2: transitionLifecycleStatus(INSTALLING)
-    vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
-      lifecycleStatus: PluginLifecycleStatus.REGISTERED,
-    } as any);
-    // Call 3: transitionLifecycleStatus(INSTALLED)
+    // Call 2 (db): transitionLifecycleStatus(INSTALLED) after tx commits
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
       lifecycleStatus: PluginLifecycleStatus.INSTALLING,
     } as any);
-    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    // Outer optimistic check: plugin not yet installed
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(null);
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
-    vi.mocked(db.$transaction).mockImplementation(async (fn: any) =>
-      fn({ tenantPlugin: { create: vi.fn().mockResolvedValue(mockInstallation) } })
-    );
+    // $transaction: full tx with all methods required by the TOCTOU-safe block
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(makeTx()));
 
     // Act
     await lifecycleService.installPlugin(TENANT_ID, PLUGIN_ID);
@@ -222,21 +238,17 @@ describe('PluginLifecycleService — permission registration wiring (T004-05)', 
 
   it('should rollback tenantPlugin row and reset lifecycleStatus to REGISTERED on PERMISSION_KEY_CONFLICT', async () => {
     // Arrange
-    // Call 1: registry.getPlugin()
+    // Call 1 (db): registry.getPlugin()
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(mockPlugin as any);
-    // Call 2: transitionLifecycleStatus(INSTALLING)
-    vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
-      lifecycleStatus: PluginLifecycleStatus.REGISTERED,
-    } as any);
-    // Call 3: transitionLifecycleStatus(INSTALLED) after transaction success
+    // Call 2 (db): transitionLifecycleStatus(INSTALLED) after tx commits
     vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
       lifecycleStatus: PluginLifecycleStatus.INSTALLING,
     } as any);
-    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+    // Outer optimistic check: plugin not yet installed
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(null);
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
-    vi.mocked(db.$transaction).mockImplementation(async (fn: any) =>
-      fn({ tenantPlugin: { create: vi.fn().mockResolvedValue(mockInstallation) } })
-    );
+    // $transaction: full tx with all methods required by the TOCTOU-safe block
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(makeTx()));
     vi.mocked(db.tenant.findUnique).mockResolvedValue({ id: TENANT_ID, slug: TENANT_SLUG } as any);
     vi.mocked(db.tenantPlugin.delete).mockResolvedValue({} as any);
 

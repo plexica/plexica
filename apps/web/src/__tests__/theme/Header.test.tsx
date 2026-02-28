@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import React from 'react';
+import type { ReactNode } from 'react';
 
 // ---------------------------------------------------------------------------
 // Hoisted mock factories
@@ -42,12 +42,12 @@ vi.mock('@/contexts', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
-  Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
+  Link: ({ children }: { children: ReactNode }) => <a href="#">{children}</a>,
 }));
 
 vi.mock('@plexica/ui', () => ({
   LanguageSelector: () => <div data-testid="lang-selector" />,
-  Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
+  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
 }));
@@ -216,5 +216,33 @@ describe('Header — menu button', () => {
     const menuBtn = screen.getByLabelText(/toggle menu/i);
     fireEvent.click(menuBtn);
     expect(onMenuClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T005-07: role="banner" landmark (WCAG 2.4.1)
+// ---------------------------------------------------------------------------
+
+describe('Header — ARIA landmark role', () => {
+  it('renders a <header> element with role="banner"', () => {
+    renderHeader();
+    // getByRole('banner') maps to the WAI-ARIA banner landmark (role="banner" or <header>)
+    const banner = screen.getByRole('banner');
+    expect(banner).toBeInTheDocument();
+    expect(banner.tagName.toLowerCase()).toBe('header');
+  });
+
+  it('contains exactly one banner landmark on the page', () => {
+    renderHeader();
+    const banners = screen.getAllByRole('banner');
+    expect(banners).toHaveLength(1);
+  });
+
+  it('banner landmark is visible in the DOM (not hidden)', () => {
+    renderHeader();
+    const banner = screen.getByRole('banner');
+    // The banner must not be hidden from assistive technology
+    expect(banner).not.toHaveAttribute('aria-hidden', 'true');
+    expect(banner).not.toHaveStyle({ display: 'none' });
   });
 });

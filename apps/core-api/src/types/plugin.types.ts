@@ -4,6 +4,12 @@
  * Defines the structure and types for the Plexica plugin system
  */
 
+// Re-export PluginLifecycleStatus from the canonical source (@plexica/database / Prisma)
+// so that consumers get the single authoritative enum value set.
+// Constitution Art. 3.1: single source of truth — do NOT duplicate enum values here.
+export { PluginLifecycleStatus } from '@plexica/database';
+import { PluginLifecycleStatus } from '@plexica/database';
+
 /**
  * Plugin category
  */
@@ -20,19 +26,6 @@ export enum PluginCategory {
   STORAGE = 'storage',
   UTILITY = 'utility',
   OTHER = 'other',
-}
-
-/**
- * Plugin lifecycle status
- */
-export enum PluginLifecycleStatus {
-  REGISTERED = 'registered',
-  INSTALLING = 'installing',
-  INSTALLED = 'installed',
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  FAILED = 'failed',
-  UNINSTALLING = 'uninstalling',
 }
 
 /**
@@ -205,7 +198,13 @@ export interface PluginManifest {
   frontend?: {
     modules?: PluginFrontendModule[];
     assets?: string[];
-    /** Module Federation remoteEntry URL on MinIO CDN (T004-13 / ADR-011) */
+    /**
+     * Module Federation remoteEntry URL on MinIO CDN (T004-13 / ADR-011).
+     * MUST use HTTPS — HTTP and private/link-local addresses are rejected at
+     * both schema-validation time (plugin-manifest.schema.ts) and at registry
+     * registration time (module-federation-registry.service.ts) to prevent
+     * SSRF and stored-XSS via the public GET /api/v1/plugins/remotes endpoint.
+     */
     remoteEntry?: string;
     /** Frontend route prefix for this plugin (e.g., '/crm') */
     routePrefix?: string;

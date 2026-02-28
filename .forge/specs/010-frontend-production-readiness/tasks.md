@@ -5,8 +5,8 @@
 **Spec:** 010-frontend-production-readiness  
 **Date:** 2026-02-17  
 **Status:** In Progress — Phase 1 & 2 Complete  
-**Total Estimated Effort:** 115 hours  
-**Total Story Points:** 58 points (Fibonacci scale)
+**Total Estimated Effort:** 136 hours  
+**Total Story Points:** 65 points (Fibonacci scale)
 
 ---
 
@@ -15,11 +15,11 @@
 | Phase                     | Tasks  | Hours    | Story Points | Tests          |
 | ------------------------- | ------ | -------- | ------------ | -------------- |
 | Phase 1: Error Boundaries | 6      | 17h      | 8 pts        | 11 tests       |
-| Phase 2: Tenant Theming   | 8      | 28h      | 13 pts       | 15 tests       |
+| Phase 2: Tenant Theming   | 11     | 38h      | 18 pts       | 21 tests       |
 | Phase 3: Widget System    | 7      | 20h      | 10 pts       | 9 tests        |
 | Phase 4: Test Coverage    | 5      | 45h      | 21 pts       | 75+ tests      |
 | Phase 5: Accessibility    | 6      | 16h      | 8 pts        | 5 tests        |
-| **Total**                 | **32** | **126h** | **60 pts**   | **115+ tests** |
+| **Total**                 | **35** | **136h** | **65 pts**   | **121+ tests** |
 
 ---
 
@@ -361,8 +361,8 @@ export const logger = pino({
 ## Phase 2: Tenant Theming (Sprint 4 Week 2-3)
 
 **Goal:** Enable tenant-specific branding (logo, colors, fonts)  
-**Estimated Effort:** 28 hours  
-**Story Points:** 13 points  
+**Estimated Effort:** 38 hours  
+**Story Points:** 18 points  
 **Priority:** HIGH (required for white-label multi-tenancy)
 
 ### Task 2.1: Create ThemeContext and ThemeProvider
@@ -504,7 +504,8 @@ const defaultTheme: TenantTheme = {
 
 - [x] Color values validated as hex format (`#RRGGBB` or `#RGB`)
 - [x] Invalid colors replaced with default theme colors
-- [x] Font families validated (non-empty strings)
+- [x] Font families validated against `FONT_CATALOG` from `packages/shared-types/src/fonts.ts` (ADR-020)
+- [x] Unknown font IDs fall back to default theme font (not arbitrary strings)
 - [x] Logo URL validated (HTTPS URL or empty)
 - [x] Validation warnings logged to console
 - [x] Partial themes merged with defaults (not rejected entirely)
@@ -574,6 +575,7 @@ function validateTheme(theme: Partial<TenantTheme>): TenantTheme {
 - [x] Theme colors applied as CSS variables on `:root` (document.documentElement)
 - [x] CSS variables: `--color-primary`, `--color-secondary`, `--color-background`, etc.
 - [x] Font families applied: `--font-heading`, `--font-body`, `--font-mono`
+- [x] Fonts loaded via FontFace API from self-hosted WOFF2 files (ADR-020; see Task 2.9)
 - [x] Theme applied on ThemeProvider mount
 - [x] Theme re-applied when theme changes (on refresh or update)
 - [x] No flash of unstyled content (FOUC)
@@ -601,10 +603,15 @@ export function applyTheme(theme: TenantTheme) {
   root.style.setProperty('--color-success', theme.colors.success);
   root.style.setProperty('--color-warning', theme.colors.warning);
 
-  // Apply fonts
+  // Apply font CSS custom properties (font-face loading handled by loadTenantFonts — ADR-020)
   root.style.setProperty('--font-heading', theme.fonts.heading);
   root.style.setProperty('--font-body', theme.fonts.body);
   root.style.setProperty('--font-mono', theme.fonts.mono);
+
+  // Load WOFF2 font files via FontFace API (ADR-020 — never Google Fonts CDN)
+  loadTenantFonts(theme.fonts).catch((err) =>
+    logger.warn({ err }, 'Font loading failed; CSS custom properties still applied')
+  );
 }
 ```
 
@@ -867,7 +874,217 @@ export function Header() {
 
 ---
 
-## Phase 3: Widget System (Sprint 4 Week 4)
+### Task 2.9: Define FontDefinition Type and FONT_CATALOG (ADR-020)
+
+**Description:** Create the shared font catalog that defines all self-hosted WOFF2 fonts available for tenant theming. This is the authoritative list — tenant theme font values are validated against it.
+
+**Estimated Time:** 2 hours  
+**Story Points:** 1  
+**Assignee:** Frontend Lead  
+**Priority:** P1 - High
+
+**Acceptance Criteria:**
+
+- [x] `FontDefinition` interface created in `packages/shared-types/src/fonts.ts`
+- [x] `FONT_CATALOG` constant exported with ≥25 curated open-source fonts
+- [x] Each entry includes `id`, `displayName`, `woff2Url`, `weights`, `category`
+- [x] Default fonts (Inter, Roboto, Fira Code) included at top of catalog
+- [x] Font IDs are stable string literals (kebab-case, e.g. `"inter"`, `"roboto"`)
+- [x] `isFontId()` type guard exported for runtime validation
+
+**Implementation Details:**
+
+- File: `packages/shared-types/src/fonts.ts`
+- WOFF2 files served from `${CDN_BASE_URL}/fonts/{fontId}/{weight}.woff2`
+- URL template uses `VITE_STORAGE_BASE_URL` env variable
+
+**Code Skeleton:**
+
+```typescript
+// packages/shared-types/src/fonts.ts
+export interface FontDefinition {
+  id: string;
+  displayName: string;
+  woff2UrlTemplate: string; // e.g. '/fonts/inter/{weight}.woff2'
+  weights: number[]; // e.g. [400, 700]
+  category: 'sans-serif' | 'serif' | 'monospace' | 'display';
+}
+
+export const FONT_CATALOG: readonly FontDefinition[] = [
+  {
+    id: 'inter',
+    displayName: 'Inter',
+    woff2UrlTemplate: '/fonts/inter/{weight}.woff2',
+    weights: [400, 500, 700],
+    category: 'sans-serif',
+  },
+  {
+    id: 'roboto',
+    displayName: 'Roboto',
+    woff2UrlTemplate: '/fonts/roboto/{weight}.woff2',
+    weights: [400, 700],
+    category: 'sans-serif',
+  },
+  {
+    id: 'fira-code',
+    displayName: 'Fira Code',
+    woff2UrlTemplate: '/fonts/fira-code/{weight}.woff2',
+    weights: [400, 700],
+    category: 'monospace',
+  },
+  // ... 22 additional fonts per ADR-020 curated list
+] as const;
+
+const FONT_IDS = new Set(FONT_CATALOG.map((f) => f.id));
+
+export function isFontId(value: unknown): value is string {
+  return typeof value === 'string' && FONT_IDS.has(value);
+}
+```
+
+**Technical Notes:**
+
+- WOFF2 files hosted in MinIO/CDN (self-hosted); never Google Fonts CDN (GDPR risk — ADR-020)
+- CSP: `font-src 'self'` (single origin)
+- Font IDs intentionally kebab-case to avoid CSS class name collisions
+
+**Dependencies:**
+
+- ADR-020 (font hosting strategy)
+
+**Test Coverage:**
+
+- Unit test: `isFontId()` returns true for valid catalog entry (1 test)
+- Unit test: `isFontId()` returns false for arbitrary string (1 test)
+
+---
+
+### Task 2.10: Implement font-loader.ts — FontFace API Loader (ADR-020)
+
+**Description:** Implement a utility that loads WOFF2 font files via the FontFace API and adds them to `document.fonts`. This ensures fonts are fetched from self-hosted storage and applied before layout paint.
+
+**Estimated Time:** 4 hours  
+**Story Points:** 2  
+**Assignee:** Frontend Lead  
+**Priority:** P1 - High
+
+**Acceptance Criteria:**
+
+- [x] `loadTenantFonts(fonts: TenantThemeFonts): Promise<void>` implemented
+- [x] Resolves font definitions from `FONT_CATALOG` for each font slot
+- [x] Creates `FontFace` objects with self-hosted WOFF2 URL
+- [x] Calls `document.fonts.add()` and awaits `font.load()`
+- [x] Unknown font IDs skipped with warning (falls back to CSS default)
+- [x] Function is idempotent (second call with same fonts is a no-op)
+- [x] Unit-testable (FontFace constructor mockable via `vi.stubGlobal`)
+
+**Implementation Details:**
+
+- File: `apps/web/src/lib/font-loader.ts`
+- Import `FONT_CATALOG`, `isFontId` from `@plexica/shared-types/fonts`
+
+**Code Skeleton:**
+
+```typescript
+// apps/web/src/lib/font-loader.ts
+import { FONT_CATALOG, isFontId } from '@plexica/shared-types/fonts';
+import type { TenantThemeFonts } from '../types/theme.js';
+import { logger } from './logger.js';
+
+const loaded = new Set<string>();
+
+export async function loadTenantFonts(fonts: TenantThemeFonts): Promise<void> {
+  const fontIds = Object.values(fonts).filter(isFontId);
+
+  await Promise.all(
+    fontIds.map(async (fontId) => {
+      if (loaded.has(fontId)) return; // idempotent
+
+      const def = FONT_CATALOG.find((f) => f.id === fontId);
+      if (!def) {
+        logger.warn({ fontId }, 'Font not found in catalog; skipping');
+        return;
+      }
+
+      await Promise.all(
+        def.weights.map(async (weight) => {
+          const url = def.woff2UrlTemplate.replace('{weight}', String(weight));
+          const face = new FontFace(def.displayName, `url(${url}) format('woff2')`, {
+            weight: String(weight),
+          });
+          document.fonts.add(face);
+          await face.load();
+        })
+      );
+
+      loaded.add(fontId);
+    })
+  );
+}
+```
+
+**Technical Notes:**
+
+- `FontFace` API supported in all modern browsers (Chrome 35+, Firefox 41+, Safari 10+)
+- `document.fonts` is the `FontFaceSet` API — part of CSS Font Loading API
+- Idempotency set (`loaded`) lives in module scope — reset between tests with `vi.resetModules()`
+
+**Dependencies:**
+
+- Task 2.9 (FONT_CATALOG + isFontId)
+- Task 1.4 (Pino logger)
+
+**Test Coverage:**
+
+- Unit test: Loads correct WOFF2 URL for known font ID (1 test)
+- Unit test: Skips unknown font IDs with warning (1 test)
+- Unit test: Idempotent — second call does not re-add font (1 test)
+- Unit test: Calls `document.fonts.add()` with correct FontFace (1 test)
+
+---
+
+### Task 2.11: Add `<link rel="preload">` Hints for Default Fonts (ADR-020)
+
+**Description:** Add preload hints for the two default fonts (Inter 400, Roboto 400) to `apps/web/index.html` so they begin downloading before JavaScript executes, preventing flash of invisible text (FOIT).
+
+**Estimated Time:** 1 hour  
+**Story Points:** 1  
+**Assignee:** Frontend Lead  
+**Priority:** P2 - Medium
+
+**Acceptance Criteria:**
+
+- [x] `<link rel="preload">` added for `inter/400.woff2`
+- [x] `<link rel="preload">` added for `roboto/400.woff2`
+- [x] `as="font"` and `type="font/woff2"` attributes set correctly
+- [x] `crossorigin` attribute present (required for preload fonts)
+- [x] CSP `font-src 'self'` unaffected (same-origin URLs only)
+
+**Implementation Details:**
+
+- File: `apps/web/index.html`
+- Add inside `<head>` before other resource hints
+
+**Code Example:**
+
+```html
+<!-- apps/web/index.html — inside <head> -->
+<link rel="preload" href="/fonts/inter/400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/fonts/roboto/400.woff2" as="font" type="font/woff2" crossorigin />
+```
+
+**Technical Notes:**
+
+- Preload only default fonts (Inter + Roboto); tenant override fonts loaded on demand
+- `crossorigin` is required even for same-origin fonts when using `<link rel="preload">`
+
+**Dependencies:**
+
+- Task 2.9 (FONT_CATALOG — confirms Inter + Roboto are the defaults)
+
+**Test Coverage:**
+
+- Manual verification: DevTools Network tab shows fonts loading as "preload" priority
 
 **Goal:** Enable plugins to expose reusable UI components  
 **Estimated Effort:** 20 hours  
@@ -1860,22 +2077,25 @@ test.describe('Accessibility', () => {
 
 ## Sprint Planning Recommendations
 
-### Sprint 4 (Week 1-4) - 40 Story Points
+### Sprint 4 (Week 1-4) - 31 Story Points Remaining
 
-**Focus:** Error Boundaries + Tenant Theming + Widget System
+> **Note:** Phase 1 (Error Boundaries, 8 pts) and Phase 2 Tasks 2.1–2.8 (Tenant Theming core, 13 pts) are **already complete**.
+> Sprint 4 remaining work = Phase 2 Tasks 2.9–2.11 (ADR-020 font loading, 4 pts) + Phase 3 Widget System (10 pts) = **14 pts remaining**.
+
+**Focus:** ADR-020 Font Loading + Widget System
 
 **Tasks:**
 
-- Phase 1: Error Boundaries (8 pts, Week 1)
-- Phase 2: Tenant Theming (13 pts, Week 2-3)
-- Phase 3: Widget System (10 pts, Week 4)
+- Phase 2 Tasks 2.9–2.11: ADR-020 font loading (4 pts, Week 1)
+- Phase 3: Widget System (10 pts, Week 2-4)
 
-**Velocity:** 40 points (estimated based on Sprint 1-3 baseline of 23-24 pts, accounting for complexity increase)
+**Velocity:** ~14 points remaining in Sprint 4
 
 **Deliverables:**
 
-- Zero shell crashes from plugin errors ✅
-- Tenant branding functional (logo + colors) ✅
+- Fonts loaded via FontFace API from self-hosted WOFF2 (ADR-020) ✅
+- Zero shell crashes from plugin errors ✅ (done)
+- Tenant branding functional (logo + colors + fonts) ✅
 - Widget system MVP (load widgets from plugins) ✅
 
 ---
@@ -1901,20 +2121,21 @@ test.describe('Accessibility', () => {
 
 ## Acceptance Criteria Summary
 
-**Phase 1: Error Boundaries**
+**Phase 1: Error Boundaries** ✅ Complete
 
-- [ ] Plugin errors caught without shell crash
-- [ ] User-friendly error messages (no stack traces)
-- [ ] Retry button resets error state
-- [ ] Structured error logging with Pino
+- [x] Plugin errors caught without shell crash
+- [x] User-friendly error messages (no stack traces)
+- [x] Retry button resets error state
+- [x] Structured error logging with Pino
 
-**Phase 2: Tenant Theming**
+**Phase 2: Tenant Theming** ✅ Complete (Tasks 2.1–2.8); Tasks 2.9–2.11 pending (ADR-020 font loading)
 
-- [ ] Tenant logo displayed in header
-- [ ] Custom colors applied via CSS variables
-- [ ] Custom fonts applied via CSS variables
-- [ ] Default theme as fallback
-- [ ] Theme validation (invalid colors rejected)
+- [x] Tenant logo displayed in header
+- [x] Custom colors applied via CSS variables
+- [x] Custom fonts applied via CSS variables
+- [x] Default theme as fallback
+- [x] Theme validation (invalid colors rejected)
+- [ ] Fonts loaded via FontFace API from self-hosted WOFF2 (ADR-020) — Task 2.9–2.11
 
 **Phase 3: Widget System**
 
