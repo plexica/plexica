@@ -144,7 +144,7 @@ describe('Plugin System E2E (T004-26)', () => {
   // =========================================================================
 
   describe('Step 1 — Super-admin: register plugin', () => {
-    it('POST /api/v1/plugins registers the plugin → 200 with REGISTERED status', async () => {
+    it('POST /api/v1/plugins registers the plugin → 201 with REGISTERED status', async () => {
       const resp = await app.inject({
         method: 'POST',
         url: '/api/v1/plugins',
@@ -152,7 +152,7 @@ describe('Plugin System E2E (T004-26)', () => {
         payload: TEST_MANIFEST,
       });
 
-      expect(resp.statusCode).toBe(200);
+      expect(resp.statusCode).toBe(201);
       const body = resp.json();
       expect(body.id).toBe(PLUGIN_ID);
       expect(body.lifecycleStatus).toBe(PluginLifecycleStatus.REGISTERED);
@@ -160,7 +160,7 @@ describe('Plugin System E2E (T004-26)', () => {
   });
 
   describe('Step 2 — Super-admin: install plugin', () => {
-    it('POST /api/v1/plugins/:id/install transitions to INSTALLED → 200', async () => {
+    it('POST /api/v1/plugins/:id/install transitions to INSTALLED → 201', async () => {
       const resp = await app.inject({
         method: 'POST',
         url: `/api/v1/plugins/${PLUGIN_ID}/install`,
@@ -168,7 +168,7 @@ describe('Plugin System E2E (T004-26)', () => {
         payload: {},
       });
 
-      expect(resp.statusCode).toBe(200);
+      expect(resp.statusCode).toBe(201);
 
       const plugin = await db.plugin.findUnique({ where: { id: PLUGIN_ID } });
       expect(plugin?.lifecycleStatus).toBe(PluginLifecycleStatus.INSTALLED);

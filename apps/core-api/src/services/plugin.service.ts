@@ -650,6 +650,12 @@ export class PluginLifecycleService {
         const firstInstall =
           installationCount === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
 
+        // Track whether this call is responsible for the REGISTERED→INSTALLING transition.
+        // Re-evaluated inside the tx against the live lifecycleStatus to avoid a stale-read
+        // race where two concurrent first-installs both see `installationCount === 0` but
+        // only one may perform the lifecycle transition.
+        let actualFirstInstall = firstInstall;
+
         if (firstInstall) {
           // Inline REGISTERED → INSTALLING transition (cannot call transitionLifecycleStatus
           // here because that method uses `db` directly; we need `tx` for atomicity).
@@ -660,16 +666,24 @@ export class PluginLifecycleService {
           if (!currentPlugin) {
             throw new Error(`Plugin '${pluginId}' not found`);
           }
-          const allowed = VALID_TRANSITIONS[currentPlugin.lifecycleStatus] ?? [];
-          if (!allowed.includes(PluginLifecycleStatus.INSTALLING)) {
-            throw new Error(
-              `Plugin '${pluginId}' cannot transition from ${currentPlugin.lifecycleStatus} to ${PluginLifecycleStatus.INSTALLING}`
-            );
+
+          if (currentPlugin.lifecycleStatus === PluginLifecycleStatus.INSTALLING) {
+            // Another concurrent install is already performing the REGISTERED→INSTALLING
+            // transition. This tenant's install is a subsequent install — skip the
+            // lifecycle transition and let the concurrent call drive INSTALLING→INSTALLED.
+            actualFirstInstall = false;
+          } else {
+            const allowed = VALID_TRANSITIONS[currentPlugin.lifecycleStatus] ?? [];
+            if (!allowed.includes(PluginLifecycleStatus.INSTALLING)) {
+              throw new Error(
+                `Plugin '${pluginId}' cannot transition from ${currentPlugin.lifecycleStatus} to ${PluginLifecycleStatus.INSTALLING}`
+              );
+            }
+            await tx.plugin.update({
+              where: { id: pluginId },
+              data: { lifecycleStatus: PluginLifecycleStatus.INSTALLING },
+            });
           }
-          await tx.plugin.update({
-            where: { id: pluginId },
-            data: { lifecycleStatus: PluginLifecycleStatus.INSTALLING },
-          });
         }
 
         // Create the tenantPlugin row.
@@ -697,7 +711,7 @@ export class PluginLifecycleService {
           );
         }
 
-        return { installation: newInstallation, isFirstInstall: firstInstall };
+        return { installation: newInstallation, isFirstInstall: actualFirstInstall };
       });
 
       installation = txResult.installation;
