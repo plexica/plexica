@@ -87,9 +87,15 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
   useEffect(() => {
     let cancelled = false;
 
-    setIsLoading(true);
-    setHasError(false);
-    setWidgetComponent(null);
+    // setState calls must be inside a callback, not synchronously in the
+    // effect body (react-hooks/set-state-in-effect).
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setIsLoading(true);
+        setHasError(false);
+        setWidgetComponent(null);
+      }
+    });
 
     loadWidget(pluginId, widgetName)
       .then((mod) => {

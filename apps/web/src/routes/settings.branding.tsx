@@ -85,11 +85,10 @@ export function BrandingTab() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Gate — feature flag off → nothing rendered
-  if (!isEnabled) return null;
-
   // -------------------------------------------------------------------
-  // Handlers
+  // Handlers — ALL hooks must be declared before any early return
+  //            (react-hooks/rules-of-hooks).  The feature-flag guard
+  //            is moved to just before the render return below.
   // -------------------------------------------------------------------
 
   const handleColorChange = useCallback((key: keyof TenantThemeColors, value: string) => {
@@ -144,6 +143,10 @@ export function BrandingTab() {
   // -------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------
+
+  // Gate — feature flag off → nothing rendered.
+  // Placed AFTER all hook declarations to satisfy rules-of-hooks.
+  if (!isEnabled) return null;
 
   return (
     <section aria-label="Branding settings" data-testid="branding-tab">
