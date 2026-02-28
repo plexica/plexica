@@ -27,6 +27,7 @@ vi.mock('../../../lib/db', () => ({
     },
     tenantPlugin: {
       findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
       count: vi.fn(),
@@ -238,6 +239,9 @@ describe('PluginLifecycleService.deactivatePlugin (T004-08)', () => {
       plugin: { manifest: buildManifest(pluginId) } as any,
     } as any);
 
+    // $transaction must execute the callback for the TOCTOU-safe logic to run
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+
     // deactivatePlugin guard: no other tenants have plugin enabled (0 → will transition & stop)
     vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
 
@@ -247,6 +251,14 @@ describe('PluginLifecycleService.deactivatePlugin (T004-08)', () => {
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
     vi.mocked(db.tenantPlugin.update).mockResolvedValue({
+      tenantId,
+      pluginId,
+      enabled: false,
+      plugin: buildManifest(pluginId) as any,
+    } as any);
+
+    // Post-tx re-fetch for return value
+    vi.mocked(db.tenantPlugin.findUniqueOrThrow).mockResolvedValue({
       tenantId,
       pluginId,
       enabled: false,
@@ -291,6 +303,8 @@ describe('PluginLifecycleService.deactivatePlugin (T004-08)', () => {
       enabled: true,
       plugin: { manifest: buildManifest(pluginId) } as any,
     } as any);
+    // $transaction must execute the callback for the TOCTOU-safe logic to run
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
     // deactivatePlugin guard: no other tenants have plugin enabled
     vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
     vi.mocked(db.plugin.findUnique).mockResolvedValue({
@@ -298,6 +312,14 @@ describe('PluginLifecycleService.deactivatePlugin (T004-08)', () => {
     } as any);
     vi.mocked(db.plugin.update).mockResolvedValue({} as any);
     vi.mocked(db.tenantPlugin.update).mockResolvedValue({
+      tenantId,
+      pluginId,
+      enabled: false,
+      plugin: buildManifest(pluginId) as any,
+    } as any);
+
+    // Post-tx re-fetch for return value (stop failure is non-blocking, re-fetch still runs)
+    vi.mocked(db.tenantPlugin.findUniqueOrThrow).mockResolvedValue({
       tenantId,
       pluginId,
       enabled: false,

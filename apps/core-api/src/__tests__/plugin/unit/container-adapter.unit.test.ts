@@ -160,6 +160,9 @@ describe('DockerContainerAdapter.start()', () => {
     mockListNetworks.mockResolvedValue([{ Name: 'plexica-plugins' }]);
     // Default: image already present locally
     mockImageInspect.mockResolvedValue({});
+    // Default: container does not yet exist (idempotency guard sees "No such container"
+    // and proceeds to create fresh — this is the normal first-start path).
+    mockContainerInspect.mockRejectedValue(new Error('No such container'));
     // Default: container created successfully
     mockCreateContainer.mockResolvedValue(mockContainer);
     mockContainerStart.mockResolvedValue(undefined);
@@ -357,9 +360,16 @@ describe('DockerContainerAdapter.health()', () => {
     expect(await adapter.health('plugin-analytics')).toBe('unhealthy');
   });
 
-  it('should return "unhealthy" when inspect throws', async () => {
-    mockContainerInspect.mockRejectedValueOnce(new Error('No such container'));
+  it('should return "unhealthy" when inspect throws a non-not-found error', async () => {
+    // A generic Docker daemon error (not "No such container") should map to 'unhealthy',
+    // not 'not_found'. 'not_found' is reserved for when the container is absent.
+    mockContainerInspect.mockRejectedValueOnce(new Error('connection refused'));
     expect(await adapter.health('plugin-analytics')).toBe('unhealthy');
+  });
+
+  it('should return "not_found" when inspect throws "No such container"', async () => {
+    mockContainerInspect.mockRejectedValueOnce(new Error('No such container'));
+    expect(await adapter.health('plugin-analytics')).toBe('not_found');
   });
 });
 

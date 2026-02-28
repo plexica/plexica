@@ -190,3 +190,79 @@ export function applyTheme(theme: TenantTheme): void {
   root.style.setProperty('--tenant-font-body', theme.fonts.body);
   root.style.setProperty('--tenant-font-mono', theme.fonts.mono);
 }
+
+// ---------------------------------------------------------------------------
+// Dark mode colour derivation (T005-20)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a 6-digit hex colour into [r, g, b] components in the 0–255 range.
+ * Returns null for invalid or 3-digit hex strings.
+ */
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#([A-Fa-f0-9]{6})$/.exec(hex);
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+/**
+ * Convert an [r, g, b] triple back to a lowercase #RRGGBB hex string.
+ */
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Blend a hex colour toward black (`factor` 0 = original, 1 = black).
+ * Used to darken background / surface colours in dark mode.
+ */
+function darken(hex: string, factor: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const [r, g, b] = rgb.map((c) => c * (1 - factor));
+  return rgbToHex(r, g, b);
+}
+
+/**
+ * Blend a hex colour toward white (`factor` 0 = original, 1 = white).
+ * Used to lighten text / icon colours in dark mode.
+ */
+function lighten(hex: string, factor: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const [r, g, b] = rgb.map((c) => c + (255 - c) * factor);
+  return rgbToHex(r, g, b);
+}
+
+/**
+ * Derive sensible dark-mode colour overrides from a light tenant theme.
+ *
+ * Strategy (T005-20):
+ *  - background → heavily darkened (~87 %)
+ *  - surface    → moderately darkened (~80 %)
+ *  - text       → strongly lightened (~85 %)
+ *  - textSecondary → moderately lightened (~50 %)
+ *  - primary / secondary / error / success / warning → lightly lightened
+ *    (+15 %) so they remain legible on the dark background while retaining
+ *    the tenant brand hue.
+ *
+ * Fonts are unchanged — dark mode is purely a colour concern.
+ */
+export function generateDarkTheme(light: TenantTheme): TenantTheme {
+  return {
+    logo: light.logo,
+    fonts: { ...light.fonts },
+    colors: {
+      background: darken(light.colors.background, 0.87),
+      surface: darken(light.colors.surface, 0.8),
+      text: lighten(light.colors.text, 0.85),
+      textSecondary: lighten(light.colors.textSecondary, 0.5),
+      primary: lighten(light.colors.primary, 0.15),
+      secondary: lighten(light.colors.secondary, 0.15),
+      error: lighten(light.colors.error, 0.15),
+      success: lighten(light.colors.success, 0.15),
+      warning: lighten(light.colors.warning, 0.15),
+    },
+  };
+}

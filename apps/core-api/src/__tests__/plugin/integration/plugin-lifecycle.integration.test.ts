@@ -55,7 +55,7 @@ const FRONTEND_MANIFEST = {
     image: 'plexica/frontend-test:1.0.0',
   },
   frontend: {
-    remoteEntry: 'http://plugin-frontend-remotes-test:8080/remoteEntry.js',
+    remoteEntry: 'https://cdn.plugin-frontend-remotes-test.example.com/remoteEntry.js',
     routePrefix: '/frontend-test',
   },
 };
@@ -154,7 +154,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
   // =========================================================================
 
   describe('POST /api/v1/plugins (register)', () => {
-    it('registers a new plugin with valid manifest → 200 + plugin record', async () => {
+    it('registers a new plugin with valid manifest → 201 + plugin record', async () => {
       const resp = await app.inject({
         method: 'POST',
         url: '/api/v1/plugins',
@@ -162,7 +162,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         payload: TEST_MANIFEST,
       });
 
-      expect(resp.statusCode).toBe(200);
+      expect(resp.statusCode).toBe(201);
       const body = resp.json();
       expect(body.id).toBe(PLUGIN_ID);
       expect(body.lifecycleStatus).toBe(PluginLifecycleStatus.REGISTERED);
@@ -206,7 +206,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
   // =========================================================================
 
   describe('POST /api/v1/plugins/:id/install', () => {
-    it('installs a registered plugin → 200; lifecycleStatus becomes INSTALLED', async () => {
+    it('installs a registered plugin → 201; lifecycleStatus becomes INSTALLED', async () => {
       // Register first
       await app.inject({
         method: 'POST',
@@ -222,7 +222,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         payload: {},
       });
 
-      expect(resp.statusCode).toBe(200);
+      expect(resp.statusCode).toBe(201);
 
       // Verify lifecycleStatus in DB
       const plugin = await db.plugin.findUnique({ where: { id: PLUGIN_ID } });
@@ -414,23 +414,28 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
 
     it('includes remoteEntryUrl after plugin with frontend.remoteEntry is installed and enabled', async () => {
       // Register + install + enable the frontend plugin
-      await app.inject({
+      const regResp = await app.inject({
         method: 'POST',
         url: '/api/v1/plugins',
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: FRONTEND_MANIFEST,
       });
-      await app.inject({
+      expect(regResp.statusCode).toBe(201);
+
+      const installResp = await app.inject({
         method: 'POST',
         url: `/api/v1/plugins/${FRONTEND_PLUGIN_ID}/install`,
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: {},
       });
-      await app.inject({
+      expect(installResp.statusCode).toBe(201);
+
+      const enableResp = await app.inject({
         method: 'POST',
         url: `/api/v1/plugins/${FRONTEND_PLUGIN_ID}/enable`,
         headers: { authorization: `Bearer ${superAdminToken}` },
       });
+      expect(enableResp.statusCode).toBe(200);
 
       const resp = await app.inject({
         method: 'GET',

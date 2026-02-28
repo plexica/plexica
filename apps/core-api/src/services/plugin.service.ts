@@ -198,12 +198,13 @@ export class PluginRegistryService {
    */
   async listPlugins(options?: {
     status?: PluginStatus;
+    lifecycleStatus?: PluginLifecycleStatus;
     category?: string;
     search?: string;
     skip?: number;
     take?: number;
   }): Promise<{ plugins: Plugin[]; total: number }> {
-    const { status, category, search, skip = 0, take = 50 } = options || {};
+    const { status, lifecycleStatus, category, search, skip = 0, take = 50 } = options || {};
 
     // Enforce bounds on pagination
     const validatedSkip = Math.max(0, skip);
@@ -213,6 +214,10 @@ export class PluginRegistryService {
 
     if (status) {
       where.status = status;
+    }
+
+    if (lifecycleStatus) {
+      where.lifecycleStatus = lifecycleStatus;
     }
 
     if (category) {
@@ -617,24 +622,71 @@ export class PluginLifecycleService {
     // Check old-style dependencies
     await this.checkDependencies(tenantId, manifest);
 
-    // Check how many other tenant installations already exist.
-    // The lifecycleStatus is on the *global* Plugin record, not per-tenant.
-    // Only perform lifecycle transitions on the first installation (or after
-    // all tenants have uninstalled and the plugin was reset to REGISTERED).
-    const existingInstallations = await db.tenantPlugin.count({ where: { pluginId } });
-    const isFirstInstall =
-      existingInstallations === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
-
-    if (isFirstInstall) {
-      // Transition lifecycle: REGISTERED → INSTALLING
-      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLING);
-    }
-
-    // Create installation within transaction (without service registration to maintain atomicity)
+    // Create installation within a single atomic transaction.
+    //
+    // SECURITY FIX (TOCTOU): The isFirstInstall determination, the REGISTERED→INSTALLING
+    // lifecycle transition, and the tenantPlugin row creation are now all inside one
+    // db.$transaction. This eliminates the race where two concurrent installPlugin()
+    // calls could both see "no existing tenantPlugin" and both attempt the lifecycle
+    // transition, leaving the global status stuck at INSTALLING.
+    //
+    // The outer findUnique check at line 558 is kept as an optimistic fast exit (no
+    // lock held), but the authoritative uniqueness guard is the re-check inside the
+    // transaction below.
     let installation: TenantPluginWithPluginAndTenant;
+    let isFirstInstall: boolean;
     try {
-      installation = await db.$transaction(async (tx) => {
-        // Create installation
+      const txResult = await db.$transaction(async (tx) => {
+        // TOCTOU-safe re-check: unique constraint is enforced inside the transaction.
+        const alreadyInstalled = await tx.tenantPlugin.findUnique({
+          where: { tenantId_pluginId: { tenantId, pluginId } },
+        });
+        if (alreadyInstalled) {
+          throw new Error(`Plugin '${pluginId}' is already installed`);
+        }
+
+        // Determine first-install inside the transaction (TOCTOU-safe count).
+        const installationCount = await tx.tenantPlugin.count({ where: { pluginId } });
+        const firstInstall =
+          installationCount === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
+
+        // Track whether this call is responsible for the REGISTERED→INSTALLING transition.
+        // Re-evaluated inside the tx against the live lifecycleStatus to avoid a stale-read
+        // race where two concurrent first-installs both see `installationCount === 0` but
+        // only one may perform the lifecycle transition.
+        let actualFirstInstall = firstInstall;
+
+        if (firstInstall) {
+          // Inline REGISTERED → INSTALLING transition (cannot call transitionLifecycleStatus
+          // here because that method uses `db` directly; we need `tx` for atomicity).
+          const currentPlugin = await tx.plugin.findUnique({
+            where: { id: pluginId },
+            select: { lifecycleStatus: true },
+          });
+          if (!currentPlugin) {
+            throw new Error(`Plugin '${pluginId}' not found`);
+          }
+
+          if (currentPlugin.lifecycleStatus === PluginLifecycleStatus.INSTALLING) {
+            // Another concurrent install is already performing the REGISTERED→INSTALLING
+            // transition. This tenant's install is a subsequent install — skip the
+            // lifecycle transition and let the concurrent call drive INSTALLING→INSTALLED.
+            actualFirstInstall = false;
+          } else {
+            const allowed = VALID_TRANSITIONS[currentPlugin.lifecycleStatus] ?? [];
+            if (!allowed.includes(PluginLifecycleStatus.INSTALLING)) {
+              throw new Error(
+                `Plugin '${pluginId}' cannot transition from ${currentPlugin.lifecycleStatus} to ${PluginLifecycleStatus.INSTALLING}`
+              );
+            }
+            await tx.plugin.update({
+              where: { id: pluginId },
+              data: { lifecycleStatus: PluginLifecycleStatus.INSTALLING },
+            });
+          }
+        }
+
+        // Create the tenantPlugin row.
         const newInstallation = await tx.tenantPlugin.create({
           data: {
             tenantId,
@@ -659,28 +711,22 @@ export class PluginLifecycleService {
           );
         }
 
-        return newInstallation;
+        return { installation: newInstallation, isFirstInstall: actualFirstInstall };
       });
 
-      // Transition lifecycle: INSTALLING → INSTALLED (first install only)
+      installation = txResult.installation;
+      isFirstInstall = txResult.isFirstInstall;
+
+      // Transition lifecycle: INSTALLING → INSTALLED (first install only).
+      // This runs after the transaction commits — a failure here is logged but
+      // does not need manual rollback because the INSTALLING transition was part
+      // of the committed transaction and will be visible as-is until a retry.
       if (isFirstInstall) {
         await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLED);
       }
     } catch (error: unknown) {
-      // Rollback lifecycle status: INSTALLING → REGISTERED (first install only)
-      if (isFirstInstall) {
-        try {
-          await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
-        } catch (rollbackErr: unknown) {
-          this.logger.error(
-            {
-              pluginId,
-              error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
-            },
-            'Failed to rollback lifecycleStatus to REGISTERED after install failure'
-          );
-        }
-      }
+      // The INSTALLING transition was inside the transaction, so it auto-rolled
+      // back on failure. No manual lifecycle rollback is required here.
       throw new Error(
         `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -812,7 +858,10 @@ export class PluginLifecycleService {
     }
 
     // T004-13: Register Module Federation remote entry if manifest declares one.
-    // Fail-open — a missing remote entry URL is not fatal for installation.
+    // Fail-open — a missing remote entry URL is not fatal for installation; the
+    // plugin container will run without a frontend module federation entry.
+    // The warning below includes alert:'mf_remote_entry_registration_failed' so that
+    // log-based monitoring can count occurrences and alert on repeated failures.
     if (manifest.frontend?.remoteEntry) {
       try {
         await moduleFederationRegistryService.registerRemoteEntry(
@@ -824,9 +873,13 @@ export class PluginLifecycleService {
         this.logger.warn(
           {
             pluginId,
+            remoteEntry: manifest.frontend.remoteEntry,
             error: mfErr instanceof Error ? mfErr.message : String(mfErr),
+            // Structured alert key — ops monitoring should count occurrences
+            // of this field and alert when the rate exceeds a threshold.
+            alert: 'mf_remote_entry_registration_failed',
           },
-          'T004-13: Failed to register Module Federation remote entry (non-blocking)'
+          'T004-13: Failed to register Module Federation remote entry (non-blocking) — plugin installed but frontend module will not be available'
         );
       }
     }
@@ -964,20 +1017,69 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already inactive`);
     }
 
-    // Transition lifecycle: ACTIVE → DISABLED only if no other tenants have the plugin enabled
-    const otherEnabled = await db.tenantPlugin.count({
-      where: {
-        pluginId,
-        tenantId: { not: tenantId },
-        enabled: true,
-      },
-    });
-    if (otherEnabled === 0) {
-      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.DISABLED);
-    }
+    // SECURITY FIX (TOCTOU): The `otherEnabled` count, the ACTIVE→DISABLED lifecycle
+    // transition, and the tenantPlugin disable are wrapped in a single $transaction.
+    // Without this, two concurrent deactivatePlugin() calls could both read
+    // otherEnabled === 0 and both attempt the transition, causing the second to
+    // fail with an invalid-transition error (DISABLED→DISABLED).
+    const shouldStopContainer = await db.$transaction(async (tx) => {
+      // TOCTOU-safe re-check: confirm this tenant's plugin is still enabled.
+      const currentInstallation = await tx.tenantPlugin.findUnique({
+        where: { tenantId_pluginId: { tenantId, pluginId } },
+        select: { enabled: true },
+      });
+      if (!currentInstallation) {
+        throw new Error(`Plugin '${pluginId}' is not installed`);
+      }
+      if (!currentInstallation.enabled) {
+        throw new Error(`Plugin '${pluginId}' is already inactive`);
+      }
 
-    // T004-08: Stop container only if no other tenants still have the plugin enabled
-    if (otherEnabled === 0) {
+      // Count other enabled tenants inside the transaction for a consistent view.
+      const otherEnabled = await tx.tenantPlugin.count({
+        where: {
+          pluginId,
+          tenantId: { not: tenantId },
+          enabled: true,
+        },
+      });
+
+      const isLastEnabledTenant = otherEnabled === 0;
+
+      if (isLastEnabledTenant) {
+        // Inline ACTIVE → DISABLED transition (use tx, not db, for atomicity).
+        const currentPlugin = await tx.plugin.findUnique({
+          where: { id: pluginId },
+          select: { lifecycleStatus: true },
+        });
+        if (!currentPlugin) {
+          throw new Error(`Plugin '${pluginId}' not found`);
+        }
+        const allowed = VALID_TRANSITIONS[currentPlugin.lifecycleStatus] ?? [];
+        if (!allowed.includes(PluginLifecycleStatus.DISABLED)) {
+          throw new Error(
+            `Plugin '${pluginId}' cannot transition from ${currentPlugin.lifecycleStatus} to ${PluginLifecycleStatus.DISABLED}`
+          );
+        }
+        await tx.plugin.update({
+          where: { id: pluginId },
+          data: { lifecycleStatus: PluginLifecycleStatus.DISABLED },
+        });
+      }
+
+      // Mark this tenant's plugin as disabled (inside the transaction).
+      await tx.tenantPlugin.update({
+        where: { tenantId_pluginId: { tenantId, pluginId } },
+        data: { enabled: false },
+      });
+
+      return isLastEnabledTenant;
+    });
+
+    // T004-08: Stop container only if this was the last enabled tenant.
+    // Runs AFTER the transaction commits — a failure here is non-blocking
+    // because the plugin is already marked DISABLED in the DB.
+    if (shouldStopContainer) {
       try {
         await this.adapter.stop(pluginId);
       } catch (stopErr: unknown) {
@@ -989,12 +1091,11 @@ export class PluginLifecycleService {
       }
     }
 
-    // Disable plugin
-    const updated = await db.tenantPlugin.update({
+    // Re-fetch with the plugin include for the return value.
+    const updated = await db.tenantPlugin.findUniqueOrThrow({
       where: {
         tenantId_pluginId: { tenantId, pluginId },
       },
-      data: { enabled: false },
       include: {
         plugin: true,
       },
@@ -1347,6 +1448,15 @@ export class PluginLifecycleService {
     }
 
     const current = plugin.lifecycleStatus;
+
+    // Idempotent: already in the target state — nothing to do.
+    // This handles the concurrent first-install race where two calls both
+    // transition INSTALLING→INSTALLED post-transaction; the second call finds
+    // the plugin already INSTALLED and safely no-ops.
+    if (current === target) {
+      return;
+    }
+
     const allowed = VALID_TRANSITIONS[current] ?? [];
 
     if (!allowed.includes(target)) {

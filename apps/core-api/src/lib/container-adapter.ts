@@ -67,8 +67,9 @@ export interface ContainerAdapter {
    * - 'healthy'   → container is running and passed its health check
    * - 'starting'  → container is running but health check has not passed yet
    * - 'unhealthy' → container is running but health check is failing
+   * - 'not_found' → container does not exist (was never started or already removed)
    */
-  health(pluginId: string): Promise<'healthy' | 'unhealthy' | 'starting'>;
+  health(pluginId: string): Promise<'healthy' | 'unhealthy' | 'starting' | 'not_found'>;
 
   /**
    * Remove the container (should not throw if not found).
@@ -94,7 +95,7 @@ export class NullContainerAdapter implements ContainerAdapter {
     void pluginId;
   }
 
-  async health(_pluginId: string): Promise<'healthy' | 'unhealthy' | 'starting'> {
+  async health(_pluginId: string): Promise<'healthy' | 'unhealthy' | 'starting' | 'not_found'> {
     return 'healthy';
   }
 
@@ -118,7 +119,7 @@ export function createContainerAdapter(): ContainerAdapter {
 
   if (adapterType === 'docker') {
     // Lazy import to avoid pulling in dockerode when running tests without Docker.
-     
+
     const { DockerContainerAdapter } = require('./docker-container-adapter.js') as {
       DockerContainerAdapter: new () => ContainerAdapter;
     };

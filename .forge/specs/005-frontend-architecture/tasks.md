@@ -77,7 +77,7 @@
 
 **Sprint**: Sprint 7, Week 2–3  
 **Objective**: Redesign sidebar with responsive overlay + ARIA, add breadcrumbs, enforce route namespaces, add plugin 404 page, create WidgetContainer wrapper, wire AppLayout.  
-**Story Points**: 11  
+**Story Points**: 12  
 **Spec 010 Dependency**: PluginErrorBoundary (T010-1.1) should be complete or in progress before T005-05.
 
 ---

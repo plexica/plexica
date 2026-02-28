@@ -83,11 +83,18 @@
     "glob": "allow",
     "grep": "allow"
   },
-  "instructions": [".forge/constitution.md", ".forge/knowledge/decision-log.md"],
+  "instructions": [
+    ".forge/constitution.md",
+    ".forge/knowledge/decision-log.md"
+  ],
   "mcp": {
     "github": {
       "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
       "environment": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
       }

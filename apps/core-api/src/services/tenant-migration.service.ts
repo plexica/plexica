@@ -33,12 +33,47 @@ export interface MigrationResult {
 // ============================================================================
 
 /**
- * DML keywords that must never appear in plugin migration SQL.
+ * SQL keywords and patterns that must never appear in plugin migration SQL.
  * Plugin migrations are DDL-only (CREATE TABLE, ALTER TABLE, CREATE INDEX, CREATE TYPE).
- * Rejecting DML prevents cross-tenant data leaks even if a malicious plugin
- * attempts to exfiltrate or corrupt data during migration.
+ *
+ * Blocked categories:
+ *   DML        — INSERT, UPDATE, DELETE, SELECT (data manipulation / exfiltration)
+ *   DDL drops  — DROP, TRUNCATE (destructive schema changes)
+ *   Privilege  — GRANT, REVOKE (privilege escalation)
+ *   Exec paths — COPY, EXECUTE, EXEC, DO, CALL (arbitrary code / file I/O)
+ *   Session    — SET (session hijacking / search_path override)
+ *   Stored code — CREATE FUNCTION, CREATE PROCEDURE, CREATE TRIGGER
+ *                 (code injection via stored routines)
+ *
+ * Rejecting these prevents cross-tenant data leaks, privilege escalation, and
+ * arbitrary code execution even if a malicious plugin attempts to abuse migration
+ * SQL (Spec 004 §10, Constitution Article 5.3).
  */
-const FORBIDDEN_DML_KEYWORDS = ['INSERT', 'UPDATE', 'DELETE', 'SELECT'] as const;
+const FORBIDDEN_SQL_KEYWORDS = [
+  // DML
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'SELECT',
+  // Destructive DDL
+  'DROP',
+  'TRUNCATE',
+  // Privilege management
+  'GRANT',
+  'REVOKE',
+  // Execution / file I/O paths
+  'COPY',
+  'EXECUTE',
+  'EXEC',
+  'DO',
+  'CALL',
+  // Session manipulation
+  'SET',
+  // Stored code — multi-word patterns handled separately below
+  'CREATE FUNCTION',
+  'CREATE PROCEDURE',
+  'CREATE TRIGGER',
+] as const;
 
 /**
  * Regex that matches valid schema names produced by tenantService.getSchemaName().
@@ -255,22 +290,32 @@ export class TenantMigrationService {
 
   /**
    * Assert that the SQL string contains only DDL operations.
-   * Throws if any DML keyword is found (case-insensitive word-boundary match).
+   * Throws if any forbidden keyword or pattern is found (case-insensitive).
+   *
+   * Blocked: DML (INSERT/UPDATE/DELETE/SELECT), destructive DDL (DROP/TRUNCATE),
+   * privilege management (GRANT/REVOKE), execution paths (COPY/EXECUTE/EXEC/DO/CALL),
+   * session manipulation (SET), and stored-code creation (CREATE FUNCTION/PROCEDURE/TRIGGER).
    *
    * This is a security guard: plugin migration SQL is DDL-only.
-   * DML (INSERT/UPDATE/DELETE/SELECT) is forbidden to prevent cross-tenant
-   * data leaks (Spec 004 §10, Constitution Article 5.3).
+   * (Spec 004 §10, Constitution Article 5.3)
    */
   private assertDdlOnly(migrationName: string, sql: string): void {
     const upperSql = sql.toUpperCase();
-    for (const keyword of FORBIDDEN_DML_KEYWORDS) {
-      // Word-boundary match to avoid false positives (e.g. "CREATE INDEX selected_…")
-      const pattern = new RegExp(`\\b${keyword}\\b`);
+    for (const keyword of FORBIDDEN_SQL_KEYWORDS) {
+      // Multi-word patterns (e.g. "CREATE FUNCTION") use \s+ to tolerate varying whitespace.
+      // Single-word patterns use \b word-boundary to avoid false positives
+      // (e.g. "CREATE INDEX selected_…" should not trigger SELECT).
+      const isMultiWord = keyword.includes(' ');
+      const pattern = isMultiWord
+        ? new RegExp(keyword.replace(' ', '\\s+'))
+        : new RegExp(`\\b${keyword}\\b`);
+
       if (pattern.test(upperSql)) {
         throw new Error(
-          `Migration '${migrationName}' contains forbidden DML keyword '${keyword}'. ` +
+          `Migration '${migrationName}' contains forbidden SQL keyword '${keyword}'. ` +
             'Plugin migrations must contain DDL only (CREATE TABLE, ALTER TABLE, ' +
-            'CREATE INDEX, CREATE TYPE). DML operations are not permitted.'
+            'CREATE INDEX, CREATE TYPE). DML, privilege management, execution paths, ' +
+            'session manipulation, and stored-code creation are not permitted.'
         );
       }
     }

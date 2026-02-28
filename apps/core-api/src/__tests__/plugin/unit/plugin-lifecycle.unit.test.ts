@@ -8,6 +8,11 @@
  *   - installPlugin: rollback on PERMISSION_KEY_CONFLICT (tenantPlugin deleted + lifecycleStatus reset)
  *   - installPlugin: throws when plugin is already installed
  *   - installPlugin: throws when plugin status is not PUBLISHED
+ *   - deactivatePlugin (TOCTOU fix): last tenant → ACTIVE→DISABLED + container stopped
+ *   - deactivatePlugin (TOCTOU fix): not-last tenant → lifecycle unchanged, container NOT stopped
+ *   - deactivatePlugin (TOCTOU fix): concurrent calls — second call (re-check inside tx) throws
+ *   - deactivatePlugin: throws when plugin not installed
+ *   - deactivatePlugin: throws when plugin already inactive (EC-5 idempotency guard)
  *
  * NOTE: activatePlugin health-check timeout is covered in plugin-container-adapter.unit.test.ts.
  * NOTE: Redpanda topic wiring is covered in plugin-topic-translation-wiring.unit.test.ts.
@@ -35,6 +40,7 @@ vi.mock('../../../lib/db.js', () => ({
     },
     tenantPlugin: {
       findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -405,5 +411,216 @@ describe('PluginLifecycleService.installPlugin()', () => {
         data: { lifecycleStatus: PluginLifecycleStatus.REGISTERED },
       })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: deactivatePlugin — TOCTOU fix (EC-5, EC-9)
+// ---------------------------------------------------------------------------
+
+describe('PluginLifecycleService.deactivatePlugin()', () => {
+  let service: PluginLifecycleService;
+  let adapter: NullContainerAdapter;
+  let mockMigration: ReturnType<typeof buildMockMigrationService>;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockMigration = buildMockMigrationService();
+    adapter = new NullContainerAdapter();
+    vi.spyOn(adapter, 'stop');
+    service = new PluginLifecycleService(undefined, adapter, mockMigration as any, null, null);
+  });
+
+  it('should throw when plugin is not installed for the tenant', async () => {
+    // Arrange
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
+
+    // Act & Assert
+    await expect(service.deactivatePlugin('tenant-123', 'plugin-lifecycle-test')).rejects.toThrow(
+      "Plugin 'plugin-lifecycle-test' is not installed"
+    );
+
+    expect(adapter.stop).not.toHaveBeenCalled();
+  });
+
+  it('should throw when plugin is already inactive (EC-5 idempotency guard)', async () => {
+    // Arrange — outer read sees enabled:false
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(
+      buildTenantPluginRecord(false) as any // enabled: false
+    );
+
+    // Act & Assert
+    await expect(service.deactivatePlugin('tenant-123', 'plugin-lifecycle-test')).rejects.toThrow(
+      "Plugin 'plugin-lifecycle-test' is already inactive"
+    );
+
+    expect(adapter.stop).not.toHaveBeenCalled();
+  });
+
+  it('should transition ACTIVE→DISABLED and stop the container when this is the last enabled tenant', async () => {
+    // Arrange
+    const activePlugin = buildPluginRecord(PluginLifecycleStatus.ACTIVE);
+    const tenantPluginResult = {
+      ...buildTenantPluginRecord(false),
+      plugin: activePlugin,
+    };
+
+    // Outer pre-check: enabled = true
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(
+      buildTenantPluginRecord(true) as any
+    );
+
+    // $transaction executes callback synchronously with db
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+
+    // Inside tx: TOCTOU re-check → still enabled
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce({ enabled: true } as any);
+
+    // Inside tx: count of other enabled tenants = 0 (last one)
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0);
+
+    // Inside tx: read current lifecycleStatus for transition guard
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.ACTIVE,
+    } as any);
+
+    // Inside tx: plugin.update (ACTIVE→DISABLED) and tenantPlugin.update
+    vi.mocked(db.plugin.update).mockResolvedValue(activePlugin as any);
+    vi.mocked(db.tenantPlugin.update).mockResolvedValue(tenantPluginResult as any);
+
+    // Post-tx: findUniqueOrThrow for return value
+    vi.mocked(db.tenantPlugin.findUniqueOrThrow).mockResolvedValue(tenantPluginResult as any);
+
+    // Act
+    const result = await service.deactivatePlugin('tenant-123', 'plugin-lifecycle-test');
+
+    // Assert — DISABLED transition was applied
+    expect(db.plugin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'plugin-lifecycle-test' },
+        data: { lifecycleStatus: PluginLifecycleStatus.DISABLED },
+      })
+    );
+
+    // Assert — tenantPlugin row was disabled
+    expect(db.tenantPlugin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_pluginId: { tenantId: 'tenant-123', pluginId: 'plugin-lifecycle-test' } },
+        data: { enabled: false },
+      })
+    );
+
+    // Assert — container was stopped (last tenant)
+    expect(adapter.stop).toHaveBeenCalledWith('plugin-lifecycle-test');
+
+    // Assert — return value is the re-fetched tenantPlugin record
+    expect(result.pluginId).toBe('plugin-lifecycle-test');
+    expect(result.enabled).toBe(false);
+  });
+
+  it('should disable for the tenant but NOT transition lifecycle or stop container when other tenants still have it enabled', async () => {
+    // Arrange
+    const activePlugin = buildPluginRecord(PluginLifecycleStatus.ACTIVE);
+    const tenantPluginResult = {
+      ...buildTenantPluginRecord(false),
+      plugin: activePlugin,
+    };
+
+    // Outer pre-check: enabled = true
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(
+      buildTenantPluginRecord(true) as any
+    );
+
+    // $transaction executes callback synchronously with db
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+
+    // Inside tx: TOCTOU re-check → still enabled
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce({ enabled: true } as any);
+
+    // Inside tx: 1 other tenant still has the plugin enabled — NOT the last
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(1);
+
+    // Inside tx: tenantPlugin.update (no plugin.update should happen)
+    vi.mocked(db.tenantPlugin.update).mockResolvedValue(tenantPluginResult as any);
+
+    // Post-tx: findUniqueOrThrow for return value
+    vi.mocked(db.tenantPlugin.findUniqueOrThrow).mockResolvedValue(tenantPluginResult as any);
+
+    // Act
+    const result = await service.deactivatePlugin('tenant-123', 'plugin-lifecycle-test');
+
+    // Assert — lifecycle transition was NOT applied (not the last tenant)
+    expect(db.plugin.update).not.toHaveBeenCalled();
+
+    // Assert — tenantPlugin row was still disabled
+    expect(db.tenantPlugin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_pluginId: { tenantId: 'tenant-123', pluginId: 'plugin-lifecycle-test' } },
+        data: { enabled: false },
+      })
+    );
+
+    // Assert — container was NOT stopped (another tenant still using it)
+    expect(adapter.stop).not.toHaveBeenCalled();
+
+    expect(result.enabled).toBe(false);
+  });
+
+  it('should throw when TOCTOU re-check inside transaction finds plugin already inactive (EC-9 concurrent race)', async () => {
+    // Arrange — outer read sees enabled:true (stale), but inside tx it's already false
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce(
+      buildTenantPluginRecord(true) as any // outer pre-check: stale enabled:true
+    );
+
+    // $transaction executes callback synchronously with db
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+
+    // Inside tx: TOCTOU re-check → now disabled (concurrent call won the race)
+    vi.mocked(db.tenantPlugin.findUnique).mockResolvedValueOnce({ enabled: false } as any);
+
+    // Act & Assert — second concurrent call should fail with "already inactive"
+    await expect(service.deactivatePlugin('tenant-123', 'plugin-lifecycle-test')).rejects.toThrow(
+      "Plugin 'plugin-lifecycle-test' is already inactive"
+    );
+
+    // Neither lifecycle update nor container stop should have occurred
+    expect(db.plugin.update).not.toHaveBeenCalled();
+    expect(adapter.stop).not.toHaveBeenCalled();
+  });
+
+  it('should still return successfully when container stop fails (non-blocking, last tenant)', async () => {
+    // Arrange — same as last-tenant test but adapter.stop throws
+    const activePlugin = buildPluginRecord(PluginLifecycleStatus.ACTIVE);
+    const tenantPluginResult = {
+      ...buildTenantPluginRecord(false),
+      plugin: activePlugin,
+    };
+
+    vi.mocked(db.tenantPlugin.findUnique)
+      .mockResolvedValueOnce(buildTenantPluginRecord(true) as any) // outer pre-check
+      .mockResolvedValueOnce({ enabled: true } as any); // tx re-check
+
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+    vi.mocked(db.tenantPlugin.count).mockResolvedValue(0);
+    vi.mocked(db.plugin.findUnique).mockResolvedValue({
+      lifecycleStatus: PluginLifecycleStatus.ACTIVE,
+    } as any);
+    vi.mocked(db.plugin.update).mockResolvedValue(activePlugin as any);
+    vi.mocked(db.tenantPlugin.update).mockResolvedValue(tenantPluginResult as any);
+    vi.mocked(db.tenantPlugin.findUniqueOrThrow).mockResolvedValue(tenantPluginResult as any);
+
+    // Simulate container stop failure
+    vi.spyOn(adapter, 'stop').mockRejectedValue(new Error('Docker daemon unreachable'));
+
+    // Act — should NOT throw despite container stop failure
+    const result = await service.deactivatePlugin('tenant-123', 'plugin-lifecycle-test');
+
+    // Assert — DB was updated correctly despite container failure
+    expect(db.plugin.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { lifecycleStatus: PluginLifecycleStatus.DISABLED },
+      })
+    );
+    expect(result.enabled).toBe(false);
   });
 });

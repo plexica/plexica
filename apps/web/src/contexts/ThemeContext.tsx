@@ -25,11 +25,14 @@ import { logger } from '@/lib/logger.js';
 import {
   applyTheme,
   DEFAULT_TENANT_THEME,
+  generateDarkTheme,
   validateTheme,
   type TenantTheme,
 } from '@/lib/theme-utils.js';
+import { loadFonts } from '@/lib/font-loader.js';
 import { useAuthStore } from '@/stores/auth.store.js';
 import apiClient from '@/lib/api-client.js';
+import { useFeatureFlag } from '@/lib/feature-flags.js';
 
 // ---------------------------------------------------------------------------
 // Dark / Light / System (original)
@@ -183,6 +186,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(DEFAULT_TENANT_THEME);
     // Only on mount — empty deps is intentional
   }, []);
+
+  // Load fonts whenever tenantTheme.fonts changes (T005-16)
+  useEffect(() => {
+    const { heading, body } = tenantTheme.fonts;
+    void loadFonts({ heading, body });
+  }, [tenantTheme.fonts]);
+
+  // T005-20: Re-apply tenant color tokens when dark mode toggles.
+  // When ENABLE_DARK_MODE is on and the current scheme is dark, derive dark
+  // variants and re-apply.  On light mode restore the original tenant colors.
+  const darkModeEnabled = useFeatureFlag('ENABLE_DARK_MODE');
+  useEffect(() => {
+    if (darkModeEnabled && isDark) {
+      applyTheme(generateDarkTheme(tenantTheme));
+    } else {
+      applyTheme(tenantTheme);
+    }
+  }, [isDark, darkModeEnabled, tenantTheme]);
 
   const refreshTenantTheme = useCallback(async () => {
     if (!tenantId) return;

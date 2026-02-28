@@ -47,6 +47,12 @@ export interface AuthStoreState {
   isRefreshing: boolean;
   /** Last auth error (displayed on login page) */
   error: string | null;
+  /**
+   * T005-17: True when the most recent silent token refresh has failed.
+   * Consumed by AuthWarningBanner (ENABLE_AUTH_WARNING_BANNER flag).
+   * Reset to false whenever setTokens() succeeds.
+   */
+  refreshFailed: boolean;
 }
 
 export interface AuthStoreActions {
@@ -65,6 +71,11 @@ export interface AuthStoreActions {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearAuth: () => void;
+  /**
+   * T005-17: Manually set refreshFailed (used by AuthWarningBanner dismiss).
+   * refreshFailed is also reset automatically by setTokens() on success.
+   */
+  setRefreshFailed: (failed: boolean) => void;
 }
 
 export type AuthStore = AuthStoreState & AuthStoreActions;
@@ -169,6 +180,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
   isLoading: true,
   isRefreshing: false,
   error: null,
+  refreshFailed: false,
 
   // --- Actions ---
 
@@ -181,6 +193,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       isAuthenticated: true,
       isLoading: false,
       error: null,
+      refreshFailed: false,
     });
 
     // Schedule silent refresh
@@ -212,6 +225,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       });
 
       if (!res.ok) {
+        set({ refreshFailed: true });
         get().expireSession();
         return false;
       }
@@ -231,6 +245,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       get().setTokens(newTokenSet);
       return true;
     } catch {
+      set({ refreshFailed: true });
       get().expireSession();
       return false;
     } finally {
@@ -307,6 +322,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
 
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
+  setRefreshFailed: (failed) => set({ refreshFailed: failed }),
 
   clearAuth: () => {
     cancelRefresh();

@@ -18,6 +18,7 @@ vi.mock('../../../lib/db', () => ({
     tenantPlugin: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -521,21 +522,27 @@ describe('PluginLifecycleService', () => {
 
       // Call 1: registry.getPlugin() — full plugin object
       vi.mocked(db.plugin.findUnique).mockResolvedValueOnce(mockPlugin as any);
-      // Call 2: transitionLifecycleStatus(INSTALLING) — select lifecycleStatus
-      vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
-        lifecycleStatus: PluginLifecycleStatus.REGISTERED,
-      } as any);
-      // Call 3: transitionLifecycleStatus(INSTALLED) after success — select lifecycleStatus
+      // Call 2: transitionLifecycleStatus(INSTALLED) after tx success — select lifecycleStatus
+      // (Call 2 for REGISTERED→INSTALLING transition is handled inside the tx mock below)
       vi.mocked(db.plugin.findUnique).mockResolvedValueOnce({
         lifecycleStatus: PluginLifecycleStatus.INSTALLING,
       } as any);
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(null);
       vi.mocked(db.plugin.update).mockResolvedValue({} as any);
 
-      // Mock transaction methods
+      // Mock transaction — provide full tx object required by TOCTOU-safe block
       const mockTx = {
         tenantPlugin: {
+          findUnique: vi.fn().mockResolvedValueOnce(null), // in-tx TOCTOU re-check → not installed
+          count: vi.fn().mockResolvedValueOnce(0), // isFirstInstall → true
           create: vi.fn().mockResolvedValue(mockInstallation),
+        },
+        plugin: {
+          findUnique: vi.fn().mockResolvedValueOnce({
+            // inline REGISTERED→INSTALLING check
+            lifecycleStatus: PluginLifecycleStatus.REGISTERED,
+          }),
+          update: vi.fn().mockResolvedValue({} as any),
         },
       };
 
@@ -751,6 +758,8 @@ describe('PluginLifecycleService', () => {
       };
 
       vi.mocked(db.tenantPlugin.findUnique).mockResolvedValue(mockInstallation as any);
+      // $transaction must execute the callback for the TOCTOU-safe logic to run
+      vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
       // deactivatePlugin guard: check other tenants with plugin enabled (0 → will transition)
       vi.mocked(db.tenantPlugin.count).mockResolvedValueOnce(0);
       // transitionLifecycleStatus(DISABLED): plugin must be in ACTIVE state
@@ -759,6 +768,10 @@ describe('PluginLifecycleService', () => {
       } as any);
       vi.mocked(db.plugin.update).mockResolvedValue({} as any);
       vi.mocked(db.tenantPlugin.update).mockResolvedValue(deactivatedInstallation as any);
+      // Post-tx re-fetch for return value
+      vi.mocked(db.tenantPlugin.findUniqueOrThrow).mockResolvedValue(
+        deactivatedInstallation as any
+      );
 
       const result = await lifecycleService.deactivatePlugin(tenantId, pluginId);
 
