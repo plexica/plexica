@@ -30,6 +30,7 @@ export { WORKSPACE_ROLES } from './workspace.js';
 // Plugin
 export type {
   PluginStatus,
+  PluginLifecycleStatus,
   TenantPluginStatus,
   PluginProps,
   PluginRoute,
@@ -46,7 +47,7 @@ export type {
   PluginRating,
   TenantPlugin,
 } from './plugin.js';
-export { PLUGIN_STATUSES, TENANT_PLUGIN_STATUSES } from './plugin.js';
+export { PLUGIN_STATUSES, PLUGIN_LIFECYCLE_STATUSES, TENANT_PLUGIN_STATUSES } from './plugin.js';
 
 // Events
 export type { DomainEvent, EventMetadata, EventHandlerFn } from './event.js';

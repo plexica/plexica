@@ -1,0 +1,522 @@
+# Sprint 006 — Active
+# Created: 2026-02-24
+# Updated: 2026-02-25 (synced: Phases 1-5 backend marked done; Phases 6-7 frontend added)
+# Managed by forge-scrum
+
+version: 1
+sprint_number: 6
+status: active
+sprint_goal: >
+  Implement the Plexica plugin system — lifecycle state machine, container adapter,
+  API routes, communication layer, SDK decorators, full backend test coverage,
+  and frontend plugin management UI.
+start_date: '2026-02-24'
+end_date: '2026-03-28'
+velocity_target: 92
+
+spec: '.forge/specs/004-plugin-system/spec.md'
+tasks: '.forge/specs/004-plugin-system/tasks.md'
+plan: '.forge/specs/004-plugin-system/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-018-plugin-lifecycle-status.md'
+  - '.forge/knowledge/adr/adr-019-pluggable-container-adapter.md'
+
+# ---------------------------------------------------------------------------
+# Phase 1: Lifecycle State Machine & Database Migration
+# Sprint 6, Week 1 | 12 story points — COMPLETE
+# ---------------------------------------------------------------------------
+
+stories:
+  # --- Phase 1 (complete) ---
+  - id: 'T004-01'
+    title: 'Add `PluginLifecycleStatus` enum and `lifecycleStatus` column to Prisma schema'
+    phase: 1
+    week: 1
+    points: 2
+    status: done
+    parallel: false
+    dependencies: []
+    tags: ['[FR-001]', '[ADR-018]', 'database', 'migration']
+
+  - id: 'T004-02'
+    title: 'Generate Prisma client and update `@plexica/database` exports'
+    phase: 1
+    week: 1
+    points: 1
+    status: done
+    parallel: true
+    dependencies: ['T004-01']
+    tags: ['[FR-001]', 'database', 'exports']
+
+  - id: 'T004-03'
+    title: 'Update `PluginLifecycleService` with `lifecycleStatus` state machine'
+    phase: 1
+    week: 1
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T004-01', 'T004-02']
+    tags: ['[FR-001]', '[ADR-018]', 'state-machine', 'service']
+
+  - id: 'T004-04'
+    title: 'Implement `TenantMigrationService`'
+    phase: 1
+    week: 1
+    points: 4
+    status: done
+    parallel: true
+    dependencies: ['T004-01']
+    tags: ['[FR-005]', 'migration', 'multi-tenant', 'service']
+
+  - id: 'T004-05'
+    title: 'Wire permission registration into `installPlugin()` flow'
+    phase: 1
+    week: 1
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-01']
+    tags: ['[FR-002]', 'rbac', 'permissions', 'service']
+
+  # Phase 1 subtotal: 12 points (done)
+
+  # --- Phase 2 (complete) ---
+  - id: 'T004-06'
+    title: 'Define `ContainerAdapter` interface and `NullContainerAdapter`'
+    phase: 2
+    week: 2
+    points: 2
+    status: done
+    parallel: true
+    dependencies: []
+    tags: ['[FR-001]', '[ADR-019]', 'container', 'interface']
+
+  - id: 'T004-07'
+    title: 'Implement `DockerContainerAdapter` using `dockerode`'
+    phase: 2
+    week: 2
+    points: 4
+    status: done
+    parallel: true
+    dependencies: ['T004-06']
+    tags: ['[FR-001]', '[FR-017]', '[ADR-019]', 'container', 'docker']
+
+  - id: 'T004-08'
+    title: 'Wire `ContainerAdapter` into `PluginLifecycleService`'
+    phase: 2
+    week: 2
+    points: 3
+    status: done
+    parallel: false
+    dependencies: ['T004-03', 'T004-06', 'T004-07']
+    tags: ['[FR-001]', '[ADR-019]', 'container', 'service', 'lifecycle']
+
+  - id: 'T004-09'
+    title: 'Add spec-aligned super-admin v1 plugin routes'
+    phase: 2
+    week: 2
+    points: 4
+    status: done
+    parallel: true
+    dependencies: ['T004-03', 'T004-08']
+    tags: ['[FR-001]', '[FR-002]', 'api', 'routes', 'super-admin']
+
+  - id: 'T004-10'
+    title: 'Add tenant-admin plugin management v1 routes'
+    phase: 2
+    week: 2
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-03']
+    tags: ['[FR-003]', 'api', 'routes', 'tenant-admin']
+
+  - id: 'T004-11'
+    title: 'Implement health-check proxy endpoints'
+    phase: 2
+    week: 2
+    points: 1
+    status: done
+    parallel: true
+    dependencies: ['T004-09']
+    tags: ['[FR-001]', 'api', 'routes', 'health-check', 'proxy']
+
+  # Phase 2 subtotal: 16 points (done)
+
+  # --- Phase 3 (complete) ---
+  - id: 'T004-12'
+    title: 'Wire Redpanda topic configuration on plugin enable/disable'
+    phase: 3
+    week: 3
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T004-08']
+    tags: ['[FR-006]', 'events', 'redpanda', 'topics', 'service']
+
+  - id: 'T004-13'
+    title: 'Add `remoteEntryUrl` column and `ModuleFederationRegistryService`'
+    phase: 3
+    week: 3
+    points: 4
+    status: done
+    parallel: true
+    dependencies: ['T004-02']
+    tags: ['[FR-011]', '[ADR-011]', 'frontend', 'module-federation', 'service']
+
+  - id: 'T004-14'
+    title: 'Wire translation namespace loading on plugin enable'
+    phase: 3
+    week: 3
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-08']
+    tags: ['[FR-015]', 'i18n', 'translations', 'service']
+
+  - id: 'T004-15'
+    title: 'Verify ADR-018 and ADR-019 decisions are correctly wired in code'
+    phase: 3
+    week: 3
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T004-03', 'T004-08']
+    tags: ['[ADR-018]', '[ADR-019]', 'verification', 'cross-check']
+
+  # Phase 3 subtotal: 12 points (done)
+
+  # --- Phase 4 (complete) ---
+  - id: 'T004-16'
+    title: 'Implement `@EventHandler` and `@EventPublisher` decorators'
+    phase: 4
+    week: 4
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T004-12']
+    tags: ['[FR-006]', 'sdk', 'decorators', 'events']
+
+  - id: 'T004-17'
+    title: 'Implement `@Permission` decorator'
+    phase: 4
+    week: 4
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-05']
+    tags: ['[FR-002]', 'sdk', 'decorators', 'permissions']
+
+  - id: 'T004-18'
+    title: 'Implement `@Hook` decorator'
+    phase: 4
+    week: 4
+    points: 2
+    status: done
+    parallel: true
+    dependencies: []
+    tags: ['[FR-007]', 'sdk', 'decorators', 'hooks']
+
+  - id: 'T004-19'
+    title: 'Update SDK exports and write `PLUGIN_SDK.md` usage guide'
+    phase: 4
+    week: 4
+    points: 3
+    status: done
+    parallel: false
+    dependencies: ['T004-16', 'T004-17', 'T004-18']
+    tags: ['sdk', 'exports', 'documentation']
+
+  # Phase 4 subtotal: 10 points (done)
+
+  # --- Phase 5 (complete) ---
+  - id: 'T004-20'
+    title: 'Unit tests — `PluginRegistryService`'
+    phase: 5
+    week: 5
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-03', 'T004-05']
+    tags: ['testing', 'unit', 'coverage', 'registry']
+
+  - id: 'T004-21'
+    title: 'Unit tests — `PluginLifecycleService`'
+    phase: 5
+    week: 5
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-03', 'T004-08']
+    tags: ['testing', 'unit', 'coverage', 'lifecycle']
+
+  - id: 'T004-22'
+    title: 'Unit tests — `TenantMigrationService`'
+    phase: 5
+    week: 5
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-04']
+    tags: ['testing', 'unit', 'coverage', 'migration']
+
+  - id: 'T004-23'
+    title: 'Unit tests — `ContainerAdapter`, `ModuleFederationRegistryService`, SDK decorators'
+    phase: 5
+    week: 5
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-06', 'T004-07', 'T004-13', 'T004-16', 'T004-17', 'T004-18']
+    tags: ['testing', 'unit', 'coverage', 'container', 'sdk']
+
+  - id: 'T004-24'
+    title: 'Integration tests — super-admin plugin lifecycle API'
+    phase: 5
+    week: 5
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T004-09', 'T004-11', 'T004-13']
+    tags: ['testing', 'integration', 'coverage', 'super-admin', 'api']
+
+  - id: 'T004-25'
+    title: 'Integration tests — tenant plugin routes'
+    phase: 5
+    week: 5
+    points: 1
+    status: done
+    parallel: true
+    dependencies: ['T004-10']
+    tags: ['testing', 'integration', 'coverage', 'tenant-admin', 'api']
+
+  - id: 'T004-26'
+    title: 'E2E test — super-admin install lifecycle + tenant enable + plugin invocation'
+    phase: 5
+    week: 5
+    points: 2
+    status: done
+    parallel: false
+    dependencies: ['T004-24', 'T004-25']
+    tags: ['testing', 'e2e', 'coverage', 'lifecycle']
+
+  - id: 'T004-27'
+    title: 'Security hardening — container network policy, hook URL validation, header propagation'
+    phase: 5
+    week: 5
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T004-07', 'T004-09']
+    tags: ['testing', 'security', 'hardening', 'container', 'network']
+
+  # Phase 5 subtotal: 16 points (done)
+  # Backend total: 62/62 points done
+
+  # ---------------------------------------------------------------------------
+  # Phase 6: Frontend — Plugin Registry & Lifecycle UI
+  # Sprint 6, Weeks 6-7 | 23 story points — PENDING
+  # ---------------------------------------------------------------------------
+  #
+  # All Phase 6 tasks depend on Phase 1-5 backend being complete (now done).
+  # T004-28 through T004-33 can largely run in parallel; T004-29 has a soft
+  # dependency on T004-28 for shared card context.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T004-28'
+    title: 'Redesign PluginsView with Registry tab, lifecycle badges, and search/filter'
+    phase: 6
+    week: 6
+    points: 5
+    status: in_progress
+    parallel: true
+    dependencies: ['T004-09', 'T004-13']
+    tags: ['[FR-001]', '[FR-011]', 'frontend', 'ui', 'registry', 'super-admin']
+
+  - id: 'T004-29'
+    title: 'Implement PluginInstallProgress panel'
+    phase: 6
+    week: 6
+    points: 4
+    status: pending
+    parallel: true
+    dependencies: ['T004-09', 'T004-28']
+    tags: ['[FR-001]', 'frontend', 'ui', 'install', 'progress']
+
+  - id: 'T004-30'
+    title: 'Implement lifecycle action dialogs (Enable, Disable, Update, Uninstall)'
+    phase: 6
+    week: 6
+    points: 4
+    status: pending
+    parallel: true
+    dependencies: ['T004-09', 'T004-10']
+    tags: ['[FR-001]', '[FR-003]', 'frontend', 'ui', 'dialogs', 'lifecycle']
+
+  - id: 'T004-31'
+    title: 'Implement PluginDetailModal with tabs (Details, Config, Health, Timeline)'
+    phase: 6
+    week: 6
+    points: 6
+    status: pending
+    parallel: true
+    dependencies: ['T004-09', 'T004-11']
+    tags: ['[FR-001]', '[FR-004]', 'frontend', 'ui', 'modal', 'detail']
+
+  - id: 'T004-32'
+    title: 'Implement tenant Extensions page (/extensions)'
+    phase: 6
+    week: 6
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T004-10']
+    tags: ['[FR-003]', 'frontend', 'ui', 'tenant', 'extensions']
+
+  - id: 'T004-33'
+    title: 'Implement React hooks (usePluginSearch, useInstallProgress, usePluginHealth)'
+    phase: 6
+    week: 6
+    points: 4
+    status: pending
+    parallel: true
+    dependencies: ['T004-09', 'T004-11']
+    tags: ['[FR-001]', '[FR-004]', 'frontend', 'hooks', 'react']
+
+  # Phase 6 subtotal: 28 points
+
+  # ---------------------------------------------------------------------------
+  # Phase 7: Frontend Tests & Accessibility
+  # Sprint 6, Week 7 | 10 story points — PENDING
+  # ---------------------------------------------------------------------------
+
+  - id: 'T004-34'
+    title: 'Frontend tests — PluginsView and PluginInstallProgress'
+    phase: 7
+    week: 7
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T004-28', 'T004-29']
+    tags: ['testing', 'frontend', 'coverage', 'registry', 'install']
+
+  - id: 'T004-35'
+    title: 'Frontend tests — lifecycle dialogs and PluginDetailModal'
+    phase: 7
+    week: 7
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T004-30', 'T004-31']
+    tags: ['testing', 'frontend', 'coverage', 'dialogs', 'modal']
+
+  - id: 'T004-36'
+    title: 'Frontend tests — Extensions page'
+    phase: 7
+    week: 7
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T004-32']
+    tags: ['testing', 'frontend', 'coverage', 'extensions']
+
+  - id: 'T004-37'
+    title: 'Accessibility audit — WCAG 2.1 AA on all new plugin UI'
+    phase: 7
+    week: 7
+    points: 3
+    status: pending
+    parallel: false
+    dependencies: ['T004-28', 'T004-29', 'T004-30', 'T004-31', 'T004-32']
+    tags: ['accessibility', 'wcag', 'audit', 'frontend']
+
+  # Phase 7 subtotal: 10 points
+
+# ---------------------------------------------------------------------------
+# Sprint Totals
+# ---------------------------------------------------------------------------
+
+totals:
+  phase_1_points: 12 # T004-01 → T004-05  (done)
+  phase_2_points: 16 # T004-06 → T004-11  (done)
+  phase_3_points: 12 # T004-12 → T004-15  (done)
+  phase_4_points: 10 # T004-16 → T004-19  (done)
+  phase_5_points: 12 # T004-20 → T004-27  (done)
+  phase_6_points: 28 # T004-28 → T004-33  (pending)
+  phase_7_points: 12 # T004-34 → T004-37  (pending)
+  total_tasks: 37
+  total_points: 92
+  done_points: 62
+  remaining_points: 30
+
+# ---------------------------------------------------------------------------
+# Coverage Targets
+# ---------------------------------------------------------------------------
+
+coverage_targets:
+  - file: 'apps/core-api/src/services/plugin.service.ts'
+    current: '~20%'
+    target: '≥85%'
+    status: 'done (via T004-20–T004-26)'
+  - file: 'apps/core-api/src/services/tenant-migration.service.ts'
+    current: '0% (new)'
+    target: '≥85%'
+    status: 'done (via T004-22)'
+  - file: 'apps/core-api/src/lib/container-adapter.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-23)'
+  - file: 'apps/core-api/src/lib/docker-container-adapter.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-23)'
+  - file: 'apps/core-api/src/services/module-federation-registry.service.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-23)'
+  - file: 'apps/core-api/src/routes/plugin-v1.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-24)'
+  - file: 'apps/core-api/src/routes/tenant-plugins-v1.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-25)'
+  - file: 'packages/sdk/src/decorators/events.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-23)'
+  - file: 'packages/sdk/src/decorators/permissions.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-23)'
+  - file: 'packages/sdk/src/decorators/hooks.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'done (via T004-23)'
+  - file: 'apps/web/src/routes/plugins.tsx'
+    current: 'existing (marketplace)'
+    target: '≥80% (new Registry tab)'
+    status: 'pending (T004-28)'
+  - file: 'apps/web/src/routes/extensions.tsx'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'pending (T004-32)'
+  - file: 'apps/web/src/components/plugins/*'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'pending (T004-34, T004-35, T004-36)'
+
+# ---------------------------------------------------------------------------
+# Constraints & Notes
+# ---------------------------------------------------------------------------
+
+constraints:
+  - 'Existing PluginRegistryService, PluginLifecycleService, ServiceRegistryService, SharedDataService, DependencyResolutionService, plugin-hook.service.ts, and @plexica/event-bus are ALREADY IMPLEMENTED — all tasks are additive extensions, not rebuilds.'
+  - 'ADR-018 (lifecycle vs marketplace status) and ADR-019 (pluggable container adapter) are pre-written — T004-15 verifies code matches ADRs.'
+  - 'Backward compatibility required: existing plugin.ts routes must NOT be modified (Constitution Art. 1.2 §3).'
+  - 'CONTAINER_ADAPTER=null in all test environments — no live Docker daemon required for tests.'
+  - '1 story point ≈ 2h focused engineering. 92 pts ≈ 184h total. 30 pts remaining ≈ 60h.'
+  - 'Frontend conventions: TanStack Router file-based routes, @plexica/ui primitives, PluginContext for shared state.'
+
+carried_over: []

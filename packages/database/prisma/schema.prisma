@@ -59,13 +59,26 @@ enum PluginStatus {
   @@schema("core")
 }
 
+enum PluginLifecycleStatus {
+  REGISTERED    // Plugin registered in the global registry; not yet deployed
+  INSTALLING    // Container image being pulled / DB migrations running
+  INSTALLED     // Deployed and ready; not yet activated for tenants
+  ACTIVE        // Running and serving tenant requests
+  DISABLED      // Administratively disabled by super-admin
+  UNINSTALLING  // Being removed (cleanup in progress)
+  UNINSTALLED   // Fully removed from the platform
+
+  @@schema("core")
+}
+
 model Plugin {
   id        String       @id
   name      String
   version   String // Current/latest version
   manifest  Json
-  status    PluginStatus @default(DRAFT)
-  
+  status          PluginStatus          @default(DRAFT)
+  lifecycleStatus PluginLifecycleStatus @default(REGISTERED) @map("lifecycle_status")
+
   // Marketplace fields
   description   String?
   longDescription String? @map("long_description") // Detailed description
@@ -85,6 +98,10 @@ model Plugin {
   downloadCount Int      @default(0) @map("download_count")
   installCount  Int      @default(0) @map("install_count")
   
+  // Module Federation (T004-13, ADR-011): remote entry URL for dynamic plugin loading
+  remoteEntryUrl    String? @map("remote_entry_url")
+  frontendRoutePrefix String? @map("frontend_route_prefix")
+
   // Publishing
   publishedAt   DateTime? @map("published_at")
   rejectedAt    DateTime? @map("rejected_at")
@@ -101,6 +118,7 @@ model Plugin {
   templates     WorkspaceTemplate[]
 
   @@index([status])
+  @@index([lifecycleStatus], map: "idx_plugins_lifecycle_status")
   @@index([category])
   @@index([averageRating])
   @@map("plugins")

@@ -2,6 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
+// Re-exports all Prisma-generated types, including PluginStatus, PluginLifecycleStatus,
+// TenantStatus, ServiceStatus, etc.  Consumer packages import from '@plexica/database',
+// not from '@prisma/client' directly.
 export * from '@prisma/client';
 
 // Singleton instance

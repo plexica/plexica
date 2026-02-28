@@ -9,6 +9,7 @@ import { LanguageSelector } from '@plexica/ui';
 import { useIntl } from '@/contexts';
 import { UserProfileMenu } from '@/components/shell/UserProfileMenu';
 import { useAuthStore } from '@/stores/auth.store';
+import { useTenantTheme } from '@/contexts/ThemeContext';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -24,14 +25,25 @@ const AVAILABLE_LOCALES = [
   // { code: 'de', name: 'Deutsch' },
 ];
 
+const DEFAULT_LOGO_PLACEHOLDER = '/plexica-logo.svg';
+
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { locale, setLocale } = useIntl();
+  const { tenantTheme } = useTenantTheme();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   // Derive tenant name from JWT claim (tenantId is slug in token, use displayName fallback)
   const tenantName = user?.tenantId ?? 'Plexica';
+
+  // Resolve the logo URL: tenant logo (if valid and not errored) or placeholder
+  const logoSrc = tenantTheme.logo && !logoError ? tenantTheme.logo : DEFAULT_LOGO_PLACEHOLDER;
+
+  const handleLogoError = () => {
+    setLogoError(true);
+  };
 
   return (
     <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4">
@@ -47,17 +59,30 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
         </button>
 
         {/* Logo/Brand - Extension Point: header.logo */}
-        <div
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={() => navigate({ to: '/' })}
+        <button
+          className="flex items-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+          onClick={() => void navigate({ to: '/' })}
+          aria-label={`${tenantName} home`}
         >
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold">
-            P
-          </div>
-          <span className="hidden md:block text-lg font-semibold text-foreground">
-            {tenantName}
-          </span>
-        </div>
+          {tenantTheme.logo ? (
+            <img
+              src={logoSrc}
+              alt={`${tenantName} logo`}
+              className="h-8 md:h-10 max-w-[160px] object-contain"
+              onError={handleLogoError}
+              data-testid="tenant-logo"
+            />
+          ) : (
+            <>
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold">
+                P
+              </div>
+              <span className="hidden md:block text-lg font-semibold text-foreground">
+                {tenantName}
+              </span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Center Section - Global Search (Extension Point: header.search) */}

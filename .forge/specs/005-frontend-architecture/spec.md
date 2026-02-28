@@ -24,7 +24,7 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 ### US-001: Dynamic Plugin Frontend Loading
 
-**As a** tenant user,
+**As a** tenant user _(Persona: Priya)_,
 **I want** plugin pages to load seamlessly within the application,
 **so that** plugins feel like native parts of the platform.
 
@@ -37,7 +37,7 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 ### US-002: Tenant Theming
 
-**As a** tenant admin,
+**As a** tenant admin _(Persona: Dana)_,
 **I want** to customize the platform's look with my organization's branding,
 **so that** the application reflects my company identity.
 
@@ -62,7 +62,7 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 ### US-004: Widget System
 
-**As a** plugin developer,
+**As a** plugin developer _(Persona: Marcus)_,
 **I want** to expose reusable widgets that other plugins or the shell can embed,
 **so that** cross-plugin UI integration is possible.
 
@@ -86,23 +86,23 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 ## 4. Functional Requirements
 
-| ID     | Requirement                                                                                        | Priority | Story Ref |
-| ------ | -------------------------------------------------------------------------------------------------- | -------- | --------- |
-| FR-001 | React 19 SPA with Vite build tool and TanStack Router                                              | Must     | US-001    |
-| FR-002 | Module Federation via `@originjs/vite-plugin-federation` for plugin remote loading                 | Must     | US-001    |
-| FR-003 | Plugin remote entries loaded from CDN/S3 URLs declared in plugin manifest                          | Must     | US-001    |
-| FR-004 | Lazy loading of plugin routes with `React.lazy()` and Suspense fallback                            | Must     | US-001    |
-| FR-005 | Error boundaries around remote module loading to prevent shell crashes                             | Must     | US-001    |
-| FR-006 | Shell provides: base layout (header, sidebar, navigation), routing, auth context, theme, i18n      | Must     | US-005    |
-| FR-007 | Route prefix per plugin: `/{pluginId}/*` for plugin pages                                          | Must     | US-003    |
-| FR-008 | Reserved routes: `/`, `/settings`, `/admin`, `/profile` — not assignable to plugins                | Must     | US-003    |
-| FR-009 | Tenant theme: logo, color palette (primary, secondary, background, surface, text), font families   | Must     | US-002    |
-| FR-010 | Theme loaded from tenant settings on login; applied via CSS custom properties / TailwindCSS tokens | Must     | US-002    |
-| FR-011 | Widget system: plugins expose components via Module Federation `exposes` config                    | Should   | US-004    |
-| FR-012 | Auth context provider: user, tenant, roles, permissions, teams available via React context         | Must     | US-005    |
-| FR-013 | Silent token refresh before expiry (background interval check)                                     | Must     | US-005    |
-| FR-014 | Session expiry redirect to login with "session expired" message                                    | Must     | US-005    |
-| FR-015 | TailwindCSS v4 with semantic design tokens (per ADR-009)                                           | Must     | US-002    |
+| ID     | Requirement                                                                                                     | Priority | Story Ref |
+| ------ | --------------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| FR-001 | React 19 SPA with Vite build tool and TanStack Router                                                           | Must     | US-001    |
+| FR-002 | Module Federation via `@originjs/vite-plugin-federation` for plugin remote loading                              | Must     | US-001    |
+| FR-003 | Plugin remote entries loaded from CDN/S3 URLs declared in plugin manifest                                       | Must     | US-001    |
+| FR-004 | Lazy loading of plugin routes with `React.lazy()` and Suspense fallback                                         | Must     | US-001    |
+| FR-005 | Error boundaries around remote module loading to prevent shell crashes                                          | Must     | US-001    |
+| FR-006 | Shell provides: base layout (header, sidebar, navigation), routing, auth context, theme, i18n                   | Must     | US-005    |
+| FR-007 | Route prefix per plugin: `/{pluginId}/*` for plugin pages                                                       | Must     | US-003    |
+| FR-008 | Reserved routes: `/`, `/settings`, `/admin`, `/profile`, `/team`, `/login`, `/auth` — not assignable to plugins | Must     | US-003    |
+| FR-009 | Tenant theme: logo, color palette (primary, secondary, background, surface, text), font families                | Must     | US-002    |
+| FR-010 | Theme loaded from tenant settings on login; applied via CSS custom properties / TailwindCSS tokens              | Must     | US-002    |
+| FR-011 | Widget system: plugins expose components via Module Federation `exposes` config                                 | Should   | US-004    |
+| FR-012 | Auth context provider: user, tenant, roles, permissions, teams available via React context                      | Must     | US-005    |
+| FR-013 | Silent token refresh before expiry (background interval check)                                                  | Must     | US-005    |
+| FR-014 | Session expiry redirect to login with "session expired" message                                                 | Must     | US-005    |
+| FR-015 | TailwindCSS v4 with semantic design tokens (per ADR-009)                                                        | Must     | US-002    |
 
 ## 5. Non-Functional Requirements
 
@@ -154,6 +154,8 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 }
 ```
 
+> **Note**: This JSON represents the minimal required fields. The canonical schema (all fields, validation rules, and defaults) is defined in `packages/database/prisma/schema.prisma` (`TenantTheme` model) and validated server-side via the Zod schema in `apps/core-api/src/modules/tenant/dto/update-theme.dto.ts`. Frontend components must not assume additional fields beyond those shown here.
+
 ### Plugin Frontend Registration
 
 ```json
@@ -186,7 +188,7 @@ Frontend consumes these APIs (defined in other specs):
 - Sidebar navigation dynamically populated from enabled plugins' route prefixes.
 - Responsive: sidebar collapses to hamburger menu on mobile.
 - Loading states: skeleton screens for initial load, spinners for plugin remote fetches.
-- Dark mode: support via TailwindCSS semantic tokens (future consideration per ADR-009).
+- Dark mode: **in scope** — implemented via TailwindCSS v4 semantic tokens with both light and dark variants (ADR-009). Dark token generation for tenant theme colours is covered by T005-20.
 
 ## 10. Out of Scope
 
@@ -227,6 +229,8 @@ Frontend consumes these APIs (defined in other specs):
 | ADR-004: Module Federation  | `.forge/knowledge/adr/adr-004-module-federation.md`      |
 | ADR-009: TailwindCSS Tokens | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md`  |
 | ADR-011: Vite Federation    | `.forge/knowledge/adr/adr-011-vite-module-federation.md` |
+| ADR-020: Font Hosting       | `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`  |
+| ADR-008: Playwright E2E     | `.forge/knowledge/adr/adr-008-playwright-e2e.md`         |
 | Source: Functional Specs    | `specs/FUNCTIONAL_SPECIFICATIONS.md` (Section 8)         |
 | Source: Frontend Arch       | `docs/ARCHITECTURE.md`                                   |
 | Frontend App                | `apps/web/`                                              |

@@ -72,3 +72,9 @@ export type {
 
 export { PluginEventClient } from '@plexica/event-bus';
 export type { EventBusService, EventBusConfig } from '@plexica/event-bus';
+
+// ---------------------------------------------------------------------------
+// Decorators
+// ---------------------------------------------------------------------------
+
+export * from './decorators/index.js';

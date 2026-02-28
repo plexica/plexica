@@ -4,7 +4,7 @@
 
 **Spec:** 010-frontend-production-readiness  
 **Date:** 2026-02-17  
-**Status:** Draft  
+**Status:** In Progress — Phase 1 & 2 Complete  
 **Total Estimated Effort:** 115 hours  
 **Total Story Points:** 58 points (Fibonacci scale)
 
@@ -41,13 +41,13 @@
 
 **Acceptance Criteria:**
 
-- [ ] Component catches errors during plugin remote loading (network errors)
-- [ ] Component catches errors during plugin component rendering (runtime errors)
-- [ ] Component catches errors in useEffect hooks (async errors)
-- [ ] Error state stored in component state (`hasError`, `error`, `errorInfo`)
-- [ ] `getDerivedStateFromError()` sets error state
-- [ ] `componentDidCatch()` logs error context
-- [ ] `resetError()` method clears error state
+- [x] Component catches errors during plugin remote loading (network errors)
+- [x] Component catches errors during plugin component rendering (runtime errors)
+- [x] Component catches errors in useEffect hooks (async errors)
+- [x] Error state stored in component state (`hasError`, `error`, `errorInfo`)
+- [x] `getDerivedStateFromError()` sets error state
+- [x] `componentDidCatch()` logs error context
+- [x] `resetError()` method clears error state
 
 **Implementation Details:**
 
@@ -89,13 +89,13 @@
 
 **Acceptance Criteria:**
 
-- [ ] Displays warning icon (⚠️)
-- [ ] Shows plugin name in error message
-- [ ] Shows user-friendly error description (no stack trace)
-- [ ] Shows error message in gray box with monospace font
-- [ ] Provides "Retry" button (primary CTA)
-- [ ] Provides "Go Back" button (secondary CTA)
-- [ ] Responsive layout (mobile + desktop)
+- [x] Displays warning icon (⚠️)
+- [x] Shows plugin name in error message
+- [x] Shows user-friendly error description (no stack trace)
+- [x] Shows error message in gray box with monospace font
+- [x] Provides "Retry" button (primary CTA)
+- [x] Provides "Go Back" button (secondary CTA)
+- [x] Responsive layout (mobile + desktop)
 - [ ] Supports i18n (uses `useTranslations` hook)
 
 **Implementation Details:**
@@ -153,11 +153,11 @@
 
 **Acceptance Criteria:**
 
-- [ ] `PluginErrorBoundary` wraps plugin component in `plugins.$pluginId.tsx` route
-- [ ] `pluginId` and `pluginName` passed as props
-- [ ] Error boundary wraps Suspense (not inside Suspense)
-- [ ] Plugin metadata fetched from `usePlugin()` hook
-- [ ] All existing plugin routes updated
+- [x] `PluginErrorBoundary` wraps plugin component in `plugins.$pluginId.tsx` route
+- [x] `pluginId` and `pluginName` passed as props
+- [x] Error boundary wraps Suspense (not inside Suspense)
+- [x] Plugin metadata fetched from `usePlugin()` hook
+- [x] All existing plugin routes updated
 
 **Implementation Details:**
 
@@ -212,11 +212,11 @@ function PluginRoute() {
 
 **Acceptance Criteria:**
 
-- [ ] Pino logger configured with browser transport
-- [ ] Logger exports `logger.error()`, `logger.warn()`, `logger.info()` methods
-- [ ] Error logs include context: `pluginId`, `tenantSlug`, `userId`, `timestamp`, `stack`
-- [ ] Log level configurable via environment variable `VITE_LOG_LEVEL`
-- [ ] Pretty-print enabled in development, JSON in production
+- [x] Pino logger configured with browser transport
+- [x] Logger exports `logger.error()`, `logger.warn()`, `logger.info()` methods
+- [x] Error logs include context: `pluginId`, `tenantSlug`, `userId`, `timestamp`, `stack`
+- [x] Log level configurable via environment variable `VITE_LOG_LEVEL`
+- [x] Pretty-print enabled in development, JSON in production
 
 **Implementation Details:**
 
@@ -272,15 +272,15 @@ export const logger = pino({
 
 **Acceptance Criteria:**
 
-- [ ] Test: Component catches render errors ✅
-- [ ] Test: Component catches async errors (useEffect) ✅
-- [ ] Test: Error state updated correctly ✅
-- [ ] Test: Error context logged with Pino ✅
-- [ ] Test: Fallback UI rendered on error ✅
-- [ ] Test: Custom fallback component supported ✅
-- [ ] Test: Reset error on retry ✅
-- [ ] Test: Children rendered when no error ✅
-- [ ] Coverage: ≥90% for PluginErrorBoundary
+- [x] Test: Component catches render errors ✅
+- [x] Test: Component catches async errors (useEffect) ✅
+- [x] Test: Error state updated correctly ✅
+- [x] Test: Error context logged with Pino ✅
+- [x] Test: Fallback UI rendered on error ✅
+- [x] Test: Custom fallback component supported ✅
+- [x] Test: Reset error on retry ✅
+- [x] Test: Children rendered when no error ✅
+- [x] Coverage: ≥90% for PluginErrorBoundary
 
 **Implementation Details:**
 
@@ -327,10 +327,10 @@ export const logger = pino({
 
 **Acceptance Criteria:**
 
-- [ ] Test: Plugin remote entry unreachable (network error) → Error boundary shown
-- [ ] Test: Plugin remote returns invalid JS → Error boundary shown
-- [ ] Test: Plugin component throws on mount → Error boundary shown
-- [ ] Test: Shell continues to work after plugin error → Verify header/sidebar visible
+- [x] Test: Plugin remote entry unreachable (network error) → Error boundary shown
+- [x] Test: Plugin remote returns invalid JS → Error boundary shown
+- [x] Test: Plugin component throws on mount → Error boundary shown
+- [x] Test: Shell continues to work after plugin error → Verify header/sidebar visible
 
 **Implementation Details:**
 
@@ -376,12 +376,12 @@ export const logger = pino({
 
 **Acceptance Criteria:**
 
-- [ ] `ThemeContext` created with `createContext()`
-- [ ] `ThemeProvider` component wraps app in `main.tsx`
-- [ ] Theme state includes: `theme`, `isLoading`, `error`, `refreshTheme()`
-- [ ] Default theme applied on mount
-- [ ] Theme stored in context, accessible via `useTheme()` hook
-- [ ] Theme persists across route changes
+- [x] `ThemeContext` created with `createContext()`
+- [x] `ThemeProvider` component wraps app in `main.tsx`
+- [x] Theme state includes: `theme`, `isLoading`, `error`, `refreshTheme()`
+- [x] Default theme applied on mount
+- [x] Theme stored in context, accessible via `useTheme()` hook
+- [x] Theme persists across route changes
 
 **Implementation Details:**
 
@@ -442,12 +442,12 @@ const defaultTheme: TenantTheme = {
 
 **Acceptance Criteria:**
 
-- [ ] Theme fetched via `GET /api/v1/tenant/settings` on ThemeProvider mount
-- [ ] API call triggered when tenant context available (not before login)
-- [ ] Theme extracted from `response.data.settings.theme`
-- [ ] Fetch errors handled gracefully (log warning, use default theme)
-- [ ] Loading state set during fetch
-- [ ] API client uses authenticated axios instance
+- [x] Theme fetched via `GET /api/v1/tenant/settings` on ThemeProvider mount
+- [x] API call triggered when tenant context available (not before login)
+- [x] Theme extracted from `response.data.settings.theme`
+- [x] Fetch errors handled gracefully (log warning, use default theme)
+- [x] Loading state set during fetch
+- [x] API client uses authenticated axios instance
 
 **Implementation Details:**
 
@@ -502,12 +502,12 @@ const defaultTheme: TenantTheme = {
 
 **Acceptance Criteria:**
 
-- [ ] Color values validated as hex format (`#RRGGBB` or `#RGB`)
-- [ ] Invalid colors replaced with default theme colors
-- [ ] Font families validated (non-empty strings)
-- [ ] Logo URL validated (HTTPS URL or empty)
-- [ ] Validation warnings logged to console
-- [ ] Partial themes merged with defaults (not rejected entirely)
+- [x] Color values validated as hex format (`#RRGGBB` or `#RGB`)
+- [x] Invalid colors replaced with default theme colors
+- [x] Font families validated (non-empty strings)
+- [x] Logo URL validated (HTTPS URL or empty)
+- [x] Validation warnings logged to console
+- [x] Partial themes merged with defaults (not rejected entirely)
 
 **Implementation Details:**
 
@@ -571,12 +571,12 @@ function validateTheme(theme: Partial<TenantTheme>): TenantTheme {
 
 **Acceptance Criteria:**
 
-- [ ] Theme colors applied as CSS variables on `:root` (document.documentElement)
-- [ ] CSS variables: `--color-primary`, `--color-secondary`, `--color-background`, etc.
-- [ ] Font families applied: `--font-heading`, `--font-body`, `--font-mono`
-- [ ] Theme applied on ThemeProvider mount
-- [ ] Theme re-applied when theme changes (on refresh or update)
-- [ ] No flash of unstyled content (FOUC)
+- [x] Theme colors applied as CSS variables on `:root` (document.documentElement)
+- [x] CSS variables: `--color-primary`, `--color-secondary`, `--color-background`, etc.
+- [x] Font families applied: `--font-heading`, `--font-body`, `--font-mono`
+- [x] Theme applied on ThemeProvider mount
+- [x] Theme re-applied when theme changes (on refresh or update)
+- [x] No flash of unstyled content (FOUC)
 
 **Implementation Details:**
 
@@ -635,11 +635,11 @@ export function applyTheme(theme: TenantTheme) {
 
 **Acceptance Criteria:**
 
-- [ ] TailwindCSS config extended with theme color tokens
-- [ ] Colors mapped to CSS variables: `primary`, `secondary`, `background`, `surface`, `text`, etc.
-- [ ] Font families mapped: `heading`, `body`, `mono`
-- [ ] Components can use `bg-primary`, `text-primary`, `font-heading` classes
-- [ ] Theme changes reflected in TailwindCSS utilities
+- [x] TailwindCSS config extended with theme color tokens
+- [x] Colors mapped to CSS variables: `primary`, `secondary`, `background`, `surface`, `text`, etc.
+- [x] Font families mapped: `heading`, `body`, `mono`
+- [x] Components can use `bg-primary`, `text-primary`, `font-heading` classes
+- [x] Theme changes reflected in TailwindCSS utilities
 
 **Implementation Details:**
 
@@ -703,12 +703,12 @@ export default {
 
 **Acceptance Criteria:**
 
-- [ ] Tenant logo displayed in header left corner
-- [ ] Logo clickable, navigates to `/` (home)
-- [ ] Logo max height: 40px (desktop), 32px (mobile)
-- [ ] Fallback to default Plexica logo if no tenant logo
-- [ ] Fallback to default logo if tenant logo URL returns 404
-- [ ] Logo loads from `theme.logo` via `useTheme()` hook
+- [x] Tenant logo displayed in header left corner
+- [x] Logo clickable, navigates to `/` (home)
+- [x] Logo max height: 40px (desktop), 32px (mobile)
+- [x] Fallback to default Plexica logo if no tenant logo
+- [x] Fallback to default logo if tenant logo URL returns 404
+- [x] Logo loads from `theme.logo` via `useTheme()` hook
 
 **Implementation Details:**
 
@@ -778,14 +778,14 @@ export function Header() {
 
 **Acceptance Criteria:**
 
-- [ ] Test: Default theme applied on mount ✅
-- [ ] Test: useTheme hook returns theme context ✅
-- [ ] Test: Theme validation rejects invalid colors ✅
-- [ ] Test: Theme validation merges with defaults ✅
-- [ ] Test: applyTheme sets CSS custom properties ✅
-- [ ] Test: Theme persists across re-renders ✅
-- [ ] Test: refreshTheme refetches from API ✅
-- [ ] Coverage: ≥90% for ThemeContext
+- [x] Test: Default theme applied on mount ✅
+- [x] Test: useTheme hook returns theme context ✅
+- [x] Test: Theme validation rejects invalid colors ✅
+- [x] Test: Theme validation merges with defaults ✅
+- [x] Test: applyTheme sets CSS custom properties ✅
+- [x] Test: Theme persists across re-renders ✅
+- [x] Test: refreshTheme refetches from API ✅
+- [x] Coverage: ≥90% for ThemeContext
 
 **Implementation Details:**
 
@@ -831,11 +831,11 @@ export function Header() {
 
 **Acceptance Criteria:**
 
-- [ ] Test: Successful API fetch applies theme ✅
-- [ ] Test: API 404 falls back to default theme ✅
-- [ ] Test: API 500 falls back to default theme ✅
-- [ ] Test: No fetch before login ✅
-- [ ] Test: Theme refetched on tenant change ✅
+- [x] Test: Successful API fetch applies theme ✅
+- [x] Test: API 404 falls back to default theme ✅
+- [x] Test: API 500 falls back to default theme ✅
+- [x] Test: No fetch before login ✅
+- [x] Test: Theme refetched on tenant change ✅
 
 **Implementation Details:**
 

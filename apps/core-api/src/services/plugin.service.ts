@@ -2,6 +2,7 @@ import { db } from '../lib/db.js';
 import type { PluginManifest } from '../types/plugin.types.js';
 import {
   PluginStatus,
+  PluginLifecycleStatus,
   Prisma,
   type Plugin,
   type TenantPlugin,
@@ -25,6 +26,15 @@ import { flattenMessages } from '@plexica/i18n';
 import { logger } from '../lib/logger.js';
 import type { Logger } from 'pino';
 import safeRegex from 'safe-regex2';
+import {
+  type ContainerAdapter,
+  type ContainerConfig,
+  createContainerAdapter,
+} from '../lib/container-adapter.js';
+import { TenantMigrationService } from './tenant-migration.service.js';
+import { TopicManager } from '@plexica/event-bus';
+import type { TranslationService } from '../modules/i18n/i18n.service.js';
+import { moduleFederationRegistryService } from './module-federation-registry.service.js';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -470,13 +480,48 @@ export class PluginRegistryService {
  * Plugin Lifecycle Service
  * Manages plugin installation, activation, and removal for tenants
  */
+
+/** Valid state-machine transitions for Plugin.lifecycleStatus (ADR-018) */
+const VALID_TRANSITIONS: Record<PluginLifecycleStatus, PluginLifecycleStatus[]> = {
+  [PluginLifecycleStatus.REGISTERED]: [PluginLifecycleStatus.INSTALLING],
+  [PluginLifecycleStatus.INSTALLING]: [
+    PluginLifecycleStatus.INSTALLED,
+    PluginLifecycleStatus.REGISTERED,
+  ],
+  [PluginLifecycleStatus.INSTALLED]: [
+    PluginLifecycleStatus.ACTIVE,
+    PluginLifecycleStatus.UNINSTALLING,
+  ],
+  [PluginLifecycleStatus.ACTIVE]: [PluginLifecycleStatus.DISABLED],
+  [PluginLifecycleStatus.DISABLED]: [
+    PluginLifecycleStatus.ACTIVE,
+    PluginLifecycleStatus.UNINSTALLING,
+  ],
+  [PluginLifecycleStatus.UNINSTALLING]: [
+    PluginLifecycleStatus.UNINSTALLED,
+    PluginLifecycleStatus.REGISTERED, // Reset to REGISTERED when last tenant uninstalls (allows reinstall)
+    PluginLifecycleStatus.INSTALLED, // Revert to INSTALLED when other tenants still have the plugin installed
+  ],
+  [PluginLifecycleStatus.UNINSTALLED]: [PluginLifecycleStatus.REGISTERED], // Re-registration path
+};
+
 export class PluginLifecycleService {
   private registry: PluginRegistryService;
   private serviceRegistry: ServiceRegistryService;
   private dependencyResolver: DependencyResolutionService;
   private logger: Logger;
+  private adapter: ContainerAdapter;
+  private migrationService: TenantMigrationService;
+  private topicManager: TopicManager | null;
+  private translationService: TranslationService | null;
 
-  constructor(customLogger?: Logger) {
+  constructor(
+    customLogger?: Logger,
+    adapter?: ContainerAdapter,
+    migrationService?: TenantMigrationService,
+    topicManager?: TopicManager | null,
+    translationService?: TranslationService | null
+  ) {
     // Use provided logger or default to shared Pino logger
     // Constitution Article 6.3: Pino JSON logging with standard fields
     this.logger = customLogger || logger;
@@ -484,6 +529,14 @@ export class PluginLifecycleService {
     this.registry = new PluginRegistryService(this.logger);
     this.serviceRegistry = new ServiceRegistryService(db, redis, this.logger);
     this.dependencyResolver = new DependencyResolutionService(db, this.logger);
+    // T004-08: ContainerAdapter — injected for tests, defaulting to env-selected adapter
+    this.adapter = adapter ?? createContainerAdapter();
+    // T004-08: TenantMigrationService — injected for tests
+    this.migrationService = migrationService ?? new TenantMigrationService();
+    // T004-12: TopicManager — optional, null means skip topic creation (fail-open)
+    this.topicManager = topicManager !== undefined ? topicManager : null;
+    // T004-14: TranslationService — optional, null means skip translation loading
+    this.translationService = translationService !== undefined ? translationService : null;
   }
 
   /**
@@ -512,7 +565,8 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already installed`);
     }
 
-    // Validate configuration
+    // Validate configuration and dependencies BEFORE any lifecycle transitions
+    // so that failures don't leave the global lifecycle status stuck at INSTALLING.
     const manifest = plugin.manifest as unknown as PluginManifest;
 
     // Apply default configuration values
@@ -563,6 +617,19 @@ export class PluginLifecycleService {
     // Check old-style dependencies
     await this.checkDependencies(tenantId, manifest);
 
+    // Check how many other tenant installations already exist.
+    // The lifecycleStatus is on the *global* Plugin record, not per-tenant.
+    // Only perform lifecycle transitions on the first installation (or after
+    // all tenants have uninstalled and the plugin was reset to REGISTERED).
+    const existingInstallations = await db.tenantPlugin.count({ where: { pluginId } });
+    const isFirstInstall =
+      existingInstallations === 0 || plugin.lifecycleStatus === PluginLifecycleStatus.REGISTERED;
+
+    if (isFirstInstall) {
+      // Transition lifecycle: REGISTERED → INSTALLING
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLING);
+    }
+
     // Create installation within transaction (without service registration to maintain atomicity)
     let installation: TenantPluginWithPluginAndTenant;
     try {
@@ -581,27 +648,76 @@ export class PluginLifecycleService {
           },
         });
 
-        // Run installation lifecycle hook if defined
-        // NOTE: Lifecycle hook runs INSIDE transaction. If it fails, installation rolls back.
+        // Installation lifecycle hook placeholder.
+        // The manifest may declare a `lifecycle.install` handler; actual execution
+        // (loading plugin code and calling the handler) is deferred to a future task.
+        // The check is preserved so the manifest field is not silently ignored.
         if (manifest.lifecycle?.install) {
-          try {
-            await this.runLifecycleHook(manifest, 'install', {
-              tenantId,
-              pluginId,
-              configuration: finalConfiguration,
-            });
-          } catch (error: unknown) {
-            // Transaction will automatically rollback on error
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            throw new Error(`Plugin installation lifecycle hook failed: ${errorMsg}`);
-          }
+          this.logger.debug(
+            { pluginId, hook: 'install' },
+            'Plugin lifecycle hook declared but execution is not yet implemented'
+          );
         }
 
         return newInstallation;
       });
+
+      // Transition lifecycle: INSTALLING → INSTALLED (first install only)
+      if (isFirstInstall) {
+        await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLED);
+      }
     } catch (error: unknown) {
+      // Rollback lifecycle status: INSTALLING → REGISTERED (first install only)
+      if (isFirstInstall) {
+        try {
+          await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
+        } catch (rollbackErr: unknown) {
+          this.logger.error(
+            {
+              pluginId,
+              error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+            },
+            'Failed to rollback lifecycleStatus to REGISTERED after install failure'
+          );
+        }
+      }
       throw new Error(
         `Failed to install plugin: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+
+    // T004-08: Run per-tenant schema migrations AFTER transaction succeeds.
+    // Each tenant's migration runs in an isolated transaction; one failure does not
+    // block other tenants. If ALL tenants fail (or a critical error), rollback
+    // lifecycleStatus to REGISTERED and re-throw.
+    try {
+      const migrationResults = await this.migrationService.runPluginMigrations(
+        pluginId,
+        // Migrations are sourced from the plugin package assets; for now pass
+        // an empty array so the service contract is satisfied — a future task
+        // will wire manifest.migrations into this array.
+        []
+      );
+      const failures = migrationResults.filter((r) => !r.success);
+      if (failures.length > 0) {
+        this.logger.warn(
+          { pluginId, failures: failures.map((f) => ({ tenantId: f.tenantId, error: f.error })) },
+          'Plugin migrations failed for some tenants'
+        );
+        // Non-blocking for partial failures: the plugin is still installed globally.
+        // Tenants with failed migrations will be in a degraded state until fixed.
+      }
+    } catch (migrationError: unknown) {
+      // Catastrophic migration failure — rollback lifecycleStatus
+      try {
+        await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
+      } catch {
+        /* swallow rollback errors */
+      }
+      throw new Error(
+        `Plugin installation failed during migrations: ${
+          migrationError instanceof Error ? migrationError.message : String(migrationError)
+        }`
       );
     }
 
@@ -639,6 +755,22 @@ export class PluginLifecycleService {
             this.logger.error(
               { tenantId, pluginId, error: rollbackMsg },
               'Failed to rollback tenantPlugin after permission conflict'
+            );
+          }
+          // T004-05: Also reset lifecycleStatus to REGISTERED on permission conflict
+          try {
+            await db.plugin.update({
+              where: { id: pluginId },
+              data: { lifecycleStatus: PluginLifecycleStatus.REGISTERED },
+            });
+          } catch (lcRollbackErr: unknown) {
+            this.logger.error(
+              {
+                pluginId,
+                error:
+                  lcRollbackErr instanceof Error ? lcRollbackErr.message : String(lcRollbackErr),
+              },
+              'Failed to rollback lifecycleStatus to REGISTERED after permission conflict'
             );
           }
           throw permError;
@@ -679,11 +811,32 @@ export class PluginLifecycleService {
       }
     }
 
+    // T004-13: Register Module Federation remote entry if manifest declares one.
+    // Fail-open — a missing remote entry URL is not fatal for installation.
+    if (manifest.frontend?.remoteEntry) {
+      try {
+        await moduleFederationRegistryService.registerRemoteEntry(
+          pluginId,
+          manifest.frontend.remoteEntry,
+          manifest.frontend.routePrefix ?? null
+        );
+      } catch (mfErr: unknown) {
+        this.logger.warn(
+          {
+            pluginId,
+            error: mfErr instanceof Error ? mfErr.message : String(mfErr),
+          },
+          'T004-13: Failed to register Module Federation remote entry (non-blocking)'
+        );
+      }
+    }
+
     return installation;
   }
 
   /**
-   * Activate a plugin for a tenant
+   * Activate a plugin for a tenant (super-admin global enable).
+   * T004-08: Starts the container, polls health, then transitions to ACTIVE.
    */
   async activatePlugin(tenantId: string, pluginId: string): Promise<TenantPluginWithPlugin> {
     const installation = await db.tenantPlugin.findUnique({
@@ -702,14 +855,79 @@ export class PluginLifecycleService {
     }
 
     const manifest = installation.plugin.manifest as unknown as PluginManifest;
+    const containerConfig = this.buildContainerConfig(manifest);
 
-    // Run activation lifecycle hook if defined
-    if (manifest.lifecycle?.activate) {
-      await this.runLifecycleHook(manifest, 'activate', {
-        tenantId,
-        pluginId,
-        configuration: installation.configuration,
-      });
+    // T004-08: Start container
+    await this.adapter.start(pluginId, containerConfig);
+
+    // T004-08: Poll health for up to 5s (every 500ms)
+    const healthy = await this.pollHealth(pluginId, 5000, 500);
+    if (!healthy) {
+      // Health check failed — stop container and rollback lifecycle
+      try {
+        await this.adapter.stop(pluginId);
+      } catch (stopErr: unknown) {
+        this.logger.error(
+          { pluginId, error: stopErr instanceof Error ? stopErr.message : String(stopErr) },
+          'Failed to stop container after health check timeout'
+        );
+      }
+      throw new Error(`Plugin '${pluginId}' failed health check after enable`);
+    }
+
+    // T004-12: Create Redpanda event topics (fail-open — topic creation failure does not abort enable)
+    if (this.topicManager && manifest.events) {
+      const allEvents = [
+        ...(manifest.events.publishes ?? []),
+        ...(manifest.events.subscribes ?? []),
+      ];
+      for (const eventName of allEvents) {
+        const topicName = this.topicManager.buildPluginTopicName(pluginId, eventName);
+        try {
+          await this.topicManager.createTopic(topicName);
+        } catch (topicErr: unknown) {
+          this.logger.warn(
+            {
+              pluginId,
+              topicName,
+              error: topicErr instanceof Error ? topicErr.message : String(topicErr),
+            },
+            'T004-12: Failed to create Redpanda topic (non-blocking, plugin will run in degraded mode)'
+          );
+        }
+      }
+    }
+
+    // T004-14: Load translation namespaces (fail-open — missing files do not abort enable)
+    if (this.translationService && manifest.translations) {
+      const { namespaces, supportedLocales } = manifest.translations;
+      for (const namespace of namespaces) {
+        for (const locale of supportedLocales) {
+          try {
+            await this.translationService.loadNamespaceFile(locale, namespace);
+          } catch (translationErr: unknown) {
+            this.logger.warn(
+              {
+                pluginId,
+                namespace,
+                locale,
+                error:
+                  translationErr instanceof Error ? translationErr.message : String(translationErr),
+              },
+              'T004-14: Failed to load translation namespace file (non-blocking)'
+            );
+          }
+        }
+      }
+    }
+
+    // Transition lifecycle: INSTALLED → ACTIVE (skip if already ACTIVE from another tenant)
+    const currentPlugin = await db.plugin.findUnique({
+      where: { id: pluginId },
+      select: { lifecycleStatus: true },
+    });
+    if (currentPlugin?.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.ACTIVE);
     }
 
     // Enable plugin
@@ -727,7 +945,8 @@ export class PluginLifecycleService {
   }
 
   /**
-   * Deactivate a plugin for a tenant
+   * Deactivate a plugin for a tenant (super-admin global disable).
+   * T004-08: Transitions to DISABLED then stops the container.
    */
   async deactivatePlugin(tenantId: string, pluginId: string): Promise<TenantPluginWithPlugin> {
     const installation = await db.tenantPlugin.findUnique({
@@ -745,15 +964,29 @@ export class PluginLifecycleService {
       throw new Error(`Plugin '${pluginId}' is already inactive`);
     }
 
-    const manifest = installation.plugin.manifest as unknown as PluginManifest;
-
-    // Run deactivation lifecycle hook if defined
-    if (manifest.lifecycle?.deactivate) {
-      await this.runLifecycleHook(manifest, 'deactivate', {
-        tenantId,
+    // Transition lifecycle: ACTIVE → DISABLED only if no other tenants have the plugin enabled
+    const otherEnabled = await db.tenantPlugin.count({
+      where: {
         pluginId,
-        configuration: installation.configuration,
-      });
+        tenantId: { not: tenantId },
+        enabled: true,
+      },
+    });
+    if (otherEnabled === 0) {
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.DISABLED);
+    }
+
+    // T004-08: Stop container only if no other tenants still have the plugin enabled
+    if (otherEnabled === 0) {
+      try {
+        await this.adapter.stop(pluginId);
+      } catch (stopErr: unknown) {
+        this.logger.error(
+          { pluginId, error: stopErr instanceof Error ? stopErr.message : String(stopErr) },
+          'Failed to stop container during deactivation (non-blocking)'
+        );
+        // Non-blocking: plugin is already DISABLED in DB
+      }
     }
 
     // Disable plugin
@@ -771,7 +1004,8 @@ export class PluginLifecycleService {
   }
 
   /**
-   * Uninstall a plugin from a tenant
+   * Uninstall a plugin from a tenant.
+   * T004-08: Removes the container between UNINSTALLING and UNINSTALLED transitions.
    */
   async uninstallPlugin(tenantId: string, pluginId: string): Promise<void> {
     const installation = await db.tenantPlugin.findUnique({
@@ -790,15 +1024,18 @@ export class PluginLifecycleService {
       await this.deactivatePlugin(tenantId, pluginId);
     }
 
-    const manifest = installation.plugin.manifest as unknown as PluginManifest;
+    // Transition lifecycle: (INSTALLED|DISABLED) → UNINSTALLING
+    await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.UNINSTALLING);
 
-    // Run uninstall lifecycle hook if defined
-    if (manifest.lifecycle?.uninstall) {
-      await this.runLifecycleHook(manifest, 'uninstall', {
-        tenantId,
-        pluginId,
-        configuration: installation.configuration,
-      });
+    // T004-08: Remove container between UNINSTALLING and UNINSTALLED
+    try {
+      await this.adapter.remove(pluginId);
+    } catch (removeErr: unknown) {
+      this.logger.error(
+        { pluginId, error: removeErr instanceof Error ? removeErr.message : String(removeErr) },
+        'Failed to remove container during uninstall (non-blocking)'
+      );
+      // Non-blocking: proceed with cleanup
     }
 
     // Remove plugin permissions (FR-013) before deleting the installation row
@@ -822,6 +1059,96 @@ export class PluginLifecycleService {
       where: {
         tenantId_pluginId: { tenantId, pluginId },
       },
+    });
+
+    // Check if any other tenants still have this plugin installed.
+    // The lifecycleStatus column lives on the global Plugin record, so we must
+    // only mutate it when the last tenant-installation is removed.  Transitioning
+    // to UNINSTALLED would prevent reinstallation (state machine dead-end); instead
+    // we reset to REGISTERED so the plugin remains available for future installs.
+    const remainingInstallations = await db.tenantPlugin.count({
+      where: { pluginId },
+    });
+
+    if (remainingInstallations === 0) {
+      // Last tenant uninstalled — reset global lifecycle to REGISTERED so the
+      // plugin can be installed again (by this or another tenant).
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.REGISTERED);
+    } else {
+      // Other tenants still have this plugin installed — revert UNINSTALLING → INSTALLED
+      // so the global lifecycle status reflects the actual deployment state.
+      await this.transitionLifecycleStatus(pluginId, PluginLifecycleStatus.INSTALLED);
+    }
+  }
+
+  /**
+   * Enable a plugin for a specific tenant (tenant-admin level).
+   * Does NOT start a container — that is super-admin only.
+   * Requires the plugin's lifecycleStatus to be ACTIVE.
+   * T004-10: Used by tenant-plugins-v1 routes.
+   */
+  async enableForTenant(tenantId: string, pluginId: string): Promise<TenantPluginWithPlugin> {
+    // Verify plugin is globally active before allowing tenant enable
+    const plugin = await db.plugin.findUnique({
+      where: { id: pluginId },
+      select: { lifecycleStatus: true },
+    });
+
+    if (!plugin) {
+      throw new Error(`Plugin '${pluginId}' not found`);
+    }
+
+    if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+      const err = new Error(
+        `Plugin '${pluginId}' must be globally enabled first (current: ${plugin.lifecycleStatus})`
+      );
+      (err as Error & { code: string }).code = 'PLUGIN_NOT_GLOBALLY_ACTIVE';
+      throw err;
+    }
+
+    const installation = await db.tenantPlugin.findUnique({
+      where: { tenantId_pluginId: { tenantId, pluginId } },
+      include: { plugin: true },
+    });
+
+    if (!installation) {
+      throw new Error(`Plugin '${pluginId}' is not installed for this tenant`);
+    }
+
+    if (installation.enabled) {
+      throw new Error(`Plugin '${pluginId}' is already enabled for this tenant`);
+    }
+
+    return db.tenantPlugin.update({
+      where: { tenantId_pluginId: { tenantId, pluginId } },
+      data: { enabled: true },
+      include: { plugin: true },
+    });
+  }
+
+  /**
+   * Disable a plugin for a specific tenant (tenant-admin level).
+   * Preserves configuration data; does NOT stop the container.
+   * T004-10: Used by tenant-plugins-v1 routes.
+   */
+  async disableForTenant(tenantId: string, pluginId: string): Promise<TenantPluginWithPlugin> {
+    const installation = await db.tenantPlugin.findUnique({
+      where: { tenantId_pluginId: { tenantId, pluginId } },
+      include: { plugin: true },
+    });
+
+    if (!installation) {
+      throw new Error(`Plugin '${pluginId}' is not installed for this tenant`);
+    }
+
+    if (!installation.enabled) {
+      throw new Error(`Plugin '${pluginId}' is already disabled for this tenant`);
+    }
+
+    return db.tenantPlugin.update({
+      where: { tenantId_pluginId: { tenantId, pluginId } },
+      data: { enabled: false },
+      include: { plugin: true },
     });
   }
 
@@ -1003,16 +1330,87 @@ export class PluginLifecycleService {
   }
 
   /**
-   * Run plugin lifecycle hook
+   * Validate and apply a lifecycle state transition on the global Plugin record.
+   * Throws if the transition is not permitted by the state machine (ADR-018).
    */
-  private async runLifecycleHook(
-    _manifest: PluginManifest,
-    _hook: string,
-    _context: Record<string, unknown>
+  private async transitionLifecycleStatus(
+    pluginId: string,
+    target: PluginLifecycleStatus
   ): Promise<void> {
-    // TODO: Implement actual hook execution
-    // This would load the plugin code and execute the lifecycle function
-    // For now, silently skip
+    const plugin = await db.plugin.findUnique({
+      where: { id: pluginId },
+      select: { lifecycleStatus: true },
+    });
+
+    if (!plugin) {
+      throw new Error(`Plugin '${pluginId}' not found`);
+    }
+
+    const current = plugin.lifecycleStatus;
+    const allowed = VALID_TRANSITIONS[current] ?? [];
+
+    if (!allowed.includes(target)) {
+      throw new Error(`Plugin '${pluginId}' cannot transition from ${current} to ${target}`);
+    }
+
+    await db.plugin.update({
+      where: { id: pluginId },
+      data: { lifecycleStatus: target },
+    });
+  }
+
+  /**
+   * Poll container health until 'healthy' or timeout expires.
+   *
+   * @param pluginId  - plugin whose container is being polled
+   * @param timeoutMs - total time to wait before giving up (ms)
+   * @param intervalMs - interval between health polls (ms)
+   * @returns true if 'healthy' was reached before the deadline, false otherwise
+   */
+  protected async pollHealth(
+    pluginId: string,
+    timeoutMs: number,
+    intervalMs: number
+  ): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const status = await this.adapter.health(pluginId);
+      if (status === 'healthy') return true;
+      // Wait before polling again (only if we still have time left)
+      if (Date.now() + intervalMs < deadline) {
+        await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+      } else {
+        break;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Build a ContainerConfig from a plugin's manifest runtime settings.
+   *
+   * Reads `manifest.runtime.image`, `manifest.runtime.resources`, and
+   * `manifest.runtime.env`. Falls back to a conventional image name if the
+   * manifest does not declare a runtime section.
+   */
+  protected buildContainerConfig(manifest: PluginManifest): ContainerConfig {
+    // PluginManifest does not currently type the `runtime` section — access it
+    // defensively via an unknown cast until the manifest types are extended.
+    const runtime = (
+      manifest as unknown as {
+        runtime?: {
+          image?: string;
+          resources?: { cpu?: string; memory?: string };
+          env?: Record<string, string>;
+        };
+      }
+    ).runtime;
+
+    return {
+      image: runtime?.image ?? `plexica/plugin-${manifest.id}:${manifest.version}`,
+      env: runtime?.env,
+      resources: runtime?.resources,
+    };
   }
 
   /**

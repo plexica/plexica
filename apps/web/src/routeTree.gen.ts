@@ -16,6 +16,7 @@ import { Route as PluginsRouteImport } from './routes/plugins';
 import { Route as PluginsPluginIdRouteImport } from './routes/plugins.$pluginId';
 import { Route as MembersManagementRouteImport } from './routes/members-management';
 import { Route as LoginRouteImport } from './routes/login';
+import { Route as ExtensionsRouteImport } from './routes/extensions';
 import { Route as ActivityLogRouteImport } from './routes/activity-log';
 import { Route as AuthErrorRouteImport } from './routes/auth/error';
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback';
@@ -56,6 +57,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any);
+const ExtensionsRoute = ExtensionsRouteImport.update({
+  id: '/extensions',
+  path: '/extensions',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ActivityLogRoute = ActivityLogRouteImport.update({
   id: '/activity-log',
   path: '/activity-log',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/activity-log': typeof ActivityLogRoute;
   '/auth/callback': typeof AuthCallbackRoute;
   '/auth/error': typeof AuthErrorRoute;
+  '/extensions': typeof ExtensionsRoute;
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/activity-log': typeof ActivityLogRoute;
   '/auth/callback': typeof AuthCallbackRoute;
   '/auth/error': typeof AuthErrorRoute;
+  '/extensions': typeof ExtensionsRoute;
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/activity-log': typeof ActivityLogRoute;
   '/auth/callback': typeof AuthCallbackRoute;
   '/auth/error': typeof AuthErrorRoute;
+  '/extensions': typeof ExtensionsRoute;
   '/login': typeof LoginRoute;
   '/members-management': typeof MembersManagementRoute;
   '/plugins': typeof PluginsRoute;
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/activity-log'
     | '/auth/callback'
     | '/auth/error'
+    | '/extensions'
     | '/login'
     | '/members-management'
     | '/plugins'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/activity-log'
     | '/auth/callback'
     | '/auth/error'
+    | '/extensions'
     | '/login'
     | '/members-management'
     | '/plugins'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/activity-log'
     | '/auth/callback'
     | '/auth/error'
+    | '/extensions'
     | '/login'
     | '/members-management'
     | '/plugins'
@@ -164,6 +176,7 @@ export interface RootRouteChildren {
   ActivityLogRoute: typeof ActivityLogRoute;
   AuthCallbackRoute: typeof AuthCallbackRoute;
   AuthErrorRoute: typeof AuthErrorRoute;
+  ExtensionsRoute: typeof ExtensionsRoute;
   LoginRoute: typeof LoginRoute;
   MembersManagementRoute: typeof MembersManagementRoute;
   PluginsRoute: typeof PluginsRoute;
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/extensions': {
+      id: '/extensions';
+      path: '/extensions';
+      fullPath: '/extensions';
+      preLoaderRoute: typeof ExtensionsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/activity-log': {
       id: '/activity-log';
       path: '/activity-log';
@@ -260,6 +280,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityLogRoute: ActivityLogRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthErrorRoute: AuthErrorRoute,
+  ExtensionsRoute: ExtensionsRoute,
   LoginRoute: LoginRoute,
   MembersManagementRoute: MembersManagementRoute,
   PluginsRoute: PluginsRoute,

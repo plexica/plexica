@@ -7,3 +7,4 @@ export * from './useUsers';
 export * from './useAnalytics';
 export * from './use-toast';
 export * from './useWizardState';
+export * from './usePluginSearch';

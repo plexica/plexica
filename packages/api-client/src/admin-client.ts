@@ -10,12 +10,14 @@
 import type { InternalAxiosRequestConfig } from 'axios';
 import { HttpClient } from './client.js';
 import type { AdminClientConfig, PaginatedResponse } from './types.js';
+import { PaginatedPluginEntitySchema, PluginStatsSchema } from './schemas.js';
 import type {
   Tenant,
   TenantDetail,
   AdminUser,
   PluginEntity,
   PluginDetail,
+  PluginLifecycleStatus,
   PluginRating,
   AnalyticsOverview,
   TenantGrowthDataPoint,
@@ -100,6 +102,86 @@ export class AdminApiClient extends HttpClient {
     limit?: number;
   }) {
     return this.get<PaginatedResponse<PluginEntity>>('/api/admin/plugins', params);
+  }
+
+  /**
+   * Fetch plugins from the v1 lifecycle registry endpoint (T004-09).
+   * Returns all plugins with `lifecycleStatus` (ADR-018) in addition to `status`.
+   * Response is validated at runtime via Zod to surface shape mismatches early (MEDIUM #8).
+   */
+  async getRegistryPlugins(params?: {
+    lifecycleStatus?: PluginLifecycleStatus;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<PluginEntity>> {
+    const raw = await this.get<unknown>('/api/v1/plugins', params);
+    return PaginatedPluginEntitySchema.parse(raw) as PaginatedResponse<PluginEntity>;
+  }
+
+  /**
+   * Fetch per-lifecycle-status counts for the Registry stat summary bar (T004-28 fix).
+   * Server-side aggregation: avoids fetching hundreds of full entities just for counts.
+   * Response is validated at runtime via Zod (MEDIUM #8).
+   *
+   * Returns: { total: number, REGISTERED?: number, INSTALLED?: number, ACTIVE?: number, ... }
+   */
+  async getRegistryPluginStats(): Promise<Record<string, number>> {
+    const raw = await this.get<unknown>('/api/v1/plugins/stats');
+    return PluginStatsSchema.parse(raw);
+  }
+
+  /**
+   * Trigger installation of a plugin (moves lifecycle: REGISTERED → INSTALLING → INSTALLED).
+   */
+  async installPlugin(pluginId: string) {
+    return this.post<PluginEntity>(`/api/v1/plugins/${pluginId}/install`);
+  }
+
+  /**
+   * Cancel an in-progress installation (INSTALLING → REGISTERED).
+   */
+  async cancelInstall(pluginId: string) {
+    return this.delete<{ message: string }>(`/api/v1/plugins/${pluginId}/install`);
+  }
+
+  /**
+   * Fetch a single plugin by id from the v1 registry (T004-29 polling).
+   */
+  async getRegistryPlugin(pluginId: string) {
+    return this.get<PluginEntity>(`/api/v1/plugins/${pluginId}`);
+  }
+
+  /**
+   * Enable a plugin across the platform (INSTALLED → ACTIVE).
+   */
+  async enablePlugin(pluginId: string) {
+    return this.post<PluginEntity>(`/api/v1/plugins/${pluginId}/enable`);
+  }
+
+  /**
+   * Disable a plugin (ACTIVE → DISABLED).
+   */
+  async disablePlugin(pluginId: string) {
+    return this.post<PluginEntity>(`/api/v1/plugins/${pluginId}/disable`);
+  }
+
+  /**
+   * Update a plugin to a new version (ACTIVE/INSTALLED → INSTALLING → INSTALLED/ACTIVE).
+   * @param targetVersion - The version to update to (optional; defaults to latest).
+   */
+  async upgradePlugin(pluginId: string, targetVersion?: string) {
+    return this.post<PluginEntity>(`/api/v1/plugins/${pluginId}/update`, {
+      ...(targetVersion ? { targetVersion } : {}),
+    });
+  }
+
+  /**
+   * Uninstall a plugin (any → UNINSTALLING → UNINSTALLED).
+   * @param deleteData - If true, all tenant schema data for this plugin is purged.
+   */
+  async uninstallPlugin(pluginId: string, deleteData = false) {
+    return this.post<{ message: string }>(`/api/v1/plugins/${pluginId}/uninstall`, { deleteData });
   }
 
   async getPlugin(pluginId: string) {

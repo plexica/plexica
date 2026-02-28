@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 23, 2026
+**Last Updated**: February 26, 2026
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
@@ -15,14 +15,15 @@
 
 ### Technical Debt
 
-| ID         | Description                                               | Impact  | Severity | Tracked In               | Target Sprint                                                |
-| ---------- | --------------------------------------------------------- | ------- | -------- | ------------------------ | ------------------------------------------------------------ |
-| TD-001     | Test coverage at 76.5%, target 80%                        | Quality | MEDIUM   | CI report 2026-02-18     | Next Sprint                                                  |
-| TD-002     | Core modules (auth, tenant, workspace) need 85% coverage  | Quality | HIGH     | `AGENTS.md`              | Q1 2026                                                      |
-| ~~TD-003~~ | ~~keycloak.service.ts at 2.83% coverage~~                 | Quality | ~~HIGH~~ | ~~CI report 2026-02-18~~ | ✅ **CLOSED 2026-02-23** — 96.1% unit + 19 integration tests |
-| TD-004     | 24 integration tests deferred (oauth-flow + ws-resources) | Quality | MEDIUM   | CI report 2026-02-18     | Sprint 5                                                     |
-| TD-005     | 3 flaky E2E tests in tenant-concurrent need investigation | Quality | LOW      | CI report 2026-02-19     | Sprint 5                                                     |
-| TD-006     | 40 deprecated E2E tests (ROPC flow) need removal          | Quality | LOW      | CI report 2026-02-18     | Sprint 5                                                     |
+| ID         | Description                                                                                                                                                            | Impact   | Severity | Tracked In                     | Target Sprint                                                |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ------------------------------ | ------------------------------------------------------------ |
+| TD-001     | Test coverage at 76.5%, target 80%                                                                                                                                     | Quality  | MEDIUM   | CI report 2026-02-18           | Next Sprint                                                  |
+| TD-002     | Core modules (auth, tenant, workspace) need 85% coverage                                                                                                               | Quality  | HIGH     | `AGENTS.md`                    | Q1 2026                                                      |
+| ~~TD-003~~ | ~~keycloak.service.ts at 2.83% coverage~~                                                                                                                              | Quality  | ~~HIGH~~ | ~~CI report 2026-02-18~~       | ✅ **CLOSED 2026-02-23** — 96.1% unit + 19 integration tests |
+| TD-004     | 24 integration tests deferred (oauth-flow + ws-resources)                                                                                                              | Quality  | MEDIUM   | CI report 2026-02-18           | Sprint 5                                                     |
+| TD-005     | 3 flaky E2E tests in tenant-concurrent need investigation                                                                                                              | Quality  | LOW      | CI report 2026-02-19           | Sprint 5                                                     |
+| TD-006     | 40 deprecated E2E tests (ROPC flow) need removal                                                                                                                       | Quality  | LOW      | CI report 2026-02-18           | Sprint 5                                                     |
+| TD-007     | CSP `frame-ancestors` not set — meta tag approach in T005-15 cannot cover frame-ancestors directive; production deployment requires HTTP response headers for full CSP | Security | MEDIUM   | ISSUE-008 from Spec 005 review | Sprint 7                                                     |
 
 ### Deferred Decisions
 
@@ -34,6 +35,52 @@
 ---
 
 ## Decisions Requiring Attention
+
+### ADR-020 Created: Font Hosting Strategy for Tenant Theming (February 26, 2026)
+
+**Date**: February 26, 2026  
+**Context**: Spec 005 (Frontend Architecture) design-spec Open Question #3 flagged by forge-ux agent — font hosting strategy has CSP, GDPR, and performance implications requiring architectural decision before implementation planning.
+
+**Status**: ✅ ADR written — implementation NOT started
+
+**ADR-020** — Font Hosting Strategy  
+**File**: `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`  
+**Decision**: Self-host a curated library of ~25 popular open-source fonts (WOFF2) via MinIO/CDN. Fonts loaded via `FontFace` API and applied through CSS custom properties (`--font-heading`, `--font-body`). Google Fonts CDN rejected due to GDPR risk (user IP transmission) and wider CSP surface. Tenant-uploaded custom fonts deferred due to font-file exploit risk and validation complexity.
+
+**Key implications**:
+
+- **CSP**: `font-src 'self'` — tightest possible policy, no third-party origins
+- **GDPR**: Zero user data transmitted to third parties for font loading
+- **Performance**: Single-origin WOFF2 with preloading; <200ms on 3G
+- **Font selector**: Curated dropdown (25 fonts), not arbitrary URL input
+
+**Resolves**: Design-spec Open Question #3  
+**Blocks**: Spec 010 Phase 2 (Tenant Theming) font selector implementation
+
+---
+
+### Spec 004 ADRs Created: Plugin Lifecycle & Container Adapter (February 24, 2026)
+
+**Date**: February 24, 2026  
+**Context**: Branch `feature/spec-004-plugin-system` — plan.md identified two architectural decisions requiring formal ADRs before implementation can begin.
+
+**Status**: ✅ ADRs written — implementation NOT started (Sprint 4)
+
+**ADR-018** — Plugin Lifecycle vs Marketplace Status  
+**File**: `.forge/knowledge/adr/adr-018-plugin-lifecycle-status.md`  
+**Decision**: Add separate `lifecycleStatus` column (`PluginLifecycleStatus` enum: REGISTERED→INSTALLING→INSTALLED→ACTIVE→DISABLED→UNINSTALLING→UNINSTALLED) to `plugins` table alongside the existing `status` column (marketplace: DRAFT/PUBLISHED/etc.). The two concerns are orthogonal and must not be conflated.
+
+**ADR-019** — Pluggable Container Adapter  
+**File**: `.forge/knowledge/adr/adr-019-pluggable-container-adapter.md`  
+**Decision**: Define `ContainerAdapter` interface with `DockerContainerAdapter` (using `dockerode`) and `NullContainerAdapter` (no-op for tests). Selected via `CONTAINER_ADAPTER` env var at startup. K8s adapter deferred to Phase 5.
+
+**Key implementation tasks unlocked**:
+
+- T004-01: Add `PluginLifecycleStatus` enum + migration
+- T004-06/07: Implement `ContainerAdapter` interface + Docker adapter
+- T004-08: Wire adapter into `PluginLifecycleService` (replaces `runLifecycleHook` stub)
+
+---
 
 ### workspace-resources.integration.test.ts Architecture Mismatch - NEEDS REWRITE (February 17, 2026)
 

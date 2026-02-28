@@ -3,8 +3,8 @@
 # DO NOT EDIT MANUALLY
 
 version: 1
-next_sprint_number: 6
-last_updated: '2026-02-22'
+next_sprint_number: 7
+last_updated: '2026-02-24'
 
 # History:
 # - Sprint 001: Completed 2026-02-15 (i18n Backend, 23 pts)
@@ -12,4 +12,5 @@ last_updated: '2026-02-22'
 # - Sprint 003: Completed 2026-02-17 (Spec 009 Foundation, 24 pts)
 # - Sprint 004: Completed 2026-02-20 (Spec 011 Phase 1+2, 36 pts)
 # - Sprint 005: Completed 2026-02-21 (Spec 011 Phase 3 + review fixes, 8 pts)
-# - Next sprint will be 006
+# - Sprint 006: Started 2026-02-24 (Spec 004 Plugin System, 62 pts) — ACTIVE
+# - Next sprint will be 007

@@ -62,7 +62,11 @@ describe('AdminApiClient', () => {
     it('createTenant should POST /api/admin/tenants', async () => {
       mock.onPost('/api/admin/tenants').reply(201, { id: 't2', name: 'Beta', slug: 'beta' });
 
-      const result = await client.createTenant({ name: 'Beta', slug: 'beta' });
+      const result = await client.createTenant({
+        name: 'Beta',
+        slug: 'beta',
+        adminEmail: 'admin@beta.com',
+      });
       expect(result.slug).toBe('beta');
     });
 
@@ -147,8 +151,99 @@ describe('AdminApiClient', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Marketplace
+  // Registry (v1 lifecycle endpoint)
   // ---------------------------------------------------------------------------
+
+  describe('Registry (v1)', () => {
+    const makePlugin = (overrides: Record<string, unknown> = {}) => ({
+      id: 'p1',
+      name: 'CRM',
+      version: '1.0.0',
+      description: 'CRM plugin',
+      author: 'Plexica',
+      category: 'crm',
+      status: 'PUBLISHED',
+      lifecycleStatus: 'ACTIVE',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      ...overrides,
+    });
+
+    it('getRegistryPlugins should GET /api/v1/plugins and validate response', async () => {
+      const response = {
+        data: [makePlugin()],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      };
+      mock.onGet('/api/v1/plugins').reply(200, response);
+
+      const result = await client.getRegistryPlugins({ search: 'crm' });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].lifecycleStatus).toBe('ACTIVE');
+      expect(result.pagination.total).toBe(1);
+    });
+
+    it('getRegistryPlugins should throw on invalid lifecycleStatus from server', async () => {
+      const response = {
+        data: [makePlugin({ lifecycleStatus: 'INVALID_STATUS' })],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      };
+      mock.onGet('/api/v1/plugins').reply(200, response);
+
+      await expect(client.getRegistryPlugins()).rejects.toThrow();
+    });
+
+    it('getRegistryPlugins should throw on missing required fields', async () => {
+      const response = {
+        data: [{ id: 'p1', name: 'CRM' }], // missing version, description, etc.
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      };
+      mock.onGet('/api/v1/plugins').reply(200, response);
+
+      await expect(client.getRegistryPlugins()).rejects.toThrow();
+    });
+
+    it('getRegistryPluginStats should GET /api/v1/plugins/stats and validate response', async () => {
+      const stats = { total: 10, ACTIVE: 4, INSTALLED: 3, REGISTERED: 3 };
+      mock.onGet('/api/v1/plugins/stats').reply(200, stats);
+
+      const result = await client.getRegistryPluginStats();
+      expect(result.total).toBe(10);
+      expect(result['ACTIVE']).toBe(4);
+    });
+
+    it('getRegistryPluginStats should throw when response is not a record of numbers', async () => {
+      mock.onGet('/api/v1/plugins/stats').reply(200, { total: 'not-a-number' });
+
+      await expect(client.getRegistryPluginStats()).rejects.toThrow();
+    });
+
+    it('installPlugin should POST /api/v1/plugins/:id/install', async () => {
+      mock
+        .onPost('/api/v1/plugins/p1/install')
+        .reply(200, makePlugin({ lifecycleStatus: 'INSTALLING' }));
+
+      const result = await client.installPlugin('p1');
+      expect(result.lifecycleStatus).toBe('INSTALLING');
+    });
+
+    it('enablePlugin should POST /api/v1/plugins/:id/enable', async () => {
+      mock
+        .onPost('/api/v1/plugins/p1/enable')
+        .reply(200, makePlugin({ lifecycleStatus: 'ACTIVE' }));
+
+      const result = await client.enablePlugin('p1');
+      expect(result.lifecycleStatus).toBe('ACTIVE');
+    });
+
+    it('disablePlugin should POST /api/v1/plugins/:id/disable', async () => {
+      mock
+        .onPost('/api/v1/plugins/p1/disable')
+        .reply(200, makePlugin({ lifecycleStatus: 'DISABLED' }));
+
+      const result = await client.disablePlugin('p1');
+      expect(result.lifecycleStatus).toBe('DISABLED');
+    });
+  });
 
   describe('Marketplace', () => {
     it('searchMarketplace should GET /api/marketplace/plugins', async () => {

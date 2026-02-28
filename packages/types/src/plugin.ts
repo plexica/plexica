@@ -19,6 +19,23 @@ export const PLUGIN_STATUSES = [
 export type PluginStatus = (typeof PLUGIN_STATUSES)[number];
 
 /**
+ * Plugin lifecycle status — tracks runtime deployment state (ADR-018).
+ * Orthogonal to `PluginStatus` (marketplace publishing state).
+ * Uses UPPERCASE to match Prisma/database convention.
+ */
+export const PLUGIN_LIFECYCLE_STATUSES = [
+  'REGISTERED',
+  'INSTALLING',
+  'INSTALLED',
+  'ACTIVE',
+  'DISABLED',
+  'UNINSTALLING',
+  'UNINSTALLED',
+] as const;
+
+export type PluginLifecycleStatus = (typeof PLUGIN_LIFECYCLE_STATUSES)[number];
+
+/**
  * Status of a plugin installation within a tenant.
  */
 export const TENANT_PLUGIN_STATUSES = ['ACTIVE', 'INACTIVE'] as const;
@@ -168,9 +185,14 @@ export interface PluginEntity {
   description: string;
   author: string;
   category: string;
+  /** Marketplace publishing state */
   status: PluginStatus;
+  /** Runtime lifecycle deployment state (ADR-018) */
+  lifecycleStatus: PluginLifecycleStatus;
   icon?: string;
   homepage?: string;
+  /** Number of tenants currently using this plugin */
+  tenantCount?: number;
   createdAt: string;
   updatedAt: string;
 }

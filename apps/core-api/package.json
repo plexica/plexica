@@ -35,6 +35,7 @@
     "@plexica/event-bus": "workspace:*",
     "@plexica/i18n": "workspace:*",
     "axios": "^1.13.5",
+    "dockerode": "^4.0.9",
     "dotenv": "^17.2.3",
     "fastify": "^5.7.4",
     "ioredis": "^5.9.2",
@@ -49,6 +50,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/dockerode": "^4.0.1",
     "@types/node": "^25.2.3",
     "@types/semver": "^7.7.1",
     "@vitest/coverage-v8": "^4.0.18",
