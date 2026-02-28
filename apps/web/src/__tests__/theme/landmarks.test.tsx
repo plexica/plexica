@@ -13,7 +13,7 @@ import { AppLayout } from '@/components/Layout/AppLayout';
 // Mocks — minimal set to make AppLayout render in jsdom
 // ---------------------------------------------------------------------------
 
-const mockUseFeatureFlag = vi.fn(() => false);
+const mockUseFeatureFlag = vi.fn((_flag?: string) => false);
 vi.mock('@/lib/feature-flags', () => ({
   useFeatureFlag: (flag: string) => mockUseFeatureFlag(flag),
 }));

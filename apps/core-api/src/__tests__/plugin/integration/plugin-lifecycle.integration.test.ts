@@ -154,7 +154,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
   // =========================================================================
 
   describe('POST /api/v1/plugins (register)', () => {
-    it('registers a new plugin with valid manifest → 200 + plugin record', async () => {
+    it('registers a new plugin with valid manifest → 201 + plugin record', async () => {
       const resp = await app.inject({
         method: 'POST',
         url: '/api/v1/plugins',
@@ -162,7 +162,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         payload: TEST_MANIFEST,
       });
 
-      expect(resp.statusCode).toBe(200);
+      expect(resp.statusCode).toBe(201);
       const body = resp.json();
       expect(body.id).toBe(PLUGIN_ID);
       expect(body.lifecycleStatus).toBe(PluginLifecycleStatus.REGISTERED);
@@ -206,7 +206,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
   // =========================================================================
 
   describe('POST /api/v1/plugins/:id/install', () => {
-    it('installs a registered plugin → 200; lifecycleStatus becomes INSTALLED', async () => {
+    it('installs a registered plugin → 201; lifecycleStatus becomes INSTALLED', async () => {
       // Register first
       await app.inject({
         method: 'POST',
@@ -222,7 +222,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         payload: {},
       });
 
-      expect(resp.statusCode).toBe(200);
+      expect(resp.statusCode).toBe(201);
 
       // Verify lifecycleStatus in DB
       const plugin = await db.plugin.findUnique({ where: { id: PLUGIN_ID } });

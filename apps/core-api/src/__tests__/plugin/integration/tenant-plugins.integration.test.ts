@@ -100,7 +100,7 @@ async function setupGloballyActivePlugin(app: FastifyInstance, superAdminToken: 
     headers: { authorization: `Bearer ${superAdminToken}` },
     payload: TEST_MANIFEST,
   });
-  if (register.statusCode !== 200) {
+  if (register.statusCode !== 201) {
     throw new Error(`Register failed (${register.statusCode}): ${register.body}`);
   }
 
@@ -110,7 +110,7 @@ async function setupGloballyActivePlugin(app: FastifyInstance, superAdminToken: 
     headers: { authorization: `Bearer ${superAdminToken}` },
     payload: {},
   });
-  if (install.statusCode !== 200) {
+  if (install.statusCode !== 201) {
     throw new Error(`Install failed (${install.statusCode}): ${install.body}`);
   }
 
