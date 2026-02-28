@@ -1448,6 +1448,15 @@ export class PluginLifecycleService {
     }
 
     const current = plugin.lifecycleStatus;
+
+    // Idempotent: already in the target state — nothing to do.
+    // This handles the concurrent first-install race where two calls both
+    // transition INSTALLING→INSTALLED post-transaction; the second call finds
+    // the plugin already INSTALLED and safely no-ops.
+    if (current === target) {
+      return;
+    }
+
     const allowed = VALID_TRANSITIONS[current] ?? [];
 
     if (!allowed.includes(target)) {
