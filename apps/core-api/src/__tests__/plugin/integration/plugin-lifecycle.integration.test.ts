@@ -55,7 +55,7 @@ const FRONTEND_MANIFEST = {
     image: 'plexica/frontend-test:1.0.0',
   },
   frontend: {
-    remoteEntry: 'http://plugin-frontend-remotes-test:8080/remoteEntry.js',
+    remoteEntry: 'https://cdn.plugin-frontend-remotes-test.example.com/remoteEntry.js',
     routePrefix: '/frontend-test',
   },
 };
@@ -414,23 +414,28 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
 
     it('includes remoteEntryUrl after plugin with frontend.remoteEntry is installed and enabled', async () => {
       // Register + install + enable the frontend plugin
-      await app.inject({
+      const regResp = await app.inject({
         method: 'POST',
         url: '/api/v1/plugins',
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: FRONTEND_MANIFEST,
       });
-      await app.inject({
+      expect(regResp.statusCode).toBe(201);
+
+      const installResp = await app.inject({
         method: 'POST',
         url: `/api/v1/plugins/${FRONTEND_PLUGIN_ID}/install`,
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: {},
       });
-      await app.inject({
+      expect(installResp.statusCode).toBe(201);
+
+      const enableResp = await app.inject({
         method: 'POST',
         url: `/api/v1/plugins/${FRONTEND_PLUGIN_ID}/enable`,
         headers: { authorization: `Bearer ${superAdminToken}` },
       });
+      expect(enableResp.statusCode).toBe(200);
 
       const resp = await app.inject({
         method: 'GET',
