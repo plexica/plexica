@@ -9,18 +9,20 @@
  * Supported feature flag names.
  * Add new flags here and document them in the table below.
  *
- * | Flag name                   | Default | Description                                      |
- * |-----------------------------|---------|--------------------------------------------------|
- * | ENABLE_NEW_SIDEBAR          | false   | Use redesigned SidebarNav instead of Sidebar.tsx |
- * | ENABLE_TENANT_THEMING       | false   | Show branding settings & live theme preview      |
- * | ENABLE_AUTH_WARNING_BANNER  | false   | Display banner when token refresh has failed     |
- * | ENABLE_DARK_MODE            | false   | Expose dark-mode toggle in UI                    |
+ * | Flag name                 | Default | Description                                      |
+ * |---------------------------|---------|--------------------------------------------------|
+ * | ENABLE_NEW_SIDEBAR        | false   | Use redesigned SidebarNav instead of Sidebar.tsx |
+ * | ENABLE_TENANT_BRANDING    | false   | Show branding settings & live theme preview      |
+ * | ENABLE_AUTH_WARNINGS      | false   | Display banner when token refresh has failed     |
+ * | ENABLE_DARK_MODE          | false   | Expose dark-mode toggle in UI                    |
+ * | ENABLE_PLUGIN_WIDGETS     | false   | Allow plugins to embed cross-plugin widgets      |
  */
 export type FeatureFlagName =
   | 'ENABLE_NEW_SIDEBAR'
-  | 'ENABLE_TENANT_THEMING'
-  | 'ENABLE_AUTH_WARNING_BANNER'
-  | 'ENABLE_DARK_MODE';
+  | 'ENABLE_TENANT_BRANDING'
+  | 'ENABLE_AUTH_WARNINGS'
+  | 'ENABLE_DARK_MODE'
+  | 'ENABLE_PLUGIN_WIDGETS';
 
 /**
  * Returns `true` when the given feature flag is enabled.

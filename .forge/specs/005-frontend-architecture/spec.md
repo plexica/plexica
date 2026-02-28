@@ -109,12 +109,13 @@ A plugin-based platform needs a frontend architecture that supports dynamically 
 
 Per Constitution Article 9.1, all user-facing changes must use feature flags for gradual rollout and fast rollback. The following flags are required:
 
-| Flag Name                    | Controls                                              | Default | Tasks Gated                        |
-| ---------------------------- | ----------------------------------------------------- | ------- | ---------------------------------- |
-| `ENABLE_NEW_SIDEBAR`         | New `SidebarNav` replaces legacy `Sidebar` component  | `false` | T005-01, T005-02                   |
-| `ENABLE_TENANT_THEMING`      | Tenant Theme Settings page and font loading           | `false` | T005-09, T005-10, T005-11, T005-12 |
-| `ENABLE_AUTH_WARNING_BANNER` | `AuthWarningBanner` component display                 | `false` | T005-17                            |
-| `ENABLE_DARK_MODE`           | Dark mode token support and tenant dark-mode variants | `false` | T005-20                            |
+| Flag Name                | Controls                                              | Default | Tasks Gated                        |
+| ------------------------ | ----------------------------------------------------- | ------- | ---------------------------------- |
+| `ENABLE_NEW_SIDEBAR`     | New `SidebarNav` replaces legacy `Sidebar` component  | `false` | T005-01, T005-02                   |
+| `ENABLE_TENANT_BRANDING` | Tenant Theme Settings page and font loading           | `false` | T005-09, T005-10, T005-11, T005-12 |
+| `ENABLE_AUTH_WARNINGS`   | `AuthWarningBanner` component display                 | `false` | T005-17                            |
+| `ENABLE_DARK_MODE`       | Dark mode token support and tenant dark-mode variants | `false` | T005-20                            |
+| `ENABLE_PLUGIN_WIDGETS`  | `WidgetContainer` plugin widget rendering             | `false` | T005-18                            |
 
 **Naming convention**: flags use `ENABLE_` prefix + `SCREAMING_SNAKE_CASE` descriptor, evaluated client-side via a `useFeatureFlag(name)` hook. Flags are configurable per-tenant via the admin API.
 

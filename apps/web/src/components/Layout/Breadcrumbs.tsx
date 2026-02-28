@@ -99,7 +99,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ overrides = {} }) => {
                     {item.label}
                   </Link>
                   <span aria-hidden="true" className="text-muted-foreground/50">
-                    /
+                    &gt;
                   </span>
                 </>
               )}

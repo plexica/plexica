@@ -3,6 +3,10 @@
 // T005-05: Cross-plugin widget embed wrapper.
 // Orchestrates Spec 010 Phase 3 primitives: loadWidget(), WidgetFallback.
 //
+// Gated by the ENABLE_PLUGIN_WIDGETS feature flag (Constitution Art. 9.1).
+// When the flag is off the component renders nothing so no Spec 010 stubs
+// are exercised in production until the feature is ready.
+//
 // ⚠️ [NEEDS UPDATE] Once Spec 010 Phase 3 is merged, replace the stub
 // `loadWidget` below with the real import:
 //   import { loadWidget } from '../lib/widget-loader';
@@ -10,6 +14,7 @@
 // FR-011, NFR-008
 
 import React, { Suspense, useEffect, useState, type ReactNode } from 'react';
+import { useFeatureFlag } from '@/lib/feature-flags';
 
 // ---------------------------------------------------------------------------
 // Stub — replace with Spec 010 Phase 3 real implementation
@@ -78,6 +83,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
   fallback,
   errorFallback,
 }) => {
+  const widgetsEnabled = useFeatureFlag('ENABLE_PLUGIN_WIDGETS');
   const [WidgetComponent, setWidgetComponent] = useState<React.ComponentType<
     Record<string, unknown>
   > | null>(null);
@@ -85,6 +91,8 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    if (!widgetsEnabled) return;
+
     let cancelled = false;
 
     // setState calls must be inside a callback, not synchronously in the
@@ -114,7 +122,10 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [pluginId, widgetName]);
+  }, [pluginId, widgetName, widgetsEnabled]);
+
+  // Flag off → render nothing (Spec 010 Phase 3 not yet live)
+  if (!widgetsEnabled) return null;
 
   return (
     <section

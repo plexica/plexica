@@ -1,13 +1,13 @@
 // File: apps/web/src/__tests__/theme/font-manifest.test.ts
 //
 // T005-14: Validates the font manifest JSON schema and content completeness.
-// All 25 ADR-020 curated fonts must be present with required fields.
+// All 26 ADR-020 curated fonts must be present with required fields.
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, it, expect, beforeAll } from 'vitest';
 
-const MANIFEST_PATH = join(__dirname, '../../../..', 'public/fonts/manifest.json');
+const MANIFEST_PATH = join(__dirname, '../../..', 'public/fonts/manifest.json');
 
 interface FontEntry {
   id: string;
@@ -24,7 +24,7 @@ interface FontManifest {
   fonts: FontEntry[];
 }
 
-// All 25 curated font IDs per ADR-020
+// All 26 curated font IDs per ADR-020
 const ADR_020_FONT_IDS = [
   'inter',
   'roboto',
@@ -67,8 +67,8 @@ describe('Font Manifest (T005-14)', () => {
     expect(Array.isArray(manifest.fonts)).toBe(true);
   });
 
-  it('contains exactly 25 font families matching the ADR-020 curated list', () => {
-    expect(manifest.fonts).toHaveLength(25);
+  it('contains exactly 26 font families matching the ADR-020 curated list', () => {
+    expect(manifest.fonts).toHaveLength(26);
     const ids = manifest.fonts.map((f) => f.id);
     for (const expectedId of ADR_020_FONT_IDS) {
       expect(ids).toContain(expectedId);

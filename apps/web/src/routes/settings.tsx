@@ -132,7 +132,7 @@ function SettingsPage() {
               description="Data export, workspace transfer, debug mode, and developer options."
             />
           </TabsContent>
-          {/* Branding tab — only rendered when ENABLE_TENANT_THEMING is on */}
+          {/* Branding tab — only rendered when ENABLE_TENANT_BRANDING is on */}
           <TabsContent value="branding" className="mt-6">
             <BrandingTab />
           </TabsContent>
@@ -146,10 +146,10 @@ function SettingsPage() {
 
 /**
  * Renders the TabsList. Branding trigger is shown only when
- * ENABLE_TENANT_THEMING feature flag is on.
+ * ENABLE_TENANT_BRANDING feature flag is on.
  */
 function SettingsTabsList() {
-  const brandingEnabled = useFeatureFlag('ENABLE_TENANT_THEMING');
+  const brandingEnabled = useFeatureFlag('ENABLE_TENANT_BRANDING');
 
   return (
     <TabsList className={`grid w-full ${brandingEnabled ? 'grid-cols-8' : 'grid-cols-7'}`}>

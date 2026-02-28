@@ -3,7 +3,7 @@
 // T005-12: Integration tests for the BrandingTab component.
 //
 // Tests (8):
-//   1. Renders null when ENABLE_TENANT_THEMING flag is off
+//   1. Renders null when ENABLE_TENANT_BRANDING flag is off
 //   2. Renders branding form when flag is on
 //   3. Live preview updates when a color field changes
 //   4. Live preview updates when a font selector changes
@@ -92,7 +92,7 @@ function renderBrandingTab() {
 // ---------------------------------------------------------------------------
 
 describe('BrandingTab — feature flag gate', () => {
-  it('renders null when ENABLE_TENANT_THEMING flag is off', () => {
+  it('renders null when ENABLE_TENANT_BRANDING flag is off', () => {
     mockUseFeatureFlag.mockReturnValueOnce(false);
     const { container } = renderBrandingTab();
     expect(container).toBeEmptyDOMElement();

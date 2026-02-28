@@ -5,7 +5,7 @@
 
 | Field        | Value                                      |
 | ------------ | ------------------------------------------ |
-| Status       | Ready                                      |
+| Status       | Complete                                   |
 | Author       | forge-scrum                                |
 | Date         | 2026-02-26                                 |
 | Spec         | [005-frontend-architecture](./spec.md)     |
@@ -29,32 +29,32 @@
 
 ## Task Index
 
-| Task ID | Title                                    | Phase   | Points | Priority | Status  | Dependencies              |
-| ------- | ---------------------------------------- | ------- | ------ | -------- | ------- | ------------------------- |
-| T005-01 | Implement SidebarNav component           | Phase 1 | 5      | High     | pending | None                      |
-| T005-02 | Implement Breadcrumbs component          | Phase 1 | 2      | High     | pending | None                      |
-| T005-03 | Add reserved route enforcement           | Phase 1 | 2      | High     | pending | None                      |
-| T005-04 | Implement PluginNotFoundPage             | Phase 1 | 1      | High     | pending | None                      |
-| T005-05 | Implement WidgetContainer                | Phase 1 | 1      | Medium   | pending | Spec 010 Phase 3          |
-| T005-06 | Implement font-loader.ts                 | Phase 2 | 3      | High     | pending | ADR-020                   |
-| T005-07 | Integrate tenant logo in Header          | Phase 2 | 2      | Medium   | pending | Spec 010 Phase 2          |
-| T005-14 | Create font manifest + download script   | Phase 2 | 2      | High     | pending | ADR-020                   |
-| T005-15 | Configure CSP `font-src 'self'`          | Phase 2 | 1      | High     | pending | T005-14                   |
-| T005-08 | Implement contrast-utils.ts              | Phase 3 | 1      | High     | pending | None                      |
-| T005-09 | Implement ColorPickerField               | Phase 3 | 3      | High     | pending | T005-08                   |
-| T005-10 | Implement ThemePreview                   | Phase 3 | 2      | Medium   | pending | None                      |
-| T005-11 | Implement FontSelector                   | Phase 3 | 2      | High     | pending | T005-06                   |
-| T005-12 | Build settings.branding.tsx page         | Phase 3 | 3      | High     | pending | T005-09, T005-10, T005-11 |
-| T005-13 | Add branding link to Settings navigation | Phase 3 | 1      | Medium   | pending | T005-12                   |
-| T005-18 | Fix widget fallback contrast             | Phase 3 | 1      | High     | pending | Spec 010 Phase 3          |
-| T005-17 | Implement AuthWarningBanner              | Phase 4 | 2      | High     | pending | None                      |
-| T005-20 | Extend dark mode for tenant theme tokens | Phase 4 | 3      | Medium   | pending | Spec 010 Phase 2          |
-| T005-19 | Add skip-to-content link                 | Phase 5 | 1      | High     | pending | Phase 1                   |
-| T005-21 | Add noscript fallback                    | Phase 5 | 1      | Low      | pending | None                      |
-| T005-22 | Verify ARIA landmarks across shell       | Phase 5 | 2      | High     | pending | All phases                |
-| T005-23 | Navigation E2E tests                     | Phase 5 | 1      | Medium   | pending | All phases                |
-| T005-16 | Integrate font loading into ThemeContext | Phase 2 | 1      | High     | pending | T005-06, T005-14          |
-| T005-24 | AppLayout integration & cleanup          | Phase 1 | 1      | High     | pending | T005-01, T005-02          |
+| Task ID | Title                                    | Phase   | Points | Priority | Status   | Dependencies              |
+| ------- | ---------------------------------------- | ------- | ------ | -------- | -------- | ------------------------- |
+| T005-01 | Implement SidebarNav component           | Phase 1 | 5      | High     | complete | None                      |
+| T005-02 | Implement Breadcrumbs component          | Phase 1 | 2      | High     | complete | None                      |
+| T005-03 | Add reserved route enforcement           | Phase 1 | 2      | High     | complete | None                      |
+| T005-04 | Implement PluginNotFoundPage             | Phase 1 | 1      | High     | complete | None                      |
+| T005-05 | Implement WidgetContainer                | Phase 1 | 1      | Medium   | complete | Spec 010 Phase 3          |
+| T005-06 | Implement font-loader.ts                 | Phase 2 | 3      | High     | complete | ADR-020                   |
+| T005-07 | Integrate tenant logo in Header          | Phase 2 | 2      | Medium   | complete | Spec 010 Phase 2          |
+| T005-14 | Create font manifest + download script   | Phase 2 | 2      | High     | complete | ADR-020                   |
+| T005-15 | Configure CSP `font-src 'self'`          | Phase 2 | 1      | High     | complete | T005-14                   |
+| T005-08 | Implement contrast-utils.ts              | Phase 3 | 1      | High     | complete | None                      |
+| T005-09 | Implement ColorPickerField               | Phase 3 | 3      | High     | complete | T005-08                   |
+| T005-10 | Implement ThemePreview                   | Phase 3 | 2      | Medium   | complete | None                      |
+| T005-11 | Implement FontSelector                   | Phase 3 | 2      | High     | complete | T005-06                   |
+| T005-12 | Build settings.branding.tsx page         | Phase 3 | 3      | High     | complete | T005-09, T005-10, T005-11 |
+| T005-13 | Add branding link to Settings navigation | Phase 3 | 1      | Medium   | complete | T005-12                   |
+| T005-18 | Fix widget fallback contrast             | Phase 3 | 1      | High     | complete | Spec 010 Phase 3          |
+| T005-17 | Implement AuthWarningBanner              | Phase 4 | 2      | High     | complete | None                      |
+| T005-20 | Extend dark mode for tenant theme tokens | Phase 4 | 3      | Medium   | complete | Spec 010 Phase 2          |
+| T005-19 | Add skip-to-content link                 | Phase 5 | 1      | High     | complete | Phase 1                   |
+| T005-21 | Add noscript fallback                    | Phase 5 | 1      | Low      | complete | None                      |
+| T005-22 | Verify ARIA landmarks across shell       | Phase 5 | 2      | High     | complete | All phases                |
+| T005-23 | Navigation E2E tests                     | Phase 5 | 1      | Medium   | complete | All phases                |
+| T005-16 | Integrate font loading into ThemeContext | Phase 2 | 1      | High     | complete | T005-06, T005-14          |
+| T005-24 | AppLayout integration & cleanup          | Phase 1 | 1      | High     | complete | T005-01, T005-02          |
 
 > **Note on T005-16 / T005-24**: The plan references ThemeContext font integration and AppLayout wiring as implicit tasks spread across Phase 1–2. They are made explicit here as T005-16 and T005-24 to ensure full traceability and clear ownership. Both are scoped to exactly 1 story point each, bringing the corrected total to 44 points (Phase 1: 12 pts, Phase 2: 9 pts).
 
@@ -87,7 +87,7 @@
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 5  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-006, FR-007, FR-008, NFR-004, NFR-005  
 **Dependencies**: None
 
@@ -123,30 +123,30 @@ Replace the existing `Sidebar.tsx` (~161 LOC, no ARIA, no responsive overlay) wi
 
 #### Test Requirements
 
-- [ ] Unit: Renders core nav items (Dashboard, Profile, Settings) when `PluginContext.menuItems` is empty
-- [ ] Unit: Renders plugin items from `PluginContext.menuItems` under collapsible group
-- [ ] Unit: Active route item has `aria-current="page"` and `--primary` background
-- [ ] Unit: Plugins group toggle sets `aria-expanded` correctly and shows/hides items
-- [ ] Unit: Esc key fires `onClose` when overlay is open
-- [ ] Unit: Sidebar overlay has `aria-modal="true"` on mobile viewport
-- [ ] Unit: `collapsed` prop renders icon-only mode on desktop
-- [ ] Unit: `Home` / `End` keydown moves focus to first / last nav item
-- [ ] Integration: N/A (wired in T005-24)
-- [ ] E2E: Covered by T005-23
+- [x] Unit: Renders core nav items (Dashboard, Profile, Settings) when `PluginContext.menuItems` is empty
+- [x] Unit: Renders plugin items from `PluginContext.menuItems` under collapsible group
+- [x] Unit: Active route item has `aria-current="page"` and `--primary` background
+- [x] Unit: Plugins group toggle sets `aria-expanded` correctly and shows/hides items
+- [x] Unit: Esc key fires `onClose` when overlay is open
+- [x] Unit: Sidebar overlay has `aria-modal="true"` on mobile viewport
+- [x] Unit: `collapsed` prop renders icon-only mode on desktop
+- [x] Unit: `Home` / `End` keydown moves focus to first / last nav item
+- [x] Integration: N/A (wired in T005-24)
+- [x] E2E: Covered by T005-23
 
 #### Acceptance Criteria
 
-- [ ] SidebarNav renders Dashboard, Profile, Settings nav items and dynamically populated plugin items from `PluginContext`
-- [ ] Plugins section is collapsible with `aria-expanded` toggle and `role="group" aria-label="Plugins"`
-- [ ] Active route item highlighted with `aria-current="page"` and `--primary` background with `--primary-foreground` text
-- [ ] On viewports < 1024 px: sidebar is hidden by default; hamburger in Header opens overlay from left with dimmed backdrop (`var(--overlay-backdrop)`)
-- [ ] Overlay has focus trap; `Esc` and backdrop click close it; first focusable item receives focus on open
-- [ ] Component is gated behind the `ENABLE_NEW_SIDEBAR` feature flag (Constitution Art. 9.1); falls back to existing `Sidebar.tsx` when flag is disabled
+- [x] SidebarNav renders Dashboard, Profile, Settings nav items and dynamically populated plugin items from `PluginContext`
+- [x] Plugins section is collapsible with `aria-expanded` toggle and `role="group" aria-label="Plugins"`
+- [x] Active route item highlighted with `aria-current="page"` and `--primary` background with `--primary-foreground` text
+- [x] On viewports < 1024 px: sidebar is hidden by default; hamburger in Header opens overlay from left with dimmed backdrop (`var(--overlay-backdrop)`)
+- [x] Overlay has focus trap; `Esc` and backdrop click close it; first focusable item receives focus on open
+- [x] Component is gated behind the `ENABLE_NEW_SIDEBAR` feature flag (Constitution Art. 9.1); falls back to existing `Sidebar.tsx` when flag is disabled
 
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 2  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-006  
 **Dependencies**: None
 
@@ -170,20 +170,20 @@ Build a new `Breadcrumbs.tsx` component that auto-generates a navigable breadcru
 
 #### Test Requirements
 
-- [ ] Unit: Renders "Home" as first item with link to `/` for any path
-- [ ] Unit: Resolves plugin route prefix to plugin display name via PluginContext
-- [ ] Unit: Last breadcrumb item has `aria-current="page"` and is not a link
-- [ ] Unit: `overrides` prop replaces auto-generated label for specified segment
-- [ ] Integration: N/A
-- [ ] E2E: Covered by T005-23
+- [x] Unit: Renders "Home" as first item with link to `/` for any path
+- [x] Unit: Resolves plugin route prefix to plugin display name via PluginContext
+- [x] Unit: Last breadcrumb item has `aria-current="page"` and is not a link
+- [x] Unit: `overrides` prop replaces auto-generated label for specified segment
+- [x] Integration: N/A
+- [x] E2E: Covered by T005-23
 
 #### Acceptance Criteria
 
-- [ ] Renders "Home > [Plugin Name] > [Page]" trail from URL path `/crm/contacts`
-- [ ] All items except last are focusable links (`<a>`) navigating to their respective paths
-- [ ] Last item has `aria-current="page"` and is not a link
-- [ ] `<nav aria-label="Breadcrumb">` landmark wraps the trail
-- [ ] `overrides` prop correctly replaces segment labels when provided
+- [x] Renders "Home > [Plugin Name] > [Page]" trail from URL path `/crm/contacts`
+- [x] All items except last are focusable links (`<a>`) navigating to their respective paths
+- [x] Last item has `aria-current="page"` and is not a link
+- [x] `<nav aria-label="Breadcrumb">` landmark wraps the trail
+- [x] `overrides` prop correctly replaces segment labels when provided
 
 ---
 
@@ -192,7 +192,7 @@ Build a new `Breadcrumbs.tsx` component that auto-generates a navigable breadcru
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 2  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-007, FR-008  
 **Dependencies**: None
 
@@ -218,18 +218,18 @@ Extend `plugin-routes.tsx` with a reserved route guard that prevents plugins fro
 
 #### Test Requirements
 
-- [ ] Unit: `isReservedRoute('/settings')` returns `true`; `isReservedRoute('/crm')` returns `false`
-- [ ] Unit: `registerPlugin` rejects registration when prefix conflicts with another registered plugin (returns `false`, logs warning)
-- [ ] Unit: `registerPlugin` rejects reserved prefix `/admin` (returns `false`, logs warning with reason)
-- [ ] Integration: N/A
-- [ ] E2E: N/A (build-time validation; runtime warning sufficient per plan Risk R6)
+- [x] Unit: `isReservedRoute('/settings')` returns `true`; `isReservedRoute('/crm')` returns `false`
+- [x] Unit: `registerPlugin` rejects registration when prefix conflicts with another registered plugin (returns `false`, logs warning)
+- [x] Unit: `registerPlugin` rejects reserved prefix `/admin` (returns `false`, logs warning with reason)
+- [x] Integration: N/A
+- [x] E2E: N/A (build-time validation; runtime warning sufficient per plan Risk R6)
 
 #### Acceptance Criteria
 
-- [ ] `RESERVED_ROUTES` constant exported and includes: `/`, `/settings`, `/admin`, `/profile`, `/team`, `/login`, `/auth`
-- [ ] Plugin attempting to register `/settings` is rejected with `console.warn` containing the prefix and "reserved route" reason
-- [ ] Second plugin attempting to register the same prefix as an already-registered plugin is rejected with a conflict warning
-- [ ] Successful registration returns `true`; failed registration returns `false`
+- [x] `RESERVED_ROUTES` constant exported and includes: `/`, `/settings`, `/admin`, `/profile`, `/team`, `/login`, `/auth`
+- [x] Plugin attempting to register `/settings` is rejected with `console.warn` containing the prefix and "reserved route" reason
+- [x] Second plugin attempting to register the same prefix as an already-registered plugin is rejected with a conflict warning
+- [x] Successful registration returns `true`; failed registration returns `false`
 
 ---
 
@@ -238,7 +238,7 @@ Extend `plugin-routes.tsx` with a reserved route guard that prevents plugins fro
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-008, NFR-007  
 **Dependencies**: None
 
@@ -264,18 +264,18 @@ Create a dedicated 404 page component shown when a user navigates to a disabled 
 
 #### Test Requirements
 
-- [ ] Unit: Renders "Page Not Found" h1 heading and default explanatory text
-- [ ] Unit: "Go to Dashboard" button navigates to `/` when clicked (mock `useNavigate`)
-- [ ] Integration: N/A
-- [ ] E2E: N/A (covered by broader navigation tests in T005-23)
+- [x] Unit: Renders "Page Not Found" h1 heading and default explanatory text
+- [x] Unit: "Go to Dashboard" button navigates to `/` when clicked (mock `useNavigate`)
+- [x] Integration: N/A
+- [x] E2E: N/A (covered by broader navigation tests in T005-23)
 
 #### Acceptance Criteria
 
-- [ ] `h1` "Page Not Found" visible and announced as heading level 1 by screen readers
-- [ ] Explanatory text includes "not available for your organization"
-- [ ] "Go to Dashboard" button navigates to `/` on click
-- [ ] `aria-label="Return to dashboard"` present on CTA button
-- [ ] Custom `message` prop overrides default text when provided
+- [x] `h1` "Page Not Found" visible and announced as heading level 1 by screen readers
+- [x] Explanatory text includes "not available for your organization"
+- [x] "Go to Dashboard" button navigates to `/` on click
+- [x] `aria-label="Return to dashboard"` present on CTA button
+- [x] Custom `message` prop overrides default text when provided
 
 ---
 
@@ -284,7 +284,7 @@ Create a dedicated 404 page component shown when a user navigates to a disabled 
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 1  
 **Priority**: Medium  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-011, NFR-008  
 **Dependencies**: Spec 010 Phase 3 (`loadWidget()`, `WidgetFallback`)
 
@@ -308,19 +308,19 @@ Build a `WidgetContainer.tsx` section wrapper that allows plugin pages to embed 
 
 #### Test Requirements
 
-- [ ] Unit: Renders section with `role="region"` and `aria-label` matching `title` prop
-- [ ] Unit: Shows skeleton (`aria-busy="true"`) while `loadWidget` promise is pending
-- [ ] Unit: Renders widget content once `loadWidget` resolves
-- [ ] Integration: N/A (Spec 010 handles widget loading integration)
-- [ ] E2E: N/A
+- [x] Unit: Renders section with `role="region"` and `aria-label` matching `title` prop
+- [x] Unit: Shows skeleton (`aria-busy="true"`) while `loadWidget` promise is pending
+- [x] Unit: Renders widget content once `loadWidget` resolves
+- [x] Integration: N/A (Spec 010 handles widget loading integration)
+- [x] E2E: N/A
 
 #### Acceptance Criteria
 
-- [ ] Section renders with `role="region"` and `aria-label` equal to the `title` prop value
-- [ ] `aria-busy="true"` while widget loads; `aria-busy="false"` after mount
-- [ ] `errorFallback` renders when `loadWidget` rejects
-- [ ] Custom `fallback` prop overrides default skeleton when provided
-- [ ] `h2` section heading renders above widget area
+- [x] Section renders with `role="region"` and `aria-label` equal to the `title` prop value
+- [x] `aria-busy="true"` while widget loads; `aria-busy="false"` after mount
+- [x] `errorFallback` renders when `loadWidget` rejects
+- [x] Custom `fallback` prop overrides default skeleton when provided
+- [x] `h2` section heading renders above widget area
 
 ---
 
@@ -329,7 +329,7 @@ Build a `WidgetContainer.tsx` section wrapper that allows plugin pages to embed 
 **Phase**: Phase 1 — Shell Layout & Navigation  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-006, NFR-004  
 **Dependencies**: T005-01 (SidebarNav), T005-02 (Breadcrumbs)
 
@@ -351,18 +351,18 @@ Wire the new Phase 1 components into `AppLayout.tsx`: replace `<Sidebar>` with `
 
 #### Test Requirements
 
-- [ ] Unit: `AppLayout` renders `<nav role="navigation">`, `<main id="main-content">`, `<footer role="contentinfo">` landmarks
-- [ ] Unit: `isSidebarOpen` state toggles when `onMenuClick` called
-- [ ] Integration: N/A
-- [ ] E2E: Covered by T005-23
+- [x] Unit: `AppLayout` renders `<nav role="navigation">`, `<main id="main-content">`, `<footer role="contentinfo">` landmarks
+- [x] Unit: `isSidebarOpen` state toggles when `onMenuClick` called
+- [x] Integration: N/A
+- [x] E2E: Covered by T005-23
 
 #### Acceptance Criteria
 
-- [ ] `<main id="main-content" role="main">` present in rendered output
-- [ ] `<footer role="contentinfo">` present at bottom of shell
-- [ ] `<SidebarNav>` receives `isOpen` and `onClose` props wired to `AppLayout` state
-- [ ] `<Breadcrumbs>` renders above main content children
-- [ ] No TypeScript compilation errors after `Sidebar.tsx` deletion
+- [x] `<main id="main-content" role="main">` present in rendered output
+- [x] `<footer role="contentinfo">` present at bottom of shell
+- [x] `<SidebarNav>` receives `isOpen` and `onClose` props wired to `AppLayout` state
+- [x] `<Breadcrumbs>` renders above main content children
+- [x] No TypeScript compilation errors after `Sidebar.tsx` deletion
 
 ---
 
@@ -380,7 +380,7 @@ Wire the new Phase 1 components into `AppLayout.tsx`: replace `<Sidebar>` with `
 **Phase**: Phase 2 — Font & Theme Infrastructure  
 **Story Points**: 3  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009, FR-010, NFR-001, NFR-003  
 **Dependencies**: ADR-020, T005-14 (font manifest + WOFF2 files)
 
@@ -413,23 +413,23 @@ Implement the `font-loader.ts` library module that loads self-hosted WOFF2 font 
 
 #### Test Requirements
 
-- [ ] Unit: `loadFonts({ heading: 'inter', body: 'roboto' })` calls `FontFace` constructor for each weight of both fonts (mock `FontFace`)
-- [ ] Unit: `loadFonts` deduplicates when heading and body are the same font ID
-- [ ] Unit: `getManifest()` fetches `/fonts/manifest.json` once and returns cached result on subsequent calls
-- [ ] Unit: `isFontLoaded('Inter')` returns `true` when font is in `document.fonts` (mock `document.fonts`)
-- [ ] Unit: `loadFonts` falls back gracefully (no throw) when `FontFace.load()` rejects; warns to console
-- [ ] Unit: Invalid font ID (not in `FONT_CATALOG`) is rejected by Zod validation before any `FontFace` call
-- [ ] Integration: N/A
-- [ ] E2E: N/A (font loading tested via Theme Settings E2E in T005-12)
+- [x] Unit: `loadFonts({ heading: 'inter', body: 'roboto' })` calls `FontFace` constructor for each weight of both fonts (mock `FontFace`)
+- [x] Unit: `loadFonts` deduplicates when heading and body are the same font ID
+- [x] Unit: `getManifest()` fetches `/fonts/manifest.json` once and returns cached result on subsequent calls
+- [x] Unit: `isFontLoaded('Inter')` returns `true` when font is in `document.fonts` (mock `document.fonts`)
+- [x] Unit: `loadFonts` falls back gracefully (no throw) when `FontFace.load()` rejects; warns to console
+- [x] Unit: Invalid font ID (not in `FONT_CATALOG`) is rejected by Zod validation before any `FontFace` call
+- [x] Integration: N/A
+- [x] E2E: N/A (font loading tested via Theme Settings E2E in T005-12)
 
 #### Acceptance Criteria
 
-- [ ] `loadFonts({ heading: 'inter', body: 'roboto' })` results in `--font-heading: "Inter", system-ui, -apple-system, sans-serif` on `document.documentElement`
-- [ ] All font files loaded from `/fonts/{id}/{id}-{weight}.woff2` (same origin) — no requests to `fonts.googleapis.com` or `fonts.gstatic.com`
-- [ ] `font-display: swap` used for all `FontFace` instances (no invisible text during load)
-- [ ] Font manifest fetched at most once per page session (module-level cache)
-- [ ] Load failure logs a `warn` and leaves CSS custom properties pointing to system font fallback; no uncaught rejection
-- [ ] `FONT_CATALOG` includes all 25 curated fonts from ADR-020
+- [x] `loadFonts({ heading: 'inter', body: 'roboto' })` results in `--font-heading: "Inter", system-ui, -apple-system, sans-serif` on `document.documentElement`
+- [x] All font files loaded from `/fonts/{id}/{id}-{weight}.woff2` (same origin) — no requests to `fonts.googleapis.com` or `fonts.gstatic.com`
+- [x] `font-display: swap` used for all `FontFace` instances (no invisible text during load)
+- [x] Font manifest fetched at most once per page session (module-level cache)
+- [x] Load failure logs a `warn` and leaves CSS custom properties pointing to system font fallback; no uncaught rejection
+- [x] `FONT_CATALOG` includes all 25 curated fonts from ADR-020
 
 ---
 
@@ -438,7 +438,7 @@ Implement the `font-loader.ts` library module that loads self-hosted WOFF2 font 
 **Phase**: Phase 2 — Font & Theme Infrastructure  
 **Story Points**: 2  
 **Priority**: Medium  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-006, FR-009  
 **Dependencies**: Spec 010 Phase 2 (ThemeProvider — `theme.logo` available in ThemeContext)
 
@@ -466,19 +466,19 @@ Replace the hardcoded "P" text placeholder in `Header.tsx` with the tenant logo 
 
 #### Test Requirements
 
-- [ ] Unit: Renders tenant logo `<img>` when `theme.logo` is set
-- [ ] Unit: Falls back to default Plexica logo when `onError` fires (sets `src` to default)
-- [ ] Unit: Logo `<img>` is wrapped in a link navigating to `/`
-- [ ] Integration: N/A
-- [ ] E2E: Covered by Theme Settings E2E in T005-12 (logo upload + preview)
+- [x] Unit: Renders tenant logo `<img>` when `theme.logo` is set
+- [x] Unit: Falls back to default Plexica logo when `onError` fires (sets `src` to default)
+- [x] Unit: Logo `<img>` is wrapped in a link navigating to `/`
+- [x] Integration: N/A
+- [x] E2E: Covered by Theme Settings E2E in T005-12 (logo upload + preview)
 
 #### Acceptance Criteria
 
-- [ ] `<header role="banner">` present on the Header element
-- [ ] Tenant logo `<img>` rendered from `ThemeContext.theme.logo`
-- [ ] `onError` handler switches `src` to default Plexica logo — no broken image shown
-- [ ] Logo is a link navigating to `/` (dashboard)
-- [ ] `alt` attribute is non-empty and descriptive (not empty string)
+- [x] `<header role="banner">` present on the Header element
+- [x] Tenant logo `<img>` rendered from `ThemeContext.theme.logo`
+- [x] `onError` handler switches `src` to default Plexica logo — no broken image shown
+- [x] Logo is a link navigating to `/` (dashboard)
+- [x] `alt` attribute is non-empty and descriptive (not empty string)
 
 ---
 
@@ -487,7 +487,7 @@ Replace the hardcoded "P" text placeholder in `Header.tsx` with the tenant logo 
 **Phase**: Phase 2 — Font & Theme Infrastructure  
 **Story Points**: 2  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009, FR-010  
 **Dependencies**: ADR-020
 
@@ -542,17 +542,17 @@ Create the static font manifest JSON file at `apps/web/public/fonts/manifest.jso
 
 #### Test Requirements
 
-- [ ] Unit: `manifest.json` is valid JSON and contains entries for all 25 fonts from ADR-020 (validate in a snapshot/schema test)
-- [ ] Integration: N/A
-- [ ] E2E: N/A
+- [x] Unit: `manifest.json` is valid JSON and contains entries for all 25 fonts from ADR-020 (validate in a snapshot/schema test)
+- [x] Integration: N/A
+- [x] E2E: N/A
 
 #### Acceptance Criteria
 
-- [ ] `apps/web/public/fonts/manifest.json` exists and contains exactly 25 font families matching the ADR-020 curated list
-- [ ] Each font entry has `id`, `name`, `category`, `weights`, `license`, `fallback`, and `files` fields
-- [ ] `scripts/download-fonts.sh` is executable, documented, and downloads all WOFF2 files to the correct directory structure
-- [ ] Preload hints for Inter 400 and Roboto 400 added to `apps/web/index.html`
-- [ ] All font files are WOFF2 format (no TTF, OTF, or WOFF1)
+- [x] `apps/web/public/fonts/manifest.json` exists and contains exactly 25 font families matching the ADR-020 curated list
+- [x] Each font entry has `id`, `name`, `category`, `weights`, `license`, `fallback`, and `files` fields
+- [x] `scripts/download-fonts.sh` is executable, documented, and downloads all WOFF2 files to the correct directory structure
+- [x] Preload hints for Inter 400 and Roboto 400 added to `apps/web/index.html`
+- [x] All font files are WOFF2 format (no TTF, OTF, or WOFF1)
 
 ---
 
@@ -561,7 +561,7 @@ Create the static font manifest JSON file at `apps/web/public/fonts/manifest.jso
 **Phase**: Phase 2 — Font & Theme Infrastructure  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: NFR-001, NFR-003  
 **Dependencies**: T005-14 (fonts must be self-hosted before enforcing CSP)
 
@@ -585,16 +585,16 @@ Add a `Content-Security-Policy` meta tag to `apps/web/index.html` restricting fo
 
 #### Test Requirements
 
-- [ ] Unit: `index.html` contains `<meta http-equiv="Content-Security-Policy" content="font-src 'self'">` (snapshot or grep test)
-- [ ] Integration: N/A
-- [ ] E2E: N/A (CSP enforcement is browser-level; verify manually in DevTools)
+- [x] Unit: `index.html` contains `<meta http-equiv="Content-Security-Policy" content="font-src 'self'">` (snapshot or grep test)
+- [x] Integration: N/A
+- [x] E2E: N/A (CSP enforcement is browser-level; verify manually in DevTools)
 
 #### Acceptance Criteria
 
-- [ ] `apps/web/index.html` contains `<meta http-equiv="Content-Security-Policy" content="font-src 'self'">`
-- [ ] `apps/web/vite.config.ts` emits `Content-Security-Policy: font-src 'self'` header from dev server
-- [ ] No network requests to `fonts.googleapis.com` or `fonts.gstatic.com` occur during local dev (verified in browser)
-- [ ] A code comment explains that production deployments should set this via HTTP headers, not meta tag
+- [x] `apps/web/index.html` contains `<meta http-equiv="Content-Security-Policy" content="font-src 'self'">`
+- [x] `apps/web/vite.config.ts` emits `Content-Security-Policy: font-src 'self'` header from dev server
+- [x] No network requests to `fonts.googleapis.com` or `fonts.gstatic.com` occur during local dev (verified in browser)
+- [x] A code comment explains that production deployments should set this via HTTP headers, not meta tag
 
 ---
 
@@ -603,7 +603,7 @@ Add a `Content-Security-Policy` meta tag to `apps/web/index.html` restricting fo
 **Phase**: Phase 2 — Font & Theme Infrastructure  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009, FR-010  
 **Dependencies**: T005-06 (font-loader.ts), T005-14 (manifest + WOFF2 files), Spec 010 Phase 2 (ThemeProvider with tenant theme fetch)
 
@@ -625,17 +625,17 @@ Extend `ThemeContext.tsx` to call `loadFonts()` from `font-loader.ts` whenever t
 
 #### Test Requirements
 
-- [ ] Unit: `loadFonts` is called with correct heading/body IDs when `theme.fonts` changes
-- [ ] Unit: `loadFonts` is called on initial mount with the default font IDs
-- [ ] Integration: N/A
-- [ ] E2E: Covered by Theme Settings E2E (T005-12)
+- [x] Unit: `loadFonts` is called with correct heading/body IDs when `theme.fonts` changes
+- [x] Unit: `loadFonts` is called on initial mount with the default font IDs
+- [x] Integration: N/A
+- [x] E2E: Covered by Theme Settings E2E (T005-12)
 
 #### Acceptance Criteria
 
-- [ ] `loadFonts({ heading: theme.fonts.heading, body: theme.fonts.body })` called on theme mount and whenever fonts change
-- [ ] Font loading does not block component rendering (async, non-awaited in render cycle)
-- [ ] `TenantTheme` type exported from `ThemeContext.tsx`
-- [ ] Defaults to `{ heading: 'inter', body: 'roboto' }` when no tenant theme is set
+- [x] `loadFonts({ heading: theme.fonts.heading, body: theme.fonts.body })` called on theme mount and whenever fonts change
+- [x] Font loading does not block component rendering (async, non-awaited in render cycle)
+- [x] `TenantTheme` type exported from `ThemeContext.tsx`
+- [x] Defaults to `{ heading: 'inter', body: 'roboto' }` when no tenant theme is set
 
 ---
 
@@ -653,7 +653,7 @@ Extend `ThemeContext.tsx` to call `loadFonts()` from `font-loader.ts` whenever t
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-015, NFR-004  
 **Dependencies**: None
 
@@ -678,21 +678,21 @@ Implement a small utility module (`contrast-utils.ts`) for WCAG 2.1 AA contrast 
 
 #### Test Requirements
 
-- [ ] Unit: `hexToRelativeLuminance('#000000')` returns `0` (black)
-- [ ] Unit: `hexToRelativeLuminance('#ffffff')` returns `1` (white)
-- [ ] Unit: `contrastRatio('#000000', '#ffffff')` returns `21` (or `21.00`)
-- [ ] Unit: `meetsWcagAA('#0066CC', '#FFFFFF')` returns `true` (5.3:1 > 4.5 threshold)
-- [ ] Unit: `meetsWcagAA('#71717A', '#F4F4F5')` returns `false` (3.1:1 < 4.5 — this is the widget fallback contrast bug from design-spec §6)
-- [ ] Integration: N/A
-- [ ] E2E: N/A
+- [x] Unit: `hexToRelativeLuminance('#000000')` returns `0` (black)
+- [x] Unit: `hexToRelativeLuminance('#ffffff')` returns `1` (white)
+- [x] Unit: `contrastRatio('#000000', '#ffffff')` returns `21` (or `21.00`)
+- [x] Unit: `meetsWcagAA('#0066CC', '#FFFFFF')` returns `true` (5.3:1 > 4.5 threshold)
+- [x] Unit: `meetsWcagAA('#71717A', '#F4F4F5')` returns `false` (3.1:1 < 4.5 — this is the widget fallback contrast bug from design-spec §6)
+- [x] Integration: N/A
+- [x] E2E: N/A
 
 #### Acceptance Criteria
 
-- [ ] `contrastRatio('#000000', '#ffffff')` returns `21` (exact W3C example)
-- [ ] `contrastRatio('#0066CC', '#FFFFFF')` returns `5.3` (matches design-spec Screen 5 display)
-- [ ] `meetsWcagAA` threshold is 4.5:1 for normal text, 3.0:1 for large text
-- [ ] Function handles 3-digit shorthand hex (`#FFF` → `#FFFFFF`) correctly
-- [ ] Coverage ≥ 95% (critical accessibility logic per plan §9.4)
+- [x] `contrastRatio('#000000', '#ffffff')` returns `21` (exact W3C example)
+- [x] `contrastRatio('#0066CC', '#FFFFFF')` returns `5.3` (matches design-spec Screen 5 display)
+- [x] `meetsWcagAA` threshold is 4.5:1 for normal text, 3.0:1 for large text
+- [x] Function handles 3-digit shorthand hex (`#FFF` → `#FFFFFF`) correctly
+- [x] Coverage ≥ 95% (critical accessibility logic per plan §9.4)
 
 ---
 
@@ -701,7 +701,7 @@ Implement a small utility module (`contrast-utils.ts`) for WCAG 2.1 AA contrast 
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 3  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009, FR-015, NFR-004, NFR-006  
 **Dependencies**: T005-08 (contrast-utils.ts)
 
@@ -729,23 +729,23 @@ Build a `ColorPickerField` form component that combines a labelled hex text inpu
 
 #### Test Requirements
 
-- [ ] Unit: Renders label, hex input with correct `id`, and swatch button
-- [ ] Unit: Entering valid hex `#0066CC` with `contrastAgainst="#FFFFFF"` shows "✅ 5.3:1 — Passes WCAG AA"
-- [ ] Unit: Entering valid hex with contrast ratio < 4.5 shows "⚠️ {ratio}:1 — Does not meet WCAG AA" (orange)
-- [ ] Unit: Invalid hex input (`#GGG`) sets `aria-invalid="true"` and shows error message
-- [ ] Unit: Swatch button click programmatically triggers the hidden colour picker
-- [ ] Unit: `aria-describedby` points to contrast indicator `id` when value is valid
-- [ ] Integration: Covered in T005-12 integration tests
-- [ ] E2E: Covered in T005-12 E2E tests
+- [x] Unit: Renders label, hex input with correct `id`, and swatch button
+- [x] Unit: Entering valid hex `#0066CC` with `contrastAgainst="#FFFFFF"` shows "✅ 5.3:1 — Passes WCAG AA"
+- [x] Unit: Entering valid hex with contrast ratio < 4.5 shows "⚠️ {ratio}:1 — Does not meet WCAG AA" (orange)
+- [x] Unit: Invalid hex input (`#GGG`) sets `aria-invalid="true"` and shows error message
+- [x] Unit: Swatch button click programmatically triggers the hidden colour picker
+- [x] Unit: `aria-describedby` points to contrast indicator `id` when value is valid
+- [x] Integration: Covered in T005-12 integration tests
+- [x] E2E: Covered in T005-12 E2E tests
 
 #### Acceptance Criteria
 
-- [ ] `aria-label` matches the `label` prop value; `aria-describedby` points to contrast indicator
-- [ ] Green "✅ 5.3:1 — Passes WCAG AA" displayed for `#0066CC` against `#FFFFFF`
-- [ ] Orange "⚠️ 1.2:1 — Does not meet WCAG AA" displayed for low-contrast colour pair
-- [ ] Invalid hex shows red border, `aria-invalid="true"`, and "Invalid hex color value" error text
-- [ ] Swatch accurately reflects the current `value` hex colour
-- [ ] `role="status"` and `aria-live="polite"` on contrast indicator for screen reader announcements
+- [x] `aria-label` matches the `label` prop value; `aria-describedby` points to contrast indicator
+- [x] Green "✅ 5.3:1 — Passes WCAG AA" displayed for `#0066CC` against `#FFFFFF`
+- [x] Orange "⚠️ 1.2:1 — Does not meet WCAG AA" displayed for low-contrast colour pair
+- [x] Invalid hex shows red border, `aria-invalid="true"`, and "Invalid hex color value" error text
+- [x] Swatch accurately reflects the current `value` hex colour
+- [x] `role="status"` and `aria-live="polite"` on contrast indicator for screen reader announcements
 
 ---
 
@@ -754,7 +754,7 @@ Build a `ColorPickerField` form component that combines a labelled hex text inpu
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 2  
 **Priority**: Medium  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009, FR-010  
 **Dependencies**: None
 
@@ -778,19 +778,19 @@ Build a `ThemePreview` component that renders a scaled-down (~40% scale) miniatu
 
 #### Test Requirements
 
-- [ ] Unit: Renders with `aria-hidden="true"` attribute
-- [ ] Unit: Applies `colors.primary` to the button element background in the preview
-- [ ] Unit: Updates displayed font family when `fonts.heading` prop changes (via inline style)
-- [ ] Integration: N/A
-- [ ] E2E: N/A (visual-only, tested via Playwright screenshot comparison in T005-12 E2E)
+- [x] Unit: Renders with `aria-hidden="true"` attribute
+- [x] Unit: Applies `colors.primary` to the button element background in the preview
+- [x] Unit: Updates displayed font family when `fonts.heading` prop changes (via inline style)
+- [x] Integration: N/A
+- [x] E2E: N/A (visual-only, tested via Playwright screenshot comparison in T005-12 E2E)
 
 #### Acceptance Criteria
 
-- [ ] `aria-hidden="true"` present on the component root — excluded from accessibility tree
-- [ ] Preview updates in real-time as `colors` and `fonts` props change (React re-render on every keystroke)
-- [ ] Preview miniature renders header, sidebar, card, and button elements scaled to ~40%
-- [ ] "Preview" bottom sheet button shown on mobile (375 px) via responsive CSS
-- [ ] No ThemeContext imports — preview operates entirely from props
+- [x] `aria-hidden="true"` present on the component root — excluded from accessibility tree
+- [x] Preview updates in real-time as `colors` and `fonts` props change (React re-render on every keystroke)
+- [x] Preview miniature renders header, sidebar, card, and button elements scaled to ~40%
+- [x] "Preview" bottom sheet button shown on mobile (375 px) via responsive CSS
+- [x] No ThemeContext imports — preview operates entirely from props
 
 ---
 
@@ -799,7 +799,7 @@ Build a `ThemePreview` component that renders a scaled-down (~40% scale) miniatu
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 2  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009  
 **Dependencies**: T005-06 (font-loader.ts, `FONT_CATALOG`), T005-14 (manifest.json)
 
@@ -825,20 +825,20 @@ Build a `FontSelector` dropdown component for choosing a font family from the AD
 
 #### Test Requirements
 
-- [ ] Unit: Renders grouped `<optgroup>` sections (sans-serif, serif, monospace, display)
-- [ ] Unit: Shows "Loading fonts..." when manifest is being fetched
-- [ ] Unit: Calls `onChange` with correct font ID when option is selected
-- [ ] Unit: Calls `preloadFont` with the selected font ID when selection changes
-- [ ] Integration: N/A
-- [ ] E2E: Covered by T005-12 E2E tests (font selection + preview update)
+- [x] Unit: Renders grouped `<optgroup>` sections (sans-serif, serif, monospace, display)
+- [x] Unit: Shows "Loading fonts..." when manifest is being fetched
+- [x] Unit: Calls `onChange` with correct font ID when option is selected
+- [x] Unit: Calls `preloadFont` with the selected font ID when selection changes
+- [x] Integration: N/A
+- [x] E2E: Covered by T005-12 E2E tests (font selection + preview update)
 
 #### Acceptance Criteria
 
-- [ ] Options grouped by category: sans-serif, serif, monospace, display
-- [ ] Current `value` is selected in the dropdown on render
-- [ ] Selecting a font calls `onChange` with the font ID (not display name)
-- [ ] `<label>` associated with `<select>` via `htmlFor` / `id` pair
-- [ ] Loading state shown while manifest fetches; error state if manifest fails
+- [x] Options grouped by category: sans-serif, serif, monospace, display
+- [x] Current `value` is selected in the dropdown on render
+- [x] Selecting a font calls `onChange` with the font ID (not display name)
+- [x] `<label>` associated with `<select>` via `htmlFor` / `id` pair
+- [x] Loading state shown while manifest fetches; error state if manifest fails
 
 ---
 
@@ -847,7 +847,7 @@ Build a `FontSelector` dropdown component for choosing a font family from the AD
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 3  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009, FR-010, FR-015, NFR-006, NFR-007  
 **Dependencies**: T005-09 (ColorPickerField), T005-10 (ThemePreview), T005-11 (FontSelector), Spec 010 Phase 2 (ThemeContext with `theme` and `updateTheme`)
 
@@ -874,29 +874,29 @@ Build the admin-only Tenant Theme Settings page at `/settings/branding`. Renders
 
 #### Test Requirements
 
-- [ ] Integration: Form submits `PUT /api/v1/tenant/settings` with correct theme payload on Save (mock API)
-- [ ] Integration: Contrast warning displayed when `ColorPickerField` value has < 4.5:1 ratio
-- [ ] Integration: "Unsaved changes" guard fires `beforeunload` event when form is dirty and user navigates
-- [ ] Integration: Admin RBAC — page redirects non-admin users to `/settings`
-- [ ] Integration: Save error toast shown when API returns 500 (mock API error)
-- [ ] Integration: Reset to default dialog opens; confirming calls `PUT` with default theme values
-- [ ] Integration: Successful save shows toast "Theme updated successfully."
-- [ ] Integration: Logo upload sends `POST /api/v1/tenant/settings/logo` with FormData
-- [ ] E2E: Admin user changes primary color → ThemePreview updates in real-time
-- [ ] E2E: Admin user saves theme → API called → success toast displayed
-- [ ] E2E: Admin user changes font selector → preview heading font updates
-- [ ] E2E: Non-admin user cannot access `/settings/branding` (redirected)
+- [x] Integration: Form submits `PUT /api/v1/tenant/settings` with correct theme payload on Save (mock API)
+- [x] Integration: Contrast warning displayed when `ColorPickerField` value has < 4.5:1 ratio
+- [x] Integration: "Unsaved changes" guard fires `beforeunload` event when form is dirty and user navigates
+- [x] Integration: Admin RBAC — page redirects non-admin users to `/settings`
+- [x] Integration: Save error toast shown when API returns 500 (mock API error)
+- [x] Integration: Reset to default dialog opens; confirming calls `PUT` with default theme values
+- [x] Integration: Successful save shows toast "Theme updated successfully."
+- [x] Integration: Logo upload sends `POST /api/v1/tenant/settings/logo` with FormData
+- [x] E2E: Admin user changes primary color → ThemePreview updates in real-time
+- [x] E2E: Admin user saves theme → API called → success toast displayed
+- [x] E2E: Admin user changes font selector → preview heading font updates
+- [x] E2E: Non-admin user cannot access `/settings/branding` (redirected)
 
 #### Acceptance Criteria
 
-- [ ] Page only accessible to users with admin role; non-admins redirected
-- [ ] `PUT /api/v1/tenant/settings` called with correct theme payload on Save
-- [ ] `ThemePreview` updates live on every colour/font change (no debounce needed — React re-render is sufficient)
-- [ ] Unsaved changes trigger browser `beforeunload` confirmation dialog
-- [ ] "Reset to Default" shows confirmation dialog before resetting; Cancel aborts reset
-- [ ] Save success shows toast: "Theme updated successfully. Users will see changes on their next page load."
-- [ ] Save error shows toast: "Unable to save theme changes. Please try again." — form data preserved
-- [ ] Page is gated behind the `ENABLE_TENANT_THEMING` feature flag (Constitution Art. 9.1); link in Settings navigation hidden when flag is disabled
+- [x] Page only accessible to users with admin role; non-admins redirected
+- [x] `PUT /api/v1/tenant/settings` called with correct theme payload on Save
+- [x] `ThemePreview` updates live on every colour/font change (no debounce needed — React re-render is sufficient)
+- [x] Unsaved changes trigger browser `beforeunload` confirmation dialog
+- [x] "Reset to Default" shows confirmation dialog before resetting; Cancel aborts reset
+- [x] Save success shows toast: "Theme updated successfully. Users will see changes on their next page load."
+- [x] Save error shows toast: "Unable to save theme changes. Please try again." — form data preserved
+- [x] Page is gated behind the `ENABLE_TENANT_THEMING` feature flag (Constitution Art. 9.1); link in Settings navigation hidden when flag is disabled
 
 ---
 
@@ -905,7 +905,7 @@ Build the admin-only Tenant Theme Settings page at `/settings/branding`. Renders
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 1  
 **Priority**: Medium  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-009  
 **Dependencies**: T005-12 (settings.branding.tsx route must exist)
 
@@ -927,17 +927,17 @@ Add a "Branding" navigation link to the existing settings page (`settings.tsx`) 
 
 #### Test Requirements
 
-- [ ] Unit: "Branding" link visible in settings nav when user has admin role
-- [ ] Unit: "Branding" link hidden when user does not have admin role
-- [ ] Integration: N/A
-- [ ] E2E: N/A (admin navigation covered by T005-12 E2E)
+- [x] Unit: "Branding" link visible in settings nav when user has admin role
+- [x] Unit: "Branding" link hidden when user does not have admin role
+- [x] Integration: N/A
+- [x] E2E: N/A (admin navigation covered by T005-12 E2E)
 
 #### Acceptance Criteria
 
-- [ ] "Branding" link appears in settings navigation for admin users only
-- [ ] "Branding" link navigates to `/settings/branding`
-- [ ] Non-admin users do not see the "Branding" link
-- [ ] Active state visual indicator shown when on `/settings/branding` route
+- [x] "Branding" link appears in settings navigation for admin users only
+- [x] "Branding" link navigates to `/settings/branding`
+- [x] Non-admin users do not see the "Branding" link
+- [x] Active state visual indicator shown when on `/settings/branding` route
 
 ---
 
@@ -946,7 +946,7 @@ Add a "Branding" navigation link to the existing settings page (`settings.tsx`) 
 **Phase**: Phase 3 — Tenant Theme Settings UI  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-011, NFR-004  
 **Dependencies**: Spec 010 Phase 3 (`WidgetFallback` component must exist)
 
@@ -968,16 +968,16 @@ Fix the WCAG AA contrast violation in the `WidgetFallback` component built by Sp
 
 #### Test Requirements
 
-- [ ] Unit: `WidgetFallback` renders fallback text with colour `#52525B` (not `#71717A`) — check computed style or className
-- [ ] Integration: N/A
-- [ ] E2E: N/A
+- [x] Unit: `WidgetFallback` renders fallback text with colour `#52525B` (not `#71717A`) — check computed style or className
+- [x] Integration: N/A
+- [x] E2E: N/A
 
 #### Acceptance Criteria
 
-- [ ] Fallback text colour is `#52525B` (or equivalent TailwindCSS class that resolves to this value)
-- [ ] `contrastRatio('#52525B', '#F4F4F5')` ≥ 4.5 (verified via `contrast-utils.ts` unit test)
-- [ ] `#71717A` is no longer used for normal-sized text on `--muted` / `#F4F4F5` background in `WidgetFallback`
-- [ ] Change does not affect other components using `--muted-foreground`
+- [x] Fallback text colour is `#52525B` (or equivalent TailwindCSS class that resolves to this value)
+- [x] `contrastRatio('#52525B', '#F4F4F5')` ≥ 4.5 (verified via `contrast-utils.ts` unit test)
+- [x] `#71717A` is no longer used for normal-sized text on `--muted` / `#F4F4F5` background in `WidgetFallback`
+- [x] Change does not affect other components using `--muted-foreground`
 
 ---
 
@@ -995,7 +995,7 @@ Fix the WCAG AA contrast violation in the `WidgetFallback` component built by Sp
 **Phase**: Phase 4 — Auth UX Enhancements  
 **Story Points**: 2  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-013, NFR-007  
 **Dependencies**: None
 
@@ -1029,22 +1029,22 @@ Build an `AuthWarningBanner` component that displays a dismissible yellow warnin
 
 #### Test Requirements
 
-- [ ] Unit: Banner renders with `role="alert"` and `aria-live="polite"` attributes
-- [ ] Unit: Dismiss button fires `onDismiss` callback and has `aria-label="Dismiss session warning"`
-- [ ] Unit: Banner renders warning icon (`AlertTriangle`) and message text
-- [ ] Unit: Banner does not render when `refreshFailed` is `false` in `authStore` (mock store)
-- [ ] Integration: N/A
-- [ ] E2E: N/A (auth failure simulation is complex; manual testing recommended)
+- [x] Unit: Banner renders with `role="alert"` and `aria-live="polite"` attributes
+- [x] Unit: Dismiss button fires `onDismiss` callback and has `aria-label="Dismiss session warning"`
+- [x] Unit: Banner renders warning icon (`AlertTriangle`) and message text
+- [x] Unit: Banner does not render when `refreshFailed` is `false` in `authStore` (mock store)
+- [x] Integration: N/A
+- [x] E2E: N/A (auth failure simulation is complex; manual testing recommended)
 
 #### Acceptance Criteria
 
-- [ ] Banner visible below header when `authStore.refreshFailed === true`
-- [ ] Banner message: "Unable to refresh your session. Your current session will remain active until it expires."
-- [ ] Yellow background (`var(--banner-warning-bg)`), warning icon, and ✕ dismiss button
-- [ ] `role="alert"` and `aria-live="polite"` on banner container
-- [ ] `aria-label="Dismiss session warning"` on dismiss button
-- [ ] Banner disappears when `authStore.refreshFailed` resets to `false` (subsequent refresh success)
-- [ ] Component is gated behind the `ENABLE_AUTH_WARNING_BANNER` feature flag (Constitution Art. 9.1); banner not rendered when flag is disabled
+- [x] Banner visible below header when `authStore.refreshFailed === true`
+- [x] Banner message: "Unable to refresh your session. Your current session will remain active until it expires."
+- [x] Yellow background (`var(--banner-warning-bg)`), warning icon, and ✕ dismiss button
+- [x] `role="alert"` and `aria-live="polite"` on banner container
+- [x] `aria-label="Dismiss session warning"` on dismiss button
+- [x] Banner disappears when `authStore.refreshFailed` resets to `false` (subsequent refresh success)
+- [x] Component is gated behind the `ENABLE_AUTH_WARNING_BANNER` feature flag (Constitution Art. 9.1); banner not rendered when flag is disabled
 
 ---
 
@@ -1053,7 +1053,7 @@ Build an `AuthWarningBanner` component that displays a dismissible yellow warnin
 **Phase**: Phase 4 — Auth UX Enhancements  
 **Story Points**: 3  
 **Priority**: Medium  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-010, FR-015  
 **Dependencies**: Spec 010 Phase 2 (ThemeProvider with `applyTheme()`, `validateTheme()`)
 
@@ -1080,19 +1080,19 @@ Extend `ThemeContext.tsx` to generate dark-mode variants of tenant theme colours
 
 #### Test Requirements
 
-- [ ] Unit: `generateDarkModeVariants` produces a lighter `text` colour when given a dark `text` input
-- [ ] Unit: `generateDarkModeVariants` produces a darker `background` colour
-- [ ] Unit: Dark mode CSS variables applied to `.dark` class root when dark mode is active
-- [ ] Integration: N/A
-- [ ] E2E: N/A (visual dark mode testing recommended via Playwright with `prefers-color-scheme: dark`)
+- [x] Unit: `generateDarkModeVariants` produces a lighter `text` colour when given a dark `text` input
+- [x] Unit: `generateDarkModeVariants` produces a darker `background` colour
+- [x] Unit: Dark mode CSS variables applied to `.dark` class root when dark mode is active
+- [x] Integration: N/A
+- [x] E2E: N/A (visual dark mode testing recommended via Playwright with `prefers-color-scheme: dark`)
 
 #### Acceptance Criteria
 
-- [ ] Dark mode toggle applies both Plexica default dark tokens AND tenant-specific dark colour variants
-- [ ] Dark mode background and surface colours are visually dark (L < 20% in HSL)
-- [ ] Dark mode text colour is visually light (L > 85% in HSL)
-- [ ] `generateDarkModeVariants` result passes WCAG AA contrast for text on background
-- [ ] System `prefers-color-scheme: dark` change event correctly triggers re-application of dark variants
+- [x] Dark mode toggle applies both Plexica default dark tokens AND tenant-specific dark colour variants
+- [x] Dark mode background and surface colours are visually dark (L < 20% in HSL)
+- [x] Dark mode text colour is visually light (L > 85% in HSL)
+- [x] `generateDarkModeVariants` result passes WCAG AA contrast for text on background
+- [x] System `prefers-color-scheme: dark` change event correctly triggers re-application of dark variants
 
 ---
 
@@ -1110,7 +1110,7 @@ Extend `ThemeContext.tsx` to generate dark-mode variants of tenant theme colours
 **Phase**: Phase 5 — Accessibility & Polish  
 **Story Points**: 1  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: NFR-004  
 **Dependencies**: T005-24 (Phase 1 — `<main id="main-content">` must exist)
 
@@ -1139,17 +1139,17 @@ Add a skip-to-content link as the first focusable element in the shell, allowing
 
 #### Test Requirements
 
-- [ ] Unit: `index.html` contains `<a href="#main-content">` as first `<a>` in `<body>` (HTML snapshot or grep test)
-- [ ] Unit: Link has class `sr-only` for visual hiding and `focus:not-sr-only` for focus visibility
-- [ ] E2E: Tab from browser chrome → first focus lands on skip link → Enter moves focus to `#main-content`
+- [x] Unit: `index.html` contains `<a href="#main-content">` as first `<a>` in `<body>` (HTML snapshot or grep test)
+- [x] Unit: Link has class `sr-only` for visual hiding and `focus:not-sr-only` for focus visibility
+- [x] E2E: Tab from browser chrome → first focus lands on skip link → Enter moves focus to `#main-content`
 
 #### Acceptance Criteria
 
-- [ ] Skip link is first focusable element in `<body>`
-- [ ] Link is visually hidden at rest (TailwindCSS `sr-only`); visible on focus
-- [ ] Activating the link (Enter/Space) moves focus to `<main id="main-content">`
-- [ ] Link text "Skip to main content" is clear and descriptive
-- [ ] Focus ring visible on skip link when focused (3:1 contrast minimum per WCAG 1.4.11)
+- [x] Skip link is first focusable element in `<body>`
+- [x] Link is visually hidden at rest (TailwindCSS `sr-only`); visible on focus
+- [x] Activating the link (Enter/Space) moves focus to `<main id="main-content">`
+- [x] Link text "Skip to main content" is clear and descriptive
+- [x] Focus ring visible on skip link when focused (3:1 contrast minimum per WCAG 1.4.11)
 
 ---
 
@@ -1158,7 +1158,7 @@ Add a skip-to-content link as the first focusable element in the shell, allowing
 **Phase**: Phase 5 — Accessibility & Polish  
 **Story Points**: 1  
 **Priority**: Low  
-**Status**: pending  
+**Status**: complete  
 **FR References**: FR-006  
 **Dependencies**: None
 
@@ -1179,16 +1179,16 @@ Add a `<noscript>` tag to `apps/web/index.html` displaying a user-friendly messa
 
 #### Test Requirements
 
-- [ ] Unit: `index.html` contains a `<noscript>` tag with message text "requires JavaScript" (snapshot test)
-- [ ] Integration: N/A
-- [ ] E2E: N/A (requires JS to be disabled — test manually)
+- [x] Unit: `index.html` contains a `<noscript>` tag with message text "requires JavaScript" (snapshot test)
+- [x] Integration: N/A
+- [x] E2E: N/A (requires JS to be disabled — test manually)
 
 #### Acceptance Criteria
 
-- [ ] `<noscript>` tag present in `apps/web/index.html`
-- [ ] Noscript message text: "This application requires JavaScript to run."
-- [ ] Message is readable without external CSS (includes basic inline styles)
-- [ ] Message does not interfere with normal JS-enabled rendering
+- [x] `<noscript>` tag present in `apps/web/index.html`
+- [x] Noscript message text: "This application requires JavaScript to run."
+- [x] Message is readable without external CSS (includes basic inline styles)
+- [x] Message does not interfere with normal JS-enabled rendering
 
 ---
 
@@ -1197,7 +1197,7 @@ Add a `<noscript>` tag to `apps/web/index.html` displaying a user-friendly messa
 **Phase**: Phase 5 — Accessibility & Polish  
 **Story Points**: 2  
 **Priority**: High  
-**Status**: pending  
+**Status**: complete  
 **FR References**: NFR-004  
 **Dependencies**: All previous phases (all landmark elements must be in place)
 
@@ -1231,20 +1231,20 @@ Conduct a systematic audit and verification of all ARIA landmark roles across th
 
 #### Test Requirements
 
-- [ ] Unit: `<header role="banner">` present in AppLayout render output
-- [ ] Unit: `<nav role="navigation" aria-label="Main navigation">` present in SidebarNav
-- [ ] Unit: `<main id="main-content" role="main">` present in AppLayout
-- [ ] Unit: `<footer role="contentinfo">` present in AppLayout
-- [ ] Integration: N/A
-- [ ] E2E: Covered by T005-23
+- [x] Unit: `<header role="banner">` present in AppLayout render output
+- [x] Unit: `<nav role="navigation" aria-label="Main navigation">` present in SidebarNav
+- [x] Unit: `<main id="main-content" role="main">` present in AppLayout
+- [x] Unit: `<footer role="contentinfo">` present in AppLayout
+- [x] Integration: N/A
+- [x] E2E: Covered by T005-23
 
 #### Acceptance Criteria
 
-- [ ] All four landmarks present: `banner`, `navigation` (with `aria-label`), `main` (with `id="main-content"`), `contentinfo`
-- [ ] `aria-current="page"` on active sidebar nav item
-- [ ] Plugins collapsible group has `role="group"`, `aria-label="Plugins"`, and `aria-expanded`
-- [ ] No duplicate `role="main"` landmarks on any page
-- [ ] Automated tests pass for all four landmark assertions
+- [x] All four landmarks present: `banner`, `navigation` (with `aria-label`), `main` (with `id="main-content"`), `contentinfo`
+- [x] `aria-current="page"` on active sidebar nav item
+- [x] Plugins collapsible group has `role="group"`, `aria-label="Plugins"`, and `aria-expanded`
+- [x] No duplicate `role="main"` landmarks on any page
+- [x] Automated tests pass for all four landmark assertions
 
 ---
 
@@ -1253,7 +1253,7 @@ Conduct a systematic audit and verification of all ARIA landmark roles across th
 **Phase**: Phase 5 — Accessibility & Polish  
 **Story Points**: 1  
 **Priority**: Medium  
-**Status**: pending  
+**Status**: complete  
 **FR References**: NFR-004, NFR-005  
 **Dependencies**: All previous phases (all shell components must be implemented)
 
@@ -1277,22 +1277,22 @@ Write 6 end-to-end tests covering the core navigation experiences that cannot be
 
 #### Test Requirements
 
-- [ ] E2E: Sidebar plugin nav item click → route changes + active state set
-- [ ] E2E: Sidebar overlay opens on hamburger click at 375 px viewport
-- [ ] E2E: Overlay closes on backdrop click or Esc key
-- [ ] E2E: Breadcrumb "Home" link navigates to `/`
-- [ ] E2E: Skip-to-content link focusable as first tab stop
-- [ ] E2E: Skip link Enter key moves focus to `#main-content`
-- [ ] Integration: N/A
-- [ ] Unit: N/A
+- [x] E2E: Sidebar plugin nav item click → route changes + active state set
+- [x] E2E: Sidebar overlay opens on hamburger click at 375 px viewport
+- [x] E2E: Overlay closes on backdrop click or Esc key
+- [x] E2E: Breadcrumb "Home" link navigates to `/`
+- [x] E2E: Skip-to-content link focusable as first tab stop
+- [x] E2E: Skip link Enter key moves focus to `#main-content`
+- [x] Integration: N/A
+- [x] Unit: N/A
 
 #### Acceptance Criteria
 
-- [ ] All 6 E2E tests pass in CI
-- [ ] Tests run in < 3 minutes total (per plan §9.5 performance budget)
-- [ ] Mobile overlay tests use Playwright `page.setViewportSize({ width: 375, height: 812 })`
-- [ ] Tests are deterministic (no flakiness — wait for `aria-current` attribute, not arbitrary timeouts)
-- [ ] Tests cover all scenarios from plan §9.3 E2E test table
+- [x] All 6 E2E tests pass in CI
+- [x] Tests run in < 3 minutes total (per plan §9.5 performance budget)
+- [x] Mobile overlay tests use Playwright `page.setViewportSize({ width: 375, height: 812 })`
+- [x] Tests are deterministic (no flakiness — wait for `aria-current` attribute, not arbitrary timeouts)
+- [x] Tests cover all scenarios from plan §9.3 E2E test table
 
 ---
 

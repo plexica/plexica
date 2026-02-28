@@ -83,4 +83,14 @@ describe('Breadcrumbs', () => {
     // "Branding" (auto-generated) should NOT appear
     expect(screen.queryByText('Branding')).not.toBeInTheDocument();
   });
+
+  // ---- Test 5 ---------------------------------------------------------------
+  it('renders ">" as the breadcrumb separator between items (design-spec)', () => {
+    mockLocation.mockReturnValue({ pathname: '/settings' });
+    render(<Breadcrumbs />);
+    // There should be exactly one separator between Home and Settings
+    const separators = document.querySelectorAll('[aria-hidden="true"]');
+    expect(separators.length).toBeGreaterThanOrEqual(1);
+    expect(separators[0].textContent).toBe('>');
+  });
 });

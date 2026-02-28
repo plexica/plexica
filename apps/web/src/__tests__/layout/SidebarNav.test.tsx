@@ -11,7 +11,8 @@ import { SidebarNav } from '../../components/Layout/SidebarNav';
 // Module mocks
 // ---------------------------------------------------------------------------
 
-// TanStack Router
+// TanStack Router — useLocation is a spy so tests can override the pathname
+let mockPathname = '/dashboard';
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     to,
@@ -26,7 +27,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
-  useLocation: () => ({ pathname: '/dashboard' }),
+  useLocation: () => ({ pathname: mockPathname }),
 }));
 
 // PluginContext — default: empty menu items
@@ -54,6 +55,8 @@ function renderSidebar(overrides?: Partial<typeof defaultProps>) {
 // ---------------------------------------------------------------------------
 describe('SidebarNav', () => {
   beforeEach(() => {
+    // Reset pathname to default
+    mockPathname = '/dashboard';
     // Reset mock to return empty plugin menu
     mockUsePlugins.mockReturnValue({
       menuItems: [],
@@ -70,11 +73,11 @@ describe('SidebarNav', () => {
   });
 
   // ---- Test 1 ---------------------------------------------------------------
-  it('renders core nav items (Dashboard, Team, Settings) when plugins list is empty', () => {
+  it('renders core nav items (Dashboard, Profile, Settings) when plugins list is empty', () => {
     renderSidebar();
 
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Team')).toBeInTheDocument();
+    expect(screen.getByText('Profile')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
@@ -96,36 +99,12 @@ describe('SidebarNav', () => {
 
   // ---- Test 3 ---------------------------------------------------------------
   it('active route item has aria-current="page"', () => {
-    // useLocation returns /dashboard, but we check '/' for Dashboard
-    // Re-mock to put active route on /team
-    vi.mocked(
-      vi.importMock('@tanstack/react-router') as unknown as {
-        useLocation: () => { pathname: string };
-      }
-    );
+    // Set the active pathname to /settings before rendering
+    mockPathname = '/settings';
 
-    // Set up with /settings as active
-    vi.doMock('@tanstack/react-router', () => ({
-      Link: ({
-        to,
-        children,
-        onClick,
-      }: {
-        to: string;
-        children: React.ReactNode;
-        onClick?: () => void;
-      }) => (
-        <a href={to} onClick={onClick}>
-          {children}
-        </a>
-      ),
-      useLocation: () => ({ pathname: '/settings' }),
-    }));
+    const { container } = renderSidebar();
 
-    // Re-render with new mock
-    const { container } = render(<SidebarNav {...defaultProps} />);
-
-    // The element with aria-current="page" should exist
+    // The Settings nav item should have aria-current="page"
     const current = container.querySelector('[aria-current="page"]');
     expect(current).toBeInTheDocument();
   });

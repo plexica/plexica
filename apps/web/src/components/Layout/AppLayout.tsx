@@ -4,7 +4,6 @@
 // ARIA landmarks (main, footer), and mobile sidebar open/close state.
 
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from './Sidebar';
 import { SidebarNav } from './SidebarNav';
 import { Breadcrumbs } from './Breadcrumbs';
 import { Header } from './Header';
@@ -32,11 +31,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, showFooter = tru
   }, []);
 
   const handleMenuClick = () => {
-    if (useNewSidebar) {
-      setIsSidebarOpen((prev) => !prev);
-    } else {
-      setSidebarCollapsed((prev) => !prev);
-    }
+    setIsSidebarOpen((prev) => !prev);
   };
 
   return (
@@ -49,17 +44,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, showFooter = tru
 
       {/* Main Container — Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        {useNewSidebar ? (
-          <SidebarNav
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
-            onCollapsedChange={setSidebarCollapsed}
-          />
-        ) : (
-          <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
-        )}
+        {/* Sidebar — always uses SidebarNav (Sidebar.tsx was removed in T005-01) */}
+        <SidebarNav
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
+        />
 
         {/* Main Content Area */}
         <main id="main-content" role="main" className="flex-1 overflow-auto flex flex-col">

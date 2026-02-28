@@ -8,7 +8,7 @@
 //   - Fonts   (heading, body, mono)
 //   - Logo    (HTTPS URL)
 //
-// Gated by the ENABLE_TENANT_THEMING feature flag (Constitution Art. 9.1).
+// Gated by the ENABLE_TENANT_BRANDING feature flag (Constitution Art. 9.1).
 // Only rendered when the flag is on — see settings.tsx for the tab wrapper.
 //
 // Save path: PATCH /api/v1/tenant/settings { theme: { colors, fonts, logo } }
@@ -71,7 +71,7 @@ const COLOR_FIELDS: ColorField[] = [
 // ---------------------------------------------------------------------------
 
 export function BrandingTab() {
-  const isEnabled = useFeatureFlag('ENABLE_TENANT_THEMING');
+  const isEnabled = useFeatureFlag('ENABLE_TENANT_BRANDING');
   const { tenantTheme, refreshTenantTheme } = useTenantTheme();
 
   // Local draft state for live preview (not yet saved)

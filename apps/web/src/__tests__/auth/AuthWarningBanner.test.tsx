@@ -51,7 +51,7 @@ describe('AuthWarningBanner', () => {
     mockFlagEnabled = true;
   });
 
-  describe('when ENABLE_AUTH_WARNING_BANNER flag is disabled', () => {
+  describe('when ENABLE_AUTH_WARNINGS flag is disabled', () => {
     it('should render nothing regardless of refreshFailed state', () => {
       mockFlagEnabled = false;
       mockRefreshFailed = true;
@@ -80,14 +80,14 @@ describe('AuthWarningBanner', () => {
 
     it('should display the session expiry warning message', () => {
       renderBanner();
-      expect(screen.getByText(/your session may have expired/i)).toBeInTheDocument();
+      expect(screen.getByText(/unable to refresh your session/i)).toBeInTheDocument();
     });
 
     it('should have role="alert" for screen reader announcement', () => {
       renderBanner();
       const banner = screen.getByRole('alert');
       expect(banner).toBeInTheDocument();
-      expect(banner).toHaveAttribute('aria-live', 'assertive');
+      expect(banner).toHaveAttribute('aria-live', 'polite');
     });
 
     it('should render Refresh and Dismiss buttons', () => {

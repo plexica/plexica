@@ -1,6 +1,6 @@
 # Sprint 006 — Active
 # Created: 2026-02-24
-# Updated: 2026-02-25 (synced: Phases 1-5 backend marked done; Phases 6-7 frontend added)
+# Updated: 2026-02-28 (synced: T004-28/30/31/32/35/36/37 done; T004-29/33/34 partial/pending)
 # Managed by forge-scrum
 
 version: 1
@@ -328,7 +328,7 @@ stories:
     phase: 6
     week: 6
     points: 5
-    status: in_progress
+    status: done
     parallel: true
     dependencies: ['T004-09', 'T004-13']
     tags: ['[FR-001]', '[FR-011]', 'frontend', 'ui', 'registry', 'super-admin']
@@ -348,7 +348,7 @@ stories:
     phase: 6
     week: 6
     points: 4
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T004-09', 'T004-10']
     tags: ['[FR-001]', '[FR-003]', 'frontend', 'ui', 'dialogs', 'lifecycle']
@@ -358,7 +358,7 @@ stories:
     phase: 6
     week: 6
     points: 6
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T004-09', 'T004-11']
     tags: ['[FR-001]', '[FR-004]', 'frontend', 'ui', 'modal', 'detail']
@@ -368,7 +368,7 @@ stories:
     phase: 6
     week: 6
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T004-10']
     tags: ['[FR-003]', 'frontend', 'ui', 'tenant', 'extensions']
@@ -378,9 +378,10 @@ stories:
     phase: 6
     week: 6
     points: 4
-    status: pending
+    status: in_progress
     parallel: true
     dependencies: ['T004-09', 'T004-11']
+    notes: 'usePluginHealth done. usePluginSearch and useInstallProgress still missing.'
     tags: ['[FR-001]', '[FR-004]', 'frontend', 'hooks', 'react']
 
   # Phase 6 subtotal: 28 points
@@ -395,9 +396,10 @@ stories:
     phase: 7
     week: 7
     points: 2
-    status: pending
+    status: in_progress
     parallel: true
     dependencies: ['T004-28', 'T004-29']
+    notes: 'plugin-routes.test.ts covers PluginsView. PluginInstallProgress tests blocked on T004-29 (component not yet implemented).'
     tags: ['testing', 'frontend', 'coverage', 'registry', 'install']
 
   - id: 'T004-35'
@@ -405,7 +407,7 @@ stories:
     phase: 7
     week: 7
     points: 3
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T004-30', 'T004-31']
     tags: ['testing', 'frontend', 'coverage', 'dialogs', 'modal']
@@ -415,7 +417,7 @@ stories:
     phase: 7
     week: 7
     points: 2
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T004-32']
     tags: ['testing', 'frontend', 'coverage', 'extensions']
@@ -425,7 +427,7 @@ stories:
     phase: 7
     week: 7
     points: 3
-    status: pending
+    status: done
     parallel: false
     dependencies: ['T004-28', 'T004-29', 'T004-30', 'T004-31', 'T004-32']
     tags: ['accessibility', 'wcag', 'audit', 'frontend']
@@ -442,12 +444,12 @@ totals:
   phase_3_points: 12 # T004-12 → T004-15  (done)
   phase_4_points: 10 # T004-16 → T004-19  (done)
   phase_5_points: 12 # T004-20 → T004-27  (done)
-  phase_6_points: 28 # T004-28 → T004-33  (pending)
-  phase_7_points: 12 # T004-34 → T004-37  (pending)
+  phase_6_points: 28 # T004-28 → T004-33  (19 done / 4 in_progress / 5 pending [T004-29])
+  phase_7_points: 12 # T004-34 → T004-37  (8 done / 2 in_progress [T004-34 blocked on T004-29])
   total_tasks: 37
   total_points: 92
-  done_points: 62
-  remaining_points: 30
+  done_points: 81 # Ph1-5 (62) + T004-28(5)+T004-30(4)+T004-31(6)+T004-32(5) [19] = 81
+  remaining_points: 11 # T004-29(5)+T004-33(4)[partial]+T004-34(2)[partial] = ~11
 
 # ---------------------------------------------------------------------------
 # Coverage Targets
@@ -497,15 +499,15 @@ coverage_targets:
   - file: 'apps/web/src/routes/plugins.tsx'
     current: 'existing (marketplace)'
     target: '≥80% (new Registry tab)'
-    status: 'pending (T004-28)'
+    status: 'done (via T004-28)'
   - file: 'apps/web/src/routes/extensions.tsx'
     current: '0% (new)'
     target: '≥80%'
-    status: 'pending (T004-32)'
+    status: 'done (via T004-32, ExtensionsPage.test.tsx)'
   - file: 'apps/web/src/components/plugins/*'
     current: '0% (new)'
     target: '≥80%'
-    status: 'pending (T004-34, T004-35, T004-36)'
+    status: 'partial — PluginDetailModal.test.tsx done (T004-35); PluginInstallProgress pending (T004-29/T004-34)'
 
 # ---------------------------------------------------------------------------
 # Constraints & Notes
