@@ -16,6 +16,7 @@ export default defineConfig({
         './Plugin': './src/Plugin.tsx',
         './routes': './src/routes/index.ts',
         './manifest': './src/manifest.ts',
+        './ContactCard': './src/widgets/ContactCard.tsx',
       },
       shared: [
         'react',

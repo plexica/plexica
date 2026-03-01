@@ -1102,12 +1102,12 @@ export async function loadTenantFonts(fonts: TenantThemeFonts): Promise<void> {
 
 **Acceptance Criteria:**
 
-- [ ] `loadWidget({ pluginId, widgetName })` function implemented
-- [ ] Returns React component via `React.lazy()`
-- [ ] Dynamically imports from Module Federation remote: `import('pluginId/widgetName')`
-- [ ] Handles import errors with fallback component
-- [ ] Supports custom fallback via options
-- [ ] TypeScript generic for widget props
+- [x] `loadWidget({ pluginId, widgetName })` function implemented
+- [x] Returns React component via `React.lazy()`
+- [x] Dynamically imports from Module Federation remote: `import('pluginId/widgetName')`
+- [x] Handles import errors with fallback component
+- [x] Supports custom fallback via options
+- [x] TypeScript generic for widget props
 
 **Implementation Details:**
 
@@ -1167,11 +1167,11 @@ export function loadWidget<T = any>({ pluginId, widgetName, fallback }: LoadWidg
 
 **Acceptance Criteria:**
 
-- [ ] `WidgetLoader` component wraps widget with Suspense
-- [ ] Props: `pluginId`, `widgetName`, `props`, `fallback?`
-- [ ] Suspense fallback shows loading skeleton
-- [ ] Widget props forwarded to loaded component
-- [ ] Custom fallback supported
+- [x] `WidgetLoader` component wraps widget with Suspense
+- [x] Props: `pluginId`, `widgetName`, `props`, `fallback?`
+- [x] Suspense fallback shows loading skeleton
+- [x] Widget props forwarded to loaded component
+- [x] Custom fallback supported
 
 **Implementation Details:**
 
@@ -1231,11 +1231,11 @@ export function WidgetLoader({ pluginId, widgetName, props, fallback }: WidgetLo
 
 **Acceptance Criteria:**
 
-- [ ] Displays "Widget Unavailable" message
-- [ ] Shows plugin ID and widget name for debugging
-- [ ] Styled as dashed border box
-- [ ] Icon: 📦 (package emoji)
-- [ ] Gray color scheme (not alarming)
+- [x] Displays "Widget Unavailable" message
+- [x] Shows plugin ID and widget name for debugging
+- [x] Styled as dashed border box
+- [x] Icon: 📦 (package emoji)
+- [x] Gray color scheme (not alarming)
 
 **Implementation Details:**
 
@@ -1302,10 +1302,10 @@ export function WidgetFallback({ pluginId, widgetName }: WidgetFallbackProps) {
 
 **Acceptance Criteria:**
 
-- [ ] Plugin `vite.config.ts` template updated with widget `exposes` example
-- [ ] Shell `vite.config.ts` has correct `remotes` config
-- [ ] Shared dependencies configured: `react`, `react-dom`, `react-router-dom`
-- [ ] Documentation added to plugin development guide
+- [x] Plugin `vite.config.ts` template updated with widget `exposes` example
+- [x] Shell `vite.config.ts` has correct `remotes` config
+- [x] Shared dependencies configured: `react`, `react-dom`, `react-router-dom`
+- [x] Documentation added to plugin development guide
 
 **Implementation Details:**
 
@@ -1371,12 +1371,12 @@ export default defineConfig({
 
 **Acceptance Criteria:**
 
-- [ ] `ContactCard` widget component created
-- [ ] Widget accepts `contactId` prop
-- [ ] Widget fetches contact data from API
-- [ ] Widget displays contact name, email, phone
-- [ ] Widget uses tenant theme colors
-- [ ] Widget exported in Module Federation config
+- [x] `ContactCard` widget component created
+- [x] Widget accepts `contactId` prop
+- [x] Widget fetches contact data from API
+- [x] Widget displays contact name, email, phone
+- [x] Widget uses tenant theme colors
+- [x] Widget exported in Module Federation config
 
 **Implementation Details:**
 
@@ -1438,12 +1438,12 @@ export function ContactCard({ contactId }: ContactCardProps) {
 
 **Acceptance Criteria:**
 
-- [ ] Test: loadWidget() returns lazy component ✅
-- [ ] Test: Widget load success renders component ✅
-- [ ] Test: Widget load error returns fallback ✅
-- [ ] Test: Custom fallback used when provided ✅
-- [ ] Test: WidgetLoader forwards props ✅
-- [ ] Coverage: ≥90% for widget loader utilities
+- [x] Test: loadWidget() returns lazy component ✅
+- [x] Test: Widget load success renders component ✅
+- [x] Test: Widget load error returns fallback ✅
+- [x] Test: Custom fallback used when provided ✅
+- [x] Test: WidgetLoader forwards props ✅
+- [x] Coverage: ≥90% for widget loader utilities
 
 **Implementation Details:**
 
@@ -1486,9 +1486,9 @@ export function ContactCard({ contactId }: ContactCardProps) {
 
 **Acceptance Criteria:**
 
-- [ ] Test: Widget loaded from remote plugin ✅
-- [ ] Test: Widget unavailable shows fallback ✅
-- [ ] Test: Widget inherits tenant theme ✅
+- [x] Test: Widget loaded from remote plugin ✅
+- [x] Test: Widget unavailable shows fallback ✅
+- [x] Test: Widget inherits tenant theme ✅
 
 **Implementation Details:**
 

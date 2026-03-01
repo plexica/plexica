@@ -16,6 +16,8 @@ export default defineConfig({
         './Plugin': './src/Plugin.tsx',
         './routes': './src/routes/index.ts',
         './manifest': './src/manifest.ts',
+        // Widget exposes — add one entry per widget component:
+        // './MyWidget': './src/widgets/MyWidget.tsx',
       },
       shared: [
         'react',

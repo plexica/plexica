@@ -4,28 +4,23 @@
 // Orchestrates Spec 010 Phase 3 primitives: loadWidget(), WidgetFallback.
 //
 // Gated by the ENABLE_PLUGIN_WIDGETS feature flag (Constitution Art. 9.1).
-// When the flag is off the component renders nothing so no Spec 010 stubs
-// are exercised in production until the feature is ready.
+// When the flag is off the component renders nothing so no Spec 010 phase 3
+// code is exercised in production until the feature is ready.
 //
-// ⚠️ [NEEDS UPDATE] Once Spec 010 Phase 3 is merged, replace the stub
-// `loadWidget` below with the real import:
-//   import { loadWidget } from '../lib/widget-loader';
+// Architecture fix (HIGH-002 from forge-review 2026-03-01):
+// The previous implementation used a promise-adapter (loadWidgetModule) that
+// wrapped the synchronous React.lazy() return value in Promise.resolve().
+// Because React.lazy() is synchronous, the .catch() never fired, making
+// hasError and the entire useEffect state machine dead code. The component
+// now uses the correct React.lazy() + Suspense + PluginErrorBoundary pattern
+// where the error boundary catches errors thrown during lazy resolution.
 //
 // FR-011, NFR-008
 
-import React, { Suspense, useEffect, useState, type ReactNode } from 'react';
+import React, { Suspense, useMemo, type ReactNode } from 'react';
 import { useFeatureFlag } from '@/lib/feature-flags';
-
-// ---------------------------------------------------------------------------
-// Stub — replace with Spec 010 Phase 3 real implementation
-// TODO: import { loadWidget } from '../lib/widget-loader';
-// ---------------------------------------------------------------------------
-type WidgetModule = { default: React.ComponentType<Record<string, unknown>> };
-
-async function loadWidget(_pluginId: string, _widgetName: string): Promise<WidgetModule> {
-  // [NEEDS UPDATE] Spec 010 Phase 3 will provide the real loadWidget function.
-  throw new Error('loadWidget is not yet implemented — awaiting Spec 010 Phase 3.');
-}
+import { loadWidget } from '@/lib/widget-loader';
+import { PluginErrorBoundary } from '@/components/ErrorBoundary/PluginErrorBoundary';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -41,7 +36,10 @@ export interface WidgetContainerProps {
   title: string;
   /** Custom loading skeleton. Falls back to built-in pulsing skeleton. */
   fallback?: ReactNode;
-  /** Custom error fallback. Falls back to built-in WidgetFallback. */
+  /**
+   * Custom error fallback node rendered when the widget throws.
+   * When omitted, PluginErrorBoundary's default fallback (PluginErrorFallback) is used.
+   */
   errorFallback?: ReactNode;
 }
 
@@ -57,8 +55,6 @@ function SkeletonFallback() {
  *
  * Uses `bg-destructive` (solid) with `text-destructive-foreground` to
  * guarantee WCAG AA (≥4.5:1) contrast ratio regardless of the tenant theme.
- * The previous bg-destructive/10 + text-destructive pair could fall below
- * the AA threshold when primary destructive color is mid-lightness.
  */
 function BuiltInErrorFallback({ title }: { title: string }) {
   return (
@@ -70,6 +66,23 @@ function BuiltInErrorFallback({ title }: { title: string }) {
       Failed to load widget: <strong>{title}</strong>
     </div>
   );
+}
+
+/**
+ * Adapter: converts a ReactNode `errorFallback` prop into the ComponentType
+ * signature expected by PluginErrorBoundary.
+ */
+function makeErrorFallbackComponent(
+  node: ReactNode | undefined,
+  title: string
+): React.ComponentType<{ pluginName: string; error: Error | null; onRetry: () => void }> {
+  const Component: React.FC<{
+    pluginName: string;
+    error: Error | null;
+    onRetry: () => void;
+  }> = () => <>{node ?? <BuiltInErrorFallback title={title} />}</>;
+  Component.displayName = 'WidgetContainerErrorFallback';
+  return Component;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,67 +97,36 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
   errorFallback,
 }) => {
   const widgetsEnabled = useFeatureFlag('ENABLE_PLUGIN_WIDGETS');
-  const [WidgetComponent, setWidgetComponent] = useState<React.ComponentType<
-    Record<string, unknown>
-  > | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
 
-  useEffect(() => {
-    if (!widgetsEnabled) return;
+  // Memoize the lazy component — React.lazy() must not be called inside render.
+  // loadWidget() validates pluginId/widgetName synchronously before creating the
+  // lazy component, so invalid inputs surface at render time.
+  const WidgetComponent = useMemo(
+    () => loadWidget({ pluginId, widgetName }),
+    [pluginId, widgetName]
+  );
 
-    let cancelled = false;
-
-    // setState calls must be inside a callback, not synchronously in the
-    // effect body (react-hooks/set-state-in-effect).
-    Promise.resolve().then(() => {
-      if (!cancelled) {
-        setIsLoading(true);
-        setHasError(false);
-        setWidgetComponent(null);
-      }
-    });
-
-    loadWidget(pluginId, widgetName)
-      .then((mod) => {
-        if (!cancelled) {
-          setWidgetComponent(() => mod.default);
-          setIsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setHasError(true);
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pluginId, widgetName, widgetsEnabled]);
+  // Memoize the error fallback component to keep the PluginErrorBoundary
+  // reference stable across renders.
+  const ErrorFallbackComponent = useMemo(
+    () => makeErrorFallbackComponent(errorFallback, title),
+    [errorFallback, title]
+  );
 
   // Flag off → render nothing (Spec 010 Phase 3 not yet live)
   if (!widgetsEnabled) return null;
 
   return (
-    <section
-      role="region"
-      aria-label={title}
-      aria-busy={isLoading ? 'true' : 'false'}
-      className="space-y-3"
-    >
+    <section role="region" aria-label={title} className="space-y-3">
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
 
-      {isLoading && (fallback ?? <SkeletonFallback />)}
-
-      {!isLoading && hasError && (errorFallback ?? <BuiltInErrorFallback title={title} />)}
-
-      {!isLoading && !hasError && WidgetComponent && (
+      {/* PluginErrorBoundary catches errors thrown during lazy resolution and
+          during widget component rendering. It MUST wrap Suspense. */}
+      <PluginErrorBoundary pluginId={pluginId} pluginName={title} fallback={ErrorFallbackComponent}>
         <Suspense fallback={fallback ?? <SkeletonFallback />}>
           <WidgetComponent {...widgetProps} />
         </Suspense>
-      )}
+      </PluginErrorBoundary>
     </section>
   );
 };
