@@ -49,7 +49,7 @@ export interface AuthStoreState {
   error: string | null;
   /**
    * T005-17: True when the most recent silent token refresh has failed.
-   * Consumed by AuthWarningBanner (ENABLE_AUTH_WARNING_BANNER flag).
+   * Consumed by AuthWarningBanner (ENABLE_AUTH_WARNINGS flag).
    * Reset to false whenever setTokens() succeeds.
    */
   refreshFailed: boolean;

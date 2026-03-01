@@ -1,7 +1,7 @@
 // apps/web/src/components/AuthWarningBanner.tsx
 //
 // T005-17: Displays a dismissible warning banner when silent token refresh has
-// failed.  Gated by the ENABLE_AUTH_WARNING_BANNER feature flag so it can be
+// failed.  Gated by the ENABLE_AUTH_WARNINGS feature flag so it can be
 // rolled out incrementally (Constitution Art. 9.1).
 //
 // The banner is intentionally non-blocking — the user can dismiss it and keep
@@ -13,7 +13,7 @@ import { useFeatureFlag } from '@/lib/feature-flags';
 import { useAuthStore } from '@/stores/auth.store';
 
 export function AuthWarningBanner() {
-  const isEnabled = useFeatureFlag('ENABLE_AUTH_WARNING_BANNER');
+  const isEnabled = useFeatureFlag('ENABLE_AUTH_WARNINGS');
   const refreshFailed = useAuthStore((s) => s.refreshFailed);
   const setRefreshFailed = useAuthStore((s) => s.setRefreshFailed);
   const refreshTokens = useAuthStore((s) => s.refreshTokens);
@@ -34,14 +34,14 @@ export function AuthWarningBanner() {
   return (
     <div
       role="alert"
-      aria-live="assertive"
+      aria-live="polite"
       data-testid="auth-warning-banner"
       className="flex items-center gap-3 px-4 py-3 bg-warning/10 border-b border-warning/30 text-warning-foreground"
     >
       <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
 
       <p className="flex-1 text-sm">
-        Your session may have expired. Please save your work and refresh the page.
+        Unable to refresh your session. Your current session will remain active until it expires.
       </p>
 
       <div className="flex items-center gap-2 shrink-0">

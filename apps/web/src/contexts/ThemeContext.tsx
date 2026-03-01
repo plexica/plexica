@@ -159,8 +159,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         'Failed to fetch tenant theme — using defaults'
       );
       setTenantThemeError(error);
-      // Apply defaults so the app remains usable
-      applyTheme(tenantTheme);
+      // Apply defaults so the app remains usable regardless of closure state.
+      // (LOW-3 fix: using DEFAULT_TENANT_THEME instead of the stale `tenantTheme`
+      // closure reference which could re-apply an old theme on error.)
+      applyTheme(DEFAULT_TENANT_THEME);
     } finally {
       setTenantThemeLoading(false);
     }

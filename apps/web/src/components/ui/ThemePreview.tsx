@@ -5,6 +5,10 @@
 // Renders a compact, non-interactive preview card that reflects the supplied
 // TenantTheme colors and fonts. Used in the Branding settings page so admins
 // can see theme changes before saving.
+//
+// Accessibility: This is a purely decorative, visual-only preview.
+// Per plan §5.7 and tasks.md T005-10, the root element uses aria-hidden="true"
+// so screen readers skip it entirely and it does not appear as a landmark.
 
 import type { TenantTheme } from '@/lib/theme-utils';
 
@@ -14,20 +18,18 @@ import type { TenantTheme } from '@/lib/theme-utils';
 
 export interface ThemePreviewProps {
   theme: TenantTheme;
-  /** Accessible label for the preview region */
-  ariaLabel?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function ThemePreview({ theme, ariaLabel = 'Theme preview' }: ThemePreviewProps) {
+export function ThemePreview({ theme }: ThemePreviewProps) {
   const { colors, fonts, logo } = theme;
 
   return (
-    <section
-      aria-label={ariaLabel}
+    <div
+      aria-hidden="true"
       data-testid="theme-preview"
       style={{
         backgroundColor: colors.background,
@@ -120,6 +122,6 @@ export function ThemePreview({ theme, ariaLabel = 'Theme preview' }: ThemePrevie
           />
         </div>
       </div>
-    </section>
+    </div>
   );
 }

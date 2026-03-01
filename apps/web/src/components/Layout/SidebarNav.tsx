@@ -17,7 +17,7 @@ import {
   LayoutDashboard,
   Puzzle,
   Settings,
-  Users,
+  User,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { usePlugins } from '../../contexts/PluginContext';
@@ -56,7 +56,7 @@ const CORE_ITEMS: CoreMenuItem[] = [
     path: '/',
     icon: <LayoutDashboard className="w-5 h-5" aria-hidden="true" />,
   },
-  { label: 'Team', path: '/team', icon: <Users className="w-5 h-5" aria-hidden="true" /> },
+  { label: 'Profile', path: '/profile', icon: <User className="w-5 h-5" aria-hidden="true" /> },
   {
     label: 'Settings',
     path: '/settings',

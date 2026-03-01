@@ -106,4 +106,13 @@ describe('AppLayout — ARIA landmarks (T005-22)', () => {
     // SidebarNav renders a <nav> element
     expect(screen.getByRole('navigation')).toBeInTheDocument();
   });
+
+  it('should render a skip-to-content link targeting #main-content (WCAG 2.4.1)', () => {
+    render(<AppLayout>content</AppLayout>);
+    // The skip link is rendered in index.html (outside React), but AppLayout
+    // must render the <main id="main-content"> target it points to.
+    // We verify the target exists so the skip link is functional.
+    const main = screen.getByRole('main');
+    expect(main).toHaveAttribute('id', 'main-content');
+  });
 });

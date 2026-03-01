@@ -6,6 +6,7 @@ import { AuthProvider } from '../components/AuthProvider';
 import { MockAuthProvider } from '../components/MockAuthProvider';
 import { WorkspaceProvider } from '../contexts/WorkspaceContext';
 import { PluginProvider } from '../contexts/PluginContext';
+import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../components/ToastProvider';
 import { bootstrapAuth } from '../stores/auth.store';
 
@@ -25,13 +26,19 @@ function RootComponent() {
   }, []);
 
   return (
-    <SelectedAuthProvider>
-      <WorkspaceProvider>
-        <PluginProvider>
-          <ToastProvider />
-          <Outlet />
-        </PluginProvider>
-      </WorkspaceProvider>
-    </SelectedAuthProvider>
+    // ThemeProvider is placed at the root so all routes — including error pages
+    // and routes outside AppLayout — can safely call useTheme() / useTenantTheme().
+    // (MEDIUM-4 fix: ThemeProvider was previously only inside AppLayout, which
+    // caused a latent crash vector for routes rendered outside the layout shell.)
+    <ThemeProvider>
+      <SelectedAuthProvider>
+        <WorkspaceProvider>
+          <PluginProvider>
+            <ToastProvider />
+            <Outlet />
+          </PluginProvider>
+        </WorkspaceProvider>
+      </SelectedAuthProvider>
+    </ThemeProvider>
   );
 }

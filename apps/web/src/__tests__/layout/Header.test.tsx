@@ -1,4 +1,4 @@
-// apps/web/src/__tests__/theme/Header.test.tsx
+// apps/web/src/__tests__/layout/Header.test.tsx
 //
 // T2.6: Unit tests for Header tenant logo / fallback rendering.
 //
@@ -244,5 +244,18 @@ describe('Header — ARIA landmark role', () => {
     // The banner must not be hidden from assistive technology
     expect(banner).not.toHaveAttribute('aria-hidden', 'true');
     expect(banner).not.toHaveStyle({ display: 'none' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UX-001: Search input accessible name (WCAG 4.1.2)
+// ---------------------------------------------------------------------------
+
+describe('Header — search input accessibility', () => {
+  it('search input has an accessible name via aria-label', () => {
+    renderHeader();
+    // type="search" → role="searchbox"; aria-label="Search" provides the accessible name
+    const searchInput = screen.getByRole('searchbox', { name: /search/i });
+    expect(searchInput).toBeInTheDocument();
   });
 });

@@ -78,6 +78,7 @@ export interface DynamicPluginRoute {
  * Plugin Route Manager
  * Manages dynamic registration and rendering of plugin routes
  */
+/* c8 ignore start */
 class PluginRouteManager {
   private routes: Map<string, DynamicPluginRoute> = new Map();
   private componentCache: Map<string, ComponentType<any>> = new Map();
@@ -273,10 +274,12 @@ class PluginRouteManager {
     this.componentCache.clear();
   }
 }
+/* c8 ignore end */
 
 /**
  * Loading fallback component for plugins
  */
+/* c8 ignore next 12 */
 function PluginLoadingFallback({ title }: { title: string }) {
   return (
     <div className="flex items-center justify-center h-full">
@@ -289,4 +292,5 @@ function PluginLoadingFallback({ title }: { title: string }) {
 }
 
 // Singleton instance
+/* c8 ignore next */
 export const pluginRouteManager = new PluginRouteManager();

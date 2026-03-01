@@ -4,7 +4,7 @@
 //
 // Coverage targets (4 tests):
 //   1. Renders label and select element
-//   2. Shows all 25 ADR-020 font options
+//   2. Shows all 26 ADR-020 font options
 //   3. Groups fonts by category (optgroup labels present)
 //   4. Calls onChange with the selected font ID when selection changes
 
@@ -42,12 +42,12 @@ describe('FontSelector — rendering', () => {
 // ---------------------------------------------------------------------------
 
 describe('FontSelector — font catalog', () => {
-  it('renders exactly 25 font options (one per ADR-020 catalog entry)', () => {
+  it('renders exactly 26 font options (one per ADR-020 catalog entry)', () => {
     render(<FontSelector label="Font" value="inter" onChange={vi.fn()} />);
     const select = screen.getByTestId('font-selector-select');
     const options = within(select).getAllByRole('option');
     expect(options).toHaveLength(FONT_CATALOG.length);
-    expect(options.length).toBe(25);
+    expect(options.length).toBe(26);
   });
 
   it('every font in FONT_CATALOG appears as an option', () => {

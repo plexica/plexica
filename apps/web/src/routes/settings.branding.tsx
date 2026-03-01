@@ -8,14 +8,16 @@
 //   - Fonts   (heading, body, mono)
 //   - Logo    (HTTPS URL)
 //
-// Gated by the ENABLE_TENANT_THEMING feature flag (Constitution Art. 9.1).
+// Gated by the ENABLE_TENANT_BRANDING feature flag (Constitution Art. 9.1).
+// Admin-only: users without the 'admin' role are shown a 403 message (SEC-001).
 // Only rendered when the flag is on — see settings.tsx for the tab wrapper.
 //
-// Save path: PATCH /api/v1/tenant/settings { theme: { colors, fonts, logo } }
+// Save path: PUT /api/v1/tenant/settings { theme: { colors, fonts, logo } }
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTenantTheme } from '@/contexts/ThemeContext';
 import { useFeatureFlag } from '@/lib/feature-flags';
+import { useAuthStore } from '@/stores/auth.store';
 import { ColorPickerField } from '@/components/ui/ColorPickerField';
 import { FontSelector } from '@/components/ui/FontSelector';
 import { ThemePreview } from '@/components/ui/ThemePreview';
@@ -71,8 +73,9 @@ const COLOR_FIELDS: ColorField[] = [
 // ---------------------------------------------------------------------------
 
 export function BrandingTab() {
-  const isEnabled = useFeatureFlag('ENABLE_TENANT_THEMING');
+  const isEnabled = useFeatureFlag('ENABLE_TENANT_BRANDING');
   const { tenantTheme, refreshTenantTheme } = useTenantTheme();
+  const user = useAuthStore((s) => s.user);
 
   // Local draft state for live preview (not yet saved)
   const [draft, setDraft] = useState<TenantTheme>(() => ({
@@ -86,9 +89,35 @@ export function BrandingTab() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // -------------------------------------------------------------------
+  // Dirty state — tracks whether the draft differs from the saved theme
+  // Used for unsaved changes guard (SPEC-002 / plan §5.5).
+  // -------------------------------------------------------------------
+
+  const isDirty =
+    draft.logo !== tenantTheme.logo ||
+    JSON.stringify(draft.colors) !== JSON.stringify(tenantTheme.colors) ||
+    JSON.stringify(draft.fonts) !== JSON.stringify(tenantTheme.fonts);
+
+  // -------------------------------------------------------------------
+  // Unsaved changes guard — warn on page unload / browser navigation
+  // when form is dirty (plan §5.5).
+  // -------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!isDirty) return;
+
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // -------------------------------------------------------------------
   // Handlers — ALL hooks must be declared before any early return
-  //            (react-hooks/rules-of-hooks).  The feature-flag guard
-  //            is moved to just before the render return below.
+  //            (react-hooks/rules-of-hooks).  The feature-flag and
+  //            RBAC guards are moved to just before the render return below.
   // -------------------------------------------------------------------
 
   const handleColorChange = useCallback((key: keyof TenantThemeColors, value: string) => {
@@ -119,7 +148,7 @@ export function BrandingTab() {
     setSaveSuccess(false);
 
     try {
-      await apiClient.patch('/api/v1/tenant/settings', { theme: draft });
+      await apiClient.put('/api/v1/tenant/settings', { theme: draft });
       setSaveSuccess(true);
       // Refresh context so ThemeContext re-fetches and applies the new theme
       await refreshTenantTheme();
@@ -147,6 +176,19 @@ export function BrandingTab() {
   // Gate — feature flag off → nothing rendered.
   // Placed AFTER all hook declarations to satisfy rules-of-hooks.
   if (!isEnabled) return null;
+
+  // RBAC gate — admin-only page (SEC-001 / plan T005-12).
+  // Non-admin users see a 403 message instead of the branding form.
+  const isAdmin = user?.roles?.includes('admin') ?? false;
+  if (!isAdmin) {
+    return (
+      <section aria-label="Branding settings" data-testid="branding-tab">
+        <p role="alert" className="text-sm text-destructive" data-testid="branding-forbidden">
+          You do not have permission to manage branding settings. Admin role required.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Branding settings" data-testid="branding-tab">
@@ -263,7 +305,7 @@ export function BrandingTab() {
         {/* ── Right: live preview ── */}
         <div className="shrink-0">
           <p className="mb-2 text-sm font-medium text-foreground">Preview</p>
-          <ThemePreview theme={draft} ariaLabel="Live branding preview" />
+          <ThemePreview theme={draft} />
         </div>
       </div>
     </section>

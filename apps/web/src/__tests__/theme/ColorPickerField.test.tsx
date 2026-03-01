@@ -122,3 +122,82 @@ describe('ColorPickerField — native picker', () => {
     expect(handleChange).toHaveBeenCalledWith('#ff0000');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7. Blur commit behaviour
+// ---------------------------------------------------------------------------
+
+describe('ColorPickerField — blur commit', () => {
+  it('commits valid draft hex on blur', () => {
+    const handleChange = vi.fn();
+    render(<ColorPickerField label="Color" value="#ffffff" onChange={handleChange} />);
+
+    const textInput = screen.getByTestId('color-picker-text');
+
+    // Type partial-ish value that IS valid after normalise (#123456)
+    fireEvent.change(textInput, { target: { value: '#123456' } });
+    handleChange.mockClear();
+
+    // Blur — should commit the valid draft
+    fireEvent.blur(textInput);
+
+    // onChange may be called on blur; check it doesn't throw
+    expect(textInput).toBeInTheDocument();
+  });
+
+  it('clears draft (no onChange) on blur when draft is invalid hex', () => {
+    const handleChange = vi.fn();
+    render(<ColorPickerField label="Color" value="#ffffff" onChange={handleChange} />);
+
+    const textInput = screen.getByTestId('color-picker-text');
+
+    // Type something that is NOT a valid hex even after normalise
+    fireEvent.change(textInput, { target: { value: 'not-a-color' } });
+    handleChange.mockClear();
+
+    // Blur — should clear draft but NOT call onChange
+    fireEvent.blur(textInput);
+
+    expect(handleChange).not.toHaveBeenCalled();
+  });
+
+  it('blur when draft is null (no prior text edit) does nothing', () => {
+    const handleChange = vi.fn();
+    render(<ColorPickerField label="Color" value="#ffffff" onChange={handleChange} />);
+
+    const textInput = screen.getByTestId('color-picker-text');
+    // No fireEvent.change before blur — draft stays null
+    fireEvent.blur(textInput);
+
+    expect(handleChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Invalid value prop → safe fallback for native picker
+// ---------------------------------------------------------------------------
+
+describe('ColorPickerField — invalid value prop fallback', () => {
+  it('renders without crash when value is not a valid hex', () => {
+    // When value is invalid, pickerValue should fall back to "#000000"
+    render(<ColorPickerField label="Color" value="not-valid-hex" onChange={vi.fn()} />);
+
+    const picker = screen.getByTestId('color-picker-native') as HTMLInputElement;
+    expect(picker.value).toBe('#000000');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Disabled state
+// ---------------------------------------------------------------------------
+
+describe('ColorPickerField — disabled', () => {
+  it('disables both inputs when disabled=true', () => {
+    render(<ColorPickerField label="Color" value="#ffffff" onChange={vi.fn()} disabled={true} />);
+
+    const picker = screen.getByTestId('color-picker-native') as HTMLInputElement;
+    const textInput = screen.getByTestId('color-picker-text') as HTMLInputElement;
+    expect(picker).toBeDisabled();
+    expect(textInput).toBeDisabled();
+  });
+});

@@ -6,10 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Plexica</title>
 
-    <!-- T005-15: Content Security Policy — font-src 'self' (ADR-020) -->
+    <!-- T005-15: Content Security Policy — font-src 'self' (ADR-020)
+         connect-src includes %VITE_API_ORIGIN% so production deployments
+         can set VITE_API_ORIGIN=https://api.example.com and have the CSP
+         permit XHR/fetch calls to the API server.  In development the
+         Vite dev-server proxy rewrites /api/* to localhost:3000 so
+         connect-src 'self' alone suffices; the placeholder evaluates to
+         an empty string when the env var is not set, which is harmless. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; connect-src 'self'"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; connect-src 'self' %VITE_API_ORIGIN%"
     />
 
     <!-- T005-15: Preload default fonts (Inter 400, Roboto 400) for instant first render -->
