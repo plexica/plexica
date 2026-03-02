@@ -22,6 +22,11 @@ import { adminRoutes } from './routes/admin.js';
 import { marketplaceRoutes } from './routes/marketplace.js';
 import { pluginGatewayRoutes } from './routes/plugin-gateway.js';
 import { translationRoutes } from './modules/i18n/i18n.controller.js';
+import { storageRoutes } from './modules/storage/storage.routes.js';
+import { notificationRoutes } from './modules/notifications/notification.routes.js';
+import { jobsRoutes } from './modules/jobs/jobs.routes.js';
+import { searchRoutes } from './modules/search/search.routes.js';
+import { tenantContextMiddleware } from './middleware/tenant-context.js';
 import { authorizationRoutes } from './routes/authorization.js';
 import { policiesRoutes } from './routes/policies.js';
 import { pluginV1Routes } from './routes/plugin-v1.js';
@@ -95,6 +100,19 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(tenantPluginsV1Routes, { prefix: '/api/v1' }); // Spec 004 T004-10
   await app.register(authorizationRoutes, { prefix: '/api' }); // Authorization routes (Spec 003 RBAC)
   await app.register(policiesRoutes, { prefix: '/api' }); // ABAC policy routes (Spec 003)
+
+  // Spec 007 Core Services routes — registered with tenantContextMiddleware
+  // so that getTenantId() can read request.tenant.tenantId
+  await app.register(
+    async (instance) => {
+      instance.addHook('preHandler', tenantContextMiddleware);
+      await instance.register(storageRoutes);
+      await instance.register(notificationRoutes);
+      await instance.register(jobsRoutes);
+      await instance.register(searchRoutes);
+    },
+    { prefix: '/api/v1' }
+  );
 
   // Plugin Gateway Routes
   const serviceRegistry = new ServiceRegistryService(db, redis, app.log);

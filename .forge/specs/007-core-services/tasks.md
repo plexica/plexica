@@ -6,7 +6,7 @@
 
 | Field        | Value                                                  |
 | ------------ | ------------------------------------------------------ |
-| Status       | In Progress (43/48 complete)                           |
+| Status       | Complete (48/48 complete)                              |
 | Author       | forge-scrum                                            |
 | Date         | 2026-03-02                                             |
 | Spec         | [007-core-services/spec.md](./spec.md)                 |
@@ -74,14 +74,14 @@
 | T007-37 | Unit tests: NotificationService                               | Ph 7  | 3   | ✅ done |
 | T007-38 | Unit tests: JobQueueService                                   | Ph 7  | 3   | ✅ done |
 | T007-39 | Unit tests: SearchService                                     | Ph 7  | 3   | ✅ done |
-| T007-40 | Integration tests: Storage API endpoints                      | Ph 7  | 3   | pending |
-| T007-41 | Integration tests: Notification API endpoints                 | Ph 7  | 2   | pending |
-| T007-42 | Integration tests: Job Queue API endpoints                    | Ph 7  | 3   | pending |
-| T007-43 | Integration tests: Search API endpoints                       | Ph 7  | 2   | pending |
+| T007-40 | Integration tests: Storage API endpoints                      | Ph 7  | 3   | ✅ done |
+| T007-41 | Integration tests: Notification API endpoints                 | Ph 7  | 2   | ✅ done |
+| T007-42 | Integration tests: Job Queue API endpoints                    | Ph 7  | 3   | ✅ done |
+| T007-43 | Integration tests: Search API endpoints                       | Ph 7  | 2   | ✅ done |
 | T007-44 | Component tests: SearchOverlay + NotificationBell             | Ph 7  | 3   | ✅ done |
 | T007-45 | Component tests: FileUploadZone + FileListItem                | Ph 7  | 2   | ✅ done |
 | T007-46 | Component tests: Job Dashboard + JobDetailPanel               | Ph 7  | 2   | ✅ done |
-| T007-47 | E2E tests: upload file, search, notification flow             | Ph 7  | 3   | pending |
+| T007-47 | E2E tests: upload file, search, notification flow             | Ph 7  | 3   | ✅ done |
 | T007-48 | Polish: OpenAPI docs, error messages, logging                 | Ph 8  | 3   | ✅ done |
 
 ---
@@ -803,7 +803,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-09
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-40** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Integration tests: Storage API endpoints
+- [x] **T007-40** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Integration tests: Storage API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/storage/storage.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real MinIO test instance (from
@@ -816,7 +816,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-13, T007-19
   - **Estimated**: 2–3 h (L)
 
-- [ ] **T007-41** `[M]` `[FR-004]` `[FR-005]` `[P]` Integration tests: Notification API endpoints
+- [x] **T007-41** `[M]` `[FR-004]` `[FR-005]` `[P]` Integration tests: Notification API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/notifications/notification.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real PostgreSQL. Cover: `POST /notifications`
@@ -828,7 +828,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-14, T007-20
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-42** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Integration tests: Job Queue API endpoints
+- [x] **T007-42** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Integration tests: Job Queue API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/jobs/jobs.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real Redis. Cover: enqueue → job ID
@@ -841,7 +841,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-15, T007-21
   - **Estimated**: 2–3 h (L)
 
-- [ ] **T007-43** `[M]` `[FR-011]` `[FR-012]` `[FR-014]` `[P]` Integration tests: Search API endpoints
+- [x] **T007-43** `[M]` `[FR-011]` `[FR-012]` `[FR-014]` `[P]` Integration tests: Search API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/search/search.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real PostgreSQL. Cover: index document
@@ -894,8 +894,8 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-30, T007-28
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-47** `[L]` `[UX]` E2E tests: upload file, search, notification flow
-  - **File**: `apps/web/src/test/e2e/core-services.e2e.test.ts`
+- [x] **T007-47** `[L]` `[UX]` E2E tests: upload file, search, notification flow
+  - **File**: `apps/web/tests/e2e/core-services.spec.ts`
   - **Type**: Create new file
   - **Description**: Playwright E2E tests covering user-journey.md Journeys 1–4:
     Journey 1 (Search): Dana types "john" → sees grouped results → clicks contact
@@ -947,17 +947,17 @@ error message review.
 
 ## Summary
 
-| Metric                | Value                                                          |
-| --------------------- | -------------------------------------------------------------- |
-| Total tasks           | 48                                                             |
-| Total phases          | 8                                                              |
-| Parallelizable tasks  | 28 (tasks marked `[P]`)                                        |
-| UX-derived tasks      | 17 (marked `[UX]` — from design-spec.md)                       |
-| Backend service tasks | 23 (Phases 1–4 + 7 backend tests)                              |
-| Estimated effort      | ~87 story points / ~130–160 hours total                        |
-| FRs covered           | 14/14 (FR-001 – FR-014) ✅                                     |
-| NFRs covered          | 8/8 (NFR-001 – NFR-008) ✅                                     |
-| **Progress**          | **43/48 complete** — T007-40–43, T007-47 pending (need Docker) |
+| Metric                | Value                                    |
+| --------------------- | ---------------------------------------- |
+| Total tasks           | 48                                       |
+| Total phases          | 8                                        |
+| Parallelizable tasks  | 28 (tasks marked `[P]`)                  |
+| UX-derived tasks      | 17 (marked `[UX]` — from design-spec.md) |
+| Backend service tasks | 23 (Phases 1–4 + 7 backend tests)        |
+| Estimated effort      | ~87 story points / ~130–160 hours total  |
+| FRs covered           | 14/14 (FR-001 – FR-014) ✅               |
+| NFRs covered          | 8/8 (NFR-001 – NFR-008) ✅               |
+| **Progress**          | **48/48 complete** ✅ All tasks done     |
 
 ---
 

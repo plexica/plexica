@@ -18,7 +18,10 @@ import { USER_ROLES } from '../../constants/index.js';
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId = (request as any).user?.tenantId ?? (request as any).tenantContext?.tenantId;
+  const tenantId =
+    (request as any).user?.tenantId ??
+    (request as any).tenant?.tenantId ??
+    (request as any).tenantContext?.tenantId;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
