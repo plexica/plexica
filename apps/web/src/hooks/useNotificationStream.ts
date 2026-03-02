@@ -62,6 +62,9 @@ export function useNotificationStream(): UseNotificationStreamResult {
   const backoffRef = useRef<number>(INITIAL_BACKOFF_MS);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  // Use a ref to hold the connect function so the onerror handler can call it
+  // recursively without hitting the react-hooks/immutability TDZ restriction.
+  const connectRef = useRef<(() => void) | null>(null);
 
   const connect = useCallback(() => {
     if (!token) return;
@@ -94,14 +97,20 @@ export function useNotificationStream(): UseNotificationStreamResult {
       es.close();
       esRef.current = null;
 
-      // Exponential back-off reconnect
+      // Exponential back-off reconnect — call via ref to avoid TDZ
       const delay = backoffRef.current;
       backoffRef.current = Math.min(delay * 2, MAX_BACKOFF_MS);
       retryTimerRef.current = setTimeout(() => {
-        if (mountedRef.current) connect();
+        if (mountedRef.current) connectRef.current?.();
       }, delay);
     };
   }, [token]);
+
+  // Keep ref in sync with latest connect callback (inside effect to avoid
+  // the react-hooks/refs "cannot access refs during render" lint error)
+  useEffect(() => {
+    connectRef.current = connect;
+  });
 
   useEffect(() => {
     mountedRef.current = true;

@@ -56,7 +56,26 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['notifications'],
         summary: 'Send a notification',
-        description: 'Send a single notification via the specified channel',
+        description:
+          'Send a single notification via the specified channel (EMAIL, IN_APP, PUSH). Requires admin role.',
+        response: {
+          201: { description: 'Notification sent', type: 'object' },
+          400: {
+            description: 'Validation error or invalid email address',
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                  details: { type: 'object' },
+                },
+              },
+            },
+          },
+          500: { description: 'Failed to send notification', type: 'object' },
+        },
       },
       preHandler: requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN),
     },
@@ -118,7 +137,20 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['notifications'],
         summary: 'Send bulk notifications',
-        description: 'Enqueue bulk notifications for async delivery',
+        description:
+          'Validate and enqueue an array of notifications for async delivery via the job queue. Requires admin role.',
+        response: {
+          202: {
+            description: 'Notifications enqueued for delivery',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              count: { type: 'integer' },
+            },
+          },
+          400: { description: 'Validation error', type: 'object' },
+          500: { description: 'Failed to enqueue notifications', type: 'object' },
+        },
       },
       preHandler: requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN),
     },
@@ -195,13 +227,25 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['notifications'],
         summary: 'List notifications',
-        description: 'List recent in-app notifications for the authenticated user',
+        description:
+          'List recent in-app notifications for the authenticated user. Supports pagination and unread filter.',
         querystring: {
           type: 'object',
           properties: {
-            limit: { type: 'integer', default: 10, maximum: 100 },
-            unread: { type: 'boolean' },
-            offset: { type: 'integer', default: 0 },
+            limit: { type: 'integer', default: 10, maximum: 100, description: 'Max results' },
+            unread: { type: 'boolean', description: 'Filter to unread only' },
+            offset: { type: 'integer', default: 0, description: 'Pagination offset' },
+          },
+        },
+        response: {
+          200: {
+            description: 'Notification list',
+            type: 'object',
+            properties: {
+              notifications: { type: 'array', items: { type: 'object' } },
+              unreadCount: { type: 'integer' },
+              count: { type: 'integer' },
+            },
           },
         },
       },
@@ -236,7 +280,19 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['notifications'],
         summary: 'Mark notification as read',
-        description: 'Mark a single notification as read',
+        description:
+          'Mark a single in-app notification as read. Returns updated notification and new unread count.',
+        response: {
+          200: {
+            description: 'Notification marked as read',
+            type: 'object',
+            properties: {
+              notification: { type: 'object' },
+              unreadCount: { type: 'integer' },
+            },
+          },
+          404: { description: 'Notification not found', type: 'object' },
+        },
       },
     },
     async (request, reply) => {
@@ -273,7 +329,17 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['notifications'],
         summary: 'Mark all notifications as read',
-        description: 'Mark all in-app notifications for the authenticated user as read',
+        description: 'Mark all in-app notifications for the authenticated user as read.',
+        response: {
+          200: {
+            description: 'All notifications marked as read',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              count: { type: 'integer', description: 'Number of notifications updated' },
+            },
+          },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {

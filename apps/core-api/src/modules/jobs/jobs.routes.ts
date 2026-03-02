@@ -58,7 +58,21 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['jobs'],
         summary: 'Enqueue a job',
-        description: 'Enqueue a one-time job for asynchronous processing',
+        description:
+          'Enqueue a one-time job for asynchronous processing. Returns a job ID within <50ms P95 (NFR-003).',
+        response: {
+          201: {
+            description: 'Job enqueued',
+            type: 'object',
+            properties: {
+              jobId: { type: 'string', description: 'Unique job identifier' },
+              status: { type: 'string', enum: ['PENDING', 'QUEUED'] },
+            },
+          },
+          400: { description: 'Validation error', type: 'object' },
+          403: { description: 'Insufficient permissions', type: 'object' },
+          500: { description: 'Failed to enqueue job', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -118,7 +132,21 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['jobs'],
         summary: 'Schedule a recurring job',
-        description: 'Schedule a recurring cron job',
+        description:
+          'Schedule a recurring cron job. The cronExpression field is required and validated.',
+        response: {
+          201: {
+            description: 'Job scheduled',
+            type: 'object',
+            properties: {
+              jobId: { type: 'string' },
+              status: { type: 'string', enum: ['SCHEDULED'] },
+            },
+          },
+          400: { description: 'Missing or invalid cron expression', type: 'object' },
+          403: { description: 'Insufficient permissions', type: 'object' },
+          500: { description: 'Failed to schedule job', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -198,7 +226,12 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['jobs'],
         summary: 'Get job status',
-        description: 'Get the current status of a job',
+        description: 'Get the current status of a job by ID, scoped to the authenticated tenant.',
+        response: {
+          200: { description: 'Job status object', type: 'object' },
+          404: { description: 'Job not found', type: 'object' },
+          500: { description: 'Failed to get job status', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -243,7 +276,14 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['jobs'],
         summary: 'Cancel a job',
-        description: 'Cancel a pending, queued, or scheduled job',
+        description:
+          'Cancel a pending, queued, or scheduled job. Returns 409 if already cancelled.',
+        response: {
+          204: { description: 'Job cancelled successfully' },
+          404: { description: 'Job not found', type: 'object' },
+          409: { description: 'Job already cancelled', type: 'object' },
+          500: { description: 'Failed to cancel job', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -300,6 +340,20 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
             limit: { type: 'integer', default: 50, maximum: 100 },
           },
         },
+        response: {
+          200: {
+            description: 'Paginated list of jobs',
+            type: 'object',
+            properties: {
+              jobs: { type: 'array', items: { type: 'object' } },
+              total: { type: 'integer' },
+              page: { type: 'integer' },
+              limit: { type: 'integer' },
+              pages: { type: 'integer' },
+            },
+          },
+          500: { description: 'Failed to list jobs', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -344,6 +398,19 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
         tags: ['jobs'],
         summary: 'Retry a failed job',
         description: 'Re-enqueue a failed job for processing',
+        response: {
+          201: {
+            description: 'Job re-enqueued',
+            type: 'object',
+            properties: {
+              jobId: { type: 'string' },
+              status: { type: 'string', enum: ['PENDING', 'QUEUED'] },
+            },
+          },
+          404: { description: 'Job not found', type: 'object' },
+          422: { description: 'Job is not in FAILED status', type: 'object' },
+          500: { description: 'Failed to retry job', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -414,6 +481,19 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
         tags: ['jobs'],
         summary: 'Disable cron schedule',
         description: 'Disable the recurring schedule for a scheduled job',
+        response: {
+          200: {
+            description: 'Schedule disabled',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              jobId: { type: 'string' },
+            },
+          },
+          404: { description: 'Job not found', type: 'object' },
+          422: { description: 'Job is not in SCHEDULED status', type: 'object' },
+          500: { description: 'Failed to disable schedule', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },

@@ -161,6 +161,13 @@ async function registerPlugins() {
           { name: 'marketplace', description: 'Plugin marketplace (M2.4)' },
           { name: 'auth', description: 'Authentication & authorization' },
           { name: 'translations', description: 'Translation management' },
+          { name: 'storage', description: 'File storage (upload, download, delete, signed URLs)' },
+          {
+            name: 'notifications',
+            description: 'Notification delivery (email, in-app, SSE stream)',
+          },
+          { name: 'jobs', description: 'Async job queue (enqueue, schedule, retry, cancel)' },
+          { name: 'search', description: 'Full-text document search (index, search, reindex)' },
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
           { name: 'plugin-gateway', description: 'Plugin-to-plugin communication (M2.3)' },

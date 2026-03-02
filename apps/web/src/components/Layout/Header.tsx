@@ -135,6 +135,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
   useEffect(() => {
     if (token && !notificationsLoadedRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchNotifications();
     }
   }, [token, fetchNotifications]);
@@ -146,6 +147,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     if (!notifEvent) return;
     const count = notifEvent.data.unreadCount;
     if (typeof count === 'number') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUnreadCount(count);
     }
   }, [notifEvent]);

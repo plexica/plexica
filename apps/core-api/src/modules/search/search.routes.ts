@@ -63,6 +63,19 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
         summary: 'Search documents',
         description:
           'Full-text search across indexed documents, scoped to the authenticated tenant',
+        response: {
+          200: {
+            description: 'Search results',
+            type: 'object',
+            properties: {
+              results: { type: 'array', items: { type: 'object' } },
+              count: { type: 'integer' },
+              query: { type: 'string' },
+            },
+          },
+          400: { description: 'Validation error', type: 'object' },
+          500: { description: 'Search failed', type: 'object' },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -115,6 +128,19 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
         tags: ['search'],
         summary: 'Index a document',
         description: 'Add or update a document in the search index',
+        response: {
+          201: {
+            description: 'Document indexed',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              documentId: { type: 'string' },
+            },
+          },
+          400: { description: 'Validation error', type: 'object' },
+          403: { description: 'Insufficient permissions', type: 'object' },
+          500: { description: 'Indexing failed', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -177,6 +203,12 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
             type: { type: 'string' },
           },
         },
+        response: {
+          204: { description: 'Document deleted from index' },
+          400: { description: 'Missing type query parameter', type: 'object' },
+          403: { description: 'Insufficient permissions', type: 'object' },
+          500: { description: 'Delete failed', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },
@@ -226,6 +258,20 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
         tags: ['search'],
         summary: 'Reindex documents',
         description: 'Enqueue a background reindex job for all documents of a given type',
+        response: {
+          202: {
+            description: 'Reindex job accepted',
+            type: 'object',
+            properties: {
+              message: { type: 'string' },
+              jobId: { type: 'string' },
+              status: { type: 'string' },
+            },
+          },
+          400: { description: 'Missing type in request body', type: 'object' },
+          403: { description: 'Insufficient permissions', type: 'object' },
+          500: { description: 'Reindex failed', type: 'object' },
+        },
       },
       preHandler: adminOnly,
     },

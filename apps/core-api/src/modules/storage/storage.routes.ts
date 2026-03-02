@@ -46,7 +46,25 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['storage'],
         summary: 'Upload a file',
-        description: 'Upload a file to the tenant-scoped bucket',
+        description: 'Upload a file to the tenant-scoped bucket (max 100 MB by default).',
+        consumes: ['multipart/form-data'],
+        response: {
+          201: {
+            description: 'File uploaded successfully',
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'Storage path key' },
+              bucket: { type: 'string' },
+              size: { type: 'integer' },
+              contentType: { type: 'string' },
+              url: { type: 'string' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          400: { description: 'No file provided or path traversal detected', type: 'object' },
+          413: { description: 'File exceeds the allowed size limit', type: 'object' },
+          500: { description: 'Internal upload error', type: 'object' },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -121,7 +139,14 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['storage'],
         summary: 'Download a file',
-        description: 'Stream a file from the tenant-scoped bucket',
+        description:
+          'Stream a file from the tenant-scoped bucket. Sets Content-Disposition header.',
+        response: {
+          200: { description: 'File stream' },
+          400: { description: 'Path traversal detected', type: 'object' },
+          404: { description: 'File not found', type: 'object' },
+          500: { description: 'Internal download error', type: 'object' },
+        },
       },
     },
     async (request, reply) => {
@@ -171,7 +196,13 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['storage'],
         summary: 'Delete a file',
-        description: 'Delete a file from the tenant-scoped bucket',
+        description: 'Delete a file from the tenant-scoped bucket. Requires admin role.',
+        response: {
+          204: { description: 'File deleted successfully' },
+          400: { description: 'Path traversal detected', type: 'object' },
+          403: { description: 'Insufficient permissions', type: 'object' },
+          500: { description: 'Internal delete error', type: 'object' },
+        },
       },
       preHandler: requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN),
     },
@@ -217,8 +248,19 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
         querystring: {
           type: 'object',
           properties: {
-            prefix: { type: 'string' },
+            prefix: { type: 'string', description: 'Optional path prefix filter' },
           },
+        },
+        response: {
+          200: {
+            description: 'File list',
+            type: 'object',
+            properties: {
+              files: { type: 'array', items: { type: 'object' } },
+              count: { type: 'integer' },
+            },
+          },
+          500: { description: 'Internal list error', type: 'object' },
         },
       },
     },
@@ -250,12 +292,25 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
       schema: {
         tags: ['storage'],
         summary: 'Get signed URL',
-        description: 'Generate a pre-signed URL for direct download (NFR-002: <10ms P95)',
+        description:
+          'Generate a pre-signed URL for direct download. Target <10ms P95 (NFR-002). Default expiry: 3600s.',
         querystring: {
           type: 'object',
           properties: {
-            expiresIn: { type: 'integer', default: 3600 },
+            expiresIn: { type: 'integer', default: 3600, description: 'Expiry in seconds' },
           },
+        },
+        response: {
+          200: {
+            description: 'Signed URL',
+            type: 'object',
+            properties: {
+              url: { type: 'string', description: 'Pre-signed download URL' },
+              expiresIn: { type: 'integer' },
+            },
+          },
+          400: { description: 'Path traversal detected', type: 'object' },
+          500: { description: 'Failed to generate signed URL', type: 'object' },
         },
       },
     },

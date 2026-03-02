@@ -440,3 +440,23 @@
 ---
 
 _Archived: February 19, 2026 — 19 entries moved from active decision log_
+
+---
+
+## Closed Technical Debt Entries — February 2026
+
+### TD-003: keycloak.service.ts Coverage (CLOSED 2026-02-23)
+
+| Field        | Value                     |
+| ------------ | ------------------------- |
+| **ID**       | TD-003                    |
+| **Closed**   | 2026-02-23                |
+| **Impact**   | Quality                   |
+| **Severity** | HIGH (at time of logging) |
+| **Tracked**  | CI report 2026-02-18      |
+
+**Description**: `keycloak.service.ts` was at 2.83% test coverage — critically low for a core authentication dependency.
+
+**Resolution**: Achieved 96.1% unit test coverage + 19 integration tests added. Closed as part of auth module coverage sprint (February 2026).
+
+_Added to archive: March 2, 2026_
