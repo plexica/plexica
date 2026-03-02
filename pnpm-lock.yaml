@@ -173,8 +173,8 @@ importers:
         specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
-        specifier: ^0.575.0
-        version: 0.575.0(react@19.2.4)
+        specifier: ^0.576.0
+        version: 0.576.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -240,8 +240,8 @@ importers:
         specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
-        specifier: ^0.575.0
-        version: 0.575.0(react@19.2.4)
+        specifier: ^0.576.0
+        version: 0.576.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -307,8 +307,8 @@ importers:
         specifier: '>=1.13.5'
         version: 1.13.5
       lucide-react:
-        specifier: ^0.575.0
-        version: 0.575.0(react@19.2.4)
+        specifier: ^0.576.0
+        version: 0.576.0(react@19.2.4)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -498,8 +498,8 @@ importers:
         specifier: ^26.2.3
         version: 26.2.3
       lucide-react:
-        specifier: ^0.575.0
-        version: 0.575.0(react@19.2.4)
+        specifier: ^0.576.0
+        version: 0.576.0(react@19.2.4)
       pino:
         specifier: ^10.3.1
         version: 10.3.1
@@ -853,8 +853,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
-        specifier: ^0.575.0
-        version: 0.575.0(react@19.2.4)
+        specifier: ^0.576.0
+        version: 0.576.0(react@19.2.4)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -1761,8 +1761,8 @@ packages:
     resolution: {integrity: sha512-1jlWO4qmgqYoVUcyh+oXYRztZde/pAi7cSVzBz/rc+S7CoVzDasy8QE13dx6sLG4VRo8SfkkLbFORR6tBw4uGQ==}
     hasBin: true
 
-  '@microsoft/tsdoc-config@0.18.0':
-    resolution: {integrity: sha512-8N/vClYyfOH+l4fLkkr9+myAoR6M7akc8ntBJ4DJdWH2b09uVfr71+LTMpNyG19fNqWDg8KEDZhx5wxuqHyGjw==}
+  '@microsoft/tsdoc-config@0.18.1':
+    resolution: {integrity: sha512-9brPoVdfN9k9g0dcWkFeA7IH9bbcttzDJlXvkf8b2OBzd5MueR1V2wkKBL0abn0otvmkHJC6aapBOTJDDeMCZg==}
 
   '@microsoft/tsdoc@0.16.0':
     resolution: {integrity: sha512-xgAyonlVVS+q7Vc7qLW0UrJU7rSFcETRWsqdXZtjzRU8dF+6CkozTK4V4y1LwOX7j8r/vHphjDeMeGI4tNGeGA==}
@@ -4205,8 +4205,8 @@ packages:
   graphmatch@1.1.1:
     resolution: {integrity: sha512-5ykVn/EXM1hF0XCaWh05VbYvEiOL2lY1kBxZtaYsyvjp7cmWOU1XsAdfQBwClraEofXDT197lFbXOEVMHpvQOg==}
 
-  graphql@16.12.0:
-    resolution: {integrity: sha512-DKKrynuQRne0PNpEbzuEdHlYOMksHSUI8Zc9Unei5gTsMNA2/vMpoMz/yKba50pejK56qj98qM0SjYxAKi13gQ==}
+  graphql@16.13.0:
+    resolution: {integrity: sha512-uSisMYERbaB9bkA9M4/4dnqyktaEkf1kMHNKq/7DHyxVeWqHQ2mBmVqm5u6/FVHwF3iCNalKcg82Zfl+tffWoA==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   has-bigints@1.1.0:
@@ -4812,8 +4812,8 @@ packages:
     resolution: {integrity: sha512-DqC6n3QQ77zdFpCMASA1a3Jlb64Hv2N2DciFGkO/4L9+q/IpIAuRlKOvCXabtRW6cQf8usbmM6BE/TOPysCdIA==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
 
-  lucide-react@0.575.0:
-    resolution: {integrity: sha512-VuXgKZrk0uiDlWjGGXmKV6MSk9Yy4l10qgVvzGn2AWBx1Ylt0iBexKOAoA6I7JO3m+M9oeovJd3yYENfkUbOeg==}
+  lucide-react@0.576.0:
+    resolution: {integrity: sha512-koNxU14BXrxUfZQ9cUaP0ES1uyPZKYDjk31FQZB6dQ/x+tXk979sVAn9ppZ/pVeJJyOxVM8j1E+8QEuSc02Vug==}
     peerDependencies:
       react: ^19.2.3
 
@@ -7183,7 +7183,7 @@ snapshots:
   '@microsoft/api-extractor-model@7.32.2(@types/node@25.2.3)':
     dependencies:
       '@microsoft/tsdoc': 0.16.0
-      '@microsoft/tsdoc-config': 0.18.0
+      '@microsoft/tsdoc-config': 0.18.1
       '@rushstack/node-core-library': 5.19.1(@types/node@25.2.3)
     transitivePeerDependencies:
       - '@types/node'
@@ -7193,7 +7193,7 @@ snapshots:
     dependencies:
       '@microsoft/api-extractor-model': 7.32.2(@types/node@25.2.3)
       '@microsoft/tsdoc': 0.16.0
-      '@microsoft/tsdoc-config': 0.18.0
+      '@microsoft/tsdoc-config': 0.18.1
       '@rushstack/node-core-library': 5.19.1(@types/node@25.2.3)
       '@rushstack/rig-package': 0.6.0
       '@rushstack/terminal': 0.19.5(@types/node@25.2.3)
@@ -7209,7 +7209,7 @@ snapshots:
       - '@types/node'
     optional: true
 
-  '@microsoft/tsdoc-config@0.18.0':
+  '@microsoft/tsdoc-config@0.18.1':
     dependencies:
       '@microsoft/tsdoc': 0.16.0
       ajv: 8.18.0
@@ -9993,7 +9993,7 @@ snapshots:
 
   graphmatch@1.1.1: {}
 
-  graphql@16.12.0:
+  graphql@16.13.0:
     optional: true
 
   has-bigints@1.1.0: {}
@@ -10587,7 +10587,7 @@ snapshots:
 
   lru.min@1.1.4: {}
 
-  lucide-react@0.575.0(react@19.2.4):
+  lucide-react@0.576.0(react@19.2.4):
     dependencies:
       react: 19.2.4
 
@@ -10678,7 +10678,7 @@ snapshots:
       '@open-draft/deferred-promise': 2.2.0
       '@types/statuses': 2.0.6
       cookie: 1.1.1
-      graphql: 16.12.0
+      graphql: 16.13.0
       headers-polyfill: 4.0.3
       is-node-process: 1.2.0
       outvariant: 1.4.3
