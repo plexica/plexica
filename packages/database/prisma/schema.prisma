@@ -41,6 +41,9 @@ model Tenant {
   plugins       TenantPlugin[]
   ratings       PluginRating[]
   installations PluginInstallation[]
+  jobs          Job[]
+  notifications Notification[]
+  searchDocuments SearchDocument[]
 
   @@index([status], map: "idx_tenants_status")
   @@index([deletionScheduledAt], map: "idx_tenants_deletion_scheduled_at")
@@ -503,6 +506,108 @@ model WorkspaceTemplateItem {
 
   @@index([templateId])
   @@map("workspace_template_items")
+  @@schema("core")
+}
+
+// ============================================================================
+// CORE SERVICES - Jobs, Notifications, Search (Spec 007)
+// ============================================================================
+
+enum JobStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  SCHEDULED
+
+  @@schema("core")
+}
+
+model Job {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  name           String    @db.VarChar(255)
+  pluginId       String?   @map("plugin_id") @db.VarChar(255)
+  status         JobStatus @default(PENDING)
+  payload        Json      @default("{}")
+  result         Json?
+  error          String?
+  retries        Int       @default(0)
+  maxRetries     Int       @default(3) @map("max_retries")
+  cronExpression String?   @map("cron_expression") @db.VarChar(255)
+  scheduledAt    DateTime? @map("scheduled_at")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status], map: "idx_jobs_tenant_status")
+  @@index([tenantId, name], map: "idx_jobs_tenant_name")
+  @@index([scheduledAt], map: "idx_jobs_scheduled_at")
+  @@map("jobs")
+  @@schema("core")
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+  IN_APP
+
+  @@schema("core")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+
+  @@schema("core")
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  tenantId  String              @map("tenant_id")
+  userId    String              @map("user_id") @db.VarChar(255)
+  channel   NotificationChannel
+  status    NotificationStatus  @default(PENDING)
+  title     String              @db.VarChar(255)
+  body      String
+  metadata  Json?
+  readAt    DateTime?           @map("read_at")
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, status], map: "idx_notifications_tenant_user_status")
+  @@index([tenantId, userId, createdAt(sort: Desc)], map: "idx_notifications_tenant_user_created")
+  @@map("notifications")
+  @@schema("core")
+}
+
+model SearchDocument {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  documentId   String   @map("document_id") @db.VarChar(255)
+  type         String   @db.VarChar(100)
+  title        String   @db.VarChar(500)
+  body         String
+  metadata     Json?
+  /// Generated tsvector — maintained by DB trigger (search_documents_vector_trigger)
+  searchVector String?  @map("search_vector")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type, documentId], map: "search_documents_tenant_type_doc_unique")
+  @@index([tenantId, type], map: "idx_search_documents_tenant_type")
+  @@map("search_documents")
   @@schema("core")
 }
 

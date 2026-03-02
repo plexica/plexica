@@ -36,6 +36,20 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* =========================================================
+   * Spec 007: Core Services design tokens (design-spec.md §5)
+   * ========================================================= */
+  --notification-dot: #2563eb;
+  --notification-dot-size: 8px;
+  --notification-badge-bg: #dc2626;
+  --notification-badge-fg: #ffffff;
+  --search-overlay-width: 640px;
+  --search-overlay-max-height: 480px;
+  --upload-progress-height: 8px;
+  --upload-progress-bg: #e5e7eb;
+  --upload-progress-fill: #0066cc;
+  --job-stat-card-min-width: 140px;
 }
 
 .dark {
@@ -70,6 +84,20 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* =========================================================
+   * Spec 007: Core Services design tokens — dark mode overrides
+   * ========================================================= */
+  --notification-dot: #60a5fa;
+  --notification-dot-size: 8px;
+  --notification-badge-bg: #ef4444;
+  --notification-badge-fg: #ffffff;
+  --search-overlay-width: 640px;
+  --search-overlay-max-height: 480px;
+  --upload-progress-height: 8px;
+  --upload-progress-bg: #374151;
+  --upload-progress-fill: #3b82f6;
+  --job-stat-card-min-width: 140px;
 }
 
 @theme inline {

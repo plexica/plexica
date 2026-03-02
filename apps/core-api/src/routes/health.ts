@@ -2,6 +2,8 @@ import { FastifyPluginAsync } from 'fastify';
 import { getPrismaClient } from '@plexica/database';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { getMinioClient } from '../services/minio-client.js';
+import { redis } from '../lib/redis.js';
 
 // Read version from package.json at startup
 // __dirname is available because tsconfig compiles to CommonJS
@@ -68,13 +70,14 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
   );
 
   // Full health check with detailed info
+  // T007-23: Extended with MinIO, job_queue, search, and notifications checks (Spec 007)
   server.get(
     '/',
     {
       schema: {
         tags: ['health'],
         summary: 'Full health check',
-        description: 'Returns detailed health information',
+        description: 'Returns detailed health information including all service dependencies',
       },
     },
     async (_request, reply) => {
@@ -89,19 +92,52 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
         checks.database = 'error';
       }
 
-      // TODO: Add more health checks
-      // - Redis
-      // - Keycloak
-      // - Kafka/Redpanda
+      // MinIO check (T007-23 — NFR-001)
+      try {
+        const healthy = await getMinioClient().healthCheck();
+        checks.minio = healthy ? 'ok' : 'error';
+      } catch {
+        checks.minio = 'error';
+      }
 
-      const allOk = Object.values(checks).every((status) => status === 'ok');
+      // Job queue check: Redis ping + basic connectivity (T007-23 — NFR-006)
+      try {
+        const pong = await redis.ping();
+        checks.job_queue = pong === 'PONG' ? 'ok' : 'error';
+      } catch {
+        checks.job_queue = 'error';
+      }
 
-      if (!allOk) {
+      // Search check: verify search_documents table accessible (T007-23 — NFR-004)
+      try {
+        const prisma = getPrismaClient();
+        await (prisma as any).searchDocument.count({ take: 0 });
+        checks.search = 'ok';
+      } catch {
+        // Table may not exist yet (pre-migration) — degrade gracefully
+        checks.search = 'error';
+      }
+
+      // Notifications check: SMTP config presence (T007-23 — NFR-005)
+      // Skip reachability check to avoid slow health response; just verify config
+      try {
+        const smtpHost = process.env['SMTP_HOST'];
+        checks.notifications = smtpHost ? 'ok' : 'degraded';
+      } catch {
+        checks.notifications = 'error';
+      }
+
+      const allOk = Object.values(checks).every((s) => s === 'ok' || s === 'degraded');
+      const anyDown = Object.values(checks).some((s) => s === 'error');
+
+      const overallStatus = anyDown ? 'unhealthy' : allOk ? 'healthy' : 'degraded';
+
+      if (anyDown) {
         reply.status(503);
       }
 
       return {
-        status: allOk ? 'healthy' : 'unhealthy',
+        status: overallStatus,
         timestamp: new Date().toISOString(),
         version: APP_VERSION,
         checks,

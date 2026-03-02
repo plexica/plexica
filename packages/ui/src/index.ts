@@ -43,6 +43,15 @@ export * from './components/ColorPicker/ColorPicker';
 export * from './components/DeletionCountdown/DeletionCountdown';
 export * from './components/ThemePreview/ThemePreview';
 
+// Core Services Components (Spec 007 — T007-24 to T007-29)
+export * from './components/JobStatusBadge/JobStatusBadge';
+export * from './components/FileListItem/FileListItem';
+export * from './components/FileListItem/FileListItem.types';
+export * from './components/JobDetailPanel/JobDetailPanel';
+export * from './components/SearchOverlay/SearchOverlay';
+export * from './components/NotificationBell/NotificationBell';
+export * from './components/FileUploadZone/FileUploadZone';
+
 // Data Display Components
 export * from './components/DataTable/DataTable';
 export * from './components/Table/Table';
