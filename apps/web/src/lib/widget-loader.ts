@@ -121,7 +121,7 @@ export function loadWidget<T = Record<string, unknown>>({
       // Sanitize identifiers in log to prevent log injection — only pre-validated
       // values reach here, but we use String() to be explicit.
       logger.error(
-        { pluginId: String(pluginId), widgetName: String(widgetName) },
+        { pluginId: String(pluginId), widgetName: String(widgetName), err: error },
         'Failed to load widget'
       );
 

@@ -23,6 +23,28 @@ import { loadWidget } from '@/lib/widget-loader';
 import { PluginErrorBoundary } from '@/components/ErrorBoundary/PluginErrorBoundary';
 
 // ---------------------------------------------------------------------------
+// Module-level widget component cache
+//
+// React Compiler rule: React.lazy() must never be called during render.
+// Caching at module level ensures each unique pluginId/widgetName pair
+// produces exactly one lazy component instance for the app lifetime.
+// ---------------------------------------------------------------------------
+const _widgetComponentCache = new Map<string, React.ComponentType<Record<string, unknown>>>();
+
+function getCachedWidgetComponent(
+  pluginId: string,
+  widgetName: string
+): React.ComponentType<Record<string, unknown>> {
+  const key = `${pluginId}/${widgetName}`;
+  let comp = _widgetComponentCache.get(key);
+  if (!comp) {
+    comp = loadWidget({ pluginId, widgetName }) as React.ComponentType<Record<string, unknown>>;
+    _widgetComponentCache.set(key, comp);
+  }
+  return comp;
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 export interface WidgetContainerProps {
@@ -98,13 +120,10 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
 }) => {
   const widgetsEnabled = useFeatureFlag('ENABLE_PLUGIN_WIDGETS');
 
-  // Memoize the lazy component — React.lazy() must not be called inside render.
-  // loadWidget() validates pluginId/widgetName synchronously before creating the
-  // lazy component, so invalid inputs surface at render time.
-  const WidgetComponent = useMemo(
-    () => loadWidget({ pluginId, widgetName }),
-    [pluginId, widgetName]
-  );
+  // Stable lazy component from module-level cache — React.lazy() is only ever
+  // called once per pluginId/widgetName pair (inside the cache helper), not on
+  // every render.
+  const WidgetComponent = getCachedWidgetComponent(pluginId, widgetName);
 
   // Memoize the error fallback component to keep the PluginErrorBoundary
   // reference stable across renders.
@@ -124,6 +143,7 @@ export const WidgetContainer: React.FC<WidgetContainerProps> = ({
           during widget component rendering. It MUST wrap Suspense. */}
       <PluginErrorBoundary pluginId={pluginId} pluginName={title} fallback={ErrorFallbackComponent}>
         <Suspense fallback={fallback ?? <SkeletonFallback />}>
+          {/* eslint-disable-next-line react-hooks/static-components -- WidgetComponent is memoised in a module-level Map; React.lazy() is called at most once per key, not on every render. */}
           <WidgetComponent {...widgetProps} />
         </Suspense>
       </PluginErrorBoundary>
