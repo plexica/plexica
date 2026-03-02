@@ -5,12 +5,13 @@
 > accessibility testing. Required by Spec 010 (Frontend Production Readiness)
 > Phase 5 — Accessibility Compliance.
 
-| Field    | Value                                     |
-| -------- | ----------------------------------------- |
-| Status   | Proposed                                  |
-| Author   | forge-architect                           |
-| Date     | 2026-02-28                                |
-| Deciders | Architecture Team, QA Lead, Frontend Lead |
+| Field         | Value                                     |
+| ------------- | ----------------------------------------- |
+| Status        | Accepted                                  |
+| Author        | forge-architect                           |
+| Date          | 2026-02-28                                |
+| Accepted Date | 2026-03-02                                |
+| Deciders      | Architecture Team, QA Lead, Frontend Lead |
 
 ---
 

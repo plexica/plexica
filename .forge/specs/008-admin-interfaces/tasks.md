@@ -56,8 +56,33 @@
 | T008-25 | E2E — Edge case guards and cross-tenant isolation              | test     | 2   | 4     | T008-22, T008-23                   |
 | T008-26 | E2E — Audit log query: date range and action filters           | test     | 1   | 4     | T008-22                            |
 | T008-27 | Update project status documentation                            | docs     | 1   | 5     | T008-26                            |
+| T008-39 | Admin route trees + shells                                     | frontend | 3   | 5(FE) | —                                  |
+| T008-40 | AdminSidebarNav component                                      | frontend | 3   | 5(FE) | T008-39                            |
+| T008-41 | Auth guard hooks + API client                                  | frontend | 2   | 5(FE) | —                                  |
+| T008-42 | Design tokens                                                  | frontend | 1   | 5(FE) | —                                  |
+| T008-43 | Super Admin Dashboard screen                                   | frontend | 2   | 6     | T008-39, T008-41, T008-11          |
+| T008-44 | Tenant List + Detail screens                                   | frontend | 3   | 6     | T008-39, T008-41, T008-11          |
+| T008-45 | Tenant Create Wizard (ProvisioningWizard)                      | frontend | 5   | 6     | T008-44, T008-11                   |
+| T008-46 | Plugin List + Config screens                                   | frontend | 2   | 6     | T008-39, T008-41                   |
+| T008-47 | Super Admin Users screen                                       | frontend | 2   | 6     | T008-39, T008-41, T008-11          |
+| T008-48 | System Config screen                                           | frontend | 2   | 6     | T008-39, T008-41, T008-11          |
+| T008-49 | Global Audit Log screen                                        | frontend | 2   | 6     | T008-39, T008-41, T008-11          |
+| T008-50 | System Health screen                                           | frontend | 1   | 6     | T008-39, T008-41, T008-11          |
+| T008-51 | Tenant Admin Dashboard screen                                  | frontend | 1   | 7     | T008-39, T008-41, T008-18          |
+| T008-52 | User List + Invite screen                                      | frontend | 3   | 7     | T008-39, T008-41, T008-18          |
+| T008-53 | Team List + Team Detail screens                                | frontend | 2   | 7     | T008-39, T008-41, T008-18          |
+| T008-54 | Role Editor screen                                             | frontend | 3   | 7     | T008-39, T008-41, T008-18          |
+| T008-55 | Plugin Settings screen                                         | frontend | 1   | 7     | T008-39, T008-41                   |
+| T008-56 | Tenant Settings screen                                         | frontend | 2   | 7     | T008-39, T008-41, T008-18          |
+| T008-57 | Tenant Audit Log screen                                        | frontend | 1   | 7     | T008-39, T008-41, T008-18, T008-58 |
+| T008-58 | AuditLogTable + DestructiveConfirmModal components             | frontend | 2   | 7     | T008-39                            |
+| T008-59 | Accessibility hardening                                        | frontend | 3   | 8     | T008-43–T008-57                    |
+| T008-60 | Frontend unit tests — components                               | test     | 3   | 8     | T008-40, T008-44–T008-58           |
+| T008-61 | Frontend unit tests — hooks                                    | test     | 2   | 8     | T008-41, T008-43–T008-57           |
+| T008-62 | Playwright E2E tests — critical flows                          | test     | 3   | 8     | T008-43–T008-57                    |
+| T008-63 | Playwright a11y tests (ADR-022)                                | test     | 2   | 8     | T008-59, ADR-022 Accepted          |
 
-**Total: 28 tasks · 77 story points**
+**Total: 53 tasks · ~112 story points**
 
 ---
 
@@ -110,13 +135,13 @@
   - **File**: `packages/database/prisma/schema.prisma`
   - **Change type**: Modify existing
   - **Location**: After `AuditLog` model
-  - **Description**: Add `SystemConfig` model with fields: `key` (String PK), `value` (Json, NOT NULL), `category` (String, max 50), `description` (String?), `updatedBy` (String?), `updatedAt` (DateTime, `@updatedAt`), `createdAt` (DateTime, `@default(now())`). Use `@@map("system_config")`. Add `idx_system_config_category` B-TREE index on `category`. Run migration. Seed 5 default rows using idempotent upsert in the migration SQL: `maintenance_mode` (false, maintenance), `max_tenants` (1000, limits), `max_users_per_tenant` (500, limits), `feature_flag_analytics` (true, features), `registration_enabled` (true, general).
-  - **Spec Reference**: Plan §2.1, §2.3, §2.4 Migration 002; Spec §4 FR-005
+  - **Description**: Add `SystemConfig` model with fields: `key` (String PK), `value` (Json, NOT NULL), `category` (String, max 50), `description` (String?), `updatedBy` (String?), `updatedAt` (DateTime, `@updatedAt`), `createdAt` (DateTime, `@default(now())`). Use `@@map("system_config")`. Add `idx_system_config_category` B-TREE index on `category`. Run migration. Seed 6 default rows using idempotent upsert in the migration SQL: `maintenance_mode` (false, maintenance), `max_tenants` (1000, limits), `max_users_per_tenant` (500, limits), `feature_flag_analytics` (true, features), `registration_enabled` (true, general), `admin_interfaces_enabled` (true, features).
+  - **Spec Reference**: Plan §2.1, §2.3, §2.4 Migration 002; Spec §4 FR-005; T008-39 feature flag gate
   - **Dependencies**: None (parallelizable with T008-01, T008-03, T008-04)
   - **Acceptance Criteria**:
     1. `SystemConfig` model present with `@@map("system_config")` and all 7 listed fields.
     2. `idx_system_config_category` index exists in migration SQL.
-    3. After `pnpm db:migrate`, exactly 5 seed rows exist with correct keys, values, and categories.
+    3. After `pnpm db:migrate`, exactly 6 seed rows exist with correct keys, values, and categories — including `admin_interfaces_enabled` (true, features), which is required by the T008-39 frontend feature flag gate.
     4. Running the migration a second time (on a database that already has the seed rows) is idempotent (upsert, no error).
 
 ---
@@ -430,6 +455,7 @@
     2. Last-admin guard integration test passes without mocks (real database state).
     3. All error responses on 4xx paths return `{ error: { code, message } }` shape.
     4. Tests are isolated via transaction rollback — no state leaks between tests.
+    5. **FR-012 plugin enable/disable integration test** (resolves Analysis LOW ISSUE-007): `POST /api/v1/tenant/plugins/:id/enable` and `POST /api/v1/tenant/plugins/:id/disable` return 200 with updated plugin status; subsequent `GET /api/v1/tenant/plugins` reflects the change; unauthorized token returns 403.
 
 **Phase 3 estimated: 8 tasks · 35 story points**
 
@@ -537,69 +563,592 @@
     3. No "🟡 In Progress" entries remain for Spec 008 tasks.
     4. Docs-only commit (no code changes bundled).
 
-**Phase 5 estimated: 1 task · 1 story point**
+**Phase 5 (Documentation) estimated: 1 task · 1 story point**
+
+---
+
+## Phase 5 (Frontend): Frontend Foundation
+
+> **Objective**: Set up the two admin portal shells with routing, sidebar navigation, auth guards, design
+> tokens, and skeleton loading — providing the scaffold for all screen implementations in Phases 6–7.
+> Phase 5 (FE) can run **in parallel** with backend Phases 2–3 since it only sets up shells, routes,
+> tokens, and shared components. No backend APIs are required until Phases 6–7.
+
+---
+
+- [ ] **T008-39** `[⚠ HIGH]` `[L]` `[FR-001]` `[FR-008]` Admin route trees + shells
+  - **FR/NFR**: FR-001 (Super Admin Portal), FR-008 (Tenant Admin Portal), NFR-005 (WCAG skip-nav)
+  - **Type**: frontend · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/_layout.tsx` (create new, ~120 lines)
+    - `apps/frontend/src/routes/super-admin/index.tsx` (create new, ~20 lines)
+    - `apps/frontend/src/routes/admin/_layout.tsx` (create new, ~120 lines)
+    - `apps/frontend/src/routes/admin/index.tsx` (create new, ~20 lines)
+    - `apps/frontend/src/router.tsx` (modify existing — register route trees)
+  - **Change type**: Create new files + Modify existing
+  - **Description**: Create the two admin portal layout shells and register their route trees in TanStack Router. **(A) `super-admin/_layout.tsx`**: header bar using `--admin-header-bg` token, hamburger toggle visible at ≤768px, `<AdminSidebarNav>` with Super Admin `navItems` prop (Dashboard, Tenants, Plugins, Users, System Config, Audit Log, Health), `<Outlet>` for child routes, `<Suspense fallback={<AdminSkeleton />}>` wrapper around outlet. **(B) `super-admin/index.tsx`**: redirect to `/super-admin/dashboard` or dashboard placeholder. **(C) `admin/_layout.tsx`**: same shell pattern with Tenant Admin `navItems` (Dashboard, Users, Teams, Roles, Plugin Settings, Settings, Audit Log). **(D) `admin/index.tsx`**: redirect to `/admin/dashboard`. **(E) `router.tsx`**: register `/super-admin/*` and `/admin/*` lazy route trees. Both shells call `useRequireSuperAdmin()` / `useRequireTenantAdmin()` respectively at the layout level. **Feature flag gate**: both layout files check `admin_interfaces_enabled` feature flag from `SystemConfig` (resolved via context or API call); redirect to `/` with error toast if flag is `false`. Responsive: sidebar permanently visible ≥1024px, collapses to hamburger overlay at ≤768px. Sidebar state stored in `localStorage` for persistence.
+  - **Spec Reference**: Plan §12 Phase 5; design-spec §2 (portal navigation); Analysis MEDIUM ISSUE-005 (feature flag gate)
+  - **Dependencies**: None (can start in parallel with backend Phases 2–3; T008-40 for AdminSidebarNav component, T008-41 for auth hooks)
+  - **Acceptance Criteria**:
+    1. Navigating to `/super-admin/*` without `super_admin` role redirects to `/` — layout enforces auth guard via `useRequireSuperAdmin()`.
+    2. Navigating to `/super-admin/*` when `admin_interfaces_enabled = false` in SystemConfig redirects to `/` and shows an error toast — feature flag gate is enforced at layout level (resolves Analysis MEDIUM ISSUE-005).
+    3. At 1024px and above, `AdminSidebarNav` is permanently visible; at 768px and below, a hamburger button toggles the overlay sidebar, and pressing `Escape` or clicking outside closes it.
+    4. `pnpm build` compiles both layout files and the updated router config without TypeScript errors.
+
+---
+
+- [ ] **T008-40** `[P]` `[L]` `[NFR-005]` `[NFR-006]` AdminSidebarNav component
+  - **FR/NFR**: NFR-005 (WCAG 2.1 AA), NFR-006 (keyboard navigation), NFR-007 (screen reader)
+  - **Type**: frontend · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/components/admin/AdminSidebarNav.tsx` (create new, ~250 lines)
+    - `apps/frontend/src/components/admin/AdminSidebarNav.test.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/components/admin/index.ts` (create new, ~15 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement the `AdminSidebarNav` React component. **Props**: `navItems: { label: string; icon: LucideIcon; path: string; badge?: number }[]`, `collapsed: boolean`, `onToggle: () => void`, `portalLabel: string` (for `aria-label`). **Rendering**: `<nav aria-label={portalLabel}>` wrapping a `<ul>` of `<li>` items. Each item renders a `<NavLink>` from TanStack Router; active item gets left border using `--admin-nav-active-border` CSS token and `aria-current="page"`. If `badge` is set, render a `<span aria-label="{badge} notifications">` badge. **Skip-nav**: render a visually-hidden-until-focus `<a href="#main-content">Skip to main content</a>` at the very top of every admin shell (inside the layout, before the nav). **Mobile overlay**: when `collapsed=false` and viewport ≤768px, render a `<div role="dialog" aria-modal="true" aria-label="Navigation menu">` overlay with a semi-transparent backdrop (`--overlay-backdrop` token). Pressing `Escape` calls `onToggle`; clicking backdrop calls `onToggle`. **Keyboard navigation**: `ArrowDown` / `ArrowUp` moves focus between nav items; `Home` / `End` jump to first/last; `Enter` / `Space` activate. Use `roving tabindex` pattern (only active/focused item has `tabIndex=0`). **Unit tests** (`AdminSidebarNav.test.tsx`): render with navItems, verify active item has `aria-current="page"`, collapse toggle fires `onToggle`, keyboard nav (ArrowDown moves focus), mobile overlay renders when `collapsed=false`, `Escape` closes overlay, skip-nav link present in DOM. All tests use React Testing Library + Vitest.
+  - **Spec Reference**: Plan §12 Phase 5 T008-40; design-spec §3 AdminSidebarNav; design-spec §6 WCAG checklist
+  - **Dependencies**: None (parallelizable with T008-39, T008-41, T008-42)
+  - **Acceptance Criteria**:
+    1. `<nav aria-label="...">` wraps all items; active `NavLink` has `aria-current="page"` and left-border style using `--admin-nav-active-border` token.
+    2. `ArrowDown` moves DOM focus to the next nav item (verified by RTL `userEvent.keyboard('{ArrowDown}')` assertion on `document.activeElement`).
+    3. Mobile overlay renders as `role="dialog" aria-modal="true"`; `Escape` key fires `onToggle` callback; clicking backdrop fires `onToggle`.
+    4. All 6 unit test scenarios pass; `AdminSidebarNav.tsx` line coverage ≥85% per `pnpm test:unit`.
+
+---
+
+- [ ] **T008-41** `[P]` `[M]` `[NFR-003]` Auth guard hooks + API client
+  - **FR/NFR**: NFR-003 (authentication enforcement), NFR-004 (tenant isolation)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/hooks/admin/useAdminAuth.ts` (create new, ~60 lines)
+    - `apps/frontend/src/api/admin.ts` (create new, ~300 lines)
+  - **Change type**: Create new files
+  - **Description**: **(A) `useAdminAuth.ts`**: Implement two React hooks. `useRequireSuperAdmin()`: reads user roles from the app's existing auth context (e.g., `useAuth()` / `useUser()`); if user does not have `super_admin` role, calls TanStack Router's `navigate({ to: '/' })` and returns `null`; otherwise returns the current user. `useRequireTenantAdmin()`: same pattern, checks for `tenant_admin` or `tenant_owner` or `admin` role; redirects to tenant home page if role is absent. Both hooks are idempotent on re-render. **(B) `api/admin.ts`**: typed API client functions for all 19+ backend endpoints. Each function accepts typed parameters, injects the Bearer token from the auth context (via shared `apiClient` or direct `fetch` with Authorization header), and returns a typed response. Functions to implement: `getSuperAdminDashboard()`, `getTenants(params)`, `getTenant(id)`, `createTenant(dto)`, `updateTenant(id, dto)`, `suspendTenant(id)`, `reactivateTenant(id)`, `deleteTenant(id)`, `getSuperAdmins(params)`, `createSuperAdmin(dto)`, `deleteSuperAdmin(id)`, `getSystemConfig(category?)`, `updateSystemConfig(key, value)`, `getSystemHealth()`, `getAdminAuditLogs(params)`, `getTenantAdminDashboard()`, `getUsers(params)`, `inviteUser(dto)`, `updateUser(id, dto)`, `deactivateUser(id)`, `getTeams(params)`, `createTeam(dto)`, `updateTeam(id, dto)`, `deleteTeam(id)`, `addTeamMember(teamId, dto)`, `removeTeamMember(teamId, userId)`, `getRoles()`, `createRole(dto)`, `updateRole(id, dto)`, `deleteRole(id)`, `getPermissions()`, `getTenantSettings()`, `updateTenantSettings(dto)`, `getTenantAuditLogs(params)`. All functions are typed with TypeScript interfaces matching the backend response schemas. Network errors are re-thrown as typed `ApiError` objects with `code` and `message`.
+  - **Spec Reference**: Plan §12 Phase 5 T008-41; design-spec §4 (auth guard pattern)
+  - **Dependencies**: None (parallelizable with T008-39, T008-40, T008-42)
+  - **Acceptance Criteria**:
+    1. `useRequireSuperAdmin()` called in a component without `super_admin` role triggers `navigate({ to: '/' })` (verified by RTL test with mocked auth context).
+    2. `useRequireTenantAdmin()` allows `tenant_admin`, `tenant_owner`, and `admin` roles; rejects `viewer` with redirect.
+    3. `api/admin.ts` exports typed functions for all 33+ backend endpoints; TypeScript compilation succeeds with no implicit `any`.
+    4. Each API function injects `Authorization: Bearer <token>` header from the auth context (verified by MSW handler assertions in unit tests for T008-61).
+
+---
+
+- [ ] **T008-42** `[P]` `[S]` Design tokens
+  - **FR/NFR**: NFR-005 (design consistency), NFR-006 (theme tokens)
+  - **Type**: frontend · **Points**: 1
+  - **File**: `apps/frontend/src/styles/tokens.css` (modify existing)
+  - **Change type**: Modify existing
+  - **Location**: After existing token definitions, in a `/* === Spec 008: Admin Interface tokens === */` block
+  - **Description**: Add 8 new CSS custom property tokens to `tokens.css` with both light-mode (`:root`) and dark-mode (`[data-theme="dark"]` or `@media (prefers-color-scheme: dark)`) values, matching the existing token file's structure and naming convention. Tokens to add: `--admin-header-bg: #FAFAFA` / dark `#111111`; `--admin-nav-active-border: #0066CC` / dark `#3B82F6`; `--wizard-step-complete: #16A34A` / dark `#22C55E`; `--wizard-step-active: #0066CC` / dark `#3B82F6`; `--wizard-step-pending: #D4D4D8` / dark `#3F3F46`; `--wizard-step-error: #DC2626` / dark `#EF4444`; `--provisioning-bar-bg: #E5E7EB` / dark `#374151`; `--provisioning-bar-fill: #0066CC` / dark `#3B82F6`. All values must satisfy WCAG 2.1 AA contrast ratio (≥4.5:1 for text, ≥3:1 for UI components) — verify with a contrast checker before submitting.
+  - **Spec Reference**: Plan §12 Phase 5 T008-42; design-spec §5 (Design Tokens table)
+  - **Dependencies**: None (parallelizable with T008-39, T008-40, T008-41)
+  - **Acceptance Criteria**:
+    1. Exactly 8 new token entries appear in `tokens.css` under the Spec 008 comment block.
+    2. Every token has both a light value (in `:root`) and a dark value, matching the exact hex values specified above.
+    3. `--admin-nav-active-border` (`#0066CC` on `#FAFAFA` background) achieves ≥4.5:1 contrast ratio (WCAG 2.1 AA for normal text) — verified by automated contrast check or documented manual check.
+    4. `pnpm build` compiles without errors; no existing token overridden or removed.
+
+**Phase 5 (Frontend Foundation) estimated: 4 tasks · 9 story points**
+
+---
+
+## Phase 6: Super Admin Panel Screens
+
+> **Objective**: Implement all 10 Super Admin screens from design-spec §2 (Screens 1–10), wiring them
+> to the backend APIs completed in Phases 1–2. All screens live under the `/super-admin/*` route tree
+> scaffolded in Phase 5.
+>
+> **Depends on**: Phase 5 (FE) for shells and components; Phases 1–2 (backend) for API endpoints.
+
+---
+
+- [ ] **T008-43** `[P]` `[M]` `[FR-001]` Super Admin Dashboard screen
+  - **FR/NFR**: FR-001 (Super Admin Portal — dashboard), NFR-001 (performance), NFR-005 (a11y)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/index.tsx` (modify — overwrite placeholder, ~150 lines)
+    - `apps/frontend/src/hooks/admin/useSuperAdminDashboard.ts` (create new, ~40 lines)
+    - `apps/frontend/src/hooks/admin/useSystemHealth.ts` (create new, ~50 lines)
+    - `apps/frontend/src/components/admin/SystemHealthCard.tsx` (create new, ~120 lines)
+    - `apps/frontend/src/components/admin/SystemHealthCard.test.tsx` (create new, ~100 lines)
+  - **Change type**: Modify existing + Create new files
+  - **Description**: Implement Screen 1 (Super Admin Dashboard) per design-spec §2.1. **Screen layout**: 4 metric cards (Total Tenants, Total Users, Active Plugins, API Calls 24h) in a horizontal row at ≥1024px, 2×2 grid at 768px; each card shows a number, label, and trend indicator. Below: `SystemHealthCard` (compact variant) showing overall system status. **`useSuperAdminDashboard()` hook**: `useQuery` calling `getSuperAdminDashboard()` from `api/admin.ts`; returns `{ tenants, users, plugins, health, apiCalls24h }`; `staleTime: 30_000`. **`useSystemHealth()` hook**: `useQuery` with `refetchInterval: 30_000` calling `getSystemHealth()`; returns per-dependency statuses. **`SystemHealthCard` component**: two variants via `variant: 'compact' | 'detailed'` prop. Compact variant: single status badge (`healthy`/`degraded`/`unhealthy`) + timestamp. Detailed variant (used in T008-50): per-dependency rows with latency. A11y: `aria-live="polite"` container wrapping the health card so screen readers announce status changes. **Loading state**: skeleton cards (4 metric skeletons + 1 health skeleton). **Error state**: error banner with retry button and error message from API response. **Unit tests** (`SystemHealthCard.test.tsx`): compact variant renders badge, detailed variant renders all 4 dependencies, unhealthy state applies error styles, `aria-live="polite"` present.
+  - **Spec Reference**: Plan §12 Phase 6 T008-43; design-spec §2.1; Spec §4 FR-001
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-11 (backend dashboard endpoint)
+  - **Acceptance Criteria**:
+    1. Dashboard renders 4 metric cards and the compact SystemHealthCard using data from `GET /api/v1/admin/dashboard`.
+    2. `useSystemHealth()` auto-refetches every 30 seconds (verified by advancing fake timers in unit test).
+    3. Loading state shows skeleton cards; error state shows error banner with retry button that calls `refetch()`.
+    4. SystemHealthCard `aria-live="polite"` container is present in the DOM (verified by RTL `getByRole` or `axe` scan).
+
+---
+
+- [ ] **T008-44** `[P]` `[L]` `[FR-002]` Tenant List + Detail screens
+  - **FR/NFR**: FR-002 (tenant CRUD), NFR-001 (pagination), NFR-005 (a11y)
+  - **Type**: frontend · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/tenants/index.tsx` (create new, ~200 lines)
+    - `apps/frontend/src/routes/super-admin/tenants/$tenantId.tsx` (create new, ~200 lines)
+    - `apps/frontend/src/hooks/admin/useTenants.ts` (create new, ~120 lines)
+    - `apps/frontend/src/components/admin/TenantStatusBadge.tsx` (create new, ~60 lines)
+    - `apps/frontend/src/components/admin/TenantStatusBadge.test.tsx` (create new, ~80 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screens 2 (Tenant List) and 4 (Tenant Detail/Edit) per design-spec §2.2–2.4. **`TenantStatusBadge` component**: renders a colored badge for 5 tenant statuses: `ACTIVE` (green), `SUSPENDED` (amber), `PROVISIONING` (blue with spinner), `PENDING_DELETION` (red), `DELETED` (grey). Each variant uses the correct Tailwind token color. A11y: `role="status"` + `aria-label="Tenant status: {status}"`. **`useTenants()` hook**: `useQuery` for list (with `page`, `limit`, `search`, `status` query params, `staleTime: 60_000`); `useMutation` hooks for `createTenant` (with `onSuccess` cache invalidation), `updateTenant`, `suspendTenant`, `reactivateTenant`, `deleteTenant`. **Tenant List screen (`index.tsx`)**: `DataTable` component with columns (Name, Slug, Status badge, Created At, Actions); search input debounced 300ms; status filter dropdown (All / Active / Suspended / Provisioning); pagination (`<nav aria-label="Tenant list pagination">`); row action `⋮` dropdown with Edit (navigate to `$tenantId`), Suspend (calls `suspendTenant` mutation + toast), Reactivate (calls `reactivateTenant` mutation), Delete (opens `DestructiveConfirmModal` typed-confirm requiring tenant slug); empty state: illustration + "No tenants found" message with "Create Tenant" button. **Tenant Detail screen (`$tenantId.tsx`)**: edit form with React Hook Form + Zod validation; fields: tenant name, theme preview, max users; Save button calls `updateTenant` mutation; Breadcrumb: Super Admin > Tenants > {tenantName}. **Unit tests** (`TenantStatusBadge.test.tsx`): render each of 5 status variants, verify correct class/color and `aria-label`.
+  - **Spec Reference**: Plan §12 Phase 6 T008-44; design-spec §2.2–2.4; Spec §4 FR-002
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-11 (backend tenant endpoints)
+  - **Acceptance Criteria**:
+    1. Tenant List DataTable renders with search, status filter, pagination, and row action dropdown; filtering by status calls API with correct `status` query param.
+    2. `TenantStatusBadge` renders all 5 status variants with correct visual styling and `aria-label="Tenant status: {status}"`.
+    3. Delete row action opens `DestructiveConfirmModal` requiring the tenant slug to be typed; confirming calls `deleteTenant` mutation and invalidates the tenant list cache.
+    4. Tenant Detail edit form validates with Zod; submitting calls `updateTenant` and shows a success toast.
+
+---
+
+- [ ] **T008-45** `[⚠ HIGH]` `[XL]` `[FR-002]` `[NFR-008]` Tenant Create Wizard (ProvisioningWizard)
+  - **FR/NFR**: FR-002 (tenant creation), NFR-008 (provisioning orchestrator), NFR-005 (a11y)
+  - **Type**: frontend · **Points**: 5
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/tenants/new.tsx` (create new, ~350 lines)
+    - `apps/frontend/src/components/admin/ProvisioningWizard.tsx` (create new, ~400 lines)
+    - `apps/frontend/src/components/admin/ProvisioningWizard.test.tsx` (create new, ~250 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screen 3 (Tenant Create Wizard) per design-spec §2.3, following ADR-016 (wizard state pattern). **State management**: `useReducer` with a `WizardState` type (`{ step: 1|2|3; formData: Step1Data & Step2Data; provisioningStatus: ProvisioningStatus | null; error: string | null }`); each step uses its own `useForm` instance (React Hook Form + Zod). **`sessionStorage` persistence**: serialize `WizardState` to `sessionStorage` on every dispatch; rehydrate on mount (survives accidental page refresh, per ADR-016). **Step 1 — Details**: fields: tenant name (required), slug (auto-generated from name via slugify, editable), admin email (required, valid email). Slug uniqueness check on blur: calls `GET /api/v1/admin/tenants?slug={slug}` (or dedicated check endpoint); shows inline error "Slug already taken" if conflict (Edge Case #1). "Next" advances to Step 2. **Step 2 — Configure**: theme primary color picker, initial plugin checkboxes (from `usePlugins()` list), max users number input. "Back" returns to Step 1 (form values preserved). "Create Tenant" submits to `POST /api/v1/admin/tenants` → on success, advances to Step 3. **Step 3 — Provisioning**: connects `EventSource` to `GET /api/v1/notifications/stream` (ADR-023 SSE endpoint); listens for `provisioning:{tenantId}` events; renders animated progress bar (`--provisioning-bar-bg`/`--provisioning-bar-fill` tokens) with step labels ("Creating schema…", "Running migrations…", "Seeding data…", "Activating tenant…"). **SSE resilience** (resolves Analysis MEDIUM ISSUE-004): implement `onerror` handler that sets `EventSource` to null and starts a 30-second polling fallback (`GET /api/v1/admin/tenants/{id}` every 5s, max 6 attempts) to check provisioning status; re-subscribe to SSE if `Last-Event-ID` replay is available. **Step indicators**: use `--wizard-step-complete`, `--wizard-step-active`, `--wizard-step-pending`, `--wizard-step-error` tokens; completed steps show a checkmark icon; error steps show an X icon. **A11y**: `role="progressbar"` on progress bar with `aria-valuenow="{pct}"` and `aria-valuemin="0"` and `aria-valuemax="100"`; step labels use `aria-label`; progress updates announced via `aria-live="polite"` region. **Success**: show "Tenant created!" heading with `[View Tenant]` (navigate to `$tenantId`) and `[Create Another]` (reset wizard) buttons. **Failure**: error message card + `[Retry]` button (re-POSTs with same form data); server handles idempotency. **Unit tests** (`ProvisioningWizard.test.tsx`): step navigation (Next/Back), Step 1 Zod validation errors, slug uniqueness inline error, SSE progress renders correctly (mock `EventSource`), SSE `onerror` triggers polling fallback (mock failed EventSource), error state renders retry button, success state renders action buttons, `sessionStorage` rehydration on mount.
+  - **Spec Reference**: Plan §12 Phase 6 T008-45; design-spec §2.3; ADR-016; ADR-023; Spec §4 FR-002, NFR-008; Analysis MEDIUM ISSUE-004
+  - **Dependencies**: T008-44 (TenantStatusBadge, useTenants hook), T008-11 (backend create endpoint), T008-42 (wizard tokens)
+  - **Acceptance Criteria**:
+    1. Step 1 slug uniqueness check on blur shows inline error when slug already exists; form does not advance to Step 2 while error is active (Edge Case #1).
+    2. Step 3 `EventSource` `onerror` handler fires within 1 second of a simulated connection drop; polling fallback starts at 5-second intervals (mock verified by advancing fake timers in unit test — resolves Analysis MEDIUM ISSUE-004).
+    3. `role="progressbar"` has `aria-valuenow` updated as provisioning steps complete; `aria-live="polite"` region announces each step completion.
+    4. Refreshing the browser on Step 2 (with `sessionStorage` data present) rehydrates the wizard at Step 2 with all previously entered values intact (per ADR-016).
+
+---
+
+- [ ] **T008-46** `[P]` `[M]` `[FR-003]` Plugin List + Config screens
+  - **FR/NFR**: FR-003 (plugin management from Super Admin)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/plugins/index.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/routes/super-admin/plugins/$pluginId/config.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/hooks/admin/usePlugins.ts` (create new, ~60 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screens 5 (Plugin List) and 6 (Plugin Config) per design-spec §2.5–2.6. **Plugin List (`index.tsx`)**: grid or list view of all registered plugins; each card shows plugin name, version, status badge (`INSTALLED`/`ACTIVE`/`DISABLED`/`UNINSTALLED`), description; action buttons per card: Configure (navigate to config page), Enable/Disable toggle (calls existing plugin management endpoints). Search input for filtering by name. **Plugin Config (`$pluginId/config.tsx`)**: form rendered from plugin's config schema (fetched from `GET /api/v1/plugins/:id` or equivalent); React Hook Form with Zod validation; Save calls `PATCH /api/v1/admin/plugins/:id/config`; Cancel navigates back to list. **`usePlugins()` hook**: `useQuery` for list; `useMutation` for enable, disable, config update; cache invalidation on mutation. Loading skeletons and error states per spec pattern.
+  - **Spec Reference**: Plan §12 Phase 6 T008-46; design-spec §2.5–2.6; Spec §4 FR-003
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client)
+  - **Acceptance Criteria**:
+    1. Plugin List renders all plugins from the API with correct status badges and action buttons.
+    2. Enable/Disable toggle calls the correct endpoint and invalidates the plugin list cache on success.
+    3. Plugin Config form renders fields from the plugin schema; Save calls the config update endpoint and shows a success toast.
+    4. `pnpm build` compiles without TypeScript errors; all imports use `.js` extension (codebase convention).
+
+---
+
+- [ ] **T008-47** `[P]` `[M]` `[FR-004]` Super Admin Users screen
+  - **FR/NFR**: FR-004 (super admin user management)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/users/index.tsx` (create new, ~150 lines)
+  - **Change type**: Create new file
+  - **Description**: Implement Screen 7 (Super Admin Users) per design-spec §2.7. **Screen layout**: DataTable of super admin accounts with columns (Name, Email, Created At, Actions). **Add Super Admin** button opens an `<Dialog>` modal with email and name fields (React Hook Form + Zod: email required/valid, name required); submit calls `createSuperAdmin` mutation from `useSuperAdmins()` inline hook (TanStack Query wrapping `createSuperAdmin()` from `api/admin.ts`); success: closes modal + toast "Super admin added"; duplicate email: inline error "An account with this email already exists". **Remove action**: `⋮` dropdown per row → "Remove" opens `DestructiveConfirmModal` (simple-confirm variant); **Edge Case #8 guard**: if `superAdmins.length <= 1`, the Remove button is disabled with a tooltip "Cannot remove the last super admin"; disabled button has `aria-disabled="true"` and `title="Cannot remove the last super admin"`. Error handling: if `deleteSuperAdmin` returns 409 `LAST_SUPER_ADMIN`, show inline error message in the confirmation modal.
+  - **Spec Reference**: Plan §12 Phase 6 T008-47; design-spec §2.7; Spec §4 FR-004; Spec §6 Edge Case #8
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-11 (backend super admin endpoints)
+  - **Acceptance Criteria**:
+    1. DataTable renders super admins from `GET /api/v1/admin/super-admins`; Add button opens modal.
+    2. Modal Zod validation shows inline errors for invalid email or empty name; valid submission calls `createSuperAdmin` and invalidates cache.
+    3. Remove button is `aria-disabled="true"` when only 1 super admin exists; tooltip "Cannot remove the last super admin" is present (Edge Case #8).
+    4. If `deleteSuperAdmin` API returns 409, the DestructiveConfirmModal shows the error inline rather than closing.
+
+---
+
+- [ ] **T008-48** `[P]` `[M]` `[FR-005]` System Config screen
+  - **FR/NFR**: FR-005 (system configuration management), NFR-005 (a11y)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/system-config/index.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/hooks/admin/useSystemConfig.ts` (create new, ~50 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screen 8 (System Config) per design-spec §2.8. **Screen layout**: settings form grouped by category using `<fieldset>` + `<legend>` for each group (General, Limits, Features, Maintenance). **`useSystemConfig()` hook**: `useQuery` calling `getSystemConfig()` (no category filter); `useMutation` for `updateSystemConfig(key, value)` with per-key optimistic update and toast on success/failure. **Field rendering per config entry**: `boolean` values → `Switch` component with `role="switch"` and `aria-checked={value}`; `number` values → `Input type="number"` with min/max constraints; `string` values → `Input type="text"`. Each field shows its `description` from the API as `<p aria-describedby>` hint text. **Maintenance mode special handling**: `maintenance_mode` boolean toggle opens `DestructiveConfirmModal` (typed-confirm: user must type `"MAINTENANCE"` to confirm); on confirmation, calls `updateSystemConfig('maintenance_mode', true)` + toast "Maintenance mode enabled". **Feature flag toggles** (`feature_flag_*` keys): render as `Switch` components; label reads the key name in human-readable form (e.g., `feature_flag_analytics` → "Analytics"). Form submit button is disabled when no changes made (track dirty state).
+  - **Spec Reference**: Plan §12 Phase 6 T008-48; design-spec §2.8; Spec §4 FR-005
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-11 (backend system-config endpoints)
+  - **Acceptance Criteria**:
+    1. All 5 seed config entries render in their correct category groups with correct input type (switch for booleans, number input for limits).
+    2. Feature flag `Switch` components have `role="switch"` and `aria-checked` attribute reflecting current value.
+    3. Maintenance mode toggle opens `DestructiveConfirmModal` requiring `"MAINTENANCE"` to be typed; confirming calls `updateSystemConfig('maintenance_mode', true)`.
+    4. `useSystemConfig()` update mutation invalidates the cache; optimistic update reflects new value immediately before API response.
+
+---
+
+- [ ] **T008-49** `[P]` `[M]` `[FR-006]` `[NFR-002]` Global Audit Log screen
+  - **FR/NFR**: FR-006 (global audit log), NFR-002 (query performance), US-007 (audit log browsing)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/audit-logs/index.tsx` (create new, ~200 lines)
+    - `apps/frontend/src/hooks/admin/useAuditLogs.ts` (create new, ~60 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screen 9 (Global Audit Log) per design-spec §2.9. **Screen layout**: filter bar at top (date range picker, action filter multi-select dropdown, user ID text input, tenant ID text input); `AuditLogTable` component below (from T008-58); pagination. **`useAuditLogs()` hook**: `useQuery` with `keepPreviousData: true` to avoid flash between pages; accepts params `{ page, limit, action?, userId?, tenantId?, startDate?, endDate? }`; calls `getAdminAuditLogs(params)` from API client; returns `{ data, meta: { total, page, limit } }`. **10K window cap UX**: when `meta.total > 10_000`, render a dismissible info banner: "Showing first 10,000 results. Narrow the results using the date range or action filters." Banner uses `role="alert"` (non-intrusive announcement). **Pagination**: `<nav aria-label="Audit log pagination">` with first/prev/next/last controls; current page shown as `aria-current="page"`. **Filter application**: filters are applied via URL search params (TanStack Router's `useSearch`/`useNavigate`) so filters are shareable via URL. **Loading state**: skeleton table rows while fetching.
+  - **Spec Reference**: Plan §12 Phase 6 T008-49; design-spec §2.9; Spec §4 FR-006; Spec §3 US-007
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-58 (AuditLogTable component), T008-11 (backend audit log endpoint)
+  - **Acceptance Criteria**:
+    1. Filter bar changes are reflected in URL search params; sharing the URL pre-populates filters (URL-based filter state).
+    2. When API returns `meta.total > 10_000`, the 10K cap banner with `role="alert"` appears; banner can be dismissed.
+    3. `AuditLogTable` renders with correct column data from API response; pagination nav has `aria-label="Audit log pagination"`.
+    4. `useAuditLogs()` uses `keepPreviousData: true` so old data remains visible while next page loads (no blank flash between pages).
+
+---
+
+- [ ] **T008-50** `[P]` `[S]` `[FR-007]` System Health screen
+  - **FR/NFR**: FR-007 (system health monitoring), NFR-001 (real-time updates)
+  - **Type**: frontend · **Points**: 1
+  - **Files**:
+    - `apps/frontend/src/routes/super-admin/health/index.tsx` (create new, ~120 lines)
+  - **Change type**: Create new file
+  - **Description**: Implement Screen 10 (System Health) per design-spec §2.10. **Screen layout**: page heading "System Health", manual Refresh button (`aria-label="Refresh health check"`), last-updated timestamp (`<time datetime="...">` element), grid of 4 `SystemHealthCard` components (detailed variant) — one each for PostgreSQL, Redis, Keycloak, MinIO. Each detailed card shows: dependency name, status badge (`healthy`/`degraded`/`unhealthy`), latency in ms, uptime, and any error message on failure. Below cards: overall system status summary card showing `status`, `uptime`, and `version` from the health API. **Auto-refresh**: `useSystemHealth()` with `refetchInterval: 30_000`; a countdown indicator shows "Next refresh in N seconds". **A11y**: `aria-live="polite"` container wrapping the status grid so screen readers announce status changes automatically; Refresh button resets countdown.
+  - **Spec Reference**: Plan §12 Phase 6 T008-50; design-spec §2.10; Spec §4 FR-007
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-43 (SystemHealthCard component, useSystemHealth hook), T008-11 (backend health endpoint)
+  - **Acceptance Criteria**:
+    1. All 4 dependency cards render using `SystemHealthCard` (detailed variant) with correct data from `GET /api/v1/admin/system-health`.
+    2. `useSystemHealth()` polling fires every 30 seconds (verified by advancing fake timers; `refetch` called after 30s).
+    3. Refresh button calls `refetch()` immediately and resets the countdown; button has `aria-label="Refresh health check"`.
+    4. `aria-live="polite"` container is present; status changes are announced to screen readers.
+
+**Phase 6 (Super Admin Panel Screens) estimated: 8 tasks · 19 story points**
+
+---
+
+## Phase 7: Tenant Admin Interface Screens
+
+> **Objective**: Implement all 9 Tenant Admin screens from design-spec §2 (Screens 11–19), wiring them
+> to the Tenant Admin API from Phase 3. Also implements the two shared components (AuditLogTable,
+> DestructiveConfirmModal) used by both portals.
+>
+> **Depends on**: Phase 5 (FE) for shells; Phase 3 (backend) for Tenant Admin API endpoints.
+
+---
+
+- [ ] **T008-51** `[P]` `[S]` `[FR-008]` Tenant Admin Dashboard screen
+  - **FR/NFR**: FR-008 (Tenant Admin Portal — dashboard)
+  - **Type**: frontend · **Points**: 1
+  - **Files**:
+    - `apps/frontend/src/routes/admin/index.tsx` (modify — overwrite placeholder, ~120 lines)
+    - `apps/frontend/src/hooks/admin/useTenantAdminDashboard.ts` (create new, ~40 lines)
+  - **Change type**: Modify existing + Create new file
+  - **Description**: Implement Screen 11 (Tenant Admin Dashboard) per design-spec §2.11. **Screen layout**: 5 metric cards (Total Users, Teams, Workspaces, Enabled Plugins, Custom Roles) in a horizontal row at ≥1024px, 2×2 grid at 768px, vertical stack at ≤375px. Each card shows a number, label, and a subtle icon (Lucide). **`useTenantAdminDashboard()` hook**: `useQuery` calling `getTenantAdminDashboard()` from `api/admin.ts`; returns `{ users: { total, active, invited, deactivated }, teams: { total }, workspaces: { total }, plugins: { enabled, total }, roles: { system, custom } }`; `staleTime: 30_000`. Loading state: 5 skeleton metric cards. Error state: full-width error banner with retry button. No additional actions on this screen — it is read-only summary.
+  - **Spec Reference**: Plan §12 Phase 7 T008-51; design-spec §2.11; Spec §4 FR-008
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-18 (backend tenant dashboard endpoint)
+  - **Acceptance Criteria**:
+    1. Dashboard renders 5 metric cards using data from `GET /api/v1/tenant/dashboard`.
+    2. `useTenantAdminDashboard()` uses `staleTime: 30_000` (no refetch on every mount within 30s window).
+    3. Error state banner has a retry button that calls `refetch()`; error message is the API error code/message.
+    4. Metric cards are responsive: horizontal row ≥1024px, 2×2 grid at 768px.
+
+---
+
+- [ ] **T008-52** `[L]` `[FR-009]` User List + Invite screen
+  - **FR/NFR**: FR-009 (user management), US-003 (user invitations)
+  - **Type**: frontend · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/routes/admin/users/index.tsx` (create new, ~200 lines)
+    - `apps/frontend/src/hooks/admin/useUsers.ts` (create new, ~100 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screen 12 (User List + Invite) per design-spec §2.12. **`useUsers()` hook**: `useQuery` for list (params: `page`, `limit`, `search`, `status`, `role`); `useMutation` hooks: `inviteUser(dto)`, `updateUser(id, dto)`, `deactivateUser(id)`; each mutation invalidates the user list cache on success. **User List screen**: DataTable with columns (Name, Email, Status badge, Role(s), Teams, Actions). Search input (debounced 300ms). Status filter dropdown (All / Active / Invited / Deactivated). Role filter dropdown populated from `useRoles()`. "Invite User" button. Row actions `⋮` dropdown: "Change Role" → opens role assignment modal, "Deactivate" → opens `DestructiveConfirmModal` (typed-confirm requiring the user's email). **Invite modal**: `Dialog` with email input and role dropdown (required); on blur of email field, perform existing-user check via `GET /api/v1/tenant/users?email={email}`; if user exists in another tenant, show info banner "This user has an existing account — they will be added to this tenant" with button label changing to "Add User" (Edge Case #4). On submit: calls `inviteUser` mutation; success: toast "Invitation sent to {email}"; closes modal. **Edge Case #7 guard**: Deactivate action is disabled (`aria-disabled="true"`) when the target user is the sole `tenant_admin` or `tenant_owner`; tooltip reads "Cannot deactivate the last tenant admin". If API returns 409 `LAST_TENANT_ADMIN`, inline error shown in confirmation modal.
+  - **Spec Reference**: Plan §12 Phase 7 T008-52; design-spec §2.12; Spec §4 FR-009; Spec §3 US-003; Edge Cases #4, #7
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-18 (backend user endpoints)
+  - **Acceptance Criteria**:
+    1. Invite modal email blur check shows "Add User" banner when email belongs to an existing Keycloak user (Edge Case #4 — verified by MSW mock returning existing-user flag).
+    2. Deactivate row action is `aria-disabled="true"` for the sole `tenant_admin`; tooltip "Cannot deactivate the last tenant admin" is present (Edge Case #7).
+    3. Search, status filter, and role filter all pass correct query params to `useUsers()` hook and appear in the API request URL.
+    4. Successful invite closes modal, shows toast, and refetches user list (cache invalidated).
+
+---
+
+- [ ] **T008-53** `[P]` `[M]` `[FR-010]` Team List + Team Detail screens
+  - **FR/NFR**: FR-010 (team management), US-005 (team membership)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/admin/teams/index.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/routes/admin/teams/$teamId.tsx` (create new, ~180 lines)
+    - `apps/frontend/src/hooks/admin/useTeams.ts` (create new, ~100 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screens 13 (Team List) and 14 (Team Detail) per design-spec §2.13–2.14. **`useTeams()` hook**: `useQuery` for list (params: `page`, `limit`, `workspace_id`); `useMutation` hooks: `createTeam`, `updateTeam`, `deleteTeam`, `addTeamMember`, `removeTeamMember`; all mutations invalidate team list and team detail caches. **Team List screen (`index.tsx`)**: card/list view of teams; each card shows team name, description, workspace badge, member count badge (from `memberCount` field), "View" button (navigate to `$teamId`). "+ Create Team" button opens `Dialog` modal with name (required), description, workspace dropdown (populated from workspaces API); submit calls `createTeam` mutation. Empty state: "No teams yet" + create button. **Team Detail screen (`$teamId.tsx`)**: header with team name, edit button (inline edit or modal); member list DataTable with columns (Name, Email, Role (MEMBER/ADMIN), Joined At, Actions); "+ Add Member" button opens modal with user search dropdown (calls user list API) and role select; submit calls `addTeamMember` mutation; 409 `MEMBER_ALREADY_EXISTS` → inline error "Already a member". Row action: "Remove" opens `DestructiveConfirmModal` (simple confirm) → calls `removeTeamMember` mutation; 404 `MEMBER_NOT_FOUND` → toast error. Delete team button (at bottom): `DestructiveConfirmModal` (typed-confirm: team name); success: navigate back to team list.
+  - **Spec Reference**: Plan §12 Phase 7 T008-53; design-spec §2.13–2.14; Spec §4 FR-010; Spec §3 US-005
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-18 (backend team endpoints)
+  - **Acceptance Criteria**:
+    1. Team List cards display `memberCount` badge from API; "+ Create Team" modal Zod validates name as required.
+    2. Team Detail "+ Add Member" for a user already on the team returns 409 inline error "Already a member" (MSW mock + RTL assertion).
+    3. Remove member `DestructiveConfirmModal` (simple-confirm) calls `removeTeamMember` on confirm; navigates back on team delete.
+    4. All mutations invalidate relevant TanStack Query caches; list refetches after create/delete.
+
+---
+
+- [ ] **T008-54** `[L]` `[FR-011]` Role Editor screen
+  - **FR/NFR**: FR-011 (role management), US-004 (custom role creation), NFR-005 (a11y)
+  - **Type**: frontend · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/routes/admin/roles/index.tsx` (create new, ~300 lines)
+    - `apps/frontend/src/routes/admin/roles/new.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/routes/admin/roles/$roleId.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/hooks/admin/useRoles.ts` (create new, ~100 lines)
+    - `apps/frontend/src/components/admin/PermissionGroupAccordion.tsx` (create new, ~250 lines)
+    - `apps/frontend/src/components/admin/PermissionGroupAccordion.test.tsx` (create new, ~180 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement Screens 15–17 (Role List/Editor) per design-spec §2.15–2.17. **`useRoles()` hook**: `useQuery` for roles list (from `GET /api/v1/tenant/roles`); `useQuery` for permissions (from `GET /api/v1/tenant/permissions`); `useMutation` hooks: `createRole`, `updateRole`, `deleteRole`; all mutations invalidate roles cache. **Role List / Editor (`index.tsx`)**: two-column layout (1440px and 1024px): left column is role list, right column is editor panel. Left: `<ul>` of roles; system roles (where `isSystem=true`) show a lock icon and `aria-label="System role — read only"`; custom roles show edit + delete icons; "+ New Role" button navigates to `/admin/roles/new`. Right: when a role is selected, shows editor panel (same form as `new.tsx` but pre-populated). Responsive at 768px: two-column collapses to stacked; left column becomes a `<select>` dropdown role selector (per design-spec §8). **New/Edit Role form** (`new.tsx` / `$roleId.tsx`): role name (required), description (optional), `PermissionGroupAccordion`. For system roles, entire form is disabled with tooltip "System roles cannot be modified" (Edge Case #2). `useReducer` for permission selection state (checkboxes can be indeterminate). Submit calls `createRole` / `updateRole`; success: toast + navigate to role detail. Delete: `DestructiveConfirmModal` (simple-confirm); system role delete → 403 shows toast "System roles cannot be deleted". **`PermissionGroupAccordion` component**: props: `permissions: PermissionGroup[]` (grouped by `pluginId`), `selectedIds: string[]`, `onChange: (ids: string[]) => void`, `readOnly?: boolean`. Each `PermissionGroup` is a collapsible `<details>`/`<summary>` (or `<div role="group">`) with a group checkbox (indeterminate when partial selection) and individual permission checkboxes. A11y: `aria-expanded`, `aria-controls`, `aria-checked` (including `indeterminate` state via `ref.indeterminate = true`), `role="group"` on each group. Unit tests: render groups, expand/collapse via keyboard, toggle individual checkbox, group checkbox selects all, partial group shows indeterminate, readOnly disables all checkboxes.
+  - **Spec Reference**: Plan §12 Phase 7 T008-54; design-spec §2.15–2.17, §3 PermissionGroupAccordion, §8; Spec §4 FR-011; Spec §3 US-004; Edge Case #2
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-18 (backend role/permission endpoints)
+  - **Acceptance Criteria**:
+    1. System roles in the left panel show a lock icon; selecting a system role renders a read-only form (all inputs `disabled`); tooltip "System roles cannot be modified" present (Edge Case #2).
+    2. `PermissionGroupAccordion` group checkbox shows indeterminate state (`ref.indeterminate = true`) when some but not all permissions in the group are selected (verified by RTL assertion on `input.indeterminate`).
+    3. At 768px viewport, the two-column layout collapses to a `<select>` dropdown for role selection per design-spec §8 breakpoint rule.
+    4. `PermissionGroupAccordion.test.tsx`: expand/collapse, individual checkbox toggle, group select-all, indeterminate state, and `readOnly` prop disable all checkboxes — all 5 scenarios pass.
+
+---
+
+- [ ] **T008-55** `[P]` `[S]` `[FR-012]` Plugin Settings screen
+  - **FR/NFR**: FR-012 (tenant plugin settings), NFR-005 (a11y)
+  - **Type**: frontend · **Points**: 1
+  - **Files**:
+    - `apps/frontend/src/routes/admin/plugins/index.tsx` (create new, ~150 lines)
+  - **Change type**: Create new file
+  - **Description**: Implement Screen 18 (Plugin Settings) per design-spec §2.18. **Screen layout**: list of plugins available to the tenant (from `GET /api/v1/tenant-plugins` using existing `tenant-plugins-v1.ts` API endpoints); each plugin row shows: plugin name, version, description, enabled/disabled `Switch` toggle, "Configure" button (opens config form in a slide-over panel or modal). **Enable/Disable toggle**: `Switch` component with `role="switch"` and `aria-checked={enabled}` and `aria-label="Enable {pluginName}"`; calls `POST /api/v1/tenant-plugins/{id}/enable` or `/disable` on toggle; optimistic update + error rollback on API failure; success toast "{pluginName} enabled/disabled". **Configure modal**: renders plugin-specific config form (schema-driven); Save calls `PATCH /api/v1/tenant-plugins/{id}/config`; success toast. **Integration test requirement** (resolves Analysis LOW ISSUE-007): acceptance criterion 4 below requires an integration-level test verifying enable/disable flow against the actual `tenant-plugins-v1.ts` endpoints.
+  - **Spec Reference**: Plan §12 Phase 7 T008-55; design-spec §2.18; Spec §4 FR-012; Analysis LOW ISSUE-007
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client); uses existing `tenant-plugins-v1.ts` backend endpoints (no dependency on Phase 3 new endpoints)
+  - **Acceptance Criteria**:
+    1. Plugin enable/disable toggle calls the correct `tenant-plugins-v1.ts` endpoint and shows success toast with `"{pluginName} enabled"` / `"{pluginName} disabled"`.
+    2. Switch components have `role="switch"`, `aria-checked={enabled}`, and `aria-label="Enable {pluginName}"`.
+    3. Optimistic update reflects toggle change immediately; on API error, toggle reverts to previous state and shows error toast.
+    4. An integration-level test (Vitest + MSW or Playwright) verifies the full enable → list refetch → disable → list refetch cycle for a mocked plugin (resolves Analysis LOW ISSUE-007).
+
+---
+
+- [ ] **T008-56** `[P]` `[M]` `[FR-013]` Tenant Settings screen
+  - **FR/NFR**: FR-013 (tenant settings), US-006 (theme customization), ADR-020 (font hosting)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/routes/admin/settings/index.tsx` (create new, ~200 lines)
+  - **Change type**: Create new file
+  - **Description**: Implement Screen 19 (Tenant Settings) per design-spec §2.19. **Screen layout**: two-section form: (1) Appearance, (2) General. Persistent "Save Changes" button (disabled when no dirty fields). **Appearance section**: logo upload (`<input type="file" accept="image/*">` + preview thumbnail; calls file upload API); primary color picker (`<input type="color">` with hex value text field, synced); font family selector — `<select>` populated with the curated ~25 font list from ADR-020 (self-hosted WOFF2 fonts; no arbitrary URL input). **Live theme preview panel**: a card showing the selected primary color, font, and logo rendered together; updates in real-time as form values change. **General section**: notifications toggle (`Switch`), default workspace dropdown. **React Hook Form + Zod validation**: logo max 2MB (validated client-side before upload), color must be valid hex, font must be from approved list. Submit calls `updateTenantSettings` from `api/admin.ts` (`PATCH /api/v1/tenant/settings`); success toast "Settings saved"; error shows inline API error message.
+  - **Spec Reference**: Plan §12 Phase 7 T008-56; design-spec §2.19; Spec §4 FR-013; Spec §3 US-006; ADR-020
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-18 (backend settings endpoint)
+  - **Acceptance Criteria**:
+    1. Font selector is a `<select>` limited to the curated ADR-020 approved list; arbitrary URL/font name input is not possible.
+    2. Live theme preview updates immediately when primary color or font is changed (no save required).
+    3. Logo file upload rejects files > 2MB with a client-side Zod validation error "Logo must be under 2MB".
+    4. Save button is disabled when no form fields are dirty; submitting calls `PATCH /api/v1/tenant/settings` and shows "Settings saved" toast.
+
+---
+
+- [ ] **T008-57** `[P]` `[S]` `[FR-014]` Tenant Audit Log screen
+  - **FR/NFR**: FR-014 (tenant audit log), US-007 (audit log browsing), NFR-004 (tenant isolation)
+  - **Type**: frontend · **Points**: 1
+  - **Files**:
+    - `apps/frontend/src/routes/admin/audit-logs/index.tsx` (create new, ~100 lines)
+  - **Change type**: Create new file
+  - **Description**: Implement Screen 20 (Tenant Audit Log) per design-spec §2.20. **Screen layout**: reuses `AuditLogTable` component (from T008-58) with date range picker, action filter dropdown, and user filter. No `tenant_id` filter exposed (unlike the Super Admin audit log screen — this screen is always scoped to the current tenant). **`useAuditLogs()` hook** (shared with T008-49, same hook with different API function): calls `getTenantAuditLogs(params)` from `api/admin.ts` (`GET /api/v1/tenant/audit-logs`). Filters and pagination use URL search params (TanStack Router `useSearch`). **10K cap banner**: same UX as T008-49. **Tenant isolation guarantee**: the `tenant_id` filter is never sent as a query param from this screen — the tenant context is injected server-side (NFR-004). If a user manually adds `?tenant_id=other-tenant` to the URL, the API silently ignores it (backend enforcement); the UI must not expose or pass the `tenant_id` query param.
+  - **Spec Reference**: Plan §12 Phase 7 T008-57; design-spec §2.20; Spec §4 FR-014; Spec §3 US-007; Spec §5 NFR-004
+  - **Dependencies**: T008-39 (shell), T008-41 (auth hooks + API client), T008-58 (AuditLogTable component), T008-18 (backend tenant audit log endpoint)
+  - **Acceptance Criteria**:
+    1. Screen renders `AuditLogTable` with date range, action filter, and user filter; `tenant_id` filter is absent from the filter bar UI.
+    2. `useAuditLogs()` calls `getTenantAuditLogs()` (not `getAdminAuditLogs()`); no `tenant_id` param is appended to the API request URL (verified by MSW handler assertion).
+    3. URL search params persist filters across navigation; sharing the URL pre-populates filters.
+    4. 10K cap banner appears with `role="alert"` when `meta.total > 10_000`.
+
+---
+
+- [ ] **T008-58** `[P]` `[M]` `[FR-006]` `[FR-014]` `[NFR-005]` AuditLogTable + DestructiveConfirmModal components
+  - **FR/NFR**: FR-006 and FR-014 (audit log display), NFR-005 and NFR-006 (WCAG a11y)
+  - **Type**: frontend · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/components/admin/AuditLogTable.tsx` (create new, ~250 lines)
+    - `apps/frontend/src/components/admin/AuditLogTable.test.tsx` (create new, ~150 lines)
+    - `apps/frontend/src/components/admin/DestructiveConfirmModal.tsx` (create new, ~180 lines)
+    - `apps/frontend/src/components/admin/DestructiveConfirmModal.test.tsx` (create new, ~120 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement two shared components used across both portals. **(A) `AuditLogTable`**: props: `data: AuditLogEntry[]`, `meta: PageMeta`, `filters: AuditLogFilters`, `onFilterChange: (f: AuditLogFilters) => void`, `isLoading: boolean`. Renders a `<table role="grid">` with columns: Timestamp (`<time datetime="ISO">` element), Action, User, Resource, IP Address. Sortable columns show `aria-sort="ascending"|"descending"|"none"` attribute. Timestamp column sorts by `createdAt`. Pagination: `<nav aria-label="Audit log pagination">` with prev/next/page number buttons; current page button has `aria-current="page"`. 10K cap banner: if `meta.total > 10_000`, render dismissible `<div role="alert">` banner. Empty state: "No audit log entries found" message. Loading state: skeleton rows. Unit tests: column data rendering, 10K banner appears at threshold, pagination nav present, `aria-sort` toggling, empty state, loading skeleton. **(B) `DestructiveConfirmModal`**: props: `variant: 'typed-confirm' | 'simple-confirm'`, `title: string`, `message: string`, `confirmValue?: string` (for typed-confirm — value user must type), `onConfirm: () => void`, `onCancel: () => void`, `isOpen: boolean`. Renders `<div role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-body">`. **Focus trap**: on open, focus moves to input (typed) or Cancel button (simple); Tab cycles within modal; Escape calls `onCancel`. Typed-confirm variant: text `<input>` bound to local state; confirm button `disabled` until `inputValue === confirmValue` (case-sensitive); disabled button has `aria-disabled="true"`. Simple-confirm: immediate confirm button (styled danger red). Unit tests: typed-confirm button disabled until match, simple-confirm immediate enable, focus starts at input (typed) or Cancel (simple), Escape closes modal, onConfirm called on confirm, onCancel called on Escape/Cancel.
+  - **Spec Reference**: Plan §12 Phase 7 T008-58; design-spec §3 (AuditLogTable, DestructiveConfirmModal); design-spec §6 WCAG checklist
+  - **Dependencies**: T008-39 (shell layout context for portal use)
+  - **Acceptance Criteria**:
+    1. `AuditLogTable` renders timestamp cells as `<time datetime="ISO-8601">` elements; sortable columns have `aria-sort` attribute that toggles on click.
+    2. `DestructiveConfirmModal` typed-confirm: confirm button remains `disabled` (and `aria-disabled="true"`) until input value exactly matches `confirmValue`; verified by RTL `userEvent.type` test.
+    3. `DestructiveConfirmModal` focus trap: pressing `Tab` from the last focusable element wraps to the first; pressing `Escape` calls `onCancel` — both verified by RTL keyboard interaction tests.
+    4. All unit tests pass (`AuditLogTable.test.tsx` and `DestructiveConfirmModal.test.tsx`); combined line coverage ≥85%.
+
+**Phase 7 (Tenant Admin Interface Screens) estimated: 8 tasks · 15 story points**
+
+---
+
+## Phase 8: Accessibility, Responsive Polish & Frontend Tests
+
+> **Objective**: Apply WCAG 2.1 AA compliance across all 19 admin screens, finalize responsive
+> behavior at all breakpoints, and achieve ≥80% frontend test coverage with unit, E2E, and
+> accessibility tests.
+>
+> **Depends on**: Phases 5–7 (all screens and components implemented).
+
+---
+
+- [ ] **T008-59** `[L]` `[NFR-005]` `[NFR-006]` `[NFR-007]` Accessibility hardening
+  - **FR/NFR**: NFR-005 (WCAG 2.1 AA), NFR-006 (keyboard navigation), NFR-007 (screen reader support)
+  - **Type**: frontend · **Points**: 3
+  - **Files**: All 19 admin screen files (T008-43 through T008-57) + both `_layout.tsx` files (T008-39) — modify existing
+  - **Change type**: Modify existing
+  - **Description**: Apply the full design-spec §6 WCAG 2.1 AA checklist across all 19 admin screens and both layout shells. This is a systematic pass through every screen and component. **A11y items to verify and add**: (1) Skip-nav link `<a href="#main-content" className="sr-only focus:not-sr-only">Skip to main content</a>` in both `_layout.tsx` shells, targeting `<main id="main-content">`. (2) Modal focus management: verify `DestructiveConfirmModal`, Invite User modal, Add Team Member modal, and Plugin Config modal all trap focus; verify focus returns to trigger element on close. (3) Sidebar focus: when hamburger menu opens overlay sidebar, move focus to first sidebar item; when closed, return focus to hamburger button. (4) `aria-live="polite"` on: SSE provisioning progress (T008-45), system health card status (T008-43/T008-50), Toast notification container (global). (5) `aria-label` on all icon-only buttons: "Edit tenant", "Delete team", "Remove member", "Refresh health check", "Close dialog", hamburger "Open navigation". (6) `<time datetime="ISO-8601">` on all timestamp cells in DataTables and AuditLogTable. (7) `aria-sort` on all sortable DataTable columns — toggle ascending/descending/none. (8) `aria-current="page"` on active nav item in AdminSidebarNav (already in T008-40 spec, verify implementation). (9) Form error announcement: all React Hook Form error messages connected via `aria-describedby` on the invalid `<input id>`; verify pattern in all forms. (10) Required fields: add `aria-required="true"` to all required form inputs; add `<span aria-hidden="true"> *</span>` visual marker; `<label>` includes "(required)" in `sr-only` span. **Responsive finalization**: verify at all 3 breakpoints — 1440px: sidebar visible, full columns, stat cards horizontal; 1024px: sidebar visible, stat cards 2×2, row actions in `⋮` menu; 768px: hamburger overlay, DataTable horizontal scroll with `overflow-x: auto` wrapper, stat cards vertical stack, filter panels collapsible, Role Editor collapses to stacked per design-spec §8.
+  - **Spec Reference**: Plan §12 Phase 8 T008-59; design-spec §6 (WCAG 2.1 AA Compliance Checklist); design-spec §8 (Responsive Breakpoints); Constitution Art. 1.3
+  - **Dependencies**: T008-43 through T008-58 (all screens and components complete)
+  - **Acceptance Criteria**:
+    1. All 19 admin screens have a visible skip-nav link (focusable on first `Tab`); pressing `Enter` on skip-nav moves focus to `<main id="main-content">`.
+    2. All modal open/close cycles correctly manage focus: focus moves into modal on open, returns to trigger on close — verified by RTL `document.activeElement` assertions for at least 3 modal types (Invite User, DestructiveConfirmModal, Add Team Member).
+    3. All sortable DataTable columns have `aria-sort` that toggles between `"ascending"`, `"descending"`, and `"none"` on click.
+    4. At 768px viewport width, DataTable containers are wrapped in `overflow-x: auto` (no horizontal page scroll); stat cards stack vertically; filter panels collapse behind a toggle — verified by snapshot or RTL with `matchMedia` mock.
+
+---
+
+- [ ] **T008-60** `[P]` `[L]` `[NFR-005]` Frontend unit tests — components
+  - **FR/NFR**: NFR-005 (WCAG), Constitution Art. 4.1 (≥80% coverage)
+  - **Type**: test · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/components/admin/AdminSidebarNav.test.tsx` (complete from T008-40)
+    - `apps/frontend/src/components/admin/TenantStatusBadge.test.tsx` (complete from T008-44)
+    - `apps/frontend/src/components/admin/ProvisioningWizard.test.tsx` (complete from T008-45)
+    - `apps/frontend/src/components/admin/PermissionGroupAccordion.test.tsx` (complete from T008-54)
+    - `apps/frontend/src/components/admin/AuditLogTable.test.tsx` (complete from T008-58)
+    - `apps/frontend/src/components/admin/SystemHealthCard.test.tsx` (complete from T008-43)
+    - `apps/frontend/src/components/admin/DestructiveConfirmModal.test.tsx` (complete from T008-58)
+  - **Change type**: Modify existing (complete test files started in earlier tasks)
+  - **Description**: Complete and consolidate all component unit test files to meet ≥80% line coverage targets for all 7 admin components. Each test file uses Vitest + React Testing Library. **AdminSidebarNav** (≥85% target): render, active item `aria-current="page"`, collapse toggle fires callback, `ArrowDown` moves focus (keyboard nav), mobile overlay renders/closes on Escape, skip-nav link present. **TenantStatusBadge** (≥90% target): all 5 status variants render correct classes and `aria-label`, semantic HTML tag. **ProvisioningWizard** (≥80% target): Step 1→2→3 navigation, Zod validation errors per step, slug uniqueness inline error (mock fetch), SSE progress rendering (mock `EventSource`), SSE `onerror` polling fallback (advance fake timers 30s), error state + retry button, success screen + actions, `sessionStorage` rehydration. **PermissionGroupAccordion** (≥80% target): group expand/collapse, individual checkbox toggle, group select-all, partial group indeterminate state, `readOnly` disables all. **AuditLogTable** (≥80% target): column rendering, 10K banner at threshold, pagination nav, `aria-sort` toggle, empty state, loading skeleton. **SystemHealthCard** (≥85% target): compact variant, detailed variant, healthy/unhealthy states, `aria-live="polite"`. **DestructiveConfirmModal** (≥85% target): typed-confirm enable/disable, simple-confirm, focus trap, Escape close, callbacks. All tests < 100ms (mock all async operations with `vi.fn()`, `vi.spyOn()`, MSW, or fake timers).
+  - **Spec Reference**: Plan §12 Phase 8 T008-60; Plan §14.1 (Component unit tests table); Constitution Art. 4.1, Art. 8.2
+  - **Dependencies**: T008-40, T008-43, T008-44, T008-45, T008-54, T008-58 (all component implementations)
+  - **Acceptance Criteria**:
+    1. All 7 component test files have passing tests; `pnpm test:unit` reports no failures.
+    2. Per-component line coverage meets targets: AdminSidebarNav ≥85%, TenantStatusBadge ≥90%, ProvisioningWizard ≥80%, PermissionGroupAccordion ≥80%, AuditLogTable ≥80%, SystemHealthCard ≥85%, DestructiveConfirmModal ≥85%.
+    3. ProvisioningWizard SSE `onerror` polling fallback test: advance fake timers 35 seconds → assert polling fetch called at least once (EventSource mock throws `onerror` immediately).
+    4. No test makes real network calls — all `fetch`, `EventSource`, and TanStack Query calls are mocked.
+
+---
+
+- [ ] **T008-61** `[P]` `[M]` Frontend unit tests — hooks
+  - **FR/NFR**: Constitution Art. 4.1 (≥80% coverage)
+  - **Type**: test · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/__tests__/unit/hooks/admin/` (create new directory with test files, ~8 files × ~80 lines each = ~640 lines total)
+  - **Change type**: Create new files
+  - **Description**: Implement unit tests for all 9 TanStack Query admin hooks using Vitest + `@testing-library/react` (`renderHook`) + MSW (Mock Service Worker) for API mocking. MSW handlers mock the backend REST endpoints at the network level. **`useSuperAdminDashboard`**: loading state (`isPending=true`), success state (`data` matches mock API response), error state (MSW returns 500, `isError=true`). **`useTenants`**: list pagination (params forwarded to URL), `createTenant` mutation cache invalidation (query refetched after mutate), `updateTenant` optimistic update, `deleteTenant` mutation. **`useUsers`**: list with `search`/`status`/`role` filter params forwarded, `inviteUser` mutation + success invalidation, `deactivateUser` mutation. **`useTeams`**: list, `createTeam` mutation, `addTeamMember` mutation 409 handled as `error.code === 'MEMBER_ALREADY_EXISTS'`, `removeTeamMember`. **`useRoles`**: list includes `isSystem` field, `createRole` mutation, `updateRole` 403 `SYSTEM_ROLE_IMMUTABLE` error handling. **`useAuditLogs`**: filter params forwarded to API URL, 10K cap error (`AUDIT_LOG_RESULT_WINDOW_EXCEEDED`) exposed as `error`, pagination `keepPreviousData`. **`useSystemConfig`**: list by category (`?category=maintenance`), `updateSystemConfig` invalidates cache. **`useSystemHealth`**: polling interval 30s (advance fake timers, assert refetch count = 2 after 61s). **`useAdminAuth`**: `useRequireSuperAdmin` redirects on missing role (mock `navigate`), `useRequireTenantAdmin` allows `tenant_owner`. All tests < 100ms; use `QueryClientProvider` wrapper in `renderHook`. Total estimated: ~25 test cases.
+  - **Spec Reference**: Plan §12 Phase 8 T008-61; Plan §14.2 (Hook unit tests table); Constitution Art. 4.1
+  - **Dependencies**: T008-41 (auth hooks), T008-43–T008-57 (all hooks used by screens)
+  - **Acceptance Criteria**:
+    1. All 9 hook test files have passing tests; `pnpm test:unit` reports no failures.
+    2. Cache invalidation tests: verify that after a `createTenant` mutation, `useTenants` list query is refetched (TanStack Query `queryClient.invalidateQueries` called with correct key).
+    3. `useSystemHealth` polling test: advance fake timers 61 seconds → assert `refetch` was triggered at least twice (once at 30s, once at 60s).
+    4. All MSW handlers are registered in test setup; no real network requests are made.
+
+---
+
+- [ ] **T008-62** `[L]` `[FR-002]` `[FR-009]` `[FR-011]` Playwright E2E tests — critical flows
+  - **FR/NFR**: FR-002 (tenant create), FR-009 (user invite), FR-011 (role editor)
+  - **Type**: test · **Points**: 3
+  - **Files**:
+    - `apps/frontend/src/__tests__/e2e/admin-tenant-create.e2e.test.ts` (create new, ~150 lines)
+    - `apps/frontend/src/__tests__/e2e/admin-user-invite.e2e.test.ts` (create new, ~120 lines)
+    - `apps/frontend/src/__tests__/e2e/admin-role-editor.e2e.test.ts` (create new, ~120 lines)
+  - **Change type**: Create new files
+  - **Description**: Implement 3 Playwright E2E tests covering the critical user flows from design-spec §7. All tests use a live dev server (`pnpm dev`) and full backend (via `test-infrastructure`). **Test 1 — Tenant Create Wizard** (`admin-tenant-create.e2e.test.ts`): log in as super admin → navigate to `/super-admin/tenants/new` → fill Step 1 (name "E2E Test Tenant", slug auto-generated, valid admin email) → click Next → fill Step 2 (theme color, one plugin checkbox) → click "Create Tenant" → assert Step 3 progress bar appears → wait for SSE provisioning events (or polling fallback if SSE not available in CI) → assert success screen shows "Tenant created!" → click "View Tenant" → assert redirected to tenant detail page → navigate to tenant list → assert new tenant appears with `ACTIVE` badge → navigate to audit log → assert `tenant.created` entry appears. ~15 assertions. **Test 2 — User Invite + Role Assign** (`admin-user-invite.e2e.test.ts`): log in as tenant admin → navigate to `/admin/users` → click "Invite User" → enter test email and select role → submit → assert user appears in list with `status: 'invited'` badge → click row action "Change Role" → select different role → save → assert role updated in table → verify Toast "Role updated" appears. ~12 assertions. **Test 3 — Role Editor** (`admin-role-editor.e2e.test.ts`): log in as tenant admin → navigate to `/admin/roles` → click "+ New Role" → enter name "E2E Role" → expand a permission group in PermissionGroupAccordion → check 2 permissions → save → assert role appears in role list → click role to edit → verify 2 permissions pre-checked → add 1 more permission → save → navigate to user list → change a user's role to "E2E Role" → verify role shown in user table → navigate to audit log → assert `role.created` and `user.role_changed` entries present. ~12 assertions. All tests verify Toast notifications appear with correct messages (use `page.getByRole('alert')`).
+  - **Spec Reference**: Plan §12 Phase 8 T008-62; Plan §14.3 (E2E tests table); design-spec §7 (User flow diagrams)
+  - **Dependencies**: T008-43–T008-57 (all screen implementations); full backend Phases 1–3 complete; test infrastructure running
+  - **Acceptance Criteria**:
+    1. Tenant Create Wizard E2E: full 3-step flow completes; new tenant appears in list with `ACTIVE` status badge; `tenant.created` audit log entry is present after wizard completion.
+    2. User Invite E2E: invited user appears with `invited` status badge; role change is reflected in DataTable without page reload (cache invalidation + refetch).
+    3. Role Editor E2E: created role appears in role list; permissions are pre-populated on edit; `role.created` and `user.role_changed` appear in the audit log.
+    4. All 3 tests complete in < 120 seconds total; each individual test < 45 seconds.
+
+---
+
+- [ ] **T008-63** `[⚠ BLOCKED]` `[L]` `[NFR-005]` `[NFR-006]` `[NFR-007]` Playwright a11y tests (ADR-022)
+  - **FR/NFR**: NFR-005 (WCAG 2.1 AA), NFR-006 (keyboard navigation), NFR-007 (screen reader compatibility)
+  - **Type**: test · **Points**: 2
+  - **Files**:
+    - `apps/frontend/src/__tests__/e2e/admin-a11y.e2e.test.ts` (create new, ~250 lines)
+  - **Change type**: Create new file
+  - **⚠ BLOCKED**: This task is blocked until ADR-022 (axe-core + Playwright for a11y testing) changes status from `Proposed` to `Accepted`. Do NOT start implementation until the ADR is Accepted. Check `.forge/knowledge/adr/adr-022-*.md` for current status.
+  - **Description**: Implement per-screen Playwright + `axe-playwright` (wrapping axe-core) accessibility scans for all 19 admin screens, per ADR-022. **Setup**: install `axe-playwright` (`npm install -D axe-playwright`); configure in `playwright.config.ts` with `axe.configure({ rules: [{ id: 'color-contrast', enabled: true }] })` for WCAG 2.1 AA rule set. **Test structure**: one `test()` block per screen; each test navigates to the screen, injects minimal test data (via API calls or test fixtures), then calls `const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()`; asserts `results.violations.length === 0`. **Screens to test** (19 total): SA Dashboard, Tenant List, Tenant Create Wizard (Step 1, Step 2, Step 3), Tenant Detail, Plugin List, Plugin Config, SA Users, System Config, Global Audit Log, System Health, TA Dashboard, User List, Team List, Team Detail, Role Editor, Plugin Settings, Tenant Settings, Tenant Audit Log. **Specific assertions** (in addition to zero-violations): (1) No icon-only buttons without `aria-label` (rule: `button-name`). (2) No color-only status conveyance — status badges have text (rule: `color-contrast` + manual). (3) No keyboard traps (rule: `scrollable-region-focusable`). (4) Contrast ratio ≥4.5:1 for body text, ≥3:1 for large text (rule: `color-contrast`). **CI integration**: test failures block merge (`--ci` flag in Playwright config); zero-tolerance policy per ADR-022.
+  - **Spec Reference**: Plan §12 Phase 8 T008-63; Plan §14.4 (Accessibility tests); design-spec §6; ADR-022
+  - **Dependencies**: T008-59 (accessibility hardening complete), ADR-022 status = Accepted (currently Proposed — **BLOCKED**)
+  - **Acceptance Criteria**:
+    1. **BLOCKED — do not implement until ADR-022 is Accepted.** When unblocked: `axe-playwright` is installed and configured for WCAG 2.1 AA rule set in `playwright.config.ts`.
+    2. All 19 admin screens return `results.violations.length === 0` at WCAG 2.1 AA level (zero axe violations allowed — per ADR-022 zero-tolerance policy).
+    3. CI pipeline configuration blocks merge when any a11y test fails (verify Playwright config `--ci` flag or GitHub Actions step `if: always()` with failure condition).
+    4. Test file includes at minimum 19 `test()` blocks (one per screen) + 3 focused interaction tests (modal focus trap on `DestructiveConfirmModal`, wizard step focus management in `ProvisioningWizard`, sidebar keyboard navigation in `AdminSidebarNav`).
+
+**Phase 8 (Accessibility, Responsive Polish & Frontend Tests) estimated: 5 tasks · 13 story points**
 
 ---
 
 ## Summary
 
-| Metric                           | Value                                          |
-| -------------------------------- | ---------------------------------------------- |
-| Total tasks                      | 28 (T008-00 through T008-27)                   |
-| Total story points               | 77                                             |
-| Total phases                     | 5                                              |
-| Parallelizable tasks             | 8                                              |
-| Requirements covered (FR)        | 14/14                                          |
-| Requirements covered (NFR)       | 8/8 (5 backend + 3 frontend N/A)               |
-| HIGH risk tasks                  | 2 (T008-00, T008-03)                           |
-| Analysis issues addressed (HIGH) | 2 (ISSUE-001, ISSUE-002)                       |
-| Analysis issues addressed (MED)  | 4 (ISSUE-003, ISSUE-004, ISSUE-005, ISSUE-006) |
-| Estimated test count             | ~150 (95 unit + 40 int + 15 E2E)               |
+| Metric                           | Value                                                          |
+| -------------------------------- | -------------------------------------------------------------- |
+| Total tasks                      | 53 (T008-00 through T008-27, T008-39 through T008-63)          |
+| Total story points               | ~112 (77 backend + 35 frontend)                                |
+| Total phases                     | 9 (5 backend + 4 frontend)                                     |
+| Parallelizable tasks             | 18                                                             |
+| Requirements covered (FR)        | 14/14                                                          |
+| Requirements covered (NFR)       | 8/8                                                            |
+| HIGH risk tasks                  | 3 (T008-00, T008-03, T008-45)                                  |
+| BLOCKED tasks                    | 1 (T008-63 — pending ADR-022 Accepted)                         |
+| Analysis issues addressed (HIGH) | 2 (ISSUE-001, ISSUE-002)                                       |
+| Analysis issues addressed (MED)  | 5 (ISSUE-003, ISSUE-004, ISSUE-005, ISSUE-006, + FE ISSUE-004) |
+| Analysis issues addressed (LOW)  | 1 (ISSUE-007 — FR-012 integration test in T008-55)             |
+| Estimated test count             | ~245 (150 backend + 95 frontend)                               |
 
 ### Phase Breakdown
 
-| Phase | Name                    | Tasks  | Points | Parallelizable              |
-| ----- | ----------------------- | ------ | ------ | --------------------------- |
-| 1     | Foundation              | 9      | 20     | T008-01, 02, 03, 04, 07, 08 |
-| 2     | Super Admin Extensions  | 5      | 18     | T008-09, 10, 12             |
-| 3     | Tenant Admin Interface  | 8      | 35     | T008-14, 15, 20             |
-| 4     | E2E Tests and Hardening | 5      | 9      | —                           |
-| 5     | Documentation           | 1      | 1      | T008-27                     |
-| —     | **Total**               | **28** | **77** |                             |
+| Phase    | Name                                              | Tasks  | Points   | Parallelizable                  |
+| -------- | ------------------------------------------------- | ------ | -------- | ------------------------------- |
+| 1        | Foundation                                        | 9      | 20       | T008-01, 02, 03, 04, 07, 08     |
+| 2        | Super Admin Extensions                            | 5      | 18       | T008-09, 10, 12                 |
+| 3        | Tenant Admin Interface                            | 8      | 35       | T008-14, 15, 20                 |
+| 4        | E2E Tests and Hardening                           | 5      | 9        | —                               |
+| 5 (docs) | Documentation                                     | 1      | 1        | T008-27                         |
+| 5 (FE)   | Frontend Foundation                               | 4      | 9        | T008-40, 41, 42                 |
+| 6        | Super Admin Panel Screens                         | 8      | 19       | T008-43, 44, 46, 47, 48, 49, 50 |
+| 7        | Tenant Admin Interface Screens                    | 8      | 15       | T008-51, 53, 55, 56, 57, 58     |
+| 8        | Accessibility, Responsive Polish & Frontend Tests | 5      | 13       | T008-60, 61                     |
+| —        | **Total**                                         | **53** | **~112** |                                 |
 
 > **Split guidance**: T008-16 (8 pts, user management) and T008-18 (8 pts, routes) are the two
-> largest tasks. If either stalls, split T008-16 into (getDashboard+listUsers+inviteUser) and
-> (updateUser+deactivateUser) at the method boundary; split T008-18 into (dashboard+user routes),
-> (team routes), and (roles+settings+audit routes) at the route group boundary.
+> largest backend tasks. T008-45 (5 pts, ProvisioningWizard) is the largest frontend task.
+> If T008-16 stalls, split into (getDashboard+listUsers+inviteUser) and (updateUser+deactivateUser).
+> If T008-18 stalls, split into (dashboard+user routes), (team routes), and (roles+settings+audit routes).
+> If T008-45 stalls, split into (Steps 1–2 form logic) and (Step 3 SSE + provisioning progress).
+>
+> **T008-63 is blocked**: do not start until ADR-022 status changes from Proposed to Accepted.
+> Check `.forge/knowledge/adr/adr-022-*.md` before scheduling T008-63.
 
 ---
 
 ## FR/NFR Coverage Matrix
 
-| Requirement | Task IDs                                    | Status      |
-| ----------- | ------------------------------------------- | ----------- |
-| FR-001      | T008-11                                     | ✅          |
-| FR-002      | T008-11, T008-22                            | ✅          |
-| FR-003      | Existing (not in scope)                     | ✅ (exists) |
-| FR-004      | T008-10, T008-11                            | ✅          |
-| FR-005      | T008-02, T008-09, T008-11, T008-12          | ✅          |
-| FR-006      | T008-01, T008-05, T008-11, T008-22, T008-26 | ✅          |
-| FR-007      | T008-10, T008-11                            | ✅          |
-| FR-008      | T008-15, T008-18                            | ✅          |
-| FR-009      | T008-16, T008-18, T008-23                   | ✅          |
-| FR-010      | T008-03, T008-17, T008-18, T008-23          | ✅          |
-| FR-011      | T008-18, T008-24                            | ✅          |
-| FR-012      | Existing `tenant-plugins-v1.ts`             | ✅ (exists) |
-| FR-013      | T008-18                                     | ✅          |
-| FR-014      | T008-05, T008-18, T008-21, T008-26          | ✅          |
-| NFR-001     | T008-01 (indexes), T008-11 (pagination)     | ✅          |
-| NFR-002     | T008-01 (composite index)                   | ✅          |
-| NFR-003     | T008-11, T008-14                            | ✅          |
-| NFR-004     | T008-05, T008-18, T008-21, T008-25          | ✅          |
-| NFR-005     | Frontend scope — out of plan                | N/A         |
-| NFR-006     | Frontend scope — out of plan                | N/A         |
-| NFR-007     | Frontend scope — out of plan                | N/A         |
-| NFR-008     | Existing provisioning orchestrator          | ✅ (exists) |
+| Requirement | Task IDs                                                      | Status |
+| ----------- | ------------------------------------------------------------- | ------ |
+| FR-001      | T008-11, T008-43                                              | ✅     |
+| FR-002      | T008-11, T008-22, T008-44, T008-45                            | ✅     |
+| FR-003      | T008-46                                                       | ✅     |
+| FR-004      | T008-10, T008-11, T008-47                                     | ✅     |
+| FR-005      | T008-02, T008-09, T008-11, T008-12, T008-48                   | ✅     |
+| FR-006      | T008-01, T008-05, T008-11, T008-22, T008-26, T008-49, T008-58 | ✅     |
+| FR-007      | T008-10, T008-11, T008-50                                     | ✅     |
+| FR-008      | T008-15, T008-18, T008-51                                     | ✅     |
+| FR-009      | T008-16, T008-18, T008-23, T008-52                            | ✅     |
+| FR-010      | T008-03, T008-17, T008-18, T008-23, T008-53                   | ✅     |
+| FR-011      | T008-18, T008-24, T008-54                                     | ✅     |
+| FR-012      | T008-55 (+ existing `tenant-plugins-v1.ts`)                   | ✅     |
+| FR-013      | T008-18, T008-56                                              | ✅     |
+| FR-014      | T008-05, T008-18, T008-21, T008-26, T008-57, T008-58          | ✅     |
+| NFR-001     | T008-01 (indexes), T008-11 (pagination), T008-43, T008-44     | ✅     |
+| NFR-002     | T008-01 (composite index), T008-13, T008-49                   | ✅     |
+| NFR-003     | T008-11, T008-14, T008-18                                     | ✅     |
+| NFR-004     | T008-05, T008-18, T008-21, T008-25, T008-57                   | ✅     |
+| NFR-005     | T008-40, T008-42, T008-44, T008-54, T008-58, T008-59, T008-63 | ✅     |
+| NFR-006     | T008-40, T008-54, T008-59, T008-63                            | ✅     |
+| NFR-007     | T008-40, T008-43, T008-50, T008-59, T008-63                   | ✅     |
+| NFR-008     | T008-45 (+ existing provisioning orchestrator)                | ✅     |
 
 ---
 

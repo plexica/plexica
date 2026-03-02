@@ -425,7 +425,7 @@ endpoints require authentication unless explicitly marked Public.
 | Tenant      | `POST /api/v1/admin/tenants`                 | Super Admin | 001  |
 | Tenant      | `GET  /api/v1/admin/tenants`                 | Super Admin | 001  |
 | Tenant      | `GET  /api/v1/admin/tenants/:id`             | Super Admin | 001  |
-| Tenant      | `PUT  /api/v1/admin/tenants/:id`             | Super Admin | 001  |
+| Tenant      | `PATCH /api/v1/admin/tenants/:id`            | Super Admin | 001  |
 | Tenant      | `DELETE /api/v1/admin/tenants/:id`           | Super Admin | 001  |
 | Workspace   | `POST /api/v1/workspaces`                    | Bearer      | 009  |
 | Workspace   | `GET  /api/v1/workspaces`                    | Bearer      | 009  |

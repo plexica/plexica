@@ -203,10 +203,16 @@ CREATE TABLE audit_logs (
 | GET    | /api/v1/admin/dashboard              | System dashboard metrics | Bearer + super_admin |
 | GET    | /api/v1/admin/tenants                | List all tenants         | Bearer + super_admin |
 | POST   | /api/v1/admin/tenants                | Create tenant            | Bearer + super_admin |
-| PUT    | /api/v1/admin/tenants/:id            | Update tenant            | Bearer + super_admin |
+| PATCH  | /api/v1/admin/tenants/:id            | Update tenant (partial)  | Bearer + super_admin |
 | POST   | /api/v1/admin/tenants/:id/suspend    | Suspend tenant           | Bearer + super_admin |
 | POST   | /api/v1/admin/tenants/:id/reactivate | Reactivate tenant        | Bearer + super_admin |
 | DELETE | /api/v1/admin/tenants/:id            | Delete tenant            | Bearer + super_admin |
+| GET    | /api/v1/admin/super-admins           | List super admins        | Bearer + super_admin |
+| POST   | /api/v1/admin/super-admins           | Add super admin          | Bearer + super_admin |
+| DELETE | /api/v1/admin/super-admins/:id       | Remove super admin       | Bearer + super_admin |
+| GET    | /api/v1/admin/system-config          | List system config       | Bearer + super_admin |
+| PATCH  | /api/v1/admin/system-config/:key     | Update config value      | Bearer + super_admin |
+| GET    | /api/v1/admin/system-health          | System health check      | Bearer + super_admin |
 | GET    | /api/v1/admin/audit-logs             | Global audit logs        | Bearer + super_admin |
 
 ### Tenant Admin APIs
@@ -216,17 +222,24 @@ CREATE TABLE audit_logs (
 | GET    | /api/v1/tenant/dashboard              | Tenant dashboard metrics | Bearer + tenant_admin |
 | GET    | /api/v1/tenant/users                  | List tenant users        | Bearer + tenant_admin |
 | POST   | /api/v1/tenant/users/invite           | Invite user              | Bearer + tenant_admin |
-| PUT    | /api/v1/tenant/users/:id              | Update user              | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/users/:id              | Update user (partial)    | Bearer + tenant_admin |
 | POST   | /api/v1/tenant/users/:id/deactivate   | Deactivate user          | Bearer + tenant_admin |
 | GET    | /api/v1/tenant/teams                  | List teams               | Bearer + tenant_admin |
 | POST   | /api/v1/tenant/teams                  | Create team              | Bearer + tenant_admin |
-| PUT    | /api/v1/tenant/teams/:id              | Update team              | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/teams/:id              | Update team (partial)    | Bearer + tenant_admin |
 | DELETE | /api/v1/tenant/teams/:id              | Delete team              | Bearer + tenant_admin |
 | POST   | /api/v1/tenant/teams/:id/members      | Add team member          | Bearer + tenant_admin |
 | DELETE | /api/v1/tenant/teams/:id/members/:uid | Remove team member       | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/roles                  | List roles               | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/roles                  | Create custom role       | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/roles/:id              | Update custom role       | Bearer + tenant_admin |
+| DELETE | /api/v1/tenant/roles/:id              | Delete custom role       | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/permissions            | List available perms     | Bearer + tenant_admin |
 | GET    | /api/v1/tenant/settings               | Get tenant settings      | Bearer + tenant_admin |
-| PUT    | /api/v1/tenant/settings               | Update tenant settings   | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/settings               | Update tenant settings   | Bearer + tenant_admin |
 | GET    | /api/v1/tenant/audit-logs             | Tenant audit logs        | Bearer + tenant_admin |
+
+> **FR-012 note**: Plugin enable/disable for tenant admins (`POST /api/v1/plugins/:id/enable`, `POST /api/v1/plugins/:id/disable`, `GET /api/v1/plugins`) is implemented via the existing `tenant-plugins-v1.ts` routes (Spec 004). These endpoints are out-of-scope for Spec 008's API table but are surfaced in the Plugin Settings screen (T008-55) and tested in T008-21 AC #5.
 
 ## 9. UX/UI Notes
 
