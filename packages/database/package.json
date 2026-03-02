@@ -21,10 +21,10 @@
     "@prisma/client": "7.4.2",
     "@prisma/driver-adapter-utils": "^7.4.2",
     "dotenv": "^17.2.3",
-    "pg": "^8.17.2"
+    "pg": "^8.19.0"
   },
   "devDependencies": {
-    "@types/pg": "^8.16.0",
+    "@types/pg": "^8.18.0",
     "prisma": "^7.4.2",
     "tsx": "^4.21.0",
     "vitest": "^4.0.18"
