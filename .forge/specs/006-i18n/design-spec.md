@@ -621,15 +621,15 @@ facing screens. However, basic contrast compliance is still maintained.
 **Slots / Props**:
 
 - `locales`: `Array<{ code: string; name: string; nativeName: string }>` — available locales
-- `currentLocale`: `string` — currently active locale code
-- `onLocaleChange`: `(locale: string) => void` — callback when user selects a new locale
-- `loading`: `boolean` — shows spinner during locale switch
-- `variant`: `"header" | "settings"` — rendering style
+- `value`: `string` — currently active locale code
+- `onChange`: `(code: string) => void` — callback when user selects a new locale
+- `disabled`: `boolean` — disables the selector (e.g., during critical operations)
+- `ariaLabel`: `string` — custom ARIA label (optional, defaults to `"Change language. Current: {nativeName}"`)
 
 **Behavior**:
 
 - On click (Globe icon): opens dropdown with available locales
-- On locale select: calls `onLocaleChange`, triggers React context update (FR-008)
+- On locale select: calls `onChange`, triggers React context update (FR-008)
 - On Esc: closes dropdown, returns focus to Globe button
 
 **A11y**:
