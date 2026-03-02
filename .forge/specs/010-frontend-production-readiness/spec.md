@@ -4,7 +4,7 @@
 
 | Field   | Value      |
 | ------- | ---------- |
-| Status  | Draft      |
+| Status  | Approved   |
 | Author  | forge-pm   |
 | Date    | 2026-02-17 |
 | Track   | Feature    |
@@ -138,22 +138,22 @@ Without these features, the platform cannot:
 
 ## 6. Edge Cases & Error Scenarios
 
-| #   | Scenario                                                      | Expected Behavior                                                                               |
-| --- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| 1   | Plugin remote entry URL is unreachable (network error)        | Error boundary shows "Plugin unavailable - Check your connection"; Retry button available       |
-| 2   | Plugin remote entry returns invalid JavaScript                | Error boundary catches syntax error; logs to console; shows fallback UI                         |
-| 3   | Plugin component throws error in render method                | Error boundary catches; displays fallback; rest of shell continues                              |
-| 4   | Plugin component throws error in useEffect hook               | Error boundary catches async error; displays fallback; no shell crash                           |
-| 5   | Tenant theme API returns 404 (theme not configured)           | Default Plexica theme applied; no error shown to user                                           |
-| 6   | Tenant theme has invalid color format (e.g., "red" not hex)   | Color validation rejects; default color used; warning logged                                    |
-| 7   | Tenant logo URL returns 404 (image not found)                 | Broken image fallback or default Plexica logo shown                                             |
-| 8   | Widget remote is unavailable when plugin tries to load it     | Widget fallback placeholder shown; error logged; rest of plugin continues                       |
-| 9   | Widget version mismatch (shell expects v2, plugin exports v1) | Module Federation resolves version; if incompatible, fallback placeholder shown                 |
-| 10  | User has JavaScript disabled in browser                       | Noscript fallback message: "JavaScript is required to use Plexica"                              |
-| 11  | Error boundary itself crashes (React bug)                     | Root-level error boundary catches; full-page error shown with support contact                   |
-| 12  | Tenant theme applied but custom fonts fail to load (CDN down) | System fonts used as fallback; no layout shift                                                  |
-| 13  | Plugin widget uses incompatible React version                 | Module Federation singleton resolution; if incompatible, runtime error caught by error boundary |
-| 14  | Screen reader user navigates to error boundary fallback       | Error message announced; Retry button accessible via keyboard                                   |
+| #   | Scenario                                                      | Expected Behavior                                                                                                                                                              |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Plugin remote entry URL is unreachable (network error)        | Error boundary shows "Plugin unavailable - Check your connection"; Retry button available                                                                                      |
+| 2   | Plugin remote entry returns invalid JavaScript                | Error boundary catches syntax error; logs to console; shows fallback UI                                                                                                        |
+| 3   | Plugin component throws error in render method                | Error boundary catches; displays fallback; rest of shell continues                                                                                                             |
+| 4   | Plugin component throws error in useEffect hook               | Global `window.onerror` / `unhandledrejection` handler catches the error; logs context; displays a toast or triggers error boundary reset via state flag; shell remains stable |
+| 5   | Tenant theme API returns 404 (theme not configured)           | Default Plexica theme applied; no error shown to user                                                                                                                          |
+| 6   | Tenant theme has invalid color format (e.g., "red" not hex)   | Color validation rejects; default color used; warning logged                                                                                                                   |
+| 7   | Tenant logo URL returns 404 (image not found)                 | Broken image fallback or default Plexica logo shown                                                                                                                            |
+| 8   | Widget remote is unavailable when plugin tries to load it     | Widget fallback placeholder shown; error logged; rest of plugin continues                                                                                                      |
+| 9   | Widget version mismatch (shell expects v2, plugin exports v1) | Module Federation resolves version; if incompatible, fallback placeholder shown                                                                                                |
+| 10  | User has JavaScript disabled in browser                       | Noscript fallback message: "JavaScript is required to use Plexica"                                                                                                             |
+| 11  | Error boundary itself crashes (React bug)                     | Root-level error boundary catches; full-page error shown with support contact                                                                                                  |
+| 12  | Tenant theme applied but custom fonts fail to load (CDN down) | System fonts used as fallback; no layout shift                                                                                                                                 |
+| 13  | Plugin widget uses incompatible React version                 | Module Federation singleton resolution; if incompatible, runtime error caught by error boundary                                                                                |
+| 14  | Screen reader user navigates to error boundary fallback       | Error message announced; Retry button accessible via keyboard                                                                                                                  |
 
 ## 7. Data Requirements
 
@@ -167,7 +167,7 @@ Without these features, the platform cannot:
     "theme": {
       "logo": "https://storage.plexica.io/acme-corp/logo.png",
       "colors": {
-        "primary": "#1976d2",
+        "primary": "#0066CC",
         "secondary": "#dc004e",
         "background": "#ffffff",
         "surface": "#f5f5f5",
@@ -282,7 +282,7 @@ Frontend consumes these APIs:
 
 ## 10. Out of Scope
 
-- **Tenant theme editor UI** (separate Spec 011 for admin interface)
+- **Tenant theme editor UI** (separate Spec 008 for admin interfaces)
 - **Advanced theme features** (dark mode, theme inheritance) - deferred to Phase 2
 - **Widget versioning and dependency resolution** (handled by Module Federation; no custom logic in this spec)
 - **Backend logging API for frontend errors** (optional; can log to console only in Phase 1)

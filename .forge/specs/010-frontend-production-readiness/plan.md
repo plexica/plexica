@@ -148,6 +148,10 @@ export class PluginErrorBoundary extends React.Component<
   PluginErrorBoundaryProps,
   ErrorBoundaryState
 > {
+  // Required: allows `this.context` to access AuthContext values at runtime
+  static contextType = AuthContext;
+  declare context: React.ContextType<typeof AuthContext>;
+
   constructor(props: PluginErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
@@ -161,8 +165,8 @@ export class PluginErrorBoundary extends React.Component<
     const context = {
       pluginId: this.props.pluginId,
       pluginName: this.props.pluginName || this.props.pluginId,
-      tenantSlug: this.context.tenant?.slug, // From AuthContext
-      userId: this.context.user?.id,          // From AuthContext
+      tenantSlug: this.context?.tenant?.slug, // From AuthContext via static contextType
+      userId: this.context?.user?.id,          // From AuthContext via static contextType
       timestamp: new Date().toISOString(),
       errorMessage: error.message,
       errorStack: error.stack,
@@ -248,6 +252,87 @@ export function PluginErrorFallback({ pluginName, error, onRetry }: PluginErrorF
 }
 ```
 
+**Root Error Boundary (design-spec Screen 2):**
+
+```typescript
+// apps/web/src/components/ErrorBoundary/RootErrorBoundary.tsx
+import React from 'react';
+import { logger } from '@/lib/logger';
+
+interface RootErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  RootErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<RootErrorBoundaryState> {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    logger.error(
+      {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        componentStack: errorInfo.componentStack,
+        url: window.location.href,
+        timestamp: new Date().toISOString(),
+      },
+      'Root error boundary caught unrecoverable error'
+    );
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <div className="max-w-lg w-full text-center">
+            <img
+              src="/plexica-logo.svg"
+              alt="Plexica"
+              className="h-12 mx-auto mb-6"
+            />
+            <h1 className="text-2xl font-bold text-foreground mb-3">
+              Something Went Wrong
+            </h1>
+            <p className="text-muted-foreground mb-6">
+              We&apos;re sorry — something unexpected happened.
+              Please try reloading the page.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary px-8 py-3 rounded-lg text-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="Reload this page"
+            >
+              Reload Page
+            </button>
+            <p className="text-sm text-muted-foreground mt-6">
+              If this keeps happening, contact support at{' '}
+              <a
+                href="mailto:support@plexica.io"
+                className="text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                support@plexica.io
+              </a>
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
 ### 2.2 Tenant Theming System
 
 **Files:**
@@ -296,7 +381,7 @@ interface ThemeContextValue {
 
 const defaultTheme: TenantTheme = {
   colors: {
-    primary: '#1976d2',
+    primary: '#0066CC',    // Matches design system --primary token
     secondary: '#dc004e',
     background: '#ffffff',
     surface: '#f5f5f5',
@@ -378,10 +463,22 @@ export function applyTheme(theme: TenantTheme) {
   root.style.setProperty('--color-success', theme.colors.success);
   root.style.setProperty('--color-warning', theme.colors.warning);
 
-  // Apply font families
-  root.style.setProperty('--font-heading', theme.fonts.heading);
-  root.style.setProperty('--font-body', theme.fonts.body);
-  root.style.setProperty('--font-mono', theme.fonts.mono);
+  // Apply font families (with full fallback stack from FONT_CATALOG to avoid FOIT)
+  const headingDef = FONT_CATALOG.find((f) => f.id === theme.fonts.heading);
+  const bodyDef = FONT_CATALOG.find((f) => f.id === theme.fonts.body);
+  const monoDef = FONT_CATALOG.find((f) => f.id === theme.fonts.mono);
+  root.style.setProperty(
+    '--font-heading',
+    headingDef ? `"${headingDef.name}", ${headingDef.fallback}` : 'system-ui, sans-serif'
+  );
+  root.style.setProperty(
+    '--font-body',
+    bodyDef ? `"${bodyDef.name}", ${bodyDef.fallback}` : 'system-ui, sans-serif'
+  );
+  root.style.setProperty(
+    '--font-mono',
+    monoDef ? `"${monoDef.name}", ${monoDef.fallback}` : 'ui-monospace, monospace'
+  );
 }
 
 export function validateTheme(theme: Partial<TenantTheme>): TenantTheme {
@@ -443,6 +540,7 @@ export const FONT_CATALOG: FontDefinition[] = [
 
 export const DEFAULT_HEADING_FONT = 'inter';
 export const DEFAULT_BODY_FONT = 'roboto';
+export const DEFAULT_MONO_FONT = 'fira-code';
 ```
 
 ```typescript
@@ -467,22 +565,9 @@ export async function loadTenantFonts(headingFontId: string, bodyFontId: string)
     }
   }
 
-  // Apply via CSS custom properties (per ADR-009)
-  const headingDef = FONT_CATALOG.find((f) => f.id === headingFontId);
-  const bodyDef = FONT_CATALOG.find((f) => f.id === bodyFontId);
-
-  if (headingDef) {
-    document.documentElement.style.setProperty(
-      '--font-heading',
-      `"${headingDef.name}", ${headingDef.fallback}`
-    );
-  }
-  if (bodyDef) {
-    document.documentElement.style.setProperty(
-      '--font-body',
-      `"${bodyDef.name}", ${bodyDef.fallback}`
-    );
-  }
+  // Font binaries loaded — CSS custom properties already set with full fallback
+  // stack by applyTheme(), so font-display: swap takes effect automatically.
+  // No need to re-set --font-heading / --font-body here.
 }
 ```
 
@@ -490,7 +575,7 @@ export async function loadTenantFonts(headingFontId: string, bodyFontId: string)
 
 ```typescript
 // Updated validation in apps/web/src/lib/theme-utils.ts
-import { FONT_CATALOG, DEFAULT_HEADING_FONT, DEFAULT_BODY_FONT } from '@plexica/shared-types';
+import { FONT_CATALOG, DEFAULT_HEADING_FONT, DEFAULT_BODY_FONT, DEFAULT_MONO_FONT } from '@plexica/shared-types';
 
 function validateFontId(id: unknown, fallback: string): string {
   if (typeof id !== 'string') return fallback;
@@ -506,7 +591,7 @@ function validateFontId(id: unknown, fallback: string): string {
 fonts: {
   heading: validateFontId(theme.fonts?.heading, DEFAULT_HEADING_FONT),
   body:    validateFontId(theme.fonts?.body,    DEFAULT_BODY_FONT),
-  mono:    validateFontId(theme.fonts?.mono,    'jetbrains-mono'),
+  mono:    validateFontId(theme.fonts?.mono,    DEFAULT_MONO_FONT),
 },
 ```
 
@@ -548,7 +633,7 @@ export function Header() {
     <header className="bg-surface border-b border-gray-200 px-4 py-3">
       <div className="flex items-center justify-between">
         {/* Logo */}
-        <button onClick={() => navigate('/')} className="focus:outline-none">
+        <button onClick={() => navigate('/')} className="focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded" aria-label="Go to home page">
           {theme.logo ? (
             <img
               src={theme.logo}
@@ -631,7 +716,7 @@ export function loadWidget<T = any>({ pluginId, widgetName, fallback }: LoadWidg
     }
   });
 
-  return LazyWidget as React.ComponentType<T>;
+  return LazyWidget as React.LazyExoticComponent<React.ComponentType<T>>;
 }
 ```
 
@@ -647,9 +732,11 @@ interface WidgetLoaderProps {
 }
 
 export function WidgetLoader({ pluginId, widgetName, props, fallback }: WidgetLoaderProps) {
+  // Note: `fallback` intentionally excluded from deps to prevent remount loops
+  // when callers pass inline components. Changing fallback requires remounting WidgetLoader.
   const Widget = useMemo(
     () => loadWidget({ pluginId, widgetName, fallback }),
-    [pluginId, widgetName, fallback]
+    [pluginId, widgetName] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return (
@@ -750,7 +837,7 @@ tokens (from design-spec §5).
 
 | CSS Custom Property      | Default       | Source                       |
 | ------------------------ | ------------- | ---------------------------- |
-| `--color-primary`        | `#1976d2`     | `theme.colors.primary`       |
+| `--color-primary`        | `#0066CC`     | `theme.colors.primary`       |
 | `--color-secondary`      | `#dc004e`     | `theme.colors.secondary`     |
 | `--color-background`     | `#ffffff`     | `theme.colors.background`    |
 | `--color-surface`        | `#f5f5f5`     | `theme.colors.surface`       |
@@ -1166,10 +1253,13 @@ export function contrastRatio(fg: string, bg: string): number {
 }
 ```
 
-**Note**: This validation is owned by Spec 008 (Admin Interfaces). The plan for
-Spec 010 documents it here for completeness; Spec 008 T008-xx (theme endpoint)
-must implement the contrast check. A cross-reference is added to this plan's
-Cross-References table.
+**Note**: This validation is owned by Spec 008 (Admin Interfaces), specifically the
+`PATCH /api/v1/tenants/:id/theme` endpoint. The plan for Spec 010 documents it here
+for completeness; Spec 008 T008-xx (theme endpoint) must implement the contrast check.
+**Dependency**: Spec 010 Phase 2 T2-12 (frontend contrast warning) is non-blocking but
+Spec 008 backend contrast validation is the primary enforcement layer and must be
+implemented for full WCAG AA compliance. If Spec 008 is not yet implemented, the
+frontend warning alone provides a partial safety net.
 
 #### Layer 2: Frontend Warning (Defensive — Non-Blocking)
 
@@ -1322,7 +1412,7 @@ const server = setupServer(
           theme: {
             logo: 'https://example.com/logo.png',
             colors: { primary: '#FF5733' },
-            fonts: { heading: 'Arial' },
+            fonts: { heading: 'inter' },
           },
         },
     });
@@ -1612,13 +1702,13 @@ user experience.
 
 ### 7.1 Identified Risks
 
-| Risk                                         | Probability | Impact | Mitigation                                                                    |
-| -------------------------------------------- | ----------- | ------ | ----------------------------------------------------------------------------- |
-| Error boundary doesn't catch async errors    | Medium      | High   | Use `componentDidCatch` + global error handler; test with async plugin errors |
-| Tenant theme breaks existing plugins         | Medium      | Medium | Validate theme tokens; provide fallback; communicate breaking changes         |
-| Widget loading degrades performance          | Low         | Medium | Lazy load widgets on demand; monitor bundle sizes; set 300ms target           |
-| Test coverage regressions during development | High        | Medium | Enforce coverage in CI; block PRs below 80%; add pre-commit hook              |
-| Accessibility regressions after new features | Medium      | High   | Add axe-core to CI pipeline; require manual accessibility review              |
+| Risk                                         | Probability | Impact | Mitigation                                                                                                                                                      |
+| -------------------------------------------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Error boundary doesn't catch async errors    | Medium      | High   | Use `componentDidCatch` for render errors + global `window.onerror`/`unhandledrejection` handlers for async errors (useEffect, event handlers); test both paths |
+| Tenant theme breaks existing plugins         | Medium      | Medium | Validate theme tokens; provide fallback; communicate breaking changes                                                                                           |
+| Widget loading degrades performance          | Low         | Medium | Lazy load widgets on demand; monitor bundle sizes; set 300ms target                                                                                             |
+| Test coverage regressions during development | High        | Medium | Enforce coverage in CI; block PRs below 80%; add pre-commit hook                                                                                                |
+| Accessibility regressions after new features | Medium      | High   | Add axe-core to CI pipeline; require manual accessibility review                                                                                                |
 
 ### 7.2 Rollback Plan
 
@@ -1633,7 +1723,7 @@ If critical issues arise post-deployment:
 
 ## Appendix: File Changes Summary
 
-### New Files (20 files)
+### New Files (22 files)
 
 ```
 packages/shared-types/src/
@@ -1647,7 +1737,9 @@ apps/web/
     │   │   ├── PluginErrorBoundary.tsx
     │   │   ├── PluginErrorBoundary.test.tsx
     │   │   ├── PluginErrorFallback.tsx
-    │   │   └── PluginErrorFallback.test.tsx
+    │   │   ├── PluginErrorFallback.test.tsx
+    │   │   ├── RootErrorBoundary.tsx       ← Full-page error fallback (design-spec Screen 2)
+    │   │   └── RootErrorBoundary.test.tsx
     │   ├── WidgetLoader.tsx
     │   ├── WidgetLoader.test.tsx
     │   ├── WidgetFallback.tsx
@@ -1698,16 +1790,22 @@ apps/web/
 
 ## Cross-References
 
-| Document                        | Path                                                      |
-| ------------------------------- | --------------------------------------------------------- |
-| Spec 010                        | `.forge/specs/010-frontend-production-readiness/spec.md`  |
-| Tasks 010                       | `.forge/specs/010-frontend-production-readiness/tasks.md` |
-| Constitution                    | `.forge/constitution.md`                                  |
-| Spec 005: Frontend Architecture | `.forge/specs/005-frontend-architecture/spec.md`          |
-| Spec 004: Plugin System         | `.forge/specs/004-plugin-system/spec.md`                  |
-| ADR-004: Module Federation      | `.forge/knowledge/adr/adr-004-module-federation.md`       |
-| ADR-009: TailwindCSS Tokens     | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md`   |
-| ADR-011: Vite Module Federation | `.forge/knowledge/adr/adr-011-vite-module-federation.md`  |
-| ADR-020: Font Hosting Strategy  | `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`   |
-| Frontend App                    | `apps/web/`                                               |
-| Shared Types Package            | `packages/shared-types/`                                  |
+| Document                        | Path                                                             |
+| ------------------------------- | ---------------------------------------------------------------- |
+| Spec 010                        | `.forge/specs/010-frontend-production-readiness/spec.md`         |
+| Tasks 010                       | `.forge/specs/010-frontend-production-readiness/tasks.md`        |
+| Design Spec 010                 | `.forge/specs/010-frontend-production-readiness/design-spec.md`  |
+| User Journeys 010               | `.forge/specs/010-frontend-production-readiness/user-journey.md` |
+| Design System v1.7              | `.forge/ux/design-system.md`                                     |
+| Constitution                    | `.forge/constitution.md`                                         |
+| Spec 005: Frontend Architecture | `.forge/specs/005-frontend-architecture/spec.md`                 |
+| Spec 004: Plugin System         | `.forge/specs/004-plugin-system/spec.md`                         |
+| Spec 008: Admin Interfaces      | `.forge/specs/008-admin-interfaces/spec.md`                      |
+| ADR-004: Module Federation      | `.forge/knowledge/adr/adr-004-module-federation.md`              |
+| ADR-009: TailwindCSS Tokens     | `.forge/knowledge/adr/adr-009-tailwindcss-v4-tokens.md`          |
+| ADR-011: Vite Module Federation | `.forge/knowledge/adr/adr-011-vite-module-federation.md`         |
+| ADR-020: Font Hosting Strategy  | `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`          |
+| ADR-021: Pino Frontend          | `.forge/knowledge/adr/adr-021-pino-frontend.md`                  |
+| ADR-022: Axe-Core / Playwright  | `.forge/knowledge/adr/adr-022-axe-core-playwright.md`            |
+| Frontend App                    | `apps/web/`                                                      |
+| Shared Types Package            | `packages/shared-types/`                                         |

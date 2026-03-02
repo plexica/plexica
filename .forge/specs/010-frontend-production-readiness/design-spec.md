@@ -976,7 +976,7 @@ Screen reader flow:
 
 ## 5. Design Tokens
 
-> Reference: `.forge/ux/design-system.md` v1.6
+> Reference: `.forge/ux/design-system.md` v1.7
 
 ### Existing Tokens Used
 
@@ -1021,7 +1021,7 @@ based on the tenant's configuration from `GET /api/v1/tenant/settings`:
 
 | CSS Custom Property      | Default Value | Tenant Override              | Usage                    |
 | ------------------------ | ------------- | ---------------------------- | ------------------------ |
-| `--color-primary`        | `#1976d2`     | `theme.colors.primary`       | Buttons, links, accents  |
+| `--color-primary`        | `#0066CC`     | `theme.colors.primary`       | Buttons, links, accents  |
 | `--color-secondary`      | `#dc004e`     | `theme.colors.secondary`     | Secondary actions        |
 | `--color-background`     | `#ffffff`     | `theme.colors.background`    | Page background          |
 | `--color-surface`        | `#f5f5f5`     | `theme.colors.surface`       | Card/section backgrounds |
@@ -1097,11 +1097,11 @@ the same values as their base counterparts.
 
 ## 7. Open Questions
 
-| #   | Question                                                                                                                                                                                                                          | Impact | Owner  |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ |
-| 1   | Should the Root Error Page include a "Report this error" button that sends context to a backend endpoint?                                                                                                                         | Low    | PM     |
-| 2   | Should widget fallback include a subtle "Learn more" link to documentation explaining widget availability?                                                                                                                        | Low    | PM     |
-| 3   | [NEEDS CLARIFICATION] When tenant theme sets a very dark primary color (e.g., `#000000`), primary buttons become invisible on dark backgrounds. Should the frontend enforce minimum contrast or leave this to backend validation? | Medium | Design |
+| #   | Question                                                                                                                                                                                                                                                                                                                                                                                                | Impact | Owner  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ |
+| 1   | Should the Root Error Page include a "Report this error" button that sends context to a backend endpoint?                                                                                                                                                                                                                                                                                               | Low    | PM     |
+| 2   | Should widget fallback include a subtle "Learn more" link to documentation explaining widget availability?                                                                                                                                                                                                                                                                                              | Low    | PM     |
+| 3   | [RESOLVED] When tenant theme sets a very dark primary color (e.g., `#000000`), primary buttons become invisible on dark backgrounds. **Decision**: Dual-layer enforcement — backend blocks invalid contrast at `PATCH /api/v1/tenants/:id/theme` (Spec 008); frontend emits non-blocking `console.warn` if `contrastRatio(primary, background) < 4.5:1`. See plan.md §4a Contrast Enforcement Strategy. | Medium | Design |
 
 ---
 
