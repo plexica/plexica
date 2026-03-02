@@ -266,4 +266,119 @@ plexica init      # Scaffold new plugin (not yet implemented — use cp -r)
 
 ---
 
-_Last updated: February 2026_
+## Exposing Widgets
+
+Widgets are self-contained React components that plugins expose via Module Federation so the host shell can embed them anywhere on the page — outside the plugin's own route tree.
+
+### What is a Widget?
+
+A widget is a small, focused UI component with:
+
+- **Serializable props only** — no function props, no React nodes; only primitives, objects, and arrays that can be safely serialized across Module Federation boundaries
+- **Self-contained data fetching** — the widget fetches its own data (e.g. via `useQuery`)
+- **Semantic Tailwind tokens** — uses `bg-card`, `text-muted-foreground`, etc., so it automatically inherits the tenant theme
+
+### Step 1: Create the widget component
+
+```tsx
+// apps/plugin-crm/src/widgets/ContactCard.tsx
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
+
+export interface ContactCardProps {
+  contactId: string;
+}
+
+export function ContactCard({ contactId }: ContactCardProps) {
+  const { data: contact, isLoading } = useQuery({
+    queryKey: ['contact', contactId],
+    queryFn: () => axios.get(`/api/v1/crm/contacts/${contactId}`).then((r) => r.data),
+  });
+
+  if (isLoading) return <div className="animate-pulse bg-muted rounded h-16" />;
+
+  return (
+    <div className="bg-card border rounded-lg p-4">
+      <h3 className="text-card-foreground font-semibold">{contact.name}</h3>
+      <p className="text-muted-foreground text-sm">{contact.email}</p>
+    </div>
+  );
+}
+
+export default ContactCard;
+```
+
+### Step 2: Expose the widget in `vite.config.ts`
+
+Add the widget to the `exposes` map in your plugin's `vite.config.ts`:
+
+```ts
+// apps/plugin-crm/vite.config.ts
+federation({
+  name: 'plugin_crm',
+  filename: 'remoteEntry.js',
+  exposes: {
+    './Plugin': './src/Plugin.tsx',
+    './routes': './src/routes/index.ts',
+    './manifest': './src/manifest.ts',
+    // Widgets:
+    './ContactCard': './src/widgets/ContactCard.tsx',
+  },
+  // ...
+});
+```
+
+The expose key must start with `./` and should match the widget component name.
+
+### Step 3: Embed the widget in the host shell
+
+Use the `<WidgetLoader>` component (or the lower-level `loadWidget()` utility) from `apps/web`:
+
+```tsx
+import { WidgetLoader } from '@/components/WidgetLoader';
+
+// Renders ContactCard from the CRM plugin, forwarding contactId as a prop
+<WidgetLoader
+  pluginId="plugin_crm"
+  widgetName="ContactCard"
+  props={{ contactId: 'contact-123' }}
+/>;
+```
+
+Or use the higher-level `<WidgetContainer>` for a titled, feature-flagged section:
+
+```tsx
+import { WidgetContainer } from '@/components/WidgetContainer';
+
+<WidgetContainer
+  pluginId="plugin_crm"
+  widgetName="ContactCard"
+  widgetProps={{ contactId: 'contact-123' }}
+  title="Contact Details"
+/>;
+```
+
+`WidgetContainer` is gated by the `ENABLE_PLUGIN_WIDGETS` feature flag — it renders nothing when the flag is off.
+
+### Fallback behaviour
+
+If the widget cannot be loaded (network error, plugin not registered, etc.) the system degrades gracefully:
+
+- `<WidgetLoader>` renders a dashed-border "Widget Unavailable" placeholder
+- `<WidgetContainer>` renders a destructive-styled error message with the widget title
+
+No error is surfaced to the user beyond these placeholders; errors are logged via the Pino logger.
+
+### Widget contract
+
+| Rule               | Detail                                                                   |
+| ------------------ | ------------------------------------------------------------------------ |
+| Default export     | Widget file must have a `default` export of the component                |
+| Serializable props | No function props, no React node props                                   |
+| Tenant theme       | Use Tailwind semantic tokens (`bg-card`, `text-muted-foreground`, ...)   |
+| Error handling     | Handle loading and error states internally; never throw to parent        |
+| QueryClient        | The host provides `QueryClientProvider`; widgets use `useQuery` normally |
+
+---
+
+_Last updated: March 2026_

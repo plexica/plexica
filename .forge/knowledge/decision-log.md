@@ -36,6 +36,34 @@
 
 ---
 
+### ADR-023 Created: SSE for Real-Time Notification Delivery (February 28, 2026)
+
+**Date**: February 28, 2026
+**Context**: Spec 007 (Core Services) design-spec Open Question #2 — real-time
+delivery mechanism for notification badge updates and job status counters.
+Three options evaluated: SSE, WebSocket, HTTP polling.
+
+**Status**: ✅ ADR written — implementation NOT started (Spec 007 planning phase)
+
+**ADR-023** — Server-Sent Events for Real-Time Notification Delivery
+**File**: `.forge/knowledge/adr/adr-023-sse-real-time-notifications.md`
+**Decision**: Server-Sent Events (SSE) via `GET /api/v1/notifications/stream`.
+Browser `EventSource` API (no new npm dependency). Redis pub/sub fan-out
+on channel `notifications:{tenantId}:{userId}` for multi-instance support.
+Ping every 30s; 5-minute replay window on reconnect via Redis sorted set.
+
+**Key implications**:
+
+- **Zero new dependencies**: Native browser `EventSource` + existing Fastify + Redis
+- **DD-002 compliance**: WebSocket (collaboration) remains deferred to Q2 2026; SSE serves a different concern
+- **Tenant isolation**: Redis channels scoped to `{tenantId}:{userId}` — cross-tenant delivery architecturally impossible
+- **Infrastructure**: Fastify `connectionTimeout: 0` for SSE routes; Nginx `proxy_read_timeout 65s`
+
+**Resolves**: design-spec.md Open Question #2
+**Blocks**: Spec 007 notification endpoint implementation (T007-NNN)
+
+---
+
 ## Decisions Requiring Attention
 
 ### ADR-020 Created: Font Hosting Strategy for Tenant Theming (February 26, 2026)

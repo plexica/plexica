@@ -393,15 +393,17 @@ The authentication subsystem passed a full security review (Task 7.2):
 
 #### `tenants` (core schema)
 
-| Column       | Type           | Constraints                | Notes                           |
-| ------------ | -------------- | -------------------------- | ------------------------------- |
-| `id`         | `UUID`         | PK                         | Tenant identifier               |
-| `name`       | `VARCHAR(255)` | NOT NULL                   | Human-readable tenant name      |
-| `slug`       | `VARCHAR(100)` | UNIQUE, NOT NULL           | URL-safe identifier, realm name |
-| `status`     | `VARCHAR(20)`  | NOT NULL, DEFAULT 'ACTIVE' | ACTIVE, PROVISIONING, SUSPENDED |
-| `settings`   | `JSONB`        | DEFAULT '{}'               | Tenant-level configuration      |
-| `created_at` | `TIMESTAMPTZ`  | NOT NULL, DEFAULT now()    | Tenant creation timestamp       |
-| `updated_at` | `TIMESTAMPTZ`  | NOT NULL, auto-updated     | Last update timestamp           |
+| Column                  | Type           | Constraints                | Notes                                   |
+| ----------------------- | -------------- | -------------------------- | --------------------------------------- |
+| `id`                    | `UUID`         | PK                         | Tenant identifier                       |
+| `name`                  | `VARCHAR(255)` | NOT NULL                   | Human-readable tenant name              |
+| `slug`                  | `VARCHAR(100)` | UNIQUE, NOT NULL           | URL-safe identifier, realm name         |
+| `status`                | `VARCHAR(20)`  | NOT NULL, DEFAULT 'ACTIVE' | ACTIVE, PROVISIONING, SUSPENDED         |
+| `settings`              | `JSONB`        | DEFAULT '{}'               | Tenant-level configuration              |
+| `default_locale`        | `VARCHAR(10)`  | DEFAULT 'en'               | Tenant default locale (Spec 006)        |
+| `translation_overrides` | `JSONB`        | DEFAULT '{}'               | Tenant translation overrides (Spec 006) |
+| `created_at`            | `TIMESTAMPTZ`  | NOT NULL, DEFAULT now()    | Tenant creation timestamp               |
+| `updated_at`            | `TIMESTAMPTZ`  | NOT NULL, auto-updated     | Last update timestamp                   |
 
 ---
 
@@ -412,42 +414,42 @@ The authentication subsystem passed a full security review (Task 7.2):
 All endpoints are versioned under `/api/v1`. Per Constitution Art. 5.1, all
 endpoints require authentication unless explicitly marked Public.
 
-| Module      | Endpoint Pattern                        | Auth        | Spec |
-| ----------- | --------------------------------------- | ----------- | ---- |
-| Auth        | `GET  /api/v1/auth/login`               | Public      | 002  |
-| Auth        | `GET  /api/v1/auth/callback`            | Public      | 002  |
-| Auth        | `POST /api/v1/auth/refresh`             | Public      | 002  |
-| Auth        | `POST /api/v1/auth/logout`              | Bearer      | 002  |
-| Auth        | `GET  /api/v1/auth/me`                  | Bearer      | 002  |
-| Auth        | `GET  /api/v1/auth/jwks`                | Public      | 002  |
-| Tenant      | `POST /api/v1/admin/tenants`            | Super Admin | 001  |
-| Tenant      | `GET  /api/v1/admin/tenants`            | Super Admin | 001  |
-| Tenant      | `GET  /api/v1/admin/tenants/:id`        | Super Admin | 001  |
-| Tenant      | `PUT  /api/v1/admin/tenants/:id`        | Super Admin | 001  |
-| Tenant      | `DELETE /api/v1/admin/tenants/:id`      | Super Admin | 001  |
-| Workspace   | `POST /api/v1/workspaces`               | Bearer      | 009  |
-| Workspace   | `GET  /api/v1/workspaces`               | Bearer      | 009  |
-| Workspace   | `GET  /api/v1/workspaces/:id`           | Bearer      | 009  |
-| Workspace   | `PUT  /api/v1/workspaces/:id`           | Bearer      | 009  |
-| Workspace   | `DELETE /api/v1/workspaces/:id`         | Bearer      | 009  |
-| Workspace   | `POST /api/v1/workspaces/:id/members`   | Bearer      | 009  |
-| Workspace   | `GET  /api/v1/workspaces/:id/members`   | Bearer      | 009  |
-| Plugin      | `POST /api/v1/plugins`                  | Bearer      | 004  |
-| Plugin      | `GET  /api/v1/plugins`                  | Bearer      | 004  |
-| Plugin      | `GET  /api/v1/plugins/:id`              | Bearer      | 004  |
-| Plugin      | `PUT  /api/v1/plugins/:id`              | Bearer      | 004  |
-| Marketplace | `GET  /api/v1/marketplace`              | Bearer      | 004  |
-| Marketplace | `POST /api/v1/marketplace/:id/install`  | Bearer      | 004  |
-| i18n        | `GET  /api/v1/translations/:locale/:ns` | Public      | 006  |
-| i18n        | `GET  /api/v1/i18n/overrides`           | Bearer      | 006  |
-| i18n        | `PUT  /api/v1/i18n/overrides`           | Bearer      | 006  |
-| i18n        | `DELETE /api/v1/i18n/overrides/:id`     | Bearer      | 006  |
-| Admin       | `GET  /api/v1/admin/analytics`          | Super Admin | 008  |
-| Admin       | `GET  /api/v1/admin/system`             | Super Admin | 008  |
-| Health      | `GET  /health`                          | Public      | —    |
-| Health      | `GET  /ready`                           | Public      | —    |
-| Metrics     | `GET  /metrics`                         | Internal    | —    |
-| DLQ         | `GET  /api/v1/admin/dlq`                | Super Admin | —    |
+| Module      | Endpoint Pattern                             | Auth        | Spec |
+| ----------- | -------------------------------------------- | ----------- | ---- |
+| Auth        | `GET  /api/v1/auth/login`                    | Public      | 002  |
+| Auth        | `GET  /api/v1/auth/callback`                 | Public      | 002  |
+| Auth        | `POST /api/v1/auth/refresh`                  | Public      | 002  |
+| Auth        | `POST /api/v1/auth/logout`                   | Bearer      | 002  |
+| Auth        | `GET  /api/v1/auth/me`                       | Bearer      | 002  |
+| Auth        | `GET  /api/v1/auth/jwks`                     | Public      | 002  |
+| Tenant      | `POST /api/v1/admin/tenants`                 | Super Admin | 001  |
+| Tenant      | `GET  /api/v1/admin/tenants`                 | Super Admin | 001  |
+| Tenant      | `GET  /api/v1/admin/tenants/:id`             | Super Admin | 001  |
+| Tenant      | `PUT  /api/v1/admin/tenants/:id`             | Super Admin | 001  |
+| Tenant      | `DELETE /api/v1/admin/tenants/:id`           | Super Admin | 001  |
+| Workspace   | `POST /api/v1/workspaces`                    | Bearer      | 009  |
+| Workspace   | `GET  /api/v1/workspaces`                    | Bearer      | 009  |
+| Workspace   | `GET  /api/v1/workspaces/:id`                | Bearer      | 009  |
+| Workspace   | `PUT  /api/v1/workspaces/:id`                | Bearer      | 009  |
+| Workspace   | `DELETE /api/v1/workspaces/:id`              | Bearer      | 009  |
+| Workspace   | `POST /api/v1/workspaces/:id/members`        | Bearer      | 009  |
+| Workspace   | `GET  /api/v1/workspaces/:id/members`        | Bearer      | 009  |
+| Plugin      | `POST /api/v1/plugins`                       | Bearer      | 004  |
+| Plugin      | `GET  /api/v1/plugins`                       | Bearer      | 004  |
+| Plugin      | `GET  /api/v1/plugins/:id`                   | Bearer      | 004  |
+| Plugin      | `PUT  /api/v1/plugins/:id`                   | Bearer      | 004  |
+| Marketplace | `GET  /api/v1/marketplace`                   | Bearer      | 004  |
+| Marketplace | `POST /api/v1/marketplace/:id/install`       | Bearer      | 004  |
+| i18n        | `GET  /api/v1/translations/:locale/:ns`      | Public      | 006  |
+| i18n        | `GET  /api/v1/translations/locales`          | Bearer      | 006  |
+| i18n        | `GET  /api/v1/tenant/translations/overrides` | Bearer      | 006  |
+| i18n        | `PUT  /api/v1/tenant/translations/overrides` | Bearer      | 006  |
+| Admin       | `GET  /api/v1/admin/analytics`               | Super Admin | 008  |
+| Admin       | `GET  /api/v1/admin/system`                  | Super Admin | 008  |
+| Health      | `GET  /health`                               | Public      | —    |
+| Health      | `GET  /ready`                                | Public      | —    |
+| Metrics     | `GET  /metrics`                              | Internal    | —    |
+| DLQ         | `GET  /api/v1/admin/dlq`                     | Super Admin | —    |
 
 ### 4.2 API Standards
 
@@ -635,7 +637,7 @@ Multi-level caching strategy with tenant-prefixed Redis keys:
 | Workspace membership | `workspace:{id}:member:{userId}`         | 5 min  | Redis |
 | JWKS keys            | In-memory (JwtService)                   | 10 min | L1    |
 | Rate limit counter   | `auth:ratelimit:{ip}`                    | 60 sec | Redis |
-| Translation bundles  | `i18n:{locale}:{namespace}`              | 5 min  | Redis |
+| Translation bundles  | `i18n:{locale}:{namespace}`              | 1 hr   | Redis |
 | Workspace aggregates | `workspace:{id}:agg_counts`              | 5 min  | Redis |
 
 **Cache invalidation**: TTL-based expiry. No explicit invalidation except on

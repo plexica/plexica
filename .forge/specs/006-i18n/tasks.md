@@ -3,14 +3,14 @@
 > Ordered task breakdown with parallelism markers and requirement traceability.
 > Created by the `forge-scrum` agent via `/forge-tasks`.
 
-| Field  | Value                         |
-| ------ | ----------------------------- |
-| Status | **In Progress (M5 Complete)** |
-| Author | forge-scrum                   |
-| Date   | 2026-02-13                    |
-| Spec   | [006-i18n](spec.md)           |
-| Plan   | [006-i18n-plan](plan.md)      |
-| Track  | Feature                       |
+| Field  | Value                    |
+| ------ | ------------------------ |
+| Status | **Complete**             |
+| Author | forge-scrum              |
+| Date   | 2026-02-13               |
+| Spec   | [006-i18n](spec.md)      |
+| Plan   | [006-i18n-plan](plan.md) |
+| Track  | Feature                  |
 
 ---
 
@@ -59,7 +59,7 @@
 
 ## Overview
 
-**Total Estimated Effort**: 18-26 days (144-208 hours)  
+**Total Estimated Effort**: 18-26 days (144-208 hours) _(original estimate — actual delivery: ~5 days across 2 sprints at 28 story points, ~4x faster than estimated)_  
 **Phases**: 6 milestones  
 **Parallelizable Tasks**: 24 of 58 total tasks (41%)  
 **Requirements Covered**: FR-001 to FR-014, NFR-001 to NFR-005

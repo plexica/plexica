@@ -1,6 +1,20 @@
 // apps/web/src/__tests__/widgets/WidgetContainer.test.tsx
 //
 // T005-05: Unit tests for WidgetContainer component.
+//
+// Architecture note (updated 2026-03-01):
+// WidgetContainer was refactored from a useEffect-based state machine to
+// React.lazy() + Suspense + PluginErrorBoundary (HIGH-002 fix).
+//
+// Error-path behaviour:
+//   - Import failure (no MF runtime in jsdom): caught INSIDE loadWidget's
+//     React.lazy callback → returns BuiltInFallback → renders widget-unavailable.
+//   - Render-time error (widget component throws during render): caught by
+//     PluginErrorBoundary → renders BuiltInErrorFallback (widget-error-fallback)
+//     or the custom errorFallback ReactNode.
+//
+// These tests cover import-failure paths (the common jsdom path) and
+// the feature-flag, section structure, and loading skeleton paths.
 
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -18,11 +32,11 @@ vi.mock('@/lib/feature-flags', () => ({
   useFeatureFlag: mockUseFeatureFlag,
 }));
 
-// ---------------------------------------------------------------------------
-// We mock the loadWidget stub inside WidgetContainer at module level.
-// Since loadWidget is a module-private function, we test the component's
-// observable behaviour (aria-busy, role, error fallback, content).
-// ---------------------------------------------------------------------------
+// Suppress logger noise from loadWidget's error logging
+vi.mock('@/lib/logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  createContextLogger: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }),
+}));
 
 import { WidgetContainer } from '../../components/WidgetContainer';
 
@@ -53,46 +67,53 @@ describe('WidgetContainer', () => {
   });
 
   // ---- Test 2 ---------------------------------------------------------------
-  it('shows skeleton (aria-busy="true") while loadWidget promise is pending', () => {
-    // Don't await — check loading state immediately
+  it('shows loading skeleton (Suspense fallback) while the widget module is resolving', () => {
+    // The loading skeleton is the built-in SkeletonFallback rendered by Suspense.
+    // It has aria-hidden="true" and the class "animate-pulse".
     render(<WidgetContainer pluginId="crm" widgetName="SalesChart" title="Monthly Sales" />);
 
+    // Section must still be in the document
     const section = screen.getByRole('region', { name: 'Monthly Sales' });
-    expect(section).toHaveAttribute('aria-busy', 'true');
+    expect(section).toBeInTheDocument();
+
+    // Built-in skeleton: animate-pulse, aria-hidden (not focusable)
+    const skeleton = section.querySelector('.animate-pulse');
+    expect(skeleton).not.toBeNull();
+    expect(skeleton).toHaveAttribute('aria-hidden', 'true');
   });
 
   // ---- Test 3 ---------------------------------------------------------------
-  it('renders errorFallback when loadWidget rejects', async () => {
-    const customError = <div data-testid="custom-error">Widget unavailable</div>;
-
-    await act(async () => {
-      render(
-        <WidgetContainer
-          pluginId="crm"
-          widgetName="BrokenWidget"
-          title="Broken Widget"
-          errorFallback={customError}
-        />
-      );
-    });
-
-    // loadWidget stub always rejects — error fallback should appear
-    expect(await screen.findByTestId('custom-error')).toBeInTheDocument();
-
-    // Section should no longer be busy
-    const section = screen.getByRole('region', { name: 'Broken Widget' });
-    expect(section).toHaveAttribute('aria-busy', 'false');
-  });
-
-  // ---- Test 4 ---------------------------------------------------------------
-  it('renders built-in WidgetFallback (data-testid="widget-error-fallback") when no custom errorFallback provided', async () => {
+  // Import failure path: loadWidget's React.lazy catch returns BuiltInFallback
+  // which renders <WidgetFallback> (data-testid="widget-unavailable").
+  // The PluginErrorBoundary / errorFallback prop is only triggered by render-time
+  // errors thrown by the widget component itself (not import failures).
+  it('renders widget-unavailable fallback when the widget cannot be imported', async () => {
     await act(async () => {
       render(<WidgetContainer pluginId="crm" widgetName="BrokenWidget" title="Broken Widget" />);
     });
 
-    // loadWidget stub always rejects — built-in error fallback should appear
-    expect(await screen.findByTestId('widget-error-fallback')).toBeInTheDocument();
-    expect(screen.getByTestId('widget-error-fallback')).toHaveTextContent('Broken Widget');
+    // loadWidget's internal catch handles the import error and returns
+    // BuiltInFallback → WidgetFallback renders with data-testid="widget-unavailable"
+    const fallback = await screen.findByTestId('widget-unavailable');
+    expect(fallback).toBeInTheDocument();
+    expect(fallback).toHaveTextContent('crm');
+    expect(fallback).toHaveTextContent('BrokenWidget');
+  });
+
+  // ---- Test 4 ---------------------------------------------------------------
+  // Same import-failure path — no custom errorFallback provided.
+  // Confirms widget-unavailable is shown (the default import-failure fallback).
+  it('renders widget-unavailable with plugin debug info when no custom errorFallback provided', async () => {
+    await act(async () => {
+      render(
+        <WidgetContainer pluginId="analytics" widgetName="Dashboard" title="Dashboard Widget" />
+      );
+    });
+
+    const fallback = await screen.findByTestId('widget-unavailable');
+    expect(fallback).toBeInTheDocument();
+    expect(fallback).toHaveTextContent('analytics');
+    expect(fallback).toHaveTextContent('Dashboard');
   });
 
   // ---- Test 5 ---------------------------------------------------------------
@@ -108,7 +129,7 @@ describe('WidgetContainer', () => {
       />
     );
 
-    // Before the promise resolves the loading state is active
+    // Before the promise resolves the Suspense renders the custom fallback
     expect(screen.getByTestId('custom-loader')).toBeInTheDocument();
   });
 });
