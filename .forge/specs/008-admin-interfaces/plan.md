@@ -4,21 +4,21 @@
 > backend APIs **and** frontend UI screens.
 > Created by the `forge-architect` agent via `/forge-plan`.
 
-| Field                  | Value                                       |
-| ---------------------- | ------------------------------------------- |
-| Status                 | Draft                                       |
-| Author                 | forge-architect                             |
-| Date                   | 2026-02-28 (backend), 2026-03-02 (frontend) |
-| Track                  | Feature                                     |
-| Spec                   | [008 - Admin Interfaces](./spec.md)         |
-| Backend phases         | 4 (Phase 1–4)                               |
-| Backend tasks          | T008-00 – T008-38 (39 tasks)                |
-| Backend story points   | ~71 pts                                     |
-| Frontend phases        | 4 (Phase 5–8)                               |
-| Frontend tasks         | T008-39 – T008-63 (25 tasks)                |
-| Frontend story points  | ~35 pts                                     |
-| **Total story points** | **~106 pts**                                |
-| **Total tests (est)**  | **~245** (150 backend + 95 frontend)        |
+| Field                  | Value                                           |
+| ---------------------- | ----------------------------------------------- |
+| Status                 | Draft                                           |
+| Author                 | forge-architect                                 |
+| Date                   | 2026-02-28 (backend), 2026-03-02 (frontend)     |
+| Track                  | Feature                                         |
+| Spec                   | [008 - Admin Interfaces](./spec.md)             |
+| Backend phases         | 4 (Phase 1–4)                                   |
+| Backend tasks          | T008-00 – T008-38, T008-64 – T008-66 (42 tasks) |
+| Backend story points   | ~85 pts                                         |
+| Frontend phases        | 4 (Phase 5–8)                                   |
+| Frontend tasks         | T008-39 – T008-63 (25 tasks)                    |
+| Frontend story points  | ~35 pts                                         |
+| **Total story points** | **~120 pts**                                    |
+| **Total tests (est)**  | **~263** (168 backend + 95 frontend)            |
 
 ---
 
@@ -120,12 +120,12 @@ Key architectural decisions:
 
 #### `{tenant_schema}.team_members` (Tenant Schema — Raw SQL via schema-step)
 
-| Column    | Type      | Constraints                                  | Notes                 |
-| --------- | --------- | -------------------------------------------- | --------------------- |
-| team_id   | TEXT      | NOT NULL, FK → teams(id) ON DELETE CASCADE   | Team reference        |
-| user_id   | TEXT      | NOT NULL, FK → users(id) ON DELETE CASCADE   | User reference        |
-| role      | TEXT      | NOT NULL, CHECK (role IN ('MEMBER','ADMIN')) | Team-level role       |
-| joined_at | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP          | When user joined team |
+| Column    | Type      | Constraints                                                   | Notes                     |
+| --------- | --------- | ------------------------------------------------------------- | ------------------------- |
+| team_id   | TEXT      | NOT NULL, FK → teams(id) ON DELETE CASCADE                    | Team reference            |
+| user_id   | TEXT      | NOT NULL, FK → users(id) ON DELETE CASCADE                    | User reference            |
+| role      | TEXT      | NOT NULL, CHECK (role IN ('OWNER','ADMIN','MEMBER','VIEWER')) | Team-level role (ADR-024) |
+| joined_at | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP                           | When user joined team     |
 
 **Primary Key**: `(team_id, user_id)` — a user can be in a team only once.
 
@@ -291,6 +291,36 @@ Already implemented. **No changes needed.**
   | 403 | `AUTH_INSUFFICIENT_ROLE`| Not super_admin |
 
 - **Edge Case #6**: Result window capped at 10,000 entries per spec §6, Edge Case #6 (see **Inline Decision: Audit Log 10K Cap** in §9). If `(page - 1) * limit >= 10,000`, the endpoint returns 400 with code `AUDIT_LOG_RESULT_WINDOW_EXCEEDED`. The `meta.total` reflects true count; clients must narrow queries with `start_date`/`end_date` or `action` filters to access data beyond the window. The B-TREE composite index on `(tenant_id, created_at)` keeps filtered queries under 500ms (NFR-002).
+
+#### 3.1.8b POST `/api/v1/admin/audit-logs/export`
+
+Enqueue an asynchronous audit log export job. Returns a job ID for polling.
+
+- **Auth**: Bearer + `super_admin` role
+- **Implements**: FR-015
+- **Request Body**:
+  ```json
+  {
+    "format": "csv",
+    "tenantId": "uuid-optional",
+    "startDate": "2026-01-01T00:00:00Z",
+    "endDate": "2026-03-01T00:00:00Z",
+    "actions": ["user.created", "tenant.deleted"],
+    "limit": 50000
+  }
+  ```
+- **Response (202)**:
+  ```json
+  { "jobId": "job-uuid", "estimatedSeconds": 30 }
+  ```
+  Caller polls `GET /api/v1/jobs/:jobId` (Spec 007). On completion, job result contains a MinIO signed URL (24h expiry) for download.
+- **Error Responses**:
+
+  | Status | Code                    | When                       |
+  | ------ | ----------------------- | -------------------------- |
+  | 400    | `INVALID_EXPORT_FORMAT` | format not `csv` or `json` |
+
+- **Audit event**: `audit_log.export_requested`
 
 #### 3.1.9 GET `/api/v1/admin/super-admins`
 
@@ -562,6 +592,72 @@ All Tenant Admin endpoints require:
 
 - **Edge Case #7**: Before deactivation, check if user is the last `tenant_admin`. If so, return 409 with code `LAST_TENANT_ADMIN`.
 
+#### 3.2.5b POST `/api/v1/tenant/users/:id/reactivate`
+
+- **Description**: Reactivate a deactivated user (restore access)
+- **Auth**: Bearer + `tenant_admin`/`tenant_owner`
+- **Implements**: FR-009, US-003 (Clarification A-2)
+- **Response (200)**:
+  ```json
+  {
+    "data": { "id": "user-uuid", "status": "active" }
+  }
+  ```
+- **Error Responses**:
+  | Status | Code | When |
+  | ------ | ----------------------- | --------------------------------- |
+  | 404 | `USER_NOT_FOUND` | User not in this tenant |
+  | 409 | `USER_NOT_DEACTIVATED` | User is not in deactivated status |
+
+#### 3.2.5c POST `/api/v1/tenant/users/:id/resend-invitation`
+
+Resend a pending invitation, resetting the expiry to 7 days from now.
+
+- **Auth**: Bearer + `tenant_admin`/`tenant_owner`
+- **Implements**: A-3 (invitation lifecycle)
+- **Request**: No body required
+- **Response (200)**:
+  ```json
+  { "message": "Invitation resent", "expiresAt": "2026-03-09T00:00:00Z" }
+  ```
+- **Error Responses**:
+
+  | Status | Code                     | When                                     |
+  | ------ | ------------------------ | ---------------------------------------- |
+  | 404    | `USER_NOT_FOUND`         | User does not exist in tenant            |
+  | 409    | `INVITATION_NOT_PENDING` | User invitation is not in PENDING status |
+
+- **Audit event**: `invitation.resent`
+
+#### 3.2.5d POST `/api/v1/tenant/users/:id/cancel-invitation`
+
+Cancel a pending invitation, preventing the invitee from accepting it.
+
+- **Auth**: Bearer + `tenant_admin`/`tenant_owner`
+- **Implements**: A-3 (invitation lifecycle)
+- **Request**: No body required
+- **Response (200)**:
+  ```json
+  { "message": "Invitation cancelled" }
+  ```
+- **Error Responses**:
+
+  | Status | Code                     | When                                     |
+  | ------ | ------------------------ | ---------------------------------------- |
+  | 404    | `USER_NOT_FOUND`         | User does not exist in tenant            |
+  | 409    | `INVITATION_NOT_PENDING` | User invitation is not in PENDING status |
+
+- **Audit event**: `invitation.cancelled`
+
+#### 3.2.5e Invitation Expiry Mechanism
+
+Invitation expiry is enforced via two complementary strategies:
+
+1. **Lazy evaluation (on-access)**: When any invitation endpoint is called, if `invitations.expires_at < now()` the status is updated to `EXPIRED` before returning. No separate query needed.
+2. **Nightly cleanup job**: A scheduled job using `JobQueueService` (Spec 007) bulk-updates all PENDING invitations where `expires_at < now()` to `EXPIRED` status. Fires `invitation.expired` audit events for each affected invitation.
+
+This dual approach ensures expired invitations are never returned as active while keeping on-demand response times fast.
+
 #### 3.2.6 GET `/api/v1/tenant/teams`
 
 - **Description**: List all teams in the tenant
@@ -648,9 +744,9 @@ All Tenant Admin endpoints require:
 
 #### 3.2.10 POST `/api/v1/tenant/teams/:id/members`
 
-- **Description**: Add a member to a team with role
+- **Description**: Add a member to a team with role (OWNER/ADMIN/MEMBER/VIEWER per ADR-024)
 - **Auth**: Bearer + `tenant_admin`/`tenant_owner`
-- **Implements**: FR-010, US-005
+- **Implements**: FR-010, US-005, ADR-024
 - **Request**:
   ```json
   {
@@ -658,6 +754,7 @@ All Tenant Admin endpoints require:
     "role": "MEMBER"
   }
   ```
+- **Validation (ADR-024)**: The requested `role` must not exceed the maximum allowed for the user's Keycloak realm role. If it does, return `400` with code `ROLE_EXCEEDS_REALM_ROLE`.
 - **Response (201)**:
   ```json
   {
@@ -831,6 +928,35 @@ All Tenant Admin endpoints require:
 - **Response (200)**: Same shape as 3.1.8 but filtered to current tenant
 - **Security (NFR-004)**: The query always includes `WHERE tenant_id = $currentTenantId`. This is enforced at the service layer — no tenant_id override is accepted from query params.
 
+#### 3.2.19b POST `/api/v1/tenant/audit-logs/export`
+
+Enqueue an asynchronous audit log export job scoped to the current tenant.
+
+- **Auth**: Bearer + `tenant_admin`/`tenant_owner`
+- **Implements**: FR-015
+- **Request Body**:
+  ```json
+  {
+    "format": "csv",
+    "startDate": "2026-01-01T00:00:00Z",
+    "endDate": "2026-03-01T00:00:00Z",
+    "actions": ["user.created"],
+    "limit": 50000
+  }
+  ```
+  Note: `tenantId` is NOT accepted in the body — it is always derived from the authenticated user's tenant context.
+- **Response (202)**:
+  ```json
+  { "jobId": "job-uuid", "estimatedSeconds": 15 }
+  ```
+- **Error Responses**:
+
+  | Status | Code                    | When                       |
+  | ------ | ----------------------- | -------------------------- |
+  | 400    | `INVALID_EXPORT_FORMAT` | format not `csv` or `json` |
+
+- **Audit event**: `audit_log.export_requested`
+
 ---
 
 ## 4. Component Design
@@ -935,6 +1061,8 @@ All Tenant Admin endpoints require:
   | `deleteTeam` | `tenantId: string, schemaName: string, teamId: string` | `Promise<void>` | Delete team (cascades members) |
   | `addTeamMember` | `tenantId: string, schemaName: string, teamId: string, dto: AddTeamMemberDto` | `Promise<TeamMember>` | Add member with role |
   | `removeTeamMember` | `tenantId: string, schemaName: string, teamId: string, userId: string` | `Promise<void>` | Remove member |
+  | `resendInvitation` | `tenantId: string, schemaName: string, userId: string` | `Promise<InvitationResendResult>` | Resets invitation expiry to 7 days; re-sends email |
+  | `cancelInvitation` | `tenantId: string, schemaName: string, userId: string` | `Promise<void>` | Cancels pending invitation; sets status to CANCELLED |
 
 ### 4.4 SystemConfigService
 
@@ -1427,12 +1555,13 @@ The `meta.total` field still returns the true count (which may exceed 10,000) so
 | FR-006      | §3.1.8                                          | `GET /api/v1/admin/audit-logs` → AuditLogService                                                             |
 | FR-007      | §3.1.14                                         | `GET /api/v1/admin/system-health` → AdminService.getSystemHealth()                                           |
 | FR-008      | §3.2.1                                          | `GET /api/v1/tenant/dashboard` → TenantAdminService.getDashboard()                                           |
-| FR-009      | §3.2.2–3.2.5                                    | `GET/POST/PATCH/POST /api/v1/tenant/users/*` → TenantAdminService                                            |
+| FR-009      | §3.2.2–3.2.5b                                   | `GET/POST/PATCH/POST /api/v1/tenant/users/*` → TenantAdminService (incl. reactivate)                         |
 | FR-010      | §3.2.6–3.2.11                                   | `GET/POST/PATCH/DELETE /api/v1/tenant/teams/*` → TenantAdminService                                          |
 | FR-011      | §3.2.12–3.2.16                                  | `GET/POST/PATCH/DELETE /api/v1/tenant/roles/*` + permissions → RoleService                                   |
 | FR-012      | §3.2.17–3.2.18 (note)                           | Tenant plugin settings via existing `tenant-plugins-v1.ts` routes                                            |
 | FR-013      | §3.2.17–3.2.18                                  | `GET/PATCH /api/v1/tenant/settings` → TenantService (existing)                                               |
 | FR-014      | §3.2.19                                         | `GET /api/v1/tenant/audit-logs` → AuditLogService.queryForTenant()                                           |
+| FR-015      | §3.1.8b, §3.2.19b                               | `POST /api/v1/{admin,tenant}/audit-logs/export` → AuditLogExportService + JobQueueService                    |
 | NFR-001     | §2.3 (indexes)                                  | B-TREE indexes; paginated queries; max 100 items/page                                                        |
 | NFR-002     | §2.3 (indexes)                                  | Composite index `(tenant_id, created_at)` for efficient 30-day queries                                       |
 | NFR-003     | §4.6, §3.1 (all)                                | `requireSuperAdmin` (existing) + `requireTenantAdmin` (new)                                                  |

@@ -7,13 +7,15 @@
 >
 > Created by the `forge-architect` agent via `/forge-plan`.
 
-| Field  | Value                                                   |
-| ------ | ------------------------------------------------------- |
-| Status | Draft                                                   |
-| Author | forge-architect                                         |
-| Date   | 2026-02-16                                              |
-| Track  | Feature                                                 |
-| Spec   | [Spec 009](spec.md) — Workspace Management (Brownfield) |
+| Field     | Value                                                   |
+| --------- | ------------------------------------------------------- |
+| Status    | Draft                                                   |
+| Author    | forge-architect                                         |
+| Date      | 2026-02-16                                              |
+| Updated   | 2026-03-02 (post-UX design phase)                       |
+| Track     | Feature                                                 |
+| Spec      | [Spec 009](spec.md) — Workspace Management (Brownfield) |
+| UX Design | [design-spec.md](design-spec.md)                        |
 
 ---
 
@@ -22,20 +24,25 @@
 This plan addresses 7 implementation gaps identified in Spec 009 that prevent
 full constitution compliance for the Workspace Management module:
 
-| Task | Gap                     | Priority | Effort    | Spec Refs              |
-| ---- | ----------------------- | -------- | --------- | ---------------------- |
-| T1   | Event Publishing        | CRITICAL | 8–12 hrs  | FR-031, FR-032, FR-033 |
-| T2   | Redis Caching           | HIGH     | 6–8 hrs   | FR-034, FR-035         |
-| T6   | Error Format Migration  | HIGH     | 8–12 hrs  | Art. 6.2               |
-| T7   | Rate Limiting           | HIGH     | 8–12 hrs  | Art. 9.2               |
-| T4   | Workspace Settings      | MEDIUM   | 8–12 hrs  | FR-038, FR-039, FR-040 |
-| T3   | Cross-Workspace Sharing | MEDIUM   | 24–40 hrs | FR-036, FR-037         |
-| T5   | Test Coverage 65% → 85% | MEDIUM   | 12–16 hrs | NFR-004                |
+| Task | Gap                       | Priority | Effort    | Spec Refs                |
+| ---- | ------------------------- | -------- | --------- | ------------------------ |
+| T1   | Event Publishing          | CRITICAL | 8–12 hrs  | FR-031, FR-032, FR-033   |
+| T2   | Redis Caching             | HIGH     | 6–8 hrs   | FR-034, FR-035           |
+| T6   | Error Format Migration    | HIGH     | 8–12 hrs  | Art. 6.2                 |
+| T7   | Rate Limiting             | HIGH     | 8–12 hrs  | Art. 9.2                 |
+| T8   | Frontend Component Impl   | HIGH     | 20–28 hrs | design-spec.md §6        |
+| T9   | Accessibility Remediation | HIGH     | 8–12 hrs  | design-spec.md §2,3,5,13 |
+| T4   | Workspace Settings        | MEDIUM   | 8–12 hrs  | FR-038, FR-039, FR-040   |
+| T3   | Cross-Workspace Sharing   | MEDIUM   | 24–40 hrs | FR-036, FR-037           |
+| T5   | Test Coverage 65% → 85%   | MEDIUM   | 12–16 hrs | NFR-004                  |
+
+> **Totals**: 9 tasks · 55 story points · 96–144 hours (12–18 days)
+> Updated 2026-03-02 — added T8 and T9 from UX design phase.
 
 **Approach**: No database schema changes are needed — all Prisma models
 (Workspace, WorkspaceMember, WorkspaceResource, Team) are deployed. Work is
-purely service-level, infrastructure integration, error standardization, and
-test expansion.
+purely service-level, infrastructure integration, error standardization,
+frontend component implementation, accessibility remediation, and test expansion.
 
 **Key architectural decisions**:
 
@@ -44,6 +51,53 @@ test expansion.
 - Error format follows Constitution Art. 6.2 with a reusable formatter utility
 - Rate limiting uses Redis sliding-window counters (Fastify `onRequest` hook)
 - All work stays within the existing modular monolith pattern (ADR-001)
+- Frontend components follow design-system.md tokens and design-spec.md §6 specs
+- Accessibility fixes target WCAG 2.1 AA per Constitution Art. 1.3 (ADR-022)
+
+---
+
+## 1.5 UX Design Integration
+
+> Added: 2026-03-02 — post-UX design phase.
+
+The UX design phase (completed 2026-03-02) produced a full design specification
+at [`design-spec.md`](design-spec.md) covering 4 key screens, 5 new components,
+and WCAG 2.1 AA requirements. Two new tasks (T8, T9) have been added to this plan.
+
+### New Tasks Added
+
+**T8: Frontend Component Implementation** (13 SP, 20–28 hrs)
+
+Implement 5 new components specified in `design-spec.md §6`:
+
+| Component                   | Description                                            | Resolves               |
+| --------------------------- | ------------------------------------------------------ | ---------------------- |
+| `WorkspaceSettingsForm`     | Typed form for workspace settings (T4 frontend)        | FR-038, FR-039, FR-040 |
+| `SharePluginDialog`         | Multi-select checkbox dialog for batch plugin sharing  | Q1, FR-036             |
+| `SharedResourceRow`         | Row component for the sharing tab (outbound + inbound) | Q2, FR-037             |
+| `RevokeShareDialog`         | Confirmation dialog for revoking a shared resource     | FR-037                 |
+| `SharingDisabledEmptyState` | Empty state shown when sharing is disabled             | design-spec §6         |
+
+**Key design decisions incorporated:**
+
+- Q1 resolved: `SharePluginDialog` uses multi-select checkboxes (batch sharing)
+- Q2 resolved: Sharing tab shows both outbound and inbound sections on the same tab
+- Q3 resolved: Member removal uses `Dialog` component (replaces anti-pattern `confirm()`)
+- HIGH priority: Search/filter input in WorkspaceSwitcher when workspaces > 5
+
+**T9: Accessibility Gap Remediation** (5 SP, 8–12 hrs)
+
+Fix all 4 WCAG 2.1 AA gaps identified in `design-spec.md §13` (required by
+Constitution Art. 1.3):
+
+| Screen            | Gap                                                                                 | Fix                                                           |
+| ----------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| WorkspaceSwitcher | Missing `aria-label` on trigger, `role="listbox"` on list, `aria-selected` on items | Add ARIA attributes                                           |
+| WorkspaceSwitcher | Search input has no visible label                                                   | Add `<label>` or `aria-label`                                 |
+| Settings          | Toggles missing `role="switch"` and `aria-checked`                                  | Add ARIA role and state                                       |
+| Members           | Role dropdown and remove button missing `aria-label`                                | Add `aria-label="Change role for {name}"` / `"Remove {name}"` |
+
+All fixes verified by axe-core/Playwright automated checks (ADR-022).
 
 ---
 

@@ -3,8 +3,8 @@
 > Detailed technical design and implementation strategy for closing critical frontend gaps.
 
 **Spec:** 010-frontend-production-readiness  
-**Date:** 2026-02-17  
-**Status:** Draft  
+**Date:** 2026-03-02  
+**Status:** Active  
 **Estimated Effort:** 136 hours across 3 sprints
 
 ---
@@ -13,9 +13,14 @@
 
 1. [Architecture Overview](#1-architecture-overview)
 2. [Component Design](#2-component-design)
+   - 2a. [Design Spec Reference](#2a-design-spec-reference)
 3. [Implementation Phases](#3-implementation-phases)
 4. [Technical Details](#4-technical-details)
+   - 4a. [Contrast Enforcement Strategy](#4a-contrast-enforcement-strategy)
 5. [Testing Strategy](#5-testing-strategy)
+   - 5.4 [Visual Regression Tests](#54-visual-regression-tests)
+   - 5.5 [Accessibility Tests](#55-accessibility-tests)
+   - 5.6 [User Journey Test Coverage Mapping](#56-user-journey-test-coverage-mapping)
 6. [Deployment Plan](#6-deployment-plan)
 7. [Risk Mitigation](#7-risk-mitigation)
 
@@ -702,6 +707,90 @@ function MyComponent() {
 
 ---
 
+## 2a. Design Spec Reference
+
+> **Canonical UX source of truth**: `design-spec.md` in this directory.
+> All component UI states, wireframes, ARIA contracts, and contrast
+> verification are defined there. The plan's code samples above reflect the
+> functional API; the design spec defines the visual/interaction layer.
+
+### 2a.1 Component-to-Task Mapping
+
+The design spec defines **8 components**. Each maps to one or more
+implementation tasks in §3:
+
+| #   | Component (design-spec §4) | Phase   | Plan Task(s)            | Notes                                                              |
+| --- | -------------------------- | ------- | ----------------------- | ------------------------------------------------------------------ |
+| 1   | `PluginErrorBoundary`      | Phase 1 | T1-1, T1-3, T1-5        | Error boundary class; wraps plugin routes                          |
+| 2   | `PluginErrorFallback`      | Phase 1 | T1-2, T1-5              | Presentational fallback card (Screen 1 wireframe)                  |
+| 3   | `RootErrorBoundary`        | Phase 1 | T1-1, T1-5              | Full-page crash fallback (Screen 2 wireframe); added to `main.tsx` |
+| 4   | `ThemeProvider`            | Phase 2 | T2-1, T2-2, T2-3, T2-10 | Context provider; fetches + validates + applies theme              |
+| 5   | `TenantLogo`               | Phase 2 | T2-6, T2-11             | Image-with-fallback inside Header (Screen 3 wireframe)             |
+| 6   | `WidgetLoader`             | Phase 3 | T3-2, T3-6              | Suspense wrapper using `loadWidget()` utility                      |
+| 7   | `WidgetFallback`           | Phase 3 | T3-3, T3-6              | Dashed-border placeholder (Screen 7 wireframe)                     |
+| 8   | `WidgetLoadingSkeleton`    | Phase 3 | T3-2, T3-6              | Pulse-animated skeleton using `@plexica/ui` Skeleton               |
+
+### 2a.2 Design Token Implementation Checklist
+
+The plan must implement **17 design tokens** — 5 new semantic tokens
+(from `design-system.md` v1.7 §Spec 010) plus 12 tenant runtime override
+tokens (from design-spec §5).
+
+**5 New Semantic Tokens** (add to `@plexica/ui` / design-system CSS):
+
+| Token                         | Light     | Dark      | Base Alias           | Implementation Task |
+| ----------------------------- | --------- | --------- | -------------------- | ------------------- |
+| `--error-boundary-icon`       | `#D97706` | `#F59E0B` | `--status-warning`   | Phase 1, T1-2       |
+| `--error-boundary-bg`         | `#FFFFFF` | `#111111` | `--card`             | Phase 1, T1-2       |
+| `--widget-placeholder-border` | `#E4E4E7` | `#27272A` | `--border`           | Phase 3, T3-3       |
+| `--widget-placeholder-icon`   | `#71717A` | `#A1A1AA` | `--muted-foreground` | Phase 3, T3-3       |
+| `--root-error-bg`             | `#FFFFFF` | `#0A0A0A` | `--background`       | Phase 1, T1-2       |
+
+**12 Tenant Runtime Override Tokens** (set by `ThemeProvider.applyTheme()`):
+
+| CSS Custom Property      | Default       | Source                       |
+| ------------------------ | ------------- | ---------------------------- |
+| `--color-primary`        | `#1976d2`     | `theme.colors.primary`       |
+| `--color-secondary`      | `#dc004e`     | `theme.colors.secondary`     |
+| `--color-background`     | `#ffffff`     | `theme.colors.background`    |
+| `--color-surface`        | `#f5f5f5`     | `theme.colors.surface`       |
+| `--color-text`           | `#212121`     | `theme.colors.text`          |
+| `--color-text-secondary` | `#757575`     | `theme.colors.textSecondary` |
+| `--color-error`          | `#f44336`     | `theme.colors.error`         |
+| `--color-success`        | `#4caf50`     | `theme.colors.success`       |
+| `--color-warning`        | `#ff9800`     | `theme.colors.warning`       |
+| `--font-heading`         | `"Inter"`     | Resolved from `FONT_CATALOG` |
+| `--font-body`            | `"Roboto"`    | Resolved from `FONT_CATALOG` |
+| `--font-mono`            | `"Fira Code"` | Resolved from `FONT_CATALOG` |
+
+Components must use semantic tokens for error/widget chrome (not raw values)
+and tenant override tokens for themed elements (via Tailwind utility classes
+`bg-primary`, `text-primary`, `font-heading`, etc. per §4.3).
+
+### 2a.3 Open Accessibility Items from Design Spec
+
+The design-spec §6 identifies **3 open accessibility items** that require
+implementation attention:
+
+1. **Skip-to-main-content link (WCAG 2.4.1)** — Verify the shell layout
+   includes `<a href="#main-content" class="sr-only focus:not-sr-only">Skip to
+main content</a>`. If missing, add in Phase 5 (Accessibility). Tracked as
+   Phase 5, Task 4.
+
+2. **Tenant theme contrast validation** — Tenant-set custom colors cannot
+   guarantee WCAG AA contrast ratios. Backend validation is the primary
+   enforcement (see §4a below). Frontend `ThemeProvider` should emit a
+   non-blocking `console.warn` if the computed contrast ratio of
+   `--color-primary` on `--color-background` falls below 4.5:1. See §4a
+   Contrast Enforcement Strategy.
+
+3. **Widget accessibility ownership** — Per design-spec §6 Screen 6 note,
+   loaded widgets are responsible for their own internal accessibility. The
+   `WidgetLoader` contract should document this expectation. No plan task
+   required — this is a documentation note for widget developer guidelines.
+
+---
+
 ## 3. Implementation Phases
 
 ### Phase 1: Error Boundaries (Week 1)
@@ -748,6 +837,7 @@ function MyComponent() {
 9. **[ADR-020] Add `<link rel="preload">` hints for Inter 400 + Roboto 400 in `apps/web/index.html`** (1h)
 10. Unit tests for theme context + `font-loader.ts` (8h)
 11. Integration tests for theme API + font validation (5h)
+12. **[design-spec OQ#3] Implement frontend contrast warning in `applyTheme()`** — compute `contrastRatio(primary, background)` and `console.warn` if < 4.5:1 (see §4a) (1h)
 
 **Deliverables:**
 
@@ -771,6 +861,7 @@ function MyComponent() {
 - Font names validated against `FONT_CATALOG`; unknown font IDs fall back to defaults ✅ (ADR-020)
 - Fonts loaded via FontFace API from self-hosted WOFF2 files; no Google Fonts CDN calls ✅ (ADR-020)
 - Default fonts (Inter, Roboto) preloaded via `<link rel="preload">` to prevent FOIT ✅ (ADR-020)
+- Frontend `console.warn` emitted if tenant primary-on-background contrast < 4.5:1 ✅ (design-spec OQ#3, §4a)
 
 ### Phase 3: Widget System (Week 4)
 
@@ -1006,6 +1097,124 @@ Usage in components:
 
 ---
 
+## 4a. Contrast Enforcement Strategy
+
+> **Resolves**: design-spec.md Open Question #3
+> **References**: Constitution Art. 1.3 (UX Standards), Art. 5 (Security), WCAG 2.1 1.4.3
+
+### Problem
+
+When a tenant admin configures a very dark primary color (e.g., `#000000`) via
+`PATCH /api/v1/tenants/:id/theme`, primary buttons may become invisible on dark
+backgrounds. The design spec flags this as Open Question #3 (Medium impact).
+
+### Decision: Dual-Layer Contrast Enforcement
+
+A **dual-layer approach** ensures both proactive backend prevention and
+defensive frontend warning:
+
+#### Layer 1: Backend Validation (Primary — Blocking)
+
+The `PATCH /api/v1/tenants/:id/theme` endpoint (Spec 008, Admin Interfaces)
+must validate WCAG AA contrast ratios **before persisting** theme changes:
+
+- **Primary on background**: `contrast(theme.colors.primary, theme.colors.background) ≥ 4.5`
+- **Primary on surface**: `contrast(theme.colors.primary, theme.colors.surface) ≥ 3.0` (large text)
+- **Text on background**: `contrast(theme.colors.text, theme.colors.background) ≥ 4.5`
+- **Text on surface**: `contrast(theme.colors.text, theme.colors.surface) ≥ 4.5`
+
+If any pair fails, return `400 Bad Request`:
+
+```json
+{
+  "error": {
+    "code": "THEME_CONTRAST_VIOLATION",
+    "message": "The selected colors do not meet accessibility contrast requirements (WCAG AA 4.5:1).",
+    "details": {
+      "violations": [
+        {
+          "pair": "primary-on-background",
+          "foreground": "#000000",
+          "background": "#111111",
+          "ratio": 1.1,
+          "required": 4.5
+        }
+      ]
+    }
+  }
+}
+```
+
+**Implementation**: Use relative luminance formula per WCAG 2.x:
+
+```typescript
+// apps/core-api/src/lib/contrast-utils.ts
+export function relativeLuminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((c) => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function contrastRatio(fg: string, bg: string): number {
+  const l1 = relativeLuminance(fg);
+  const l2 = relativeLuminance(bg);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+```
+
+**Note**: This validation is owned by Spec 008 (Admin Interfaces). The plan for
+Spec 010 documents it here for completeness; Spec 008 T008-xx (theme endpoint)
+must implement the contrast check. A cross-reference is added to this plan's
+Cross-References table.
+
+#### Layer 2: Frontend Warning (Defensive — Non-Blocking)
+
+The `ThemeProvider` (Phase 2, T2-1) should compute the contrast ratio of
+`--color-primary` on `--color-background` at theme application time and emit a
+`console.warn` if it falls below 4.5:1. This handles edge cases where:
+
+- The backend validation was bypassed (API migration, seed data, direct DB edit)
+- The backend endpoint predates the contrast check (upgrade path)
+
+```typescript
+// In applyTheme() — apps/web/src/lib/theme-utils.ts
+import { contrastRatio } from '@plexica/shared-utils';
+
+const ratio = contrastRatio(theme.colors.primary, theme.colors.background);
+if (ratio < 4.5) {
+  logger.warn(
+    { primary: theme.colors.primary, background: theme.colors.background, ratio },
+    `Tenant theme contrast ratio ${ratio.toFixed(1)}:1 is below WCAG AA 4.5:1 minimum`
+  );
+}
+```
+
+The frontend warning is **non-blocking** — it does not prevent the theme from
+applying. Blocking on the frontend would create a broken experience for tenants
+whose theme was set before the validation existed.
+
+### ADR Consideration
+
+This decision is documented here rather than as a standalone ADR because:
+
+1. The contrast validation is a straightforward WCAG enforcement — no
+   significant architectural alternatives were debated
+2. The dual-layer pattern (backend blocks, frontend warns) follows the same
+   principle as input validation (Zod on API, defensive checks in UI)
+3. If the team prefers a formal ADR, create **ADR-026: Tenant Theme Contrast
+   Enforcement** referencing this section
+
+### Phase 2 Implementation Task
+
+See Phase 2, Task 12 (below) — "Implement frontend contrast warning in
+ThemeProvider" (1h).
+
+---
+
 ## 5. Testing Strategy
 
 ### 5.1 Unit Tests (Vitest)
@@ -1189,6 +1398,170 @@ test('should display tenant logo in header', async ({ page }) => {
   await expect(logo).toHaveAttribute('src', /storage\.plexica\.io/);
 });
 ```
+
+### 5.4 Visual Regression Tests
+
+> **Source**: design-spec.md wireframes (Screens 1–7) and component state inventories
+
+Visual regression tests verify that the 8 design-spec components render
+correctly across all documented states. Use a screenshot-based comparison
+tool (e.g., Playwright `toHaveScreenshot()` or Storybook Chromatic).
+
+**Component Screenshot Matrix:**
+
+| Component                      | States to Capture                                                   | Viewport(s)          | Phase   |
+| ------------------------------ | ------------------------------------------------------------------- | -------------------- | ------- |
+| `PluginErrorFallback`          | Default, Hover (Retry), Focus (Retry), Focus (Go Back)              | 1440px, 375px        | Phase 4 |
+| `RootErrorBoundary` (fallback) | Default, Hover (Reload), Focus (Reload)                             | 1440px, 375px        | Phase 4 |
+| `ThemeProvider` + Header       | Default theme, Custom theme (green `#1B5E20`), Broken logo fallback | 1440px, 768px, 375px | Phase 4 |
+| `TenantLogo`                   | Tenant logo, Plexica fallback, Image error fallback                 | 1440px, 375px        | Phase 4 |
+| `WidgetLoader`                 | Loading skeleton                                                    | 1440px               | Phase 4 |
+| `WidgetFallback`               | Default (dashed placeholder)                                        | 1440px, 375px        | Phase 4 |
+| `WidgetLoadingSkeleton`        | Pulse animation (single frame)                                      | 1440px               | Phase 4 |
+| Full Layout                    | Themed shell with sidebar, header, content                          | 1440px, 768px, 375px | Phase 4 |
+
+**Estimated test count:** 20–25 screenshot assertions across ~12 test cases.
+
+**Implementation guidance:**
+
+```typescript
+// apps/web/tests/visual/plugin-error-fallback.visual.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('PluginErrorFallback matches wireframe — desktop', async ({ page }) => {
+  // Navigate to a route that triggers the error boundary
+  await page.goto('/plugins/broken-plugin');
+  await expect(page.getByText(/plugin unavailable/i)).toBeVisible();
+
+  // Screenshot the main content area (exclude dynamic elements)
+  const mainContent = page.locator('main');
+  await expect(mainContent).toHaveScreenshot('plugin-error-fallback-desktop.png', {
+    maxDiffPixelRatio: 0.01,
+  });
+});
+
+test('PluginErrorFallback matches wireframe — mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/plugins/broken-plugin');
+  await expect(page.getByText(/plugin unavailable/i)).toBeVisible();
+
+  const mainContent = page.locator('main');
+  await expect(mainContent).toHaveScreenshot('plugin-error-fallback-mobile.png', {
+    maxDiffPixelRatio: 0.01,
+  });
+});
+```
+
+### 5.5 Accessibility Tests
+
+> **Source**: design-spec.md §6 Accessibility Summary and per-screen ARIA blocks
+
+Automated accessibility tests ensure WCAG 2.1 AA compliance for all Spec 010
+components. Tests use `@axe-core/playwright` for violation scanning and manual
+assertions for ARIA attributes documented in the design spec.
+
+**Accessibility Test Matrix:**
+
+| Screen / Component    | ARIA Assertions                                                                              | axe-core Scan | Keyboard Nav Test                           | Phase   |
+| --------------------- | -------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------- | ------- |
+| Plugin Error Fallback | `role="alert"`, `aria-label` on buttons, `aria-hidden` on icon, `role="status"` on error box | Yes           | Tab: Retry → Go Back; Enter/Space activates | Phase 5 |
+| Root Error Page       | `role="alert"`, `aria-label="Reload this page"`, `alt="Plexica"` on logo                     | Yes           | Tab: Reload → support link; Enter activates | Phase 5 |
+| Themed Shell Header   | `role="banner"`, `aria-current="page"`, `aria-label` on logo/bell/globe/avatar               | Yes           | Full header tab traversal                   | Phase 5 |
+| Widget Loading        | `aria-busy="true"` on container                                                              | Yes           | N/A (non-interactive)                       | Phase 5 |
+| Widget Rendered       | `aria-busy="false"` after load                                                               | Yes           | Depends on widget                           | Phase 5 |
+| Widget Unavailable    | `role="status"`, `aria-label="Widget unavailable: {id}/{name}"`, `aria-hidden` on icon       | Yes           | N/A (non-interactive)                       | Phase 5 |
+
+**Estimated test count:** 12–15 accessibility-specific test cases.
+
+**Implementation guidance:**
+
+```typescript
+// apps/web/tests/a11y/error-boundaries.a11y.spec.ts
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('Plugin error fallback has zero axe-core violations', async ({ page }) => {
+  await page.goto('/plugins/broken-plugin');
+  await expect(page.getByText(/plugin unavailable/i)).toBeVisible();
+
+  const results = await new AxeBuilder({ page })
+    .include('main')
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+
+test('Plugin error fallback has correct ARIA roles', async ({ page }) => {
+  await page.goto('/plugins/broken-plugin');
+
+  // role="alert" on fallback container (design-spec §3 Screen 1)
+  const alertContainer = page.getByRole('alert');
+  await expect(alertContainer).toBeVisible();
+
+  // Error message box has role="status" (design-spec §3 Screen 1)
+  const statusBox = page.getByRole('status');
+  await expect(statusBox).toBeVisible();
+
+  // Retry button has descriptive aria-label
+  const retryButton = page.getByRole('button', { name: /retry loading/i });
+  await expect(retryButton).toBeVisible();
+});
+
+test('Root error page keyboard navigation', async ({ page }) => {
+  await page.goto('/trigger-root-error'); // Test route that crashes shell
+
+  // Tab to Reload Page button
+  await page.keyboard.press('Tab');
+  const reloadButton = page.getByRole('button', { name: /reload/i });
+  await expect(reloadButton).toBeFocused();
+
+  // Tab to support link
+  await page.keyboard.press('Tab');
+  const supportLink = page.getByRole('link', { name: /support@plexica/i });
+  await expect(supportLink).toBeFocused();
+});
+```
+
+### 5.6 User Journey Test Coverage Mapping
+
+> **Source**: `user-journey.md` — 3 journeys, 8 edge cases
+
+This section maps each user journey and edge case from `user-journey.md` to
+specific E2E and integration tests, ensuring complete coverage of the documented
+user experience.
+
+**Journey 1: Dana — Tenant Branding Applied**
+
+| Journey Step / Edge Case                                           | Covering Test(s)                                                                | Test Type   | Phase   |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------- | ------- |
+| Happy path: Steps 1-5 (logo + colors + fonts + plugin inheritance) | `tenant-theming.spec.ts`: "should display tenant logo and brand colors"         | E2E         | Phase 4 |
+| Edge Case A: Theme API returns null                                | `ThemeContext.test.tsx`: "should apply default theme when API returns null"     | Integration | Phase 2 |
+| Edge Case B: Broken logo URL (onError fallback)                    | `Header.test.tsx`: "should fall back to Plexica logo on image error"            | Unit        | Phase 2 |
+| Edge Case C: Custom font fails to load (CDN down)                  | `font-loader.test.ts`: "should fall back to system fonts on FontFace rejection" | Unit        | Phase 2 |
+
+**Journey 2: Raj — Widget Cross-Plugin Use**
+
+| Journey Step / Edge Case                        | Covering Test(s)                                                               | Test Type | Phase   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ | --------- | ------- |
+| Happy path: Steps 1-5 (widget loads with theme) | `widget-loading.spec.ts`: "should load and render CRM ContactCard widget"      | E2E       | Phase 4 |
+| Edge Case A: Widget remote unavailable          | `widget-loader.test.ts`: "should show WidgetFallback when import rejects"      | Unit      | Phase 3 |
+| Edge Case B: Widget version mismatch            | `plugin-error-handling.spec.ts`: "should show error boundary on runtime error" | E2E       | Phase 4 |
+
+**Journey 3: Maria — Encountering a Plugin Error**
+
+| Journey Step / Edge Case                                       | Covering Test(s)                                                                  | Test Type | Phase   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------- | ------- |
+| Happy path: Steps 1-6 (error fallback → Go Back → retry later) | `plugin-error-handling.spec.ts`: "should show error boundary when plugin crashes" | E2E       | Phase 4 |
+| Edge Case A: Plugin remote entry unreachable (network)         | `PluginErrorBoundary.test.tsx`: "should catch async import errors"                | Unit      | Phase 1 |
+| Edge Case B: Root error boundary (shell crash)                 | `root-error.spec.ts`: "should show root error page when shell crashes"            | E2E       | Phase 4 |
+| Edge Case C: Browser zoom 150% (WCAG 1.4.4)                    | `accessibility.spec.ts`: "should be usable at 150% zoom"                          | E2E       | Phase 5 |
+
+**Coverage Summary:**
+
+- **3/3 journeys** covered by E2E tests
+- **8/8 edge cases** covered by unit, integration, or E2E tests
+- **Total journey-related tests**: ~12 test cases across Phase 1–5
 
 ---
 

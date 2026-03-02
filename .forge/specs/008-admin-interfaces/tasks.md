@@ -81,8 +81,11 @@
 | T008-61 | Frontend unit tests — hooks                                    | test     | 2   | 8     | T008-41, T008-43–T008-57           |
 | T008-62 | Playwright E2E tests — critical flows                          | test     | 3   | 8     | T008-43–T008-57                    |
 | T008-63 | Playwright a11y tests (ADR-022)                                | test     | 2   | 8     | T008-59, ADR-022 Accepted          |
+| T008-64 | User Reactivation Endpoint                                     | backend  | 2   | 3     | T008-16                            |
+| T008-65 | Invitation Resend and Cancel Endpoints                         | backend  | 4   | 3     | T008-17                            |
+| T008-66 | Audit Log Export Endpoints                                     | backend  | 8   | 4     | T008-05, T008-36                   |
 
-**Total: 53 tasks · ~112 story points**
+**Total: 56 tasks · ~126 story points**
 
 ---
 
@@ -1080,22 +1083,110 @@
 
 ---
 
+## Phase 3/4 Addendum: Clarification-Driven Tasks
+
+> **Context**: These tasks were added during the `/forge-clarify` process (March 2, 2026)
+> to address ambiguities A-2, A-3, and A-5 identified in spec.md §11 (Clarification Log).
+
+---
+
+### T008-64 · User Reactivation Endpoint
+
+- [ ] **T008-64** `[S]` `[FR-009]` User Reactivation Endpoint
+  - **FR/NFR**: FR-009 (User Management)
+  - **Type**: backend · **Points**: 2
+  - **Phase**: 3 — Tenant Admin Backend
+  - **Depends on**: T008-16
+  - **Estimated**: 2 hours
+  - **Files**:
+    - `apps/core-api/src/modules/admin/tenant-admin.ts` (modify)
+    - `apps/core-api/src/__tests__/admin/unit/tenant-admin-reactivate.test.ts` (create new, ~100 lines)
+  - **Description**: Implement `POST /api/v1/tenant/users/:id/reactivate` endpoint as specified in plan §3.2.5b. Changes user status from `DEACTIVATED` back to `ACTIVE`, re-enables Keycloak account, and fires audit event.
+  - **Spec Reference**: Plan §3.2.5b; spec.md US-003 AC (Clarification A-2)
+  - **Acceptance Criteria**:
+    1. `POST /api/v1/tenant/users/:id/reactivate` returns `200 { "data": { "id": "user-uuid", "status": "active" } }` on success
+    2. Returns `409 USER_NOT_DEACTIVATED` if user status is not `DEACTIVATED`
+    3. Returns `404 USER_NOT_FOUND` if user does not exist in tenant
+    4. Fires `user.reactivated` audit event on success
+    5. Unit tests: success case, 409 not-deactivated, 404 not-found, audit event fired (4 test cases)
+
+---
+
+### T008-65 · Invitation Resend and Cancel Endpoints
+
+- [ ] **T008-65** `[M]` `[FR-009]` `[A-3]` Invitation Resend and Cancel Endpoints
+  - **FR/NFR**: FR-009 (User Management), A-3 (Invitation Lifecycle)
+  - **Type**: backend · **Points**: 4
+  - **Phase**: 3 — Tenant Admin Backend
+  - **Depends on**: T008-17
+  - **Estimated**: 4 hours
+  - **Files**:
+    - `apps/core-api/src/modules/admin/tenant-admin.ts` (modify)
+    - `apps/core-api/src/jobs/invitation-expiry.job.ts` (create new, ~80 lines)
+    - `apps/core-api/src/__tests__/admin/unit/tenant-admin-invitation-lifecycle.test.ts` (create new, ~200 lines)
+    - `apps/core-api/src/__tests__/admin/unit/invitation-expiry-job.test.ts` (create new, ~100 lines)
+  - **Description**: Implement the two invitation lifecycle endpoints from plan §3.2.5c and §3.2.5d, plus the invitation expiry mechanism from §3.2.5e. Includes lazy expiry evaluation on-access and a nightly cleanup job via `JobQueueService` (Spec 007).
+  - **Spec Reference**: Plan §3.2.5c, §3.2.5d, §3.2.5e; spec.md US-003 AC, Edge Cases #9/#10 (Clarification A-3)
+  - **Acceptance Criteria**:
+    1. `POST /api/v1/tenant/users/:id/resend-invitation` resets `expires_at` to 7 days from now and re-sends invitation email
+    2. `POST /api/v1/tenant/users/:id/cancel-invitation` sets invitation status to `CANCELLED`
+    3. Both endpoints return `409 INVITATION_NOT_PENDING` if invitation is not in `PENDING` status
+    4. Both endpoints return `404 USER_NOT_FOUND` if user not in tenant
+    5. Lazy expiry check: on access, if `expires_at < now()` status auto-updates to `EXPIRED`
+    6. Nightly cleanup job marks bulk-expired invitations using `JobQueueService`
+    7. `invitation.resent` and `invitation.cancelled` audit events fired respectively
+    8. Unit tests: resend success/409/404, cancel success/409/404, expiry lazy check, expiry job (8 test cases)
+
+---
+
+### T008-66 · Audit Log Export Endpoints
+
+- [ ] **T008-66** `[L]` `[FR-015]` Audit Log Export Endpoints
+  - **FR/NFR**: FR-015 (Audit Log Export)
+  - **Type**: backend · **Points**: 8
+  - **Phase**: 4 — E2E Tests and Hardening
+  - **Depends on**: T008-05, T008-36
+  - **Estimated**: 8 hours
+  - **Files**:
+    - `apps/core-api/src/modules/admin/admin.ts` (modify)
+    - `apps/core-api/src/modules/admin/tenant-admin.ts` (modify)
+    - `apps/core-api/src/jobs/audit-log-export.job.ts` (create new, ~150 lines)
+    - `apps/core-api/src/services/audit-log-export.service.ts` (create new, ~200 lines)
+    - `apps/core-api/src/__tests__/admin/unit/audit-log-export.test.ts` (create new, ~200 lines)
+    - `apps/core-api/src/__tests__/admin/integration/audit-log-export.integration.test.ts` (create new, ~150 lines)
+  - **Description**: Implement asynchronous audit log export for both Super Admin (`POST /api/v1/admin/audit-logs/export`) and Tenant Admin (`POST /api/v1/tenant/audit-logs/export`) as specified in plan §3.1.8b and §3.2.19b. Export jobs are enqueued via `JobQueueService` (Spec 007), processed by a worker that generates CSV or JSON files, uploads to MinIO with a 24h signed URL.
+  - **Spec Reference**: Plan §3.1.8b, §3.2.19b; spec.md FR-015, US-007 AC (Clarification A-5)
+  - **Acceptance Criteria**:
+    1. `POST /api/v1/admin/audit-logs/export` returns `202 { jobId, estimatedSeconds }` (Super Admin)
+    2. `POST /api/v1/tenant/audit-logs/export` returns `202 { jobId, estimatedSeconds }` (Tenant Admin, auto-scoped)
+    3. Tenant Admin export cannot include `tenantId` in request body — derives from auth context
+    4. Export job enqueued via `JobQueueService`; worker generates CSV or JSON file
+    5. Completed export uploaded to MinIO; signed URL included in job result (24h expiry)
+    6. Export respects all filter params: `startDate`, `endDate`, `actions`, `limit`
+    7. Tenant-scoped export enforced by `AuditLogRepository` — cannot access other tenants' data (ADR-025 safeguard)
+    8. `audit_log.export_requested` audit event fired on enqueue
+    9. Both endpoints return `400 INVALID_EXPORT_FORMAT` if format is not `csv` or `json`
+    10. Unit tests: 6 cases (enqueue, format validation, scope enforcement × 2, CSV worker, JSON worker)
+    11. Integration tests: 4 cases (full round-trip Super Admin, full round-trip Tenant Admin, cross-tenant blocked, invalid format)
+
+---
+
 ## Summary
 
 | Metric                           | Value                                                          |
 | -------------------------------- | -------------------------------------------------------------- |
-| Total tasks                      | 53 (T008-00 through T008-27, T008-39 through T008-63)          |
-| Total story points               | ~112 (77 backend + 35 frontend)                                |
+| Total tasks                      | 56 (T008-00 through T008-27, T008-39 through T008-66)          |
+| Total story points               | ~126 (91 backend + 35 frontend)                                |
 | Total phases                     | 9 (5 backend + 4 frontend)                                     |
 | Parallelizable tasks             | 18                                                             |
-| Requirements covered (FR)        | 14/14                                                          |
+| Requirements covered (FR)        | 15/15                                                          |
 | Requirements covered (NFR)       | 8/8                                                            |
 | HIGH risk tasks                  | 3 (T008-00, T008-03, T008-45)                                  |
 | BLOCKED tasks                    | 1 (T008-63 — pending ADR-022 Accepted)                         |
 | Analysis issues addressed (HIGH) | 2 (ISSUE-001, ISSUE-002)                                       |
 | Analysis issues addressed (MED)  | 5 (ISSUE-003, ISSUE-004, ISSUE-005, ISSUE-006, + FE ISSUE-004) |
 | Analysis issues addressed (LOW)  | 1 (ISSUE-007 — FR-012 integration test in T008-55)             |
-| Estimated test count             | ~245 (150 backend + 95 frontend)                               |
+| Estimated test count             | ~263 (168 backend + 95 frontend)                               |
 
 ### Phase Breakdown
 
@@ -1110,7 +1201,7 @@
 | 6        | Super Admin Panel Screens                         | 8      | 19       | T008-43, 44, 46, 47, 48, 49, 50 |
 | 7        | Tenant Admin Interface Screens                    | 8      | 15       | T008-51, 53, 55, 56, 57, 58     |
 | 8        | Accessibility, Responsive Polish & Frontend Tests | 5      | 13       | T008-60, 61                     |
-| —        | **Total**                                         | **53** | **~112** |                                 |
+| —        | **Total**                                         | **56** | **~126** |                                 |
 
 > **Split guidance**: T008-16 (8 pts, user management) and T008-18 (8 pts, routes) are the two
 > largest backend tasks. T008-45 (5 pts, ProvisioningWizard) is the largest frontend task.
@@ -1135,12 +1226,13 @@
 | FR-006      | T008-01, T008-05, T008-11, T008-22, T008-26, T008-49, T008-58 | ✅     |
 | FR-007      | T008-10, T008-11, T008-50                                     | ✅     |
 | FR-008      | T008-15, T008-18, T008-51                                     | ✅     |
-| FR-009      | T008-16, T008-18, T008-23, T008-52                            | ✅     |
+| FR-009      | T008-16, T008-18, T008-23, T008-52, T008-64, T008-65          | ✅     |
 | FR-010      | T008-03, T008-17, T008-18, T008-23, T008-53                   | ✅     |
 | FR-011      | T008-18, T008-24, T008-54                                     | ✅     |
 | FR-012      | T008-55 (+ existing `tenant-plugins-v1.ts`)                   | ✅     |
 | FR-013      | T008-18, T008-56                                              | ✅     |
 | FR-014      | T008-05, T008-18, T008-21, T008-26, T008-57, T008-58          | ✅     |
+| FR-015      | T008-66                                                       | ✅     |
 | NFR-001     | T008-01 (indexes), T008-11 (pagination), T008-43, T008-44     | ✅     |
 | NFR-002     | T008-01 (composite index), T008-13, T008-49                   | ✅     |
 | NFR-003     | T008-11, T008-14, T008-18                                     | ✅     |

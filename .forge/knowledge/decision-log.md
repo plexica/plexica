@@ -3,12 +3,59 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: March 2, 2026
+**Last Updated**: March 2, 2026 (ADR-024, ADR-025 added)
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
 > March 2026 closed entries: [archives/2026-03/decisions-2026-03.md](./archives/2026-03/decisions-2026-03.md).
 > Historical decisions from 2025 and earlier: [archives/decision-log-2025.md](./archives/decision-log-2025.md)
+
+---
+
+### ADR-025 Created: Audit Logs in Core Schema (March 2, 2026)
+
+**Date**: March 2, 2026
+**Context**: Spec 008 (Admin Interfaces) `/forge-analyze` flagged W-302 — `audit_logs`
+placed in core shared schema deviates from ADR-002 schema-per-tenant pattern without
+an ADR. Super Admin cross-tenant audit visibility (FR-006) makes per-tenant placement
+architecturally impossible.
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-025** — Audit Logs Placement in Core Schema
+**File**: `.forge/knowledge/adr/adr-025-audit-logs-core-schema.md`
+**Decision**: `audit_logs` table lives in the core shared schema as a deliberate,
+bounded exception to ADR-002. This is the **only** approved exception. Five mandatory
+safeguards enforce tenant isolation at the application layer: single `AuditLogRepository`
+access path, required `tenantId` parameter on all tenant-scoped methods, explicitly-named
+Super Admin cross-tenant methods gated by role check, PostgreSQL RLS as defense-in-depth,
+and a code review gate on all repository changes.
+
+**Resolves**: W-302 from Spec 008 `/forge-analyze`
+**Blocks**: Spec 008 T008-03 (AuditLogRepository implementation must enforce all 5 safeguards)
+
+---
+
+### ADR-024 Created: Application-Level Team Member Roles vs Keycloak RBAC (March 2, 2026)
+
+**Date**: March 2, 2026
+**Context**: Spec 008 (Admin Interfaces) `/forge-analyze` flagged C-201 — plan.md §5.7
+introduces `team_members.role` enum (OWNER/ADMIN/MEMBER/VIEWER) without an ADR, potentially
+creating a dual role system conflicting with Keycloak as the sole RBAC authority (Art. 5.1).
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-024** — Application-Level Team Member Roles vs Keycloak RBAC
+**File**: `.forge/knowledge/adr/adr-024-team-member-role-vs-keycloak.md`
+**Decision**: `team_members.role` is an application-level organizational role, subordinate
+to and bounded by the user's Keycloak realm role. A `TeamAuthGuard` computes the effective
+team role as `min(keycloakMaxRole, team_members.role)` on every team-scoped request —
+Keycloak is always the security boundary, `team_members.role` adds within-tenant
+organizational context only. This mirrors ADR-017's ABAC "can only restrict, never expand"
+principle.
+
+**Resolves**: C-201 (CRITICAL) from Spec 008 `/forge-analyze`
+**Blocks**: Spec 008 T008-32/T008-33 (team member service must implement `TeamAuthGuard`)
 
 ---
 
