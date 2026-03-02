@@ -9,7 +9,7 @@
 -- Create search_documents table
 CREATE TABLE "core"."search_documents" (
   "id"            UUID        NOT NULL DEFAULT gen_random_uuid(),
-  "tenant_id"     UUID        NOT NULL,
+  "tenant_id"     TEXT        NOT NULL,
   -- Plugin-assigned document identifier (unique within tenant + type scope)
   "document_id"   VARCHAR(255) NOT NULL,
   -- Document type (e.g. "crm:contact", "workspace:page")

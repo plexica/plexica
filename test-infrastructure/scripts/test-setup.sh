@@ -84,7 +84,7 @@ export DATABASE_URL="postgresql://plexica_test:plexica_test_password@localhost:5
 npx prisma migrate deploy --config prisma/prisma.config.test.ts || {
   echo "❌ Migration failed!"
   echo "Trying to create database with prisma db push..."
-  npx prisma db push --skip-generate --config prisma/prisma.config.test.ts || {
+  npx prisma db push --config prisma/prisma.config.test.ts || {
     echo "❌ Failed to create database schema"
     exit 1
   }

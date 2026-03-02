@@ -19,7 +19,7 @@ CREATE TYPE "core"."JobStatus" AS ENUM (
 -- Create jobs table
 CREATE TABLE "core"."jobs" (
   "id"               UUID        NOT NULL DEFAULT gen_random_uuid(),
-  "tenant_id"        UUID        NOT NULL,
+  "tenant_id"        TEXT        NOT NULL,
   "name"             VARCHAR(255) NOT NULL,
   "plugin_id"        VARCHAR(255),
   "status"           "core"."JobStatus" NOT NULL DEFAULT 'PENDING',

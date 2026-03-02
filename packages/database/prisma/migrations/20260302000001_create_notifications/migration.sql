@@ -22,7 +22,7 @@ CREATE TYPE "core"."NotificationStatus" AS ENUM (
 -- Create notifications table
 CREATE TABLE "core"."notifications" (
   "id"         UUID        NOT NULL DEFAULT gen_random_uuid(),
-  "tenant_id"  UUID        NOT NULL,
+  "tenant_id"  TEXT        NOT NULL,
   "user_id"    VARCHAR(255) NOT NULL,  -- Keycloak user ID
   "channel"    "core"."NotificationChannel" NOT NULL,
   "status"     "core"."NotificationStatus"  NOT NULL DEFAULT 'PENDING',
