@@ -214,7 +214,6 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
         description: 'Remove a document from the search index',
         querystring: {
           type: 'object',
-          required: ['type'],
           properties: {
             type: { type: 'string' },
           },

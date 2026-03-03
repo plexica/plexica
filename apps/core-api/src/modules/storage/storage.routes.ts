@@ -43,6 +43,22 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
 
   // --------------------------------------------------------------------------
+  // Path traversal detection — runs BEFORE Fastify's router normalizes the URL.
+  // Fastify (via find-my-way) resolves ".." sequences during route matching,
+  // so a handler-level check never fires if the normalized path doesn't match
+  // any route. This onRequest hook inspects the raw (pre-normalization) URL.
+  // Scoped to /storage/ URLs to avoid affecting sibling route plugins.
+  // --------------------------------------------------------------------------
+  server.addHook('onRequest', async (request, reply) => {
+    const rawUrl = request.raw?.url ?? '';
+    if (rawUrl.includes('/storage/') && rawUrl.includes('..')) {
+      return reply.code(400).send({
+        error: { code: StorageErrorCode.PATH_TRAVERSAL, message: 'Path traversal detected' },
+      });
+    }
+  });
+
+  // --------------------------------------------------------------------------
   // POST /storage/upload — multipart file upload
   // --------------------------------------------------------------------------
   server.post(

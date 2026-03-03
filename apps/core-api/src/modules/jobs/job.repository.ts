@@ -108,10 +108,24 @@ export class JobRepository {
   // --------------------------------------------------------------------------
 
   async findById(id: string, tenantId: string): Promise<DbJob | null> {
-    const job = await (db as any).job.findFirst({
-      where: { id, tenantId },
-    });
-    return job as DbJob | null;
+    try {
+      const job = await (db as any).job.findFirst({
+        where: { id, tenantId },
+      });
+      return job as DbJob | null;
+    } catch (err: any) {
+      // Prisma throws PrismaClientKnownRequestError for invalid UUID syntax.
+      // A non-UUID string can never match a UUID column, so returning null
+      // is semantically correct (the job doesn't exist).
+      if (
+        err.constructor?.name === 'PrismaClientKnownRequestError' ||
+        err.code === 'P2023' ||
+        (err.message && err.message.includes('invalid input syntax'))
+      ) {
+        return null;
+      }
+      throw err;
+    }
   }
 
   // --------------------------------------------------------------------------

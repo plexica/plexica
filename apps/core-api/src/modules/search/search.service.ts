@@ -65,6 +65,20 @@ export class SearchService implements ISearchService {
           body: doc.body,
           metadata: (doc.metadata as any) ?? null,
         },
+        // Exclude searchVector (tsvector) — Prisma cannot deserialize the
+        // PostgreSQL tsvector type. Since index() returns void, we only need
+        // to avoid reading the column back.
+        select: {
+          id: true,
+          tenantId: true,
+          documentId: true,
+          type: true,
+          title: true,
+          body: true,
+          metadata: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       });
 
       logger.info(
