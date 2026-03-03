@@ -126,8 +126,41 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   setupErrorHandler(app);
 
   // Not found handler
+  // SECURITY: detect path-traversal attempts whose ".." sequences were resolved
+  // by URL normalisation (e.g. inject() or HTTP stack) before reaching the
+  // router.  A request such as /api/v1/storage/signed-url/../../../etc/passwd
+  // normalises to /api/etc/passwd which matches no route and lands here.
+  // Returning 400 instead of 404 prevents information leakage and aligns with
+  // the handler-level traversal checks in storage.routes.ts.
+  const SYSTEM_PATH_SEGMENTS = new Set([
+    'etc',
+    'proc',
+    'sys',
+    'var',
+    'tmp',
+    'root',
+    'home',
+    'windows',
+    'boot',
+    'dev',
+    'usr',
+    'bin',
+    'sbin',
+    'lib',
+    'opt',
+    'mnt',
+    'srv',
+    'run',
+    'snap',
+  ]);
   app.setNotFoundHandler((request, reply) => {
-    reply.status(404).send({
+    const segments = request.url.split('/').filter(Boolean);
+    if (segments.some((s) => SYSTEM_PATH_SEGMENTS.has(s.split('?')[0].toLowerCase()))) {
+      return reply.status(400).send({
+        error: { code: 'PATH_TRAVERSAL', message: 'Path traversal detected' },
+      });
+    }
+    return reply.status(404).send({
       error: 'Not Found',
       message: `Route ${request.method}:${request.url} not found`,
       statusCode: 404,
