@@ -4,17 +4,18 @@
 > All 5 gaps represent the remaining 15% of workspace management functionality.
 > Created by the `forge-pm` agent via `/forge-specify`.
 
-| Field        | Value                             |
-| ------------ | --------------------------------- |
-| Spec ID      | 009                               |
-| Status       | Ready                             |
-| Created      | 2026-02-16                        |
-| Updated      | 2026-02-16 (post-clarification)   |
-| Track        | Feature                           |
-| Total Tasks  | 7 tasks, 27 subtasks              |
-| Total Effort | 68-104 hours (8.5-13 days)        |
-| Tests Added  | 95-134+ new tests                 |
-| Coverage     | 65% → 85% (+20 percentage points) |
+| Field        | Value                              |
+| ------------ | ---------------------------------- |
+| Spec ID      | 009                                |
+| Status       | Ready                              |
+| Created      | 2026-02-16                         |
+| Updated      | 2026-03-02 (post-UX design phase)  |
+| Track        | Feature                            |
+| Total Tasks  | 9 tasks, 37 subtasks               |
+| Total Effort | 96-144 hours (12-18 days)          |
+| Tests Added  | 125-174+ new tests                 |
+| Coverage     | 65% → 85%+ (+20 percentage points) |
+| UX Design    | [design-spec.md](design-spec.md)   |
 
 ---
 
@@ -28,9 +29,11 @@
 6. [Task 5: Test Coverage Improvement (Gap 5)](#task-5-test-coverage-improvement-gap-5)
 7. [Task 6: Error Format Migration](#task-6-error-format-migration)
 8. [Task 7: Rate Limiting Implementation](#task-7-rate-limiting-implementation)
-9. [Dependencies & Ordering](#dependencies--ordering)
-10. [Coverage Progression](#coverage-progression)
-11. [Constitution Compliance Checklist](#constitution-compliance-checklist)
+9. [Task 8: Frontend Component Implementation](#task-8-frontend-component-implementation)
+10. [Task 9: Accessibility Gap Remediation](#task-9-accessibility-gap-remediation)
+11. [Dependencies & Ordering](#dependencies--ordering)
+12. [Coverage Progression](#coverage-progression)
+13. [Constitution Compliance Checklist](#constitution-compliance-checklist)
 
 ---
 
@@ -45,7 +48,9 @@
 | T5   | 5   | ⬜ MEDIUM   | 12-16h      | 3 modified (test files)  | 45-55 tests | +15%            |
 | T6   | -   | 🟡 HIGH     | 3-4h        | 1 modified, 1 created    | 5-8 tests   | +0.5%           |
 | T7   | -   | 🟡 HIGH     | 6-8h        | 1 modified, 1 created    | 6-10 tests  | +1%             |
-|      |     | **TOTAL**   | **68-104h** | **19 files**             | **106-142** | **+26.5%**      |
+| T8   | UX  | 🟡 HIGH     | 20-28h      | 5 created, 3 modified    | 15-20 tests | +3%             |
+| T9   | UX  | 🟡 HIGH     | 8-12h       | 3 modified, 1 created    | 4-8 tests   | Compliance      |
+|      |     | **TOTAL**   | **96-144h** | **29 files**             | **125-174** | **+30%**        |
 
 ---
 
@@ -2699,6 +2704,282 @@ T3, T4, T5 can be spread across subsequent sprints.
 
 ---
 
+## Task 8: Frontend Component Implementation
+
+> Post-UX design phase task — added 2026-03-02.
+
+| Attribute          | Value                                                             |
+| ------------------ | ----------------------------------------------------------------- |
+| **Priority**       | 🟡 HIGH                                                           |
+| **Effort**         | 20–28 hours (2.5–3.5 days)                                        |
+| **Story Points**   | 13                                                                |
+| **Status**         | Pending                                                           |
+| **Dependencies**   | T3 (resource sharing API), T4 (workspace settings API)            |
+| **Spec Reference** | design-spec.md §6, FR-036, FR-037, FR-038, FR-039, FR-040         |
+| **Risk**           | MEDIUM — new components, but follows established design-system.md |
+
+### Problem
+
+The UX design phase (2026-03-02) defined 5 new React components for the
+Workspace Management UI. These components implement the Cross-Workspace Resource
+Sharing UI (Gap 3 frontend) and the Workspace Settings form (Gap 4 frontend),
+incorporating design decisions resolved in design-spec.md §10:
+
+- **Q1 resolved**: `SharePluginDialog` uses multi-select checkboxes (batch sharing)
+- **Q2 resolved**: Sharing tab shows both outbound and inbound sections on the same tab
+- **Q3 resolved**: Member removal uses `Dialog` component (replaces anti-pattern `confirm()`)
+- **HIGH priority**: Search/filter input in WorkspaceSwitcher when workspaces > 5
+
+### Files
+
+| Action | File                                                              | Purpose                                            |
+| ------ | ----------------------------------------------------------------- | -------------------------------------------------- |
+| CREATE | `apps/web/src/components/workspace/WorkspaceSettingsForm.tsx`     | Typed form for workspace settings (T4 frontend)    |
+| CREATE | `apps/web/src/components/workspace/SharePluginDialog.tsx`         | Multi-select dialog for batch plugin sharing       |
+| CREATE | `apps/web/src/components/workspace/SharedResourceRow.tsx`         | Row component for sharing tab (outbound + inbound) |
+| CREATE | `apps/web/src/components/workspace/RevokeShareDialog.tsx`         | Confirmation dialog for revoking shared resource   |
+| CREATE | `apps/web/src/components/workspace/SharingDisabledEmptyState.tsx` | Empty state when sharing is disabled               |
+| MODIFY | `apps/web/src/components/workspace/WorkspaceSwitcher.tsx`         | Add search/filter when workspaces > 5              |
+| MODIFY | `apps/web/src/routes/workspace-members.tsx`                       | Replace `confirm()` with Dialog                    |
+| MODIFY | `apps/web/src/routes/workspace-sharing.tsx`                       | Both outbound + inbound sections                   |
+| CREATE | `apps/web/src/__tests__/workspace/unit/T8-components.test.tsx`    | Unit tests for all T8 components                   |
+
+### Subtasks
+
+**T8.1** (3 hrs) — Implement `WorkspaceSettingsForm`
+
+- Typed form component using Zod schema for workspace settings
+- Fields: `name`, `slug`, `description`, `allowPublicJoin`, `defaultRole`, `settings` (typed JSON)
+- All states: default, loading, error, success per design-spec.md §4
+- Connects to `PUT /api/v1/workspaces/:id` (T4 API)
+- **Acceptance Criteria**:
+  - [ ] Form renders all fields with correct types and validation
+  - [ ] Loading state displays spinner and disables submit
+  - [ ] Error state displays field-level and form-level errors
+  - [ ] Success state displays toast/notification
+  - [ ] Unit tests: renders correctly, validates input, shows error state, shows success state
+
+**T8.2** (4 hrs) — Implement `SharePluginDialog`
+
+- Multi-select checkbox list of available plugins (resolves Q1)
+- Checkbox per plugin with name, description, and current share status
+- "Share Selected" button disabled until at least one plugin selected
+- Loading state while fetching plugins, submitting state during share
+- Connects to `POST /api/v1/workspaces/:id/resources/share` (T3 API)
+- **Acceptance Criteria**:
+  - [ ] Dialog renders full plugin list with checkboxes
+  - [ ] Multi-select: user can check/uncheck multiple plugins
+  - [ ] "Share Selected" button disabled when no plugins selected
+  - [ ] Loading and submitting states work correctly
+  - [ ] Unit tests: renders plugin list, multi-select behavior, submit disabled on empty, calls API
+
+**T8.3** (3 hrs) — Implement `SharedResourceRow` and `SharingDisabledEmptyState`
+
+- `SharedResourceRow`: displays plugin name, shared-by workspace, shared date, "Revoke" button
+- Shows in both outbound section (shared FROM this workspace) and inbound section (shared WITH this workspace)
+- `SharingDisabledEmptyState`: shown when workspace sharing is disabled in settings
+- **Acceptance Criteria**:
+  - [ ] `SharedResourceRow` renders correctly in outbound context (shows "Revoke" button)
+  - [ ] `SharedResourceRow` renders correctly in inbound context (no "Revoke" button unless owner)
+  - [ ] `SharingDisabledEmptyState` renders with correct messaging and link to settings
+  - [ ] Unit tests: renders in outbound/inbound context, revoke button visible for owner only
+
+**T8.4** (2 hrs) — Implement `RevokeShareDialog`
+
+- Confirmation dialog (replaces anti-pattern `confirm()` — resolves Q3 partially)
+- Shows plugin name and target workspace name in confirmation message
+- "Cancel" and "Revoke Access" (destructive) actions
+- Loading state during revoke operation
+- **Acceptance Criteria**:
+  - [ ] Dialog renders with correct plugin and workspace names
+  - [ ] "Cancel" button closes dialog without side effects
+  - [ ] "Revoke Access" button calls API and shows loading state
+  - [ ] Unit tests: renders with correct names, cancel closes dialog, confirm calls API
+
+**T8.5** (3 hrs) — Update Sharing tab layout (resolves Q2)
+
+- Update `apps/web/src/routes/workspace-sharing.tsx`
+- Show BOTH "Shared Resources" (outbound) and "Resources Shared With Me" (inbound) sections on same tab
+- Outbound: list of resources this workspace has shared to others (uses `SharedResourceRow`)
+- Inbound: list of resources others have shared to this workspace (uses `SharedResourceRow`)
+- Empty states for each section when no resources exist
+- **Acceptance Criteria**:
+  - [ ] Sharing tab shows both outbound and inbound sections
+  - [ ] Each section has its own empty state
+  - [ ] Outbound section shows "Share Plugin" button
+  - [ ] Integration test: both sections render, inbound section shows shared-with-me resources
+
+**T8.6** (2 hrs) — Replace `confirm()` with Dialog for member removal (resolves Q3)
+
+- Update `apps/web/src/routes/workspace-members.tsx`
+- Replace `window.confirm('Remove member?')` with `Dialog` component
+- Dialog shows member name, role, and destructive "Remove" button
+- Required for WCAG 2.1 AA (keyboard accessible, focus management, screen reader support)
+- **Acceptance Criteria**:
+  - [ ] No `window.confirm()` calls remain in workspace-members.tsx
+  - [ ] Dialog shows member name and role in confirmation message
+  - [ ] Dialog has keyboard-accessible Cancel and Remove buttons
+  - [ ] Unit test: dialog opens on remove button click, cancel closes, confirm calls API
+
+**T8.7** (3 hrs) — Add search/filter to WorkspaceSwitcher
+
+- Show search input when workspaces count > 5 (HIGH priority from design-spec §13)
+- Real-time filter as user types (no API call — filter the in-memory list)
+- Announce result count to screen readers via `aria-live`
+- **Acceptance Criteria**:
+  - [ ] Search input hidden when ≤5 workspaces
+  - [ ] Search input shown when >5 workspaces
+  - [ ] Filtering works in real-time as user types
+  - [ ] Result count announced to screen readers via `aria-live` region
+  - [ ] Unit tests: search input visibility, filter behavior, aria-live updates
+
+**T8.8** (2 hrs) — Write unit tests and verify design-system token usage
+
+- Ensure all 5 new components use design-system.md CSS custom properties (colors, spacing, typography)
+- Verify all interactive states are implemented (hover, active, disabled, loading, error, empty)
+- Run `pnpm test apps/web -- workspace` to verify all tests pass
+- Run `pnpm lint apps/web` to verify no linting errors
+- **Acceptance Criteria**:
+  - [ ] All 5 new components use design-system.md CSS custom properties
+  - [ ] All components implement all interaction states from design-spec.md
+  - [ ] `pnpm test apps/web -- workspace` passes with 0 failures
+  - [ ] `pnpm lint apps/web` passes with 0 errors
+
+### Overall Acceptance Criteria
+
+- [ ] All 5 new components implemented and rendering without errors
+- [ ] `SharePluginDialog` uses multi-select checkboxes (not single-select)
+- [ ] Sharing tab shows both outbound and inbound sections on the same page
+- [ ] Member removal uses `Dialog` component (no `confirm()` calls)
+- [ ] WorkspaceSwitcher shows search/filter when workspace count > 5
+- [ ] All components use design-system.md CSS custom properties
+- [ ] All components implement all interaction states from design-spec.md
+- [ ] Unit test coverage ≥ 80% for all new components
+- [ ] 15-20 new unit tests pass
+- [ ] `pnpm test apps/web -- workspace` passes
+- [ ] `pnpm lint apps/web` passes
+
+---
+
+## Task 9: Accessibility Gap Remediation
+
+> Post-UX design phase task — added 2026-03-02.
+
+| Attribute          | Value                                                 |
+| ------------------ | ----------------------------------------------------- |
+| **Priority**       | 🟡 HIGH                                               |
+| **Effort**         | 8–12 hours (1–1.5 days)                               |
+| **Story Points**   | 5                                                     |
+| **Status**         | Pending                                               |
+| **Dependencies**   | T8 (frontend components must exist first)             |
+| **Spec Reference** | design-spec.md §2.7, §3.8, §5.8, §13; ADR-022         |
+| **Risk**           | LOW — targeted ARIA fixes with automated verification |
+
+### Problem
+
+The UX design audit (design-spec.md §13) identified 4 WCAG 2.1 AA accessibility
+gaps across 3 existing workspace screens. These must be fixed to comply with
+Constitution Article 1.3 ("WCAG 2.1 AA compliance required for all user interfaces").
+
+| Screen            | Gap                                                                                 | Fix                                                           |
+| ----------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| WorkspaceSwitcher | Missing `aria-label` on trigger, `role="listbox"` on list, `aria-selected` on items | Add ARIA attributes                                           |
+| WorkspaceSwitcher | Search input has no visible label                                                   | Add `<label>` or `aria-label`                                 |
+| Settings          | Toggles missing `role="switch"` and `aria-checked`                                  | Add ARIA role and state                                       |
+| Members           | Role dropdown and remove button missing `aria-label`                                | Add `aria-label="Change role for {name}"` / `"Remove {name}"` |
+
+### Files
+
+| Action | File                                                            | Purpose                                      |
+| ------ | --------------------------------------------------------------- | -------------------------------------------- |
+| MODIFY | `apps/web/src/components/workspace/WorkspaceSwitcher.tsx`       | ARIA attributes on trigger, list, items      |
+| MODIFY | `apps/web/src/routes/workspace-settings.tsx`                    | Toggle `role="switch"` and `aria-checked`    |
+| MODIFY | `apps/web/src/routes/workspace-members.tsx`                     | ARIA labels on role dropdown + remove button |
+| CREATE | `apps/web/src/__tests__/workspace/e2e/T9-accessibility.spec.ts` | axe-core/Playwright accessibility tests      |
+
+### Subtasks
+
+**T9.1** (3 hrs) — Fix WorkspaceSwitcher ARIA attributes
+
+- Add `aria-label="Switch workspace"` on the trigger button
+- Add `role="listbox"` on the workspace list `<ul>` element
+- Add `aria-selected={isActive}` on each workspace `<li>` or option element
+- Add `aria-label="Search workspaces"` (visible `<label>`) on search input (from T8.7)
+- Verify keyboard navigation: arrow keys move between options, Enter selects, Escape closes
+- **Acceptance Criteria**:
+  - [ ] Trigger button has `aria-label="Switch workspace"`
+  - [ ] List element has `role="listbox"`
+  - [ ] Active workspace item has `aria-selected="true"`
+  - [ ] Search input has visible label (not just placeholder)
+  - [ ] Keyboard navigation works (arrows, Enter, Escape)
+  - [ ] axe-core reports 0 ARIA violations on WorkspaceSwitcher
+
+**T9.2** (2 hrs) — Fix Settings page toggle ARIA attributes
+
+- For each toggle (`allowPublicJoin`, `defaultRole` enablement, etc.):
+  - Add `role="switch"` to the toggle control
+  - Add `aria-checked={value}` reflecting current boolean state
+  - Add `aria-label` if the toggle's purpose is not already labeled by adjacent text
+- **Acceptance Criteria**:
+  - [ ] All toggle controls have `role="switch"`
+  - [ ] All toggle controls have `aria-checked` reflecting state
+  - [ ] axe-core reports 0 ARIA violations for `role="switch"` usage
+
+**T9.3** (2 hrs) — Fix Members page ARIA labels
+
+- Role dropdown: add `aria-label={`Change role for ${member.name}`}` on each role `<select>`
+- Remove button: add `aria-label={`Remove ${member.name}`}` on each remove button
+- Verify that the Dialog added in T8.6 has correct focus management:
+  - Focus moves to Dialog on open
+  - Focus returns to trigger button on close
+  - `aria-labelledby` points to Dialog title
+  - `role="dialog"` and `aria-modal="true"` present
+- **Acceptance Criteria**:
+  - [ ] Each role dropdown has `aria-label="Change role for {name}"`
+  - [ ] Each remove button has `aria-label="Remove {name}"`
+  - [ ] Remove Dialog has correct focus management (trap, return)
+  - [ ] Remove Dialog has `role="dialog"`, `aria-modal="true"`, `aria-labelledby`
+  - [ ] axe-core reports 0 ARIA violations on Members page
+
+**T9.4** (2 hrs) — axe-core/Playwright automated accessibility tests
+
+- Create `T9-accessibility.spec.ts` with Playwright + axe-core (ADR-022)
+- Test WorkspaceSwitcher: open trigger, scan with axe-core, expect 0 violations
+- Test Workspace Settings page: render settings form + toggles, scan with axe-core
+- Test Workspace Members page: render member list, open remove dialog, scan with axe-core
+- All axe-core checks use `checkA11y(page, null, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] } })`
+- **Acceptance Criteria**:
+  - [ ] `T9-accessibility.spec.ts` created with 3+ test cases
+  - [ ] WorkspaceSwitcher passes axe-core WCAG 2.1 AA scan
+  - [ ] Settings page passes axe-core WCAG 2.1 AA scan
+  - [ ] Members page passes axe-core WCAG 2.1 AA scan
+  - [ ] `pnpm test:e2e apps/web -- accessibility` passes
+
+**T9.5** (1 hr) — Verify and document compliance
+
+- Run full axe-core suite and confirm 0 WCAG 2.1 AA violations on all 3 screens
+- Update design-spec.md §13 to mark the 4 gaps as ✅ Resolved
+- Update decision-log.md if any new architectural decisions were required
+- **Acceptance Criteria**:
+  - [ ] Full axe-core suite passes with 0 WCAG 2.1 AA violations
+  - [ ] design-spec.md §13 updated to show all gaps as ✅ Resolved
+  - [ ] decision-log.md updated if applicable
+
+### Overall Acceptance Criteria
+
+- [ ] WorkspaceSwitcher trigger has `aria-label="Switch workspace"`
+- [ ] WorkspaceSwitcher list has `role="listbox"` and items have `aria-selected`
+- [ ] WorkspaceSwitcher search input has visible label (not just placeholder)
+- [ ] Settings toggles have `role="switch"` and `aria-checked` attributes
+- [ ] Members role dropdowns have `aria-label="Change role for {name}"`
+- [ ] Members remove buttons have `aria-label="Remove {name}"`
+- [ ] Remove Dialog has `role="dialog"`, `aria-modal="true"`, `aria-labelledby`
+- [ ] axe-core reports 0 WCAG 2.1 AA violations on all 3 screens
+- [ ] `pnpm test:e2e apps/web -- accessibility` passes
+- [ ] design-spec.md §13 updated to show all gaps as ✅ Resolved
+
+---
+
 ## Coverage Progression
 
 | Milestone                | Tests (Cumulative) | Coverage (Estimated) | Delta |
@@ -2710,9 +2991,11 @@ T3, T4, T5 can be spread across subsequent sprints.
 | After T7 (Rate Limiting) | 284-299            | 70%                  | +1%   |
 | After T4 (Settings)      | 293-312            | 72%                  | +2%   |
 | After T3 (Sharing)       | 316-342            | 77%                  | +5%   |
-| After T5 (Coverage)      | 361-400            | **85%**              | +8%   |
+| After T8 (Frontend)      | 331-362            | 80%                  | +3%   |
+| After T9 (Accessibility) | 335-370            | 81%                  | +1%   |
+| After T5 (Coverage)      | 380-425            | **85%+**             | +4%   |
 
-**Target**: 85% coverage after all 7 tasks complete (361-400 total workspace tests).
+**Target**: 85%+ coverage after all 9 tasks complete (380-425 total workspace tests).
 
 ---
 
@@ -2720,26 +3003,27 @@ T3, T4, T5 can be spread across subsequent sprints.
 
 All tasks must comply with the following Constitution articles:
 
-| Article  | Requirement                     | How Addressed                                              |
-| -------- | ------------------------------- | ---------------------------------------------------------- |
-| Art. 1.2 | Test-Driven Development         | Write tests BEFORE implementation (TDD for T1-T7)          |
-| Art. 3.1 | Event-Driven Architecture       | T1: Publish 7 workspace event types                        |
-| Art. 3.2 | Service Layer Encapsulation     | T3: New `WorkspaceResourceService` follows layered pattern |
-| Art. 3.3 | Parameterized Queries           | All new queries use Prisma parameterized queries           |
-| Art. 4.1 | Test Coverage ≥85%              | T5: Final verification and CI enforcement                  |
-| Art. 5.1 | RBAC Enforcement                | T3/T4: New endpoints use workspace guards                  |
-| Art. 5.3 | Input Validation                | T3/T4/T6/T7: All new DTOs validated with Zod               |
-| Art. 6.2 | Standard Error Format           | T6: Migrate all 12 endpoints to Constitution error format  |
-| Art. 6.3 | Pino Structured Logging         | T1/T2: Event and cache operations use Pino logger          |
-| Art. 7.1 | Code Naming Conventions         | Files: kebab-case; Classes: PascalCase; DB: snake_case     |
-| Art. 8.2 | Test Quality (AAA, descriptive) | All tests follow Arrange-Act-Assert with `should...when`   |
-| Art. 9.2 | DoS Prevention & Rate Limiting  | T7: Redis-based rate limiting with 4 limit categories      |
+| Article  | Requirement                     | How Addressed                                               |
+| -------- | ------------------------------- | ----------------------------------------------------------- |
+| Art. 1.2 | Test-Driven Development         | Write tests BEFORE implementation (TDD for T1-T9)           |
+| Art. 1.3 | WCAG 2.1 AA Accessibility       | T9: Fix all 4 identified WCAG 2.1 AA gaps (design-spec §13) |
+| Art. 3.1 | Event-Driven Architecture       | T1: Publish 7 workspace event types                         |
+| Art. 3.2 | Service Layer Encapsulation     | T3: New `WorkspaceResourceService` follows layered pattern  |
+| Art. 3.3 | Parameterized Queries           | All new queries use Prisma parameterized queries            |
+| Art. 4.1 | Test Coverage ≥85%              | T5: Final verification and CI enforcement                   |
+| Art. 5.1 | RBAC Enforcement                | T3/T4: New endpoints use workspace guards                   |
+| Art. 5.3 | Input Validation                | T3/T4/T6/T7: All new DTOs validated with Zod                |
+| Art. 6.2 | Standard Error Format           | T6: Migrate all 12 endpoints to Constitution error format   |
+| Art. 6.3 | Pino Structured Logging         | T1/T2: Event and cache operations use Pino logger           |
+| Art. 7.1 | Code Naming Conventions         | Files: kebab-case; Classes: PascalCase; DB: snake_case      |
+| Art. 8.2 | Test Quality (AAA, descriptive) | All tests follow Arrange-Act-Assert with `should...when`    |
+| Art. 9.2 | DoS Prevention & Rate Limiting  | T7: Redis-based rate limiting with 4 limit categories       |
 
 ---
 
 **End of Tasks: 009 - Workspace Management**
 
-_Document Version: 1.1_
+_Document Version: 1.2_
 _Created: 2026-02-16_
-_Last Updated: 2026-02-16_
-_Author: forge-pm_
+_Last Updated: 2026-03-02_
+_Author: forge-pm, forge-architect (UX integration update)_

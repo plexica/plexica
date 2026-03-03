@@ -3,11 +3,119 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: February 28, 2026
+**Last Updated**: March 2, 2026 (ADR-021 accepted, ADR-022 updated, ADR-024, ADR-025 added)
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
+> March 2026 closed entries: [archives/2026-03/decisions-2026-03.md](./archives/2026-03/decisions-2026-03.md).
 > Historical decisions from 2025 and earlier: [archives/decision-log-2025.md](./archives/decision-log-2025.md)
+
+---
+
+### ADR-021 Accepted: Pino Structured Logging in Frontend Error Boundaries (March 2, 2026)
+
+**Date**: March 2, 2026
+**Context**: Spec 010 (Frontend Production Readiness) Phase 1 — error boundaries
+(FR-016, FR-017, FR-018) require structured error logging with multi-tenant context
+fields (`pluginId`, `tenantId`, `componentStack`). Constitution Art. 6.3 mandates
+Pino JSON logging. Four options evaluated: Pino browser, console.error, Winston, Sentry SDK.
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-021** — Pino Structured Logging in Frontend Error Boundaries
+**File**: `.forge/knowledge/adr/adr-021-pino-frontend-logging.md`
+**Decision**: Use `pino` with browser transport (`pino({ browser: { asObject: true } })`)
+in `apps/web` for all structured logging. ~5–6KB gzipped addition to shell bundle
+(within 15KB budget). `pino-pretty` as devDependency only. ESLint `no-console` rule
+enforces consistent usage. Same JSON schema as backend logs enables unified aggregation.
+
+**Key implications**:
+
+- **Zero new library**: Pino already in monorepo for backend; pnpm deduplicates
+- **Art. 6.3 compliance**: Structured JSON with `timestamp`, `level`, `message`, `tenantId`, `userId`
+- **Bundle budget**: ~5–6KB gzipped ≪ 15KB ceiling; negligible vs React (~45KB)
+- **Enforcement**: ESLint `no-console: "error"` in `apps/web` prevents raw console usage
+
+**Resolves**: Spec 010 FR-018 (structured error logging), NFR-011 (Pino logger integration)
+**Blocks**: T010-04 (Pino logger implementation in shell)
+
+---
+
+### ADR-022 Updated: axe-core for Automated Accessibility Testing (March 2, 2026)
+
+**Date**: March 2, 2026
+**Context**: Spec 010 (Frontend Production Readiness) Phase 5 — WCAG 2.1 AA compliance
+(Constitution Art. 1.3) requires automated accessibility testing for 8 new components
+across 12 WCAG criteria. Current test suite has zero a11y tooling. Four options evaluated:
+axe-core ecosystem, jest-axe, Pa11y, manual-only.
+
+**Status**: ✅ ADR updated and Accepted (supersedes initial 2026-02-28 draft)
+
+**ADR-022** — axe-core for Automated Accessibility Testing
+**File**: `.forge/knowledge/adr/adr-022-axe-core-playwright.md`
+**Decision**: Use the axe-core ecosystem via three `devDependencies`:
+`vitest-axe` (Vitest-native component-level a11y matchers), `@axe-core/playwright`
+(E2E page-level scans), and `@axe-core/react` (optional dev overlay).
+All packages are dev-only — zero production bundle impact. CI blocks merge
+on `critical`/`serious` WCAG violations.
+
+**Key implications**:
+
+- **Art. 1.3 compliance**: Automated WCAG 2.1 AA enforcement at both component and E2E level
+- **Art. 2.2 compliance**: This ADR IS the required dependency approval; all packages satisfy policy
+- **Zero production impact**: All three packages are `devDependencies`; Vite tree-shaking confirmed
+- **Framework-native**: `vitest-axe` is purpose-built for Vitest (not a jest-axe shim)
+- **~57% automated coverage**: Remaining WCAG criteria covered by manual testing (T010-33, T010-35)
+
+**Resolves**: Spec 010 FR-026 (axe-core testing), NFR-012 (WCAG 2.1 AA compliance)
+**Unblocks**: T010-31 (axe-core audit), T010-36 (E2E accessibility tests)
+
+---
+
+### ADR-025 Created: Audit Logs in Core Schema (March 2, 2026)
+
+**Date**: March 2, 2026
+**Context**: Spec 008 (Admin Interfaces) `/forge-analyze` flagged W-302 — `audit_logs`
+placed in core shared schema deviates from ADR-002 schema-per-tenant pattern without
+an ADR. Super Admin cross-tenant audit visibility (FR-006) makes per-tenant placement
+architecturally impossible.
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-025** — Audit Logs Placement in Core Schema
+**File**: `.forge/knowledge/adr/adr-025-audit-logs-core-schema.md`
+**Decision**: `audit_logs` table lives in the core shared schema as a deliberate,
+bounded exception to ADR-002. This is the **only** approved exception. Five mandatory
+safeguards enforce tenant isolation at the application layer: single `AuditLogRepository`
+access path, required `tenantId` parameter on all tenant-scoped methods, explicitly-named
+Super Admin cross-tenant methods gated by role check, PostgreSQL RLS as defense-in-depth,
+and a code review gate on all repository changes.
+
+**Resolves**: W-302 from Spec 008 `/forge-analyze`
+**Blocks**: Spec 008 T008-03 (AuditLogRepository implementation must enforce all 5 safeguards)
+
+---
+
+### ADR-024 Created: Application-Level Team Member Roles vs Keycloak RBAC (March 2, 2026)
+
+**Date**: March 2, 2026
+**Context**: Spec 008 (Admin Interfaces) `/forge-analyze` flagged C-201 — plan.md §5.7
+introduces `team_members.role` enum (OWNER/ADMIN/MEMBER/VIEWER) without an ADR, potentially
+creating a dual role system conflicting with Keycloak as the sole RBAC authority (Art. 5.1).
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-024** — Application-Level Team Member Roles vs Keycloak RBAC
+**File**: `.forge/knowledge/adr/adr-024-team-member-role-vs-keycloak.md`
+**Decision**: `team_members.role` is an application-level organizational role, subordinate
+to and bounded by the user's Keycloak realm role. A `TeamAuthGuard` computes the effective
+team role as `min(keycloakMaxRole, team_members.role)` on every team-scoped request —
+Keycloak is always the security boundary, `team_members.role` adds within-tenant
+organizational context only. This mirrors ADR-017's ABAC "can only restrict, never expand"
+principle.
+
+**Resolves**: C-201 (CRITICAL) from Spec 008 `/forge-analyze`
+**Blocks**: Spec 008 T008-32/T008-33 (team member service must implement `TeamAuthGuard`)
 
 ---
 
@@ -15,17 +123,17 @@
 
 ### Technical Debt
 
-| ID         | Description                                                                                                                                                                                                                                                            | Impact   | Severity | Tracked In                               | Target Sprint                                                |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ---------------------------------------- | ------------------------------------------------------------ |
-| TD-001     | Test coverage at 76.5%, target 80%                                                                                                                                                                                                                                     | Quality  | MEDIUM   | CI report 2026-02-18                     | Next Sprint                                                  |
-| TD-002     | Core modules (auth, tenant, workspace) need 85% coverage                                                                                                                                                                                                               | Quality  | HIGH     | `AGENTS.md`                              | Q1 2026                                                      |
-| ~~TD-003~~ | ~~keycloak.service.ts at 2.83% coverage~~                                                                                                                                                                                                                              | Quality  | ~~HIGH~~ | ~~CI report 2026-02-18~~                 | ✅ **CLOSED 2026-02-23** — 96.1% unit + 19 integration tests |
-| TD-004     | 24 integration tests deferred (oauth-flow + ws-resources)                                                                                                                                                                                                              | Quality  | MEDIUM   | CI report 2026-02-18                     | Sprint 5                                                     |
-| TD-005     | 3 flaky E2E tests in tenant-concurrent need investigation                                                                                                                                                                                                              | Quality  | LOW      | CI report 2026-02-19                     | Sprint 5                                                     |
-| TD-006     | 40 deprecated E2E tests (ROPC flow) need removal                                                                                                                                                                                                                       | Quality  | LOW      | CI report 2026-02-18                     | Sprint 5                                                     |
-| TD-007     | CSP `frame-ancestors` not set — meta tag approach in T005-15 cannot cover frame-ancestors directive; production deployment requires HTTP response headers for full CSP                                                                                                 | Security | MEDIUM   | ISSUE-008 from Spec 005 review           | Sprint 7                                                     |
-| TD-008     | Contract tests for Module Federation widget API surface deferred — Constitution Art. 8.1 requires contract tests for plugin-to-core API interactions; Pact/contract tests for widget remote module interfaces deferred to Spec 010 Phase 3 or a dedicated testing spec | Quality  | MEDIUM   | Spec 005 plan §9.4                       | Sprint 10 (Spec 010 Phase 3)                                 |
-| TD-009     | FR-009 `GET /api/v1/plugins/:id/metrics` endpoint not implemented — Spec 004 FR-009 requires a per-plugin metrics endpoint proxying container Prometheus metrics; endpoint stub omitted from T004-09 scope. Deferred pending Spec 004 Phase 2 (observability).         | Feature  | LOW      | Spec 004 FR-009, FORGE review 2026-02-28 | Sprint 6 (Spec 004 Phase 2)                                  |
+| ID     | Description                                                                                                                                                                                                                                                                                                                                                                                     | Impact   | Severity | Tracked In                               | Target Sprint                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ---------------------------------------- | ---------------------------- |
+| TD-001 | Test coverage at 76.5%, target 80%                                                                                                                                                                                                                                                                                                                                                              | Quality  | MEDIUM   | CI report 2026-02-18                     | Next Sprint                  |
+| TD-002 | Core modules (auth, tenant, workspace) need 85% coverage                                                                                                                                                                                                                                                                                                                                        | Quality  | HIGH     | `AGENTS.md`                              | Q1 2026                      |
+| TD-004 | 24 integration tests deferred (oauth-flow + ws-resources)                                                                                                                                                                                                                                                                                                                                       | Quality  | MEDIUM   | CI report 2026-02-18                     | Sprint 5                     |
+| TD-005 | 3 flaky E2E tests in tenant-concurrent need investigation                                                                                                                                                                                                                                                                                                                                       | Quality  | LOW      | CI report 2026-02-19                     | Sprint 5                     |
+| TD-006 | 40 deprecated E2E tests (ROPC flow) need removal                                                                                                                                                                                                                                                                                                                                                | Quality  | LOW      | CI report 2026-02-18                     | Sprint 5                     |
+| TD-007 | CSP `frame-ancestors` not set — meta tag approach in T005-15 cannot cover frame-ancestors directive; production deployment requires HTTP response headers for full CSP                                                                                                                                                                                                                          | Security | MEDIUM   | ISSUE-008 from Spec 005 review           | Sprint 7                     |
+| TD-008 | Contract tests for Module Federation widget API surface deferred — Constitution Art. 8.1 requires contract tests for plugin-to-core API interactions; Pact/contract tests for widget remote module interfaces deferred to Spec 010 Phase 3 or a dedicated testing spec                                                                                                                          | Quality  | MEDIUM   | Spec 005 plan §9.4                       | Sprint 10 (Spec 010 Phase 3) |
+| TD-009 | FR-009 `GET /api/v1/plugins/:id/metrics` endpoint not implemented — Spec 004 FR-009 requires a per-plugin metrics endpoint proxying container Prometheus metrics; endpoint stub omitted from T004-09 scope. Deferred pending Spec 004 Phase 2 (observability).                                                                                                                                  | Feature  | LOW      | Spec 004 FR-009, FORGE review 2026-02-28 | Sprint 6 (Spec 004 Phase 2)  |
+| TD-010 | `JobQueueService` singleton (`job-queue.singleton.ts`) — singleton state persists between test runs if `_resetJobQueueSingletonForTests()` is not called. Current unit tests work correctly because `vi.mock` intercepts `JobQueueService`/`JobRepository` constructors, but if future tests rely on instance identity across test files the singleton must be explicitly reset in `afterEach`. | Quality  | LOW      | Spec 007 HIGH #5 fix, 2026-03-02         | Sprint 7                     |
 
 ### Deferred Decisions
 
@@ -230,4 +338,5 @@ deferred. For significant architectural decisions, create a full ADR using
 _Archives:_
 
 - _February 2026: [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md)_
+- _March 2026: [archives/2026-03/decisions-2026-03.md](./archives/2026-03/decisions-2026-03.md)_
 - _2025 and earlier: [archives/decision-log-2025.md](./archives/decision-log-2025.md)_

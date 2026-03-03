@@ -15,6 +15,7 @@ import {
   ChevronUp,
   HelpCircle,
   LayoutDashboard,
+  LayoutList,
   Puzzle,
   Settings,
   User,
@@ -61,6 +62,11 @@ const CORE_ITEMS: CoreMenuItem[] = [
     label: 'Settings',
     path: '/settings',
     icon: <Settings className="w-5 h-5" aria-hidden="true" />,
+  },
+  {
+    label: 'Jobs',
+    path: '/admin/jobs',
+    icon: <LayoutList className="w-5 h-5" aria-hidden="true" />,
   },
 ];
 

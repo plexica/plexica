@@ -34,7 +34,7 @@ A multi-tenant platform requires two levels of administration: platform operator
 - Given the "New Tenant" form, when I submit valid data (name, slug), then a new tenant is provisioned (schema, realm, bucket).
 - Given an active tenant, when I click "Suspend", then the tenant status changes to SUSPENDED and all user access is blocked.
 - Given a suspended tenant, when I click "Reactivate", then the tenant becomes ACTIVE again.
-- Given a suspended tenant, when I click "Delete", then the tenant enters PENDING_DELETION with a grace period.
+- Given a suspended tenant, when I click "Delete", then the tenant enters PENDING_DELETION with a 30-day grace period before permanent deletion.
 
 ### US-002: Plugin Management (Super Admin)
 
@@ -58,8 +58,12 @@ A multi-tenant platform requires two levels of administration: platform operator
 **Acceptance Criteria:**
 
 - Given the user list page, when I view it, then I see all tenant users with name, email, teams, role, and status.
-- Given the "Invite" button, when I submit an email, then an invitation is sent and the user appears with status "Invited".
+- Given the "Invite" button, when I submit an email, then an invitation is sent and the user appears with status "Invited". The invitation expires after 7 days.
+- Given an invited user whose invitation has expired, when I view the user list, then the user's status shows "Expired".
+- Given an expired or pending invitation, when I click "Resend Invitation", then a new invitation is sent and the 7-day expiry timer resets.
+- Given an invited user, when I click "Cancel Invitation", then the invitation is revoked and the user record is removed (or status changes to "Cancelled").
 - Given an active user, when I click "Deactivate", then the user's access is revoked and status changes to "Deactivated".
+- Given a deactivated user, when I click "Reactivate", then the user's access is restored and status changes to "Active".
 - Given a user, when I assign a role, then the user's permissions update immediately.
 
 ### US-004: Role Editor (Tenant Admin)
@@ -85,7 +89,7 @@ A multi-tenant platform requires two levels of administration: platform operator
 
 - Given the team list, when I view it, then I see all teams with name, member count, and workspace.
 - Given a new team, when I create it with name and workspace, then the team appears in the team list.
-- Given a team, when I add a user as a member with role "MEMBER" or "ADMIN", then the user appears in the team's member list.
+- Given a team, when I add a user as a member with role "OWNER", "ADMIN", "MEMBER", or "VIEWER", then the user appears in the team's member list with that role. Team roles are subordinate to Keycloak realm roles per ADR-024.
 - Given a team member, when I remove them, then their team-specific permissions are revoked.
 
 ### US-006: Tenant Settings (Tenant Admin)
@@ -112,6 +116,7 @@ A multi-tenant platform requires two levels of administration: platform operator
 - Given the audit log, when I filter by action type or date range, then only matching entries are shown.
 - Given I am a Tenant Admin, when I view audit logs, then I only see logs for my tenant.
 - Given I am a Super Admin, when I view audit logs, then I can view logs across all tenants.
+- Given the audit log page, when I click "Export", then I can download the filtered audit data as CSV or JSON format, bypassing the 10,000-entry query window limit via a background job.
 
 ## 4. Functional Requirements
 
@@ -129,15 +134,16 @@ A multi-tenant platform requires two levels of administration: platform operator
 
 ### Tenant Admin Interface
 
-| ID     | Requirement                                                              | Priority | Story Ref |
-| ------ | ------------------------------------------------------------------------ | -------- | --------- |
-| FR-008 | Dashboard: tenant overview with user count, usage metrics                | Must     | US-003    |
-| FR-009 | User management: list, invite, deactivate, role assignment               | Must     | US-003    |
-| FR-010 | Team management: CRUD teams, member management, role assignment          | Must     | US-005    |
-| FR-011 | Role editor: create/edit custom roles with grouped permission checkboxes | Must     | US-004    |
-| FR-012 | Plugin settings: enable/disable, per-tenant configuration                | Must     | US-006    |
-| FR-013 | Tenant settings: theme, preferences, integrations                        | Must     | US-006    |
-| FR-014 | Tenant audit log: scoped to current tenant only                          | Must     | US-007    |
+| ID     | Requirement                                                                                             | Priority | Story Ref |
+| ------ | ------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| FR-008 | Dashboard: tenant overview with user count, usage metrics                                               | Must     | US-003    |
+| FR-009 | User management: list, invite, deactivate, reactivate, role assignment                                  | Must     | US-003    |
+| FR-010 | Team management: CRUD teams, member management, role assignment (OWNER/ADMIN/MEMBER/VIEWER per ADR-024) | Must     | US-005    |
+| FR-011 | Role editor: create/edit custom roles with grouped permission checkboxes                                | Must     | US-004    |
+| FR-012 | Plugin settings: enable/disable, per-tenant configuration                                               | Must     | US-006    |
+| FR-013 | Tenant settings: theme, preferences, integrations                                                       | Must     | US-006    |
+| FR-014 | Tenant audit log: scoped to current tenant only                                                         | Must     | US-007    |
+| FR-015 | Audit log export: bulk export to CSV or JSON for compliance reporting                                   | Must     | US-007    |
 
 ## 5. Non-Functional Requirements
 
@@ -154,16 +160,18 @@ A multi-tenant platform requires two levels of administration: platform operator
 
 ## 6. Edge Cases & Error Scenarios
 
-| #   | Scenario                                                | Expected Behavior                                                   |
-| --- | ------------------------------------------------------- | ------------------------------------------------------------------- |
-| 1   | Super Admin creates tenant with duplicate slug          | 409 Conflict with clear error message                               |
-| 2   | Tenant Admin tries to edit a system role                | Edit controls disabled; tooltip explains system roles are immutable |
-| 3   | Super Admin deletes tenant with active users            | Tenant enters PENDING_DELETION; users notified; grace period starts |
-| 4   | Tenant Admin invites user with already-registered email | Existing user added to tenant; no duplicate account created         |
-| 5   | Plugin install fails mid-process                        | Status reverts; error shown with retry option                       |
-| 6   | Audit log query for very large date range               | Paginated response; max 10,000 entries per query                    |
-| 7   | Last Tenant Admin removed from tenant                   | Prevented: at least one tenant_admin must exist                     |
-| 8   | Super Admin downgrades own role                         | Prevented if this is the last super_admin                           |
+| #   | Scenario                                                | Expected Behavior                                                                                                         |
+| --- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Super Admin creates tenant with duplicate slug          | 409 Conflict with clear error message                                                                                     |
+| 2   | Tenant Admin tries to edit a system role                | Edit controls disabled; tooltip explains system roles are immutable                                                       |
+| 3   | Super Admin deletes tenant with active users            | Tenant enters PENDING_DELETION; users notified; 30-day grace period starts; permanent deletion is automatic after 30 days |
+| 4   | Tenant Admin invites user with already-registered email | Existing user added to tenant; no duplicate account created                                                               |
+| 5   | Plugin install fails mid-process                        | Status reverts; error shown with retry option                                                                             |
+| 6   | Audit log query for very large date range               | Paginated response; max 10,000 entries per query                                                                          |
+| 7   | Last Tenant Admin removed from tenant                   | Prevented: at least one tenant_admin must exist                                                                           |
+| 8   | Super Admin downgrades own role                         | Prevented if this is the last super_admin                                                                                 |
+| 9   | Invitation expires after 7 days                         | User status changes to "Expired"; Tenant Admin can resend or cancel                                                       |
+| 10  | Tenant Admin resends expired invitation                 | New invitation sent; 7-day expiry timer resets; status returns to "Invited"                                               |
 
 ## 7. Data Requirements
 
@@ -184,49 +192,65 @@ CREATE TABLE audit_logs (
 
 ### Events to Audit
 
-| Category       | Events                                           |
-| -------------- | ------------------------------------------------ |
-| Authentication | Login, logout, failed login attempt              |
-| User Mgmt      | User invited, deactivated, role changed          |
-| Team Mgmt      | Team created, member added/removed               |
-| Role Mgmt      | Role created, permissions changed                |
-| Plugin Mgmt    | Plugin installed, enabled, disabled, configured  |
-| Tenant Mgmt    | Tenant created, suspended, deleted (Super Admin) |
-| Settings       | Theme changed, configuration updated             |
+| Category       | Events                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Authentication | Login, logout, failed login attempt                                                                               |
+| User Mgmt      | User invited, invitation resent, invitation cancelled, invitation expired, deactivated, reactivated, role changed |
+| Team Mgmt      | Team created, member added/removed                                                                                |
+| Role Mgmt      | Role created, permissions changed                                                                                 |
+| Plugin Mgmt    | Plugin installed, enabled, disabled, configured                                                                   |
+| Tenant Mgmt    | Tenant created, suspended, deleted (Super Admin)                                                                  |
+| Settings       | Theme changed, configuration updated                                                                              |
 
 ## 8. API Requirements
 
 ### Super Admin APIs
 
-| Method | Path                                 | Description              | Auth                 |
-| ------ | ------------------------------------ | ------------------------ | -------------------- |
-| GET    | /api/v1/admin/dashboard              | System dashboard metrics | Bearer + super_admin |
-| GET    | /api/v1/admin/tenants                | List all tenants         | Bearer + super_admin |
-| POST   | /api/v1/admin/tenants                | Create tenant            | Bearer + super_admin |
-| PUT    | /api/v1/admin/tenants/:id            | Update tenant            | Bearer + super_admin |
-| POST   | /api/v1/admin/tenants/:id/suspend    | Suspend tenant           | Bearer + super_admin |
-| POST   | /api/v1/admin/tenants/:id/reactivate | Reactivate tenant        | Bearer + super_admin |
-| DELETE | /api/v1/admin/tenants/:id            | Delete tenant            | Bearer + super_admin |
-| GET    | /api/v1/admin/audit-logs             | Global audit logs        | Bearer + super_admin |
+| Method | Path                                 | Description                  | Auth                 |
+| ------ | ------------------------------------ | ---------------------------- | -------------------- |
+| GET    | /api/v1/admin/dashboard              | System dashboard metrics     | Bearer + super_admin |
+| GET    | /api/v1/admin/tenants                | List all tenants             | Bearer + super_admin |
+| POST   | /api/v1/admin/tenants                | Create tenant                | Bearer + super_admin |
+| PATCH  | /api/v1/admin/tenants/:id            | Update tenant (partial)      | Bearer + super_admin |
+| POST   | /api/v1/admin/tenants/:id/suspend    | Suspend tenant               | Bearer + super_admin |
+| POST   | /api/v1/admin/tenants/:id/reactivate | Reactivate tenant            | Bearer + super_admin |
+| DELETE | /api/v1/admin/tenants/:id            | Delete tenant                | Bearer + super_admin |
+| GET    | /api/v1/admin/super-admins           | List super admins            | Bearer + super_admin |
+| POST   | /api/v1/admin/super-admins           | Add super admin              | Bearer + super_admin |
+| DELETE | /api/v1/admin/super-admins/:id       | Remove super admin           | Bearer + super_admin |
+| GET    | /api/v1/admin/system-config          | List system config           | Bearer + super_admin |
+| PATCH  | /api/v1/admin/system-config/:key     | Update config value          | Bearer + super_admin |
+| GET    | /api/v1/admin/system-health          | System health check          | Bearer + super_admin |
+| GET    | /api/v1/admin/audit-logs             | Global audit logs            | Bearer + super_admin |
+| POST   | /api/v1/admin/audit-logs/export      | Export audit logs (CSV/JSON) | Bearer + super_admin |
 
 ### Tenant Admin APIs
 
-| Method | Path                                  | Description              | Auth                  |
-| ------ | ------------------------------------- | ------------------------ | --------------------- |
-| GET    | /api/v1/tenant/dashboard              | Tenant dashboard metrics | Bearer + tenant_admin |
-| GET    | /api/v1/tenant/users                  | List tenant users        | Bearer + tenant_admin |
-| POST   | /api/v1/tenant/users/invite           | Invite user              | Bearer + tenant_admin |
-| PUT    | /api/v1/tenant/users/:id              | Update user              | Bearer + tenant_admin |
-| POST   | /api/v1/tenant/users/:id/deactivate   | Deactivate user          | Bearer + tenant_admin |
-| GET    | /api/v1/tenant/teams                  | List teams               | Bearer + tenant_admin |
-| POST   | /api/v1/tenant/teams                  | Create team              | Bearer + tenant_admin |
-| PUT    | /api/v1/tenant/teams/:id              | Update team              | Bearer + tenant_admin |
-| DELETE | /api/v1/tenant/teams/:id              | Delete team              | Bearer + tenant_admin |
-| POST   | /api/v1/tenant/teams/:id/members      | Add team member          | Bearer + tenant_admin |
-| DELETE | /api/v1/tenant/teams/:id/members/:uid | Remove team member       | Bearer + tenant_admin |
-| GET    | /api/v1/tenant/settings               | Get tenant settings      | Bearer + tenant_admin |
-| PUT    | /api/v1/tenant/settings               | Update tenant settings   | Bearer + tenant_admin |
-| GET    | /api/v1/tenant/audit-logs             | Tenant audit logs        | Bearer + tenant_admin |
+| Method | Path                                  | Description                         | Auth                  |
+| ------ | ------------------------------------- | ----------------------------------- | --------------------- |
+| GET    | /api/v1/tenant/dashboard              | Tenant dashboard metrics            | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/users                  | List tenant users                   | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/users/invite           | Invite user                         | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/users/:id              | Update user (partial)               | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/users/:id/deactivate   | Deactivate user                     | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/users/:id/reactivate   | Reactivate user                     | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/teams                  | List teams                          | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/teams                  | Create team                         | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/teams/:id              | Update team (partial)               | Bearer + tenant_admin |
+| DELETE | /api/v1/tenant/teams/:id              | Delete team                         | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/teams/:id/members      | Add team member                     | Bearer + tenant_admin |
+| DELETE | /api/v1/tenant/teams/:id/members/:uid | Remove team member                  | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/roles                  | List roles                          | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/roles                  | Create custom role                  | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/roles/:id              | Update custom role                  | Bearer + tenant_admin |
+| DELETE | /api/v1/tenant/roles/:id              | Delete custom role                  | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/permissions            | List available perms                | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/settings               | Get tenant settings                 | Bearer + tenant_admin |
+| PATCH  | /api/v1/tenant/settings               | Update tenant settings              | Bearer + tenant_admin |
+| GET    | /api/v1/tenant/audit-logs             | Tenant audit logs                   | Bearer + tenant_admin |
+| POST   | /api/v1/tenant/audit-logs/export      | Export tenant audit logs (CSV/JSON) | Bearer + tenant_admin |
+
+> **FR-012 note**: Plugin enable/disable for tenant admins (`POST /api/v1/plugins/:id/enable`, `POST /api/v1/plugins/:id/disable`, `GET /api/v1/plugins`) is implemented via the existing `tenant-plugins-v1.ts` routes (Spec 004). These endpoints are out-of-scope for Spec 008's API table but are surfaced in the Plugin Settings screen (T008-55) and tested in T008-21 AC #5.
 
 ## 9. UX/UI Notes
 
@@ -256,7 +280,17 @@ CREATE TABLE audit_logs (
 
 ## 11. Open Questions
 
-- No open questions. All requirements derived from existing functional specifications.
+- No open questions. All ambiguities resolved during clarification (March 2, 2026).
+
+### Clarification Log
+
+| ID  | Ambiguity                                   | Resolution                                                                                              | Date       |
+| --- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------- |
+| A-1 | Tenant deletion grace period unspecified    | 30-day grace period; permanent deletion is automatic after 30 days                                      | 2026-03-02 |
+| A-2 | User reactivation not defined               | Added `POST /api/v1/tenant/users/:id/reactivate` endpoint; updated US-003 acceptance criteria           | 2026-03-02 |
+| A-3 | Invitation expiry/lifecycle undefined       | 7-day invitation expiry; status changes to "Expired"; resend resets timer; cancel revokes invitation    | 2026-03-02 |
+| A-4 | Team member role enum conflict with ADR-024 | Aligned to ADR-024: OWNER/ADMIN/MEMBER/VIEWER (4 roles); subordinate to Keycloak per TeamAuthGuard      | 2026-03-02 |
+| A-5 | No audit log export for compliance          | Added FR-015: `POST /api/v1/admin/audit-logs/export` and tenant equivalent; CSV/JSON via background job | 2026-03-02 |
 
 ## 12. Constitution Compliance
 

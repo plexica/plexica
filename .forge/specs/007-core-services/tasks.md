@@ -6,7 +6,7 @@
 
 | Field        | Value                                                  |
 | ------------ | ------------------------------------------------------ |
-| Status       | Pending                                                |
+| Status       | Complete (48/48 complete)                              |
 | Author       | forge-scrum                                            |
 | Date         | 2026-03-02                                             |
 | Spec         | [007-core-services/spec.md](./spec.md)                 |
@@ -35,54 +35,54 @@
 
 | Task ID | Title                                                         | Phase | Pts | Status  |
 | ------- | ------------------------------------------------------------- | ----- | --- | ------- |
-| T007-01 | Define shared type interfaces (Storage, Notif, Job, Search)   | Ph 1  | 3   | pending |
-| T007-02 | Database migration: `jobs` table                              | Ph 1  | 2   | pending |
-| T007-03 | Database migration: `notifications` table                     | Ph 1  | 2   | pending |
-| T007-04 | Database migration: `search_documents` table                  | Ph 1  | 2   | pending |
-| T007-05 | Add new design tokens to design system                        | Ph 1  | 1   | pending |
-| T007-06 | Implement StorageService (MinIO adapter)                      | Ph 2  | 5   | pending |
-| T007-07 | Implement NotificationService (email + inApp)                 | Ph 2  | 5   | pending |
-| T007-08 | Implement JobQueueService (Redis Bull / enqueue/schedule)     | Ph 2  | 5   | pending |
-| T007-09 | Implement SearchService (PostgreSQL FTS)                      | Ph 2  | 5   | pending |
-| T007-10 | Implement notification template engine                        | Ph 2  | 2   | pending |
-| T007-11 | Implement job worker process (with concurrency)               | Ph 2  | 3   | pending |
-| T007-12 | Implement tenant bucket provisioning hook                     | Ph 2  | 2   | pending |
-| T007-13 | Storage REST endpoints (upload/download/delete/list/sign-url) | Ph 3  | 3   | pending |
-| T007-14 | Notification REST endpoints (send/bulk)                       | Ph 3  | 2   | pending |
-| T007-15 | Job Queue REST endpoints (enqueue/schedule/cancel/status)     | Ph 3  | 3   | pending |
-| T007-16 | Search REST endpoints (index/search/delete/reindex)           | Ph 3  | 3   | pending |
-| T007-17 | SSE endpoint: `GET /api/v1/notifications/stream`              | Ph 3  | 3   | pending |
-| T007-18 | Register all routes in Fastify app                            | Ph 4  | 1   | pending |
-| T007-19 | Wire StorageService into Fastify DI container                 | Ph 4  | 1   | pending |
-| T007-20 | Wire NotificationService into Fastify DI container            | Ph 4  | 1   | pending |
-| T007-21 | Wire JobQueueService into Fastify DI container                | Ph 4  | 1   | pending |
-| T007-22 | Wire SearchService into Fastify DI container                  | Ph 4  | 1   | pending |
-| T007-23 | Extend `/health` endpoint with service dependency checks      | Ph 4  | 1   | pending |
-| T007-24 | UX: Build `SearchOverlay` component                           | Ph 5  | 5   | pending |
-| T007-25 | UX: Build `NotificationBell` component                        | Ph 5  | 5   | pending |
-| T007-26 | UX: Build `FileUploadZone` component                          | Ph 5  | 5   | pending |
-| T007-27 | UX: Build `FileListItem` component                            | Ph 5  | 2   | pending |
-| T007-28 | UX: Build `JobDetailPanel` component                          | Ph 5  | 3   | pending |
-| T007-29 | UX: Build `JobStatusBadge` component (extends StatusBadge)    | Ph 5  | 2   | pending |
-| T007-30 | UX: Build Job Status Dashboard page                           | Ph 5  | 5   | pending |
-| T007-31 | UX: Integrate SearchOverlay into shell Header                 | Ph 6  | 2   | pending |
-| T007-32 | UX: Integrate NotificationBell into shell Header              | Ph 6  | 2   | pending |
-| T007-33 | UX: Add Jobs page to admin sidebar navigation                 | Ph 6  | 1   | pending |
-| T007-34 | UX: SSE client hook `useNotificationStream`                   | Ph 6  | 2   | pending |
-| T007-35 | UX: SSE client hook `useJobStatusStream`                      | Ph 6  | 2   | pending |
-| T007-36 | Unit tests: StorageService                                    | Ph 7  | 3   | pending |
-| T007-37 | Unit tests: NotificationService                               | Ph 7  | 3   | pending |
-| T007-38 | Unit tests: JobQueueService                                   | Ph 7  | 3   | pending |
-| T007-39 | Unit tests: SearchService                                     | Ph 7  | 3   | pending |
-| T007-40 | Integration tests: Storage API endpoints                      | Ph 7  | 3   | pending |
-| T007-41 | Integration tests: Notification API endpoints                 | Ph 7  | 2   | pending |
-| T007-42 | Integration tests: Job Queue API endpoints                    | Ph 7  | 3   | pending |
-| T007-43 | Integration tests: Search API endpoints                       | Ph 7  | 2   | pending |
-| T007-44 | Component tests: SearchOverlay + NotificationBell             | Ph 7  | 3   | pending |
-| T007-45 | Component tests: FileUploadZone + FileListItem                | Ph 7  | 2   | pending |
-| T007-46 | Component tests: Job Dashboard + JobDetailPanel               | Ph 7  | 2   | pending |
-| T007-47 | E2E tests: upload file, search, notification flow             | Ph 7  | 3   | pending |
-| T007-48 | Polish: OpenAPI docs, error messages, logging                 | Ph 8  | 3   | pending |
+| T007-01 | Define shared type interfaces (Storage, Notif, Job, Search)   | Ph 1  | 3   | ✅ done |
+| T007-02 | Database migration: `jobs` table                              | Ph 1  | 2   | ✅ done |
+| T007-03 | Database migration: `notifications` table                     | Ph 1  | 2   | ✅ done |
+| T007-04 | Database migration: `search_documents` table                  | Ph 1  | 2   | ✅ done |
+| T007-05 | Add new design tokens to design system                        | Ph 1  | 1   | ✅ done |
+| T007-06 | Implement StorageService (MinIO adapter)                      | Ph 2  | 5   | ✅ done |
+| T007-07 | Implement NotificationService (email + inApp)                 | Ph 2  | 5   | ✅ done |
+| T007-08 | Implement JobQueueService (Redis Bull / enqueue/schedule)     | Ph 2  | 5   | ✅ done |
+| T007-09 | Implement SearchService (PostgreSQL FTS)                      | Ph 2  | 5   | ✅ done |
+| T007-10 | Implement notification template engine                        | Ph 2  | 2   | ✅ done |
+| T007-11 | Implement job worker process (with concurrency)               | Ph 2  | 3   | ✅ done |
+| T007-12 | Implement tenant bucket provisioning hook                     | Ph 2  | 2   | ✅ done |
+| T007-13 | Storage REST endpoints (upload/download/delete/list/sign-url) | Ph 3  | 3   | ✅ done |
+| T007-14 | Notification REST endpoints (send/bulk)                       | Ph 3  | 2   | ✅ done |
+| T007-15 | Job Queue REST endpoints (enqueue/schedule/cancel/status)     | Ph 3  | 3   | ✅ done |
+| T007-16 | Search REST endpoints (index/search/delete/reindex)           | Ph 3  | 3   | ✅ done |
+| T007-17 | SSE endpoint: `GET /api/v1/notifications/stream`              | Ph 3  | 3   | ✅ done |
+| T007-18 | Register all routes in Fastify app                            | Ph 4  | 1   | ✅ done |
+| T007-19 | Wire StorageService into Fastify DI container                 | Ph 4  | 1   | ✅ done |
+| T007-20 | Wire NotificationService into Fastify DI container            | Ph 4  | 1   | ✅ done |
+| T007-21 | Wire JobQueueService into Fastify DI container                | Ph 4  | 1   | ✅ done |
+| T007-22 | Wire SearchService into Fastify DI container                  | Ph 4  | 1   | ✅ done |
+| T007-23 | Extend `/health` endpoint with service dependency checks      | Ph 4  | 1   | ✅ done |
+| T007-24 | UX: Build `SearchOverlay` component                           | Ph 5  | 5   | ✅ done |
+| T007-25 | UX: Build `NotificationBell` component                        | Ph 5  | 5   | ✅ done |
+| T007-26 | UX: Build `FileUploadZone` component                          | Ph 5  | 5   | ✅ done |
+| T007-27 | UX: Build `FileListItem` component                            | Ph 5  | 2   | ✅ done |
+| T007-28 | UX: Build `JobDetailPanel` component                          | Ph 5  | 3   | ✅ done |
+| T007-29 | UX: Build `JobStatusBadge` component (extends StatusBadge)    | Ph 5  | 2   | ✅ done |
+| T007-30 | UX: Build Job Status Dashboard page                           | Ph 5  | 5   | ✅ done |
+| T007-31 | UX: Integrate SearchOverlay into shell Header                 | Ph 6  | 2   | ✅ done |
+| T007-32 | UX: Integrate NotificationBell into shell Header              | Ph 6  | 2   | ✅ done |
+| T007-33 | UX: Add Jobs page to admin sidebar navigation                 | Ph 6  | 1   | ✅ done |
+| T007-34 | UX: SSE client hook `useNotificationStream`                   | Ph 6  | 2   | ✅ done |
+| T007-35 | UX: SSE client hook `useJobStatusStream`                      | Ph 6  | 2   | ✅ done |
+| T007-36 | Unit tests: StorageService                                    | Ph 7  | 3   | ✅ done |
+| T007-37 | Unit tests: NotificationService                               | Ph 7  | 3   | ✅ done |
+| T007-38 | Unit tests: JobQueueService                                   | Ph 7  | 3   | ✅ done |
+| T007-39 | Unit tests: SearchService                                     | Ph 7  | 3   | ✅ done |
+| T007-40 | Integration tests: Storage API endpoints                      | Ph 7  | 3   | ✅ done |
+| T007-41 | Integration tests: Notification API endpoints                 | Ph 7  | 2   | ✅ done |
+| T007-42 | Integration tests: Job Queue API endpoints                    | Ph 7  | 3   | ✅ done |
+| T007-43 | Integration tests: Search API endpoints                       | Ph 7  | 2   | ✅ done |
+| T007-44 | Component tests: SearchOverlay + NotificationBell             | Ph 7  | 3   | ✅ done |
+| T007-45 | Component tests: FileUploadZone + FileListItem                | Ph 7  | 2   | ✅ done |
+| T007-46 | Component tests: Job Dashboard + JobDetailPanel               | Ph 7  | 2   | ✅ done |
+| T007-47 | E2E tests: upload file, search, notification flow             | Ph 7  | 3   | ✅ done |
+| T007-48 | Polish: OpenAPI docs, error messages, logging                 | Ph 8  | 3   | ✅ done |
 
 ---
 
@@ -117,7 +117,7 @@ this is complete.
 
 ---
 
-- [ ] **T007-01** `[M]` `[FR-001]` `[FR-004]` `[FR-007]` `[FR-011]` Define shared TypeScript service interfaces
+- [x] **T007-01** `[M]` `[FR-001]` `[FR-004]` `[FR-007]` `[FR-011]` Define shared TypeScript service interfaces
   - **File**: `apps/core-api/src/types/core-services.types.ts`
   - **Type**: Create new file
   - **Description**: Define the four canonical service interfaces from spec.md §7:
@@ -129,7 +129,7 @@ this is complete.
   - **Dependencies**: None
   - **Estimated**: 1 h (M)
 
-- [ ] **T007-02** `[S]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[P]` Database migration: `jobs` table
+- [x] **T007-02** `[S]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[P]` Database migration: `jobs` table
   - **File**: `packages/database/prisma/migrations/YYYYMMDD_create_jobs/migration.sql`
   - **Type**: Create new migration
   - **Description**: Add `jobs` table with columns: `id` (uuid PK), `tenant_id`
@@ -145,7 +145,7 @@ this is complete.
   - **Dependencies**: T007-01
   - **Estimated**: 30 min (S)
 
-- [ ] **T007-03** `[S]` `[FR-004]` `[FR-005]` `[FR-006]` `[P]` Database migration: `notifications` table
+- [x] **T007-03** `[S]` `[FR-004]` `[FR-005]` `[FR-006]` `[P]` Database migration: `notifications` table
   - **File**: `packages/database/prisma/migrations/YYYYMMDD_create_notifications/migration.sql`
   - **Type**: Create new migration
   - **Description**: Add `notifications` table: `id` (uuid PK), `tenant_id` (FK),
@@ -159,7 +159,7 @@ this is complete.
   - **Dependencies**: T007-01
   - **Estimated**: 30 min (S)
 
-- [ ] **T007-04** `[S]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-014]` `[P]` Database migration: `search_documents` table
+- [x] **T007-04** `[S]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-014]` `[P]` Database migration: `search_documents` table
   - **File**: `packages/database/prisma/migrations/YYYYMMDD_create_search_documents/migration.sql`
   - **Type**: Create new migration
   - **Description**: Add `search_documents` table for PostgreSQL FTS (MVP per
@@ -173,7 +173,7 @@ this is complete.
   - **Dependencies**: T007-01
   - **Estimated**: 30 min (S)
 
-- [ ] **T007-05** `[S]` `[UX]` Add new design tokens to design system
+- [x] **T007-05** `[S]` `[UX]` Add new design tokens to design system
   - **File**: `packages/ui/src/styles/tokens.css` (or equivalent token file)
   - **Type**: Modify existing
   - **Description**: Add the 10 new CSS custom property tokens from design-spec.md
@@ -199,7 +199,7 @@ tenant isolation, retries, and worker processes.
 
 ---
 
-- [ ] **T007-06** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[NFR-001]` `[NFR-002]` `[NFR-007]` `[P]` Implement StorageService
+- [x] **T007-06** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[NFR-001]` `[NFR-002]` `[NFR-007]` `[P]` Implement StorageService
   - **File**: `apps/core-api/src/modules/storage/storage.service.ts`
   - **Type**: Create new file
   - **Description**: Implement `StorageService` class wrapping the MinIO client
@@ -218,7 +218,7 @@ tenant isolation, retries, and worker processes.
   - **Dependencies**: T007-01
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-07** `[L]` `[FR-004]` `[FR-005]` `[FR-006]` `[NFR-005]` `[P]` Implement NotificationService
+- [x] **T007-07** `[L]` `[FR-004]` `[FR-005]` `[FR-006]` `[NFR-005]` `[P]` Implement NotificationService
   - **File**: `apps/core-api/src/modules/notifications/notification.service.ts`
   - **Type**: Create new file
   - **Description**: Implement `NotificationService` class. Methods: `send`,
@@ -237,7 +237,7 @@ tenant isolation, retries, and worker processes.
   - **Dependencies**: T007-01, T007-03
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-08** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[NFR-003]` `[NFR-006]` `[P]` Implement JobQueueService
+- [x] **T007-08** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[NFR-003]` `[NFR-006]` `[P]` Implement JobQueueService
   - **File**: `apps/core-api/src/modules/jobs/job-queue.service.ts`
   - **Type**: Create new file
   - **Description**: Implement `JobQueueService` using Redis (existing `lib/redis.ts`)
@@ -254,7 +254,7 @@ tenant isolation, retries, and worker processes.
   - **Dependencies**: T007-01, T007-02
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-09** `[L]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-014]` `[NFR-004]` `[NFR-008]` `[P]` Implement SearchService
+- [x] **T007-09** `[L]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-014]` `[NFR-004]` `[NFR-008]` `[P]` Implement SearchService
   - **File**: `apps/core-api/src/modules/search/search.service.ts`
   - **Type**: Create new file
   - **Description**: Implement `SearchService` using PostgreSQL FTS (spec.md §10
@@ -270,7 +270,7 @@ tenant isolation, retries, and worker processes.
   - **Dependencies**: T007-01, T007-04, T007-08
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-10** `[M]` `[FR-006]` Implement notification template engine
+- [x] **T007-10** `[M]` `[FR-006]` Implement notification template engine
   - **File**: `apps/core-api/src/modules/notifications/notification-template.ts`
   - **Type**: Create new file
   - **Description**: Implement `renderTemplate(template: string, data: Record<string, unknown>): string`.
@@ -283,7 +283,7 @@ tenant isolation, retries, and worker processes.
   - **Dependencies**: T007-07
   - **Estimated**: 45 min (M)
 
-- [ ] **T007-11** `[M]` `[FR-008]` `[NFR-006]` Implement job worker process
+- [x] **T007-11** `[M]` `[FR-008]` `[NFR-006]` Implement job worker process
   - **File**: `apps/core-api/src/modules/jobs/job-worker.ts`
   - **Type**: Create new file
   - **Description**: Implement the BullMQ `Worker` that processes jobs from the
@@ -298,7 +298,7 @@ tenant isolation, retries, and worker processes.
   - **Dependencies**: T007-08
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-12** `[S]` `[FR-002]` Implement tenant bucket provisioning hook
+- [x] **T007-12** `[S]` `[FR-002]` Implement tenant bucket provisioning hook
   - **File**: `apps/core-api/src/modules/storage/bucket-provisioner.ts`
   - **Type**: Create new file
   - **Description**: Implement `provisionTenantBucket(tenantId: string): Promise<void>`.
@@ -323,7 +323,7 @@ spec.md §8. Use Fastify route plugins.
 
 ---
 
-- [ ] **T007-13** `[M]` `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Storage REST endpoints
+- [x] **T007-13** `[M]` `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Storage REST endpoints
   - **File**: `apps/core-api/src/modules/storage/storage.routes.ts`
   - **Type**: Create new file
   - **Description**: Register Fastify routes per spec.md §8:
@@ -342,7 +342,7 @@ spec.md §8. Use Fastify route plugins.
   - **Dependencies**: T007-06
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-14** `[M]` `[FR-004]` `[FR-005]` `[FR-006]` `[P]` Notification REST endpoints
+- [x] **T007-14** `[M]` `[FR-004]` `[FR-005]` `[FR-006]` `[P]` Notification REST endpoints
   - **File**: `apps/core-api/src/modules/notifications/notification.routes.ts`
   - **Type**: Create new file
   - **Description**: Register Fastify routes per spec.md §8:
@@ -361,7 +361,7 @@ spec.md §8. Use Fastify route plugins.
   - **Dependencies**: T007-07
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-15** `[M]` `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Job Queue REST endpoints
+- [x] **T007-15** `[M]` `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Job Queue REST endpoints
   - **File**: `apps/core-api/src/modules/jobs/jobs.routes.ts`
   - **Type**: Create new file
   - **Description**: Register Fastify routes per spec.md §8:
@@ -382,7 +382,7 @@ spec.md §8. Use Fastify route plugins.
   - **Dependencies**: T007-08
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-16** `[M]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-014]` `[P]` Search REST endpoints
+- [x] **T007-16** `[M]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-014]` `[P]` Search REST endpoints
   - **File**: `apps/core-api/src/modules/search/search.routes.ts`
   - **Type**: Create new file
   - **Description**: Register Fastify routes per spec.md §8:
@@ -399,7 +399,7 @@ spec.md §8. Use Fastify route plugins.
   - **Dependencies**: T007-09
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-17** `[M]` `[FR-004]` `[FR-005]` `[UX]` SSE endpoint: `GET /api/v1/notifications/stream`
+- [x] **T007-17** `[M]` `[FR-004]` `[FR-005]` `[UX]` SSE endpoint: `GET /api/v1/notifications/stream`
   - **File**: `apps/core-api/src/modules/notifications/notification-stream.routes.ts`
   - **Type**: Create new file
   - **Description**: Implement Server-Sent Events endpoint per ADR-023 (decision-log.md).
@@ -428,7 +428,7 @@ and extend the health check endpoint.
 
 ---
 
-- [ ] **T007-18** `[S]` `[FR-001]` `[FR-004]` `[FR-007]` `[FR-011]` Register all routes in Fastify app
+- [x] **T007-18** `[S]` `[FR-001]` `[FR-004]` `[FR-007]` `[FR-011]` Register all routes in Fastify app
   - **File**: `apps/core-api/src/index.ts`
   - **Type**: Modify existing
   - **Description**: Register the four new route plugins (storage, notifications,
@@ -440,7 +440,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-13, T007-14, T007-15, T007-16, T007-17
   - **Estimated**: 20 min (S)
 
-- [ ] **T007-19** `[S]` `[FR-001]` `[P]` Wire StorageService into Fastify DI container
+- [x] **T007-19** `[S]` `[FR-001]` `[P]` Wire StorageService into Fastify DI container
   - **File**: `apps/core-api/src/index.ts` (or dedicated DI setup file)
   - **Type**: Modify existing
   - **Description**: Register `StorageService` as a Fastify decorator or plugin.
@@ -451,7 +451,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-06, T007-18
   - **Estimated**: 20 min (S)
 
-- [ ] **T007-20** `[S]` `[FR-004]` `[P]` Wire NotificationService into Fastify DI container
+- [x] **T007-20** `[S]` `[FR-004]` `[P]` Wire NotificationService into Fastify DI container
   - **File**: `apps/core-api/src/index.ts`
   - **Type**: Modify existing
   - **Description**: Register `NotificationService` with SMTP config from env.
@@ -461,7 +461,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-07, T007-18
   - **Estimated**: 20 min (S)
 
-- [ ] **T007-21** `[S]` `[FR-007]` `[P]` Wire JobQueueService into Fastify DI container
+- [x] **T007-21** `[S]` `[FR-007]` `[P]` Wire JobQueueService into Fastify DI container
   - **File**: `apps/core-api/src/index.ts`
   - **Type**: Modify existing
   - **Description**: Register `JobQueueService` with Redis config (reuse
@@ -472,7 +472,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-08, T007-11, T007-18
   - **Estimated**: 20 min (S)
 
-- [ ] **T007-22** `[S]` `[FR-011]` `[P]` Wire SearchService into Fastify DI container
+- [x] **T007-22** `[S]` `[FR-011]` `[P]` Wire SearchService into Fastify DI container
   - **File**: `apps/core-api/src/index.ts`
   - **Type**: Modify existing
   - **Description**: Register `SearchService` using existing Prisma client.
@@ -482,7 +482,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-09, T007-18
   - **Estimated**: 20 min (S)
 
-- [ ] **T007-23** `[S]` `[NFR-001]` `[NFR-004]` `[NFR-005]` Extend `/health` endpoint with service dependency checks
+- [x] **T007-23** `[S]` `[NFR-001]` `[NFR-004]` `[NFR-005]` Extend `/health` endpoint with service dependency checks
   - **File**: `apps/core-api/src/index.ts` (health route handler)
   - **Type**: Modify existing
   - **Description**: Extend the existing `GET /health` endpoint to include
@@ -513,7 +513,7 @@ and extend the health check endpoint.
 
 ---
 
-- [ ] **T007-24** `[L]` `[FR-011]` `[FR-013]` `[FR-014]` `[UX]` `[P]` Build `SearchOverlay` component
+- [x] **T007-24** `[L]` `[FR-011]` `[FR-013]` `[FR-014]` `[UX]` `[P]` Build `SearchOverlay` component
   - **File**: `packages/ui/src/components/SearchOverlay/SearchOverlay.tsx`
   - **Type**: Create new file (+ `SearchOverlay.stories.tsx`, `index.ts`)
   - **Description**: Implement per design-spec.md §4 Component: `SearchOverlay`.
@@ -533,7 +533,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-05
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-25** `[L]` `[FR-004]` `[FR-005]` `[UX]` `[P]` Build `NotificationBell` component
+- [x] **T007-25** `[L]` `[FR-004]` `[FR-005]` `[UX]` `[P]` Build `NotificationBell` component
   - **File**: `packages/ui/src/components/NotificationBell/NotificationBell.tsx`
   - **Type**: Create new file (+ `NotificationBell.stories.tsx`, `index.ts`)
   - **Description**: Implement per design-spec.md §4 Component: `NotificationBell`.
@@ -556,7 +556,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-05
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-26** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[UX]` `[P]` Build `FileUploadZone` component
+- [x] **T007-26** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[UX]` `[P]` Build `FileUploadZone` component
   - **File**: `packages/ui/src/components/FileUploadZone/FileUploadZone.tsx`
   - **Type**: Create new file (+ `FileUploadZone.stories.tsx`, `index.ts`)
   - **Description**: Implement per design-spec.md §4 Component: `FileUploadZone`.
@@ -578,7 +578,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-05
   - **Estimated**: 3–4 h (L)
 
-- [ ] **T007-27** `[M]` `[FR-001]` `[FR-003]` `[UX]` `[P]` Build `FileListItem` component
+- [x] **T007-27** `[M]` `[FR-001]` `[FR-003]` `[UX]` `[P]` Build `FileListItem` component
   - **File**: `packages/ui/src/components/FileListItem/FileListItem.tsx`
   - **Type**: Create new file (+ `FileListItem.stories.tsx`, `index.ts`)
   - **Description**: Implement per design-spec.md §4 Component: `FileListItem`.
@@ -597,7 +597,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-05
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-28** `[M]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[UX]` `[P]` Build `JobDetailPanel` component
+- [x] **T007-28** `[M]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[UX]` `[P]` Build `JobDetailPanel` component
   - **File**: `packages/ui/src/components/JobDetailPanel/JobDetailPanel.tsx`
   - **Type**: Create new file (+ `JobDetailPanel.stories.tsx`, `index.ts`)
   - **Description**: Implement per design-spec.md §4 Component: `JobDetailPanel`.
@@ -616,7 +616,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-29
   - **Estimated**: 2 h (M)
 
-- [ ] **T007-29** `[S]` `[FR-007]` `[UX]` `[P]` Build `JobStatusBadge` component
+- [x] **T007-29** `[S]` `[FR-007]` `[UX]` `[P]` Build `JobStatusBadge` component
   - **File**: `packages/ui/src/components/JobStatusBadge/JobStatusBadge.tsx`
   - **Type**: Create new file (+ `index.ts`)
   - **Description**: Extend existing `StatusBadge` component. Accept prop `status`
@@ -629,7 +629,7 @@ and extend the health check endpoint.
   - **Dependencies**: T007-05, T007-01
   - **Estimated**: 25 min (S)
 
-- [ ] **T007-30** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[UX]` Build Job Status Dashboard page
+- [x] **T007-30** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[UX]` Build Job Status Dashboard page
   - **File**: `apps/web/src/pages/admin.jobs.tsx`
   - **Type**: Create new file
   - **Description**: Implement the Job Status Dashboard screen per design-spec.md
@@ -669,7 +669,7 @@ sidebar. Wire up SSE client hooks for real-time updates.
 
 ---
 
-- [ ] **T007-31** `[M]` `[FR-011]` `[FR-013]` `[FR-014]` `[UX]` Integrate `SearchOverlay` into shell Header
+- [x] **T007-31** `[M]` `[FR-011]` `[FR-013]` `[FR-014]` `[UX]` Integrate `SearchOverlay` into shell Header
   - **File**: `apps/web/src/components/shell/Header.tsx` (or equivalent shell header)
   - **Type**: Modify existing
   - **Description**: Add search bar to the shell header per design-spec.md §3
@@ -684,7 +684,7 @@ sidebar. Wire up SSE client hooks for real-time updates.
   - **Dependencies**: T007-24
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-32** `[M]` `[FR-004]` `[FR-005]` `[UX]` Integrate `NotificationBell` into shell Header
+- [x] **T007-32** `[M]` `[FR-004]` `[FR-005]` `[UX]` Integrate `NotificationBell` into shell Header
   - **File**: `apps/web/src/components/shell/Header.tsx`
   - **Type**: Modify existing
   - **Description**: Add `NotificationBell` component to the shell header next to
@@ -698,7 +698,7 @@ sidebar. Wire up SSE client hooks for real-time updates.
   - **Dependencies**: T007-25, T007-34
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-33** `[S]` `[FR-007]` `[UX]` Add Jobs page to admin sidebar navigation
+- [x] **T007-33** `[S]` `[FR-007]` `[UX]` Add Jobs page to admin sidebar navigation
   - **File**: `apps/web/src/components/shell/Sidebar.tsx` (or equivalent nav config)
   - **Type**: Modify existing
   - **Description**: Add "Jobs" link to the admin sidebar navigation under the
@@ -711,7 +711,7 @@ sidebar. Wire up SSE client hooks for real-time updates.
   - **Dependencies**: T007-30
   - **Estimated**: 20 min (S)
 
-- [ ] **T007-34** `[M]` `[FR-004]` `[FR-005]` `[UX]` `[P]` SSE client hook: `useNotificationStream`
+- [x] **T007-34** `[M]` `[FR-004]` `[FR-005]` `[UX]` `[P]` SSE client hook: `useNotificationStream`
   - **File**: `apps/web/src/hooks/useNotificationStream.ts`
   - **Type**: Create new file
   - **Description**: React hook that connects to `GET /api/v1/notifications/stream`
@@ -726,7 +726,7 @@ sidebar. Wire up SSE client hooks for real-time updates.
   - **Dependencies**: T007-17
   - **Estimated**: 1 h (M)
 
-- [ ] **T007-35** `[M]` `[FR-007]` `[FR-008]` `[UX]` `[P]` SSE client hook: `useJobStatusStream`
+- [x] **T007-35** `[M]` `[FR-007]` `[FR-008]` `[UX]` `[P]` SSE client hook: `useJobStatusStream`
   - **File**: `apps/web/src/hooks/useJobStatusStream.ts`
   - **Type**: Create new file
   - **Description**: React hook that listens to `job_status` events from the
@@ -752,7 +752,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
 
 ---
 
-- [ ] **T007-36** `[M]` `[NFR-001]` `[NFR-002]` `[NFR-007]` `[P]` Unit tests: StorageService
+- [x] **T007-36** `[M]` `[NFR-001]` `[NFR-002]` `[NFR-007]` `[P]` Unit tests: StorageService
   - **File**: `apps/core-api/src/__tests__/unit/storage/storage.service.test.ts`
   - **Type**: Create new file
   - **Description**: Test all methods with mocked MinIO client. Cover: upload
@@ -765,7 +765,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-06
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-37** `[M]` `[NFR-005]` `[P]` Unit tests: NotificationService
+- [x] **T007-37** `[M]` `[NFR-005]` `[P]` Unit tests: NotificationService
   - **File**: `apps/core-api/src/__tests__/unit/notifications/notification.service.test.ts`
   - **Type**: Create new file
   - **Description**: Test with mocked Nodemailer and mocked `JobQueueService`.
@@ -777,7 +777,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-07, T007-10
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-38** `[M]` `[NFR-003]` `[NFR-006]` `[P]` Unit tests: JobQueueService
+- [x] **T007-38** `[M]` `[NFR-003]` `[NFR-006]` `[P]` Unit tests: JobQueueService
   - **File**: `apps/core-api/src/__tests__/unit/jobs/job-queue.service.test.ts`
   - **Type**: Create new file
   - **Description**: Test with mocked BullMQ and mocked Prisma (job repository).
@@ -790,7 +790,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-08, T007-11
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-39** `[M]` `[NFR-004]` `[NFR-008]` `[P]` Unit tests: SearchService
+- [x] **T007-39** `[M]` `[NFR-004]` `[NFR-008]` `[P]` Unit tests: SearchService
   - **File**: `apps/core-api/src/__tests__/unit/search/search.service.test.ts`
   - **Type**: Create new file
   - **Description**: Test with mocked Prisma `$queryRaw`. Cover: index upserts
@@ -803,7 +803,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-09
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-40** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Integration tests: Storage API endpoints
+- [x] **T007-40** `[L]` `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Integration tests: Storage API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/storage/storage.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real MinIO test instance (from
@@ -816,7 +816,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-13, T007-19
   - **Estimated**: 2–3 h (L)
 
-- [ ] **T007-41** `[M]` `[FR-004]` `[FR-005]` `[P]` Integration tests: Notification API endpoints
+- [x] **T007-41** `[M]` `[FR-004]` `[FR-005]` `[P]` Integration tests: Notification API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/notifications/notification.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real PostgreSQL. Cover: `POST /notifications`
@@ -828,7 +828,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-14, T007-20
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-42** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Integration tests: Job Queue API endpoints
+- [x] **T007-42** `[L]` `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Integration tests: Job Queue API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/jobs/jobs.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real Redis. Cover: enqueue → job ID
@@ -841,7 +841,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-15, T007-21
   - **Estimated**: 2–3 h (L)
 
-- [ ] **T007-43** `[M]` `[FR-011]` `[FR-012]` `[FR-014]` `[P]` Integration tests: Search API endpoints
+- [x] **T007-43** `[M]` `[FR-011]` `[FR-012]` `[FR-014]` `[P]` Integration tests: Search API endpoints
   - **File**: `apps/core-api/src/__tests__/integration/search/search.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Use `buildTestApp()` + real PostgreSQL. Cover: index document
@@ -853,7 +853,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-16, T007-22
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-44** `[M]` `[UX]` `[P]` Component tests: `SearchOverlay` + `NotificationBell`
+- [x] **T007-44** `[M]` `[UX]` `[P]` Component tests: `SearchOverlay` + `NotificationBell`
   - **File**: `apps/web/src/test/SearchOverlay.test.tsx`, `NotificationBell.test.tsx`
   - **Type**: Create new files
   - **Description**: Use Vitest + React Testing Library. `SearchOverlay` tests:
@@ -867,7 +867,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-24, T007-25
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-45** `[M]` `[UX]` `[P]` Component tests: `FileUploadZone` + `FileListItem`
+- [x] **T007-45** `[M]` `[UX]` `[P]` Component tests: `FileUploadZone` + `FileListItem`
   - **File**: `apps/web/src/test/FileUploadZone.test.tsx`, `FileListItem.test.tsx`
   - **Type**: Create new files
   - **Description**: `FileUploadZone` tests: shows progress bar on upload, calls
@@ -881,7 +881,7 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-26, T007-27
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-46** `[M]` `[UX]` `[P]` Component tests: Job Dashboard + `JobDetailPanel`
+- [x] **T007-46** `[M]` `[UX]` `[P]` Component tests: Job Dashboard + `JobDetailPanel`
   - **File**: `apps/web/src/test/admin.jobs.test.tsx`, `JobDetailPanel.test.tsx`
   - **Type**: Create new files
   - **Description**: Dashboard tests: renders 4 stat cards, clicking a card
@@ -894,8 +894,8 @@ all 6 new UX components, E2E tests for the 4 core user journeys.
   - **Dependencies**: T007-30, T007-28
   - **Estimated**: 1.5 h (M)
 
-- [ ] **T007-47** `[L]` `[UX]` E2E tests: upload file, search, notification flow
-  - **File**: `apps/web/src/test/e2e/core-services.e2e.test.ts`
+- [x] **T007-47** `[L]` `[UX]` E2E tests: upload file, search, notification flow
+  - **File**: `apps/web/tests/e2e/core-services.spec.ts`
   - **Type**: Create new file
   - **Description**: Playwright E2E tests covering user-journey.md Journeys 1–4:
     Journey 1 (Search): Dana types "john" → sees grouped results → clicks contact
@@ -923,7 +923,7 @@ error message review.
 
 ---
 
-- [ ] **T007-48** `[M]` `[FR-001]` `[FR-004]` `[FR-007]` `[FR-011]` Polish: OpenAPI docs, error messages, logging
+- [x] **T007-48** `[M]` `[FR-001]` `[FR-004]` `[FR-007]` `[FR-011]` Polish: OpenAPI docs, error messages, logging
   - **Files**:
     - `apps/core-api/src/modules/storage/storage.routes.ts`
     - `apps/core-api/src/modules/notifications/notification.routes.ts`
@@ -957,6 +957,7 @@ error message review.
 | Estimated effort      | ~87 story points / ~130–160 hours total  |
 | FRs covered           | 14/14 (FR-001 – FR-014) ✅               |
 | NFRs covered          | 8/8 (NFR-001 – NFR-008) ✅               |
+| **Progress**          | **48/48 complete** ✅ All tasks done     |
 
 ---
 

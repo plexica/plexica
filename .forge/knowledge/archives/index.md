@@ -7,11 +7,19 @@
 
 ## 2026
 
-### February 2026 (19 decisions archived)
+### March 2026 (1 entry archived)
+
+- **File**: [2026-03/decisions-2026-03.md](2026-03/decisions-2026-03.md)
+- **Archived**: March 2, 2026
+- **Topics**: Route unit test RBAC mock pattern
+- **Key decisions**:
+  - TD-011 CLOSED: `requireRole` missing from auth mock in 5 unit test files — 63 test failures fixed; standing pattern documented
+
+### February 2026 (20 entries archived)
 
 - **File**: [2026-02/decisions-2026-02.md](2026-02/decisions-2026-02.md)
-- **Archived**: February 19, 2026
-- **Topics**: Security vulnerability remediation, E2E test remediation, CI pipeline, Keycloak 401 fix, integration test fixes, unit test stabilization, auth test stabilization, workspace tests, Spec 002 completion, Spec 009 completion, Sprint 2 security review
+- **Archived**: February 19, 2026 (+ TD-003 appended March 2, 2026)
+- **Topics**: Security vulnerability remediation, E2E test remediation, CI pipeline, Keycloak 401 fix, integration test fixes, unit test stabilization, auth test stabilization, workspace tests, Spec 002 completion, Spec 009 completion, Sprint 2 security review, keycloak.service.ts coverage
 - **Key decisions**:
   - Security: 19 vulnerabilities patched (10 on Feb 19 + 9 on Feb 17), 0 audit findings
   - E2E: 184/184 actionable tests passing (100%)
@@ -21,6 +29,7 @@
   - Spec 002 (Authentication) — COMPLETE
   - Spec 009 (Workspace Management) / Sprint 3 — COMPLETE
   - Fastify serialization fix: `handleServiceError()` pattern
+  - TD-003 CLOSED: keycloak.service.ts coverage raised from 2.83% → 96.1% (Feb 23)
 
 ---
 
@@ -31,4 +40,4 @@
 
 ---
 
-_Last updated: February 19, 2026_
+_Last updated: March 2, 2026_

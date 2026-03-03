@@ -6,7 +6,7 @@
 
 | Field        | Value                                           |
 | ------------ | ----------------------------------------------- |
-| Status       | Ready                                           |
+| Status       | Implemented                                     |
 | Author       | forge-pm                                        |
 | Date         | 2026-02-20                                      |
 | Track        | Epic                                            |
@@ -70,7 +70,7 @@ This specification covers:
 
 - **Hierarchy model**: `parentId`, `depth`, `path` (materialised path) fields
   on the Workspace model
-- **Hierarchy enforcement**: Unlimited depth, slug uniqueness scoped to
+- **Hierarchy enforcement**: Configurable-depth hierarchy (default maximum: 10 levels, configurable per deployment via `WORKSPACE_MAX_DEPTH` environment variable), slug uniqueness scoped to
   parent, re-parenting supported (tenant ADMIN only, cascade path update)
 - **Top-down aggregation**: Parent workspaces aggregate descendant data for
   read operations; children remain isolated
@@ -425,22 +425,23 @@ or clean up when it is deleted.
 
 ### 4.1 Pillar 1: Hierarchical Visibility
 
-| ID     | Requirement                                                                                       | Priority | Story Ref | Status      |
-| ------ | ------------------------------------------------------------------------------------------------- | -------- | --------- | ----------- |
-| FR-001 | System shall support optional `parentId` on workspace creation to establish parent-child relation | Must     | US-001    | 🔴 Not Impl |
-| FR-002 | System shall compute and store `depth` (0=root, n=depth level n) on workspace creation            | Must     | US-001    | 🔴 Not Impl |
-| FR-003 | System shall compute and store `path` (materialised path) on workspace creation                   | Must     | US-001    | 🔴 Not Impl |
-| FR-004 | System shall enforce slug uniqueness scoped to parent workspace (not entire tenant)               | Must     | US-001    | 🔴 Not Impl |
-| FR-005 | System shall allow tenant ADMIN to move a workspace to a different parent (re-parenting)          | Must     | US-001b   | 🔴 Not Impl |
-| FR-006 | System shall recalculate `path` and `depth` for the workspace and all its descendants atomically  | Must     | US-001b   | 🔴 Not Impl |
-| FR-007 | System shall prevent deletion of workspaces that have child workspaces                            | Must     | US-003    | 🔴 Not Impl |
-| FR-008 | Parent workspace queries shall aggregate data from all descendant workspaces                      | Must     | US-002    | 🔴 Not Impl |
-| FR-009 | Descendant aggregation queries shall use materialised `path` with `LIKE` operator (O(log n))      | Must     | US-002    | 🔴 Not Impl |
-| FR-010 | Child workspaces shall see ONLY their own data (complete isolation from siblings and parent)      | Must     | US-002    | 🔴 Not Impl |
-| FR-011 | Root ADMIN role shall grant read access to all descendant workspaces                              | Must     | US-003    | 🔴 Not Impl |
-| FR-012 | Root MEMBER role shall grant read-only summary access to descendant workspaces                    | Should   | US-003    | 🔴 Not Impl |
-| FR-013 | System shall provide a tree-view endpoint returning the full workspace hierarchy                  | Should   | US-004    | 🔴 Not Impl |
-| FR-014 | Hierarchy tree endpoint shall respect user membership visibility                                  | Must     | US-004    | 🔴 Not Impl |
+| ID      | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                               | Priority | Story Ref | Status      |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ----------- |
+| FR-001  | System shall support optional `parentId` on workspace creation to establish parent-child relation                                                                                                                                                                                                                                                                                                                                                         | Must     | US-001    | 🔴 Not Impl |
+| FR-002  | System shall compute and store `depth` (0=root, n=depth level n) on workspace creation                                                                                                                                                                                                                                                                                                                                                                    | Must     | US-001    | 🔴 Not Impl |
+| FR-003  | System shall compute and store `path` (materialised path) on workspace creation                                                                                                                                                                                                                                                                                                                                                                           | Must     | US-001    | 🔴 Not Impl |
+| FR-004  | System shall enforce slug uniqueness scoped to parent workspace (not entire tenant)                                                                                                                                                                                                                                                                                                                                                                       | Must     | US-001    | 🔴 Not Impl |
+| FR-004b | System shall enforce a configurable maximum workspace hierarchy depth. The default maximum depth shall be 10 levels. The limit shall be configurable via the `WORKSPACE_MAX_DEPTH` environment variable. Attempts to create a workspace that would exceed the configured limit shall return HTTP 400 with error code `WORKSPACE_DEPTH_EXCEEDED`. The error response shall include the current depth, the configured maximum, and the parent workspace ID. | Must     | US-001    | 🔴 Not Impl |
+| FR-005  | System shall allow tenant ADMIN to move a workspace to a different parent (re-parenting)                                                                                                                                                                                                                                                                                                                                                                  | Must     | US-001b   | 🔴 Not Impl |
+| FR-006  | System shall recalculate `path` and `depth` for the workspace and all its descendants atomically                                                                                                                                                                                                                                                                                                                                                          | Must     | US-001b   | 🔴 Not Impl |
+| FR-007  | System shall prevent deletion of workspaces that have child workspaces                                                                                                                                                                                                                                                                                                                                                                                    | Must     | US-003    | 🔴 Not Impl |
+| FR-008  | Parent workspace queries shall aggregate data from all descendant workspaces                                                                                                                                                                                                                                                                                                                                                                              | Must     | US-002    | 🔴 Not Impl |
+| FR-009  | Descendant aggregation queries shall use materialised `path` with `LIKE` operator (O(log n))                                                                                                                                                                                                                                                                                                                                                              | Must     | US-002    | 🔴 Not Impl |
+| FR-010  | Child workspaces shall see ONLY their own data (complete isolation from siblings and parent)                                                                                                                                                                                                                                                                                                                                                              | Must     | US-002    | 🔴 Not Impl |
+| FR-011  | Root ADMIN role shall grant read access to all descendant workspaces                                                                                                                                                                                                                                                                                                                                                                                      | Must     | US-003    | 🔴 Not Impl |
+| FR-012  | Root MEMBER role shall grant read-only summary access to descendant workspaces                                                                                                                                                                                                                                                                                                                                                                            | Should   | US-003    | 🔴 Not Impl |
+| FR-013  | System shall provide a tree-view endpoint returning the full workspace hierarchy                                                                                                                                                                                                                                                                                                                                                                          | Should   | US-004    | 🔴 Not Impl |
+| FR-014  | Hierarchy tree endpoint shall respect user membership visibility                                                                                                                                                                                                                                                                                                                                                                                          | Must     | US-004    | 🔴 Not Impl |
 
 ### 4.2 Pillar 2: Workspace Templates
 
@@ -710,6 +711,8 @@ model WorkspaceTemplate {
 | metadata              | JSONB        | No       | `{}`              | -           | Arbitrary plugin-defined metadata  |
 | created_at            | TIMESTAMP(3) | No       | NOW()             | -           | Immutable                          |
 | updated_at            | TIMESTAMP(3) | No       | NOW()             | -           | Auto-updated via Prisma @updatedAt |
+
+> **Design Note — Tenant Scoping**: `workspace_templates` intentionally has no `tenantId` column. Templates are global artifacts scoped to a plugin (via `pluginId`), shared across all tenants that have the plugin installed. Tenant isolation is enforced at query time via JOIN to `tenant_plugins` (see FR-022). This is a deliberate bounded exception to the general tenant-per-row pattern; templates contain no tenant-specific data.
 
 ---
 
@@ -1272,22 +1275,22 @@ Returns 204 on success. Cascade-deletes all template items.
 
 ### 6.4 Error Codes (New)
 
-| Code                            | HTTP Status | Description                                             |
-| ------------------------------- | ----------- | ------------------------------------------------------- |
-| `HIERARCHY_DEPTH_EXCEEDED`      | 400         | Cannot create workspace beyond depth 2                  |
-| `PARENT_WORKSPACE_NOT_FOUND`    | 404         | Parent workspace ID does not exist in tenant            |
-| `PARENT_PERMISSION_DENIED`      | 403         | User is not ADMIN of parent workspace                   |
-| `WORKSPACE_HAS_CHILDREN`        | 400         | Cannot delete workspace with child workspaces           |
-| `REPARENT_CYCLE_DETECTED`       | 400         | New parent is a descendant of the workspace being moved |
-| `INSUFFICIENT_PERMISSIONS`      | 403         | Operation requires tenant ADMIN role                    |
-| `TEMPLATE_NOT_FOUND`            | 404         | Template ID does not exist                              |
-| `TEMPLATE_PLUGIN_NOT_INSTALLED` | 400         | Template references a plugin not installed in tenant    |
-| `TEMPLATE_APPLICATION_FAILED`   | 500         | Template application failed; workspace rolled back      |
-| `PLUGIN_NOT_TENANT_ENABLED`     | 400         | Plugin must be enabled at tenant level first            |
-| `WORKSPACE_PLUGIN_EXISTS`       | 409         | Plugin already enabled for this workspace               |
-| `WORKSPACE_PLUGIN_NOT_FOUND`    | 404         | Plugin not enabled for this workspace                   |
-| `HOOK_REJECTED_CREATION`        | 400         | A `before_create` hook rejected workspace creation      |
-| `INVALID_CAPABILITY`            | 400         | Unknown capability in plugin manifest                   |
+| Code                            | HTTP Status | Description                                                       |
+| ------------------------------- | ----------- | ----------------------------------------------------------------- |
+| `WORKSPACE_DEPTH_EXCEEDED`      | 400         | Cannot create workspace beyond configured max depth (default: 10) |
+| `PARENT_WORKSPACE_NOT_FOUND`    | 404         | Parent workspace ID does not exist in tenant                      |
+| `PARENT_PERMISSION_DENIED`      | 403         | User is not ADMIN of parent workspace                             |
+| `WORKSPACE_HAS_CHILDREN`        | 400         | Cannot delete workspace with child workspaces                     |
+| `REPARENT_CYCLE_DETECTED`       | 400         | New parent is a descendant of the workspace being moved           |
+| `INSUFFICIENT_PERMISSIONS`      | 403         | Operation requires tenant ADMIN role                              |
+| `TEMPLATE_NOT_FOUND`            | 404         | Template ID does not exist                                        |
+| `TEMPLATE_PLUGIN_NOT_INSTALLED` | 400         | Template references a plugin not installed in tenant              |
+| `TEMPLATE_APPLICATION_FAILED`   | 500         | Template application failed; workspace rolled back                |
+| `PLUGIN_NOT_TENANT_ENABLED`     | 400         | Plugin must be enabled at tenant level first                      |
+| `WORKSPACE_PLUGIN_EXISTS`       | 409         | Plugin already enabled for this workspace                         |
+| `WORKSPACE_PLUGIN_NOT_FOUND`    | 404         | Plugin not enabled for this workspace                             |
+| `HOOK_REJECTED_CREATION`        | 400         | A `before_create` hook rejected workspace creation                |
+| `INVALID_CAPABILITY`            | 400         | Unknown capability in plugin manifest                             |
 
 ---
 
@@ -1605,12 +1608,15 @@ return await this.db.$transaction(async (tx) => {
 
 ### 10.1 Test Plan Overview
 
-| Category    | Pillar 1 (Hierarchy) | Pillar 2 (Templates) | Pillar 3 (Hooks) | Total   |
-| ----------- | -------------------- | -------------------- | ---------------- | ------- |
-| Unit        | 25                   | 15                   | 12               | 52      |
-| Integration | 18                   | 10                   | 8                | 36      |
-| E2E         | 8                    | 5                    | 4                | 17      |
-| **Total**   | **51**               | **30**               | **24**           | **105** |
+| Category      | Pillar 1 (Hierarchy) | Pillar 2 (Templates) | Pillar 3 (Hooks) | Phase 4 (Frontend) | Total   |
+| ------------- | -------------------- | -------------------- | ---------------- | ------------------ | ------- |
+| Unit          | 25                   | 15                   | 12               | 36                 | 88      |
+| Integration   | 18                   | 10                   | 8                | —                  | 36      |
+| E2E           | 8                    | 5                    | 4                | —                  | 17      |
+| Accessibility | —                    | —                    | —                | 6                  | 6       |
+| **Total**     | **51**               | **30**               | **24**           | **42**             | **147** |
+
+> **Breakdown**: Phase 1–3 (Backend): 105 tests (52 unit + 36 integration + 17 E2E). Phase 4 (Frontend Components): 42 tests (36 unit + 6 accessibility). **Grand Total: 147 tests** (88 unit + 36 integration + 17 E2E + 6 accessibility).
 
 ### 10.2 Pillar 1: Hierarchy Tests
 
@@ -1716,12 +1722,15 @@ return await this.db.$transaction(async (tx) => {
 
 ### 11.1 Overall Status: NOT IMPLEMENTED
 
-| Pillar                             | Status      | Story Points | Effort Estimate  |
-| ---------------------------------- | ----------- | ------------ | ---------------- |
-| Pillar 1: Hierarchical Visibility  | 🔴 Not Impl | ~21          | 40-55 hours      |
-| Pillar 2: Workspace Templates      | 🔴 Not Impl | ~13          | 25-35 hours      |
-| Pillar 3: Template Provider Plugin | 🔴 Not Impl | ~13          | 25-35 hours      |
-| **Total**                          |             | **~47**      | **90-125 hours** |
+| Pillar                             | Status      | Story Points | Effort Estimate   |
+| ---------------------------------- | ----------- | ------------ | ----------------- |
+| Pillar 1: Hierarchical Visibility  | 🔴 Not Impl | ~21          | 40-55 hours       |
+| Pillar 2: Workspace Templates      | 🔴 Not Impl | ~13          | 25-35 hours       |
+| Pillar 3: Template Provider Plugin | 🔴 Not Impl | ~13          | 25-35 hours       |
+| Phase 4: Frontend Components       | 🔴 Not Impl | ~17          | 35-45 hours       |
+| **Total**                          |             | **~64**      | **125-170 hours** |
+
+> **Breakdown**: Backend Phases 1–3: ~47 story points, 90–125 hours. Frontend Phase 4: ~17 story points, 35–45 hours (design tokens + 6 components + tests + accessibility).
 
 ### 11.2 Component Status
 
@@ -1755,36 +1764,36 @@ return await this.db.$transaction(async (tx) => {
 
 ## 12. Edge Cases & Error Scenarios
 
-| #   | Scenario                                                 | Expected Behavior                                                                                                                                                                | Pillar | Status |
-| --- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ |
-| 1   | Create workspace at depth 3 (exceeds max)                | 400 `HIERARCHY_DEPTH_EXCEEDED`                                                                                                                                                   | 1      | 🔴     |
-| 2   | Create child with slug that exists under same parent     | 409 `WORKSPACE_SLUG_CONFLICT` (scoped to parent)                                                                                                                                 | 1      | 🔴     |
-| 3   | Same slug under different parents                        | Both workspaces created successfully                                                                                                                                             | 1      | 🔴     |
-| 4   | Delete workspace that has children                       | 400 `WORKSPACE_HAS_CHILDREN`                                                                                                                                                     | 1      | 🔴     |
-| 5   | Re-parent: new parent is a descendant of moved workspace | 400 `REPARENT_CYCLE_DETECTED`                                                                                                                                                    | 1      | 🔴     |
-| 6   | Re-parent: new parent is in a different tenant           | 404 `PARENT_WORKSPACE_NOT_FOUND`                                                                                                                                                 | 1      | 🔴     |
-| 7   | Re-parent: new parent has child with same slug           | 409 `WORKSPACE_SLUG_CONFLICT`                                                                                                                                                    | 1      | 🔴     |
-| 8   | Re-parent: user is workspace ADMIN but not tenant ADMIN  | 403 `INSUFFICIENT_PERMISSIONS`                                                                                                                                                   | 1      | 🔴     |
-| 9   | Re-parent: workspace has 50 descendants                  | All 50 descendants' `path` and `depth` updated in single transaction                                                                                                             | 1      | 🔴     |
-| 10  | parentId references workspace in different tenant        | 404 `PARENT_WORKSPACE_NOT_FOUND`                                                                                                                                                 | 1      | 🔴     |
-| 11  | parentId references non-existent workspace               | 404 `PARENT_WORKSPACE_NOT_FOUND`                                                                                                                                                 | 1      | 🔴     |
-| 12  | Non-admin of parent creates child                        | 403 `PARENT_PERMISSION_DENIED`                                                                                                                                                   | 1      | 🔴     |
-| 13  | Child member queries sibling workspace                   | 403 "You are not a member of this workspace"                                                                                                                                     | 1      | 🔴     |
-| 14  | Root VIEWER queries child workspace                      | 403 (VIEWER gets no hierarchical downward access)                                                                                                                                | 1      | 🔴     |
-| 15  | Template references plugin not installed in tenant       | 400 `TEMPLATE_PLUGIN_NOT_INSTALLED`                                                                                                                                              | 2      | 🔴     |
-| 16  | Template application fails mid-way (e.g., page creation) | Transaction rollback — workspace does not exist                                                                                                                                  | 2      | 🔴     |
-| 17  | Template with 0 items applied                            | Workspace created normally (empty template is no-op)                                                                                                                             | 2      | 🔴     |
-| 18  | Plugin disabled at tenant level after workspace enabled  | All WorkspacePlugin records for that plugin cascade to `enabled = false`. Plugin functionality unavailable. Re-enabling tenant plugin does NOT auto-re-enable workspace plugins. | 2      | 🔴     |
-| 19  | Enable plugin for workspace when not enabled at tenant   | 400 `PLUGIN_NOT_TENANT_ENABLED`                                                                                                                                                  | 2      | 🔴     |
-| 20  | Duplicate plugin enablement for workspace                | 409 `WORKSPACE_PLUGIN_EXISTS`                                                                                                                                                    | 2      | 🔴     |
-| 21  | before_create hook returns { approve: false }            | 400 `HOOK_REJECTED_CREATION` with plugin's reason message                                                                                                                        | 3      | 🔴     |
-| 22  | before_create hook times out (>5s)                       | Timeout logged; creation continues (timeout = implicit approve)                                                                                                                  | 3      | 🔴     |
-| 23  | created hook fails (plugin endpoint down)                | Workspace created successfully; hook failure logged at warn                                                                                                                      | 3      | 🔴     |
-| 24  | Multiple before_create hooks, second rejects             | Creation aborted; first hook's side effects should be idempotent                                                                                                                 | 3      | 🔴     |
-| 25  | Plugin manifest has unknown capability                   | 400 `INVALID_CAPABILITY` during manifest validation                                                                                                                              | 3      | 🔴     |
-| 26  | Template + hierarchy combined: child with template       | Child workspace created with template applied at correct depth                                                                                                                   | 1, 2   | 🔴     |
-| 27  | Concurrent child creation under same parent (same slug)  | One succeeds, one gets 409 (database unique constraint)                                                                                                                          | 1      | 🔴     |
-| 28  | Workspace tree query with 100+ workspaces                | Response < 200ms using path index, paginated if needed                                                                                                                           | 1      | 🔴     |
+| #   | Scenario                                                                | Expected Behavior                                                                                                                                                                | Pillar | Status |
+| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ |
+| 1   | Create workspace at depth exceeding `WORKSPACE_MAX_DEPTH` (default: 10) | 400 `WORKSPACE_DEPTH_EXCEEDED`                                                                                                                                                   | 1      | 🔴     |
+| 2   | Create child with slug that exists under same parent                    | 409 `WORKSPACE_SLUG_CONFLICT` (scoped to parent)                                                                                                                                 | 1      | 🔴     |
+| 3   | Same slug under different parents                                       | Both workspaces created successfully                                                                                                                                             | 1      | 🔴     |
+| 4   | Delete workspace that has children                                      | 400 `WORKSPACE_HAS_CHILDREN`                                                                                                                                                     | 1      | 🔴     |
+| 5   | Re-parent: new parent is a descendant of moved workspace                | 400 `REPARENT_CYCLE_DETECTED`                                                                                                                                                    | 1      | 🔴     |
+| 6   | Re-parent: new parent is in a different tenant                          | 404 `PARENT_WORKSPACE_NOT_FOUND`                                                                                                                                                 | 1      | 🔴     |
+| 7   | Re-parent: new parent has child with same slug                          | 409 `WORKSPACE_SLUG_CONFLICT`                                                                                                                                                    | 1      | 🔴     |
+| 8   | Re-parent: user is workspace ADMIN but not tenant ADMIN                 | 403 `INSUFFICIENT_PERMISSIONS`                                                                                                                                                   | 1      | 🔴     |
+| 9   | Re-parent: workspace has 50 descendants                                 | All 50 descendants' `path` and `depth` updated in single transaction                                                                                                             | 1      | 🔴     |
+| 10  | parentId references workspace in different tenant                       | 404 `PARENT_WORKSPACE_NOT_FOUND`                                                                                                                                                 | 1      | 🔴     |
+| 11  | parentId references non-existent workspace                              | 404 `PARENT_WORKSPACE_NOT_FOUND`                                                                                                                                                 | 1      | 🔴     |
+| 12  | Non-admin of parent creates child                                       | 403 `PARENT_PERMISSION_DENIED`                                                                                                                                                   | 1      | 🔴     |
+| 13  | Child member queries sibling workspace                                  | 403 "You are not a member of this workspace"                                                                                                                                     | 1      | 🔴     |
+| 14  | Root VIEWER queries child workspace                                     | 403 (VIEWER gets no hierarchical downward access)                                                                                                                                | 1      | 🔴     |
+| 15  | Template references plugin not installed in tenant                      | 400 `TEMPLATE_PLUGIN_NOT_INSTALLED`                                                                                                                                              | 2      | 🔴     |
+| 16  | Template application fails mid-way (e.g., page creation)                | Transaction rollback — workspace does not exist                                                                                                                                  | 2      | 🔴     |
+| 17  | Template with 0 items applied                                           | Workspace created normally (empty template is no-op)                                                                                                                             | 2      | 🔴     |
+| 18  | Plugin disabled at tenant level after workspace enabled                 | All WorkspacePlugin records for that plugin cascade to `enabled = false`. Plugin functionality unavailable. Re-enabling tenant plugin does NOT auto-re-enable workspace plugins. | 2      | 🔴     |
+| 19  | Enable plugin for workspace when not enabled at tenant                  | 400 `PLUGIN_NOT_TENANT_ENABLED`                                                                                                                                                  | 2      | 🔴     |
+| 20  | Duplicate plugin enablement for workspace                               | 409 `WORKSPACE_PLUGIN_EXISTS`                                                                                                                                                    | 2      | 🔴     |
+| 21  | before_create hook returns { approve: false }                           | 400 `HOOK_REJECTED_CREATION` with plugin's reason message                                                                                                                        | 3      | 🔴     |
+| 22  | before_create hook times out (>5s)                                      | Timeout logged; creation continues (timeout = implicit approve)                                                                                                                  | 3      | 🔴     |
+| 23  | created hook fails (plugin endpoint down)                               | Workspace created successfully; hook failure logged at warn                                                                                                                      | 3      | 🔴     |
+| 24  | Multiple before_create hooks, second rejects                            | Creation aborted; first hook's side effects should be idempotent                                                                                                                 | 3      | 🔴     |
+| 25  | Plugin manifest has unknown capability                                  | 400 `INVALID_CAPABILITY` during manifest validation                                                                                                                              | 3      | 🔴     |
+| 26  | Template + hierarchy combined: child with template                      | Child workspace created with template applied at correct depth                                                                                                                   | 1, 2   | 🔴     |
+| 27  | Concurrent child creation under same parent (same slug)                 | One succeeds, one gets 409 (database unique constraint)                                                                                                                          | 1      | 🔴     |
+| 28  | Workspace tree query with 100+ workspaces                               | Response < 200ms using path index, paginated if needed                                                                                                                           | 1      | 🔴     |
 
 ---
 
@@ -1885,12 +1894,13 @@ The following features are explicitly **NOT** part of this specification:
 
 ### Story Point Estimates by Pillar
 
-| Pillar                             | Story Points | Effort Estimate  | Sprint Allocation        |
-| ---------------------------------- | ------------ | ---------------- | ------------------------ |
-| Pillar 1: Hierarchical Visibility  | ~21          | 40-55 hours      | Sprint 1-2 (2-3 weeks)   |
-| Pillar 2: Workspace Templates      | ~13          | 25-35 hours      | Sprint 2-3 (1.5-2 weeks) |
-| Pillar 3: Template Provider Plugin | ~13          | 25-35 hours      | Sprint 3-4 (1.5-2 weeks) |
-| **Total**                          | **~47**      | **90-125 hours** | **4-6 weeks**            |
+| Pillar                             | Story Points | Effort Estimate   | Sprint Allocation        |
+| ---------------------------------- | ------------ | ----------------- | ------------------------ |
+| Pillar 1: Hierarchical Visibility  | ~21          | 40-55 hours       | Sprint 1-2 (2-3 weeks)   |
+| Pillar 2: Workspace Templates      | ~13          | 25-35 hours       | Sprint 2-3 (1.5-2 weeks) |
+| Pillar 3: Template Provider Plugin | ~13          | 25-35 hours       | Sprint 3-4 (1.5-2 weeks) |
+| Phase 4: Frontend Components       | ~17          | 35-45 hours       | Sprint 4-5 (1.5-2 weeks) |
+| **Total**                          | **~64**      | **125-170 hours** | **5-8 weeks**            |
 
 ### Story Point Breakdown
 
@@ -1994,10 +2004,10 @@ The following features are explicitly **NOT** part of this specification:
 
 | Article | Title                 | Status    | Notes                                                                                                                                                                                                                                     |
 | ------- | --------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Art. 1  | Core Principles       | COMPLIANT | Security-first ✅ (hook validation, template auth), Multi-tenancy ✅ (within tenant), API-first ✅ (REST endpoints), Plugin integrity ✅ (capability model), TDD ✅ (105 tests planned), Zero-downtime ✅ (backward-compatible migration) |
+| Art. 1  | Core Principles       | COMPLIANT | Security-first ✅ (hook validation, template auth), Multi-tenancy ✅ (within tenant), API-first ✅ (REST endpoints), Plugin integrity ✅ (capability model), TDD ✅ (147 tests planned), Zero-downtime ✅ (backward-compatible migration) |
 | Art. 2  | Technology Stack      | COMPLIANT | Uses approved stack: Fastify, Prisma, PostgreSQL, Zod, Redis. No new dependencies.                                                                                                                                                        |
 | Art. 3  | Architecture Patterns | COMPLIANT | Feature modules ✅, layered (Controller → Service → Repository) ✅, Prisma ORM ✅, service layer ✅, parameterized queries ✅, REST conventions ✅, API versioning ✅, pagination ✅, standard error format ✅                            |
-| Art. 4  | Quality Standards     | COMPLIANT | 105 tests planned across unit/integration/E2E. Target ≥85% coverage per module. Adversarial review required before merge.                                                                                                                 |
+| Art. 4  | Quality Standards     | COMPLIANT | 147 tests planned across unit/integration/E2E/accessibility. Target ≥85% coverage per module. Adversarial review required before merge.                                                                                                   |
 | Art. 5  | Security              | COMPLIANT | Keycloak auth ✅, RBAC extended for hierarchy ✅, tenant validation ✅, parameterized queries ✅, Zod validation on all inputs ✅, hook payload validation ✅                                                                             |
 | Art. 6  | Error Handling        | COMPLIANT | 13 new error codes with `{ error: { code, message, details } }` format. Structured logging for hook failures. No sensitive data in errors.                                                                                                |
 | Art. 7  | Naming & Conventions  | COMPLIANT | kebab-case files ✅, PascalCase classes ✅, camelCase functions ✅, snake_case DB columns ✅, plural tables ✅, REST plural nouns ✅                                                                                                      |
@@ -2127,5 +2137,5 @@ _Created: 2026-02-20_
 _Last Updated: 2026-02-20 (clarified)_
 _Author: forge-pm_
 _Track: Epic_
-_Status: Ready_
-_Total Story Points: ~47 (Pillar 1: ~21, Pillar 2: ~13, Pillar 3: ~13)_
+_Status: Implemented_
+_Total Story Points: ~64 (Pillar 1: ~21, Pillar 2: ~13, Pillar 3: ~13, Phase 4 Frontend: ~17)_

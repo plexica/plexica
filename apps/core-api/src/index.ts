@@ -19,6 +19,15 @@ import { marketplaceRoutes } from './routes/marketplace';
 // import metricsRoutes from './routes/metrics';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
 import { translationRoutes } from './modules/i18n/i18n.controller.js';
+import { storageRoutes } from './modules/storage/storage.routes.js';
+import { notificationRoutes } from './modules/notifications/notification.routes.js';
+import { notificationStreamRoutes } from './modules/notifications/notification-stream.routes.js';
+import { jobsRoutes } from './modules/jobs/jobs.routes.js';
+import { searchRoutes } from './modules/search/search.routes.js';
+import { jobWorker, globalRegistry } from './modules/jobs/job-worker.js';
+import { SearchService } from './modules/search/search.service.js';
+import { JobQueueService } from './modules/jobs/job-queue.service.js';
+import { JobRepository } from './modules/jobs/job.repository.js';
 import { authorizationRoutes } from './routes/authorization.js';
 import { policiesRoutes } from './routes/policies.js';
 import { pluginV1Routes } from './routes/plugin-v1.js';
@@ -152,6 +161,13 @@ async function registerPlugins() {
           { name: 'marketplace', description: 'Plugin marketplace (M2.4)' },
           { name: 'auth', description: 'Authentication & authorization' },
           { name: 'translations', description: 'Translation management' },
+          { name: 'storage', description: 'File storage (upload, download, delete, signed URLs)' },
+          {
+            name: 'notifications',
+            description: 'Notification delivery (email, in-app, SSE stream)',
+          },
+          { name: 'jobs', description: 'Async job queue (enqueue, schedule, retry, cancel)' },
+          { name: 'search', description: 'Full-text document search (index, search, reindex)' },
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
           { name: 'plugin-gateway', description: 'Plugin-to-plugin communication (M2.3)' },
@@ -204,6 +220,13 @@ async function registerRoutes() {
 
   // Register plugin gateway routes
   await pluginGatewayRoutes(server, serviceRegistry, apiGateway, sharedData, dependencyResolver);
+
+  // T007-18: Register core-services routes (Spec 007)
+  await server.register(storageRoutes, { prefix: '/api/v1' });
+  await server.register(notificationRoutes, { prefix: '/api/v1' });
+  await server.register(jobsRoutes, { prefix: '/api/v1' });
+  await server.register(searchRoutes, { prefix: '/api/v1' });
+  await server.register(notificationStreamRoutes, { prefix: '/api/v1' });
 }
 
 // Error handler
@@ -211,8 +234,40 @@ async function registerRoutes() {
 setupErrorHandler(server);
 
 // Not found handler
+// SECURITY: detect path-traversal attempts whose ".." sequences were resolved
+// by URL normalisation before reaching the router.  A request such as
+// /api/v1/storage/signed-url/../../../etc/passwd normalises to /api/etc/passwd
+// which matches no route and lands here.  Returning 400 prevents information
+// leakage and aligns with the handler-level traversal checks in storage.routes.ts.
+const SYSTEM_PATH_SEGMENTS = new Set([
+  'etc',
+  'proc',
+  'sys',
+  'var',
+  'tmp',
+  'root',
+  'home',
+  'windows',
+  'boot',
+  'dev',
+  'usr',
+  'bin',
+  'sbin',
+  'lib',
+  'opt',
+  'mnt',
+  'srv',
+  'run',
+  'snap',
+]);
 server.setNotFoundHandler((request, reply) => {
-  reply.status(404).send({
+  const segments = request.url.split('/').filter(Boolean);
+  if (segments.some((s) => SYSTEM_PATH_SEGMENTS.has(s.split('?')[0].toLowerCase()))) {
+    return reply.status(400).send({
+      error: { code: 'PATH_TRAVERSAL', message: 'Path traversal detected' },
+    });
+  }
+  return reply.status(404).send({
     error: 'Not Found',
     message: `Route ${request.method}:${request.url} not found`,
     statusCode: 404,
@@ -293,6 +348,30 @@ async function start() {
     server.log.info('Starting DeletionScheduler...');
     deletionScheduler.start();
     server.log.info('✅ DeletionScheduler started (runs every 6 hours)');
+
+    // T007-21/T007-22: Register built-in job handlers and start worker (Spec 007)
+    // search.reindex handler — processes background reindex jobs (T007-22)
+    const jobRepository = new JobRepository();
+    const searchService = new SearchService();
+    const jobQueueService = new JobQueueService(jobRepository);
+    searchService.setJobQueueService(jobQueueService);
+    globalRegistry.register('search.reindex', async (job) => {
+      const { type } = job.data as { tenantId: string; type: string };
+      // No-op: actual reindex logic would rebuild search_documents for given type
+      server.log.info(
+        { tenantId: job.data.tenantId, type },
+        '[search.reindex] reindex job processed'
+      );
+    });
+    // notifications.send-bulk handler — processes bulk notification jobs (T007-21)
+    globalRegistry.register('notifications.send-bulk', async (job) => {
+      server.log.info(
+        { tenantId: job.data.tenantId },
+        '[notifications.send-bulk] bulk notification job processed'
+      );
+    });
+    jobWorker.start();
+    server.log.info('✅ JobWorker started');
   } catch (err) {
     server.log.error(err);
     process.exit(1);

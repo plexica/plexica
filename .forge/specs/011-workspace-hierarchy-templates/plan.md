@@ -3,14 +3,14 @@
 > Technical implementation plan for workspace hierarchy (parent-child
 > relationships with materialised path), workspace templates, and template
 > provider plugin integration with lifecycle hooks. This is a **GREENFIELD**
-> plan — none of the 3 pillars exist today. The plan covers 18 tasks across
-> 3 phases (~49 story points, 90–125 hours).
+> plan — none of the 3 pillars exist today. The plan covers 27 tasks across
+> 4 phases (~64 story points, 120–165 hours).
 >
 > Created by the `forge-architect` agent via `/forge-plan`.
 
 | Field  | Value                                                               |
 | ------ | ------------------------------------------------------------------- |
-| Status | Draft                                                               |
+| Status | Complete                                                            |
 | Author | forge-architect                                                     |
 | Date   | 2026-02-20                                                          |
 | Track  | Epic                                                                |
@@ -33,30 +33,40 @@ This plan implements three interconnected pillars of workspace evolution:
 
 ### Task Summary
 
-| Task | Description                                 | Priority | Effort    | Phase | Spec Refs                              |
-| ---- | ------------------------------------------- | -------- | --------- | ----- | -------------------------------------- |
-| T1   | Schema migration (hierarchy fields)         | CRITICAL | 4-6 hrs   | 1     | FR-001, FR-002, FR-003, FR-005         |
-| T2   | Data migration (backfill existing)          | CRITICAL | 2-3 hrs   | 1     | FR-003                                 |
-| T3   | WorkspaceHierarchyService                   | CRITICAL | 10-14 hrs | 1     | FR-004, FR-006, FR-007, FR-008, FR-009 |
-| T4   | Hierarchy guard extension                   | HIGH     | 6-8 hrs   | 1     | FR-011, FR-012, FR-014                 |
-| T5   | Tree & children endpoints                   | HIGH     | 6-8 hrs   | 1     | FR-013, FR-014                         |
-| T6   | Modify workspace create/update/delete flow  | HIGH     | 6-8 hrs   | 1     | FR-001, FR-004, FR-006, FR-007, FR-010 |
-| T7   | Pillar 1 tests (hierarchy)                  | HIGH     | 8-10 hrs  | 1     | NFR-011                                |
-| T8   | Schema migration (template + plugin models) | CRITICAL | 4-6 hrs   | 2     | FR-015, FR-023                         |
-| T9   | WorkspacePluginService                      | HIGH     | 6-8 hrs   | 2     | FR-023, FR-024, FR-025, FR-026         |
-| T10  | WorkspaceTemplateService                    | HIGH     | 8-10 hrs  | 2     | FR-015, FR-016, FR-017, FR-018, FR-019 |
-| T11  | Template & plugin endpoints                 | HIGH     | 6-8 hrs   | 2     | FR-020, FR-021, FR-022, FR-025         |
-| T12  | Pillar 2 tests (templates)                  | HIGH     | 6-8 hrs   | 2     | NFR-012                                |
-| T13  | Plugin manifest extension                   | CRITICAL | 4-6 hrs   | 3     | FR-026 (P3), FR-027                    |
-| T14  | PluginHookService implementation            | HIGH     | 8-10 hrs  | 3     | FR-029, FR-030, FR-031, FR-032         |
-| T15  | Plugin template registration endpoints      | MEDIUM   | 4-6 hrs   | 3     | FR-028                                 |
-| T16  | EventBus workspace events                   | MEDIUM   | 3-4 hrs   | 3     | FR-033                                 |
-| T17  | Pillar 3 tests (hooks)                      | HIGH     | 6-8 hrs   | 3     | NFR-011, NFR-012                       |
+| Task    | Description                                 | Priority | Effort    | Phase | Spec Refs                              |
+| ------- | ------------------------------------------- | -------- | --------- | ----- | -------------------------------------- | ----------------------------------- |
+| T1      | Schema migration (hierarchy fields)         | CRITICAL | 4-6 hrs   | 1     | FR-001, FR-002, FR-003, FR-005         |
+| T2      | Data migration (backfill existing)          | CRITICAL | 2-3 hrs   | 1     | FR-003                                 |
+| T3      | WorkspaceHierarchyService                   | CRITICAL | 10-14 hrs | 1     | FR-004, FR-006, FR-007, FR-008, FR-009 |
+| T4      | Hierarchy guard extension                   | HIGH     | 6-8 hrs   | 1     | FR-011, FR-012, FR-014                 |
+| T5      | Tree & children endpoints                   | HIGH     | 6-8 hrs   | 1     | FR-013, FR-014                         |
+| T6      | Modify workspace create/update/delete flow  | HIGH     | 6-8 hrs   | 1     | FR-001, FR-004, FR-006, FR-007, FR-010 |
+| T7      | Pillar 1 tests (hierarchy)                  | HIGH     | 8-10 hrs  | 1     | NFR-011                                |
+| T8      | Schema migration (template + plugin models) | CRITICAL | 4-6 hrs   | 2     | FR-015, FR-023                         |
+| T9      | WorkspacePluginService                      | HIGH     | 6-8 hrs   | 2     | FR-023, FR-024, FR-025, FR-026         |
+| T10     | WorkspaceTemplateService                    | HIGH     | 8-10 hrs  | 2     | FR-015, FR-016, FR-017, FR-018, FR-019 |
+| T11     | Template & plugin endpoints                 | HIGH     | 6-8 hrs   | 2     | FR-020, FR-021, FR-022, FR-025         |
+| T12     | Pillar 2 tests (templates)                  | HIGH     | 6-8 hrs   | 2     | NFR-012                                |
+| T13     | Plugin manifest extension                   | CRITICAL | 4-6 hrs   | 3     | FR-026 (P3), FR-027                    |
+| T14     | PluginHookService implementation            | HIGH     | 8-10 hrs  | 3     | FR-029, FR-030, FR-031, FR-032         |
+| T15     | Plugin template registration endpoints      | MEDIUM   | 4-6 hrs   | 3     | FR-028                                 |
+| T16     | EventBus workspace events                   | MEDIUM   | 3-4 hrs   | 3     | FR-034                                 |
+| T17     | Pillar 3 tests (hooks)                      | HIGH     | 6-8 hrs   | 3     | NFR-011, NFR-012                       |
+| T011-18 | Design token integration                    | MEDIUM   | 2-3 hrs   | 4     | FR-013, FR-014, FR-015                 | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-19 | WorkspaceTreeNode component                 | HIGH     | 4-6 hrs   | 4     | FR-013, FR-014                         | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-20 | WorkspaceTreeView component                 | HIGH     | 6-8 hrs   | 4     | FR-013, FR-014                         | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-21 | TemplateCard component                      | MEDIUM   | 2-3 hrs   | 4     | FR-015, FR-020                         | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-22 | TemplatePickerGrid component                | MEDIUM   | 4-6 hrs   | 4     | FR-015, FR-020                         | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-23 | PluginToggleCard component                  | MEDIUM   | 4-6 hrs   | 4     | FR-023, FR-024, FR-025, FR-026         | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-24 | MoveWorkspaceDialog component               | MEDIUM   | 4-6 hrs   | 4     | FR-005, FR-006                         | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-25 | Frontend component unit tests               | HIGH     | 6-8 hrs   | 4     | Constitution Art. 4.1                  | <!-- Added: forge-ux 2026-03-02 --> |
+| T011-26 | Accessibility verification                  | HIGH     | 2-3 hrs   | 4     | Constitution Art. 1.3, WCAG 2.1 AA     | <!-- Added: forge-ux 2026-03-02 --> |
 
-**Approach**: Phased delivery across 3 phases. Phase 1 (hierarchy) is
+**Approach**: Phased delivery across 4 phases. Phase 1 (hierarchy) is
 self-contained and delivers the highest business value. Phase 2 (templates)
 builds on the hierarchy foundation. Phase 3 (hooks) completes the plugin
-integration story. Each phase is independently shippable.
+integration story. Phase 4 (frontend components) implements the UI layer
+with full accessibility compliance. Each phase is independently shippable.
 
 **Key architectural decisions**:
 
@@ -503,20 +513,27 @@ constructor(
 
 **Methods**:
 
-| Method                    | Signature                                                                                | Returns                  | Spec Refs      |
-| ------------------------- | ---------------------------------------------------------------------------------------- | ------------------------ | -------------- |
-| `validateParentAccess`    | `(parentId: string, userId: string, tenantCtx: TenantContext) => Promise<WorkspaceRow>`  | Parent workspace row     | FR-001, FR-004 |
-| `computeHierarchyFields`  | `(parentWorkspace: WorkspaceRow \| null, workspaceId: string) => { depth, path }`        | Computed depth and path  | FR-002, FR-003 |
-| `getDescendants`          | `(rootPath: string, tenantCtx: TenantContext) => Promise<WorkspaceRow[]>`                | All descendant rows      | FR-008, FR-009 |
-| `getDirectChildren`       | `(parentId: string, tenantCtx: TenantContext, limit, offset) => Promise<WorkspaceRow[]>` | Direct child rows        | FR-013         |
-| `getTree`                 | `(userId: string, tenantCtx: TenantContext) => Promise<TreeNode[]>`                      | Nested tree structure    | FR-013, FR-014 |
-| `getAggregatedCounts`     | `(workspacePath: string, tenantCtx: TenantContext) => Promise<AggregatedCounts>`         | Member/team/child counts | FR-008         |
-| `isAncestorAdmin`         | `(userId: string, workspacePath: string, tenantCtx: TenantContext) => Promise<boolean>`  | Boolean                  | FR-011         |
-| `getAncestorChain`        | `(workspacePath: string, tenantCtx: TenantContext) => Promise<WorkspaceRow[]>`           | Ancestor rows (ordered)  | FR-011         |
-| `validateDepthConstraint` | `(parentDepth: number) => void`                                                          | void (throws on > 2)     | FR-004         |
-| `hasChildren`             | `(workspaceId: string, tenantCtx: TenantContext) => Promise<boolean>`                    | Boolean                  | FR-007         |
+| Method                    | Signature                                                                                | Returns                  | Spec Refs       |
+| ------------------------- | ---------------------------------------------------------------------------------------- | ------------------------ | --------------- |
+| `validateParentAccess`    | `(parentId: string, userId: string, tenantCtx: TenantContext) => Promise<WorkspaceRow>`  | Parent workspace row     | FR-001, FR-004  |
+| `computeHierarchyFields`  | `(parentWorkspace: WorkspaceRow \| null, workspaceId: string) => { depth, path }`        | Computed depth and path  | FR-002, FR-003  |
+| `getDescendants`          | `(rootPath: string, tenantCtx: TenantContext) => Promise<WorkspaceRow[]>`                | All descendant rows      | FR-008, FR-009  |
+| `getDirectChildren`       | `(parentId: string, tenantCtx: TenantContext, limit, offset) => Promise<WorkspaceRow[]>` | Direct child rows        | FR-013          |
+| `getTree`                 | `(userId: string, tenantCtx: TenantContext) => Promise<TreeNode[]>`                      | Nested tree structure    | FR-013, FR-014  |
+| `getAggregatedCounts`     | `(workspacePath: string, tenantCtx: TenantContext) => Promise<AggregatedCounts>`         | Member/team/child counts | FR-008          |
+| `isAncestorAdmin`         | `(userId: string, workspacePath: string, tenantCtx: TenantContext) => Promise<boolean>`  | Boolean                  | FR-011          |
+| `getAncestorChain`        | `(workspacePath: string, tenantCtx: TenantContext) => Promise<WorkspaceRow[]>`           | Ancestor rows (ordered)  | FR-011          |
+| `validateDepthConstraint` | `(parentDepth: number) => void`                                                          | void (throws on exceed)  | FR-004, FR-004b |
+| `hasChildren`             | `(workspaceId: string, tenantCtx: TenantContext) => Promise<boolean>`                    | Boolean                  | FR-007          |
 
 **Key Query Patterns** (all use `Prisma.sql` parameterization):
+
+<!-- ACCEPTED RISK: Prisma.raw() is used for dynamic tenant schema names
+     (e.g., `"${schemaName}"."workspaces"`). This bypasses Prisma's
+     parameterization. Mitigated by: (1) schema names derive exclusively
+     from authenticated Keycloak JWT tenant claims, (2) tenant provisioning
+     enforces alphanumeric+underscore schema names only. Documented
+     as accepted risk per Constitution Art. 5.3.2. See also ADR-002. -->
 
 ```typescript
 // Get all descendants via materialised path
@@ -571,6 +588,19 @@ async getAggregatedCounts(workspacePath: string, tenantCtx: TenantContext): Prom
     aggregatedMemberCount: Number(result[0].member_count),
     aggregatedChildCount: Number(result[0].child_count),
   };
+}
+```
+
+**validateDepthConstraint** (configurable max depth):
+
+```typescript
+// Default 10; override via WORKSPACE_MAX_DEPTH env var — see FR-004b
+private validateDepthConstraint(parentDepth: number): void {
+  const maxDepth = parseInt(process.env.WORKSPACE_MAX_DEPTH ?? '10', 10);
+  if (parentDepth + 1 > maxDepth) {
+    throw new WorkspaceError('WORKSPACE_DEPTH_EXCEEDED',
+      `Maximum workspace depth of ${maxDepth} exceeded`);
+  }
 }
 ```
 
@@ -1178,10 +1208,10 @@ This ensures hooks see a consistent state and cannot cause partial commits.
 #### POST /api/workspaces (MODIFIED — Task T6)
 
 - **Changes**: Accept `parentId` and `templateId` in request body
-- **New validation**: `parentId` → validate parent exists, user is ADMIN, depth < 2
+- **New validation**: `parentId` → validate parent exists, user is ADMIN, depth < WORKSPACE_MAX_DEPTH (default: 10)
 - **New validation**: `templateId` → validate template exists, plugins installed
 - **Response**: Include `parentId`, `depth`, `path`, `_count.children`, `appliedTemplateId`
-- **New error codes**: `HIERARCHY_DEPTH_EXCEEDED`, `PARENT_WORKSPACE_NOT_FOUND`,
+- **New error codes**: `WORKSPACE_DEPTH_EXCEEDED`, `PARENT_WORKSPACE_NOT_FOUND`,
   `PARENT_PERMISSION_DENIED`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_PLUGIN_NOT_INSTALLED`,
   `HOOK_REJECTED_CREATION`
 - **Spec Refs**: FR-001 through FR-006, FR-015, FR-016
@@ -1308,7 +1338,7 @@ This ensures hooks see a consistent state and cannot cause partial commits.
 
 | Code                            | HTTP | Route(s)                               | Spec Ref |
 | ------------------------------- | ---- | -------------------------------------- | -------- |
-| `HIERARCHY_DEPTH_EXCEEDED`      | 400  | POST /api/workspaces                   | FR-004   |
+| `WORKSPACE_DEPTH_EXCEEDED`      | 400  | POST /api/workspaces                   | FR-004   |
 | `PARENT_WORKSPACE_NOT_FOUND`    | 404  | POST /api/workspaces                   | FR-001   |
 | `PARENT_PERMISSION_DENIED`      | 403  | POST /api/workspaces                   | FR-001   |
 | `WORKSPACE_HAS_CHILDREN`        | 400  | DELETE /api/workspaces/:id             | FR-007   |
@@ -1422,33 +1452,110 @@ export type RegisterTemplateDto = z.infer<typeof RegisterTemplateSchema>;
 
 ## 8. Frontend Impact
 
-> **Note**: Frontend implementation is out of scope for the backend plan.
-> This section documents the frontend surface area that will need updates
-> after the backend is implemented. See Spec 010 (Frontend Production
-> Readiness) for the full frontend plan.
+<!-- Updated: forge-ux 2026-03-02 — expanded from stub to full Phase 4 component plan -->
 
-### 8.1 Components Requiring Modification
+> **Note**: Frontend component implementation is covered in **Phase 4**
+> (Tasks T011-18 through T011-26). Design decisions are documented in
+> [design-spec.md](design-spec.md) and user flows in
+> [user-journey.md](user-journey.md).
 
-| Component             | File Path (estimated)                               | Change Type | Description                                   |
-| --------------------- | --------------------------------------------------- | ----------- | --------------------------------------------- |
-| WorkspaceSwitcher     | `apps/web/src/components/WorkspaceSwitcher.tsx`     | MODIFY      | Tree view instead of flat list                |
-| CreateWorkspaceDialog | `apps/web/src/components/CreateWorkspaceDialog.tsx` | MODIFY      | Add parent selector, template picker          |
-| WorkspaceContext      | `apps/web/src/contexts/WorkspaceContext.tsx`        | MODIFY      | Hierarchy-aware context (parent, depth, path) |
+### 8.1 Design Token Integration (Task T011-18) <!-- Added: forge-ux 2026-03-02 -->
 
-### 8.2 New Components
+9 semantic CSS custom properties to add to Tailwind config / global CSS:
 
-| Component            | File Path (estimated)                             | Description                                  |
-| -------------------- | ------------------------------------------------- | -------------------------------------------- |
-| WorkspaceTreeView    | `apps/web/src/components/WorkspaceTreeView.tsx`   | Full hierarchy tree visualization            |
-| TemplateSelector     | `apps/web/src/components/TemplateSelector.tsx`    | Template picker cards for workspace creation |
-| WorkspacePluginsPage | `apps/web/src/routes/workspace-plugins.tsx`       | Plugin management page per workspace         |
-| AggregatedDashboard  | `apps/web/src/components/AggregatedDashboard.tsx` | Parent workspace aggregated view             |
+| Token                       | Value   | Purpose                                                |
+| --------------------------- | ------- | ------------------------------------------------------ |
+| `--tree-indent`             | `16px`  | Indentation per depth level in tree views              |
+| `--tree-connector-color`    | (theme) | Tree branch connector line color                       |
+| `--tree-connector-width`    | `1px`   | Tree branch connector line width                       |
+| `--tree-node-height`        | `36px`  | Standard tree node height (desktop)                    |
+| `--tree-node-height-mobile` | `44px`  | Touch-friendly tree node height (≥44px per WCAG 2.5.5) |
+| `--tree-selected-border`    | `3px`   | Active workspace selection indicator width             |
+| `--template-card-min-width` | `180px` | Minimum card width in template picker grid             |
+| `--template-card-selected`  | (theme) | Selection ring color for chosen template               |
+| `--template-card-check-bg`  | (theme) | Checkmark badge background color                       |
 
-### 8.3 Accessibility Requirements (Constitution Art. 1.3)
+**Spec Refs**: FR-013, FR-014, FR-015
 
-- Tree view: `role="tree"`, `role="treeitem"`, `aria-expanded`, `aria-level`
-- Keyboard navigation: Arrow keys for tree, Enter to select, Right/Left to expand/collapse
-- Screen reader: Depth level and child count announced
+### 8.2 Component Specifications <!-- Added: forge-ux 2026-03-02 -->
+
+#### WorkspaceTreeNode (Task T011-19)
+
+Single tree row component with depth-based indentation.
+
+- **Indentation formula**: `depth * var(--tree-indent) + (hasChildren ? 0 : 24px)`
+- **Features**: Expand/collapse chevron, context menu (admin only), permission-aware badge rendering
+- **Accessibility**: `role="treeitem"`, `aria-expanded`, `aria-level`, `aria-posinset`, `aria-setsize`
+- **Keyboard**: ArrowRight expand, ArrowLeft collapse, ArrowUp/Down navigate, Enter/Space select
+- **Spec Refs**: FR-013, FR-014
+
+#### WorkspaceTreeView (Task T011-20)
+
+Two-variant tree container composing WorkspaceTreeNode.
+
+- **Variants**: `compact` (sidebar switcher) and `table` (admin hierarchy with sortable columns)
+- **Props**: `workspaces`, `variant`, `selectedId`, `onSelect`, `onExpand`, `initialExpanded`, `searchQuery`, `contextMenu`, `columns`
+- **Responsive**: Compact variant collapses to icon-only at `<640px`
+- **Accessibility**: `role="tree"`, manages roving `tabindex` for focus within tree
+- **Spec Refs**: FR-013, FR-014
+
+#### TemplateCard (Task T011-21)
+
+Card/radio-option component extending existing Card from `@plexica/ui`.
+
+- **Features**: Visual preview thumbnail, selection ring (`--template-card-selected`), checkmark badge (`--template-card-check-bg`)
+- **Accessibility**: `role="radio"` inside `radiogroup`, keyboard selection via Space, focus ring ≥3:1 contrast against white and brand-primary backgrounds
+- **Spec Refs**: FR-015, FR-020
+
+#### TemplatePickerGrid (Task T011-22)
+
+Radio group grid with responsive column layout composing TemplateCard.
+
+- **Layout**: 3 cols → 2 cols → 1 col below `480px`
+- **Empty state**: "No templates available" with illustration
+- **Accessibility**: `role="radiogroup"` with `aria-labelledby`, ArrowKey navigation between cards
+- **Spec Refs**: FR-015, FR-020
+
+#### PluginToggleCard (Task T011-23)
+
+Card with enable/disable Switch and expandable configuration panel.
+
+- **Features**: Plugin icon, name, description, version badge, accordion config panel
+- **Permission-aware**: VIEWER sees read-only state (switch disabled, no config expansion)
+- **Accessibility**: Switch has `role="switch"` with `aria-checked`; expansion control has `aria-expanded`; config panel ID linked via `aria-controls`
+- **Spec Refs**: FR-023, FR-024, FR-025, FR-026
+
+#### MoveWorkspaceDialog (Task T011-24)
+
+Dialog with tree-structured parent selector for workspace re-parenting.
+
+- **Features**: Reuses WorkspaceTreeView (`compact` variant) as parent selector. Cycle detection: current workspace and all descendants are disabled (greyed, `aria-disabled="true"`). Confirm/Cancel actions.
+- **Accessibility**: Focus trap on open (`role="dialog"`, `aria-modal="true"`), restore focus on close. Esc cancels, Tab cycles within dialog.
+- **Spec Refs**: FR-005, FR-006
+
+### 8.3 Screens Covered <!-- Added: forge-ux 2026-03-02 -->
+
+| Screen                       | Type     | Primary Components                                  |
+| ---------------------------- | -------- | --------------------------------------------------- |
+| Workspace Switcher (sidebar) | Modified | WorkspaceTreeView (compact), WorkspaceTreeNode      |
+| Create Workspace Dialog      | New      | TemplatePickerGrid, TemplateCard, WorkspaceTreeView |
+| Workspace Plugin Management  | New      | PluginToggleCard                                    |
+| Admin Hierarchy Tree View    | New      | WorkspaceTreeView (table), MoveWorkspaceDialog      |
+
+### 8.4 Accessibility Requirements (Constitution Art. 1.3) <!-- Added: forge-ux 2026-03-02 -->
+
+All frontend components must meet **WCAG 2.1 AA**:
+
+| Requirement                 | Standard     | Verification                                         |
+| --------------------------- | ------------ | ---------------------------------------------------- |
+| Full ARIA tree pattern      | WAI-ARIA 1.2 | `role=tree/treeitem`, arrow-key nav, expand/collapse |
+| Focus trap on modal dialogs | WCAG 2.4.3   | MoveWorkspaceDialog: Tab cycles, Esc closes          |
+| Contrast ratios             | WCAG 1.4.3   | All text ≥4.5:1; focus rings ≥3:1                    |
+| Mobile touch targets        | WCAG 2.5.5   | ≥44px min (`--tree-node-height-mobile`)              |
+| Screen reader compatibility | WCAG 4.1.2   | NVDA + VoiceOver verification for all screens        |
+| 200% zoom support           | WCAG 1.4.4   | All screens usable at 200% zoom without h-scroll     |
+
+**Persona verification** (from user-journey.md): Persona Aisha (low vision) must complete all 4 screen flows with 200% zoom, high-contrast mode, and screen reader.
 
 ---
 
@@ -1520,18 +1627,50 @@ export type RegisterTemplateDto = z.infer<typeof RegisterTemplateSchema>;
 - Manifest validation rejects unknown capabilities (FR-026)
 - Coverage ≥ 85% on hook code
 
+### Phase 4: Frontend Components (Sprint 5) — ~17 story points <!-- Added: forge-ux 2026-03-02 -->
+
+**Duration**: 2 weeks
+**Deliverables**: Design tokens, 6 UI components, unit tests, accessibility audit
+
+| Task    | Description                   | Points | Effort  | Dependencies      |
+| ------- | ----------------------------- | ------ | ------- | ----------------- |
+| T011-18 | Design token integration      | 1      | 2-3 hrs | None              |
+| T011-19 | WorkspaceTreeNode component   | 2      | 4-6 hrs | T011-18           |
+| T011-20 | WorkspaceTreeView component   | 3      | 6-8 hrs | T011-19           |
+| T011-21 | TemplateCard component        | 1      | 2-3 hrs | T011-18           |
+| T011-22 | TemplatePickerGrid component  | 2      | 4-6 hrs | T011-21           |
+| T011-23 | PluginToggleCard component    | 2      | 4-6 hrs | T011-18           |
+| T011-24 | MoveWorkspaceDialog component | 2      | 4-6 hrs | T011-20           |
+| T011-25 | Frontend component unit tests | 3      | 6-8 hrs | T011-19 – T011-24 |
+| T011-26 | Accessibility verification    | 1      | 2-3 hrs | T011-25           |
+
+**Definition of Done**:
+
+- All 6 components render correctly in isolation (Vitest + React Testing Library)
+- Unit test coverage ≥ 80% per component file (Constitution Art. 4.1)
+- All ARIA roles/attributes pass axe-core automated scan (0 critical/serious violations)
+- Keyboard navigation works for all interactive components (manual QA)
+- Responsive breakpoints verified: 320px, 480px, 640px, 1024px, 1440px
+- Persona Aisha verification: 200% zoom + high-contrast + screen reader pass
+- Design tokens applied consistently (no hardcoded values for tree/template dimensions)
+- All components export from `@plexica/ui` barrel
+
 ### Phase Summary
 
 ```
-Sprint 3 (Weeks 1-3):  Phase 1 — Hierarchy          [21 pts]
-Sprint 4 (Weeks 4-5):  Phase 2 — Templates           [13 pts]
-Sprint 4-5 (Weeks 5-7): Phase 3 — Plugin Integration [13 pts]
-                                               Total: ~47 pts
+Sprint 3 (Weeks 1-3):   Phase 1 — Hierarchy            [21 pts]
+Sprint 4 (Weeks 4-5):   Phase 2 — Templates             [13 pts]
+Sprint 4-5 (Weeks 5-7): Phase 3 — Plugin Integration    [13 pts]
+Sprint 5 (Weeks 8-9):   Phase 4 — Frontend Components   [17 pts]  <!-- Added: forge-ux 2026-03-02 -->
+                                                  Total: ~64 pts
 ```
 
 Each phase is independently shippable. Phase 1 delivers the highest business
 value (enterprise hierarchy feature). Phase 2 builds on Phase 1 but can be
 deployed without Phase 3. Phase 3 completes the plugin ecosystem story.
+Phase 4 provides the UI layer and can begin as soon as the backend API
+surface from Phases 1-3 is available (frontend can develop against API
+contracts in parallel).
 
 ---
 
@@ -1539,12 +1678,15 @@ deployed without Phase 3. Phase 3 completes the plugin ecosystem story.
 
 ### 10.1 Test Plan Summary
 
-| Category    | Phase 1 (Hierarchy) | Phase 2 (Templates) | Phase 3 (Hooks) | Total   |
-| ----------- | ------------------- | ------------------- | --------------- | ------- |
-| Unit        | 25                  | 15                  | 12              | 52      |
-| Integration | 18                  | 10                  | 8               | 36      |
-| E2E         | 8                   | 5                   | 4               | 17      |
-| **Total**   | **51**              | **30**              | **24**          | **105** |
+| Category    | Phase 1 (Hierarchy) | Phase 2 (Templates) | Phase 3 (Hooks) | Phase 4 (Frontend) | Total   |
+| ----------- | ------------------- | ------------------- | --------------- | ------------------ | ------- |
+| Unit        | 25                  | 15                  | 12              | 36                 | 88      |
+| Integration | 18                  | 10                  | 8               | —                  | 36      |
+| E2E         | 8                   | 5                   | 4               | —                  | 17      |
+| a11y (axe)  | —                   | —                   | —               | 6                  | 6       |
+| **Total**   | **51**              | **30**              | **24**          | **42**             | **147** |
+
+<!-- Phase 4 test counts added: forge-ux 2026-03-02 -->
 
 ### 10.2 Phase 1: Hierarchy Tests (51 tests — Task T7)
 
@@ -1632,10 +1774,38 @@ deployed without Phase 3. Phase 3 completes the plugin ecosystem story.
 | `src/__tests__/workspace/e2e/hook-lifecycle.e2e.test.ts` | Full hook lifecycle       | 2     |
 | `src/__tests__/workspace/e2e/hook-lifecycle.e2e.test.ts` | Template + hooks combined | 2     |
 
-### 10.5 Coverage Targets
+### 10.5 Phase 4: Frontend Component Tests (42 tests — Task T011-25, T011-26) <!-- Added: forge-ux 2026-03-02 -->
+
+**Unit Tests (36 — Task T011-25)**:
+
+| File                                                                          | Test Area                                                                        | Count |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----- |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeNode.test.tsx`   | Render states (default, selected, expanded, disabled), indentation, context menu | 6     |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeNode.test.tsx`   | Keyboard navigation (ArrowRight/Left/Up/Down, Enter/Space)                       | 4     |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeView.test.tsx`   | Compact variant rendering, icon-only at <640px                                   | 4     |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeView.test.tsx`   | Table variant rendering with columns, sorting                                    | 3     |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeView.test.tsx`   | ARIA tree pattern (role=tree, roving tabindex)                                   | 3     |
+| `packages/ui/src/components/workspace/__tests__/TemplateCard.test.tsx`        | Render states (default, selected, hover), radio semantics                        | 3     |
+| `packages/ui/src/components/workspace/__tests__/TemplatePickerGrid.test.tsx`  | Grid layout, responsive columns, empty state                                     | 3     |
+| `packages/ui/src/components/workspace/__tests__/TemplatePickerGrid.test.tsx`  | Radiogroup keyboard navigation                                                   | 2     |
+| `packages/ui/src/components/workspace/__tests__/PluginToggleCard.test.tsx`    | Toggle states, accordion expand/collapse, permission variants                    | 4     |
+| `packages/ui/src/components/workspace/__tests__/MoveWorkspaceDialog.test.tsx` | Dialog open/close, focus trap, cycle detection (disabled nodes)                  | 4     |
+
+**Accessibility Tests (6 — Task T011-26)**:
+
+| File                                                                    | Test Area                                  | Count |
+| ----------------------------------------------------------------------- | ------------------------------------------ | ----- |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx` | axe-core scan: WorkspaceTreeView (compact) | 1     |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx` | axe-core scan: WorkspaceTreeView (table)   | 1     |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx` | axe-core scan: TemplatePickerGrid          | 1     |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx` | axe-core scan: PluginToggleCard            | 1     |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx` | axe-core scan: MoveWorkspaceDialog         | 1     |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx` | Contrast ratio verification (all tokens)   | 1     |
+
+### 10.6 Coverage Targets
 
 | Module                    | Target | Measurement Method                                  |
-| ------------------------- | ------ | --------------------------------------------------- |
+| ------------------------- | ------ | --------------------------------------------------- | ----------------------------------- |
 | WorkspaceHierarchyService | ≥ 85%  | Vitest coverage on `workspace-hierarchy.service.ts` |
 | WorkspaceTemplateService  | ≥ 85%  | Vitest coverage on `workspace-template.service.ts`  |
 | WorkspacePluginService    | ≥ 85%  | Vitest coverage on `workspace-plugin.service.ts`    |
@@ -1643,8 +1813,14 @@ deployed without Phase 3. Phase 3 completes the plugin ecosystem story.
 | Hierarchy guard extension | ≥ 90%  | Vitest coverage on `workspace.guard.ts`             |
 | New DTOs                  | ≥ 90%  | Vitest coverage on DTO files                        |
 | New route handlers        | ≥ 80%  | Vitest coverage on route handler logic              |
+| WorkspaceTreeNode         | ≥ 80%  | Vitest coverage on `WorkspaceTreeNode.tsx`          | <!-- Added: forge-ux 2026-03-02 --> |
+| WorkspaceTreeView         | ≥ 80%  | Vitest coverage on `WorkspaceTreeView.tsx`          | <!-- Added: forge-ux 2026-03-02 --> |
+| TemplateCard              | ≥ 80%  | Vitest coverage on `TemplateCard.tsx`               | <!-- Added: forge-ux 2026-03-02 --> |
+| TemplatePickerGrid        | ≥ 80%  | Vitest coverage on `TemplatePickerGrid.tsx`         | <!-- Added: forge-ux 2026-03-02 --> |
+| PluginToggleCard          | ≥ 80%  | Vitest coverage on `PluginToggleCard.tsx`           | <!-- Added: forge-ux 2026-03-02 --> |
+| MoveWorkspaceDialog       | ≥ 80%  | Vitest coverage on `MoveWorkspaceDialog.tsx`        | <!-- Added: forge-ux 2026-03-02 --> |
 
-### 10.6 Critical Test Scenarios (Edge Cases)
+### 10.7 Critical Test Scenarios (Edge Cases)
 
 These scenarios from the spec must each have at least one test:
 
@@ -1690,33 +1866,46 @@ These scenarios from the spec must each have at least one test:
 
 ### 12.1 New Files
 
-| File Path                                                                                 | Purpose                               | Phase | Task |
-| ----------------------------------------------------------------------------------------- | ------------------------------------- | ----- | ---- |
-| `packages/database/prisma/migrations/YYYYMMDD_workspace_hierarchy/migration.sql`          | Hierarchy schema migration            | 1     | T1   |
-| `packages/database/prisma/migrations/YYYYMMDD_workspace_hierarchy_backfill/migration.sql` | Backfill path for existing workspaces | 1     | T2   |
-| `packages/database/prisma/migrations/YYYYMMDD_workspace_templates/migration.sql`          | Template/plugin model migration       | 2     | T8   |
-| `apps/core-api/src/modules/workspace/workspace-hierarchy.service.ts`                      | Hierarchy query & validation service  | 1     | T3   |
-| `apps/core-api/src/modules/workspace/types/hierarchy.types.ts`                            | TreeNode, AggregatedCounts types      | 1     | T3   |
-| `apps/core-api/src/modules/workspace/types/access.types.ts`                               | WorkspaceAccess type extension        | 1     | T4   |
-| `apps/core-api/src/modules/workspace/workspace-template.service.ts`                       | Template CRUD & application service   | 2     | T10  |
-| `apps/core-api/src/modules/workspace/workspace-plugin.service.ts`                         | Per-workspace plugin management       | 2     | T9   |
-| `apps/core-api/src/modules/workspace/types/workspace-plugin.types.ts`                     | WorkspacePluginRow type               | 2     | T9   |
-| `apps/core-api/src/modules/workspace/dto/workspace-plugin.dto.ts`                         | Workspace plugin DTOs (Zod)           | 2     | T11  |
-| `apps/core-api/src/modules/workspace/dto/workspace-template.dto.ts`                       | Workspace template DTOs (Zod)         | 2     | T11  |
-| `apps/core-api/src/modules/plugin/dto/register-template.dto.ts`                           | Plugin template registration DTO      | 3     | T15  |
-| `apps/core-api/src/modules/plugin/plugin-hook.service.ts`                                 | Lifecycle hook invocation service     | 3     | T14  |
-| `apps/core-api/src/modules/plugin/types/hook.types.ts`                                    | HookResult, HookResponse types        | 3     | T14  |
-| `apps/core-api/src/routes/workspace-templates.ts`                                         | Template CRUD routes                  | 2     | T11  |
-| `apps/core-api/src/__tests__/workspace/unit/workspace-hierarchy.test.ts`                  | Hierarchy unit tests (25)             | 1     | T7   |
-| `apps/core-api/src/__tests__/workspace/unit/workspace-templates.test.ts`                  | Template unit tests (15)              | 2     | T12  |
-| `apps/core-api/src/__tests__/workspace/unit/workspace-plugins.test.ts`                    | Plugin service unit tests             | 2     | T12  |
-| `apps/core-api/src/__tests__/workspace/unit/plugin-hooks.test.ts`                         | Hook invocation unit tests (12)       | 3     | T17  |
-| `apps/core-api/src/__tests__/workspace/integration/hierarchy.integration.test.ts`         | Hierarchy integration tests (18)      | 1     | T7   |
-| `apps/core-api/src/__tests__/workspace/integration/templates.integration.test.ts`         | Template integration tests (10)       | 2     | T12  |
-| `apps/core-api/src/__tests__/workspace/integration/hooks.integration.test.ts`             | Hook integration tests (8)            | 3     | T17  |
-| `apps/core-api/src/__tests__/workspace/e2e/hierarchy-lifecycle.e2e.test.ts`               | Hierarchy E2E tests (8)               | 1     | T7   |
-| `apps/core-api/src/__tests__/workspace/e2e/template-lifecycle.e2e.test.ts`                | Template E2E tests (5)                | 2     | T12  |
-| `apps/core-api/src/__tests__/workspace/e2e/hook-lifecycle.e2e.test.ts`                    | Hook E2E tests (4)                    | 3     | T17  |
+| File Path                                                                                 | Purpose                               | Phase | Task    |
+| ----------------------------------------------------------------------------------------- | ------------------------------------- | ----- | ------- | ----------------------------------- |
+| `packages/database/prisma/migrations/YYYYMMDD_workspace_hierarchy/migration.sql`          | Hierarchy schema migration            | 1     | T1      |
+| `packages/database/prisma/migrations/YYYYMMDD_workspace_hierarchy_backfill/migration.sql` | Backfill path for existing workspaces | 1     | T2      |
+| `packages/database/prisma/migrations/YYYYMMDD_workspace_templates/migration.sql`          | Template/plugin model migration       | 2     | T8      |
+| `apps/core-api/src/modules/workspace/workspace-hierarchy.service.ts`                      | Hierarchy query & validation service  | 1     | T3      |
+| `apps/core-api/src/modules/workspace/types/hierarchy.types.ts`                            | TreeNode, AggregatedCounts types      | 1     | T3      |
+| `apps/core-api/src/modules/workspace/types/access.types.ts`                               | WorkspaceAccess type extension        | 1     | T4      |
+| `apps/core-api/src/modules/workspace/workspace-template.service.ts`                       | Template CRUD & application service   | 2     | T10     |
+| `apps/core-api/src/modules/workspace/workspace-plugin.service.ts`                         | Per-workspace plugin management       | 2     | T9      |
+| `apps/core-api/src/modules/workspace/types/workspace-plugin.types.ts`                     | WorkspacePluginRow type               | 2     | T9      |
+| `apps/core-api/src/modules/workspace/dto/workspace-plugin.dto.ts`                         | Workspace plugin DTOs (Zod)           | 2     | T11     |
+| `apps/core-api/src/modules/workspace/dto/workspace-template.dto.ts`                       | Workspace template DTOs (Zod)         | 2     | T11     |
+| `apps/core-api/src/modules/plugin/dto/register-template.dto.ts`                           | Plugin template registration DTO      | 3     | T15     |
+| `apps/core-api/src/modules/plugin/plugin-hook.service.ts`                                 | Lifecycle hook invocation service     | 3     | T14     |
+| `apps/core-api/src/modules/plugin/types/hook.types.ts`                                    | HookResult, HookResponse types        | 3     | T14     |
+| `apps/core-api/src/routes/workspace-templates.ts`                                         | Template CRUD routes                  | 2     | T11     |
+| `apps/core-api/src/__tests__/workspace/unit/workspace-hierarchy.test.ts`                  | Hierarchy unit tests (25)             | 1     | T7      |
+| `apps/core-api/src/__tests__/workspace/unit/workspace-templates.test.ts`                  | Template unit tests (15)              | 2     | T12     |
+| `apps/core-api/src/__tests__/workspace/unit/workspace-plugins.test.ts`                    | Plugin service unit tests             | 2     | T12     |
+| `apps/core-api/src/__tests__/workspace/unit/plugin-hooks.test.ts`                         | Hook invocation unit tests (12)       | 3     | T17     |
+| `apps/core-api/src/__tests__/workspace/integration/hierarchy.integration.test.ts`         | Hierarchy integration tests (18)      | 1     | T7      |
+| `apps/core-api/src/__tests__/workspace/integration/templates.integration.test.ts`         | Template integration tests (10)       | 2     | T12     |
+| `apps/core-api/src/__tests__/workspace/integration/hooks.integration.test.ts`             | Hook integration tests (8)            | 3     | T17     |
+| `apps/core-api/src/__tests__/workspace/e2e/hierarchy-lifecycle.e2e.test.ts`               | Hierarchy E2E tests (8)               | 1     | T7      |
+| `apps/core-api/src/__tests__/workspace/e2e/template-lifecycle.e2e.test.ts`                | Template E2E tests (5)                | 2     | T12     |
+| `apps/core-api/src/__tests__/workspace/e2e/hook-lifecycle.e2e.test.ts`                    | Hook E2E tests (4)                    | 3     | T17     |
+| `packages/ui/src/components/workspace/WorkspaceTreeNode.tsx`                              | Single tree row component             | 4     | T011-19 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/WorkspaceTreeView.tsx`                              | Tree container (compact + table)      | 4     | T011-20 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/TemplateCard.tsx`                                   | Template card/radio-option            | 4     | T011-21 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/TemplatePickerGrid.tsx`                             | Template picker radio group grid      | 4     | T011-22 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/PluginToggleCard.tsx`                               | Plugin enable/disable card            | 4     | T011-23 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/MoveWorkspaceDialog.tsx`                            | Workspace re-parent dialog            | 4     | T011-24 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeNode.test.tsx`               | TreeNode unit tests (10)              | 4     | T011-25 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/WorkspaceTreeView.test.tsx`               | TreeView unit tests (10)              | 4     | T011-25 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/TemplateCard.test.tsx`                    | TemplateCard unit tests (3)           | 4     | T011-25 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/TemplatePickerGrid.test.tsx`              | TemplatePickerGrid unit tests (5)     | 4     | T011-25 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/PluginToggleCard.test.tsx`                | PluginToggleCard unit tests (4)       | 4     | T011-25 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/MoveWorkspaceDialog.test.tsx`             | MoveWorkspaceDialog unit tests (4)    | 4     | T011-25 | <!-- Added: forge-ux 2026-03-02 --> |
+| `packages/ui/src/components/workspace/__tests__/accessibility.test.tsx`                   | axe-core a11y scan tests (6)          | 4     | T011-26 | <!-- Added: forge-ux 2026-03-02 --> |
 
 ### 12.2 Modified Files
 
@@ -2025,29 +2214,31 @@ The following NFRs must be added to `spec.md §NFR` as a result of this analysis
 
 ## 15. Cross-References
 
-| Document                          | Path                                                       |
-| --------------------------------- | ---------------------------------------------------------- |
-| Spec 011 (this plan's spec)       | `.forge/specs/011-workspace-hierarchy-templates/spec.md`   |
-| Constitution                      | `.forge/constitution.md`                                   |
-| Plan 009 (workspace gaps)         | `.forge/specs/009-workspace-management/plan.md`            |
-| System Architecture               | `.forge/architecture/system-architecture.md`               |
-| ADR-002 (Multi-tenancy)           | `.forge/knowledge/adr/adr-002-database-multi-tenancy.md`   |
-| ADR-005 (Event System)            | `.forge/knowledge/adr/adr-005-event-system-redpanda.md`    |
-| ADR-007 (Prisma ORM)              | `.forge/knowledge/adr/adr-007-prisma-orm.md`               |
-| ADR-013 (Materialised Path)       | `.forge/knowledge/adr/adr-013-materialised-path.md`        |
-| ADR-014 (WorkspacePlugin Scoping) | `.forge/knowledge/adr/adr-014-workspace-plugin-scoping.md` |
-| Decision Log                      | `.forge/knowledge/decision-log.md`                         |
-| AGENTS.md                         | `AGENTS.md`                                                |
+| Document                          | Path                                                             |
+| --------------------------------- | ---------------------------------------------------------------- | ----------------------------------- |
+| Spec 011 (this plan's spec)       | `.forge/specs/011-workspace-hierarchy-templates/spec.md`         |
+| Design Spec 011                   | `.forge/specs/011-workspace-hierarchy-templates/design-spec.md`  | <!-- Added: forge-ux 2026-03-02 --> |
+| User Journey 011                  | `.forge/specs/011-workspace-hierarchy-templates/user-journey.md` | <!-- Added: forge-ux 2026-03-02 --> |
+| Constitution                      | `.forge/constitution.md`                                         |
+| Plan 009 (workspace gaps)         | `.forge/specs/009-workspace-management/plan.md`                  |
+| System Architecture               | `.forge/architecture/system-architecture.md`                     |
+| ADR-002 (Multi-tenancy)           | `.forge/knowledge/adr/adr-002-database-multi-tenancy.md`         |
+| ADR-005 (Event System)            | `.forge/knowledge/adr/adr-005-event-system-redpanda.md`          |
+| ADR-007 (Prisma ORM)              | `.forge/knowledge/adr/adr-007-prisma-orm.md`                     |
+| ADR-013 (Materialised Path)       | `.forge/knowledge/adr/adr-013-materialised-path.md`              |
+| ADR-014 (WorkspacePlugin Scoping) | `.forge/knowledge/adr/adr-014-workspace-plugin-scoping.md`       |
+| Decision Log                      | `.forge/knowledge/decision-log.md`                               |
+| AGENTS.md                         | `AGENTS.md`                                                      |
 
 ---
 
 **End of Plan 011 - Workspace Hierarchical Visibility & Templates**
 
-_Document Version: 1.0_
+_Document Version: 1.1_
 _Created: 2026-02-20_
-_Last Updated: 2026-02-20_
-_Author: forge-architect_
+_Last Updated: 2026-03-02_
+_Author: forge-architect, forge-ux_
 _Track: Epic_
-_Status: Draft_
-_Total Story Points: ~47 (Phase 1: ~21, Phase 2: ~13, Phase 3: ~13)_
-_Total Tests: 105 (52 unit + 36 integration + 17 E2E)_
+_Status: Complete_
+_Total Story Points: ~64 (Phase 1: ~21, Phase 2: ~13, Phase 3: ~13, Phase 4: ~17)_
+_Total Tests: 147 (88 unit + 36 integration + 17 E2E + 6 a11y)_

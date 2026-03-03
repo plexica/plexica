@@ -3,41 +3,49 @@
 > Granular task breakdown for implementing error boundaries, tenant theming, widget system, test coverage, and accessibility.
 
 **Spec:** 010-frontend-production-readiness  
-**Date:** 2026-02-17  
-**Status:** In Progress — Phase 1 & 2 Complete  
-**Total Estimated Effort:** 136 hours  
-**Total Story Points:** 65 points (Fibonacci scale)
+**Date:** 2026-03-02 (updated from 2026-02-17; reformatted to T010-NN sequential IDs)  
+**Status:** In Progress — Phase 1 ✅ Complete · Phase 2 Tasks 2.1–2.8 ✅ Complete · Tasks T010-09–T010-12 + Phases 3–5 Pending  
+**Total Estimated Effort:** 137 hours  
+**Total Story Points:** 66 points (Fibonacci scale)
+
+> ⚠️ **ADR Pending**: ADR-021 (Pino frontend logger) and ADR-022 (axe-core/Playwright) are written but
+> **not yet approved**. Tasks T010-04 (Pino), T010-41 (axe-core audit), T010-47 (a11y E2E) depend on
+> these ADRs being accepted before merging the relevant code.
 
 ---
 
 ## Task Summary
 
-| Phase                     | Tasks  | Hours    | Story Points | Tests          |
-| ------------------------- | ------ | -------- | ------------ | -------------- |
-| Phase 1: Error Boundaries | 6      | 17h      | 8 pts        | 11 tests       |
-| Phase 2: Tenant Theming   | 11     | 38h      | 18 pts       | 21 tests       |
-| Phase 3: Widget System    | 7      | 20h      | 10 pts       | 9 tests        |
-| Phase 4: Test Coverage    | 5      | 45h      | 21 pts       | 75+ tests      |
-| Phase 5: Accessibility    | 6      | 16h      | 8 pts        | 5 tests        |
-| **Total**                 | **35** | **136h** | **65 pts**   | **121+ tests** |
+| ID Range   | Phase                     | Tasks  | Hours    | Story Points | Tests          | Status         |
+| ---------- | ------------------------- | ------ | -------- | ------------ | -------------- | -------------- |
+| T010-01–06 | Phase 1: Error Boundaries | 6      | 17h      | 8 pts        | 11 tests       | ✅ Complete    |
+| T010-07–18 | Phase 2: Tenant Theming   | 12     | 39h      | 19 pts       | 22 tests       | 🔄 In Progress |
+| T010-19–25 | Phase 3: Widget System    | 7      | 20h      | 10 pts       | 9 tests        | ⏳ Pending     |
+| T010-26–30 | Phase 4: Test Coverage    | 5      | 45h      | 21 pts       | 75+ tests      | ⏳ Pending     |
+| T010-31–36 | Phase 5: Accessibility    | 6      | 16h      | 8 pts        | 5 tests        | ⏳ Pending     |
+| **—**      | **Total**                 | **36** | **137h** | **66 pts**   | **122+ tests** | —              |
+
+> **Phase 2 detail**: Tasks T010-07–T010-14 (core theming) ✅ done. T010-15–T010-18 (ADR-020 font
+> loading + contrast warning) ⏳ pending.
 
 ---
 
-## Phase 1: Error Boundaries (Sprint 4 Week 1)
+## Phase 1: Error Boundaries (Sprint 4 Week 1) ✅ COMPLETE
 
-**Goal:** Prevent plugin errors from crashing shell application  
+**Goal:** Prevent plugin errors from crashing the shell application  
 **Estimated Effort:** 17 hours  
 **Story Points:** 8 points  
 **Priority:** CRITICAL (blocks production deployment)
 
-### Task 1.1: Create PluginErrorBoundary Component
+---
+
+### T010-01: Create PluginErrorBoundary Component ✅
+
+**FR:** FR-016, FR-017 | **Design-spec:** Screen 2, Component 1  
+**Size:** `[L]` 3 pts | **Time:** 4h | **Priority:** P0 Critical  
+**Parallel:** No (foundation for T010-02, T010-03)
 
 **Description:** Implement React error boundary class component to catch plugin errors.
-
-**Estimated Time:** 4 hours  
-**Story Points:** 3  
-**Assignee:** Frontend Lead  
-**Priority:** P0 - Critical
 
 **Acceptance Criteria:**
 
@@ -49,43 +57,29 @@
 - [x] `componentDidCatch()` logs error context
 - [x] `resetError()` method clears error state
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/components/ErrorBoundary/PluginErrorBoundary.tsx`
-- Extends `React.Component<PluginErrorBoundaryProps, ErrorBoundaryState>`
-- Props: `pluginId`, `pluginName`, `children`, `fallback?`
-- State: `hasError`, `error`, `errorInfo`
-- Methods: `getDerivedStateFromError()`, `componentDidCatch()`, `resetError()`, `render()`
+- `apps/web/src/components/ErrorBoundary/PluginErrorBoundary.tsx`
 
 **Technical Notes:**
 
-- Use `React.Component` (not function component - error boundaries must be class components)
-- Log error context with Pino logger (pluginId, tenantSlug, userId, timestamp, stack trace)
-- Support custom fallback component via props
-- Default to `PluginErrorFallback` if no custom fallback
+- Use `React.Component` (class component — error boundaries cannot be function components)
+- Log error context with Pino logger: `pluginId`, `tenantSlug`, `userId`, `timestamp`, `stack`
+- Support custom fallback component via props; default to `PluginErrorFallback`
 
-**Dependencies:**
+**Dependencies:** T010-04 (Pino logger), AuthContext
 
-- Pino logger (Task 1.4)
-- AuthContext for tenant/user context
-
-**Test Coverage:**
-
-- Unit test: Catches component render errors (2 tests)
-- Unit test: Catches async errors (1 test)
-- Unit test: Logs error context (1 test)
-- Unit test: Reset error on retry (1 test)
+**Tests:** 5 unit tests (render error, async error, state update, log context, retry reset)
 
 ---
 
-### Task 1.2: Create PluginErrorFallback UI Component
+### T010-02: Create PluginErrorFallback UI Component ✅
+
+**FR:** FR-016 | **Design-spec:** Screen 2, Component 2  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P0 Critical  
+**Parallel:** `[P]` (with T010-04)
 
 **Description:** Design and implement user-friendly error fallback UI.
-
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P0 - Critical
 
 **Acceptance Criteria:**
 
@@ -93,18 +87,14 @@
 - [x] Shows plugin name in error message
 - [x] Shows user-friendly error description (no stack trace)
 - [x] Shows error message in gray box with monospace font
-- [x] Provides "Retry" button (primary CTA)
-- [x] Provides "Go Back" button (secondary CTA)
+- [x] Provides "Retry" button (primary CTA) that calls `onRetry`
+- [x] Provides "Go Back" button (secondary CTA) using `useNavigate()`
 - [x] Responsive layout (mobile + desktop)
-- [ ] Supports i18n (uses `useTranslations` hook)
+- [ ] Supports i18n via `useTranslations` hook _(deferred — minor, non-blocking)_
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/components/ErrorBoundary/PluginErrorFallback.tsx`
-- Props: `pluginName`, `error`, `onRetry`
-- Uses TailwindCSS for styling
-- Uses `react-intl` for i18n
-- Uses `useNavigate()` for "Go Back" button
+- `apps/web/src/components/ErrorBoundary/PluginErrorFallback.tsx`
 
 **Design Mockup:**
 
@@ -121,59 +111,39 @@
 └─────────────────────────────────────────┘
 ```
 
-**Technical Notes:**
+**Dependencies:** `@plexica/ui` Button, `react-intl`, TanStack Router `useNavigate`
 
-- Center card layout with max-width 500px
-- Use `bg-surface`, `text-text`, `text-warning` theme colors
-- Error message in `bg-error-light text-error-dark` box
-- Buttons use `btn-primary` and `btn-secondary` classes
-
-**Dependencies:**
-
-- `@plexica/ui` Button component
-- `react-intl` for translations
-- TanStack Router `useNavigate` hook
-
-**Test Coverage:**
-
-- Unit test: Renders with plugin name (1 test)
-- Unit test: Calls onRetry when button clicked (1 test)
-- Unit test: Navigates back when "Go Back" clicked (1 test)
+**Tests:** 3 unit tests (renders plugin name, calls onRetry, navigates back)
 
 ---
 
-### Task 1.3: Integrate Error Boundary in Plugin Routes
+### T010-03: Integrate Error Boundary in Plugin Routes ✅
+
+**FR:** FR-016, FR-017 | **Design-spec:** Screen 2  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P0 Critical  
+**Parallel:** No (requires T010-01)
 
 **Description:** Wrap all plugin routes with `PluginErrorBoundary`.
-
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P0 - Critical
 
 **Acceptance Criteria:**
 
 - [x] `PluginErrorBoundary` wraps plugin component in `plugins.$pluginId.tsx` route
 - [x] `pluginId` and `pluginName` passed as props
-- [x] Error boundary wraps Suspense (not inside Suspense)
+- [x] Error boundary wraps Suspense (error boundary is the outer wrapper)
 - [x] Plugin metadata fetched from `usePlugin()` hook
 - [x] All existing plugin routes updated
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/routes/plugins.$pluginId.tsx`
-- Import `PluginErrorBoundary` from `@/components/ErrorBoundary/PluginErrorBoundary`
-- Fetch plugin metadata with `usePlugin(pluginId)` hook
-- Wrap `<Suspense><PluginComponent /></Suspense>` with error boundary
+- `apps/web/src/routes/plugins.$pluginId.tsx`
 
-**Code Example:**
+**Code Pattern:**
 
 ```typescript
 function PluginRoute() {
   const { pluginId } = Route.useParams();
   const plugin = usePlugin(pluginId);
   const PluginComponent = React.lazy(() => import(/* @vite-ignore */ pluginId));
-
   return (
     <PluginErrorBoundary pluginId={pluginId} pluginName={plugin?.name}>
       <Suspense fallback={<PluginLoadingSkeleton />}>
@@ -184,1938 +154,1021 @@ function PluginRoute() {
 }
 ```
 
-**Technical Notes:**
+**Dependencies:** T010-01 (PluginErrorBoundary), `usePlugin()` hook
 
-- Error boundary MUST wrap Suspense (not be wrapped by Suspense)
-- If plugin metadata not available, use `pluginId` as fallback name
-
-**Dependencies:**
-
-- Task 1.1 (PluginErrorBoundary component)
-- `usePlugin()` hook from plugin service
-
-**Test Coverage:**
-
-- Integration test: Plugin load error triggers boundary (1 test)
-- Integration test: Plugin render error triggers boundary (1 test)
+**Tests:** 2 integration tests (load error triggers boundary, render error triggers boundary)
 
 ---
 
-### Task 1.4: Add Pino Logger for Error Context
+### T010-04: Add Pino Logger for Error Context ✅
+
+**FR:** FR-017 | **ADR:** ADR-021 (⚠️ pending approval)  
+**Size:** `[S]` 1 pt | **Time:** 1h | **Priority:** P1 High  
+**Parallel:** `[P]` (independent foundation task)
+
+> ⚠️ **ADR-021 pending approval.** This task's dependency (`pino` npm package) must not
+> be merged to main until ADR-021 is accepted.
 
 **Description:** Configure Pino logger for structured frontend error logging.
 
-**Estimated Time:** 1 hour  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
-
 **Acceptance Criteria:**
 
-- [x] Pino logger configured with browser transport
-- [x] Logger exports `logger.error()`, `logger.warn()`, `logger.info()` methods
-- [x] Error logs include context: `pluginId`, `tenantSlug`, `userId`, `timestamp`, `stack`
-- [x] Log level configurable via environment variable `VITE_LOG_LEVEL`
-- [x] Pretty-print enabled in development, JSON in production
+- [x] Pino logger configured with browser transport (`asObject: true`)
+- [x] Logger exports `logger.error()`, `logger.warn()`, `logger.info()`
+- [x] Error logs include: `pluginId`, `tenantSlug`, `userId`, `timestamp`, `stack`
+- [x] Log level configurable via `VITE_LOG_LEVEL` env var
+- [x] Pretty-print in development, JSON in production
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/lib/logger.ts`
-- Install `pino` and `pino-pretty` (devDependency)
-- Use `pino` with browser-compatible config
-- Export singleton `logger` instance
+- `apps/web/src/lib/logger.ts`
+- `apps/web/package.json` (add `pino` dependency)
 
-**Code Example:**
+**Dependencies:** None (foundation)
 
-```typescript
-import pino from 'pino';
-
-const isDevelopment = import.meta.env.MODE === 'development';
-
-export const logger = pino({
-  level: import.meta.env.VITE_LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
-  browser: {
-    asObject: true,
-    serialize: true,
-  },
-  formatters: {
-    level: (label) => ({ level: label }),
-  },
-});
-```
-
-**Technical Notes:**
-
-- Pino browser mode uses `console.*` methods under the hood
-- Structured logging requires `asObject: true`
-- Future enhancement: Send logs to backend via POST `/api/v1/logs/frontend` (out of scope for Phase 1)
-
-**Dependencies:**
-
-- `pino` package (add to `apps/web/package.json`)
-
-**Test Coverage:**
-
-- Unit test: Logger exports correct methods (1 test)
-- Unit test: Logger formats context correctly (1 test)
+**Tests:** 2 unit tests (exports correct methods, formats context correctly)
 
 ---
 
-### Task 1.5: Write Unit Tests for Error Boundary
+### T010-05: Write Unit Tests for Error Boundary ✅
 
-**Description:** Comprehensive unit tests for `PluginErrorBoundary` component.
+**FR:** FR-016, FR-017 | **Size:** `[M]` 2 pts | **Time:** 6h | **Priority:** P1 High  
+**Parallel:** No (requires T010-01, T010-02, T010-04)
 
-**Estimated Time:** 6 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Comprehensive unit tests for `PluginErrorBoundary` and `PluginErrorFallback`.
 
 **Acceptance Criteria:**
 
-- [x] Test: Component catches render errors ✅
-- [x] Test: Component catches async errors (useEffect) ✅
-- [x] Test: Error state updated correctly ✅
-- [x] Test: Error context logged with Pino ✅
-- [x] Test: Fallback UI rendered on error ✅
-- [x] Test: Custom fallback component supported ✅
-- [x] Test: Reset error on retry ✅
-- [x] Test: Children rendered when no error ✅
+- [x] Test: Component catches render errors
+- [x] Test: Component catches async errors (useEffect)
+- [x] Test: Error state updated correctly
+- [x] Test: Error context logged with Pino
+- [x] Test: Fallback UI rendered on error
+- [x] Test: Custom fallback component supported
+- [x] Test: Reset error on retry
+- [x] Test: Children rendered when no error
 - [x] Coverage: ≥90% for PluginErrorBoundary
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/components/ErrorBoundary/PluginErrorBoundary.test.tsx`
-- Use `@testing-library/react` for rendering
-- Use `@testing-library/user-event` for interactions
-- Mock Pino logger with `vi.mock()`
-- Create helper components that throw errors for testing
+- `apps/web/src/components/ErrorBoundary/PluginErrorBoundary.test.tsx`
+- `apps/web/src/components/ErrorBoundary/PluginErrorFallback.test.tsx`
 
-**Test Cases:**
+**Dependencies:** T010-01, T010-02, T010-04
 
-1. Catches component render error → Displays fallback
-2. Catches async error (useEffect) → Displays fallback
-3. Logs error context to Pino → Verify logger.error() called with context
-4. Custom fallback component → Renders custom fallback instead of default
-5. Reset error on retry → Error state cleared, children re-rendered
-6. No error → Children rendered normally
-7. Multiple errors → Each error caught independently
-8. Error info includes component stack → Verify errorInfo.componentStack
-
-**Technical Notes:**
-
-- Use `jest.spyOn(console, 'error')` to suppress React error boundary console logs in tests
-- Create reusable `ThrowError` component for testing
-
-**Dependencies:**
-
-- Task 1.1 (PluginErrorBoundary component)
-- Task 1.2 (PluginErrorFallback component)
-- Task 1.4 (Pino logger)
-
-**Test Coverage Target:** ≥90% (lines, branches, functions)
+**Tests:** 8 unit tests (see ACs above)
 
 ---
 
-### Task 1.6: Write Integration Tests for Plugin Error Scenarios
+### T010-06: Write Integration Tests for Plugin Error Scenarios ✅
 
-**Description:** Integration tests for plugin loading errors with real Module Federation scenarios.
+**FR:** FR-016, FR-017 | **Size:** `[S]` 1 pt (was erroneously 0 in old table) | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** No (requires T010-03, T010-05)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Integration tests verifying end-to-end plugin error containment.
 
 **Acceptance Criteria:**
 
-- [x] Test: Plugin remote entry unreachable (network error) → Error boundary shown
-- [x] Test: Plugin remote returns invalid JS → Error boundary shown
-- [x] Test: Plugin component throws on mount → Error boundary shown
-- [x] Test: Shell continues to work after plugin error → Verify header/sidebar visible
+- [x] Test: Plugin route with network error shows error boundary
+- [x] Test: Plugin route with render error shows error boundary
+- [x] Test: Retry button reloads plugin
+- [x] Test: Multiple plugins isolated (one error doesn't affect others)
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/components/ErrorBoundary/PluginErrorBoundary.integration.test.tsx`
-- Use MSW (Mock Service Worker) to simulate network errors
-- Mock Module Federation imports with dynamic import failures
+- `apps/web/src/__tests__/error-boundary.integration.test.tsx`
 
-**Test Cases:**
+**Dependencies:** T010-03, T010-05
 
-1. Network error (fetch 404) → Error boundary displays "Plugin unavailable"
-2. Invalid JavaScript (syntax error) → Error boundary catches and displays fallback
-3. Plugin component crashes on mount → Error boundary isolates error, shell works
-
-**Technical Notes:**
-
-- Mock `import(/* @vite-ignore */ 'plugin-name')` to throw errors
-- Verify rest of shell (header, sidebar) remains functional after error
-
-**Dependencies:**
-
-- Task 1.1 (PluginErrorBoundary)
-- Task 1.3 (Plugin route integration)
-
-**Test Coverage Target:** Edge cases and integration scenarios
+**Tests:** 4 integration tests
 
 ---
 
-## Phase 2: Tenant Theming (Sprint 4 Week 2-3)
+## Phase 2: Tenant Theming (Sprint 4 Week 2–3) 🔄 IN PROGRESS
 
-**Goal:** Enable tenant-specific branding (logo, colors, fonts)  
-**Estimated Effort:** 38 hours  
-**Story Points:** 18 points  
-**Priority:** HIGH (required for white-label multi-tenancy)
+**Goal:** Apply tenant-specific branding (logo, colors, fonts) across the shell  
+**Estimated Effort:** 39 hours  
+**Story Points:** 19 points  
+**Priority:** HIGH
 
-### Task 2.1: Create ThemeContext and ThemeProvider
-
-**Description:** React context for managing tenant theme state.
-
-**Estimated Time:** 6 hours  
-**Story Points:** 3  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
-
-**Acceptance Criteria:**
-
-- [x] `ThemeContext` created with `createContext()`
-- [x] `ThemeProvider` component wraps app in `main.tsx`
-- [x] Theme state includes: `theme`, `isLoading`, `error`, `refreshTheme()`
-- [x] Default theme applied on mount
-- [x] Theme stored in context, accessible via `useTheme()` hook
-- [x] Theme persists across route changes
-
-**Implementation Details:**
-
-- File: `apps/web/src/contexts/ThemeContext.tsx`
-- Export `ThemeContext`, `ThemeProvider`, `useTheme` hook
-- State shape: `{ theme: TenantTheme, isLoading: boolean, error: Error | null }`
-- Default theme matches current Plexica branding
-
-**Default Theme:**
-
-```typescript
-const defaultTheme: TenantTheme = {
-  colors: {
-    primary: '#1976d2',
-    secondary: '#dc004e',
-    background: '#ffffff',
-    surface: '#f5f5f5',
-    text: '#212121',
-    textSecondary: '#757575',
-    error: '#f44336',
-    success: '#4caf50',
-    warning: '#ff9800',
-  },
-  fonts: {
-    heading: 'Inter',
-    body: 'Roboto',
-    mono: 'Fira Code',
-  },
-};
-```
-
-**Technical Notes:**
-
-- Use `useState` for theme state
-- Use `useEffect` to apply theme on mount
-- Provide `refreshTheme()` method to refetch from API
-
-**Dependencies:**
-
-- AuthContext (to get tenant slug)
-
-**Test Coverage:**
-
-- Unit test: Default theme applied on mount (1 test)
-- Unit test: useTheme hook returns theme context (1 test)
-- Unit test: ThemeProvider renders children (1 test)
+> **Status**: T010-07–T010-14 ✅ complete. T010-15–T010-18 ⏳ pending.
 
 ---
 
-### Task 2.2: Implement Theme Fetching from API
+### T010-07: Create ThemeContext and ThemeProvider ✅
 
-**Description:** Fetch tenant theme from `/api/v1/tenant/settings` on login.
+**FR:** FR-018, FR-019 | **Design-spec:** Screen 3, Component 3  
+**Size:** `[L]` 3 pts | **Time:** 4h | **Priority:** P0 Critical  
+**Parallel:** `[P]` (independent of error boundary work)
 
-**Estimated Time:** 3 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Implement React context for tenant theme state management.
 
 **Acceptance Criteria:**
 
-- [x] Theme fetched via `GET /api/v1/tenant/settings` on ThemeProvider mount
-- [x] API call triggered when tenant context available (not before login)
-- [x] Theme extracted from `response.data.settings.theme`
-- [x] Fetch errors handled gracefully (log warning, use default theme)
-- [x] Loading state set during fetch
-- [x] API client uses authenticated axios instance
+- [x] `ThemeProvider` wraps App in `main.tsx`
+- [x] `useTheme()` hook returns `{ theme, isLoading, error, refreshTheme }`
+- [x] Theme fetched from `GET /api/v1/tenants/:id/theme` on login
+- [x] `ThemeProvider` does not fetch before authentication
+- [x] Theme type covers `colors`, `logo`, `fonts` fields
+- [x] Default theme exported as `DEFAULT_THEME` constant
 
-**Implementation Details:**
+**Files:**
 
-- In `ThemeProvider` component: `useEffect(() => { fetchTheme() }, [tenant?.slug])`
-- Use `apiClient.get('/api/v1/tenant/settings')` from `@plexica/api-client`
-- Set `isLoading: true` before fetch, `false` after
-- On success: `setTheme(validatedTheme)`
-- On error: Log warning, use default theme
+- `apps/web/src/contexts/ThemeContext.tsx`
+- `apps/web/src/hooks/useTheme.ts`
 
-**API Response Format:**
+**Dependencies:** AuthContext (for tenant ID + auth token)
 
-```json
-{
-  "tenantId": "acme-corp",
-  "settings": {
-    "theme": {
-      "logo": "https://storage.plexica.io/acme-corp/logo.png",
-      "colors": { "primary": "#FF5733", ... },
-      "fonts": { "heading": "Arial", ... }
-    }
-  }
-}
-```
-
-**Technical Notes:**
-
-- Don't fetch theme if user not logged in (`tenant` is null)
-- Theme fetch should not block app rendering (loading state in background)
-
-**Dependencies:**
-
-- Task 2.1 (ThemeContext)
-- `@plexica/api-client` authenticated axios instance
-- AuthContext for tenant slug
-
-**Test Coverage:**
-
-- Integration test: Successful fetch applies theme (1 test)
-- Integration test: Fetch error uses default theme (1 test)
-- Integration test: No fetch before login (1 test)
+**Tests:** Covered by T010-13
 
 ---
 
-### Task 2.3: Implement Theme Validation and Fallback Logic
+### T010-08: Implement Theme Fetching from API ✅
 
-**Description:** Validate theme data from API; fallback to defaults for invalid values.
+**FR:** FR-018 | **Design-spec:** Screen 3  
+**Size:** `[M]` 2 pts | **Time:** 3h | **Priority:** P0 Critical  
+**Parallel:** No (requires T010-07)
 
-**Estimated Time:** 3 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Fetch tenant theme from backend API with error handling and fallback.
 
 **Acceptance Criteria:**
 
-- [x] Color values validated as hex format (`#RRGGBB` or `#RGB`)
-- [x] Invalid colors replaced with default theme colors
-- [x] Font families validated against `FONT_CATALOG` from `packages/shared-types/src/fonts.ts` (ADR-020)
-- [x] Unknown font IDs fall back to default theme font (not arbitrary strings)
-- [x] Logo URL validated (HTTPS URL or empty)
-- [x] Validation warnings logged to console
-- [x] Partial themes merged with defaults (not rejected entirely)
+- [x] Fetches `GET /api/v1/tenants/:id/theme` with auth token
+- [x] 200 response applies theme
+- [x] 404 response falls back to `DEFAULT_THEME`
+- [x] 5xx response falls back to `DEFAULT_THEME` with `logger.warn`
+- [x] Network error falls back to `DEFAULT_THEME` with `logger.error`
+- [x] Loading state shown during fetch
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/lib/theme-utils.ts`
-- Export `validateTheme(theme: Partial<TenantTheme>): TenantTheme`
-- Export `isValidHexColor(color: string): boolean`
-- Export `applyTheme(theme: TenantTheme): void` (next task)
+- `apps/web/src/contexts/ThemeContext.tsx` (fetch logic)
 
-**Validation Rules:**
+**Dependencies:** T010-07, T010-04 (logger), `@plexica/api-client`
 
-```typescript
-function validateTheme(theme: Partial<TenantTheme>): TenantTheme {
-  const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-
-  const validatedColors: Record<string, string> = {};
-  for (const [key, value] of Object.entries(theme.colors || {})) {
-    if (typeof value === 'string' && hexColorRegex.test(value)) {
-      validatedColors[key] = value;
-    } else {
-      logger.warn({ key, value }, `Invalid color format: ${key}`);
-      validatedColors[key] = defaultTheme.colors[key];
-    }
-  }
-
-  return {
-    logo: theme.logo,
-    colors: { ...defaultTheme.colors, ...validatedColors },
-    fonts: { ...defaultTheme.fonts, ...theme.fonts },
-  };
-}
-```
-
-**Technical Notes:**
-
-- Validation should be lenient (don't reject entire theme for one bad value)
-- Merge validated values with defaults
-- Log warnings for invalid values (helps tenant admins debug)
-
-**Dependencies:**
-
-- Task 2.1 (ThemeContext with default theme)
-- Pino logger (Task 1.4)
-
-**Test Coverage:**
-
-- Unit test: Valid hex colors pass validation (2 tests)
-- Unit test: Invalid colors fallback to defaults (2 tests)
-- Unit test: Partial theme merged with defaults (2 tests)
-- Unit test: Warnings logged for invalid values (1 test)
+**Tests:** Covered by T010-14
 
 ---
 
-### Task 2.4: Apply Theme via CSS Custom Properties
+### T010-09: Implement Theme Validation and Fallback Logic ✅
 
-**Description:** Apply validated theme to DOM via CSS custom properties.
+**FR:** FR-019, FR-020 | **Design-spec:** §4a  
+**Size:** `[M]` 2 pts | **Time:** 3h | **Priority:** P1 High  
+**Parallel:** No (requires T010-07)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Validate theme colors (hex format), fonts, and logo URL; merge with defaults.
 
 **Acceptance Criteria:**
 
-- [x] Theme colors applied as CSS variables on `:root` (document.documentElement)
-- [x] CSS variables: `--color-primary`, `--color-secondary`, `--color-background`, etc.
-- [x] Font families applied: `--font-heading`, `--font-body`, `--font-mono`
-- [x] Fonts loaded via FontFace API from self-hosted WOFF2 files (ADR-020; see Task 2.9)
-- [x] Theme applied on ThemeProvider mount
-- [x] Theme re-applied when theme changes (on refresh or update)
-- [x] No flash of unstyled content (FOUC)
+- [x] Hex color validation: rejects non-`#RRGGBB` values, falls back to default
+- [x] Font family validated against `FONT_CATALOG` from `@plexica/shared-types/fonts` (ADR-020)
+- [x] Logo URL validated (must be HTTPS or relative path)
+- [x] Invalid fields replaced with defaults (not full theme rejection)
+- [x] Validation errors logged at `warn` level with field name
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/lib/theme-utils.ts`
-- Export `applyTheme(theme: TenantTheme): void`
-- Set CSS custom properties on `document.documentElement.style`
+- `apps/web/src/lib/theme-utils.ts`
 
-**Code Example:**
+**Dependencies:** T010-15 (FONT_CATALOG — needed for font validation), T010-04 (logger)
 
-```typescript
-export function applyTheme(theme: TenantTheme) {
-  const root = document.documentElement;
+> **Note**: T010-09 depends on T010-15 for FONT_CATALOG. If implementing in order, stub
+> the font validation with an empty allowlist and fill in once T010-15 is done.
 
-  // Apply colors
-  root.style.setProperty('--color-primary', theme.colors.primary);
-  root.style.setProperty('--color-secondary', theme.colors.secondary);
-  root.style.setProperty('--color-background', theme.colors.background);
-  root.style.setProperty('--color-surface', theme.colors.surface);
-  root.style.setProperty('--color-text', theme.colors.text);
-  root.style.setProperty('--color-text-secondary', theme.colors.textSecondary);
-  root.style.setProperty('--color-error', theme.colors.error);
-  root.style.setProperty('--color-success', theme.colors.success);
-  root.style.setProperty('--color-warning', theme.colors.warning);
-
-  // Apply font CSS custom properties (font-face loading handled by loadTenantFonts — ADR-020)
-  root.style.setProperty('--font-heading', theme.fonts.heading);
-  root.style.setProperty('--font-body', theme.fonts.body);
-  root.style.setProperty('--font-mono', theme.fonts.mono);
-
-  // Load WOFF2 font files via FontFace API (ADR-020 — never Google Fonts CDN)
-  loadTenantFonts(theme.fonts).catch((err) =>
-    logger.warn({ err }, 'Font loading failed; CSS custom properties still applied')
-  );
-}
-```
-
-**Technical Notes:**
-
-- Call `applyTheme()` in `ThemeProvider` after fetching and validating theme
-- Default theme applied before API fetch completes (prevent FOUC)
-
-**Dependencies:**
-
-- Task 2.3 (theme validation)
-
-**Test Coverage:**
-
-- Unit test: CSS variables set on :root (1 test)
-- Unit test: Theme re-applied on change (1 test)
+**Tests:** Covered by T010-13
 
 ---
 
-### Task 2.5: Update TailwindCSS Config for Theme Tokens
+### T010-10: Apply Theme via CSS Custom Properties ✅
 
-**Description:** Configure TailwindCSS to use CSS custom properties from theme.
+**FR:** FR-018, FR-019 | **Design-spec:** Screen 3, §4  
+**Size:** `[M]` 2 pts | **Time:** 3h | **Priority:** P0 Critical  
+**Parallel:** No (requires T010-07, T010-09)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Write validated theme values to CSS custom properties on `:root`.
 
 **Acceptance Criteria:**
 
-- [x] TailwindCSS config extended with theme color tokens
-- [x] Colors mapped to CSS variables: `primary`, `secondary`, `background`, `surface`, `text`, etc.
-- [x] Font families mapped: `heading`, `body`, `mono`
-- [x] Components can use `bg-primary`, `text-primary`, `font-heading` classes
-- [x] Theme changes reflected in TailwindCSS utilities
+- [x] `applyTheme(theme)` sets `--color-primary`, `--color-secondary`, `--color-background`, `--color-surface`, `--color-text`, `--color-text-muted`, `--color-error`, `--color-warning`, `--color-success` on `:root`
+- [x] `--font-heading` and `--font-body` CSS properties set
+- [x] `--logo-url` CSS property set (used in Header)
+- [x] Called by `ThemeProvider` after each theme fetch
+- [x] Default theme applied synchronously before first paint
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/tailwind.config.ts`
-- Extend `theme.colors` and `theme.fontFamily` with CSS variable references
+- `apps/web/src/lib/theme-utils.ts` (`applyTheme` function)
 
-**Code Example:**
+**Dependencies:** T010-07, T010-09
 
-```typescript
-import type { Config } from 'tailwindcss';
-
-export default {
-  content: ['./src/**/*.{js,ts,jsx,tsx}'],
-  theme: {
-    extend: {
-      colors: {
-        primary: 'var(--color-primary)',
-        secondary: 'var(--color-secondary)',
-        background: 'var(--color-background)',
-        surface: 'var(--color-surface)',
-        text: 'var(--color-text)',
-        'text-secondary': 'var(--color-text-secondary)',
-        error: 'var(--color-error)',
-        success: 'var(--color-success)',
-        warning: 'var(--color-warning)',
-      },
-      fontFamily: {
-        heading: 'var(--font-heading)',
-        body: 'var(--font-body)',
-        mono: 'var(--font-mono)',
-      },
-    },
-  },
-  plugins: [],
-} satisfies Config;
-```
-
-**Technical Notes:**
-
-- Tailwind will generate classes like `bg-primary`, `text-primary`, `font-heading`
-- CSS variables resolved at runtime (theme can change without rebuilding CSS)
-
-**Dependencies:**
-
-- Task 2.4 (CSS custom properties applied)
-
-**Test Coverage:**
-
-- Manual test: Verify TailwindCSS classes use theme colors
+**Tests:** Covered by T010-13
 
 ---
 
-### Task 2.6: Integrate Tenant Logo in Header Component
+### T010-11: Update TailwindCSS Config for Theme Tokens ✅
 
-**Description:** Display tenant logo in shell header; fallback to default Plexica logo.
+**FR:** FR-018 | **Design-spec:** §4 (design token table)  
+**Size:** `[M]` 2 pts | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** `[P]` (can run in parallel with T010-07–T010-10)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Map CSS custom properties to Tailwind theme token names.
 
 **Acceptance Criteria:**
 
-- [x] Tenant logo displayed in header left corner
-- [x] Logo clickable, navigates to `/` (home)
-- [x] Logo max height: 40px (desktop), 32px (mobile)
-- [x] Fallback to default Plexica logo if no tenant logo
-- [x] Fallback to default logo if tenant logo URL returns 404
-- [x] Logo loads from `theme.logo` via `useTheme()` hook
+- [x] `tailwind.config.ts` extends `colors` with `primary`, `secondary`, `background`, `surface`, `text`, `error`, `warning`, `success` mapped to CSS vars
+- [x] `tailwind.config.ts` extends `fontFamily` with `heading` and `body` mapped to CSS vars
+- [x] All existing component classes continue to work
+- [x] No hardcoded color values remain in components that should use theme tokens
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/components/Layout/Header.tsx`
-- Import `useTheme()` hook
-- Render `<img src={theme.logo || '/plexica-logo.svg'} />`
-- Add `onError` handler to fallback to default logo
+- `apps/web/tailwind.config.ts`
 
-**Code Example:**
+**Dependencies:** T010-10 (CSS var names must match)
 
-```tsx
-import { useTheme } from '@/hooks/useTheme';
-import { useNavigate } from '@tanstack/react-router';
-
-export function Header() {
-  const { theme } = useTheme();
-  const navigate = useNavigate();
-
-  return (
-    <header className="bg-surface border-b border-gray-200 px-4 py-3">
-      <div className="flex items-center justify-between">
-        <button onClick={() => navigate({ to: '/' })} className="focus:outline-none">
-          <img
-            src={theme.logo || '/plexica-logo.svg'}
-            alt="Logo"
-            className="h-10 md:h-12 max-w-[200px] object-contain"
-            onError={(e) => {
-              e.currentTarget.src = '/plexica-logo.svg';
-            }}
-          />
-        </button>
-
-        {/* Rest of header: nav, user menu, etc. */}
-      </div>
-    </header>
-  );
-}
-```
-
-**Technical Notes:**
-
-- Use `object-contain` to prevent logo distortion
-- Max width 200px to prevent oversized logos
-- `onError` handler prevents broken image icon
-
-**Dependencies:**
-
-- Task 2.1 (ThemeContext)
-- Task 2.2 (theme fetching)
-
-**Test Coverage:**
-
-- Unit test: Displays tenant logo when available (1 test)
-- Unit test: Displays default logo when no tenant logo (1 test)
-- Unit test: Fallback to default on image error (1 test)
+**Tests:** Snapshot test (Covered by T010-13)
 
 ---
 
-### Task 2.7: Write Unit Tests for Theme Context
+### T010-12: Integrate Tenant Logo in Header Component ✅
 
-**Description:** Comprehensive unit tests for ThemeContext and ThemeProvider.
+**FR:** FR-021 | **Design-spec:** Screen 3, Component 4  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** No (requires T010-07, T010-10)
 
-**Estimated Time:** 6 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Display tenant logo in application header; fallback to text/default logo.
 
 **Acceptance Criteria:**
 
-- [x] Test: Default theme applied on mount ✅
-- [x] Test: useTheme hook returns theme context ✅
-- [x] Test: Theme validation rejects invalid colors ✅
-- [x] Test: Theme validation merges with defaults ✅
-- [x] Test: applyTheme sets CSS custom properties ✅
-- [x] Test: Theme persists across re-renders ✅
-- [x] Test: refreshTheme refetches from API ✅
-- [x] Coverage: ≥90% for ThemeContext
+- [x] Logo rendered via `<img>` with `src` from `theme.logo.url`
+- [x] Alt text set to `theme.logo.alt` or tenant name
+- [x] Falls back to text logo (tenant name initials) when URL is null/empty
+- [x] Falls back to Plexica default logo when no tenant theme
+- [x] Logo `height` constrained to 32px; `width: auto`
+- [x] `aria-label="[TenantName] logo"` on `<img>`
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/contexts/ThemeContext.test.tsx`
-- Use `@testing-library/react` `renderHook` for testing hooks
-- Mock `apiClient.get()` with MSW or vi.mock
-- Mock `document.documentElement.style.setProperty` to verify CSS variables
+- `apps/web/src/components/Layout/Header.tsx`
 
-**Test Cases:**
+**Dependencies:** T010-07 (`useTheme` hook)
 
-1. Default theme applied on mount → Verify CSS variables set
-2. useTheme hook returns theme → Verify theme object structure
-3. Invalid colors rejected → Verify defaults used + warning logged
-4. Partial theme merged → Verify missing colors use defaults
-5. applyTheme sets CSS properties → Verify setProperty calls
-6. Theme persists across re-renders → Verify state not reset
-7. refreshTheme refetches → Verify API called again
-8. Theme fetch error → Verify default theme used + error in context
-
-**Technical Notes:**
-
-- Mock `document.documentElement.style.setProperty` with `vi.spyOn()`
-- Verify `logger.warn()` called for invalid theme values
-
-**Dependencies:**
-
-- Task 2.1 (ThemeContext)
-- Task 2.2 (theme fetching)
-- Task 2.3 (theme validation)
-
-**Test Coverage Target:** ≥90%
+**Tests:** 3 unit tests (renders logo, fallback to initials, fallback to default)
 
 ---
 
-### Task 2.8: Write Integration Tests for Theme API
+### T010-13: Write Unit Tests for Theme Context ✅
 
-**Description:** Integration tests for theme fetching and application with real API mocks.
+**FR:** FR-018–FR-021 | **Size:** `[M]` 2 pts | **Time:** 8h | **Priority:** P1 High  
+**Parallel:** No (requires T010-07–T010-12)
 
-**Estimated Time:** 4 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Unit tests for ThemeContext, useTheme hook, theme-utils functions.
 
 **Acceptance Criteria:**
 
-- [x] Test: Successful API fetch applies theme ✅
-- [x] Test: API 404 falls back to default theme ✅
-- [x] Test: API 500 falls back to default theme ✅
-- [x] Test: No fetch before login ✅
-- [x] Test: Theme refetched on tenant change ✅
+- [x] Test: Default theme applied on mount
+- [x] Test: `useTheme()` hook returns theme context
+- [x] Test: Theme validation rejects invalid colors
+- [x] Test: Theme validation merges with defaults
+- [x] Test: `applyTheme()` sets CSS custom properties
+- [x] Test: Theme persists across re-renders
+- [x] Test: `refreshTheme()` re-fetches from API
+- [x] Coverage: ≥90% for ThemeContext, useTheme, theme-utils
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/contexts/ThemeContext.integration.test.tsx`
-- Use MSW (Mock Service Worker) for API mocking
-- Render `ThemeProvider` with mocked AuthContext
-- Verify CSS custom properties set after fetch
+- `apps/web/src/contexts/ThemeContext.test.tsx`
+- `apps/web/src/hooks/useTheme.test.ts`
+- `apps/web/src/lib/theme-utils.test.ts`
 
-**Test Cases:**
+**Dependencies:** T010-07–T010-12
 
-1. Successful fetch → Theme applied, CSS variables set
-2. API 404 → Default theme, warning logged
-3. API 500 → Default theme, error logged
-4. No tenant → No fetch, default theme
-5. Tenant change → Refetch theme
-
-**Technical Notes:**
-
-- Mock `/api/v1/tenant/settings` endpoint with MSW
-- Use `waitFor()` for async fetch completion
-
-**Dependencies:**
-
-- Task 2.1 (ThemeContext)
-- Task 2.2 (theme fetching)
-- MSW setup in test utilities
-
-**Test Coverage Target:** API integration scenarios
+**Tests:** 7+ unit tests
 
 ---
 
-### Task 2.9: Define FontDefinition Type and FONT_CATALOG (ADR-020)
+### T010-14: Write Integration Tests for Theme API ✅
 
-**Description:** Create the shared font catalog that defines all self-hosted WOFF2 fonts available for tenant theming. This is the authoritative list — tenant theme font values are validated against it.
+**FR:** FR-018, FR-019 | **Size:** `[M]` 2 pts | **Time:** 5h | **Priority:** P1 High  
+**Parallel:** No (requires T010-08, T010-13)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Integration tests for theme API fetch lifecycle.
 
 **Acceptance Criteria:**
 
-- [x] `FontDefinition` interface created in `packages/shared-types/src/fonts.ts`
-- [x] `FONT_CATALOG` constant exported with ≥25 curated open-source fonts
-- [x] Each entry includes `id`, `displayName`, `woff2Url`, `weights`, `category`
-- [x] Default fonts (Inter, Roboto, Fira Code) included at top of catalog
-- [x] Font IDs are stable string literals (kebab-case, e.g. `"inter"`, `"roboto"`)
-- [x] `isFontId()` type guard exported for runtime validation
+- [x] Test: Successful API fetch applies theme
+- [x] Test: API 404 falls back to default theme
+- [x] Test: API 500 falls back to default theme
+- [x] Test: No fetch before login (unauthenticated)
+- [x] Test: Theme re-fetched on tenant change
 
-**Implementation Details:**
+**Files:**
 
-- File: `packages/shared-types/src/fonts.ts`
-- WOFF2 files served from `${CDN_BASE_URL}/fonts/{fontId}/{weight}.woff2`
-- URL template uses `VITE_STORAGE_BASE_URL` env variable
+- `apps/web/src/__tests__/theme.integration.test.tsx`
 
-**Code Skeleton:**
+**Dependencies:** T010-08, T010-13
 
-```typescript
-// packages/shared-types/src/fonts.ts
-export interface FontDefinition {
-  id: string;
-  displayName: string;
-  woff2UrlTemplate: string; // e.g. '/fonts/inter/{weight}.woff2'
-  weights: number[]; // e.g. [400, 700]
-  category: 'sans-serif' | 'serif' | 'monospace' | 'display';
-}
-
-export const FONT_CATALOG: readonly FontDefinition[] = [
-  {
-    id: 'inter',
-    displayName: 'Inter',
-    woff2UrlTemplate: '/fonts/inter/{weight}.woff2',
-    weights: [400, 500, 700],
-    category: 'sans-serif',
-  },
-  {
-    id: 'roboto',
-    displayName: 'Roboto',
-    woff2UrlTemplate: '/fonts/roboto/{weight}.woff2',
-    weights: [400, 700],
-    category: 'sans-serif',
-  },
-  {
-    id: 'fira-code',
-    displayName: 'Fira Code',
-    woff2UrlTemplate: '/fonts/fira-code/{weight}.woff2',
-    weights: [400, 700],
-    category: 'monospace',
-  },
-  // ... 22 additional fonts per ADR-020 curated list
-] as const;
-
-const FONT_IDS = new Set(FONT_CATALOG.map((f) => f.id));
-
-export function isFontId(value: unknown): value is string {
-  return typeof value === 'string' && FONT_IDS.has(value);
-}
-```
-
-**Technical Notes:**
-
-- WOFF2 files hosted in MinIO/CDN (self-hosted); never Google Fonts CDN (GDPR risk — ADR-020)
-- CSP: `font-src 'self'` (single origin)
-- Font IDs intentionally kebab-case to avoid CSS class name collisions
-
-**Dependencies:**
-
-- ADR-020 (font hosting strategy)
-
-**Test Coverage:**
-
-- Unit test: `isFontId()` returns true for valid catalog entry (1 test)
-- Unit test: `isFontId()` returns false for arbitrary string (1 test)
+**Tests:** 5 integration tests
 
 ---
 
-### Task 2.10: Implement font-loader.ts — FontFace API Loader (ADR-020)
+### T010-15: Define FontDefinition Type and FONT_CATALOG (ADR-020) ⏳
 
-**Description:** Implement a utility that loads WOFF2 font files via the FontFace API and adds them to `document.fonts`. This ensures fonts are fetched from self-hosted storage and applied before layout paint.
+**FR:** FR-019 | **ADR:** ADR-020 | **Design-spec:** Screen 4, §4  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** `[P]` (independent; blocks T010-16 and T010-09 font validation)
 
-**Estimated Time:** 4 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Create `FontDefinition` type and `FONT_CATALOG` constant in `@plexica/shared-types`. This is the shared contract for all font-related logic (validation in theme-utils, loading in font-loader, selector in admin UI).
 
 **Acceptance Criteria:**
 
-- [x] `loadTenantFonts(fonts: TenantThemeFonts): Promise<void>` implemented
-- [x] Resolves font definitions from `FONT_CATALOG` for each font slot
-- [x] Creates `FontFace` objects with self-hosted WOFF2 URL
-- [x] Calls `document.fonts.add()` and awaits `font.load()`
-- [x] Unknown font IDs skipped with warning (falls back to CSS default)
-- [x] Function is idempotent (second call with same fonts is a no-op)
-- [x] Unit-testable (FontFace constructor mockable via `vi.stubGlobal`)
+- [ ] `FontDefinition` interface exported: `{ id: string; name: string; weights: number[]; style: string }` (minimum — extend per plan.md §3.2)
+- [ ] `FONT_CATALOG` const exported with ≥25 curated open-source fonts (including Inter 400/700, Roboto 400/700 as first entries)
+- [ ] `isFontId(id: unknown): id is string` type guard exported
+- [ ] File compiles with `strict: true`
+- [ ] Package `@plexica/shared-types` re-exports from `./fonts`
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/lib/font-loader.ts`
-- Import `FONT_CATALOG`, `isFontId` from `@plexica/shared-types/fonts`
+- `packages/shared-types/src/fonts.ts` _(new file)_
+- `packages/shared-types/src/index.ts` _(add re-export)_
 
-**Code Skeleton:**
+**Dependencies:** None
 
-```typescript
-// apps/web/src/lib/font-loader.ts
-import { FONT_CATALOG, isFontId } from '@plexica/shared-types/fonts';
-import type { TenantThemeFonts } from '../types/theme.js';
-import { logger } from './logger.js';
-
-const loaded = new Set<string>();
-
-export async function loadTenantFonts(fonts: TenantThemeFonts): Promise<void> {
-  const fontIds = Object.values(fonts).filter(isFontId);
-
-  await Promise.all(
-    fontIds.map(async (fontId) => {
-      if (loaded.has(fontId)) return; // idempotent
-
-      const def = FONT_CATALOG.find((f) => f.id === fontId);
-      if (!def) {
-        logger.warn({ fontId }, 'Font not found in catalog; skipping');
-        return;
-      }
-
-      await Promise.all(
-        def.weights.map(async (weight) => {
-          const url = def.woff2UrlTemplate.replace('{weight}', String(weight));
-          const face = new FontFace(def.displayName, `url(${url}) format('woff2')`, {
-            weight: String(weight),
-          });
-          document.fonts.add(face);
-          await face.load();
-        })
-      );
-
-      loaded.add(fontId);
-    })
-  );
-}
-```
-
-**Technical Notes:**
-
-- `FontFace` API supported in all modern browsers (Chrome 35+, Firefox 41+, Safari 10+)
-- `document.fonts` is the `FontFaceSet` API — part of CSS Font Loading API
-- Idempotency set (`loaded`) lives in module scope — reset between tests with `vi.resetModules()`
-
-**Dependencies:**
-
-- Task 2.9 (FONT_CATALOG + isFontId)
-- Task 1.4 (Pino logger)
-
-**Test Coverage:**
-
-- Unit test: Loads correct WOFF2 URL for known font ID (1 test)
-- Unit test: Skips unknown font IDs with warning (1 test)
-- Unit test: Idempotent — second call does not re-add font (1 test)
-- Unit test: Calls `document.fonts.add()` with correct FontFace (1 test)
+**Tests:** 2 unit tests (`isFontId` returns true for valid font IDs, false for unknown)
 
 ---
 
-### Task 2.11: Add `<link rel="preload">` Hints for Default Fonts (ADR-020)
+### T010-16: Implement font-loader.ts — FontFace API Loader (ADR-020) ⏳
 
-**Description:** Add preload hints for the two default fonts (Inter 400, Roboto 400) to `apps/web/index.html` so they begin downloading before JavaScript executes, preventing flash of invisible text (FOIT).
+**FR:** FR-019 | **ADR:** ADR-020 | **Design-spec:** Screen 4  
+**Size:** `[M]` 2 pts | **Time:** 4h | **Priority:** P1 High  
+**Parallel:** No (requires T010-15)
 
-**Estimated Time:** 1 hour  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Implement `loadFonts(theme)` that uses the browser `FontFace` API to load WOFF2 files from MinIO/CDN and applies `--font-heading`/`--font-body` CSS custom properties. Zero Google Fonts CDN calls (ADR-020).
 
 **Acceptance Criteria:**
 
-- [x] `<link rel="preload">` added for `inter/400.woff2`
-- [x] `<link rel="preload">` added for `roboto/400.woff2`
-- [x] `as="font"` and `type="font/woff2"` attributes set correctly
-- [x] `crossorigin` attribute present (required for preload fonts)
-- [x] CSP `font-src 'self'` unaffected (same-origin URLs only)
+- [ ] `loadFonts(theme: Theme): Promise<void>` exported from `apps/web/src/lib/font-loader.ts`
+- [ ] Resolves heading and body font definitions from `FONT_CATALOG` by `theme.fonts.heading` / `theme.fonts.body`
+- [ ] Falls back to Inter (heading) and Roboto (body) for unknown font IDs
+- [ ] Each required weight (400, 700 minimum) loaded via `new FontFace(family, url, { weight })` + `document.fonts.add()`
+- [ ] CSS custom properties `--font-heading` and `--font-body` updated after fonts load
+- [ ] Already-loaded fonts not re-loaded (check `document.fonts.check()` before loading)
+- [ ] Network error on font load logs `logger.warn` but does not throw (fail-open)
+- [ ] No `@import url('https://fonts.googleapis.com/...')` anywhere in codebase
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/index.html`
-- Add inside `<head>` before other resource hints
+- `apps/web/src/lib/font-loader.ts` _(new file)_
+- `apps/web/src/lib/font-loader.test.ts` _(new file)_
 
-**Code Example:**
+**Font URL pattern:** `${VITE_CDN_BASE_URL}/fonts/${fontId}/${weight}.woff2`
 
-```html
-<!-- apps/web/index.html — inside <head> -->
-<link rel="preload" href="/fonts/inter/400.woff2" as="font" type="font/woff2" crossorigin />
-<link rel="preload" href="/fonts/roboto/400.woff2" as="font" type="font/woff2" crossorigin />
-```
+**Dependencies:** T010-15 (FONT_CATALOG + isFontId), T010-04 (logger)
 
-**Technical Notes:**
+**Tests:** 5 unit tests (loads correct weights, falls back on unknown id, deduplicates loads, handles network error gracefully, sets CSS custom properties)
 
-- Preload only default fonts (Inter + Roboto); tenant override fonts loaded on demand
-- `crossorigin` is required even for same-origin fonts when using `<link rel="preload">`
+---
 
-**Dependencies:**
+### T010-17: Add `<link rel="preload">` Hints for Default Fonts (ADR-020) ⏳
 
-- Task 2.9 (FONT_CATALOG — confirms Inter + Roboto are the defaults)
+**FR:** FR-019 | **ADR:** ADR-020  
+**Size:** `[S]` 1 pt | **Time:** 1h | **Priority:** P2 Medium  
+**Parallel:** `[P]` (independent HTML change)
 
-**Test Coverage:**
+**Description:** Add preload hints for the two default fonts (Inter 400, Roboto 400) in `apps/web/index.html` to prevent Flash of Invisible Text (FOIT) on first load.
 
-- Manual verification: DevTools Network tab shows fonts loading as "preload" priority
+**Acceptance Criteria:**
 
-**Goal:** Enable plugins to expose reusable UI components  
+- [ ] `<link rel="preload" as="font" type="font/woff2" crossorigin href="...inter-400.woff2">` added to `<head>`
+- [ ] `<link rel="preload" as="font" type="font/woff2" crossorigin href="...roboto-400.woff2">` added to `<head>`
+- [ ] `href` values reference the same CDN base URL pattern used in `font-loader.ts`
+- [ ] `crossorigin` attribute present (required for CORS font fetch)
+
+**Files:**
+
+- `apps/web/index.html`
+
+**Dependencies:** T010-15 (confirms Inter + Roboto are the catalog defaults)
+
+**Tests:** None (HTML change; verified via Lighthouse FOIT audit in T010-27)
+
+---
+
+### T010-18: Implement Frontend Contrast Warning in applyTheme() ⏳
+
+**FR:** FR-020 | **Design-spec:** §4a (OQ#3 resolved) | **ADR:** ADR-025 (design-spec OQ#3)  
+**Size:** `[S]` 1 pt | **Time:** 1h | **Priority:** P2 Medium  
+**Parallel:** `[P]` (can run in parallel with T010-15–T010-17)
+
+**Description:** Add a non-blocking `console.warn` (via Pino logger) inside `applyTheme()` when the computed contrast ratio of `primary` on `background` is below 4.5:1 (WCAG AA). This is the frontend safety-net layer; Spec 008 backend endpoint is the primary enforcement.
+
+**Acceptance Criteria:**
+
+- [ ] `contrastRatio(fg: string, bg: string): number` utility imported from `@plexica/shared-utils` (or implemented locally if not available)
+- [ ] `applyTheme()` computes `contrastRatio(theme.colors.primary, theme.colors.background)`
+- [ ] `logger.warn` emitted if ratio < 4.5 with message: `"Tenant theme contrast ratio ${ratio.toFixed(1)}:1 is below WCAG AA 4.5:1 minimum"`
+- [ ] Warning is **non-blocking** — theme is still applied regardless
+- [ ] Warning is **not emitted** for the default theme (to avoid noise in dev)
+- [ ] No changes to backend API call or theme validation logic
+
+**Files:**
+
+- `apps/web/src/lib/theme-utils.ts` (modify `applyTheme`)
+- `apps/web/src/lib/theme-utils.test.ts` (add 2 test cases)
+
+**Dependencies:** T010-10 (`applyTheme` function), T010-04 (logger)
+
+> **Backend dependency**: The primary contrast enforcement is `PATCH /api/v1/tenants/:id/theme`
+> validation (Spec 008 T008-xx). This frontend task only adds the non-blocking warning layer.
+
+**Tests:** 2 unit tests (warns when ratio < 4.5:1, does not warn for default theme)
+
+---
+
+## Phase 3: Widget System (Sprint 4 Week 4) ⏳ PENDING
+
+**Goal:** Enable plugins to expose reusable UI components ("widgets")  
 **Estimated Effort:** 20 hours  
 **Story Points:** 10 points  
-**Priority:** MEDIUM (enables plugin ecosystem)
-
-### Task 3.1: Create loadWidget() Utility Function
-
-**Description:** Dynamic widget loader using Module Federation.
-
-**Estimated Time:** 4 hours  
-**Story Points:** 3  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
-
-**Acceptance Criteria:**
-
-- [x] `loadWidget({ pluginId, widgetName })` function implemented
-- [x] Returns React component via `React.lazy()`
-- [x] Dynamically imports from Module Federation remote: `import('pluginId/widgetName')`
-- [x] Handles import errors with fallback component
-- [x] Supports custom fallback via options
-- [x] TypeScript generic for widget props
-
-**Implementation Details:**
-
-- File: `apps/web/src/lib/widget-loader.ts`
-- Use `React.lazy()` with dynamic import
-- Catch errors with try-catch in lazy callback
-- Return fallback component on error
-
-**Code Example:**
-
-```typescript
-export function loadWidget<T = any>({ pluginId, widgetName, fallback }: LoadWidgetOptions) {
-  const LazyWidget = React.lazy(async () => {
-    try {
-      const module = await import(/* @vite-ignore */ `${pluginId}/${widgetName}`);
-      return module;
-    } catch (error) {
-      logger.error({ pluginId, widgetName, error }, `Failed to load widget`);
-
-      if (fallback) {
-        return { default: fallback };
-      }
-
-      return { default: () => <WidgetFallback pluginId={pluginId} widgetName={widgetName} /> };
-    }
-  });
-
-  return LazyWidget as React.ComponentType<T>;
-}
-```
-
-**Technical Notes:**
-
-- `/* @vite-ignore */` comment prevents Vite from trying to statically analyze import
-- Module Federation resolves `'crm/ContactCard'` at runtime
-
-**Dependencies:**
-
-- Module Federation configured in `vite.config.ts` (already exists)
-- `WidgetFallback` component (Task 3.3)
-
-**Test Coverage:**
-
-- Unit test: Successful widget load (2 tests)
-- Unit test: Widget load error returns fallback (2 tests)
+**Priority:** HIGH
 
 ---
 
-### Task 3.2: Create WidgetLoader Component
+### T010-19: Create loadWidget() Utility Function ⏳
 
-**Description:** Wrapper component for rendering widgets with Suspense.
+**FR:** FR-022, FR-023 | **Design-spec:** Screen 5, Component 5  
+**Size:** `[L]` 3 pts | **Time:** 4h | **Priority:** P0 Critical  
+**Parallel:** `[P]` (independent foundation)
 
-**Estimated Time:** 3 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
-
-**Acceptance Criteria:**
-
-- [x] `WidgetLoader` component wraps widget with Suspense
-- [x] Props: `pluginId`, `widgetName`, `props`, `fallback?`
-- [x] Suspense fallback shows loading skeleton
-- [x] Widget props forwarded to loaded component
-- [x] Custom fallback supported
-
-**Implementation Details:**
-
-- File: `apps/web/src/components/WidgetLoader.tsx`
-- Use `useMemo` to memoize `loadWidget()` call
-- Wrap in Suspense with loading skeleton
-
-**Code Example:**
-
-```tsx
-interface WidgetLoaderProps {
-  pluginId: string;
-  widgetName: string;
-  props?: Record<string, any>;
-  fallback?: React.ComponentType;
-}
-
-export function WidgetLoader({ pluginId, widgetName, props, fallback }: WidgetLoaderProps) {
-  const Widget = useMemo(
-    () => loadWidget({ pluginId, widgetName, fallback }),
-    [pluginId, widgetName, fallback]
-  );
-
-  return (
-    <Suspense fallback={<WidgetLoadingSkeleton />}>
-      <Widget {...props} />
-    </Suspense>
-  );
-}
-```
-
-**Technical Notes:**
-
-- `useMemo` prevents re-creating lazy component on every render
-- Suspense fallback should match widget expected size
-
-**Dependencies:**
-
-- Task 3.1 (loadWidget function)
-- `WidgetLoadingSkeleton` component (simple skeleton UI)
-
-**Test Coverage:**
-
-- Unit test: Widget renders with props (1 test)
-- Unit test: Loading skeleton shown during load (1 test)
-
----
-
-### Task 3.3: Create WidgetFallback Placeholder Component
-
-**Description:** Fallback UI when widget fails to load.
-
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Implement `loadWidget(pluginId, widgetName)` that dynamically imports a widget component from a plugin's Module Federation remote.
 
 **Acceptance Criteria:**
 
-- [x] Displays "Widget Unavailable" message
-- [x] Shows plugin ID and widget name for debugging
-- [x] Styled as dashed border box
-- [x] Icon: 📦 (package emoji)
-- [x] Gray color scheme (not alarming)
+- [ ] `loadWidget(pluginId: string, widgetName: string): React.LazyExoticComponent` exported from `apps/web/src/lib/widget-loader.ts`
+- [ ] Uses dynamic `import()` via Module Federation remote syntax
+- [ ] Returns a `React.lazy()` wrapper
+- [ ] Throws `WidgetLoadError` (typed error) on import failure
+- [ ] Widget props forwarded via `WidgetLoader` component
+- [ ] TypeScript compiles with `strict: true`
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/components/WidgetFallback.tsx`
-- Simple presentational component
+- `apps/web/src/lib/widget-loader.ts` _(new file)_
 
-**Design Mockup:**
+**Dependencies:** Module Federation config (already set up in Spec 005)
 
-```
-┌─────────────────────────────────────────┐
-│ 📦  Widget Unavailable                  │
-│                                         │
-│ The requested widget could not be       │
-│ loaded from the plugin.                 │
-│                                         │
-│ crm/ContactCard                         │
-└─────────────────────────────────────────┘
-```
-
-**Code Example:**
-
-```tsx
-interface WidgetFallbackProps {
-  pluginId: string;
-  widgetName: string;
-}
-
-export function WidgetFallback({ pluginId, widgetName }: WidgetFallbackProps) {
-  return (
-    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-      <div className="text-gray-400 text-2xl mb-2">📦</div>
-      <p className="text-sm text-gray-600 font-medium mb-1">Widget Unavailable</p>
-      <p className="text-xs text-gray-400">
-        {pluginId}/{widgetName}
-      </p>
-    </div>
-  );
-}
-```
-
-**Technical Notes:**
-
-- Minimal styling (not alarming to users)
-- Helpful for plugin developers debugging
-
-**Dependencies:**
-
-- None
-
-**Test Coverage:**
-
-- Unit test: Renders with plugin/widget names (1 test)
+**Tests:** 3 unit tests (returns lazy component, throws WidgetLoadError on failure, correct remote module path)
 
 ---
 
-### Task 3.4: Update Module Federation Config for Widget Sharing
+### T010-20: Create WidgetLoader Component ⏳
 
-**Description:** Document and verify Module Federation config for widget exports.
+**FR:** FR-022, FR-023 | **Design-spec:** Screen 5, Component 5  
+**Size:** `[M]` 2 pts | **Time:** 3h | **Priority:** P0 Critical  
+**Parallel:** No (requires T010-19)
 
-**Estimated Time:** 3 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** React component that wraps `loadWidget()` in `<Suspense>` + `<PluginErrorBoundary>` to safely render plugin widgets.
 
 **Acceptance Criteria:**
 
-- [x] Plugin `vite.config.ts` template updated with widget `exposes` example
-- [x] Shell `vite.config.ts` has correct `remotes` config
-- [x] Shared dependencies configured: `react`, `react-dom`, `react-router-dom`
-- [x] Documentation added to plugin development guide
+- [ ] `<WidgetLoader pluginId="crm" widgetName="ContactCard" />` renders widget
+- [ ] Shows `WidgetFallback` (or custom `fallback` prop) during load
+- [ ] Shows `WidgetFallback` on error (via `PluginErrorBoundary`)
+- [ ] Forwards all additional props to the widget component
+- [ ] Inherits tenant theme (CSS custom properties apply automatically)
+- [ ] `loading` prop shows skeleton immediately (for above-the-fold widgets)
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/plugin-template-frontend/vite.config.ts` (template)
-- Add example widget export in `exposes` section
-- Verify singleton resolution for React
+- `apps/web/src/components/WidgetLoader.tsx` _(new file)_
 
-**Plugin Config Example:**
+**Dependencies:** T010-19, T010-01 (PluginErrorBoundary), T010-21 (WidgetFallback)
 
-```typescript
-// apps/plugin-crm/vite.config.ts
-export default defineConfig({
-  plugins: [
-    react(),
-    federation({
-      name: 'crm',
-      filename: 'remoteEntry.js',
-      exposes: {
-        './ContactsPage': './src/pages/Contacts.tsx',
-        './ContactCard': './src/widgets/ContactCard.tsx', // ← Widget export
-        './DealPipeline': './src/widgets/DealPipeline.tsx',
-      },
-      shared: {
-        react: { singleton: true, requiredVersion: '^19.0.0' },
-        'react-dom': { singleton: true, requiredVersion: '^19.0.0' },
-      },
-    }),
-  ],
-});
-```
-
-**Documentation:**
-
-- Add section to `docs/PLUGIN_DEVELOPMENT.md`:
-  - "Exposing Widgets"
-  - Widget naming conventions
-  - Widget prop types
-  - Example usage
-
-**Technical Notes:**
-
-- Widgets must use shared React instance (singleton)
-- Widget props should be serializable (no functions)
-
-**Dependencies:**
-
-- Existing Module Federation setup
-
-**Test Coverage:**
-
-- Manual test: Verify widget loading from plugin
+**Tests:** Covered by T010-24
 
 ---
 
-### Task 3.5: Create Example Widget in CRM Plugin
+### T010-21: Create WidgetFallback Placeholder Component ⏳
 
-**Description:** Reference implementation of a widget in `apps/plugin-crm`.
+**FR:** FR-022 | **Design-spec:** Screen 5, Component 6  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** `[P]` (independent; can be built alongside T010-19)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P3 - Low
+**Description:** Skeleton placeholder shown while a widget loads or when a widget fails to load.
 
 **Acceptance Criteria:**
 
-- [x] `ContactCard` widget component created
-- [x] Widget accepts `contactId` prop
-- [x] Widget fetches contact data from API
-- [x] Widget displays contact name, email, phone
-- [x] Widget uses tenant theme colors
-- [x] Widget exported in Module Federation config
+- [ ] `<WidgetFallback width? height? label? />` renders animated skeleton
+- [ ] Uses `@plexica/ui` Skeleton primitive
+- [ ] Uses `--color-surface` CSS variable for skeleton background (inherits tenant theme)
+- [ ] Minimum height 64px (configurable via `height` prop)
+- [ ] `label` prop shows assistive text (`aria-label="Loading [label] widget"`)
+- [ ] Accessible: `role="status"` with `aria-busy="true"` during loading
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/plugin-crm/src/widgets/ContactCard.tsx`
-- Props: `{ contactId: string }`
-- Fetch contact data with TanStack Query
-- Use theme colors via TailwindCSS classes
+- `apps/web/src/components/WidgetFallback.tsx` _(new file)_
 
-**Code Example:**
+**Dependencies:** `@plexica/ui` Skeleton, T010-10 (CSS custom properties)
 
-```tsx
-interface ContactCardProps {
-  contactId: string;
-}
-
-export function ContactCard({ contactId }: ContactCardProps) {
-  const { data: contact, isLoading } = useQuery({
-    queryKey: ['contact', contactId],
-    queryFn: () => apiClient.get(`/api/v1/crm/contacts/${contactId}`).then((res) => res.data),
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (!contact) return <div>Contact not found</div>;
-
-  return (
-    <div className="bg-surface border border-gray-200 rounded-lg p-4">
-      <h3 className="text-lg font-semibold text-text">{contact.name}</h3>
-      <p className="text-sm text-text-secondary">{contact.email}</p>
-      <p className="text-sm text-text-secondary">{contact.phone}</p>
-    </div>
-  );
-}
-```
-
-**Technical Notes:**
-
-- Widget should be self-contained (fetch own data)
-- Widget should respect tenant theme (use theme tokens)
-
-**Dependencies:**
-
-- Task 3.4 (Module Federation config)
-- CRM plugin API endpoints
-
-**Test Coverage:**
-
-- Unit test: Widget renders with contact data (1 test)
+**Tests:** Covered by T010-24
 
 ---
 
-### Task 3.6: Write Unit Tests for Widget Loader
+### T010-22: Update Module Federation Config for Widget Sharing ⏳
 
-**Description:** Unit tests for `loadWidget()` and `WidgetLoader` component.
+**FR:** FR-022, FR-023 | **Design-spec:** Screen 5  
+**Size:** `[M]` 2 pts | **Time:** 3h | **Priority:** P1 High  
+**Parallel:** `[P]` (independent Vite config change)
 
-**Estimated Time:** 4 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Configure Vite Module Federation in the shell to allow plugins to expose widgets, and configure CRM plugin to expose `ContactCard`.
 
 **Acceptance Criteria:**
 
-- [x] Test: loadWidget() returns lazy component ✅
-- [x] Test: Widget load success renders component ✅
-- [x] Test: Widget load error returns fallback ✅
-- [x] Test: Custom fallback used when provided ✅
-- [x] Test: WidgetLoader forwards props ✅
-- [x] Coverage: ≥90% for widget loader utilities
+- [ ] Shell `vite.config.ts` updated: `remotes` support dynamic plugin remote URLs
+- [ ] CRM plugin `vite.config.ts` exposes `./widgets/ContactCard` as a remote entry
+- [ ] Shared dependencies (`react`, `react-dom`, `@plexica/ui`) declared as singleton shared modules to avoid version conflicts
+- [ ] Build succeeds with `pnpm build` in both shell and CRM plugin
+- [ ] No duplicate React instances (verified via `console.log(React.version)` in widget)
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/lib/widget-loader.test.ts`
-- Mock dynamic imports with `vi.mock()`
-- Test successful and failed widget loads
+- `apps/web/vite.config.ts`
+- `apps/plugin-crm/vite.config.ts`
 
-**Test Cases:**
+**Dependencies:** Existing Module Federation setup (Spec 005)
 
-1. loadWidget() returns React.ComponentType
-2. Widget loads successfully → Component renders
-3. Widget load fails → Fallback renders
-4. Custom fallback provided → Custom fallback used
-5. WidgetLoader forwards props → Props received by widget
-6. Loading skeleton shown during Suspense
-
-**Technical Notes:**
-
-- Mock `import()` to control success/failure scenarios
-- Use `@testing-library/react` for component tests
-
-**Dependencies:**
-
-- Task 3.1 (loadWidget)
-- Task 3.2 (WidgetLoader)
-- Task 3.3 (WidgetFallback)
-
-**Test Coverage Target:** ≥90%
+**Tests:** Build smoke test in T010-25; runtime test in T010-25
 
 ---
 
-### Task 3.7: Write Integration Tests for Widget Loading
+### T010-23: Create Example Widget in CRM Plugin ⏳
 
-**Description:** Integration tests for widget loading with Module Federation.
+**FR:** FR-022, FR-023 | **Design-spec:** Screen 5  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** No (requires T010-22)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P3 - Low
+**Description:** Implement `ContactCard` widget as the reference implementation for plugin widgets. Serves as both a functional feature and a developer example.
 
 **Acceptance Criteria:**
 
-- [x] Test: Widget loaded from remote plugin ✅
-- [x] Test: Widget unavailable shows fallback ✅
-- [x] Test: Widget inherits tenant theme ✅
+- [ ] `ContactCard` component renders contact name, email, and avatar
+- [ ] Accepts `contactId: string` prop; fetches contact data from CRM plugin API
+- [ ] Uses tenant theme CSS variables for styling (no hardcoded colors)
+- [ ] Exported from `apps/plugin-crm/src/widgets/ContactCard.tsx`
+- [ ] Widget manifest updated with `"widgets": [{ "name": "ContactCard", "props": ["contactId"] }]`
+- [ ] Renders correctly when loaded via `<WidgetLoader pluginId="crm" widgetName="ContactCard" contactId="123" />`
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/lib/widget-loader.integration.test.ts`
-- Mock Module Federation remote imports
-- Verify widget rendering and theme inheritance
+- `apps/plugin-crm/src/widgets/ContactCard.tsx` _(new file)_
+- `apps/plugin-crm/src/plugin-manifest.json` _(update widgets array)_
 
-**Test Cases:**
+**Dependencies:** T010-22, T010-20 (WidgetLoader)
 
-1. Load widget from CRM plugin → Widget renders
-2. Widget remote unavailable → Fallback shown
-3. Widget uses theme colors → Verify theme classes applied
-
-**Technical Notes:**
-
-- Mock Module Federation by mocking `import('crm/ContactCard')`
-- Verify theme context available to widget
-
-**Dependencies:**
-
-- Task 3.1 (loadWidget)
-- Task 3.5 (example widget)
-
-**Test Coverage Target:** Integration scenarios
+**Tests:** Covered by T010-25
 
 ---
 
-## Phase 4: Test Coverage (Sprint 5 Week 1-2)
+### T010-24: Write Unit Tests for Widget Loader ⏳
 
-**Goal:** Achieve ≥80% overall test coverage; ≥90% for critical components  
+**FR:** FR-022, FR-023 | **Size:** `[M]` 2 pts | **Time:** 4h | **Priority:** P1 High  
+**Parallel:** No (requires T010-19–T010-21)
+
+**Description:** Unit tests for `loadWidget()`, `WidgetLoader`, and `WidgetFallback`.
+
+**Acceptance Criteria:**
+
+- [ ] Test: `loadWidget()` returns lazy component
+- [ ] Test: Widget load success renders component
+- [ ] Test: Widget load error shows fallback (PluginErrorBoundary triggered)
+- [ ] Test: Custom fallback used when provided
+- [ ] Test: `WidgetLoader` forwards props to widget component
+- [ ] Test: `WidgetFallback` renders with correct ARIA attributes
+- [ ] Coverage: ≥90% for `widget-loader.ts`, `WidgetLoader.tsx`, `WidgetFallback.tsx`
+
+**Files:**
+
+- `apps/web/src/lib/widget-loader.test.ts`
+- `apps/web/src/components/WidgetLoader.test.tsx`
+- `apps/web/src/components/WidgetFallback.test.tsx`
+
+**Dependencies:** T010-19, T010-20, T010-21
+
+**Tests:** 6 unit tests
+
+---
+
+### T010-25: Write Integration Tests for Widget Loading ⏳
+
+**FR:** FR-022, FR-023 | **Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** No (requires T010-22, T010-23, T010-24)
+
+**Description:** Integration tests for end-to-end widget loading from a plugin remote.
+
+**Acceptance Criteria:**
+
+- [ ] Test: Widget loaded from CRM remote renders ContactCard
+- [ ] Test: Widget unavailable (remote offline) shows WidgetFallback
+- [ ] Test: Widget inherits tenant theme (CSS vars applied)
+
+**Files:**
+
+- `apps/web/src/__tests__/widget-loading.integration.test.tsx`
+
+**Dependencies:** T010-22, T010-23, T010-24
+
+**Tests:** 3 integration tests
+
+---
+
+## Phase 4: Test Coverage (Sprint 5 Week 1–2) ⏳ PENDING
+
+**Goal:** Achieve ≥80% overall coverage; ≥90% for critical components  
 **Estimated Effort:** 45 hours  
 **Story Points:** 21 points  
-**Priority:** HIGH (Constitution Art. 4.1 compliance)
-
-### Task 4.1: Audit Current Test Coverage
-
-**Description:** Generate coverage report and identify gaps.
-
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
-
-**Acceptance Criteria:**
-
-- [ ] Coverage report generated with Vitest
-- [ ] Coverage gaps identified by file/component
-- [ ] Priority list created (critical components first)
-- [ ] Coverage report saved to `.forge/specs/010-frontend-production-readiness/coverage-audit.md`
-
-**Implementation Details:**
-
-- Run: `pnpm test:coverage` in `apps/web`
-- Analyze coverage report (HTML or terminal output)
-- List uncovered files with priority:
-  - P0: AuthProvider, ThemeProvider, ErrorBoundary
-  - P1: Route components, Layout components
-  - P2: Utility functions, hooks
-  - P3: Simple presentational components
-
-**Deliverables:**
-
-- Coverage audit document with gaps list
-- Prioritized test task list
-
-**Dependencies:**
-
-- Phase 1-3 tests already written
-
-**Test Coverage Target:** Document baseline (currently ~2.4%)
+**Priority:** HIGH (Constitution Art. 4.1 — CI-enforced threshold)
 
 ---
 
-### Task 4.2: Write Unit Tests for Uncovered Components
+### T010-26: Audit Current Test Coverage ⏳
 
-**Description:** Write tests for all components below 80% coverage.
+**FR:** NFR-009, NFR-010 | **Size:** `[M]` 2 pts | **Time:** 4h | **Priority:** P0 Critical  
+**Parallel:** `[P]` (can start immediately after Phase 3 complete)
 
-**Estimated Time:** 20 hours  
-**Story Points:** 8  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Run coverage report, identify gaps, produce a prioritized list of files below threshold.
 
 **Acceptance Criteria:**
 
-- [ ] All route components have rendering tests (>15 routes)
-- [ ] All layout components tested (Header, Sidebar, Footer)
-- [ ] All context providers tested (existing ones not yet covered)
-- [ ] All hooks tested (custom hooks in `apps/web/src/hooks/`)
-- [ ] Utility functions tested (lib/ directory)
-- [ ] Coverage: ≥80% for all components
+- [ ] `pnpm test:coverage` run in `apps/web/`
+- [ ] Files below 80% coverage identified and listed in `.forge/specs/010-frontend-production-readiness/coverage-audit.md`
+- [ ] Critical components below 90% flagged as P0
+- [ ] Gaps grouped by type: missing unit tests, missing integration tests, missing E2E
+- [ ] Audit document includes per-file current coverage and target
 
-**Implementation Strategy:**
+**Files:**
 
-- Start with critical components (P0 priority)
-- Write tests in parallel for similar components
-- Use test utilities to reduce boilerplate
+- `.forge/specs/010-frontend-production-readiness/coverage-audit.md` _(new file — output artifact)_
 
-**Test Template for Route Components:**
+**Dependencies:** Phases 1–3 complete
 
-```typescript
-describe('PluginsRoute', () => {
-  it('should render plugin list', () => {
-    render(<PluginsRoute />, { wrapper: TestProviders });
-    expect(screen.getByRole('heading', { name: /plugins/i })).toBeInTheDocument();
-  });
-
-  it('should fetch plugins on mount', async () => {
-    render(<PluginsRoute />, { wrapper: TestProviders });
-    await waitFor(() => {
-      expect(screen.getByText(/crm/i)).toBeInTheDocument();
-    });
-  });
-});
-```
-
-**Technical Notes:**
-
-- Create shared `TestProviders` wrapper with all contexts
-- Mock API calls with MSW
-- Use `renderHook` for custom hooks
-
-**Dependencies:**
-
-- Task 4.1 (coverage audit)
-
-**Test Coverage Target:** ≥80% per file
+**Tests:** None (this task produces the audit, not tests)
 
 ---
 
-### Task 4.3: Write Integration Tests for API Interactions
+### T010-27: Write Unit Tests for Uncovered Components ⏳
 
-**Description:** Integration tests for all API-consuming components.
+**FR:** NFR-009 | **Size:** `[L]` 5 pts | **Time:** 16h | **Priority:** P0 Critical  
+**Parallel:** No (requires T010-26 audit)
 
-**Estimated Time:** 10 hours  
-**Story Points:** 5  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Write unit tests for all components identified in the coverage audit below 80% threshold. Includes visual regression snapshot tests for 8 key components.
 
 **Acceptance Criteria:**
 
-- [ ] Auth flow integration tests (login, logout, token refresh)
-- [ ] Plugin management integration tests (list, enable, disable)
-- [ ] Workspace management integration tests (CRUD operations)
-- [ ] Theme API integration tests (fetch, apply, fallback)
-- [ ] MSW handlers created for all API endpoints
+- [ ] All components at ≥80% unit test coverage
+- [ ] `AuthProvider`, `ThemeProvider`, `PluginErrorBoundary`, `WidgetLoader` at ≥90%
+- [ ] Snapshot tests for 8 components: `PluginErrorFallback`, `WidgetFallback`, `Header`, `ThemeProvider` (2 variants), `LanguageSelector`, `PluginLoadingSkeleton`, `WidgetLoadingSkeleton`
+- [ ] Each snapshot covers ≥3 states (default, loading, error)
+- [ ] 25 screenshot snapshots total across ~12 test cases (per plan.md §5.4 visual regression matrix)
+- [ ] No test accesses `document.fonts` directly (mock FontFace API)
 
-**Test Scenarios:**
+**Files:**
 
-1. Login → Auth context updated → Protected routes accessible
-2. Fetch plugins → Plugin list rendered → Enable plugin → API called
-3. Theme fetch → Theme applied → CSS variables set
-4. API error → Error message shown → Retry works
+- `apps/web/src/**/*.test.tsx` _(multiple new test files)_
+- `apps/web/src/test/test-utils.tsx` _(custom render helpers)_
 
-**Implementation Details:**
+**Dependencies:** T010-26
 
-- File: `apps/web/src/test/integration/` (new directory)
-- Use MSW for API mocking
-- Test full user flows (not isolated components)
-
-**Technical Notes:**
-
-- Integration tests slower than unit tests (use sparingly)
-- Focus on critical user flows
-
-**Dependencies:**
-
-- Task 4.1 (coverage audit)
-- MSW setup
-
-**Test Coverage Target:** 15+ integration tests
+**Tests:** 30+ unit tests, 25 snapshot screenshots
 
 ---
 
-### Task 4.4: Write E2E Tests with Playwright
+### T010-28: Write Integration Tests for API Interactions ⏳
 
-**Description:** End-to-end tests for critical user workflows.
+**FR:** NFR-009 | **Size:** `[L]` 5 pts | **Time:** 12h | **Priority:** P1 High  
+**Parallel:** `[P]` (can run in parallel with T010-27)
 
-**Estimated Time:** 10 hours  
-**Story Points:** 5  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Write integration tests for all API-connected components (theme, auth, plugin management) identified in the coverage audit.
 
 **Acceptance Criteria:**
 
-- [ ] Login flow E2E test
-- [ ] Plugin loading E2E test (success + error)
-- [ ] Tenant theming E2E test (logo + colors)
-- [ ] Widget loading E2E test
-- [ ] Error boundary E2E test (plugin crash)
-- [ ] Accessibility E2E test (keyboard navigation)
+- [ ] ≥15 integration tests added
+- [ ] Theme API lifecycle: fetch, apply, refresh, fallback (5 tests — verify T010-14 not already covering all)
+- [ ] Auth flow: login, logout, token refresh with ThemeProvider re-fetch (3 tests)
+- [ ] Plugin routes: load, error, retry (3 tests — verify T010-06 coverage)
+- [ ] Widget loading: success, failure, timeout (3 tests — verify T010-25 coverage)
+- [ ] Font loading: success, fallback, deduplication (3 tests)
+- [ ] All integration tests use MSW (Mock Service Worker) for API mocking — not `vi.mock` for HTTP calls
 
-**Test Scenarios:**
+**Files:**
 
-1. User logs in → Redirected to home → Tenant logo displayed
-2. User navigates to plugin → Plugin loads → No errors
-3. Plugin crashes → Error boundary shown → Retry works
-4. User changes theme → New colors applied → Logo updated
-5. Widget loaded in plugin page → Widget displays data
+- `apps/web/src/__tests__/**/*.integration.test.tsx` _(multiple new files)_
+- `apps/web/src/test/mocks/handlers.ts` _(MSW request handlers)_
+- `apps/web/src/test/setupTests.ts` _(MSW server setup)_
 
-**Implementation Details:**
+**Dependencies:** T010-26
 
-- File: `apps/web/tests/e2e/` (existing Playwright setup)
-- Use Playwright Test framework
-- Run against local dev server or staging
-
-**Technical Notes:**
-
-- E2E tests require running backend + Keycloak + DB
-- Use `test.describe.serial()` for dependent tests
-
-**Dependencies:**
-
-- Phase 1-3 features implemented
-
-**Test Coverage Target:** 10+ E2E tests
+**Tests:** 15+ integration tests
 
 ---
 
-### Task 4.5: Add Test Utilities and Mocks
+### T010-29: Write E2E Tests with Playwright ⏳
 
-**Description:** Shared test utilities to reduce boilerplate.
+**FR:** NFR-009 | **ADR:** ADR-022 (⚠️ pending approval for `axe-playwright`)  
+**Size:** `[L]` 5 pts | **Time:** 10h | **Priority:** P1 High  
+**Parallel:** `[P]` (can run in parallel with T010-27, T010-28)
 
-**Estimated Time:** 3 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+> ⚠️ The `axe-playwright` dependency (ADR-022) is pending approval. The Playwright tests
+> themselves can be written and merged without it; axe integration is optional for this task
+> (covered in T010-35).
+
+**Description:** End-to-end tests covering critical user journeys for frontend production readiness features.
 
 **Acceptance Criteria:**
 
-- [ ] `TestProviders` wrapper with all contexts
-- [ ] Mock data factories (users, tenants, plugins, themes)
-- [ ] Mock API handlers (MSW) for common endpoints
-- [ ] Custom render function with providers
-- [ ] setupTests.ts configured with global mocks
+- [ ] ≥10 E2E test cases
+- [ ] **Journey 1 — Tenant Theming** (3 tests): Login → theme applied → logo visible; Theme change → page reflects update; Invalid theme → fallback applied
+- [ ] **Journey 2 — Plugin Error Recovery** (3 tests): Plugin load failure → error boundary shown → retry succeeds; Plugin render crash → boundary shown → retry reloads; Multiple plugins → one crash doesn't affect others
+- [ ] **Journey 3 — Widget Loading** (3 tests): Widget renders in dashboard; Widget shows skeleton during load; Widget failure shows fallback
+- [ ] **Edge cases** (3 tests): Offline mode — theme fetch fails, fallback applied; Font load timeout — fallback font applied; Session expiry — theme re-fetched on login
+- [ ] All tests run against local dev server (`pnpm dev`)
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/src/test/test-utils.tsx`
-- File: `apps/web/src/test/mocks/` (factories, handlers)
-- File: `apps/web/src/test/setupTests.ts`
+- `apps/web/tests/e2e/*.e2e.test.ts` _(new test files)_
 
-**Test Utilities:**
+**Dependencies:** T010-27, T010-28, all phases 1–3 complete
 
-```typescript
-// apps/web/src/test/test-utils.tsx
-export function TestProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <MemoryRouter>
-      <QueryClientProvider client={testQueryClient}>
-        <AuthProvider value={mockAuthContext}>
-          <ThemeProvider>
-            <IntlProvider locale="en">
-              {children}
-            </IntlProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
-  );
-}
-
-export function renderWithProviders(ui: React.ReactElement) {
-  return render(ui, { wrapper: TestProviders });
-}
-```
-
-**Technical Notes:**
-
-- Use factories for generating test data (avoids hardcoded values)
-- MSW handlers shared across tests
-
-**Dependencies:**
-
-- None (can be done anytime)
-
-**Test Coverage Target:** Shared utilities used in 50+ tests
+**Tests:** 12+ E2E tests
 
 ---
 
-## Phase 5: Accessibility (Sprint 5 Week 3)
+### T010-30: Add Test Utilities and Mocks ⏳
 
-**Goal:** Ensure WCAG 2.1 AA compliance for shell UI  
+**FR:** NFR-009 | **Size:** `[L]` 4 pts | **Time:** 3h | **Priority:** P1 High  
+**Parallel:** `[P]` (can be done early; unblocks T010-27, T010-28)
+
+**Description:** Create shared test utilities, custom render helpers, and mocks for use across all test files.
+
+**Acceptance Criteria:**
+
+- [ ] `renderWithProviders(ui, options?)` helper wraps component with `AuthProvider`, `ThemeProvider`, `IntlProvider`, `QueryClientProvider`
+- [ ] `createMockTheme(overrides?)` factory returns valid `TenantTheme` object
+- [ ] `createMockPlugin(overrides?)` factory returns valid `Plugin` object
+- [ ] MSW server configured in `setupTests.ts` (start before tests, reset after each, stop after all)
+- [ ] FontFace API mock (`mockFontFaceAPI()`) sets up `document.fonts` stub
+- [ ] `vi.mock('@plexica/api-client')` helper available for unit tests that need it
+- [ ] All helpers exported from `apps/web/src/test/test-utils.tsx`
+
+**Files:**
+
+- `apps/web/src/test/test-utils.tsx` _(new file)_
+- `apps/web/src/test/mocks/handlers.ts` _(MSW handlers)_
+- `apps/web/src/test/mocks/font-face.ts` _(FontFace mock)_
+- `apps/web/src/test/setupTests.ts` _(global test setup)_
+
+**Dependencies:** None (should be done early in Sprint 5)
+
+**Tests:** None (this task creates test infrastructure)
+
+---
+
+## Phase 5: Accessibility (Sprint 5 Week 3) ⏳ PENDING
+
+**Goal:** Achieve zero WCAG 2.1 AA violations across all user-facing screens  
 **Estimated Effort:** 16 hours  
 **Story Points:** 8 points  
-**Priority:** HIGH (Constitution Art. 1.3 UX standards)
+**Priority:** HIGH (Constitution Art. 1.3)
 
-### Task 5.1: Run axe-core Automated Audit
+> ⚠️ **ADR-022 pending approval** for `@axe-core/react` and `axe-playwright`. Tasks T010-31
+> and T010-35 depend on this ADR being accepted before the dependencies can be merged.
 
-**Description:** Run axe-core accessibility audit and document violations.
+---
 
-**Estimated Time:** 1 hour  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+### T010-31: Run axe-core Automated Audit ⏳
+
+**FR:** NFR-011, NFR-012 | **ADR:** ADR-022 (⚠️ pending approval)  
+**Size:** `[M]` 2 pts | **Time:** 3h | **Priority:** P0 Critical  
+**Parallel:** `[P]` (can run alongside T010-32)
+
+**Description:** Install `@axe-core/react` and run automated accessibility audit across all 7 design-spec screens. Produce prioritized violation report.
 
 **Acceptance Criteria:**
 
-- [ ] axe-core integrated in CI pipeline
-- [ ] Audit run on all routes
-- [ ] Violations documented by severity (critical, serious, moderate)
-- [ ] Violation report saved to `.forge/specs/010-frontend-production-readiness/a11y-audit.md`
+- [ ] `@axe-core/react` installed as devDependency (pending ADR-022 approval)
+- [ ] Automated audit run against all 7 screens: Login, Plugin Error Fallback, Theme Settings, Font Selector, Widget Dashboard, Language Settings, Audit Log
+- [ ] Violations categorized as: `critical` (must fix before merge), `serious` (fix in this sprint), `moderate` / `minor` (logged as TD)
+- [ ] Report written to `.forge/specs/010-frontend-production-readiness/a11y-audit.md`
+- [ ] Zero `critical` violations before Sprint 5 merge
 
-**Implementation Details:**
+**Files:**
 
-- Install `@axe-core/react` in devDependencies
-- Add axe-core check in test setup
-- Run audit on all routes with Playwright
+- `.forge/specs/010-frontend-production-readiness/a11y-audit.md` _(output artifact)_
+- `apps/web/src/test/setupTests.ts` _(add axe-core setup)_
 
-**Audit Command:**
+**Dependencies:** Phases 1–3 complete, ADR-022 approved
 
-```bash
-# In Playwright test
-import { injectAxe, checkA11y } from 'axe-playwright';
-
-test('should have no accessibility violations', async ({ page }) => {
-  await page.goto('/');
-  await injectAxe(page);
-  await checkA11y(page, null, {
-    detailedReport: true,
-    detailedReportOptions: { html: true },
-  });
-});
-```
-
-**Deliverables:**
-
-- Violation report with remediation steps
-- CI pipeline updated to fail on critical violations
-
-**Dependencies:**
-
-- None
-
-**Test Coverage Target:** Zero critical violations
+**Tests:** None (produces audit artifact)
 
 ---
 
-### Task 5.2: Fix Identified Accessibility Violations
+### T010-32: Fix Identified Accessibility Violations ⏳
 
-**Description:** Remediate all WCAG 2.1 AA violations found in audit.
+**FR:** NFR-011 | **Design-spec:** WCAG checklist (§6)  
+**Size:** `[L]` 3 pts | **Time:** 6h | **Priority:** P0 Critical  
+**Parallel:** No (requires T010-31 audit)
 
-**Estimated Time:** 6 hours  
-**Story Points:** 3  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Remediate all `critical` and `serious` violations found in T010-31 audit.
 
 **Acceptance Criteria:**
 
-- [ ] All critical violations fixed
-- [ ] All serious violations fixed
-- [ ] Moderate violations fixed (if feasible)
-- [ ] Re-run axe-core audit → Zero violations
-- [ ] Fixes documented in PR
+- [ ] Zero `critical` axe-core violations in final audit
+- [ ] Zero `serious` axe-core violations in final audit
+- [ ] `moderate` and `minor` violations logged in decision-log.md as TD (technical debt)
+- [ ] All form inputs have associated `<label>` elements
+- [ ] All images have meaningful `alt` attributes (or `alt=""` for decorative images)
+- [ ] Color is not the sole means of conveying information
+- [ ] Focus visible on all interactive elements (`:focus-visible` ring present)
 
-**Common Violations and Fixes:**
+**Files:**
 
-1. **Missing alt text on images** → Add descriptive alt attributes
-2. **Insufficient color contrast** → Adjust text/background colors to meet 4.5:1 ratio
-3. **Missing form labels** → Add `<label for="...">` or `aria-label`
-4. **Keyboard trap in modals** → Implement focus trap with `react-focus-lock`
-5. **Missing ARIA roles** → Add semantic HTML or ARIA roles (`role="navigation"`, etc.)
+- Various component files (determined by T010-31 audit)
 
-**Implementation Details:**
+**Dependencies:** T010-31
 
-- Fix violations one route at a time
-- Re-test after each fix
-- Use browser dev tools (Lighthouse, axe DevTools extension)
-
-**Technical Notes:**
-
-- Prioritize critical and serious violations
-- Moderate violations may be deferred if complex
-
-**Dependencies:**
-
-- Task 5.1 (audit report)
-
-**Test Coverage Target:** Zero critical/serious violations
+**Tests:** Re-run axe-core audit (pass/fail)
 
 ---
 
-### Task 5.3: Verify Keyboard Navigation
+### T010-33: Verify Keyboard Navigation ⏳
 
-**Description:** Manual and automated tests for keyboard accessibility.
+**FR:** NFR-012 | **Design-spec:** §6 WCAG checklist items KN-1–KN-5  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** `[P]` (can run in parallel with T010-32)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Manual + automated verification that all interactive elements are keyboard accessible.
 
 **Acceptance Criteria:**
 
-- [ ] All interactive elements reachable via Tab key
-- [ ] Tab order logical (top-to-bottom, left-to-right)
-- [ ] Shift+Tab navigates backwards
-- [ ] Focus indicators visible on all focusable elements
-- [ ] No keyboard traps (user can escape from all components)
-- [ ] Enter key activates buttons/links
-- [ ] Escape key closes modals/dialogs
+- [ ] Tab order logical (follows visual reading order) on all 7 screens
+- [ ] Focus never trapped (except modals — focus must cycle within modal while open)
+- [ ] All buttons, links, and form controls reachable via Tab key
+- [ ] All dropdowns operable with Arrow keys
+- [ ] All modals closeable with Escape key
+- [ ] Skip-to-content link present on all pages
 
-**Test Scenarios:**
+**Files:**
 
-1. Tab through header → All buttons/links reachable
-2. Tab through sidebar → Navigation items reachable
-3. Tab through form → All inputs reachable, in order
-4. Open modal → Focus trapped in modal → Escape closes modal
-5. Dropdown menu → Arrow keys navigate options → Enter selects
+- `apps/web/src/components/Layout/Layout.tsx` _(add skip link if missing)_
 
-**Implementation Details:**
+**Dependencies:** T010-32
 
-- Manual testing with keyboard only (no mouse)
-- Playwright E2E test for keyboard navigation
-
-**Technical Notes:**
-
-- Use `tabIndex={0}` for custom interactive elements
-- Use `tabIndex={-1}` to exclude from tab order
-- Ensure focus indicators meet 3:1 contrast ratio (WCAG 2.1 AA)
-
-**Dependencies:**
-
-- Task 5.2 (violations fixed)
-
-**Test Coverage Target:** All interactive elements keyboard-accessible
+**Tests:** 3 Playwright keyboard navigation tests (in T010-35)
 
 ---
 
-### Task 5.4: Add ARIA Labels and Semantic HTML
+### T010-34: Add ARIA Labels and Semantic HTML ⏳
 
-**Description:** Improve screen reader compatibility.
+**FR:** NFR-012 | **Design-spec:** §5 ARIA contract table  
+**Size:** `[S]` 1 pt | **Time:** 2h | **Priority:** P1 High  
+**Parallel:** `[P]` (can run in parallel with T010-32)
 
-**Estimated Time:** 3 hours  
-**Story Points:** 2  
-**Assignee:** Frontend Lead  
-**Priority:** P1 - High
+**Description:** Audit and fix missing ARIA attributes against the design-spec §5 ARIA contract table.
 
 **Acceptance Criteria:**
 
-- [ ] All form inputs have associated labels (`<label>` or `aria-label`)
-- [ ] All buttons have descriptive text or `aria-label`
-- [ ] All images have meaningful alt text
-- [ ] Semantic HTML used where appropriate (`<nav>`, `<main>`, `<article>`, `<aside>`)
-- [ ] Dynamic content uses ARIA live regions (`aria-live="polite"`)
-- [ ] Modal dialogs have `role="dialog"` and `aria-modal="true"`
+- [ ] `<main role="main">` present on all route pages
+- [ ] `<nav aria-label="Main navigation">` present in header
+- [ ] Plugin error fallback: `role="alert"` on error container
+- [ ] Widget skeleton: `role="status"` + `aria-busy="true"` during loading
+- [ ] Font selector: `aria-label="Select heading font"` / `aria-label="Select body font"`
+- [ ] Logo `<img>` has `alt="[TenantName] logo"` (or `alt=""` if decorative)
+- [ ] All icon-only buttons have `aria-label`
 
-**Common Patterns:**
+**Files:**
 
-```tsx
-// Form input with label
-<label htmlFor="email">Email</label>
-<input id="email" type="email" />
+- Various component files (audit vs. design-spec §5 ARIA contract table)
 
-// Button with descriptive text
-<button>Save Changes</button>
+**Dependencies:** T010-31 (audit identifies gaps)
 
-// Icon button with aria-label
-<button aria-label="Close menu">
-  <XIcon />
-</button>
-
-// Live region for dynamic updates
-<div aria-live="polite" aria-atomic="true">
-  {successMessage}
-</div>
-
-// Modal dialog
-<div role="dialog" aria-modal="true" aria-labelledby="modal-title">
-  <h2 id="modal-title">Confirm Action</h2>
-  {/* Modal content */}
-</div>
-```
-
-**Technical Notes:**
-
-- Use semantic HTML first, ARIA roles second
-- Test with screen reader (NVDA on Windows, VoiceOver on macOS)
-
-**Dependencies:**
-
-- Task 5.2 (violations fixed)
-
-**Test Coverage Target:** All dynamic content announced correctly
+**Tests:** Covered by axe-core in T010-35
 
 ---
 
-### Task 5.5: Test with Screen Reader (Manual QA)
+### T010-35: Test with Screen Reader (Manual QA) ⏳
 
-**Description:** Manual testing with screen reader software.
+**FR:** NFR-012 | **Size:** `[M]` 2 pts | **Time:** 2h | **Priority:** P2 Medium  
+**Parallel:** No (requires T010-32–T010-34)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** QA Engineer  
-**Priority:** P2 - Medium
+**Description:** Manual QA with NVDA (Windows) and VoiceOver (macOS) across critical flows.
 
 **Acceptance Criteria:**
 
-- [ ] All routes tested with NVDA (Windows) or VoiceOver (macOS)
-- [ ] Navigation landmarks announced correctly
-- [ ] Form fields announced with labels
-- [ ] Error messages announced when shown
-- [ ] Dynamic content announced via live regions
-- [ ] Button/link purposes clear from announcements
+- [ ] Login flow reads correctly with VoiceOver (macOS)
+- [ ] Plugin error boundary message announced as `role="alert"`
+- [ ] Theme settings form fields announced with correct labels
+- [ ] Font selector dropdown options read aloud correctly
+- [ ] Widget loading skeleton announced as "loading" (aria-busy)
+- [ ] Navigation landmarks announced correctly (main, nav)
+- [ ] Test notes documented in a11y-audit.md
 
-**Test Scenarios:**
+**Files:**
 
-1. Navigate homepage with screen reader → All landmarks announced
-2. Navigate to plugin page → Plugin name announced
-3. Fill out form → Labels and errors announced
-4. Trigger error boundary → Error message announced
-5. Open modal → Modal title announced, focus trapped
+- `.forge/specs/010-frontend-production-readiness/a11y-audit.md` _(append manual QA notes)_
 
-**Technical Notes:**
+**Dependencies:** T010-32, T010-33, T010-34
 
-- Use NVDA (free) on Windows or VoiceOver (built-in) on macOS
-- Follow screen reader user testing guidelines
-
-**Dependencies:**
-
-- Task 5.4 (ARIA labels added)
-
-**Test Coverage Target:** Manual verification of screen reader experience
+**Tests:** None (manual QA — human verification required)
 
 ---
 
-### Task 5.6: Add E2E Accessibility Tests
+### T010-36: Add E2E Accessibility Tests ⏳
 
-**Description:** Automated accessibility tests in Playwright.
+**FR:** NFR-011, NFR-012 | **ADR:** ADR-022 (⚠️ pending approval for `axe-playwright`)  
+**Size:** `[S]` 1 pt | **Time:** 1h | **Priority:** P1 High  
+**Parallel:** No (requires T010-32–T010-34, ADR-022 approved)
 
-**Estimated Time:** 2 hours  
-**Story Points:** 1  
-**Assignee:** Frontend Lead  
-**Priority:** P2 - Medium
+**Description:** Add `axe-playwright` accessibility checks to existing E2E tests so regressions are caught in CI.
 
 **Acceptance Criteria:**
 
-- [ ] axe-core integrated in Playwright E2E tests
-- [ ] All routes tested for accessibility violations
-- [ ] CI pipeline fails on accessibility violations
-- [ ] Keyboard navigation E2E test added
+- [ ] `axe-playwright` installed (pending ADR-022 approval)
+- [ ] `checkA11y()` called in E2E tests for all 7 screens in design-spec
+- [ ] Axe checks run as part of `pnpm test:e2e` in CI pipeline
+- [ ] Test failure if any `critical` or `serious` violations found
+- [ ] 15 accessibility test cases across 6 screens (per plan.md §5.5 accessibility matrix)
 
-**Implementation Details:**
+**Files:**
 
-- File: `apps/web/tests/e2e/accessibility.spec.ts`
-- Use `axe-playwright` for automated checks
-- Test keyboard navigation with Playwright
+- `apps/web/tests/e2e/*.e2e.test.ts` _(update existing Playwright tests)_
+- `apps/web/tests/a11y/*.a11y.test.ts` _(new dedicated a11y test files)_
 
-**Test Example:**
+**Dependencies:** T010-29 (existing E2E tests), T010-32–T010-34, ADR-022 approved
 
-```typescript
-import { test, expect } from '@playwright/test';
-import { injectAxe, checkA11y } from 'axe-playwright';
-
-test.describe('Accessibility', () => {
-  test('should have no violations on homepage', async ({ page }) => {
-    await page.goto('/');
-    await injectAxe(page);
-    await checkA11y(page);
-  });
-
-  test('should support keyboard navigation', async ({ page }) => {
-    await page.goto('/');
-
-    // Tab through header
-    await page.keyboard.press('Tab');
-    await expect(page.locator(':focus')).toHaveAttribute('aria-label', 'Home');
-
-    await page.keyboard.press('Tab');
-    await expect(page.locator(':focus')).toHaveAttribute('aria-label', 'Plugins');
-  });
-});
-```
-
-**Technical Notes:**
-
-- Run accessibility tests in CI on every PR
-- Block merge if violations found
-
-**Dependencies:**
-
-- Task 5.1 (axe-core setup)
-- Task 5.2 (violations fixed)
-
-**Test Coverage Target:** All routes pass axe-core checks
+**Tests:** 15 accessibility test cases
 
 ---
 
-## Sprint Planning Recommendations
+## Sprint Assignment Summary
 
-### Sprint 4 (Week 1-4) - 31 Story Points Remaining
+### Sprint 4 (Active)
 
-> **Note:** Phase 1 (Error Boundaries, 8 pts) and Phase 2 Tasks 2.1–2.8 (Tenant Theming core, 13 pts) are **already complete**.
-> Sprint 4 remaining work = Phase 2 Tasks 2.9–2.11 (ADR-020 font loading, 4 pts) + Phase 3 Widget System (10 pts) = **14 pts remaining**.
+**Capacity:** ~36 story points  
+**Assigned:** Phase 1 (8 pts) + Phase 2 (19 pts) + Phase 3 (10 pts) = **37 pts**
 
-**Focus:** ADR-020 Font Loading + Widget System
+| Task               | Description                               | Points | Status     |
+| ------------------ | ----------------------------------------- | ------ | ---------- |
+| T010-01            | PluginErrorBoundary Component             | 3      | ✅ Done    |
+| T010-02            | PluginErrorFallback UI                    | 1      | ✅ Done    |
+| T010-03            | Integrate Error Boundary in Routes        | 1      | ✅ Done    |
+| T010-04            | Pino Logger (⚠️ ADR-021 pending)          | 1      | ✅ Done    |
+| T010-05            | Unit Tests — Error Boundary               | 2      | ✅ Done    |
+| T010-06            | Integration Tests — Plugin Error          | 1      | ✅ Done    |
+| T010-07            | ThemeContext + ThemeProvider              | 3      | ✅ Done    |
+| T010-08            | Theme Fetching from API                   | 2      | ✅ Done    |
+| T010-09            | Theme Validation + Fallback               | 2      | ✅ Done    |
+| T010-10            | Apply Theme via CSS Custom Properties     | 2      | ✅ Done    |
+| T010-11            | TailwindCSS Config for Theme Tokens       | 2      | ✅ Done    |
+| T010-12            | Tenant Logo in Header                     | 1      | ✅ Done    |
+| T010-13            | Unit Tests — Theme Context                | 2      | ✅ Done    |
+| T010-14            | Integration Tests — Theme API             | 2      | ✅ Done    |
+| T010-15            | FontDefinition + FONT_CATALOG (ADR-020)   | 1      | ⏳ Pending |
+| T010-16            | font-loader.ts — FontFace API (ADR-020)   | 2      | ⏳ Pending |
+| T010-17            | Preload hints for default fonts (ADR-020) | 1      | ⏳ Pending |
+| T010-18            | Frontend contrast warning (§4a)           | 1      | ⏳ Pending |
+| T010-19            | loadWidget() Utility                      | 3      | ⏳ Pending |
+| T010-20            | WidgetLoader Component                    | 2      | ⏳ Pending |
+| T010-21            | WidgetFallback Component                  | 1      | ⏳ Pending |
+| T010-22            | Module Federation Config Update           | 2      | ⏳ Pending |
+| T010-23            | ContactCard Example Widget                | 1      | ⏳ Pending |
+| T010-24            | Unit Tests — Widget Loader                | 2      | ⏳ Pending |
+| T010-25            | Integration Tests — Widget Loading        | 1      | ⏳ Pending |
+| **Sprint 4 Total** |                                           | **37** |            |
 
-**Tasks:**
+### Sprint 5 (Planned)
 
-- Phase 2 Tasks 2.9–2.11: ADR-020 font loading (4 pts, Week 1)
-- Phase 3: Widget System (10 pts, Week 2-4)
+**Capacity:** ~29 story points  
+**Assigned:** Phase 4 (21 pts) + Phase 5 (8 pts) = **29 pts**
 
-**Velocity:** ~14 points remaining in Sprint 4
+| Task               | Description                          | Points | Status     |
+| ------------------ | ------------------------------------ | ------ | ---------- |
+| T010-26            | Audit Current Test Coverage          | 2      | ⏳ Pending |
+| T010-27            | Unit Tests — Uncovered Components    | 5      | ⏳ Pending |
+| T010-28            | Integration Tests — API Interactions | 5      | ⏳ Pending |
+| T010-29            | E2E Tests with Playwright            | 5      | ⏳ Pending |
+| T010-30            | Test Utilities and Mocks             | 4      | ⏳ Pending |
+| T010-31            | axe-core Audit (⚠️ ADR-022 pending)  | 2      | ⏳ Pending |
+| T010-32            | Fix Accessibility Violations         | 3      | ⏳ Pending |
+| T010-33            | Verify Keyboard Navigation           | 1      | ⏳ Pending |
+| T010-34            | Add ARIA Labels + Semantic HTML      | 1      | ⏳ Pending |
+| T010-35            | Manual Screen Reader QA              | 2      | ⏳ Pending |
+| T010-36            | E2E Accessibility Tests (⚠️ ADR-022) | 1      | ⏳ Pending |
+| **Sprint 5 Total** |                                      | **31** |            |
 
-**Deliverables:**
-
-- Fonts loaded via FontFace API from self-hosted WOFF2 (ADR-020) ✅
-- Zero shell crashes from plugin errors ✅ (done)
-- Tenant branding functional (logo + colors + fonts) ✅
-- Widget system MVP (load widgets from plugins) ✅
-
----
-
-### Sprint 5 (Week 1-3) - 29 Story Points
-
-**Focus:** Test Coverage + Accessibility
-
-**Tasks:**
-
-- Phase 4: Test Coverage (21 pts, Week 1-2)
-- Phase 5: Accessibility (8 pts, Week 3)
-
-**Velocity:** 29 points (slightly lower due to test writing fatigue)
-
-**Deliverables:**
-
-- Test coverage ≥80% overall ✅
-- Critical components ≥90% coverage ✅
-- Zero WCAG 2.1 AA violations ✅
+> **Note**: Sprint 5 total is 31 pts vs. 29 pts capacity. T010-30 (test utilities, 4 pts) can be
+> pulled forward to Sprint 4 Week 4 if bandwidth allows after Phase 3, reducing Sprint 5 to 27 pts.
 
 ---
 
@@ -2128,31 +1181,32 @@ test.describe('Accessibility', () => {
 - [x] Retry button resets error state
 - [x] Structured error logging with Pino
 
-**Phase 2: Tenant Theming** ✅ Complete (Tasks 2.1–2.8); Tasks 2.9–2.11 pending (ADR-020 font loading)
+**Phase 2: Tenant Theming** 🔄 In Progress (T010-07–T010-14 done; T010-15–T010-18 pending)
 
 - [x] Tenant logo displayed in header
 - [x] Custom colors applied via CSS variables
-- [x] Custom fonts applied via CSS variables
+- [x] Custom fonts applied via CSS variables (CSS var set; FontFace load pending)
 - [x] Default theme as fallback
 - [x] Theme validation (invalid colors rejected)
-- [ ] Fonts loaded via FontFace API from self-hosted WOFF2 (ADR-020) — Task 2.9–2.11
+- [ ] Fonts loaded via FontFace API from self-hosted WOFF2 (ADR-020) — T010-15–T010-17
+- [ ] Frontend `console.warn` if contrast ratio < 4.5:1 (design-spec §4a) — T010-18
 
-**Phase 3: Widget System**
+**Phase 3: Widget System** ⏳ Pending
 
 - [ ] `loadWidget()` dynamically loads widget from plugin
 - [ ] Widget loading errors show fallback placeholder
 - [ ] Widgets inherit tenant theme
 - [ ] Example widget in CRM plugin
 
-**Phase 4: Test Coverage**
+**Phase 4: Test Coverage** ⏳ Pending
 
 - [ ] Overall coverage ≥80%
 - [ ] AuthProvider, ThemeProvider, ErrorBoundary ≥90%
 - [ ] All routes have rendering tests
 - [ ] 15+ integration tests
-- [ ] 10+ E2E tests
+- [ ] 12+ E2E tests
 
-**Phase 5: Accessibility**
+**Phase 5: Accessibility** ⏳ Pending
 
 - [ ] Zero WCAG 2.1 AA violations (axe-core)
 - [ ] All interactive elements keyboard-accessible
@@ -2162,69 +1216,39 @@ test.describe('Accessibility', () => {
 
 ---
 
-## Risk Mitigation
+## ADR Dependency Summary
 
-| Risk                                    | Mitigation Strategy                                      |
-| --------------------------------------- | -------------------------------------------------------- |
-| Test coverage regressions               | Enforce coverage in CI; block PRs below 80%              |
-| Error boundary doesn't catch all errors | Test with async errors, useEffect errors, global handler |
-| Theme breaks existing plugins           | Validate theme tokens; provide fallback                  |
-| Widget loading degrades performance     | Lazy load; monitor bundle sizes; 300ms target            |
-| Accessibility regressions               | Add axe-core to CI; manual QA before release             |
+| ADR     | Title                             | Status      | Blocks                      |
+| ------- | --------------------------------- | ----------- | --------------------------- |
+| ADR-020 | Font Hosting Strategy             | ✅ Accepted | T010-15, T010-16, T010-17   |
+| ADR-021 | Pino Frontend Logger              | ⚠️ Pending  | T010-04 (merge only)        |
+| ADR-022 | axe-core / Playwright             | ⚠️ Pending  | T010-31, T010-36            |
+| ADR-025 | Audit Logs Core Schema (Spec 008) | ✅ Accepted | T010-18 (backend layer ref) |
 
 ---
 
-## Dependencies
+## Risk Mitigation
 
-### External Dependencies
-
-- `pino` (logging) - already in core-api, add to apps/web
-- `@axe-core/react` (accessibility testing) - add to devDependencies
-- `axe-playwright` (E2E accessibility) - add to devDependencies
-- `@testing-library/react` (unit testing) - already installed
-- `@testing-library/user-event` (interaction testing) - already installed
-
-### Internal Dependencies
-
-- `@plexica/api-client` - authenticated axios instance
-- `@plexica/ui` - shared UI components
-- `@plexica/i18n` - internationalization
-- AuthContext - existing context for tenant/user
-- Module Federation - already configured
+| Risk                                     | Mitigation Strategy                                      |
+| ---------------------------------------- | -------------------------------------------------------- |
+| ADR-021 or ADR-022 not approved          | Implement tasks; hold merge behind ADR approval gate     |
+| Test coverage regressions                | Enforce coverage in CI; block PRs below 80%              |
+| Error boundary doesn't catch all errors  | Test with async errors, useEffect errors, global handler |
+| Theme breaks existing plugins            | Validate theme tokens; provide fallback defaults         |
+| Widget loading degrades performance      | Lazy load; monitor bundle sizes; 300ms P95 target        |
+| Accessibility regressions                | Add axe-core to CI; manual QA before release             |
+| FontFace API not available (old browser) | Fallback to CSS `font-family` stack without custom font  |
 
 ---
 
 ## Success Metrics
 
-**Phase 1 Success Criteria:**
-
-- Zero shell crashes from plugin errors in production
-- Error boundary activation rate < 0.1%
-
-**Phase 2 Success Criteria:**
-
-- 100% of tenants can set custom logo + colors
-- Theme fetch latency P95 < 100ms
-- Zero theme-related bugs reported
-
-**Phase 3 Success Criteria:**
-
-- Widgets load in < 300ms P95
-- Widget load failure rate < 1%
-- At least 3 plugins expose widgets
-
-**Phase 4 Success Criteria:**
-
-- Test coverage ≥80% overall
-- Critical components ≥90% coverage
-- No coverage regressions in CI
-
-**Phase 5 Success Criteria:**
-
-- Zero WCAG 2.1 AA violations in axe-core
-- 100% keyboard navigation support
-- Screen reader compatible (manual verification)
+**Phase 1**: Zero shell crashes from plugin errors in production; error boundary activation rate < 0.1%  
+**Phase 2**: 100% of tenants can set custom logo + colors + fonts; theme fetch latency P95 < 100ms; no FOIT on first load  
+**Phase 3**: Widgets load in < 300ms P95; widget load failure rate < 1%; ≥1 plugin exposes widgets (CRM ContactCard)  
+**Phase 4**: Test coverage ≥80% overall; critical components ≥90%; no coverage regressions in CI  
+**Phase 5**: Zero WCAG 2.1 AA violations in axe-core; 100% keyboard navigation support; screen reader compatible
 
 ---
 
-**Next Steps:** Start Sprint 4 planning, assign tasks, create GitHub issues from this breakdown.
+_Last updated: 2026-03-02 — Reformatted to T010-NN sequential IDs; added T010-18 (frontend contrast warning, design-spec §4a); updated Phase 2 task count 11 → 12; corrected story point total 65 → 66; added ADR dependency table and ⚠️ ADR-021/ADR-022 pending-approval notices._
