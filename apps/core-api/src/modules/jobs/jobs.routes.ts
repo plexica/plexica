@@ -33,10 +33,7 @@ function getJobRepo(): JobRepository {
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId =
-    (request as any).user?.tenantId ??
-    (request as any).tenant?.tenantId ??
-    (request as any).tenantContext?.tenantId;
+  const tenantId = (request as any).user?.tenantSlug;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
@@ -50,7 +47,12 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
 
   // All job management endpoints are admin-only (HIGH #3)
-  const adminOnly = requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN);
+  const adminOnly = requireRole(
+    USER_ROLES.ADMIN,
+    USER_ROLES.TENANT_OWNER,
+    USER_ROLES.SUPER_ADMIN,
+    USER_ROLES.TENANT_ADMIN
+  );
 
   // --------------------------------------------------------------------------
   // POST /jobs — enqueue a one-time job

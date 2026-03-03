@@ -36,10 +36,7 @@ function getSearchService(): SearchService {
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId =
-    (request as any).user?.tenantId ??
-    (request as any).tenant?.tenantId ??
-    (request as any).tenantContext?.tenantId;
+  const tenantId = (request as any).user?.tenantSlug;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
@@ -53,7 +50,12 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
 
   // Admin-only role check for write/management endpoints (HIGH #3)
-  const adminOnly = requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN);
+  const adminOnly = requireRole(
+    USER_ROLES.ADMIN,
+    USER_ROLES.TENANT_OWNER,
+    USER_ROLES.SUPER_ADMIN,
+    USER_ROLES.TENANT_ADMIN
+  );
 
   // --------------------------------------------------------------------------
   // POST /search — full-text search (tenant auto-scoped, FR-012)

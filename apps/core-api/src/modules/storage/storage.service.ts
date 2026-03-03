@@ -173,7 +173,10 @@ export class StorageService implements IStorageService {
         client.getObject(this.bucketName, sanitized)
       )) as unknown as NodeJS.ReadableStream;
     } catch (err) {
-      if (err instanceof Error && err.message.includes('NoSuchKey')) {
+      if (
+        err instanceof Error &&
+        (err.message.includes('NoSuchKey') || (err as any).code === 'NoSuchKey')
+      ) {
         throw Object.assign(new Error(`File not found: ${sanitized}`), {
           code: StorageErrorCode.FILE_NOT_FOUND,
           statusCode: 404,

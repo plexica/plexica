@@ -25,6 +25,7 @@ export const PLUGIN_STATUS = {
 export const USER_ROLES = {
   SUPER_ADMIN: 'super_admin',
   TENANT_OWNER: 'tenant_owner',
+  TENANT_ADMIN: 'tenant_admin',
   ADMIN: 'admin',
   USER: 'user',
   GUEST: 'guest',

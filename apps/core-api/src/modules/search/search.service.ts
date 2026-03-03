@@ -118,7 +118,7 @@ export class SearchService implements ISearchService {
             metadata
           FROM core.search_documents
           WHERE
-            tenant_id = ${tenantId}::uuid
+            tenant_id = ${tenantId}
             AND type = ${type}
             AND search_vector @@ plainto_tsquery('english', ${q})
           ORDER BY rank DESC
@@ -136,7 +136,7 @@ export class SearchService implements ISearchService {
             metadata
           FROM core.search_documents
           WHERE
-            tenant_id = ${tenantId}::uuid
+            tenant_id = ${tenantId}
             AND search_vector @@ plainto_tsquery('english', ${q})
           ORDER BY rank DESC
           LIMIT ${safeLimit}

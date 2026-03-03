@@ -17,10 +17,7 @@ import { USER_ROLES } from '../../constants/index.js';
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId =
-    (request as any).user?.tenantId ??
-    (request as any).tenant?.tenantId ??
-    (request as any).tenantContext?.tenantId;
+  const tenantId = (request as any).user?.tenantSlug;
   if (!tenantId) {
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   }
@@ -207,7 +204,12 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           500: { description: 'Internal delete error', type: 'object' },
         },
       },
-      preHandler: requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN),
+      preHandler: requireRole(
+        USER_ROLES.ADMIN,
+        USER_ROLES.TENANT_OWNER,
+        USER_ROLES.SUPER_ADMIN,
+        USER_ROLES.TENANT_ADMIN
+      ),
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
@@ -318,6 +320,12 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
       },
     },
     async (request, reply) => {
+      // Check raw URL BEFORE Fastify normalization strips traversal sequences
+      if (request.url.includes('..')) {
+        return reply.code(400).send({
+          error: { code: StorageErrorCode.PATH_TRAVERSAL, message: 'Path traversal detected' },
+        });
+      }
       const tenantId = getTenantId(request);
       const userId = (request as any).user?.id ?? (request as any).user?.sub;
       const svc = getStorageService(request);

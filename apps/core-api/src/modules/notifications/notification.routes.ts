@@ -18,10 +18,7 @@ import { USER_ROLES } from '../../constants/index.js';
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId =
-    (request as any).user?.tenantId ??
-    (request as any).tenant?.tenantId ??
-    (request as any).tenantContext?.tenantId;
+  const tenantId = (request as any).user?.tenantSlug;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
@@ -80,7 +77,12 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
           500: { description: 'Failed to send notification', type: 'object' },
         },
       },
-      preHandler: requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN),
+      preHandler: requireRole(
+        USER_ROLES.ADMIN,
+        USER_ROLES.TENANT_OWNER,
+        USER_ROLES.SUPER_ADMIN,
+        USER_ROLES.TENANT_ADMIN
+      ),
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
@@ -155,7 +157,12 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
           500: { description: 'Failed to enqueue notifications', type: 'object' },
         },
       },
-      preHandler: requireRole(USER_ROLES.ADMIN, USER_ROLES.TENANT_OWNER, USER_ROLES.SUPER_ADMIN),
+      preHandler: requireRole(
+        USER_ROLES.ADMIN,
+        USER_ROLES.TENANT_OWNER,
+        USER_ROLES.SUPER_ADMIN,
+        USER_ROLES.TENANT_ADMIN
+      ),
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
