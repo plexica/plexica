@@ -1995,28 +1995,28 @@ error variant with retry, cancel button, and ARIA live regions for screen reader
 
 **Acceptance Criteria**:
 
-- [ ] `PluginInstallProgress` component created with props: `pluginId`, `pluginName`,
+- [x] `PluginInstallProgress` component created with props: `pluginId`, `pluginName`,
       `pluginVersion`, `onComplete`, `onCancel`, `onRetry`
-- [ ] Renders 6 steps in an ordered list with step number, name, and status icon
-- [ ] Each step shows elapsed duration when complete (e.g., "0.3s", "12.4s")
-- [ ] Running step shows `Spinner` icon from `@plexica/ui`
-- [ ] Data Migrations step (step 3) shows per-tenant sub-list with individual tenant
+- [x] Renders 6 steps in an ordered list with step number, name, and status icon
+- [x] Each step shows elapsed duration when complete (e.g., "0.3s", "12.4s")
+- [x] Running step shows `Spinner` icon from `@plexica/ui`
+- [x] Data Migrations step (step 3) shows per-tenant sub-list with individual tenant
       progress when running
-- [ ] Error variant: failed step shows `XCircle` icon + inline error panel with
+- [x] Error variant: failed step shows `XCircle` icon + inline error panel with
       error message, recovery suggestion text, "Retry Installation" and "Back to Registry"
       buttons
-- [ ] Error variant: remaining steps after failure show "skipped" state
-- [ ] Success variant: shows success toast via `ToastProvider` and "Enable now?" button
-- [ ] Cancel button visible during installation; calls cancel handler and reverts to
+- [x] Error variant: remaining steps after failure show "skipped" state
+- [x] Success variant: shows success toast via `ToastProvider` and "Enable now?" button
+- [x] Cancel button visible during installation; calls cancel handler and reverts to
       REGISTERED
-- [ ] Elapsed timer starts on mount, increments every second, displays formatted time
-- [ ] ARIA: container uses `role="log"` with `aria-live="polite"`
-- [ ] ARIA: each step uses `role="listitem"` with
+- [x] Elapsed timer starts on mount, increments every second, displays formatted time
+- [x] ARIA: container uses `role="log"` with `aria-live="polite"`
+- [x] ARIA: each step uses `role="listitem"` with
       `aria-label="Step [N] [name], [status: pending/running/complete/failed/skipped]"`
-- [ ] ARIA: Data Migrations progress bar uses `role="progressbar"` with `aria-valuenow`
+- [x] ARIA: Data Migrations progress bar uses `role="progressbar"` with `aria-valuenow`
       and `aria-valuemax`
-- [ ] ARIA: error panel uses `role="alert"` to announce errors to screen readers
-- [ ] `pnpm build` passes
+- [x] ARIA: error panel uses `role="alert"` to announce errors to screen readers
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -2034,10 +2034,10 @@ error variant with retry, cancel button, and ARIA live regions for screen reader
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Visual review matches `design-spec.md` Screen 2 wireframe (both success and error)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Visual review matches `design-spec.md` Screen 2 wireframe (both success and error)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -2327,29 +2327,29 @@ ARIA semantics, keyboard navigation, and WCAG 2.1 AA accessibility audit.
 
 **Acceptance Criteria**:
 
-- [ ] Loading state: renders 6 skeleton cards when data is loading
-- [ ] Default state: renders plugin cards with correct lifecycle status badges
-- [ ] Error state: renders Alert with error message and retry button; retry button
+- [x] Loading state: renders 6 skeleton cards when data is loading
+- [x] Default state: renders plugin cards with correct lifecycle status badges
+- [x] Error state: renders Alert with error message and retry button; retry button
       re-fetches data
-- [ ] Empty (no data) state: renders EmptyState with "No plugins registered" message
+- [x] Empty (no data) state: renders EmptyState with "No plugins registered" message
       and Register Plugin CTA
-- [ ] Empty (filtered) state: renders EmptyState with "No plugins found" and Clear
+- [x] Empty (filtered) state: renders EmptyState with "No plugins found" and Clear
       Filters link; clicking Clear Filters resets search and filter
-- [ ] Search: typing in search input triggers debounced API call after 300ms
+- [x] Search: typing in search input triggers debounced API call after 300ms
       (verify with `vi.useFakeTimers()`)
-- [ ] Filter: selecting a lifecycle status from dropdown filters the displayed plugins
-- [ ] Badge mapping: each lifecycle status renders correct badge variant and icon
+- [x] Filter: selecting a lifecycle status from dropdown filters the displayed plugins
+- [x] Badge mapping: each lifecycle status renders correct badge variant and icon
       (verify all 7 statuses)
-- [ ] Stat summary: correct counts displayed per lifecycle status
-- [ ] ARIA: tablist has `role="tablist"`, tabs have `role="tab"`, panels have
+- [x] Stat summary: correct counts displayed per lifecycle status
+- [x] ARIA: tablist has `role="tablist"`, tabs have `role="tab"`, panels have
       `role="tabpanel"`
-- [ ] ARIA: plugin cards have `role="article"` with descriptive `aria-label`
-- [ ] ARIA: stat summary uses `aria-live="polite"`
-- [ ] Keyboard: Tab navigates between interactive elements in correct order
-- [ ] Keyboard: Arrow keys navigate within tablist
-- [ ] Keyboard: Escape closes dropdown menus
-- [ ] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
-- [ ] All tests pass (`pnpm test`)
+- [x] ARIA: plugin cards have `role="article"` with descriptive `aria-label`
+- [x] ARIA: stat summary uses `aria-live="polite"`
+- [x] Keyboard: Tab navigates between interactive elements in correct order
+- [x] Keyboard: Arrow keys navigate within tablist
+- [x] Keyboard: Escape closes dropdown menus
+- [x] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
+- [x] All tests pass (`pnpm test`)
 
 **Files to create/modify**:
 
@@ -2357,9 +2357,9 @@ ARIA semantics, keyboard navigation, and WCAG 2.1 AA accessibility audit.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] All tests pass
-- [ ] axe audit passes with 0 violations
+- [x] All acceptance criteria checked
+- [x] All tests pass
+- [x] axe audit passes with 0 violations
 
 ---
 
@@ -2379,23 +2379,23 @@ timer, screen reader announcements, and WCAG 2.1 AA accessibility audit.
 
 **Acceptance Criteria**:
 
-- [ ] Step progression: steps transition from pending → running → complete in order
-- [ ] Step icons: correct icon rendered for each state (circle, spinner, checkmark, xcircle)
-- [ ] Step duration: completed steps display elapsed time (e.g., "0.3s")
-- [ ] Error variant: failed step shows XCircle icon, error panel with message, and
+- [x] Step progression: steps transition from pending → running → complete in order
+- [x] Step icons: correct icon rendered for each state (circle, spinner, checkmark, xcircle)
+- [x] Step duration: completed steps display elapsed time (e.g., "0.3s")
+- [x] Error variant: failed step shows XCircle icon, error panel with message, and
       "Retry Installation" + "Back to Registry" buttons
-- [ ] Error variant: remaining steps after failure show "skipped" state
-- [ ] Retry: clicking "Retry Installation" re-triggers install from failed step
-- [ ] Cancel: clicking "Cancel Installation" calls onCancel and reverts state
-- [ ] Success: all steps complete → shows success toast and "Enable now?" button
-- [ ] Elapsed timer: timer starts on mount and increments (verify with fake timers)
-- [ ] ARIA: container has `role="log"` with `aria-live="polite"`
-- [ ] ARIA: step status changes announced to screen readers via aria-live
-- [ ] ARIA: error panel has `role="alert"`
-- [ ] ARIA: migrations progress bar has `role="progressbar"` with `aria-valuenow`
-- [ ] Screen reader flow: step status changes are announced in correct order
-- [ ] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
-- [ ] All tests pass
+- [x] Error variant: remaining steps after failure show "skipped" state
+- [x] Retry: clicking "Retry Installation" re-triggers install from failed step
+- [x] Cancel: clicking "Cancel Installation" calls onCancel and reverts state
+- [x] Success: all steps complete → shows success toast and "Enable now?" button
+- [x] Elapsed timer: timer starts on mount and increments (verify with fake timers)
+- [x] ARIA: container has `role="log"` with `aria-live="polite"`
+- [x] ARIA: step status changes announced to screen readers via aria-live
+- [x] ARIA: error panel has `role="alert"`
+- [x] ARIA: migrations progress bar has `role="progressbar"` with `aria-valuenow`
+- [x] Screen reader flow: step status changes are announced in correct order
+- [x] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -2403,9 +2403,9 @@ timer, screen reader announcements, and WCAG 2.1 AA accessibility audit.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] All tests pass
-- [ ] axe audit passes with 0 violations
+- [x] All acceptance criteria checked
+- [x] All tests pass
+- [x] axe audit passes with 0 violations
 
 ---
 
