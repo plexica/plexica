@@ -57,6 +57,7 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           201: {
             description: 'File uploaded successfully',
             type: 'object',
+            additionalProperties: true,
             properties: {
               key: { type: 'string', description: 'Storage path key' },
               bucket: { type: 'string' },
@@ -66,9 +67,17 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
               createdAt: { type: 'string', format: 'date-time' },
             },
           },
-          400: { description: 'No file provided or path traversal detected', type: 'object' },
-          413: { description: 'File exceeds the allowed size limit', type: 'object' },
-          500: { description: 'Internal upload error', type: 'object' },
+          400: {
+            description: 'No file provided or path traversal detected',
+            type: 'object',
+            additionalProperties: true,
+          },
+          413: {
+            description: 'File exceeds the allowed size limit',
+            type: 'object',
+            additionalProperties: true,
+          },
+          500: { description: 'Internal upload error', type: 'object', additionalProperties: true },
         },
       },
     },
@@ -148,9 +157,17 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           'Stream a file from the tenant-scoped bucket. Sets Content-Disposition header.',
         response: {
           200: { description: 'File stream' },
-          400: { description: 'Path traversal detected', type: 'object' },
-          404: { description: 'File not found', type: 'object' },
-          500: { description: 'Internal download error', type: 'object' },
+          400: {
+            description: 'Path traversal detected',
+            type: 'object',
+            additionalProperties: true,
+          },
+          404: { description: 'File not found', type: 'object', additionalProperties: true },
+          500: {
+            description: 'Internal download error',
+            type: 'object',
+            additionalProperties: true,
+          },
         },
       },
     },
@@ -204,9 +221,17 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
         description: 'Delete a file from the tenant-scoped bucket. Requires admin role.',
         response: {
           204: { description: 'File deleted successfully' },
-          400: { description: 'Path traversal detected', type: 'object' },
-          403: { description: 'Insufficient permissions', type: 'object' },
-          500: { description: 'Internal delete error', type: 'object' },
+          400: {
+            description: 'Path traversal detected',
+            type: 'object',
+            additionalProperties: true,
+          },
+          403: {
+            description: 'Insufficient permissions',
+            type: 'object',
+            additionalProperties: true,
+          },
+          500: { description: 'Internal delete error', type: 'object', additionalProperties: true },
         },
       },
       preHandler: requireRole(
@@ -265,12 +290,13 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           200: {
             description: 'File list',
             type: 'object',
+            additionalProperties: true,
             properties: {
-              files: { type: 'array', items: { type: 'object' } },
+              files: { type: 'array', items: { type: 'object', additionalProperties: true } },
               count: { type: 'integer' },
             },
           },
-          500: { description: 'Internal list error', type: 'object' },
+          500: { description: 'Internal list error', type: 'object', additionalProperties: true },
         },
       },
     },
@@ -314,19 +340,30 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           200: {
             description: 'Signed URL',
             type: 'object',
+            additionalProperties: true,
             properties: {
               url: { type: 'string', description: 'Pre-signed download URL' },
               expiresIn: { type: 'integer' },
             },
           },
-          400: { description: 'Path traversal detected', type: 'object' },
-          500: { description: 'Failed to generate signed URL', type: 'object' },
+          400: {
+            description: 'Path traversal detected',
+            type: 'object',
+            additionalProperties: true,
+          },
+          500: {
+            description: 'Failed to generate signed URL',
+            type: 'object',
+            additionalProperties: true,
+          },
         },
       },
     },
     async (request, reply) => {
       // Check raw URL BEFORE Fastify normalization strips traversal sequences
-      if (request.url?.includes('..')) {
+      const rawUrl = request.raw?.url ?? request.url ?? '';
+      const wildcardParam = (request.params as any)['*'] ?? '';
+      if (rawUrl.includes('..') || wildcardParam.includes('..')) {
         return reply.code(400).send({
           error: { code: StorageErrorCode.PATH_TRAVERSAL, message: 'Path traversal detected' },
         });

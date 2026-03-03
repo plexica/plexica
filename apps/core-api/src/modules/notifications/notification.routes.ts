@@ -64,22 +64,28 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
         description:
           'Send a single notification via the specified channel (EMAIL, IN_APP, PUSH). Requires admin role.',
         response: {
-          201: { description: 'Notification sent', type: 'object' },
+          201: { description: 'Notification sent', type: 'object', additionalProperties: true },
           400: {
             description: 'Validation error or invalid email address',
             type: 'object',
+            additionalProperties: true,
             properties: {
               error: {
                 type: 'object',
+                additionalProperties: true,
                 properties: {
                   code: { type: 'string' },
                   message: { type: 'string' },
-                  details: { type: 'object' },
+                  details: { type: 'object', additionalProperties: true },
                 },
               },
             },
           },
-          500: { description: 'Failed to send notification', type: 'object' },
+          500: {
+            description: 'Failed to send notification',
+            type: 'object',
+            additionalProperties: true,
+          },
         },
       },
       preHandler: requireRole(
@@ -153,13 +159,18 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
           202: {
             description: 'Notifications enqueued for delivery',
             type: 'object',
+            additionalProperties: true,
             properties: {
               message: { type: 'string' },
               count: { type: 'integer' },
             },
           },
-          400: { description: 'Validation error', type: 'object' },
-          500: { description: 'Failed to enqueue notifications', type: 'object' },
+          400: { description: 'Validation error', type: 'object', additionalProperties: true },
+          500: {
+            description: 'Failed to enqueue notifications',
+            type: 'object',
+            additionalProperties: true,
+          },
         },
       },
       preHandler: requireRole(
@@ -256,8 +267,12 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
           200: {
             description: 'Notification list',
             type: 'object',
+            additionalProperties: true,
             properties: {
-              notifications: { type: 'array', items: { type: 'object' } },
+              notifications: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: true },
+              },
               unreadCount: { type: 'integer' },
               count: { type: 'integer' },
             },
@@ -301,12 +316,17 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
           200: {
             description: 'Notification marked as read',
             type: 'object',
+            additionalProperties: true,
             properties: {
-              notification: { type: 'object' },
+              notification: { type: 'object', additionalProperties: true },
               unreadCount: { type: 'integer' },
             },
           },
-          404: { description: 'Notification not found', type: 'object' },
+          404: {
+            description: 'Notification not found',
+            type: 'object',
+            additionalProperties: true,
+          },
         },
       },
     },
@@ -349,6 +369,7 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
           200: {
             description: 'All notifications marked as read',
             type: 'object',
+            additionalProperties: true,
             properties: {
               message: { type: 'string' },
               count: { type: 'integer', description: 'Number of notifications updated' },
