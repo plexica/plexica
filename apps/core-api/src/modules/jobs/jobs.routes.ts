@@ -33,7 +33,7 @@ function getJobRepo(): JobRepository {
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId = (request as any).user?.tenantSlug;
+  const tenantId = (request as any).user?.tenantSlug ?? (request as any).user?.tenantId;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
