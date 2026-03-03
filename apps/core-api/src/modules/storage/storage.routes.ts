@@ -321,7 +321,7 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       // Check raw URL BEFORE Fastify normalization strips traversal sequences
-      if (request.url.includes('..')) {
+      if (request.url?.includes('..')) {
         return reply.code(400).send({
           error: { code: StorageErrorCode.PATH_TRAVERSAL, message: 'Path traversal detected' },
         });
