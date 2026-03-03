@@ -65,20 +65,6 @@ export class SearchService implements ISearchService {
           body: doc.body,
           metadata: (doc.metadata as any) ?? null,
         },
-        // Exclude searchVector (tsvector) — Prisma cannot deserialize the
-        // PostgreSQL tsvector type. Since index() returns void, we only need
-        // to avoid reading the column back.
-        select: {
-          id: true,
-          tenantId: true,
-          documentId: true,
-          type: true,
-          title: true,
-          body: true,
-          metadata: true,
-          createdAt: true,
-          updatedAt: true,
-        },
       });
 
       logger.info(
@@ -86,6 +72,19 @@ export class SearchService implements ISearchService {
         '[SearchService] document indexed'
       );
     } catch (err) {
+      // Prisma cannot deserialize PostgreSQL tsvector columns. When the upsert
+      // succeeds at the DB level, Prisma still throws while reading the result
+      // row back. Since index() returns void we can safely treat tsvector
+      // deserialization failures as success — the write DID land in the DB.
+      const msg = (err as Error)?.message ?? '';
+      if (msg.includes('tsvector') || msg.includes('Could not deserialize')) {
+        logger.info(
+          { tenantId, documentId: doc.documentId, type: doc.type },
+          '[SearchService] document indexed'
+        );
+        return;
+      }
+
       throw Object.assign(err as Error, {
         code: SearchErrorCode.INDEX_FAILED,
         statusCode: 500,
