@@ -20,6 +20,7 @@ import { buildTestApp } from '../../test-app.js';
 import { db } from '../../lib/db.js';
 import { redis } from '../../lib/redis.js';
 import { auditLogService } from '../../services/audit-log.service.js';
+import { SchemaStep } from '../../services/provisioning-steps/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,6 +37,18 @@ async function seedTenant(slug: string, status: TenantStatus = TenantStatus.ACTI
       theme: {},
     },
   });
+}
+
+/**
+ * Seed a tenant AND create its per-tenant PostgreSQL schema (users, roles,
+ * permissions, team_members, etc.).  Required for suites that exercise
+ * tenant-admin endpoints which operate inside the tenant schema.
+ */
+async function seedTenantWithSchema(slug: string, status: TenantStatus = TenantStatus.ACTIVE) {
+  const tenant = await seedTenant(slug, status);
+  const schemaStep = new SchemaStep(db, slug);
+  await schemaStep.execute();
+  return tenant;
 }
 
 // Shared app instance for all suites
@@ -197,7 +210,7 @@ describe('T008-23: Tenant Admin user and team lifecycle', () => {
   const tenantSlug = `e2e-tenant-admin-${ts}`;
 
   beforeAll(async () => {
-    await seedTenant(tenantSlug);
+    await seedTenantWithSchema(tenantSlug);
   });
 
   const tenantAdminToken = () => testContext.auth.createMockTenantAdminToken(tenantSlug);
@@ -398,7 +411,7 @@ describe('T008-24: Custom role lifecycle and system role immutability', () => {
   const tenantSlug = `e2e-roles-${ts}`;
 
   beforeAll(async () => {
-    await seedTenant(tenantSlug);
+    await seedTenantWithSchema(tenantSlug);
   });
 
   const tenantAdminToken = () => testContext.auth.createMockTenantAdminToken(tenantSlug);
@@ -643,7 +656,7 @@ describe('T008-25: Edge case guards and cross-tenant isolation', () => {
 
   it('returns 409 MEMBER_ALREADY_EXISTS when adding the same member twice', async () => {
     const tenantSlug = `e2e-dupe-${ts}`;
-    await seedTenant(tenantSlug);
+    await seedTenantWithSchema(tenantSlug);
     const token = testContext.auth.createMockTenantAdminToken(tenantSlug);
     const userId = `member-dupe-${ts}`;
 
