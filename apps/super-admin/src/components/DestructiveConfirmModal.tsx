@@ -77,6 +77,8 @@ export function DestructiveConfirmModal({
   // Reset typed value whenever the modal opens.
   useEffect(() => {
     if (open) {
+      // Resetting controlled input state when the modal opens is intentional.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTypedValue('');
     }
   }, [open]);

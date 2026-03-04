@@ -177,7 +177,11 @@ function RowActions({
         aria-expanded={isOpen}
         onClick={(e) => {
           e.stopPropagation();
-          isOpen ? onClose() : onOpen();
+          if (isOpen) {
+            onClose();
+          } else {
+            onOpen();
+          }
         }}
         className="rounded p-1 hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
       >

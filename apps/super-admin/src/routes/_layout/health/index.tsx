@@ -85,6 +85,8 @@ function useCountdown(seconds: number, resetSignal: number) {
   const [remaining, setRemaining] = useState(seconds);
 
   useEffect(() => {
+    // Resetting countdown to the new duration on signal change is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRemaining(seconds);
   }, [seconds, resetSignal]);
 

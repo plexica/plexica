@@ -154,10 +154,13 @@ function TenantDetailPage() {
         maxUsers: String((tenant.settings?.maxUsers as number | undefined) ?? ''),
         primaryColor: String((tenant.theme?.primaryColor as string | undefined) ?? ''),
       };
+      // Initializing multiple form-state slices from server data is intentional.
+      /* eslint-disable react-hooks/set-state-in-effect */
       setFields(initial);
       setOriginalFields(initial);
       setErrors({});
       setTouched({});
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [tenant]);
 

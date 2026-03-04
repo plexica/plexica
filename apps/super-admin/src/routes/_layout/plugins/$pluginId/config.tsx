@@ -118,7 +118,7 @@ function PluginConfigPage() {
   // -----------------------------------------------------------------------
   // Error / not-found state
   // -----------------------------------------------------------------------
-  if (isError || (!isLoading && !plugin)) {
+  if (isError || !plugin) {
     return (
       <div className="space-y-6">
         <button

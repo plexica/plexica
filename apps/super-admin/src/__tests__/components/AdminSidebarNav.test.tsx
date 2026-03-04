@@ -28,11 +28,10 @@ import type { LucideIcon } from 'lucide-react';
 // Mock useLocation so we can control the active path
 const mockPathname = vi.fn(() => '/');
 
-vi.mock('@tanstack/react-router', () => ({
-  useLocation: () => ({ pathname: mockPathname() }),
+vi.mock('@tanstack/react-router', () => {
   // Link renders as a plain <a>. Must use forwardRef so the component's
   // callback refs (itemRefs.current[index]) are populated in jsdom.
-  Link: React.forwardRef(
+  const Link = React.forwardRef(
     (
       props: {
         to?: string;
@@ -58,8 +57,13 @@ vi.mock('@tanstack/react-router', () => ({
         children
       );
     }
-  ),
-}));
+  );
+  Link.displayName = 'MockLink';
+  return {
+    useLocation: () => ({ pathname: mockPathname() }),
+    Link,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Import component after mocks
