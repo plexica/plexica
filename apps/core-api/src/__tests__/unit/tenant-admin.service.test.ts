@@ -137,7 +137,7 @@ describe('TenantAdminService', () => {
   describe('listUsers', () => {
     it('should return paginated user list', async () => {
       // Arrange
-      const mockUsers = [{ id: 'u1', email: 'a@b.com', status: 'active' }];
+      const mockUsers = [{ id: 'u1', email: 'a@b.com', status: 'active', team_count: 0 }];
       (db.$queryRaw as any)
         .mockResolvedValueOnce(mockUsers)
         .mockResolvedValueOnce([{ count: BigInt(1) }]);
