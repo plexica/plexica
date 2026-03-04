@@ -240,8 +240,14 @@ export class TenantAdminService {
 
     const total = Number((totalResult[0] as any)?.count ?? 0);
 
+    // COUNT() returns BigInt from Prisma raw queries — convert to Number for JSON serialization.
+    const data = users.map((u: any) => ({
+      ...u,
+      team_count: Number(u.team_count ?? 0),
+    }));
+
     return {
-      data: users,
+      data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -632,8 +638,13 @@ export class TenantAdminService {
     }
 
     const total = Number((totalResult[0] as any)?.count ?? 0);
+    // COUNT() returns BigInt from Prisma raw queries — convert to Number for JSON serialization.
+    const data = teams.map((t: any) => ({
+      ...t,
+      member_count: Number(t.member_count ?? 0),
+    }));
     return {
-      data: teams,
+      data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
