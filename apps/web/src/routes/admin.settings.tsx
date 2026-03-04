@@ -107,11 +107,17 @@ function TenantAdminSettingsPage() {
   // Seed from loaded settings
   useEffect(() => {
     if (settings) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrimaryColor(settings.theme.primaryColor ?? '');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAccentColor(settings.theme.accentColor ?? '');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLogoUrl(settings.theme.logoUrl ?? '');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocale(settings.preferences.defaultLocale ?? '');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTimezone(settings.preferences.timezone ?? '');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDateFormat(settings.preferences.dateFormat ?? '');
     }
   }, [settings]);

@@ -113,6 +113,48 @@ export class SystemConfigService {
   }
 
   /**
+   * Upsert a config value by key.
+   * Creates the entry if it does not exist, or updates it if it does.
+   * Invalidates the Redis cache entry after a successful upsert.
+   * Returns the upserted config item.
+   *
+   * Unlike `update()`, `set()` does not require the key to pre-exist
+   * (plan §4.4 — super-admin surfaces need to create new keys at runtime).
+   */
+  async set(key: string, value: unknown, updatedBy: string): Promise<SystemConfigValue> {
+    const upserted = await this.db.systemConfig.upsert({
+      where: { key },
+      create: {
+        key,
+        value: value as any,
+        category: 'general',
+        updatedBy,
+      },
+      update: {
+        value: value as any,
+        updatedBy,
+      },
+    });
+
+    // Invalidate cache so next read reflects the new value
+    try {
+      await redis.del(this.cacheKey(key));
+    } catch (cacheErr) {
+      logger.warn({ err: cacheErr, key }, 'SystemConfigService.set: failed to invalidate cache');
+    }
+
+    return {
+      key: upserted.key,
+      value: upserted.value,
+      category: upserted.category,
+      description: upserted.description,
+      updatedBy: upserted.updatedBy,
+      updatedAt: upserted.updatedAt,
+      createdAt: upserted.createdAt,
+    };
+  }
+
+  /**
    * Update an existing config value.
    * Throws SystemConfigNotFoundError if the key does not exist (plan §4.4 — no arbitrary key creation).
    * Invalidates the Redis cache entry after a successful update.

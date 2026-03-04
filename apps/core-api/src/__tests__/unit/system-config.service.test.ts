@@ -12,6 +12,17 @@ import {
 } from '../../services/system-config.service.js';
 import type { PrismaClient } from '@plexica/database';
 
+// Mock Redis so unit tests don't require a live Redis instance.
+// The service treats Redis as a best-effort cache; it falls through to Prisma
+// on any Redis error, so a no-op mock gives correct behaviour.
+vi.mock('../../lib/redis.js', () => ({
+  redis: {
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
