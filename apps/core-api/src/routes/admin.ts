@@ -764,7 +764,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post<{
     Params: { id: string };
   }>(
-    '/admin/tenants/:id/resend-invitation',
+    '/admin/tenants/:id/resend-invite',
     {
       preHandler: [requireSuperAdmin],
       schema: {
