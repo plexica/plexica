@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { TenantStatus } from '@plexica/database';
-import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
+import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
 import { buildTestApp } from '../../../test-app.js';
 import { db } from '../../../lib/db.js';
 import { redis } from '../../../lib/redis.js';
