@@ -16,10 +16,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { TenantStatus } from '@plexica/database';
 import { testContext } from '../../../../../test-infrastructure/helpers/test-context.helper.js';
-import { buildTestApp } from '../../../test-app.js';
-import { db } from '../../../lib/db.js';
-import { redis } from '../../../lib/redis.js';
-import { auditLogService } from '../../../services/audit-log.service.js';
+import { buildTestApp } from '../../test-app.js';
+import { db } from '../../lib/db.js';
+import { redis } from '../../lib/redis.js';
+import { auditLogService } from '../../services/audit-log.service.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -566,8 +566,12 @@ describe('T008-25: Edge case guards and cross-tenant isolation', () => {
 
   it('returns 409 LAST_SUPER_ADMIN when deleting the only super admin', async () => {
     // Seed a standalone super admin record not shared with the token issuer
-    const loneAdminId = `lone-super-admin-${ts}`;
-    const loneAdmin = await db.superAdmin.create({ data: { userId: loneAdminId } });
+    const loneAdmin = await db.superAdmin.create({
+      data: {
+        keycloakId: `lone-super-admin-kc-${ts}`,
+        email: `lone-super-admin-${ts}@example.com`,
+      },
+    });
 
     // Remove all other super admins so this is the last one
     const allAdmins = await db.superAdmin.findMany({
