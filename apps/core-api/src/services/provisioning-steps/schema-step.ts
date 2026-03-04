@@ -259,23 +259,28 @@ export class SchemaStep implements ProvisioningStep {
     // -------------------------------------------------------------------------
     // teams
     // -------------------------------------------------------------------------
+    // workspace_id is nullable: teams may be created without a workspace when
+    // the caller (e.g. a tenant admin via the admin portal) does not supply one.
+    // owner_id intentionally has no FK to users because user identities are
+    // managed in Keycloak and are not necessarily pre-seeded in the tenant schema.
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."teams" (
         id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
-        workspace_id TEXT NOT NULL,
+        workspace_id TEXT,
         name TEXT NOT NULL,
         description TEXT,
         owner_id TEXT NOT NULL,
         created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE,
-        FOREIGN KEY (owner_id) REFERENCES "${schemaName}"."users"(id)
+        FOREIGN KEY (workspace_id) REFERENCES "${schemaName}"."workspaces"(id) ON DELETE CASCADE
       )
     `);
 
     // -------------------------------------------------------------------------
     // team_members (T008-03 — Spec 008 Admin Interfaces)
     // -------------------------------------------------------------------------
+    // user_id intentionally has no FK to users because user identities are
+    // managed in Keycloak and are not necessarily pre-seeded in the tenant schema.
     await this.db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}"."team_members" (
         team_id TEXT NOT NULL,
@@ -283,8 +288,7 @@ export class SchemaStep implements ProvisioningStep {
         role TEXT NOT NULL CHECK (role IN ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER')),
         joined_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (team_id, user_id),
-        FOREIGN KEY (team_id) REFERENCES "${schemaName}"."teams"(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE
+        FOREIGN KEY (team_id) REFERENCES "${schemaName}"."teams"(id) ON DELETE CASCADE
       )
     `);
     await this.db.$executeRawUnsafe(

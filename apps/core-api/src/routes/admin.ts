@@ -580,6 +580,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       try {
         const tenant = await tenantService.suspendTenant(request.params.id);
+        void auditLogService.log({
+          action: 'tenant.suspended',
+          tenantId: request.params.id,
+          userId: (request as any).user?.sub,
+          resourceType: 'tenant',
+          resourceId: request.params.id,
+        });
         return reply.send(sanitizeTenant(tenant));
       } catch (error: any) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to suspend tenant');
@@ -913,6 +920,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const { deletionScheduledAt } = await tenantService.deleteTenant(request.params.id);
 
         request.log.info({ tenantId: request.params.id }, 'Tenant marked for deletion');
+        void auditLogService.log({
+          action: 'tenant.deleted',
+          tenantId: request.params.id,
+          userId: (request as any).user?.sub,
+          resourceType: 'tenant',
+          resourceId: request.params.id,
+        });
 
         return reply.send({
           id: request.params.id,

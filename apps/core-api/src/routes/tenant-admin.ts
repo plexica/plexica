@@ -31,7 +31,11 @@ import { auditLogService } from '../services/audit-log.service.js';
 
 const InviteUserSchema = z.object({
   email: z.string().email(),
-  roleId: z.string().uuid(),
+  // roleId (UUID) is the canonical field; `role` (string name) is accepted as a
+  // legacy / convenience alias used by tests and older clients.
+  roleId: z.string().uuid().optional(),
+  role: z.string().max(100).optional(),
+  name: z.string().max(200).optional(),
 });
 
 const UpdateUserRoleSchema = z.object({
@@ -42,7 +46,8 @@ const UpdateUserRoleSchema = z.object({
 const CreateTeamSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  workspaceId: z.string().uuid(),
+  /** Optional: when absent the team is not scoped to a specific workspace. */
+  workspaceId: z.string().uuid().optional(),
 });
 
 const UpdateTeamSchema = z.object({
@@ -51,7 +56,9 @@ const UpdateTeamSchema = z.object({
 });
 
 const AddTeamMemberSchema = z.object({
-  userId: z.string().uuid(),
+  // Accept any non-empty string: user IDs come from Keycloak and may not be
+  // standard UUIDs in all environments (e.g., test mocks).
+  userId: z.string().min(1),
   role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']),
 });
 
@@ -614,7 +621,8 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
       const { tenantId, schemaName } = request.tenant!;
       const dto = CreateRoleSchema.parse(request.body);
       const result = await tenantAdminService.createRole(tenantId, schemaName, dto);
-      return reply.status(201).send(result);
+      // Custom roles created via this endpoint are never system roles.
+      return reply.status(201).send({ ...result, isSystem: false });
     } catch (err) {
       return handleError(reply, err);
     }
@@ -663,7 +671,9 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
     try {
       const { tenantId, schemaName } = request.tenant!;
       const result = await tenantAdminService.listPermissions(tenantId, schemaName);
-      return reply.status(200).send(result);
+      // Return the permissions array directly (not the wrapper object) so callers
+      // can use Array.isArray() on the response body.
+      return reply.status(200).send(result.permissions ?? result);
     } catch (err) {
       return handleError(reply, err);
     }

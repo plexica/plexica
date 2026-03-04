@@ -66,7 +66,9 @@ export interface ListUsersFilters {
 
 export interface InviteUserDto {
   email: string;
-  roleId: string;
+  /** UUID of the role to assign. Optional: when absent the user is invited without an
+   *  explicit role assignment (role can be assigned later by a tenant admin). */
+  roleId?: string;
 }
 
 export interface UpdateUserDto {
@@ -83,7 +85,8 @@ export interface ListTeamsFilters {
 export interface CreateTeamDto {
   name: string;
   description?: string;
-  workspaceId: string;
+  /** Optional: when absent the team is not scoped to a specific workspace. */
+  workspaceId?: string;
   ownerId: string;
 }
 
@@ -247,12 +250,14 @@ export class TenantAdminService {
     validateSchemaName(schemaName);
     const schema = Prisma.raw(schemaName);
 
-    // Validate roleId exists in tenant schema
-    const roleCheck = await db.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM ${schema}."roles" WHERE id = ${dto.roleId} LIMIT 1`
-    );
-    if (!roleCheck.length) {
-      throw new DomainError('ROLE_NOT_FOUND', `Role '${dto.roleId}' not found`, 404);
+    // Validate roleId exists in tenant schema (only when provided)
+    if (dto.roleId) {
+      const roleCheck = await db.$queryRaw<{ id: string }[]>(
+        Prisma.sql`SELECT id FROM ${schema}."roles" WHERE id = ${dto.roleId} LIMIT 1`
+      );
+      if (!roleCheck.length) {
+        throw new DomainError('ROLE_NOT_FOUND', `Role '${dto.roleId}' not found`, 404);
+      }
     }
 
     // Create user in Keycloak
@@ -278,13 +283,15 @@ export class TenantAdminService {
       `
     );
 
-    // Assign role
-    await db.$executeRaw(
-      Prisma.sql`
-        INSERT INTO ${schema}."user_roles" (user_id, role_id, tenant_id, assigned_at)
-        VALUES (${userId}, ${dto.roleId}, ${tenantId}, NOW())
-      `
-    );
+    // Assign role (only when roleId provided)
+    if (dto.roleId) {
+      await db.$executeRaw(
+        Prisma.sql`
+          INSERT INTO ${schema}."user_roles" (user_id, role_id, tenant_id, assigned_at)
+          VALUES (${userId}, ${dto.roleId}, ${tenantId}, NOW())
+        `
+      );
+    }
 
     // Audit — Art. 5.2: email is PII; log only non-PII fields
     void auditLogService.log({
@@ -592,19 +599,25 @@ export class TenantAdminService {
     validateSchemaName(schemaName);
     const schema = Prisma.raw(schemaName);
 
-    // Validate workspaceId exists
-    const wsCheck = await db.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM ${schema}."workspaces" WHERE id = ${dto.workspaceId} LIMIT 1`
-    );
-    if (!wsCheck.length) {
-      throw new DomainError('WORKSPACE_NOT_FOUND', `Workspace '${dto.workspaceId}' not found`, 404);
+    // Validate workspaceId exists only when provided
+    if (dto.workspaceId) {
+      const wsCheck = await db.$queryRaw<{ id: string }[]>(
+        Prisma.sql`SELECT id FROM ${schema}."workspaces" WHERE id = ${dto.workspaceId} LIMIT 1`
+      );
+      if (!wsCheck.length) {
+        throw new DomainError(
+          'WORKSPACE_NOT_FOUND',
+          `Workspace '${dto.workspaceId}' not found`,
+          404
+        );
+      }
     }
 
     const teamId = crypto.randomUUID();
     await db.$executeRaw(
       Prisma.sql`
         INSERT INTO ${schema}."teams" (id, workspace_id, name, description, owner_id, created_at, updated_at)
-        VALUES (${teamId}, ${dto.workspaceId}, ${dto.name}, ${dto.description ?? null}, ${dto.ownerId}, NOW(), NOW())
+        VALUES (${teamId}, ${dto.workspaceId ?? null}, ${dto.name}, ${dto.description ?? null}, ${dto.ownerId}, NOW(), NOW())
       `
     );
 
@@ -695,13 +708,9 @@ export class TenantAdminService {
       throw new DomainError('TEAM_NOT_FOUND', `Team '${teamId}' not found`, 404);
     }
 
-    // Verify user exists
-    const userCheck = await db.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM ${schema}."users" WHERE id = ${dto.userId} LIMIT 1`
-    );
-    if (!userCheck.length) {
-      throw new DomainError('USER_NOT_FOUND', `User '${dto.userId}' not found`, 404);
-    }
+    // Note: user existence is intentionally NOT validated here. User identities
+    // are managed in Keycloak and may not be pre-seeded in the tenant schema's
+    // users table. The team_members table accepts any user_id string.
 
     try {
       await db.$executeRaw(

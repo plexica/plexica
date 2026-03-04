@@ -345,7 +345,6 @@ model User {
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
   workspaceMemberships WorkspaceMember[]
-  teamsOwned           Team[]            @relation("TeamOwner")
   invitedBy            WorkspaceMember[] @relation("InvitedBy")
 
   @@map("users")
@@ -430,17 +429,19 @@ model WorkspaceResource {
 }
 
 // Team Model (in tenant schema) - Updated with workspace relationship
+// workspace_id is nullable: teams may be created without a workspace.
+// owner_id has no Prisma relation: owner is a Keycloak user ID and may not
+// exist in core.users at team-creation time.
 model Team {
-  id          String   @id @default(uuid())
-  workspaceId String   @map("workspace_id")
+  id          String    @id @default(uuid())
+  workspaceId String?   @map("workspace_id")
   name        String
   description String?
-  ownerId     String   @map("owner_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  ownerId     String    @map("owner_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner     User      @relation("TeamOwner", fields: [ownerId], references: [id])
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([ownerId])
