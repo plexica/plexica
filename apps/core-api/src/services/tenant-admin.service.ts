@@ -583,32 +583,53 @@ export class TenantAdminService {
     const limit = Math.min(filters.limit ?? 50, 100);
     const offset = (page - 1) * limit;
 
-    // Build separate condition fragments for the two parallel $queryRaw calls.
-    // A single Prisma.sql object must NOT be reused across multiple $queryRaw
-    // calls run in parallel — Prisma mutates internal state on first execution.
-    const buildConditions = () =>
-      filters.workspaceId
-        ? Prisma.sql`WHERE t.workspace_id = ${filters.workspaceId}`
-        : Prisma.sql`WHERE 1=1`;
+    // Use explicit branching instead of embedded Prisma.sql fragments to avoid
+    // any Prisma template parameter-numbering issues with embedded WHERE fragments.
+    let teams: any[];
+    let totalResult: { count: bigint }[];
 
-    const [teams, totalResult] = await Promise.all([
-      db.$queryRaw<any[]>(
-        Prisma.sql`
-          SELECT
-            t.id, t.name, t.description, t.workspace_id, t.created_at,
-            COUNT(tm.user_id) AS member_count
-          FROM ${schema}."teams" t
-          LEFT JOIN ${schema}."team_members" tm ON tm.team_id = t.id
-          ${buildConditions()}
-          GROUP BY t.id
-          ORDER BY t.created_at DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `
-      ),
-      db.$queryRaw<{ count: bigint }[]>(
-        Prisma.sql`SELECT COUNT(*) AS count FROM ${schema}."teams" t ${buildConditions()}`
-      ),
-    ]);
+    if (filters.workspaceId) {
+      [teams, totalResult] = await Promise.all([
+        db.$queryRaw<any[]>(
+          Prisma.sql`
+            SELECT
+              t.id, t.name, t.description, t.workspace_id, t.created_at,
+              COUNT(tm.user_id) AS member_count
+            FROM ${schema}."teams" t
+            LEFT JOIN ${schema}."team_members" tm ON tm.team_id = t.id
+            WHERE t.workspace_id = ${filters.workspaceId}
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            LIMIT ${limit} OFFSET ${offset}
+          `
+        ),
+        db.$queryRaw<{ count: bigint }[]>(
+          Prisma.sql`
+            SELECT COUNT(*) AS count
+            FROM ${schema}."teams" t
+            WHERE t.workspace_id = ${filters.workspaceId}
+          `
+        ),
+      ]);
+    } else {
+      [teams, totalResult] = await Promise.all([
+        db.$queryRaw<any[]>(
+          Prisma.sql`
+            SELECT
+              t.id, t.name, t.description, t.workspace_id, t.created_at,
+              COUNT(tm.user_id) AS member_count
+            FROM ${schema}."teams" t
+            LEFT JOIN ${schema}."team_members" tm ON tm.team_id = t.id
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            LIMIT ${limit} OFFSET ${offset}
+          `
+        ),
+        db.$queryRaw<{ count: bigint }[]>(
+          Prisma.sql`SELECT COUNT(*) AS count FROM ${schema}."teams" t`
+        ),
+      ]);
+    }
 
     const total = Number((totalResult[0] as any)?.count ?? 0);
     return {
