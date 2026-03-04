@@ -31,6 +31,7 @@ import { authorizationRoutes } from './routes/authorization.js';
 import { policiesRoutes } from './routes/policies.js';
 import { pluginV1Routes } from './routes/plugin-v1.js';
 import { tenantPluginsV1Routes } from './routes/tenant-plugins-v1.js';
+import { tenantAdminRoutes } from './routes/tenant-admin.js';
 import { db } from './lib/db.js';
 import { redis } from './lib/redis.js';
 import { ServiceRegistryService } from './services/service-registry.service.js';
@@ -100,6 +101,7 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(tenantPluginsV1Routes, { prefix: '/api/v1' }); // Spec 004 T004-10
   await app.register(authorizationRoutes, { prefix: '/api' }); // Authorization routes (Spec 003 RBAC)
   await app.register(policiesRoutes, { prefix: '/api' }); // ABAC policy routes (Spec 003)
+  await app.register(tenantAdminRoutes, { prefix: '/api/v1' }); // Spec 008 — Tenant Admin Interface
 
   // Spec 007 Core Services routes — registered with tenantContextMiddleware
   // so that getTenantId() can read request.tenant.tenantId

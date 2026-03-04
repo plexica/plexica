@@ -32,6 +32,7 @@ import { authorizationRoutes } from './routes/authorization.js';
 import { policiesRoutes } from './routes/policies.js';
 import { pluginV1Routes } from './routes/plugin-v1.js';
 import { tenantPluginsV1Routes } from './routes/tenant-plugins-v1.js';
+import { tenantAdminRoutes } from './routes/tenant-admin.js';
 import { minioClient } from './services/minio-client';
 import { db } from './lib/db';
 import { redis } from './lib/redis';
@@ -227,6 +228,7 @@ async function registerRoutes() {
   await server.register(jobsRoutes, { prefix: '/api/v1' });
   await server.register(searchRoutes, { prefix: '/api/v1' });
   await server.register(notificationStreamRoutes, { prefix: '/api/v1' });
+  await server.register(tenantAdminRoutes, { prefix: '/api/v1' }); // Spec 008 T008-18/64/65 — Tenant Admin Interface
 }
 
 // Error handler

@@ -8,8 +8,15 @@ import { adminService } from '../services/admin.service.js';
 import { pluginRegistryService } from '../services/plugin.service.js';
 import { TenantStatus } from '@plexica/database';
 import { requireSuperAdmin } from '../middleware/auth.js';
+import { getJobQueueServiceInstance } from '../modules/jobs/job-queue.singleton.js';
 import { db } from '../lib/db.js';
 import { sanitizeTenant } from '../lib/tenant-sanitize.js';
+import {
+  systemConfigService,
+  SystemConfigNotFoundError,
+} from '../services/system-config.service.js';
+import { auditLogService } from '../services/audit-log.service.js';
+import { LastSuperAdminError, SuperAdminNotFoundError } from '../services/admin.service.js';
 
 // Theme validation schema (T001-13)
 // SECURITY: customCss is sanitized to block data-exfiltration vectors (url(), @import, expression())
@@ -161,7 +168,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
       } catch (error: any) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to list tenants',
+          },
+        });
       }
     }
   );
@@ -482,7 +494,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Tenant not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -547,7 +565,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Tenant not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -622,7 +646,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Tenant not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -637,8 +667,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (error.message === 'Tenant not found') {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: error.message,
+              details: { tenantId: request.params.id },
+            },
           });
         }
 
@@ -652,8 +685,76 @@ export async function adminRoutes(fastify: FastifyInstance) {
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to activate tenant',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to activate tenant',
+          },
+        });
+      }
+    }
+  );
+
+  // Reactivate a suspended tenant (alias for /activate with strict SUSPENDED-only guard)
+  fastify.post<{
+    Params: { id: string };
+  }>(
+    '/admin/tenants/:id/reactivate',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description:
+          'Reactivate a SUSPENDED tenant (super-admin only). Returns 409 TENANT_NOT_SUSPENDED if tenant is not SUSPENDED.',
+        tags: ['admin', 'tenants'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            description: 'Tenant reactivated successfully',
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              slug: { type: 'string' },
+              name: { type: 'string' },
+              status: { type: 'string' },
+              deletionScheduledAt: { type: 'string', format: 'date-time', nullable: true },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        const existing = await db.tenant.findUnique({ where: { id: request.params.id } });
+        if (!existing) {
+          return reply.code(404).send({
+            error: {
+              code: 'TENANT_NOT_FOUND',
+              message: 'Tenant not found',
+              details: { tenantId: request.params.id },
+            },
+          });
+        }
+        if (existing.status !== 'SUSPENDED') {
+          return reply.code(409).send({
+            error: {
+              code: 'TENANT_NOT_SUSPENDED',
+              message: `Cannot reactivate tenant with status: ${existing.status}. Tenant must be SUSPENDED.`,
+              details: { currentStatus: existing.status },
+            },
+          });
+        }
+        const tenant = await tenantService.activateTenant(request.params.id);
+        return reply.send(sanitizeTenant(tenant));
+      } catch (error: any) {
+        request.log.error({ error, tenantId: request.params.id }, 'Failed to reactivate tenant');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to reactivate tenant' },
         });
       }
     }
@@ -663,7 +764,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post<{
     Params: { id: string };
   }>(
-    '/admin/tenants/:id/resend-invite',
+    '/admin/tenants/:id/resend-invitation',
     {
       preHandler: [requireSuperAdmin],
       schema: {
@@ -795,8 +896,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Tenant not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -912,8 +1018,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Tenant not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1106,7 +1217,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return reply.send(result);
       } catch (error: any) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to list plugins',
+          },
+        });
       }
     }
   );
@@ -1154,14 +1270,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (error.message.includes('not found')) {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: error.message,
+              details: { pluginId: request.params.id },
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve plugin details',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to retrieve plugin details',
+          },
         });
       }
     }
@@ -1248,8 +1369,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error({ error }, 'Failed to create plugin');
         return reply.code(400).send({
-          error: 'Bad Request',
-          message: error.message,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: error.message,
+          },
         });
       }
     }
@@ -1309,8 +1432,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Plugin not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1339,8 +1467,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (Object.keys(updateData).length === 0) {
           return reply.code(400).send({
-            error: 'Bad Request',
-            message: 'At least one field must be provided',
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'At least one field must be provided',
+            },
           });
         }
 
@@ -1355,14 +1485,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (error.message.includes('not found')) {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: error.message,
+              details: { pluginId: request.params.id },
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to update plugin',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to update plugin',
+          },
         });
       }
     }
@@ -1397,16 +1532,26 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Plugin not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
           409: {
             description: 'Plugin has active installations',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1423,21 +1568,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (error.message.includes('not found')) {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: error.message,
+              details: { pluginId: request.params.id },
+            },
           });
         }
 
         if (error.message.includes('Cannot delete')) {
           return reply.code(409).send({
-            error: 'Conflict',
-            message: error.message,
+            error: {
+              code: 'PLUGIN_DELETE_CONFLICT',
+              message: error.message,
+              details: { pluginId: request.params.id },
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to delete plugin',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to delete plugin',
+          },
         });
       }
     }
@@ -1476,8 +1629,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Plugin not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1489,8 +1647,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const plugin = await pluginRegistryService.getPlugin(request.params.id);
         if (!plugin) {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: `Plugin '${request.params.id}' not found`,
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: `Plugin '${request.params.id}' not found`,
+              details: { pluginId: request.params.id },
+            },
           });
         }
 
@@ -1518,14 +1679,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (error.message?.includes('not found')) {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: error.message,
+              details: { pluginId: request.params.id },
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve plugin installations',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to retrieve plugin installations',
+          },
         });
       }
     }
@@ -1643,7 +1809,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
       } catch (error: any) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to list users',
+          },
+        });
       }
     }
   );
@@ -1701,8 +1872,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'User not found',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1717,14 +1893,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         if (error.message.includes('not found')) {
           return reply.code(404).send({
-            error: 'Not Found',
-            message: error.message,
+            error: {
+              code: 'USER_NOT_FOUND',
+              message: error.message,
+              details: { userId: request.params.id },
+            },
           });
         }
 
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to retrieve user details',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to retrieve user details',
+          },
         });
       }
     }
@@ -1757,8 +1938,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Internal server error',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1771,8 +1957,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch analytics overview');
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch analytics overview',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to fetch analytics overview',
+          },
         });
       }
     }
@@ -1832,8 +2020,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch tenant growth data');
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch tenant growth data',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to fetch tenant growth data',
+          },
         });
       }
     }
@@ -1866,8 +2056,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Internal server error',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1880,8 +2075,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch plugin usage data');
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch plugin usage data',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to fetch plugin usage data',
+          },
         });
       }
     }
@@ -1931,8 +2128,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
             description: 'Internal server error',
             type: 'object',
             properties: {
-              error: { type: 'string' },
-              message: { type: 'string' },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -1946,8 +2148,690 @@ export async function adminRoutes(fastify: FastifyInstance) {
       } catch (error: any) {
         request.log.error({ error }, 'Failed to fetch API call metrics');
         return reply.code(500).send({
-          error: 'Internal Server Error',
-          message: 'Failed to fetch API call metrics',
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to fetch API call metrics',
+          },
+        });
+      }
+    }
+  );
+
+  // ===== SUPER ADMIN MANAGEMENT =====
+
+  // List all super admins
+  fastify.get(
+    '/admin/super-admins',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'List all super admins (super-admin only)',
+        tags: ['admin', 'super-admins'],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    keycloakId: { type: ['string', 'null'] },
+                    email: { type: 'string' },
+                    name: { type: ['string', 'null'] },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+              meta: {
+                type: 'object',
+                properties: {
+                  total: { type: 'number' },
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                },
+              },
+            },
+          },
+          500: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const admins = await adminService.listSuperAdmins();
+        return reply.send({ data: admins, meta: { total: admins.length, page: 1, limit: 50 } });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to list super admins');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to list super admins' },
+        });
+      }
+    }
+  );
+
+  // Grant super admin role
+  fastify.post<{
+    Body: { userId: string; email: string; name?: string };
+  }>(
+    '/admin/super-admins',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Grant super admin role to a user (super-admin only)',
+        tags: ['admin', 'super-admins'],
+        body: {
+          type: 'object',
+          required: ['userId', 'email'],
+          properties: {
+            userId: { type: 'string', description: 'Keycloak user ID' },
+            email: { type: 'string', format: 'email' },
+            name: { type: 'string' },
+          },
+        },
+        response: {
+          201: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              keycloakId: { type: ['string', 'null'] },
+              email: { type: 'string' },
+              name: { type: ['string', 'null'] },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          400: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Body: { userId: string; email: string; name?: string } }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const { userId, email, name } = request.body;
+        const admin = await adminService.createSuperAdmin({
+          userId,
+          email,
+          name,
+          grantedBy: (request as any).user?.sub ?? 'system',
+        });
+        await auditLogService.log({
+          action: 'super_admin.granted',
+          userId: (request as any).user?.sub,
+          resourceType: 'super_admin',
+          resourceId: admin.id,
+          details: { email },
+        });
+        return reply.code(201).send(admin);
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to create super admin');
+        return reply.code(400).send({
+          error: { code: 'SUPER_ADMIN_CREATE_FAILED', message: error.message },
+        });
+      }
+    }
+  );
+
+  // Revoke super admin role
+  fastify.delete<{
+    Params: { id: string };
+  }>(
+    '/admin/super-admins/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Revoke super admin role (super-admin only)',
+        tags: ['admin', 'super-admins'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          204: {
+            type: 'null',
+            description: 'Super admin role revoked',
+          },
+          404: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+          409: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      try {
+        await adminService.revokeSuperAdmin(request.params.id);
+        await auditLogService.log({
+          action: 'super_admin.revoked',
+          userId: (request as any).user?.sub,
+          resourceType: 'super_admin',
+          resourceId: request.params.id,
+        });
+        return reply.code(204).send();
+      } catch (error: any) {
+        if (error instanceof SuperAdminNotFoundError) {
+          return reply.code(404).send({
+            error: { code: error.code, message: error.message },
+          });
+        }
+        if (error instanceof LastSuperAdminError) {
+          return reply.code(409).send({
+            error: { code: error.code, message: error.message },
+          });
+        }
+        request.log.error({ error }, 'Failed to revoke super admin');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to revoke super admin' },
+        });
+      }
+    }
+  );
+
+  // ===== SYSTEM HEALTH =====
+
+  fastify.get(
+    '/admin/system/health',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get system health status (super-admin only)',
+        tags: ['admin', 'system'],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              status: { type: 'string' },
+              checks: { type: 'object' },
+              timestamp: { type: 'string', format: 'date-time' },
+            },
+          },
+          500: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const health = await adminService.getSystemHealth();
+        return reply.send(health);
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to get system health');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get system health' },
+        });
+      }
+    }
+  );
+
+  // ===== SYSTEM CONFIG =====
+
+  // List all config items (optionally filtered by category)
+  fastify.get<{
+    Querystring: { category?: string };
+  }>(
+    '/admin/system-config',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'List system config items (super-admin only)',
+        tags: ['admin', 'system'],
+        querystring: {
+          type: 'object',
+          properties: {
+            category: { type: 'string', description: 'Filter by category' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    key: { type: 'string' },
+                    value: {},
+                    category: { type: 'string' },
+                    description: { type: ['string', 'null'] },
+                    updatedBy: { type: ['string', 'null'] },
+                    updatedAt: { type: 'string', format: 'date-time' },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { category } = request.query;
+        const items = await systemConfigService.list(category);
+        return reply.send({ data: items });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to list system config');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to list system config' },
+        });
+      }
+    }
+  );
+
+  // Get single config item
+  fastify.get<{
+    Params: { key: string };
+  }>(
+    '/admin/system-config/:key',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Get a system config item by key (super-admin only)',
+        tags: ['admin', 'system'],
+        params: {
+          type: 'object',
+          required: ['key'],
+          properties: { key: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              key: { type: 'string' },
+              value: {},
+              category: { type: 'string' },
+              description: { type: ['string', 'null'] },
+              updatedBy: { type: ['string', 'null'] },
+              updatedAt: { type: 'string', format: 'date-time' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          404: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { key: string } }>, reply: FastifyReply) => {
+      try {
+        const item = await systemConfigService.get(request.params.key);
+        return reply.send(item);
+      } catch (error: any) {
+        if (error instanceof SystemConfigNotFoundError) {
+          return reply.code(404).send({
+            error: { code: error.code, message: error.message },
+          });
+        }
+        request.log.error({ error }, 'Failed to get system config item');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get system config item' },
+        });
+      }
+    }
+  );
+
+  // Update config item (PATCH — requires key to already exist; returns 404 for unknown keys)
+  fastify.patch<{
+    Params: { key: string };
+    Body: { value: unknown };
+  }>(
+    '/admin/system-config/:key',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Set a system config item (super-admin only)',
+        tags: ['admin', 'system'],
+        params: {
+          type: 'object',
+          required: ['key'],
+          properties: { key: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['value'],
+          properties: { value: {} },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'object',
+                properties: {
+                  key: { type: 'string' },
+                  value: {},
+                  category: { type: 'string' },
+                  description: { type: ['string', 'null'] },
+                  updatedBy: { type: ['string', 'null'] },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Params: { key: string }; Body: { value: unknown } }>,
+      reply: FastifyReply
+    ) => {
+      try {
+        const updatedBy = (request as any).user?.sub ?? 'system';
+        const updated = await systemConfigService.update(
+          request.params.key,
+          request.body.value,
+          updatedBy
+        );
+        await auditLogService.log({
+          action: 'system_config.updated',
+          userId: updatedBy,
+          resourceType: 'system_config',
+          resourceId: request.params.key,
+          details: { key: request.params.key },
+        });
+        return reply.send({ data: updated });
+      } catch (error: any) {
+        if (error instanceof SystemConfigNotFoundError) {
+          return reply.code(404).send({
+            error: { code: error.code, message: error.message },
+          });
+        }
+        request.log.error({ error }, 'Failed to update system config');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update system config' },
+        });
+      }
+    }
+  );
+
+  // ===== AUDIT LOGS =====
+
+  fastify.get<{
+    Querystring: {
+      tenantId?: string;
+      userId?: string;
+      action?: string;
+      resourceType?: string;
+      startDate?: string;
+      endDate?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    '/admin/audit-logs',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Query audit logs (super-admin only)',
+        tags: ['admin', 'audit'],
+        querystring: {
+          type: 'object',
+          properties: {
+            tenantId: { type: 'string' },
+            userId: { type: 'string' },
+            action: { type: 'string' },
+            resourceType: { type: 'string' },
+            startDate: { type: 'string', format: 'date-time' },
+            endDate: { type: 'string', format: 'date-time' },
+            page: { type: 'number', minimum: 1, default: 1 },
+            limit: { type: 'number', minimum: 1, maximum: 100, default: 50 },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    tenantId: { type: ['string', 'null'] },
+                    userId: { type: ['string', 'null'] },
+                    action: { type: 'string' },
+                    resourceType: { type: ['string', 'null'] },
+                    resourceId: { type: ['string', 'null'] },
+                    details: { type: 'object' },
+                    ipAddress: { type: ['string', 'null'] },
+                    userAgent: { type: ['string', 'null'] },
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+              meta: {
+                type: 'object',
+                properties: {
+                  total: { type: 'number' },
+                  page: { type: 'number' },
+                  limit: { type: 'number' },
+                  totalPages: { type: 'number' },
+                },
+              },
+            },
+          },
+          400: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { tenantId, userId, action, resourceType, startDate, endDate, page, limit } =
+          request.query;
+        const result = await auditLogService.queryAllTenants({
+          tenantId,
+          userId,
+          action,
+          resourceType,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+          page,
+          limit,
+        });
+        return reply.send(result);
+      } catch (error: any) {
+        if (error.code === 'AUDIT_LOG_RESULT_WINDOW_EXCEEDED') {
+          return reply.code(400).send({
+            error: { code: 'RESULT_WINDOW_EXCEEDED', message: error.message },
+          });
+        }
+        request.log.error({ error }, 'Failed to query audit logs');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to query audit logs' },
+        });
+      }
+    }
+  );
+
+  // T008-66: POST /api/v1/admin/audit-logs/export
+  // FR-015: Enqueue async audit log export job; returns 202 with jobId for polling.
+  const AuditLogExportBodySchema = z.object({
+    format: z.enum(['csv', 'json']),
+    tenantId: z.string().uuid().optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    actions: z.array(z.string()).optional(),
+    limit: z.number().int().min(1).max(50000).optional(),
+  });
+
+  fastify.post(
+    '/admin/audit-logs/export',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: {
+        description: 'Enqueue an asynchronous audit log export job (FR-015)',
+        tags: ['admin', 'audit-logs'],
+        body: {
+          type: 'object',
+          required: ['format'],
+          properties: {
+            format: { type: 'string', description: 'csv or json' },
+            tenantId: { type: 'string' },
+            startDate: { type: 'string' },
+            endDate: { type: 'string' },
+            actions: { type: 'array', items: { type: 'string' } },
+            limit: { type: 'integer' },
+          },
+        },
+        response: {
+          202: {
+            type: 'object',
+            properties: {
+              jobId: { type: 'string' },
+              estimatedSeconds: { type: 'integer' },
+            },
+          },
+          400: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+          500: {
+            type: 'object',
+            properties: {
+              error: {
+                type: 'object',
+                properties: { code: { type: 'string' }, message: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      // Validate body
+      const parseResult = AuditLogExportBodySchema.safeParse(request.body);
+      if (!parseResult.success) {
+        const firstIssue = parseResult.error.issues[0];
+        // Specifically catch invalid format
+        if (firstIssue?.path[0] === 'format') {
+          return reply.code(400).send({
+            error: {
+              code: 'INVALID_EXPORT_FORMAT',
+              message: 'format must be "csv" or "json"',
+            },
+          });
+        }
+        return reply.code(400).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: firstIssue?.message ?? 'Invalid request body',
+            details: parseResult.error.flatten().fieldErrors,
+          },
+        });
+      }
+
+      const body = parseResult.data;
+      const requestingUserId =
+        (request.user as any)?.sub ?? (request.user as any)?.id ?? '__platform__';
+
+      try {
+        const jobQueueService = getJobQueueServiceInstance();
+
+        // FR-010: tenantId required on every job; use sentinel for platform-scoped exports
+        const jobTenantId = body.tenantId ?? '__platform__';
+
+        const { jobId } = await jobQueueService.enqueue({
+          name: 'audit-log-export',
+          tenantId: jobTenantId,
+          payload: {
+            tenantId: jobTenantId,
+            format: body.format,
+            ...(body.tenantId && { filterTenantId: body.tenantId }),
+            ...(body.startDate && { startDate: body.startDate }),
+            ...(body.endDate && { endDate: body.endDate }),
+            ...(body.actions && { actions: body.actions }),
+            ...(body.limit && { limit: body.limit }),
+            requestedBy: requestingUserId,
+          },
+        });
+
+        // Emit audit event
+        await auditLogService.log({
+          action: 'audit_log.export_requested',
+          userId: requestingUserId,
+          tenantId: body.tenantId,
+          resourceType: 'audit_log',
+          resourceId: jobId,
+          details: {
+            format: body.format,
+            ...(body.tenantId && { filterTenantId: body.tenantId }),
+            ...(body.startDate && { startDate: body.startDate }),
+            ...(body.endDate && { endDate: body.endDate }),
+          },
+        });
+
+        return reply.code(202).send({ jobId, estimatedSeconds: 30 });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to enqueue audit log export job');
+        return reply.code(500).send({
+          error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to enqueue export job' },
         });
       }
     }

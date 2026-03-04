@@ -1,8 +1,8 @@
 # Plexica - Project Status
 
-**Last Updated**: February 21, 2026  
+**Last Updated**: March 3, 2026  
 **Current Phase**: Phase 2 - Plugin Ecosystem + Workspace Management  
-**Current Milestone**: **Spec 011 - Workspace Hierarchy & Templates** 🟡 (All 3 phases implemented, adversarial review fixes applied — ready for merge)  
+**Current Milestone**: **Spec 008 - Admin Interfaces** 🟡 (Backend complete — Phases 1–4 done; Frontend in progress)  
 **Previous Milestone**: Spec 002 Authentication System ✅ (OAuth 2.0, Feb 17) — Security Hardening ✅ (9 vulnerabilities resolved, Feb 17)  
 **Version**: 0.9.0
 
@@ -145,6 +145,40 @@ Develop advanced plugin capabilities including event-driven architecture, module
 - [ADR-014: WorkspacePlugin Scoping](.forge/knowledge/adr/adr-014-workspace-plugin-scoping.md)
 
 **Status**: 🟡 **Implemented — pending merge to main branch**
+
+---
+
+### Phase 7 - Admin Interfaces 🟡 IN PROGRESS (Spec 008)
+
+| Phase              | Name                              | Tasks | Story Pts | Status         | Completion Date |
+| ------------------ | --------------------------------- | ----- | --------- | -------------- | --------------- |
+| **Phase 1**        | Foundation (audit log, constants) | 9     | 20 pts    | ✅ Complete    | Mar 2026        |
+| **Phase 2**        | Super Admin Extensions            | 5     | 18 pts    | ✅ Complete    | Mar 2026        |
+| **Phase 3**        | Tenant Admin Interface            | 10    | 39 pts    | ✅ Complete    | Mar 2026        |
+| **Phase 4**        | E2E Tests + Hardening             | 5     | 9 pts     | ✅ Complete    | Mar 2026        |
+| **Phase 5 (Docs)** | Documentation                     | 1     | 1 pt      | ✅ Complete    | Mar 3, 2026     |
+| **Phase 5 (FE)**   | Frontend Foundation               | 4     | 9 pts     | 🟡 In Progress | TBD             |
+| **Phase 6**        | Super Admin Screens               | 8     | 19 pts    | ⚪ Not Started | -               |
+| **Phase 7**        | Tenant Admin Screens              | 8     | 15 pts    | ⚪ Not Started | -               |
+| **Phase 8**        | Frontend Tests + a11y             | 5     | 10 pts    | ⚪ Not Started | -               |
+
+**Spec 008 Progress**: ████████░░░░░░░░ 30/56 tasks (87/126 story points — backend phases complete)
+
+**Backend Deliverables (Complete)**:
+
+- ✅ **AuditLogService** — append-only log, 10K result-window cap, tenant isolation (NFR-004)
+- ✅ **AuditLogMiddleware** — Fastify `onResponse` hook; config-driven audit on mutations
+- ✅ **SystemConfigService** — Redis-cached, upsert, 6 seed defaults including `admin_interfaces_enabled`
+- ✅ **AdminService extensions** — super admin CRUD, `LAST_SUPER_ADMIN` guard, `getSystemHealth()`
+- ✅ **TenantAdminService** — dashboard, user management (invite/deactivate/reactivate), teams, roles
+- ✅ **Audit Log Export** — async CSV/JSON export via `JobQueueService`, MinIO signed URLs (T008-66)
+- ✅ **Full Art. 6.2 error compliance** — all routes use `{ error: { code, message, details? } }` shape
+- ✅ **Unit + Integration + E2E tests** — 30 tasks complete including 5 E2E describe blocks
+- ✅ **ADR-024** (Team Member Roles vs Keycloak) + **ADR-025** (Audit Logs in Core Schema)
+
+**Key Error Codes**: `LAST_SUPER_ADMIN`, `LAST_TENANT_ADMIN`, `TENANT_NOT_SUSPENDED`, `SYSTEM_CONFIG_NOT_FOUND`, `RESULT_WINDOW_EXCEEDED`, `SYSTEM_ROLE_IMMUTABLE`, `MEMBER_ALREADY_EXISTS`, `CUSTOM_ROLE_LIMIT_EXCEEDED`, `INVALID_EXPORT_FORMAT`
+
+**Specification**: [Spec 008 - Admin Interfaces](.forge/specs/008-admin-interfaces/)
 
 ---
 

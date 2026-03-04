@@ -15,6 +15,31 @@
   --auth-bg-gradient-to: #0a0a0a;
 }
 
+/* === Spec 008: Admin Interface tokens === */
+:root {
+  --admin-header-bg: #fafafa;
+  --admin-nav-active-border: #0066cc;
+  --wizard-step-complete: #16a34a;
+  --wizard-step-active: #0066cc;
+  --wizard-step-pending: #d4d4d8;
+  --wizard-step-error: #dc2626;
+  --provisioning-bar-bg: #e5e7eb;
+  --provisioning-bar-fill: #0066cc;
+  --overlay-backdrop: rgba(0, 0, 0, 0.5);
+}
+
+.dark {
+  --admin-header-bg: #111111;
+  --admin-nav-active-border: #3b82f6;
+  --wizard-step-complete: #22c55e;
+  --wizard-step-active: #3b82f6;
+  --wizard-step-pending: #3f3f46;
+  --wizard-step-error: #ef4444;
+  --provisioning-bar-bg: #374151;
+  --provisioning-bar-fill: #3b82f6;
+  --overlay-backdrop: rgba(0, 0, 0, 0.7);
+}
+
 /* Tenant brand tokens (Spec 010 Phase 2) — set at runtime by ThemeProvider.
    Default values here prevent FOUC before ThemeProvider applies theme. */
 :root {

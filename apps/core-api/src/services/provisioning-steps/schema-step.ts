@@ -274,6 +274,27 @@ export class SchemaStep implements ProvisioningStep {
     `);
 
     // -------------------------------------------------------------------------
+    // team_members (T008-03 — Spec 008 Admin Interfaces)
+    // -------------------------------------------------------------------------
+    await this.db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."team_members" (
+        team_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER')),
+        joined_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (team_id, user_id),
+        FOREIGN KEY (team_id) REFERENCES "${schemaName}"."teams"(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES "${schemaName}"."users"(id) ON DELETE CASCADE
+      )
+    `);
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_team_members_user_id" ON "${schemaName}"."team_members"(user_id)`
+    );
+    await this.db.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS "idx_team_members_team_id" ON "${schemaName}"."team_members"(team_id)`
+    );
+
+    // -------------------------------------------------------------------------
     // workspace_resources
     // -------------------------------------------------------------------------
     await this.db.$executeRawUnsafe(`

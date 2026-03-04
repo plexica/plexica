@@ -311,6 +311,8 @@ export function requirePermission(...permissions: string[]) {
  *
  * Constitution Compliance: Article 6.2 (error format)
  */
+export const requireTenantAdmin = requireRole('tenant_admin', 'tenant_owner', 'admin');
+
 export async function requireSuperAdmin(
   request: FastifyRequest,
   reply: FastifyReply
