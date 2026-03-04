@@ -293,14 +293,6 @@ describe('T008-23: Tenant Admin user and team lifecycle', () => {
       },
     });
 
-    if (teamsRes.statusCode !== 200) {
-      // eslint-disable-next-line no-console
-      console.error(
-        '[T008-23 DEBUG] GET /tenant/teams response:',
-        teamsRes.statusCode,
-        teamsRes.body
-      );
-    }
     expect(teamsRes.statusCode).toBe(200);
   });
 

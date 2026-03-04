@@ -248,8 +248,6 @@ function handleError(reply: FastifyReply, err: unknown) {
     });
   }
   reply.log.error(err, 'Unexpected error in tenant-admin route');
-  // eslint-disable-next-line no-console
-  console.error('[tenant-admin INTERNAL_ERROR]', err);
   return sendError(reply, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
 }
 
