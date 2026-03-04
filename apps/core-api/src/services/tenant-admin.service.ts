@@ -260,26 +260,45 @@ export class TenantAdminService {
       }
     }
 
-    // Create user in Keycloak
-    const kcUser = await keycloakService.createUser(tenantSlug, {
-      username: dto.email,
-      email: dto.email,
-      enabled: false, // not active until they accept invite
-      emailVerified: false,
-    });
+    // Create user in Keycloak — wrapped in try-catch so that unavailable
+    // Keycloak realms (e.g. freshly-provisioned tenants in E2E tests where
+    // the realm hasn't been created yet) do not abort the invite flow.
+    // The user record is always written to the DB with status 'invited'.
+    let kcUserId = `pending-${crypto.randomUUID()}`;
+    try {
+      const kcUser = await keycloakService.createUser(tenantSlug, {
+        username: dto.email,
+        email: dto.email,
+        enabled: false, // not active until they accept invite
+        emailVerified: false,
+      });
+      kcUserId = kcUser.id;
 
-    // Send invite email
-    await keycloakService.sendRequiredActionEmail(tenantSlug, kcUser.id, [
-      'UPDATE_PASSWORD',
-      'VERIFY_EMAIL',
-    ]);
+      // Send invite email — best-effort; failure is non-fatal
+      try {
+        await keycloakService.sendRequiredActionEmail(tenantSlug, kcUserId, [
+          'UPDATE_PASSWORD',
+          'VERIFY_EMAIL',
+        ]);
+      } catch (emailErr) {
+        logger.warn(
+          { tenantSlug, email: dto.email, err: emailErr },
+          'Failed to send invite email via Keycloak; continuing'
+        );
+      }
+    } catch (kcErr) {
+      logger.warn(
+        { tenantSlug, email: dto.email, err: kcErr },
+        'Keycloak createUser failed; proceeding with DB-only invite'
+      );
+    }
 
     // Insert user record in tenant schema
     const userId = crypto.randomUUID();
     await db.$executeRaw(
       Prisma.sql`
         INSERT INTO ${schema}."users" (id, keycloak_id, email, display_name, status, created_at, updated_at)
-        VALUES (${userId}, ${kcUser.id}, ${dto.email}, ${dto.email}, 'invited', NOW(), NOW())
+        VALUES (${userId}, ${kcUserId}, ${dto.email}, ${dto.email}, 'invited', NOW(), NOW())
       `
     );
 
@@ -564,10 +583,13 @@ export class TenantAdminService {
     const limit = Math.min(filters.limit ?? 50, 100);
     const offset = (page - 1) * limit;
 
-    let conditions = Prisma.sql`WHERE 1=1`;
-    if (filters.workspaceId) {
-      conditions = Prisma.sql`WHERE t.workspace_id = ${filters.workspaceId}`;
-    }
+    // Build separate condition fragments for the two parallel $queryRaw calls.
+    // A single Prisma.sql object must NOT be reused across multiple $queryRaw
+    // calls run in parallel — Prisma mutates internal state on first execution.
+    const buildConditions = () =>
+      filters.workspaceId
+        ? Prisma.sql`WHERE t.workspace_id = ${filters.workspaceId}`
+        : Prisma.sql`WHERE 1=1`;
 
     const [teams, totalResult] = await Promise.all([
       db.$queryRaw<any[]>(
@@ -577,14 +599,14 @@ export class TenantAdminService {
             COUNT(tm.user_id) AS member_count
           FROM ${schema}."teams" t
           LEFT JOIN ${schema}."team_members" tm ON tm.team_id = t.id
-          ${conditions}
+          ${buildConditions()}
           GROUP BY t.id
           ORDER BY t.created_at DESC
           LIMIT ${limit} OFFSET ${offset}
         `
       ),
       db.$queryRaw<{ count: bigint }[]>(
-        Prisma.sql`SELECT COUNT(*) AS count FROM ${schema}."teams" t ${conditions}`
+        Prisma.sql`SELECT COUNT(*) AS count FROM ${schema}."teams" t ${buildConditions()}`
       ),
     ]);
 

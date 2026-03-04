@@ -606,7 +606,8 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
     try {
       const { tenantId, schemaName } = request.tenant!;
       const result = await tenantAdminService.listRoles(tenantId, schemaName);
-      return reply.status(200).send(result);
+      // Send the raw array so callers can use Array.isArray() on the response body.
+      return reply.status(200).send(result.data);
     } catch (err) {
       return handleError(reply, err);
     }
