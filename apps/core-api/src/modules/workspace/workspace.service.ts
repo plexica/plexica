@@ -2282,6 +2282,7 @@ export class WorkspaceService {
    * @param update       Partial settings object (validated by WorkspaceSettingsUpdateSchema)
    * @param tenantCtx    Optional tenant context (resolved automatically if absent)
    * @returns            The fully-merged WorkspaceSettings after the update
+   *
    */
   async updateSettings(
     workspaceId: string,
