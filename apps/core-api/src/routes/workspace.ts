@@ -1947,10 +1947,20 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         });
       }
 
+      // Only write keys the user explicitly sent — not Zod-injected defaults.
+      // WorkspaceSettingsUpdateSchema.partial() applies defaults for every field
+      // even when the caller omits them, so we intersect the validated result with
+      // the raw request body keys to get a true partial update.
+      const sentKeys = Object.keys(request.body) as Array<keyof WorkspaceSettingsUpdate>;
+      const partialUpdate = sentKeys.reduce<WorkspaceSettingsUpdate>((acc, key) => {
+        (acc as Record<string, unknown>)[key] = validation.settings![key];
+        return acc;
+      }, {});
+
       try {
         const settings = await workspaceService.updateSettings(
           workspaceId,
-          validation.settings!,
+          partialUpdate,
           request.tenant!
         );
         return reply.send({ ...settings, updatedAt: new Date().toISOString() });
