@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '@/lib/logger';
 import { Button } from '@plexica/ui';
 import { Input } from '@plexica/ui';
 import { Badge } from '@plexica/ui';
@@ -33,6 +34,8 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // T8.7: search query — only shown when workspace count > 5
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleSelectWorkspace = async (workspace: Workspace) => {
     if (workspace.id === currentWorkspace?.id) return; // Already selected
@@ -41,8 +44,8 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
       // Invalidate all workspace-scoped queries to force refetch with new workspace context
       queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
       queryClient.invalidateQueries({ queryKey: ['workspace-teams'] });
-    } catch (err: any) {
-      console.error('Failed to select workspace:', err);
+    } catch (err: unknown) {
+      logger.error({ err }, 'Failed to select workspace');
     }
   };
 
@@ -76,6 +79,16 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
     }
   };
 
+  const showSearch = workspaces.length > 5;
+  const filteredWorkspaces =
+    showSearch && searchQuery.trim()
+      ? workspaces.filter(
+          (w) =>
+            w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            w.slug.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : workspaces;
+
   if (isLoading) {
     return (
       <div className={`flex items-center gap-2 px-3 py-2 ${className}`}>
@@ -107,10 +120,11 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu data-workspace-switcher="">
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
+          aria-label={`Switch workspace${currentWorkspace ? `, current: ${currentWorkspace.name}` : ''}`}
           className={`flex items-center gap-2 px-3 py-2 min-w-[200px] max-w-[300px] justify-start ${className}`}
         >
           {/* Workspace Icon */}
@@ -153,11 +167,32 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
 
         <DropdownMenuSeparator />
 
-        {/* Workspace List */}
-        <div className="max-h-[300px] overflow-y-auto">
-          {workspaces.map((workspace) => (
+        {/* T8.7: Search filter — shown only when workspace count > 5 */}
+        {showSearch && (
+          <div className="px-2 pb-2">
+            <Input
+              type="search"
+              placeholder="Search workspaces…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 text-sm"
+              aria-label="Search workspaces"
+              aria-controls="workspace-list"
+            />
+            {/* T9.1: live region announces how many results match */}
+            <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+              {filteredWorkspaces.length} workspace{filteredWorkspaces.length !== 1 ? 's' : ''}{' '}
+              found
+            </span>
+          </div>
+        )}
+
+        {/* T9.1: Workspace List */}
+        <div id="workspace-list" className="max-h-[300px] overflow-y-auto">
+          {filteredWorkspaces.map((workspace) => (
             <DropdownMenuItem
               key={workspace.id}
+              aria-current={currentWorkspace?.id === workspace.id ? 'true' : undefined}
               onClick={() => handleSelectWorkspace(workspace)}
               className="flex items-start justify-between gap-2 py-3"
             >

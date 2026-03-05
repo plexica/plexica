@@ -260,4 +260,55 @@ export class TenantApiClient extends HttpClient {
   async healthCheck() {
     return this.get<{ status: string }>('/health');
   }
+
+  // ---------------------------------------------------------------------------
+  // Workspace settings endpoints (Spec 009 T4 / T8)
+  // ---------------------------------------------------------------------------
+
+  async patchWorkspaceSettings(
+    workspaceId: string,
+    settings: {
+      defaultTeamRole?: 'ADMIN' | 'MEMBER';
+      allowCrossWorkspaceSharing?: boolean;
+      maxMembers?: number;
+      isDiscoverable?: boolean;
+    }
+  ): Promise<{
+    defaultTeamRole: 'ADMIN' | 'MEMBER';
+    allowCrossWorkspaceSharing: boolean;
+    maxMembers: number;
+    isDiscoverable: boolean;
+  }> {
+    return this.patch(`/api/v1/workspaces/${workspaceId}/settings`, settings);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Workspace resource sharing endpoints (Spec 009 T3 / T8)
+  // ---------------------------------------------------------------------------
+
+  async getWorkspaceResources(workspaceId: string): Promise<
+    Array<{
+      id: string;
+      resourceType: string;
+      resourceId: string;
+      resourceName: string;
+      sharedWithWorkspaceName?: string;
+      sharedFromWorkspaceName?: string;
+      sharedByEmail?: string;
+      sharedAt: string;
+    }>
+  > {
+    return this.get(`/api/v1/workspaces/${workspaceId}/resources`);
+  }
+
+  async shareWorkspaceResource(
+    workspaceId: string,
+    body: { resourceType: 'PLUGIN'; resourceId: string; targetWorkspaceId: string }
+  ): Promise<void> {
+    return this.post(`/api/v1/workspaces/${workspaceId}/resources/share`, body);
+  }
+
+  async revokeWorkspaceResource(workspaceId: string, shareId: string): Promise<void> {
+    return this.delete(`/api/v1/workspaces/${workspaceId}/resources/${shareId}`);
+  }
 }

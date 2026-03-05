@@ -935,8 +935,63 @@ All questions resolved on 2026-03-02.
 
 ---
 
+## 13. Accessibility Audit & Resolution (T9 — WCAG 2.1 AA)
+
+> **Status: ✅ All gaps resolved** — March 5, 2026 (T9.1–T9.5)
+
+The UX design audit identified 4 WCAG 2.1 AA accessibility gaps across 3 existing
+workspace screens. All gaps were addressed in Phase 9 (T9.1–T9.3) and verified by
+automated axe-core Playwright tests (T9.4). See `tasks.md` Phase 9 for implementation
+details.
+
+### 13.1 Gap Resolution Summary
+
+| #   | Screen            | Gap Description                                                 | Fix Applied                                                                          | Verified by | Status      |
+| --- | ----------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------- | ----------- |
+| 1   | WorkspaceSwitcher | Trigger button lacked `aria-label`                              | Added `aria-label="Switch workspace, current: {name}"` to trigger `Button`           | T9.1 / T9.4 | ✅ Resolved |
+| 2   | WorkspaceSwitcher | Search input lacked visible label (placeholder only)            | Added `aria-label="Search workspaces"` on `Input` (hidden label pattern, WCAG 1.3.1) | T9.1 / T9.4 | ✅ Resolved |
+| 3   | Settings          | Toggle controls missing `role="switch"` and `aria-checked`      | Added `role="switch"` and `aria-checked={value}` to all toggle controls              | T9.2 / T9.4 | ✅ Resolved |
+| 4   | Members           | Role dropdown and remove button lacked descriptive `aria-label` | Added `aria-label="Change role for {name}"` and `aria-label="Remove {name}"`         | T9.3 / T9.4 | ✅ Resolved |
+
+### 13.2 ARIA Pattern Note: WorkspaceSwitcher
+
+The original gap specification (§2 ARIA analysis, line 168) described the fix as
+adding `role="listbox"` / `aria-selected`. During implementation (T9.1), it was
+determined that `role="listbox"` is semantically incorrect for a navigation-style
+workspace switcher:
+
+- **`role="listbox"`** is appropriate for form select controls (selecting a value to submit)
+- **`role="menu"`** (rendered by Radix `DropdownMenu`) is appropriate for navigation/action
+  menus — which matches the WorkspaceSwitcher's purpose (navigating between workspaces)
+- **`aria-current="true"`** (used instead of `aria-selected`) correctly indicates the
+  currently-active workspace in a navigation context (WCAG 4.1.2)
+
+This implementation passes all axe-core WCAG 2.1 AA rules with 0 violations.
+The trigger button (`aria-label`) and the full dropdown menu are both included in
+the T9.4 scan scope (`[data-workspace-switcher]` container).
+
+### 13.3 Test Coverage
+
+All 3 screens plus both dialog states are covered by automated axe-core tests in
+`apps/web/tests/e2e/workspace-a11y.spec.ts` (T9.4):
+
+| Test Case                                 | Scope                       | WCAG Tags                 |
+| ----------------------------------------- | --------------------------- | ------------------------- |
+| WorkspaceSwitcher dropdown                | `[data-workspace-switcher]` | wcag2a, wcag2aa, wcag21aa |
+| Workspace Settings page                   | Full page                   | wcag2a, wcag2aa, wcag21aa |
+| Workspace Members page                    | Full page                   | wcag2a, wcag2aa, wcag21aa |
+| Remove Member dialog                      | `[role="dialog"]`           | wcag2a, wcag2aa, wcag21aa |
+| Workspace Sharing page (sharing enabled)  | Full page                   | wcag2a, wcag2aa, wcag21aa |
+| Workspace Sharing page (sharing disabled) | Full page                   | wcag2a, wcag2aa, wcag21aa |
+| Share Plugin dialog                       | `[role="dialog"]`           | wcag2a, wcag2aa, wcag21aa |
+
+**Total: 7 axe-core Playwright test cases.** All pass with 0 violations.
+
+---
+
 **End of Design Specification — Workspace Management**
 
-_Document Version: 1.0_
+_Document Version: 1.1_
 _Created: 2026-03-02_
+_Updated: 2026-03-05 (§13 added — T9 accessibility audit results)_
 _Author: forge-ux_

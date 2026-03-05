@@ -249,7 +249,7 @@ test.describe('Accessibility — Error Boundaries', () => {
 
     const results = await new AxeBuilder({ page })
       .include('main')
-      .withTags(['wcag2a', 'wcag2aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -258,7 +258,9 @@ test.describe('Accessibility — Error Boundaries', () => {
   test('Root error page has zero WCAG 2.1 AA violations', async ({ page }) => {
     await page.goto('/trigger-root-error');
 
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
 
     expect(results.violations).toEqual([]);
   });
@@ -271,7 +273,7 @@ test.describe('Accessibility — Themed Shell', () => {
 
     const results = await new AxeBuilder({ page })
       .include('[role="banner"]')
-      .withTags(['wcag2a', 'wcag2aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -382,8 +384,11 @@ warnings and tracked as technical debt (per T010-32 acceptance criteria).
    matcher globally.
 
 2. **Playwright config** — No special configuration needed. `AxeBuilder` is
-   imported per-test from `@axe-core/playwright`. Use `.withTags(['wcag2a', 'wcag2aa'])`
-   to restrict scans to WCAG 2.1 AA level.
+   imported per-test from `@axe-core/playwright`. Use `.withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])`
+   to restrict scans to WCAG 2.1 AA level. The three-tag convention ensures
+   WCAG 2.1-specific rules (e.g. 1.4.10 Reflow, 1.3.4 Orientation) are
+   included in addition to the base WCAG 2.0 A/AA rule sets. This matches
+   the established pattern in `admin-a11y.spec.ts` and `workspace-a11y.spec.ts`.
 
 3. **CI pipeline** — Accessibility tests run as part of existing `pnpm test`
    (component) and `pnpm test:e2e` (Playwright) commands. No separate CI step

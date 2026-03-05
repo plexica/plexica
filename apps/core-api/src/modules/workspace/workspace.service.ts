@@ -25,6 +25,12 @@ import {
 } from './workspace-template.service.js';
 import { PluginHookService, pluginHookService } from '../plugin/plugin-hook.service.js';
 import { WorkspaceError, WorkspaceErrorCode } from './utils/error-formatter.js';
+import {
+  WorkspaceSettingsSchema,
+  type WorkspaceSettings,
+  type WorkspaceSettingsUpdate,
+  mergeSettings,
+} from './schemas/workspace-settings.schema.js';
 
 /**
  * Row types for raw SQL query results.
@@ -1434,6 +1440,33 @@ export class WorkspaceService {
         throw new Error('User is already a member of this workspace');
       }
 
+      // Enforce maxMembers setting if configured (0 = unlimited)
+      const wsSettingsRows = await tx.$queryRaw<Array<{ settings: unknown }>>(
+        Prisma.sql`SELECT settings FROM ${workspacesTable}
+          WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+      );
+      const rawSettings = wsSettingsRows[0]?.settings;
+      const parsedSettings =
+        rawSettings != null
+          ? WorkspaceSettingsSchema.safeParse(rawSettings)
+          : { success: false as const, data: undefined };
+      const maxMembers = parsedSettings.success ? (parsedSettings.data.maxMembers ?? 0) : 0;
+
+      if (maxMembers > 0) {
+        const memberCounts = await tx.$queryRaw<CountRow[]>(
+          Prisma.sql`SELECT COUNT(*) AS count FROM ${membersTable}
+            WHERE workspace_id = ${workspaceId}`
+        );
+        const currentCount = Number(memberCounts[0]?.count ?? 0);
+        if (currentCount >= maxMembers) {
+          throw new WorkspaceError(
+            WorkspaceErrorCode.WORKSPACE_MEMBER_LIMIT_EXCEEDED,
+            `Workspace has reached the maximum member limit of ${maxMembers}`,
+            { workspaceId, maxMembers, currentCount }
+          );
+        }
+      }
+
       // Sync user to tenant schema with parameterized values
       await tx.$executeRaw`
         INSERT INTO ${usersTable}
@@ -2234,6 +2267,67 @@ export class WorkspaceService {
     }
 
     return createdTeam;
+  }
+
+  /**
+   * Update workspace settings (Spec 009, Task 4 / Gap 4).
+   *
+   * Performs a partial merge — only supplied fields overwrite the stored
+   * settings; omitted fields retain their current values (or schema defaults
+   * if the workspace has never had settings saved).
+   *
+   * Only ADMIN-role callers may invoke this method (enforced at the route layer).
+   *
+   * @param workspaceId  UUID of the workspace to update
+   * @param update       Partial settings object (validated by WorkspaceSettingsUpdateSchema)
+   * @param tenantCtx    Optional tenant context (resolved automatically if absent)
+   * @returns            The fully-merged WorkspaceSettings after the update
+   */
+  async updateSettings(
+    workspaceId: string,
+    update: WorkspaceSettingsUpdate,
+    tenantCtx?: TenantContext
+  ): Promise<WorkspaceSettings> {
+    const tenantContext = tenantCtx || getTenantContext();
+    if (!tenantContext) {
+      throw new Error('No tenant context available');
+    }
+
+    const { schemaName, tenantId } = tenantContext;
+
+    if (!/^[a-z0-9_]+$/.test(schemaName)) {
+      throw new Error(`Invalid schema name: ${schemaName}`);
+    }
+
+    const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
+
+    // Fetch existing settings (single fast query — no full workspace projection needed)
+    const rows = await this.db.$queryRaw<Array<{ settings: unknown }>>(
+      Prisma.sql`SELECT settings FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+    );
+
+    if (!rows || rows.length === 0) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
+
+    const existingSettings = rows[0].settings as WorkspaceSettings | null;
+    const merged = mergeSettings(existingSettings, update);
+    const settingsJson = JSON.stringify(merged);
+
+    const updateCount = await this.db.$executeRaw(
+      Prisma.sql`UPDATE ${workspacesTable}
+        SET settings = ${settingsJson}::jsonb, updated_at = NOW()
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+    );
+
+    if (updateCount === 0) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
+
+    this.log.debug({ workspaceId }, 'Workspace settings updated');
+
+    return merged;
   }
 }
 

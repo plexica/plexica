@@ -55,6 +55,14 @@ export default defineConfig({
         'src/hooks/useRoles.ts',
         // Spec 008 API client (T008-39)
         'src/api/admin.ts',
+        // Spec 009 Workspace Management components (T8, T9)
+        'src/components/workspace/WorkspaceSettingsForm.tsx',
+        'src/components/workspace/SharePluginDialog.tsx',
+        'src/components/workspace/SharedResourceRow.tsx',
+        'src/components/workspace/RevokeShareDialog.tsx',
+        'src/components/workspace/SharingDisabledEmptyState.tsx',
+        'src/components/workspace/SharedResourcesList.tsx',
+        'src/components/WorkspaceSwitcher.tsx',
       ],
       exclude: [
         'src/**/*.d.ts',

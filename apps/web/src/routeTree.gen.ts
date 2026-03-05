@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root';
+import { Route as WorkspaceSharingRouteImport } from './routes/workspace-sharing';
+import { Route as WorkspaceMembersRouteImport } from './routes/workspace-members';
 import { Route as WorkspaceSettingsRouteImport } from './routes/workspace-settings';
 import { Route as TeamRouteImport } from './routes/team';
 import { Route as SettingsRouteImport } from './routes/settings';
@@ -22,6 +24,16 @@ import { Route as AuthErrorRouteImport } from './routes/auth/error';
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback';
 import { Route as IndexRouteImport } from './routes/index';
 
+const WorkspaceSharingRoute = WorkspaceSharingRouteImport.update({
+  id: '/workspace-sharing',
+  path: '/workspace-sharing',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const WorkspaceMembersRoute = WorkspaceMembersRouteImport.update({
+  id: '/workspace-members',
+  path: '/workspace-members',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   id: '/workspace-settings',
   path: '/workspace-settings',
@@ -96,6 +108,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute;
   '/team': typeof TeamRoute;
   '/workspace-settings': typeof WorkspaceSettingsRoute;
+  '/workspace-members': typeof WorkspaceMembersRoute;
+  '/workspace-sharing': typeof WorkspaceSharingRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -110,6 +124,8 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute;
   '/team': typeof TeamRoute;
   '/workspace-settings': typeof WorkspaceSettingsRoute;
+  '/workspace-members': typeof WorkspaceMembersRoute;
+  '/workspace-sharing': typeof WorkspaceSharingRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -125,6 +141,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute;
   '/team': typeof TeamRoute;
   '/workspace-settings': typeof WorkspaceSettingsRoute;
+  '/workspace-members': typeof WorkspaceMembersRoute;
+  '/workspace-sharing': typeof WorkspaceSharingRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -140,7 +158,9 @@ export interface FileRouteTypes {
     | '/plugins/$pluginId'
     | '/settings'
     | '/team'
-    | '/workspace-settings';
+    | '/workspace-settings'
+    | '/workspace-members'
+    | '/workspace-sharing';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -154,7 +174,9 @@ export interface FileRouteTypes {
     | '/plugins/$pluginId'
     | '/settings'
     | '/team'
-    | '/workspace-settings';
+    | '/workspace-settings'
+    | '/workspace-members'
+    | '/workspace-sharing';
   id:
     | '__root__'
     | '/'
@@ -168,7 +190,9 @@ export interface FileRouteTypes {
     | '/plugins/$pluginId'
     | '/settings'
     | '/team'
-    | '/workspace-settings';
+    | '/workspace-settings'
+    | '/workspace-members'
+    | '/workspace-sharing';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -184,6 +208,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute;
   TeamRoute: typeof TeamRoute;
   WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute;
+  WorkspaceMembersRoute: typeof WorkspaceMembersRoute;
+  WorkspaceSharingRoute: typeof WorkspaceSharingRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -193,6 +219,20 @@ declare module '@tanstack/react-router' {
       path: '/workspace-settings';
       fullPath: '/workspace-settings';
       preLoaderRoute: typeof WorkspaceSettingsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/workspace-members': {
+      id: '/workspace-members';
+      path: '/workspace-members';
+      fullPath: '/workspace-members';
+      preLoaderRoute: typeof WorkspaceMembersRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/workspace-sharing': {
+      id: '/workspace-sharing';
+      path: '/workspace-sharing';
+      fullPath: '/workspace-sharing';
+      preLoaderRoute: typeof WorkspaceSharingRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/team': {
@@ -288,6 +328,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TeamRoute: TeamRoute,
   WorkspaceSettingsRoute: WorkspaceSettingsRoute,
+  WorkspaceMembersRoute: WorkspaceMembersRoute,
+  WorkspaceSharingRoute: WorkspaceSharingRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

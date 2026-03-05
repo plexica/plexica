@@ -21,6 +21,8 @@ import {
   mockPermissions,
   mockTenantSettings,
   mockAuditLogs,
+  mockWorkspaceResources,
+  mockWorkspaceSettings,
 } from '../fixtures/test-data';
 
 // ---------------------------------------------------------------------------
@@ -622,6 +624,62 @@ export async function mockTenantAdminApi(page: Page) {
   });
 }
 
+/**
+ * Mock workspace settings and resource-sharing API endpoints (Spec 009 T8.1 / T3.5).
+ *
+ * Covers:
+ *   PATCH  /api/v1/workspaces/:id/settings
+ *   GET    /api/v1/workspaces/:id/resources
+ *   POST   /api/v1/workspaces/:id/resources/share
+ *   DELETE /api/v1/workspaces/:id/resources/:shareId
+ */
+export async function mockWorkspaceExtendedApi(page: Page) {
+  // PATCH /api/v1/workspaces/:id/settings
+  await page.route(/\/api\/v1\/workspaces\/[^/]+\/settings(\?.*)?$/, async (route) => {
+    if (route.request().method() === 'PATCH') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...mockWorkspaceSettings, ...body }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // POST /api/v1/workspaces/:id/resources/share  (must be registered before the GET catch-all)
+  await page.route(/\/api\/v1\/workspaces\/[^/]+\/resources\/share(\?.*)?$/, async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // DELETE /api/v1/workspaces/:id/resources/:shareId
+  await page.route(/\/api\/v1\/workspaces\/[^/]+\/resources\/[^/]+(\?.*)?$/, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await route.fulfill({ status: 204 });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // GET /api/v1/workspaces/:id/resources  (catch-all after more-specific routes)
+  await page.route(/\/api\/v1\/workspaces\/[^/]+\/resources(\?.*)?$/, async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockWorkspaceResources),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Convenience: Set up ALL mocks at once
 // ---------------------------------------------------------------------------
@@ -635,6 +693,7 @@ export async function mockAllApis(page: Page) {
   await mockWorkspacesApi(page);
   await mockWorkspaceMembersApi(page);
   await mockWorkspaceTeamsApi(page);
+  await mockWorkspaceExtendedApi(page);
   await mockPluginsApi(page);
   await mockMarketplaceApi(page);
   await mockUserApi(page);
