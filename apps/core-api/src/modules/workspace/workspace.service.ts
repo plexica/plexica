@@ -2305,10 +2305,12 @@ export class WorkspaceService {
     // concurrent update can interleave between reading existing settings and
     // writing the merged result (read-your-own-writes guarantee).
     const merged = await this.db.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<Array<{ settings: unknown }>>(
-        Prisma.sql`SELECT settings FROM ${workspacesTable}
-          WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
-      );
+      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+
+      const rows = await tx.$queryRaw<Array<{ settings: unknown }>>`
+        SELECT settings FROM ${workspacesTable}
+        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid
+      `;
 
       if (!rows || rows.length === 0) {
         throw new Error(`Workspace ${workspaceId} not found`);
@@ -2318,11 +2320,11 @@ export class WorkspaceService {
       const mergedSettings = mergeSettings(existingSettings, update);
       const settingsJson = JSON.stringify(mergedSettings);
 
-      const updateCount = await tx.$executeRaw(
-        Prisma.sql`UPDATE ${workspacesTable}
-          SET settings = ${settingsJson}::jsonb, updated_at = NOW()
-          WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
-      );
+      const updateCount = await tx.$executeRaw`
+        UPDATE ${workspacesTable}
+        SET settings = ${settingsJson}::jsonb, updated_at = NOW()
+        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid
+      `;
 
       if (updateCount === 0) {
         throw new Error(`Workspace ${workspaceId} not found`);
