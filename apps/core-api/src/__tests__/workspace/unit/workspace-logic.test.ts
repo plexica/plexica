@@ -455,10 +455,9 @@ describe('WorkspaceService - Edge Cases (T5.1)', () => {
     });
 
     it('should not enforce limit when maxMembers is 0 (unlimited)', () => {
-      const maxMembers = 0;
-      const currentCount = 9999;
-      const wouldExceedLimit = maxMembers > 0 && currentCount >= maxMembers;
-      expect(wouldExceedLimit).toBe(false);
+      const computeWouldExceedLimit = (max: number, count: number): boolean =>
+        max > 0 && count >= max;
+      expect(computeWouldExceedLimit(0, 9999)).toBe(false);
     });
 
     it('should allow allowCrossWorkspaceSharing to default to false', () => {

@@ -1914,7 +1914,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
             description: 'Settings updated successfully',
             type: 'object',
             properties: {
-              settings: { type: 'object' },
+              defaultMemberRole: { type: 'string' },
+              allowCrossWorkspaceSharing: { type: 'boolean' },
+              maxMembers: { type: 'integer' },
+              isPublic: { type: 'boolean' },
+              notificationsEnabled: { type: 'boolean' },
               updatedAt: { type: 'string', format: 'date-time' },
             },
           },
@@ -1949,7 +1953,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           validation.settings!,
           request.tenant!
         );
-        return reply.send({ settings, updatedAt: new Date().toISOString() });
+        return reply.send({ ...settings, updatedAt: new Date().toISOString() });
       } catch (error) {
         handleServiceError(error, reply);
       }
