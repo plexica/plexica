@@ -9,11 +9,11 @@
 
 import { createFileRoute } from '@tanstack/react-router';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { WorkspaceSettingsForm } from '@/components/workspace/WorkspaceSettingsForm';
 import {
-  WorkspaceSettingsForm,
   WorkspaceSettingsSchema,
-} from '@/components/workspace/WorkspaceSettingsForm';
-import type { WorkspaceSettings } from '@/components/workspace/WorkspaceSettingsForm';
+  type WorkspaceSettings,
+} from '@/components/workspace/workspace-settings.schema';
 import { Skeleton } from '@plexica/ui';
 
 // ---------------------------------------------------------------------------

@@ -8,24 +8,11 @@
 // Constitution Art. 1.3 — WCAG 2.1 AA (role="switch", aria-checked).
 
 import { useState, useEffect } from 'react';
-import { z } from 'zod';
 import { Button, Input, Label, Spinner } from '@plexica/ui';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@plexica/ui';
 import { AlertCircle, Circle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-
-// ---------------------------------------------------------------------------
-// Zod schema — Appendix D spec.md lines 2912–2957 (4 fields only)
-// ---------------------------------------------------------------------------
-
-export const WorkspaceSettingsSchema = z.object({
-  defaultTeamRole: z.enum(['ADMIN', 'MEMBER']).default('MEMBER'),
-  allowCrossWorkspaceSharing: z.boolean().default(false),
-  maxMembers: z.number().int().min(0).max(10000).default(0),
-  isDiscoverable: z.boolean().default(true),
-});
-
-export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
+import { WorkspaceSettingsSchema, type WorkspaceSettings } from './workspace-settings.schema';
 
 interface WorkspaceSettingsFormProps {
   workspaceId: string;
