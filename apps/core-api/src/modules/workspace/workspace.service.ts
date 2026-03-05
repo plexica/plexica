@@ -2313,7 +2313,7 @@ export class WorkspaceService {
 
       const rows = await tx.$queryRaw<Array<{ settings: unknown }>>(
         Prisma.sql`SELECT settings FROM ${workspacesTable}
-        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
       );
 
       if (!rows || rows.length === 0) {
@@ -2334,7 +2334,7 @@ export class WorkspaceService {
       const updateCount = await tx.$executeRaw(
         Prisma.sql`UPDATE ${workspacesTable}
         SET settings = ${settingsJson}::jsonb, updated_at = NOW()
-        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
       );
 
       if (updateCount === 0) {
