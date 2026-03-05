@@ -174,8 +174,8 @@ describe('Workspace Settings Integration', () => {
     });
 
     it('should return merged settings (partial update preserves existing values)', async () => {
-      // Arrange — first set maxMembers = 100
-      await app.inject({
+      // Arrange — first set maxMembers = 100 (assert success to surface silent failures)
+      const firstResponse = await app.inject({
         method: 'PATCH',
         url: `/api/workspaces/${testWorkspaceId}/settings`,
         headers: {
@@ -185,6 +185,7 @@ describe('Workspace Settings Integration', () => {
         },
         payload: { maxMembers: 100 },
       });
+      expect(firstResponse.statusCode).toBe(200);
 
       // Act — now only update isPublic; maxMembers should still be 100
       const response = await app.inject({

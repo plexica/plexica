@@ -296,9 +296,16 @@ describe('WorkspaceService.updateSettings()', () => {
   // Mock helpers
   function createMockDb(opts: { queryRawResults?: unknown[][]; executeRawResult?: number }) {
     const queryRawQueue = [...(opts.queryRawResults ?? [])];
+    const txQueryRaw = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? []));
+    const txExecuteRaw = vi.fn().mockResolvedValue(opts.executeRawResult ?? 1);
+    const tx = { $queryRaw: txQueryRaw, $executeRaw: txExecuteRaw };
     return {
       $queryRaw: vi.fn().mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? [])),
       $executeRaw: vi.fn().mockResolvedValue(opts.executeRawResult ?? 1),
+      // Execute the callback immediately with the mock transaction object
+      $transaction: vi.fn().mockImplementation((cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
     };
   }
 
@@ -344,7 +351,7 @@ describe('WorkspaceService.updateSettings()', () => {
     // Assert
     expect(result.isPublic).toBe(true);
     expect(result.maxMembers).toBe(10); // preserved
-    expect(mockDb.$executeRaw).toHaveBeenCalledOnce();
+    expect(mockDb.$transaction).toHaveBeenCalledOnce();
   });
 
   it('should throw when workspace is not found (SELECT returns empty)', async () => {

@@ -2301,29 +2301,35 @@ export class WorkspaceService {
 
     const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
 
-    // Fetch existing settings (single fast query — no full workspace projection needed)
-    const rows = await this.db.$queryRaw<Array<{ settings: unknown }>>(
-      Prisma.sql`SELECT settings FROM ${workspacesTable}
-        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
-    );
+    // Wrap SELECT + UPDATE in a transaction so the merge is atomic: no other
+    // concurrent update can interleave between reading existing settings and
+    // writing the merged result (read-your-own-writes guarantee).
+    const merged = await this.db.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ settings: unknown }>>(
+        Prisma.sql`SELECT settings FROM ${workspacesTable}
+          WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
+      );
 
-    if (!rows || rows.length === 0) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+      if (!rows || rows.length === 0) {
+        throw new Error(`Workspace ${workspaceId} not found`);
+      }
 
-    const existingSettings = rows[0].settings as WorkspaceSettings | null;
-    const merged = mergeSettings(existingSettings, update);
-    const settingsJson = JSON.stringify(merged);
+      const existingSettings = rows[0].settings as WorkspaceSettings | null;
+      const mergedSettings = mergeSettings(existingSettings, update);
+      const settingsJson = JSON.stringify(mergedSettings);
 
-    const updateCount = await this.db.$executeRaw(
-      Prisma.sql`UPDATE ${workspacesTable}
-        SET settings = ${settingsJson}::jsonb, updated_at = NOW()
-        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
-    );
+      const updateCount = await tx.$executeRaw(
+        Prisma.sql`UPDATE ${workspacesTable}
+          SET settings = ${settingsJson}::jsonb, updated_at = NOW()
+          WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
+      );
 
-    if (updateCount === 0) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+      if (updateCount === 0) {
+        throw new Error(`Workspace ${workspaceId} not found`);
+      }
+
+      return mergedSettings;
+    });
 
     this.log.debug({ workspaceId }, 'Workspace settings updated');
 
