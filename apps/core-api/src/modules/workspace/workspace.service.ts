@@ -2299,21 +2299,25 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    const workspacesTable = Prisma.raw(`"${schemaName}"."workspaces"`);
-
     // Wrap SELECT + UPDATE in a transaction so the merge is atomic: no other
     // concurrent update can interleave between reading existing settings and
     // writing the merged result (read-your-own-writes guarantee).
-    // Use Prisma.sql (not tagged template literals) so Prisma correctly handles
-    // Prisma.raw() table identifiers alongside bound parameters — tagged
-    // templates with Prisma.raw() interpolations mis-classify parameters as
-    // text, triggering "operator does not exist: text = uuid" (PG error 42883).
+    //
+    // We use $queryRawUnsafe / $executeRawUnsafe instead of $queryRaw(Prisma.sql)
+    // because Prisma's sql-tagged template sends JavaScript string parameters
+    // with an explicit PostgreSQL OID 25 (text).  PostgreSQL has no implicit
+    // "uuid = text" operator, so any UUID column comparison raises error 42883.
+    // $queryRawUnsafe sends parameters with OID 0 (unspecified), letting
+    // PostgreSQL infer the type from the column context (uuid = uuid → ✅).
+    // The schemaName is validated above with a strict regex so direct
+    // interpolation into the SQL string is safe.
     const merged = await this.db.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      const rows = await tx.$queryRaw<Array<{ settings: unknown }>>(
-        Prisma.sql`SELECT settings FROM ${workspacesTable}
-        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
+      const rows = await tx.$queryRawUnsafe<Array<{ settings: unknown }>>(
+        `SELECT settings FROM "${schemaName}"."workspaces" WHERE id = $1 AND tenant_id = $2`,
+        workspaceId,
+        tenantId
       );
 
       if (!rows || rows.length === 0) {
@@ -2331,10 +2335,13 @@ export class WorkspaceService {
       const mergedSettings = mergeSettings(existingSettings, update);
       const settingsJson = JSON.stringify(mergedSettings);
 
-      const updateCount = await tx.$executeRaw(
-        Prisma.sql`UPDATE ${workspacesTable}
-        SET settings = ${settingsJson}::jsonb, updated_at = NOW()
-        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid`
+      // $1 = settingsJson (cast to jsonb explicitly), $2/$3 = UUID columns
+      // (type inferred from context by PostgreSQL — no explicit cast required).
+      const updateCount = await tx.$executeRawUnsafe(
+        `UPDATE "${schemaName}"."workspaces" SET settings = $1::jsonb, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
+        settingsJson,
+        workspaceId,
+        tenantId
       );
 
       if (updateCount === 0) {
