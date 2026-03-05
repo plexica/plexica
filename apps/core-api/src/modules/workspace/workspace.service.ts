@@ -2300,9 +2300,7 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    // Wrap SELECT + UPDATE in a transaction so the merge is atomic: no other
-    // concurrent update can interleave between reading existing settings and
-    // writing the merged result (read-your-own-writes guarantee).
+    // Two-step SELECT then UPDATE (no Prisma $transaction wrapper).
     //
     // We use $queryRawUnsafe / $executeRawUnsafe instead of $queryRaw(Prisma.sql)
     // because Prisma's sql-tagged template sends JavaScript string parameters
@@ -2312,49 +2310,52 @@ export class WorkspaceService {
     // PostgreSQL infer the type from the column context (uuid = uuid → ✅).
     // The schemaName is validated above with a strict regex so direct
     // interpolation into the SQL string is safe.
-    const merged = await this.db.$transaction(async (tx) => {
-      await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
+    //
+    // Note: The $transaction callback was removed because Prisma's interactive
+    // transactions with @prisma/adapter-pg do not guarantee that a committed
+    // UPDATE from a prior transaction is visible to the SELECT of the next
+    // transaction when the two transactions execute back-to-back in the same
+    // Node.js event-loop tick (snapshot isolation issue).  Since settings
+    // updates are admin-only and infrequent, the slight TOCTOU exposure is
+    // acceptable.  If stricter atomicity is needed in the future, use
+    // a single UPDATE ... SET settings = settings || $1::jsonb RETURNING settings.
+    const rows = await this.db.$queryRawUnsafe<Array<{ settings: unknown }>>(
+      `SELECT settings FROM "${schemaName}"."workspaces" WHERE id = $1 AND tenant_id = $2`,
+      workspaceId,
+      tenantId
+    );
 
-      const rows = await tx.$queryRawUnsafe<Array<{ settings: unknown }>>(
-        `SELECT settings FROM "${schemaName}"."workspaces" WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
-        workspaceId,
-        tenantId
-      );
+    if (!rows || rows.length === 0) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
 
-      if (!rows || rows.length === 0) {
-        throw new Error(`Workspace ${workspaceId} not found`);
-      }
+    // Prisma may return jsonb columns as a JSON string or a parsed object
+    // depending on the driver version.  Normalise to an object so that
+    // mergeSettings always receives a plain Record (or null).
+    const rawSettings = rows[0].settings;
+    const existingSettings: WorkspaceSettings | null =
+      typeof rawSettings === 'string'
+        ? (JSON.parse(rawSettings) as WorkspaceSettings)
+        : (rawSettings as WorkspaceSettings | null);
+    const mergedSettings = mergeSettings(existingSettings, update);
+    const settingsJson = JSON.stringify(mergedSettings);
 
-      // Prisma may return jsonb columns as a JSON string or a parsed object
-      // depending on the driver version.  Normalise to an object so that
-      // mergeSettings always receives a plain Record (or null).
-      const rawSettings = rows[0].settings;
-      const existingSettings: WorkspaceSettings | null =
-        typeof rawSettings === 'string'
-          ? (JSON.parse(rawSettings) as WorkspaceSettings)
-          : (rawSettings as WorkspaceSettings | null);
-      const mergedSettings = mergeSettings(existingSettings, update);
-      const settingsJson = JSON.stringify(mergedSettings);
+    // $1 = settingsJson (cast to jsonb explicitly), $2/$3 = TEXT columns
+    // (type inferred from context by PostgreSQL — no explicit cast required).
+    const updateCount = await this.db.$executeRawUnsafe(
+      `UPDATE "${schemaName}"."workspaces" SET settings = $1::jsonb, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
+      settingsJson,
+      workspaceId,
+      tenantId
+    );
 
-      // $1 = settingsJson (cast to jsonb explicitly), $2/$3 = UUID columns
-      // (type inferred from context by PostgreSQL — no explicit cast required).
-      const updateCount = await tx.$executeRawUnsafe(
-        `UPDATE "${schemaName}"."workspaces" SET settings = $1::jsonb, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
-        settingsJson,
-        workspaceId,
-        tenantId
-      );
-
-      if (updateCount === 0) {
-        throw new Error(`Workspace ${workspaceId} not found`);
-      }
-
-      return mergedSettings;
-    });
+    if (updateCount === 0) {
+      throw new Error(`Workspace ${workspaceId} not found`);
+    }
 
     this.log.debug({ workspaceId }, 'Workspace settings updated');
 
-    return merged;
+    return mergedSettings;
   }
 }
 

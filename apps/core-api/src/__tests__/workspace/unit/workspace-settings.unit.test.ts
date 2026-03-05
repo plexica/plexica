@@ -296,24 +296,11 @@ describe('WorkspaceService.updateSettings()', () => {
   // Mock helpers
   function createMockDb(opts: { queryRawResults?: unknown[][]; executeRawResult?: number }) {
     const queryRawQueue = [...(opts.queryRawResults ?? [])];
-    const txQueryRawUnsafe = vi
-      .fn()
-      .mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? []));
-    const txExecuteRaw = vi.fn().mockResolvedValue(1); // SET LOCAL search_path
-    const txExecuteRawUnsafe = vi.fn().mockResolvedValue(opts.executeRawResult ?? 1);
-    const tx = {
-      $queryRawUnsafe: txQueryRawUnsafe,
-      $executeRaw: txExecuteRaw,
-      $executeRawUnsafe: txExecuteRawUnsafe,
-    };
     return {
       $queryRawUnsafe: vi
         .fn()
         .mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? [])),
-      $executeRaw: vi.fn().mockResolvedValue(1),
       $executeRawUnsafe: vi.fn().mockResolvedValue(opts.executeRawResult ?? 1),
-      // Execute the callback immediately with the mock transaction object
-      $transaction: vi.fn().mockImplementation((cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
     };
   }
 
@@ -359,7 +346,7 @@ describe('WorkspaceService.updateSettings()', () => {
     // Assert
     expect(result.isPublic).toBe(true);
     expect(result.maxMembers).toBe(10); // preserved
-    expect(mockDb.$transaction).toHaveBeenCalledOnce();
+    expect(mockDb.$executeRawUnsafe).toHaveBeenCalledOnce(); // UPDATE was executed
   });
 
   it('should throw when workspace is not found (SELECT returns empty)', async () => {
