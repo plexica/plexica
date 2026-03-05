@@ -296,14 +296,22 @@ describe('WorkspaceService.updateSettings()', () => {
   // Mock helpers
   function createMockDb(opts: { queryRawResults?: unknown[][]; executeRawResult?: number }) {
     const queryRawQueue = [...(opts.queryRawResults ?? [])];
-    const txQueryRaw = vi
+    const txQueryRawUnsafe = vi
       .fn()
       .mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? []));
-    const txExecuteRaw = vi.fn().mockResolvedValue(opts.executeRawResult ?? 1);
-    const tx = { $queryRaw: txQueryRaw, $executeRaw: txExecuteRaw };
+    const txExecuteRaw = vi.fn().mockResolvedValue(1); // SET LOCAL search_path
+    const txExecuteRawUnsafe = vi.fn().mockResolvedValue(opts.executeRawResult ?? 1);
+    const tx = {
+      $queryRawUnsafe: txQueryRawUnsafe,
+      $executeRaw: txExecuteRaw,
+      $executeRawUnsafe: txExecuteRawUnsafe,
+    };
     return {
-      $queryRaw: vi.fn().mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? [])),
-      $executeRaw: vi.fn().mockResolvedValue(opts.executeRawResult ?? 1),
+      $queryRawUnsafe: vi
+        .fn()
+        .mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? [])),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      $executeRawUnsafe: vi.fn().mockResolvedValue(opts.executeRawResult ?? 1),
       // Execute the callback immediately with the mock transaction object
       $transaction: vi.fn().mockImplementation((cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
     };
