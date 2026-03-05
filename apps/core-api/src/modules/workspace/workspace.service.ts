@@ -2300,58 +2300,49 @@ export class WorkspaceService {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    // Two-step SELECT then UPDATE (no Prisma $transaction wrapper).
+    // Single atomic UPDATE … RETURNING statement.
     //
-    // We use $queryRawUnsafe / $executeRawUnsafe instead of $queryRaw(Prisma.sql)
-    // because Prisma's sql-tagged template sends JavaScript string parameters
-    // with an explicit PostgreSQL OID 25 (text).  PostgreSQL has no implicit
-    // "uuid = text" operator, so any UUID column comparison raises error 42883.
-    // $queryRawUnsafe sends parameters with OID 0 (unspecified), letting
-    // PostgreSQL infer the type from the column context (uuid = uuid → ✅).
+    // We use $queryRawUnsafe instead of $queryRaw(Prisma.sql) because Prisma's
+    // sql-tagged template sends JavaScript string parameters with PostgreSQL
+    // OID 25 (text).  PostgreSQL has no implicit "uuid = text" operator, so
+    // UUID column comparisons raise error 42883.  $queryRawUnsafe sends
+    // parameters with OID 0 (unspecified), letting PostgreSQL infer the type
+    // from the column context (uuid = uuid → ✅).
     // The schemaName is validated above with a strict regex so direct
     // interpolation into the SQL string is safe.
     //
-    // Note: The $transaction callback was removed because Prisma's interactive
-    // transactions with @prisma/adapter-pg do not guarantee that a committed
-    // UPDATE from a prior transaction is visible to the SELECT of the next
-    // transaction when the two transactions execute back-to-back in the same
-    // Node.js event-loop tick (snapshot isolation issue).  Since settings
-    // updates are admin-only and infrequent, the slight TOCTOU exposure is
-    // acceptable.  If stricter atomicity is needed in the future, use
-    // a single UPDATE ... SET settings = settings || $1::jsonb RETURNING settings.
-    const rows = await this.db.$queryRawUnsafe<Array<{ settings: unknown }>>(
-      `SELECT settings FROM "${schemaName}"."workspaces" WHERE id = $1 AND tenant_id = $2`,
+    // The JSONB || operator merges the existing stored settings with the
+    // incoming partial update atomically inside PostgreSQL, eliminating the
+    // two-round-trip SELECT + UPDATE pattern and any stale-read risk between
+    // them (which caused the "maxMembers resets to 0" bug on back-to-back
+    // PATCHes when the pool handed out a different connection for the second
+    // SELECT than the one used for the prior UPDATE).
+    //
+    // After the DB merge we run the returned JSONB through mergeSettings() to
+    // apply Zod defaults for fields that are missing from the stored blob.
+    const updateRows = await this.db.$queryRawUnsafe<Array<{ settings: unknown }>>(
+      `UPDATE "${schemaName}"."workspaces"
+       SET settings    = settings || $1::jsonb,
+           updated_at  = NOW()
+       WHERE id = $2 AND tenant_id = $3
+       RETURNING settings`,
+      JSON.stringify(update),
       workspaceId,
       tenantId
     );
 
-    if (!rows || rows.length === 0) {
+    if (!updateRows || updateRows.length === 0) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
 
-    // Prisma may return jsonb columns as a JSON string or a parsed object
-    // depending on the driver version.  Normalise to an object so that
-    // mergeSettings always receives a plain Record (or null).
-    const rawSettings = rows[0].settings;
-    const existingSettings: WorkspaceSettings | null =
-      typeof rawSettings === 'string'
-        ? (JSON.parse(rawSettings) as WorkspaceSettings)
-        : (rawSettings as WorkspaceSettings | null);
-    const mergedSettings = mergeSettings(existingSettings, update);
-    const settingsJson = JSON.stringify(mergedSettings);
-
-    // $1 = settingsJson (cast to jsonb explicitly), $2/$3 = TEXT columns
-    // (type inferred from context by PostgreSQL — no explicit cast required).
-    const updateCount = await this.db.$executeRawUnsafe(
-      `UPDATE "${schemaName}"."workspaces" SET settings = $1::jsonb, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
-      settingsJson,
-      workspaceId,
-      tenantId
-    );
-
-    if (updateCount === 0) {
-      throw new Error(`Workspace ${workspaceId} not found`);
-    }
+    // Normalise the returned JSONB value (driver may return a string or object)
+    // then run through mergeSettings to fill any missing default fields.
+    const rawReturned = updateRows[0].settings;
+    const returnedSettings: Record<string, unknown> =
+      typeof rawReturned === 'string'
+        ? (JSON.parse(rawReturned) as Record<string, unknown>)
+        : (rawReturned as Record<string, unknown>);
+    const mergedSettings = mergeSettings(returnedSettings, {});
 
     this.log.debug({ workspaceId }, 'Workspace settings updated');
 

@@ -294,13 +294,19 @@ describe('mergeSettings()', () => {
 
 describe('WorkspaceService.updateSettings()', () => {
   // Mock helpers
-  function createMockDb(opts: { queryRawResults?: unknown[][]; executeRawResult?: number }) {
-    const queryRawQueue = [...(opts.queryRawResults ?? [])];
+  //
+  // The service now uses a single atomic `UPDATE … RETURNING settings`
+  // statement via $queryRawUnsafe.  There is no separate SELECT or
+  // $executeRawUnsafe call anymore.
+  function createMockDb(opts: {
+    /** Rows returned by the atomic UPDATE … RETURNING query */
+    updateReturningRows?: unknown[];
+  }) {
     return {
-      $queryRawUnsafe: vi
-        .fn()
-        .mockImplementation(() => Promise.resolve(queryRawQueue.shift() ?? [])),
-      $executeRawUnsafe: vi.fn().mockResolvedValue(opts.executeRawResult ?? 1),
+      $queryRawUnsafe: vi.fn().mockResolvedValue(opts.updateReturningRows ?? []),
+      // $executeRawUnsafe is no longer called by updateSettings; kept on the
+      // mock so the constructor / other methods don't explode if they need it.
+      $executeRawUnsafe: vi.fn().mockResolvedValue(1),
     };
   }
 
@@ -325,15 +331,12 @@ describe('WorkspaceService.updateSettings()', () => {
 
   const workspaceId = 'ws-111-222';
 
-  it('should fetch existing settings, merge update, and persist', async () => {
-    // Arrange
-    const existingSettings = makeFullSettings({ maxMembers: 10 });
+  it('should return merged settings after atomic UPDATE … RETURNING', async () => {
+    // Arrange — the DB returns the already-merged settings blob (as PostgreSQL
+    // would after applying `settings || $1::jsonb`).
+    const dbReturnedSettings = makeFullSettings({ maxMembers: 10, isPublic: true });
     const mockDb = createMockDb({
-      queryRawResults: [
-        // SELECT settings
-        [{ settings: existingSettings }],
-      ],
-      executeRawResult: 1,
+      updateReturningRows: [{ settings: dbReturnedSettings }],
     });
     const mockLogger = createMockLogger();
 
@@ -345,13 +348,16 @@ describe('WorkspaceService.updateSettings()', () => {
 
     // Assert
     expect(result.isPublic).toBe(true);
-    expect(result.maxMembers).toBe(10); // preserved
-    expect(mockDb.$executeRawUnsafe).toHaveBeenCalledOnce(); // UPDATE was executed
+    expect(result.maxMembers).toBe(10); // preserved from what DB returned
+    // Exactly one $queryRawUnsafe call (the atomic UPDATE … RETURNING)
+    expect(mockDb.$queryRawUnsafe).toHaveBeenCalledOnce();
+    // $executeRawUnsafe must NOT be called (no separate UPDATE step)
+    expect(mockDb.$executeRawUnsafe).not.toHaveBeenCalled();
   });
 
-  it('should throw when workspace is not found (SELECT returns empty)', async () => {
-    // Arrange
-    const mockDb = createMockDb({ queryRawResults: [[]] }); // no rows
+  it('should throw when workspace is not found (UPDATE … RETURNING returns empty)', async () => {
+    // Arrange — UPDATE matched 0 rows (wrong id / tenant), returns no rows
+    const mockDb = createMockDb({ updateReturningRows: [] });
     const mockLogger = createMockLogger();
 
     const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
@@ -363,11 +369,11 @@ describe('WorkspaceService.updateSettings()', () => {
     ).rejects.toThrow(`Workspace ${workspaceId} not found`);
   });
 
-  it('should use schema defaults when existing settings is null', async () => {
-    // Arrange
+  it('should apply schema defaults when DB returns empty settings object', async () => {
+    // Arrange — workspace existed but settings column was `{}`; DB returns `{}`
+    // after the merge (update was also `{}`).  Zod defaults must fill the gaps.
     const mockDb = createMockDb({
-      queryRawResults: [[{ settings: null }]],
-      executeRawResult: 1,
+      updateReturningRows: [{ settings: {} }],
     });
     const mockLogger = createMockLogger();
 
@@ -381,6 +387,27 @@ describe('WorkspaceService.updateSettings()', () => {
     expect(result.defaultMemberRole).toBe('MEMBER');
     expect(result.maxMembers).toBe(0);
     expect(result.isPublic).toBe(false);
+    expect(result.notificationsEnabled).toBe(true);
+  });
+
+  it('should apply schema defaults when DB returns settings as a JSON string', async () => {
+    // Arrange — some driver versions return JSONB as a raw JSON string
+    const mockDb = createMockDb({
+      updateReturningRows: [{ settings: JSON.stringify({ maxMembers: 42, isPublic: true }) }],
+    });
+    const mockLogger = createMockLogger();
+
+    const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
+    const service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
+
+    // Act
+    const result = await service.updateSettings(workspaceId, { maxMembers: 42 }, tenantCtx);
+
+    // Assert
+    expect(result.maxMembers).toBe(42);
+    expect(result.isPublic).toBe(true);
+    // Missing fields filled by Zod defaults
+    expect(result.defaultMemberRole).toBe('MEMBER');
   });
 
   it('should reject invalid schema name to prevent SQL injection', async () => {
