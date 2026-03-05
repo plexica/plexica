@@ -11,6 +11,50 @@
 
 import { TenantStatus, type PrismaClient } from '@plexica/database';
 import { db } from '../lib/db.js';
+import { redis } from '../lib/redis.js';
+
+export interface SuperAdminRecord {
+  id: string;
+  keycloakId: string | null;
+  email: string;
+  name: string | null;
+  createdAt: Date;
+}
+
+export interface CreateSuperAdminOptions {
+  userId: string;
+  email: string;
+  grantedBy: string;
+  name?: string;
+}
+
+export interface HealthCheckResult {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  checks: {
+    database: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+    redis: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
+    keycloak: { status: 'ok' | 'skipped' };
+  };
+  timestamp: string;
+}
+
+export class SuperAdminNotFoundError extends Error {
+  readonly code = 'SUPER_ADMIN_NOT_FOUND';
+  readonly statusCode = 404;
+  constructor(id: string) {
+    super(`Super admin '${id}' not found`);
+    this.name = 'SuperAdminNotFoundError';
+  }
+}
+
+export class LastSuperAdminError extends Error {
+  readonly code = 'LAST_SUPER_ADMIN';
+  readonly statusCode = 409;
+  constructor() {
+    super('Cannot revoke the last super admin');
+    this.name = 'LastSuperAdminError';
+  }
+}
 
 // ============================================================================
 // Interfaces
@@ -329,6 +373,131 @@ export class AdminService {
     }
 
     throw new Error(`User '${userId}' not found`);
+  }
+
+  // ============================================================================
+  // Super Admin Management
+  // ============================================================================
+
+  /**
+   * Get a single super admin record by ID.
+   * Throws SuperAdminNotFoundError if not found.
+   */
+  async getSuperAdminById(id: string): Promise<SuperAdminRecord> {
+    const record = await this.db.superAdmin.findUnique({ where: { id } });
+    if (!record) {
+      throw new SuperAdminNotFoundError(id);
+    }
+    return {
+      id: record.id,
+      keycloakId: record.keycloakId,
+      email: record.email,
+      name: record.name,
+      createdAt: record.createdAt,
+    };
+  }
+
+  /**
+   * List all super admin records.
+   */
+  async listSuperAdmins(): Promise<SuperAdminRecord[]> {
+    const records = await this.db.superAdmin.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
+    return records.map((r) => ({
+      id: r.id,
+      keycloakId: r.keycloakId,
+      email: r.email,
+      name: r.name,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  /**
+   * Grant super admin role to a user.
+   */
+  async createSuperAdmin(options: CreateSuperAdminOptions): Promise<SuperAdminRecord> {
+    const record = await this.db.superAdmin.create({
+      data: {
+        keycloakId: options.userId,
+        email: options.email,
+        name: options.name ?? null,
+      },
+    });
+    return {
+      id: record.id,
+      keycloakId: record.keycloakId,
+      email: record.email,
+      name: record.name,
+      createdAt: record.createdAt,
+    };
+  }
+
+  /**
+   * Revoke super admin role by record ID.
+   * Throws SuperAdminNotFoundError if not found.
+   */
+  async revokeSuperAdmin(id: string): Promise<void> {
+    const existing = await this.db.superAdmin.findUnique({ where: { id } });
+    if (!existing) {
+      throw new SuperAdminNotFoundError(id);
+    }
+    // Last-super-admin guard (T008-25 / plan §6 Edge Case #6)
+    const totalCount = await this.db.superAdmin.count();
+    if (totalCount <= 1) {
+      throw new LastSuperAdminError();
+    }
+    await this.db.superAdmin.delete({ where: { id } });
+  }
+
+  // ============================================================================
+  // System Health
+  // ============================================================================
+
+  /**
+   * Check health of database and Redis.
+   */
+  async getSystemHealth(): Promise<HealthCheckResult> {
+    const checks: HealthCheckResult['checks'] = {
+      database: { status: 'ok' },
+      redis: { status: 'ok' },
+      keycloak: { status: 'skipped' },
+    };
+
+    // Database check
+    const dbStart = Date.now();
+    try {
+      await this.db.$queryRaw`SELECT 1`;
+      checks.database = { status: 'ok', latencyMs: Date.now() - dbStart };
+    } catch (err) {
+      checks.database = {
+        status: 'error',
+        latencyMs: Date.now() - dbStart,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    // Redis check
+    const redisStart = Date.now();
+    try {
+      await redis.ping();
+      checks.redis = { status: 'ok', latencyMs: Date.now() - redisStart };
+    } catch (err) {
+      checks.redis = {
+        status: 'error',
+        latencyMs: Date.now() - redisStart,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    const anyError = checks.database.status === 'error' || checks.redis.status === 'error';
+    const status: HealthCheckResult['status'] = anyError ? 'degraded' : 'healthy';
+
+    return {
+      status,
+      checks,
+      timestamp: new Date().toISOString(),
+    };
   }
 }
 

@@ -44,6 +44,17 @@ export default defineConfig({
         'src/routes/settings.branding.tsx',
         // Auth store (T005-14 through T005-17)
         'src/stores/auth.store.ts',
+        // Spec 008 Admin components (T008-60)
+        'src/components/PermissionGroupAccordion.tsx',
+        'src/components/AuditLogTable.tsx',
+        'src/components/DestructiveConfirmModal.tsx',
+        // Spec 008 hooks (T008-61)
+        'src/hooks/useTenantAdminDashboard.ts',
+        'src/hooks/useUsers.ts',
+        'src/hooks/useTeams.ts',
+        'src/hooks/useRoles.ts',
+        // Spec 008 API client (T008-39)
+        'src/api/admin.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

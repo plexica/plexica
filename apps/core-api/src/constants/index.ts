@@ -76,3 +76,40 @@ export const CACHE_TTL = {
   SERVICE_REGISTRY: 300, // 5 minutes
   JWKS_KEYS: 86400, // 24 hours
 } as const;
+
+// Audit Actions (Spec 008 §7 — all auditable events)
+export const AUDIT_ACTIONS = {
+  // Authentication
+  AUTH_LOGIN: 'auth.login',
+  AUTH_LOGOUT: 'auth.logout',
+  AUTH_FAILED_LOGIN: 'auth.failed_login',
+  // User management
+  USER_INVITED: 'user.invited',
+  USER_DEACTIVATED: 'user.deactivated',
+  USER_REACTIVATED: 'user.reactivated',
+  USER_ROLE_CHANGED: 'user.role_changed',
+  INVITATION_RESENT: 'invitation.resent',
+  INVITATION_CANCELLED: 'invitation.cancelled',
+  // Team management
+  TEAM_CREATED: 'team.created',
+  TEAM_UPDATED: 'team.updated',
+  TEAM_DELETED: 'team.deleted',
+  TEAM_MEMBER_ADDED: 'team.member_added',
+  TEAM_MEMBER_REMOVED: 'team.member_removed',
+  // Role management
+  ROLE_CREATED: 'role.created',
+  ROLE_DELETED: 'role.deleted',
+  ROLE_PERMISSIONS_CHANGED: 'role.permissions_changed',
+  // Plugin management
+  PLUGIN_INSTALLED: 'plugin.installed',
+  PLUGIN_ENABLED: 'plugin.enabled',
+  PLUGIN_DISABLED: 'plugin.disabled',
+  PLUGIN_CONFIGURED: 'plugin.configured',
+  // Tenant management
+  TENANT_CREATED: 'tenant.created',
+  TENANT_SUSPENDED: 'tenant.suspended',
+  TENANT_DELETED: 'tenant.deleted',
+  // Settings
+  SETTINGS_THEME_CHANGED: 'settings.theme_changed',
+  SETTINGS_CONFIG_UPDATED: 'settings.config_updated',
+} as const;

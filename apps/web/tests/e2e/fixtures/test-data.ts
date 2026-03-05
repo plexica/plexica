@@ -221,6 +221,175 @@ export const mockMarketplacePlugins = [
 ];
 
 // ---------------------------------------------------------------------------
+// Tenant Admin (Spec 008)
+// ---------------------------------------------------------------------------
+
+export const mockTenantDashboard = {
+  totalUsers: 12,
+  activeUsers: 9,
+  pendingInvitations: 3,
+  totalTeams: 4,
+  activePlugins: 2,
+  storageUsedBytes: 512 * 1024 * 1024, // 512 MB
+  apiCalls24h: 8450,
+};
+
+export const mockTenantUsers = {
+  data: [
+    {
+      id: 'u-1',
+      email: 'alice@acme-corp.plexica.local',
+      name: 'Alice Admin',
+      status: 'active',
+      roles: ['admin'],
+      lastLoginAt: '2026-03-01T10:00:00Z',
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: 'u-2',
+      email: 'bob@acme-corp.plexica.local',
+      name: 'Bob Member',
+      status: 'active',
+      roles: ['member'],
+      lastLoginAt: '2026-03-02T08:30:00Z',
+      createdAt: '2026-01-15T00:00:00Z',
+    },
+    {
+      id: 'u-3',
+      email: 'charlie@acme-corp.plexica.local',
+      name: 'Charlie Invited',
+      status: 'invited',
+      roles: [],
+      lastLoginAt: null,
+      createdAt: '2026-02-20T00:00:00Z',
+    },
+  ],
+  pagination: { page: 1, limit: 20, total: 3, totalPages: 1 },
+};
+
+export const mockTenantTeams = {
+  data: [
+    {
+      id: 'team-a',
+      name: 'Engineering',
+      description: 'Core engineering team',
+      memberCount: 5,
+      createdAt: '2026-01-05T00:00:00Z',
+      updatedAt: '2026-02-01T00:00:00Z',
+    },
+    {
+      id: 'team-b',
+      name: 'Design',
+      description: 'Product design team',
+      memberCount: 3,
+      createdAt: '2026-01-06T00:00:00Z',
+      updatedAt: '2026-02-02T00:00:00Z',
+    },
+  ],
+  pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+};
+
+export const mockTenantTeamDetail = {
+  id: 'team-a',
+  name: 'Engineering',
+  description: 'Core engineering team',
+  memberCount: 2,
+  createdAt: '2026-01-05T00:00:00Z',
+  updatedAt: '2026-02-01T00:00:00Z',
+  members: [
+    {
+      userId: 'u-1',
+      email: 'alice@acme-corp.plexica.local',
+      name: 'Alice Admin',
+      role: 'OWNER',
+      joinedAt: '2026-01-05T00:00:00Z',
+    },
+    {
+      userId: 'u-2',
+      email: 'bob@acme-corp.plexica.local',
+      name: 'Bob Member',
+      role: 'MEMBER',
+      joinedAt: '2026-01-10T00:00:00Z',
+    },
+  ],
+};
+
+export const mockTenantRoles = [
+  {
+    id: 'role-admin',
+    name: 'Admin',
+    description: 'Full administrative access',
+    isSystem: true,
+    permissions: ['workspace:read', 'workspace:write', 'members:manage'],
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'role-member',
+    name: 'Member',
+    description: 'Standard member access',
+    isSystem: true,
+    permissions: ['workspace:read'],
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'role-custom-1',
+    name: 'Read-Only Reporter',
+    description: 'Can view dashboards and export reports',
+    isSystem: false,
+    permissions: ['workspace:read'],
+    createdAt: '2026-02-10T00:00:00Z',
+  },
+];
+
+export const mockPermissions = [
+  { id: 'workspace:read', name: 'workspace:read', description: 'Read workspace data' },
+  { id: 'workspace:write', name: 'workspace:write', description: 'Write workspace data' },
+  { id: 'members:manage', name: 'members:manage', description: 'Manage workspace members' },
+  { id: 'plugins:manage', name: 'plugins:manage', description: 'Manage plugins' },
+];
+
+export const mockTenantSettings = {
+  theme: {
+    primaryColor: '#6366f1',
+    accentColor: '#8b5cf6',
+    logoUrl: '',
+    fontHeading: 'Inter',
+    fontBody: 'Inter',
+  },
+  preferences: {
+    locale: 'en-US',
+    timezone: 'UTC',
+    dateFormat: 'MM/DD/YYYY',
+  },
+};
+
+export const mockAuditLogs = {
+  data: [
+    {
+      id: 'al-1',
+      userId: 'u-1',
+      userEmail: 'alice@acme-corp.plexica.local',
+      action: 'USER_INVITED',
+      resourceType: 'User',
+      resourceId: 'u-3',
+      details: { email: 'charlie@acme-corp.plexica.local' },
+      createdAt: '2026-03-01T10:00:00Z',
+    },
+    {
+      id: 'al-2',
+      userId: 'u-1',
+      userEmail: 'alice@acme-corp.plexica.local',
+      action: 'TEAM_CREATED',
+      resourceType: 'Team',
+      resourceId: 'team-a',
+      details: { name: 'Engineering' },
+      createdAt: '2026-01-05T09:00:00Z',
+    },
+  ],
+  pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+};
+
+// ---------------------------------------------------------------------------
 // API Endpoints used by WebApiClient
 // ---------------------------------------------------------------------------
 

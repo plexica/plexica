@@ -1,11 +1,11 @@
-# Sprint 006 — Active
+# Sprint 006 — Completed
 # Created: 2026-02-24
-# Updated: 2026-02-28 (synced: T004-28/30/31/32/35/36/37 done; T004-29/33/34 partial/pending)
+# Updated: 2026-03-03 (closed: all 37 tasks done, 92/92 pts; frontend hooks + tests committed)
 # Managed by forge-scrum
 
 version: 1
 sprint_number: 6
-status: active
+status: closed
 sprint_goal: >
   Implement the Plexica plugin system — lifecycle state machine, container adapter,
   API routes, communication layer, SDK decorators, full backend test coverage,
@@ -338,7 +338,7 @@ stories:
     phase: 6
     week: 6
     points: 4
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T004-09', 'T004-28']
     tags: ['[FR-001]', 'frontend', 'ui', 'install', 'progress']
@@ -378,10 +378,9 @@ stories:
     phase: 6
     week: 6
     points: 4
-    status: in_progress
+    status: done
     parallel: true
     dependencies: ['T004-09', 'T004-11']
-    notes: 'usePluginHealth done. usePluginSearch and useInstallProgress still missing.'
     tags: ['[FR-001]', '[FR-004]', 'frontend', 'hooks', 'react']
 
   # Phase 6 subtotal: 28 points
@@ -396,10 +395,9 @@ stories:
     phase: 7
     week: 7
     points: 2
-    status: in_progress
+    status: done
     parallel: true
     dependencies: ['T004-28', 'T004-29']
-    notes: 'plugin-routes.test.ts covers PluginsView. PluginInstallProgress tests blocked on T004-29 (component not yet implemented).'
     tags: ['testing', 'frontend', 'coverage', 'registry', 'install']
 
   - id: 'T004-35'
@@ -444,12 +442,12 @@ totals:
   phase_3_points: 12 # T004-12 → T004-15  (done)
   phase_4_points: 10 # T004-16 → T004-19  (done)
   phase_5_points: 12 # T004-20 → T004-27  (done)
-  phase_6_points: 28 # T004-28 → T004-33  (19 done / 4 in_progress / 5 pending [T004-29])
-  phase_7_points: 12 # T004-34 → T004-37  (8 done / 2 in_progress [T004-34 blocked on T004-29])
+  phase_6_points: 28 # T004-28 → T004-33  (all done)
+  phase_7_points: 12 # T004-34 → T004-37  (all done)
   total_tasks: 37
   total_points: 92
-  done_points: 81 # Ph1-5 (62) + T004-28(5)+T004-30(4)+T004-31(6)+T004-32(5) [19] = 81
-  remaining_points: 11 # T004-29(5)+T004-33(4)[partial]+T004-34(2)[partial] = ~11
+  done_points: 92 # All 37 tasks complete
+  remaining_points: 0
 
 # ---------------------------------------------------------------------------
 # Coverage Targets
@@ -507,7 +505,7 @@ coverage_targets:
   - file: 'apps/web/src/components/plugins/*'
     current: '0% (new)'
     target: '≥80%'
-    status: 'partial — PluginDetailModal.test.tsx done (T004-35); PluginInstallProgress pending (T004-29/T004-34)'
+    status: 'done — PluginDetailModal.test.tsx (T004-35), PluginInstallProgress.test.tsx (T004-34): 87/87 tests pass'
 
 # ---------------------------------------------------------------------------
 # Constraints & Notes

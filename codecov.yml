@@ -1,0 +1,65 @@
+# codecov.yml — Plexica Codecov configuration
+#
+# Docs: https://docs.codecov.com/docs/codecov-yaml
+#
+# Coverage is uploaded from apps/core-api/coverage/lcov.info
+# by the CI workflow (.github/workflows/ci-tests.yml).
+
+# ---------------------------------------------------------------------------
+# Coverage targets — must match Constitution Art. 4.1 and AGENTS.md
+# ---------------------------------------------------------------------------
+coverage:
+  status:
+    # Overall project coverage gate
+    project:
+      default:
+        target: 80% # Constitution Art. 4.1: ≥80% overall
+        threshold: 2% # Allow up to 2% drop without blocking (e.g. new files in flight)
+        base: auto
+
+    # Per-patch coverage gate — new code in each PR must be ≥80% covered
+    patch:
+      default:
+        target: 80%
+        threshold: 5% # New code is sometimes partially covered; allow 5% tolerance
+        base: auto
+
+# ---------------------------------------------------------------------------
+# Ignore paths that should not affect coverage metrics
+# ---------------------------------------------------------------------------
+ignore:
+  - 'apps/core-api/src/__tests__/**' # test files themselves
+  - 'apps/core-api/scripts/**' # migration / utility scripts
+  - 'apps/core-api/prisma/**' # generated Prisma artefacts
+  - 'packages/database/**' # @plexica/database (generated)
+  - '**/*.d.ts'
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/*.config.ts'
+  - '**/*.config.js'
+  - 'test-infrastructure/**'
+
+# ---------------------------------------------------------------------------
+# PR comment behaviour
+# ---------------------------------------------------------------------------
+comment:
+  layout: 'reach,diff,flags,tree'
+  behavior: default # post once, update on new commits
+  require_changes: false # always post (even if no change)
+  require_base: false
+  show_carryforward_flags: false
+
+# ---------------------------------------------------------------------------
+# Flags — map to the flag used in ci-tests.yml (flags: unittests)
+# ---------------------------------------------------------------------------
+flags:
+  unittests:
+    paths:
+      - apps/core-api/src/
+    carryforward: false
+
+# ---------------------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------------------
+github_checks:
+  annotations: true # inline annotations on changed files

@@ -5,7 +5,7 @@
 
 | Field  | Value                                                  |
 | ------ | ------------------------------------------------------ |
-| Status | Pending                                                |
+| Status | In Progress                                            |
 | Author | forge-scrum                                            |
 | Date   | 2026-02-28                                             |
 | Spec   | [.forge/specs/008-admin-interfaces/spec.md](./spec.md) |
@@ -100,7 +100,7 @@
 
 ---
 
-- [ ] **T008-00** `[⚠ HIGH]` `[L]` Normalize existing `admin.ts` error responses to Art. 6.2 format
+- [x] **T008-00** `[⚠ HIGH]` `[L]` Normalize existing `admin.ts` error responses to Art. 6.2 format
   - **FR/NFR**: Resolves Art. 6.2 violation; impacts FR-002 through FR-007 indirectly
   - **Type**: refactor · **Points**: 3
   - **File**: `apps/core-api/src/routes/admin.ts`
@@ -117,7 +117,7 @@
 
 ---
 
-- [ ] **T008-01** `[P]` `[M]` `[FR-006]` `[FR-014]` Add `AuditLog` Prisma model + run migration
+- [x] **T008-01** `[P]` `[M]` `[FR-006]` `[FR-014]` Add `AuditLog` Prisma model + run migration
   - **Type**: schema · **Points**: 2
   - **File**: `packages/database/prisma/schema.prisma`
   - **Change type**: Modify existing
@@ -133,7 +133,7 @@
 
 ---
 
-- [ ] **T008-02** `[P]` `[M]` `[FR-005]` Add `SystemConfig` Prisma model + migration + seed defaults
+- [x] **T008-02** `[P]` `[M]` `[FR-005]` Add `SystemConfig` Prisma model + migration + seed defaults
   - **Type**: schema · **Points**: 2
   - **File**: `packages/database/prisma/schema.prisma`
   - **Change type**: Modify existing
@@ -149,7 +149,7 @@
 
 ---
 
-- [ ] **T008-03** `[P]` `[⚠ HIGH]` `[L]` `[FR-010]` Add `team_members` table to `schema-step.ts` + backfill script
+- [x] **T008-03** `[P]` `[⚠ HIGH]` `[L]` `[FR-010]` Add `team_members` table to `schema-step.ts` + backfill script
   - **Type**: schema · **Points**: 3
   - **Files**:
     - `apps/core-api/src/services/provisioning-steps/schema-step.ts` (modify)
@@ -167,7 +167,7 @@
 
 ---
 
-- [ ] **T008-04** `[P]` `[S]` `[FR-006]` `[FR-014]` Add `AUDIT_ACTIONS` constants
+- [x] **T008-04** `[P]` `[S]` `[FR-006]` `[FR-014]` Add `AUDIT_ACTIONS` constants
   - **Type**: config · **Points**: 1
   - **File**: `apps/core-api/src/constants/index.ts`
   - **Change type**: Modify existing
@@ -183,7 +183,7 @@
 
 ---
 
-- [ ] **T008-05** `[L]` `[FR-006]` `[FR-014]` Implement `AuditLogService`
+- [x] **T008-05** `[L]` `[FR-006]` `[FR-014]` Implement `AuditLogService`
   - **Type**: service · **Points**: 3
   - **File**: `apps/core-api/src/services/audit-log.service.ts`
   - **Change type**: Create new file (~200 lines)
@@ -198,7 +198,7 @@
 
 ---
 
-- [ ] **T008-06** `[M]` `[FR-006]` `[FR-014]` Implement `AuditLogMiddleware` Fastify hook
+- [x] **T008-06** `[M]` `[FR-006]` `[FR-014]` Implement `AuditLogMiddleware` Fastify hook
   - **Type**: service · **Points**: 2
   - **File**: `apps/core-api/src/middleware/audit-log.ts`
   - **Change type**: Create new file (~80 lines)
@@ -213,7 +213,7 @@
 
 ---
 
-- [ ] **T008-07** `[P]` `[L]` `[FR-006]` `[FR-014]` Unit tests — `AuditLogService` (≥85% coverage)
+- [x] **T008-07** `[P]` `[L]` `[FR-006]` `[FR-014]` Unit tests — `AuditLogService` (≥85% coverage)
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/unit/audit-log.service.test.ts`
   - **Change type**: Create new file (~300 lines)
@@ -228,7 +228,7 @@
 
 ---
 
-- [ ] **T008-08** `[P]` `[M]` Normalize unit tests — `admin.ts` Art. 6.2 error format compliance
+- [x] **T008-08** `[P]` `[M]` Normalize unit tests — `admin.ts` Art. 6.2 error format compliance
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/unit/admin-error-format.test.ts`
   - **Change type**: Create new file (~200 lines)
@@ -252,7 +252,7 @@
 
 ---
 
-- [ ] **T008-09** `[P]` `[L]` `[FR-005]` Implement `SystemConfigService`
+- [x] **T008-09** `[P]` `[L]` `[FR-005]` Implement `SystemConfigService`
   - **Type**: service · **Points**: 3
   - **File**: `apps/core-api/src/services/system-config.service.ts`
   - **Change type**: Create new file (~150 lines)
@@ -267,7 +267,7 @@
 
 ---
 
-- [ ] **T008-10** `[P]` `[L]` `[FR-004]` `[FR-007]` Extend `AdminService` with super admin CRUD + `getSystemHealth()`
+- [x] **T008-10** `[P]` `[L]` `[FR-004]` `[FR-007]` Extend `AdminService` with super admin CRUD + `getSystemHealth()`
   - **Type**: service · **Points**: 5
   - **File**: `apps/core-api/src/services/admin.service.ts`
   - **Change type**: Modify existing
@@ -283,7 +283,7 @@
 
 ---
 
-- [ ] **T008-11** `[FR-001]` `[FR-002]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-007]` Add Super Admin extension routes to `admin.ts`
+- [x] **T008-11** `[FR-001]` `[FR-002]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-007]` Add Super Admin extension routes to `admin.ts`
   - **Type**: api · **Points**: 5
   - **File**: `apps/core-api/src/routes/admin.ts`
   - **Change type**: Modify existing
@@ -299,7 +299,7 @@
 
 ---
 
-- [ ] **T008-12** `[P]` `[M]` `[FR-005]` Unit tests — `SystemConfigService` (≥85% coverage)
+- [x] **T008-12** `[P]` `[M]` `[FR-005]` Unit tests — `SystemConfigService` (≥85% coverage)
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/unit/system-config.service.test.ts`
   - **Change type**: Create new file (~200 lines)
@@ -314,7 +314,7 @@
 
 ---
 
-- [ ] **T008-13** `[FR-001]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-007]` `[NFR-002]` Integration tests — new Super Admin endpoints
+- [x] **T008-13** `[FR-001]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-007]` `[NFR-002]` Integration tests — new Super Admin endpoints
   - **Type**: test · **Points**: 3
   - **File**: `apps/core-api/src/__tests__/integration/audit-log-api.integration.test.ts`
   - **Change type**: Create new file (~300 lines)
@@ -339,7 +339,7 @@
 
 ---
 
-- [ ] **T008-14** `[P]` `[S]` `[NFR-003]` `[NFR-004]` Add `requireTenantAdmin` middleware to `auth.ts`
+- [x] **T008-14** `[P]` `[S]` `[NFR-003]` `[NFR-004]` Add `requireTenantAdmin` middleware to `auth.ts`
   - **Type**: api · **Points**: 1
   - **File**: `apps/core-api/src/middleware/auth.ts`
   - **Change type**: Modify existing
@@ -355,7 +355,7 @@
 
 ---
 
-- [ ] **T008-15** `[P]` `[M]` `[FR-008]` Implement `TenantAdminService.getDashboard()`
+- [x] **T008-15** `[P]` `[M]` `[FR-008]` Implement `TenantAdminService.getDashboard()`
   - **Type**: service · **Points**: 2
   - **File**: `apps/core-api/src/services/tenant-admin.service.ts`
   - **Change type**: Create new file (first method; class scaffold established here)
@@ -370,7 +370,7 @@
 
 ---
 
-- [ ] **T008-16** `[XL]` `[FR-009]` `[NFR-004]` Implement `TenantAdminService` — user management methods
+- [x] **T008-16** `[XL]` `[FR-009]` `[NFR-004]` Implement `TenantAdminService` — user management methods
   - **Type**: service · **Points**: 8
   - **File**: `apps/core-api/src/services/tenant-admin.service.ts`
   - **Change type**: Modify existing (add methods to class from T008-15)
@@ -385,7 +385,7 @@
 
 ---
 
-- [ ] **T008-17** `[L]` `[FR-010]` Implement `TenantAdminService` — team CRUD + member methods
+- [x] **T008-17** `[L]` `[FR-010]` Implement `TenantAdminService` — team CRUD + member methods
   - **Type**: service · **Points**: 5
   - **File**: `apps/core-api/src/services/tenant-admin.service.ts`
   - **Change type**: Modify existing (add methods)
@@ -400,7 +400,7 @@
 
 ---
 
-- [ ] **T008-18** `[XL]` `[FR-008]` `[FR-009]` `[FR-010]` `[FR-011]` `[FR-013]` `[FR-014]` `[NFR-003]` `[NFR-004]` Implement `TenantAdminRoutes` — all 15+ Tenant Admin endpoints
+- [x] **T008-18** `[XL]` `[FR-008]` `[FR-009]` `[FR-010]` `[FR-011]` `[FR-013]` `[FR-014]` `[NFR-003]` `[NFR-004]` Implement `TenantAdminRoutes` — all 15+ Tenant Admin endpoints
   - **Type**: api · **Points**: 8
   - **File**: `apps/core-api/src/routes/tenant-admin.ts`
   - **Change type**: Create new file (~800 lines)
@@ -415,7 +415,7 @@
 
 ---
 
-- [ ] **T008-19** `[S]` `[FR-008]` `[FR-009]` `[FR-010]` Register `tenantAdminRoutes` + `auditLogMiddleware` in `index.ts`
+- [x] **T008-19** `[S]` `[FR-008]` `[FR-009]` `[FR-010]` Register `tenantAdminRoutes` + `auditLogMiddleware` in `index.ts`
   - **Type**: config · **Points**: 1
   - **File**: `apps/core-api/src/index.ts`
   - **Change type**: Modify existing
@@ -431,7 +431,7 @@
 
 ---
 
-- [ ] **T008-20** `[P]` `[XL]` `[FR-008]` `[FR-009]` `[FR-010]` `[FR-011]` Unit tests — `TenantAdminService` (≥85% coverage)
+- [x] **T008-20** `[P]` `[XL]` `[FR-008]` `[FR-009]` `[FR-010]` `[FR-011]` Unit tests — `TenantAdminService` (≥85% coverage)
   - **Type**: test · **Points**: 5
   - **File**: `apps/core-api/src/__tests__/unit/tenant-admin.service.test.ts`
   - **Change type**: Create new file (~500 lines)
@@ -446,7 +446,7 @@
 
 ---
 
-- [ ] **T008-21** `[FR-008]` `[FR-009]` `[FR-010]` `[FR-011]` `[FR-013]` `[FR-014]` `[NFR-004]` Integration tests — Tenant Admin endpoints + cross-tenant isolation
+- [x] **T008-21** `[FR-008]` `[FR-009]` `[FR-010]` `[FR-011]` `[FR-013]` `[FR-014]` `[NFR-004]` Integration tests — Tenant Admin endpoints + cross-tenant isolation
   - **Type**: test · **Points**: 5
   - **File**: `apps/core-api/src/__tests__/integration/tenant-admin-api.integration.test.ts`
   - **Change type**: Create new file (~600 lines)
@@ -472,7 +472,7 @@
 
 ---
 
-- [ ] **T008-22** `[FR-002]` `[FR-006]` E2E — Super Admin tenant lifecycle with full audit trail
+- [x] **T008-22** `[FR-002]` `[FR-006]` E2E — Super Admin tenant lifecycle with full audit trail
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/e2e/admin-workflows.e2e.test.ts`
   - **Change type**: Create new file (first `describe` block)
@@ -487,7 +487,7 @@
 
 ---
 
-- [ ] **T008-23** `[FR-009]` `[FR-010]` E2E — Tenant Admin user and team lifecycle
+- [x] **T008-23** `[FR-009]` `[FR-010]` E2E — Tenant Admin user and team lifecycle
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/e2e/admin-workflows.e2e.test.ts`
   - **Change type**: Modify existing (add second `describe` block)
@@ -502,7 +502,7 @@
 
 ---
 
-- [ ] **T008-24** `[FR-011]` E2E — Custom role creation, permission assignment, and user access
+- [x] **T008-24** `[FR-011]` E2E — Custom role creation, permission assignment, and user access
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/e2e/admin-workflows.e2e.test.ts`
   - **Change type**: Modify existing (add third `describe` block)
@@ -517,7 +517,7 @@
 
 ---
 
-- [ ] **T008-25** `[NFR-004]` `[FR-006]` `[FR-014]` E2E — Edge case guards and cross-tenant isolation
+- [x] **T008-25** `[NFR-004]` `[FR-006]` `[FR-014]` E2E — Edge case guards and cross-tenant isolation
   - **Type**: test · **Points**: 2
   - **File**: `apps/core-api/src/__tests__/e2e/admin-workflows.e2e.test.ts`
   - **Change type**: Modify existing (add fourth `describe` block)
@@ -532,7 +532,7 @@
 
 ---
 
-- [ ] **T008-26** `[FR-006]` `[FR-014]` `[NFR-002]` E2E — Audit log queries: date range, action filter, tenant scope
+- [x] **T008-26** `[FR-006]` `[FR-014]` `[NFR-002]` E2E — Audit log queries: date range, action filter, tenant scope
   - **Type**: test · **Points**: 1
   - **File**: `apps/core-api/src/__tests__/e2e/admin-workflows.e2e.test.ts`
   - **Change type**: Modify existing (add fifth `describe` block)
@@ -553,7 +553,7 @@
 
 ---
 
-- [ ] **T008-27** `[P]` `[S]` Update project status documentation
+- [x] **T008-27** `[P]` `[S]` Update project status documentation
   - **Type**: docs · **Points**: 1
   - **Files**: `planning/PROJECT_STATUS.md`
   - **Change type**: Modify existing
@@ -579,7 +579,7 @@
 
 ---
 
-- [ ] **T008-39** `[⚠ HIGH]` `[L]` `[FR-001]` `[FR-008]` Admin route trees + shells
+- [x] **T008-39** `[⚠ HIGH]` `[L]` `[FR-001]` `[FR-008]` Admin route trees + shells
   - **FR/NFR**: FR-001 (Super Admin Portal), FR-008 (Tenant Admin Portal), NFR-005 (WCAG skip-nav)
   - **Type**: frontend · **Points**: 3
   - **Files**:
@@ -600,7 +600,7 @@
 
 ---
 
-- [ ] **T008-40** `[P]` `[L]` `[NFR-005]` `[NFR-006]` AdminSidebarNav component
+- [x] **T008-40** `[P]` `[L]` `[NFR-005]` `[NFR-006]` AdminSidebarNav component
   - **FR/NFR**: NFR-005 (WCAG 2.1 AA), NFR-006 (keyboard navigation), NFR-007 (screen reader)
   - **Type**: frontend · **Points**: 3
   - **Files**:
@@ -619,7 +619,7 @@
 
 ---
 
-- [ ] **T008-41** `[P]` `[M]` `[NFR-003]` Auth guard hooks + API client
+- [x] **T008-41** `[P]` `[M]` `[NFR-003]` Auth guard hooks + API client
   - **FR/NFR**: NFR-003 (authentication enforcement), NFR-004 (tenant isolation)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -637,7 +637,7 @@
 
 ---
 
-- [ ] **T008-42** `[P]` `[S]` Design tokens
+- [x] **T008-42** `[P]` `[S]` Design tokens
   - **FR/NFR**: NFR-005 (design consistency), NFR-006 (theme tokens)
   - **Type**: frontend · **Points**: 1
   - **File**: `apps/frontend/src/styles/tokens.css` (modify existing)
@@ -666,7 +666,7 @@
 
 ---
 
-- [ ] **T008-43** `[P]` `[M]` `[FR-001]` Super Admin Dashboard screen
+- [x] **T008-43** `[P]` `[M]` `[FR-001]` Super Admin Dashboard screen
   - **FR/NFR**: FR-001 (Super Admin Portal — dashboard), NFR-001 (performance), NFR-005 (a11y)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -687,7 +687,7 @@
 
 ---
 
-- [ ] **T008-44** `[P]` `[L]` `[FR-002]` Tenant List + Detail screens
+- [x] **T008-44** `[P]` `[L]` `[FR-002]` Tenant List + Detail screens
   - **FR/NFR**: FR-002 (tenant CRUD), NFR-001 (pagination), NFR-005 (a11y)
   - **Type**: frontend · **Points**: 3
   - **Files**:
@@ -708,7 +708,7 @@
 
 ---
 
-- [ ] **T008-45** `[⚠ HIGH]` `[XL]` `[FR-002]` `[NFR-008]` Tenant Create Wizard (ProvisioningWizard)
+- [x] **T008-45** `[⚠ HIGH]` `[XL]` `[FR-002]` `[NFR-008]` Tenant Create Wizard (ProvisioningWizard)
   - **FR/NFR**: FR-002 (tenant creation), NFR-008 (provisioning orchestrator), NFR-005 (a11y)
   - **Type**: frontend · **Points**: 5
   - **Files**:
@@ -727,7 +727,7 @@
 
 ---
 
-- [ ] **T008-46** `[P]` `[M]` `[FR-003]` Plugin List + Config screens
+- [x] **T008-46** `[P]` `[M]` `[FR-003]` Plugin List + Config screens
   - **FR/NFR**: FR-003 (plugin management from Super Admin)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -746,7 +746,7 @@
 
 ---
 
-- [ ] **T008-47** `[P]` `[M]` `[FR-004]` Super Admin Users screen
+- [x] **T008-47** `[P]` `[M]` `[FR-004]` Super Admin Users screen
   - **FR/NFR**: FR-004 (super admin user management)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -763,7 +763,7 @@
 
 ---
 
-- [ ] **T008-48** `[P]` `[M]` `[FR-005]` System Config screen
+- [x] **T008-48** `[P]` `[M]` `[FR-005]` System Config screen
   - **FR/NFR**: FR-005 (system configuration management), NFR-005 (a11y)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -781,7 +781,7 @@
 
 ---
 
-- [ ] **T008-49** `[P]` `[M]` `[FR-006]` `[NFR-002]` Global Audit Log screen
+- [x] **T008-49** `[P]` `[M]` `[FR-006]` `[NFR-002]` Global Audit Log screen
   - **FR/NFR**: FR-006 (global audit log), NFR-002 (query performance), US-007 (audit log browsing)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -799,7 +799,7 @@
 
 ---
 
-- [ ] **T008-50** `[P]` `[S]` `[FR-007]` System Health screen
+- [x] **T008-50** `[P]` `[S]` `[FR-007]` System Health screen
   - **FR/NFR**: FR-007 (system health monitoring), NFR-001 (real-time updates)
   - **Type**: frontend · **Points**: 1
   - **Files**:
@@ -828,7 +828,7 @@
 
 ---
 
-- [ ] **T008-51** `[P]` `[S]` `[FR-008]` Tenant Admin Dashboard screen
+- [x] **T008-51** `[P]` `[S]` `[FR-008]` Tenant Admin Dashboard screen
   - **FR/NFR**: FR-008 (Tenant Admin Portal — dashboard)
   - **Type**: frontend · **Points**: 1
   - **Files**:
@@ -846,7 +846,7 @@
 
 ---
 
-- [ ] **T008-52** `[L]` `[FR-009]` User List + Invite screen
+- [x] **T008-52** `[L]` `[FR-009]` User List + Invite screen
   - **FR/NFR**: FR-009 (user management), US-003 (user invitations)
   - **Type**: frontend · **Points**: 3
   - **Files**:
@@ -864,7 +864,7 @@
 
 ---
 
-- [ ] **T008-53** `[P]` `[M]` `[FR-010]` Team List + Team Detail screens
+- [x] **T008-53** `[P]` `[M]` `[FR-010]` Team List + Team Detail screens
   - **FR/NFR**: FR-010 (team management), US-005 (team membership)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -883,7 +883,7 @@
 
 ---
 
-- [ ] **T008-54** `[L]` `[FR-011]` Role Editor screen
+- [x] **T008-54** `[L]` `[FR-011]` Role Editor screen
   - **FR/NFR**: FR-011 (role management), US-004 (custom role creation), NFR-005 (a11y)
   - **Type**: frontend · **Points**: 3
   - **Files**:
@@ -905,7 +905,7 @@
 
 ---
 
-- [ ] **T008-55** `[P]` `[S]` `[FR-012]` Plugin Settings screen
+- [x] **T008-55** `[P]` `[S]` `[FR-012]` Plugin Settings screen
   - **FR/NFR**: FR-012 (tenant plugin settings), NFR-005 (a11y)
   - **Type**: frontend · **Points**: 1
   - **Files**:
@@ -922,7 +922,7 @@
 
 ---
 
-- [ ] **T008-56** `[P]` `[M]` `[FR-013]` Tenant Settings screen
+- [x] **T008-56** `[P]` `[M]` `[FR-013]` Tenant Settings screen
   - **FR/NFR**: FR-013 (tenant settings), US-006 (theme customization), ADR-020 (font hosting)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -939,7 +939,7 @@
 
 ---
 
-- [ ] **T008-57** `[P]` `[S]` `[FR-014]` Tenant Audit Log screen
+- [x] **T008-57** `[P]` `[S]` `[FR-014]` Tenant Audit Log screen
   - **FR/NFR**: FR-014 (tenant audit log), US-007 (audit log browsing), NFR-004 (tenant isolation)
   - **Type**: frontend · **Points**: 1
   - **Files**:
@@ -956,7 +956,7 @@
 
 ---
 
-- [ ] **T008-58** `[P]` `[M]` `[FR-006]` `[FR-014]` `[NFR-005]` AuditLogTable + DestructiveConfirmModal components
+- [x] **T008-58** `[P]` `[M]` `[FR-006]` `[FR-014]` `[NFR-005]` AuditLogTable + DestructiveConfirmModal components
   - **FR/NFR**: FR-006 and FR-014 (audit log display), NFR-005 and NFR-006 (WCAG a11y)
   - **Type**: frontend · **Points**: 2
   - **Files**:
@@ -988,7 +988,7 @@
 
 ---
 
-- [ ] **T008-59** `[L]` `[NFR-005]` `[NFR-006]` `[NFR-007]` Accessibility hardening
+- [x] **T008-59** `[L]` `[NFR-005]` `[NFR-006]` `[NFR-007]` Accessibility hardening
   - **FR/NFR**: NFR-005 (WCAG 2.1 AA), NFR-006 (keyboard navigation), NFR-007 (screen reader support)
   - **Type**: frontend · **Points**: 3
   - **Files**: All 19 admin screen files (T008-43 through T008-57) + both `_layout.tsx` files (T008-39) — modify existing
@@ -1004,7 +1004,7 @@
 
 ---
 
-- [ ] **T008-60** `[P]` `[L]` `[NFR-005]` Frontend unit tests — components
+- [x] **T008-60** `[P]` `[L]` `[NFR-005]` Frontend unit tests — components
   - **FR/NFR**: NFR-005 (WCAG), Constitution Art. 4.1 (≥80% coverage)
   - **Type**: test · **Points**: 3
   - **Files**:
@@ -1027,7 +1027,7 @@
 
 ---
 
-- [ ] **T008-61** `[P]` `[M]` Frontend unit tests — hooks
+- [x] **T008-61** `[P]` `[M]` Frontend unit tests — hooks
   - **FR/NFR**: Constitution Art. 4.1 (≥80% coverage)
   - **Type**: test · **Points**: 2
   - **Files**:
@@ -1044,7 +1044,7 @@
 
 ---
 
-- [ ] **T008-62** `[L]` `[FR-002]` `[FR-009]` `[FR-011]` Playwright E2E tests — critical flows
+- [x] **T008-62** `[L]` `[FR-002]` `[FR-009]` `[FR-011]` Playwright E2E tests — critical flows
   - **FR/NFR**: FR-002 (tenant create), FR-009 (user invite), FR-011 (role editor)
   - **Type**: test · **Points**: 3
   - **Files**:
@@ -1063,7 +1063,7 @@
 
 ---
 
-- [ ] **T008-63** `[⚠ BLOCKED]` `[L]` `[NFR-005]` `[NFR-006]` `[NFR-007]` Playwright a11y tests (ADR-022)
+- [x] **T008-63** `[⚠ BLOCKED]` `[L]` `[NFR-005]` `[NFR-006]` `[NFR-007]` Playwright a11y tests (ADR-022)
   - **FR/NFR**: NFR-005 (WCAG 2.1 AA), NFR-006 (keyboard navigation), NFR-007 (screen reader compatibility)
   - **Type**: test · **Points**: 2
   - **Files**:
@@ -1092,7 +1092,7 @@
 
 ### T008-64 · User Reactivation Endpoint
 
-- [ ] **T008-64** `[S]` `[FR-009]` User Reactivation Endpoint
+- [x] **T008-64** `[S]` `[FR-009]` User Reactivation Endpoint
   - **FR/NFR**: FR-009 (User Management)
   - **Type**: backend · **Points**: 2
   - **Phase**: 3 — Tenant Admin Backend
@@ -1114,7 +1114,7 @@
 
 ### T008-65 · Invitation Resend and Cancel Endpoints
 
-- [ ] **T008-65** `[M]` `[FR-009]` `[A-3]` Invitation Resend and Cancel Endpoints
+- [x] **T008-65** `[M]` `[FR-009]` `[A-3]` Invitation Resend and Cancel Endpoints
   - **FR/NFR**: FR-009 (User Management), A-3 (Invitation Lifecycle)
   - **Type**: backend · **Points**: 4
   - **Phase**: 3 — Tenant Admin Backend
@@ -1141,7 +1141,7 @@
 
 ### T008-66 · Audit Log Export Endpoints
 
-- [ ] **T008-66** `[L]` `[FR-015]` Audit Log Export Endpoints
+- [x] **T008-66** `[L]` `[FR-015]` Audit Log Export Endpoints
   - **FR/NFR**: FR-015 (Audit Log Export)
   - **Type**: backend · **Points**: 8
   - **Phase**: 4 — E2E Tests and Hardening

@@ -1,9 +1,22 @@
 // apps/super-admin/src/hooks/useTenants.ts
+//
+// TanStack Query hooks for tenant data management (Spec 008 T008-44).
+//
+// useTenants        — list query with search / status filter / pagination state
+// useCreateTenant   — POST /admin/tenants
+// useUpdateTenant   — PATCH /admin/tenants/:id
+// useSuspendTenant  — POST /admin/tenants/:id/suspend
+// useReactivateTenant — POST /admin/tenants/:id/activate
+// useDeleteTenant   — DELETE /admin/tenants/:id
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import type { Tenant } from '@/types';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export type TenantStatusFilter =
   | 'all'
@@ -13,30 +26,44 @@ export type TenantStatusFilter =
   | 'PENDING_DELETION'
   | 'DELETED';
 
+export interface TenantsQueryParams {
+  search?: string;
+  status?: TenantStatusFilter;
+  page?: number;
+  limit?: number;
+}
+
 const DEFAULT_PAGE_SIZE = 20;
 
-export function useTenants() {
-  const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<TenantStatusFilter>('all');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+// ---------------------------------------------------------------------------
+// useTenants — list hook (includes local filter / pagination state)
+// ---------------------------------------------------------------------------
 
-  // Fetch tenants — delegates filtering, search, and pagination to the server
+export function useTenants(initialParams?: TenantsQueryParams) {
+  const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState(initialParams?.search ?? '');
+  const [statusFilter, setStatusFilter] = useState<TenantStatusFilter>(
+    initialParams?.status ?? 'all'
+  );
+  const [page, setPage] = useState(initialParams?.page ?? 1);
+  const [pageSize] = useState(initialParams?.limit ?? DEFAULT_PAGE_SIZE);
+
+  const params = {
+    search: searchQuery || undefined,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    page,
+    limit: pageSize,
+  };
+
   const {
     data: tenantsData,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['tenants', { search: searchQuery, status: statusFilter, page, limit: pageSize }],
-    queryFn: () =>
-      apiClient.getTenants({
-        search: searchQuery || undefined,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        page,
-        limit: pageSize,
-      }),
+    queryKey: ['tenants', params],
+    queryFn: () => apiClient.getTenants(params),
+    staleTime: 60_000,
   });
 
   const tenants: Tenant[] = tenantsData?.data ?? [];
@@ -47,10 +74,7 @@ export function useTenants() {
     totalPages: 1,
   };
 
-  // Compute stats from two API calls (consolidated from 4): total + a breakdown
-  // by fetching all statuses at once and deriving counts from pagination totals.
-  // We fetch two filtered calls (active, suspended) and compute provisioning +
-  // pending_deletion from the total.
+  // Compact stats query — four parallel requests, each fetches 1 item for the count
   const { data: statsData } = useQuery({
     queryKey: ['tenants-stats'],
     queryFn: async () => {
@@ -67,12 +91,12 @@ export function useTenants() {
         provisioning: provisioning.pagination.total,
       };
     },
-    staleTime: 30_000, // Cache stats for 30s to avoid excessive requests
+    staleTime: 30_000,
   });
 
   const stats = statsData ?? { total: 0, active: 0, suspended: 0, provisioning: 0 };
 
-  // Suspend tenant mutation
+  // Inline mutations kept for components that consume useTenants() directly
   const suspendMutation = useMutation({
     mutationFn: (tenantId: string) => apiClient.suspendTenant(tenantId),
     onSuccess: () => {
@@ -81,7 +105,6 @@ export function useTenants() {
     },
   });
 
-  // Activate tenant mutation
   const activateMutation = useMutation({
     mutationFn: (tenantId: string) => apiClient.activateTenant(tenantId),
     onSuccess: () => {
@@ -90,7 +113,6 @@ export function useTenants() {
     },
   });
 
-  // Delete tenant mutation (soft delete — sets PENDING_DELETION + 30-day schedule)
   const deleteMutation = useMutation({
     mutationFn: (tenantId: string) => apiClient.deleteTenant(tenantId),
     onSuccess: () => {
@@ -105,8 +127,6 @@ export function useTenants() {
     setPage(1);
   };
 
-  const hasActiveFilters = searchQuery !== '' || statusFilter !== 'all';
-
   return {
     // Data
     tenants,
@@ -119,21 +139,20 @@ export function useTenants() {
     searchQuery,
     setSearchQuery: (q: string) => {
       setSearchQuery(q);
-      setPage(1); // Reset to first page on search change
+      setPage(1);
     },
     statusFilter,
     setStatusFilter: (s: TenantStatusFilter) => {
       setStatusFilter(s);
-      setPage(1); // Reset to first page on filter change
+      setPage(1);
     },
     clearFilters,
-    hasActiveFilters,
+    hasActiveFilters: searchQuery !== '' || statusFilter !== 'all',
 
     // Pagination
     page,
     setPage,
     pageSize,
-    setPageSize,
 
     // Mutations
     suspendTenant: suspendMutation.mutate,
@@ -146,4 +165,78 @@ export function useTenants() {
     // Actions
     refetch,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Standalone mutation hooks — used by the route-level screens
+// ---------------------------------------------------------------------------
+
+export function useCreateTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; slug: string; adminEmail: string; pluginIds?: string[] }) =>
+      apiClient.createTenant(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
+    },
+  });
+}
+
+export function useUpdateTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<{
+        name: string;
+        settings: Record<string, unknown>;
+        theme: Record<string, unknown>;
+      }>;
+    }) => apiClient.updateTenant(id, data),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
+    },
+  });
+}
+
+export function useSuspendTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tenantId: string) => apiClient.suspendTenant(tenantId),
+    onSuccess: (_result, tenantId) => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
+    },
+  });
+}
+
+export function useReactivateTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tenantId: string) => apiClient.activateTenant(tenantId),
+    onSuccess: (_result, tenantId) => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
+    },
+  });
+}
+
+export function useDeleteTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tenantId: string) => apiClient.deleteTenant(tenantId),
+    onSuccess: (_result, tenantId) => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['tenant', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['tenants-stats'] });
+    },
+  });
 }

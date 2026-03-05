@@ -13,6 +13,14 @@ import {
   mockTeams,
   mockTenantPlugins,
   mockMarketplacePlugins,
+  mockTenantDashboard,
+  mockTenantUsers,
+  mockTenantTeams,
+  mockTenantTeamDetail,
+  mockTenantRoles,
+  mockPermissions,
+  mockTenantSettings,
+  mockAuditLogs,
 } from '../fixtures/test-data';
 
 // ---------------------------------------------------------------------------
@@ -342,6 +350,278 @@ export async function mockUserApi(page: Page) {
   });
 }
 
+/**
+ * Mock Tenant Admin API endpoints (Spec 008)
+ *
+ * Covers all /api/v1/tenant/* routes used by the Tenant Admin portal.
+ */
+export async function mockTenantAdminApi(page: Page) {
+  // GET /api/v1/tenant/dashboard
+  await page.route('**/api/v1/tenant/dashboard', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockTenantDashboard),
+    });
+  });
+
+  // GET /api/v1/tenant/users  (with optional search / page / limit params)
+  await page.route(/\/api\/v1\/tenant\/users(\?.*)?$/, async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockTenantUsers),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // POST /api/v1/tenant/users/invite
+  await page.route('**/api/v1/tenant/users/invite', async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'u-new',
+        email: 'new@acme-corp.plexica.local',
+        name: null,
+        status: 'invited',
+        roles: [],
+        lastLoginAt: null,
+        createdAt: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // POST /api/v1/tenant/users/:id/deactivate  and  POST /api/v1/tenant/users/:id/reactivate
+  await page.route('**/api/v1/tenant/users/*/deactivate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...mockTenantUsers.data[0], status: 'inactive' }),
+    });
+  });
+  await page.route('**/api/v1/tenant/users/*/reactivate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...mockTenantUsers.data[0], status: 'active' }),
+    });
+  });
+
+  // GET /api/v1/tenant/teams  (list)
+  await page.route(/\/api\/v1\/tenant\/teams(\?.*)?$/, async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockTenantTeams),
+      });
+    } else if (method === 'POST') {
+      const body = route.request().postDataJSON() as { name?: string; description?: string };
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'team-new',
+          name: body?.name ?? 'New Team',
+          description: body?.description ?? '',
+          memberCount: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // GET  /api/v1/tenant/teams/:teamId  (detail + members)
+  // PATCH /api/v1/tenant/teams/:teamId
+  // DELETE /api/v1/tenant/teams/:teamId
+  await page.route(/\/api\/v1\/tenant\/teams\/[^/]+(\?.*)?$/, async (route) => {
+    const method = route.request().method();
+    const url = route.request().url();
+    // Skip member sub-resources
+    if (url.includes('/members')) {
+      await route.continue();
+      return;
+    }
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockTenantTeamDetail),
+      });
+    } else if (method === 'PATCH') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...mockTenantTeamDetail, ...body }),
+      });
+    } else if (method === 'DELETE') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'deleted' }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // POST /api/v1/tenant/teams/:teamId/members
+  await page.route('**/api/v1/tenant/teams/*/members', async (route) => {
+    const body = route.request().postDataJSON() as { userId?: string; role?: string };
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        userId: body?.userId ?? 'u-new',
+        email: 'new@acme-corp.plexica.local',
+        name: 'New Member',
+        role: body?.role ?? 'MEMBER',
+        joinedAt: new Date().toISOString(),
+      }),
+    });
+  });
+
+  // DELETE /api/v1/tenant/teams/:teamId/members/:userId
+  await page.route('**/api/v1/tenant/teams/*/members/*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'removed' }),
+    });
+  });
+
+  // GET /api/v1/tenant/roles
+  await page.route('**/api/v1/tenant/roles', async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockTenantRoles),
+      });
+    } else if (method === 'POST') {
+      const body = route.request().postDataJSON() as {
+        name?: string;
+        description?: string;
+        permissions?: string[];
+      };
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'role-new',
+          name: body?.name ?? 'New Role',
+          description: body?.description ?? '',
+          isSystem: false,
+          permissions: body?.permissions ?? [],
+          createdAt: new Date().toISOString(),
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // PATCH /api/v1/tenant/roles/:roleId
+  // DELETE /api/v1/tenant/roles/:roleId
+  await page.route(/\/api\/v1\/tenant\/roles\/[^/]+(\?.*)?$/, async (route) => {
+    const method = route.request().method();
+    if (method === 'PATCH') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...mockTenantRoles[2], ...body }),
+      });
+    } else if (method === 'DELETE') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'deleted' }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // GET /api/v1/tenant/permissions
+  await page.route('**/api/v1/tenant/permissions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockPermissions),
+    });
+  });
+
+  // GET /api/v1/tenant/settings
+  // PATCH /api/v1/tenant/settings
+  await page.route('**/api/v1/tenant/settings', async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockTenantSettings),
+      });
+    } else if (method === 'PATCH') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...mockTenantSettings, ...body }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // GET /api/v1/tenant/audit-logs  (with optional query params)
+  await page.route(/\/api\/v1\/tenant\/audit-logs(\?.*)?$/, async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockAuditLogs),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // POST /api/v1/tenant/audit-logs/export
+  await page.route('**/api/v1/tenant/audit-logs/export', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ url: '/exports/audit-log-2026-03.csv' }),
+    });
+  });
+
+  // GET /api/v1/tenant/plugins  (tenant plugin settings page)
+  await page.route(/\/api\/v1\/tenant\/plugins(\?.*)?$/, async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockTenantPlugins),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Convenience: Set up ALL mocks at once
 // ---------------------------------------------------------------------------
@@ -358,4 +638,5 @@ export async function mockAllApis(page: Page) {
   await mockPluginsApi(page);
   await mockMarketplaceApi(page);
   await mockUserApi(page);
+  await mockTenantAdminApi(page);
 }

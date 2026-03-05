@@ -345,7 +345,6 @@ model User {
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
   workspaceMemberships WorkspaceMember[]
-  teamsOwned           Team[]            @relation("TeamOwner")
   invitedBy            WorkspaceMember[] @relation("InvitedBy")
 
   @@map("users")
@@ -430,17 +429,19 @@ model WorkspaceResource {
 }
 
 // Team Model (in tenant schema) - Updated with workspace relationship
+// workspace_id is nullable: teams may be created without a workspace.
+// owner_id has no Prisma relation: owner is a Keycloak user ID and may not
+// exist in core.users at team-creation time.
 model Team {
-  id          String   @id @default(uuid())
-  workspaceId String   @map("workspace_id")
+  id          String    @id @default(uuid())
+  workspaceId String?   @map("workspace_id")
   name        String
   description String?
-  ownerId     String   @map("owner_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  ownerId     String    @map("owner_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner     User      @relation("TeamOwner", fields: [ownerId], references: [id])
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
   @@index([ownerId])
@@ -608,6 +609,47 @@ model SearchDocument {
   @@unique([tenantId, type, documentId], map: "search_documents_tenant_type_doc_unique")
   @@index([tenantId, type], map: "idx_search_documents_tenant_type")
   @@map("search_documents")
+  @@schema("core")
+}
+
+// ============================================================================
+// AUDIT & CONFIG - Spec 008 Admin Interfaces
+// ============================================================================
+
+// Audit Log (append-only, core schema — ADR-025)
+model AuditLog {
+  id           String    @id @default(uuid())
+  tenantId     String?   @map("tenant_id")
+  userId       String?   @map("user_id")
+  action       String    @db.VarChar(100)
+  resourceType String?   @map("resource_type")
+  resourceId   String?   @map("resource_id")
+  details      Json      @default("{}")
+  ipAddress    String?   @map("ip_address")
+  userAgent    String?   @map("user_agent")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId], map: "idx_audit_logs_tenant_id")
+  @@index([createdAt], map: "idx_audit_logs_created_at")
+  @@index([action], map: "idx_audit_logs_action")
+  @@index([tenantId, createdAt], map: "idx_audit_logs_tenant_created")
+  @@index([userId], map: "idx_audit_logs_user_id")
+  @@map("audit_logs")
+  @@schema("core")
+}
+
+// System Configuration (key-value store for platform settings)
+model SystemConfig {
+  key         String   @id
+  value       Json
+  category    String   @db.VarChar(50)
+  description String?
+  updatedBy   String?  @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([category], map: "idx_system_config_category")
+  @@map("system_config")
   @@schema("core")
 }
 
