@@ -2316,7 +2316,7 @@ export class WorkspaceService {
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
       const rows = await tx.$queryRawUnsafe<Array<{ settings: unknown }>>(
-        `SELECT settings FROM "${schemaName}"."workspaces" WHERE id = $1 AND tenant_id = $2`,
+        `SELECT settings FROM "${schemaName}"."workspaces" WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
         workspaceId,
         tenantId
       );

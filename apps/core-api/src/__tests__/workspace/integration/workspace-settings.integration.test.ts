@@ -186,6 +186,8 @@ describe('Workspace Settings Integration', () => {
         payload: { maxMembers: 100 },
       });
       expect(firstResponse.statusCode).toBe(200);
+      const firstBody = firstResponse.json();
+      expect(firstBody.maxMembers).toBe(100); // verify first write committed correctly
 
       // Act — now only update isPublic; maxMembers should still be 100
       const response = await app.inject({
