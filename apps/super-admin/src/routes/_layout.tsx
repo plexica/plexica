@@ -103,7 +103,7 @@ function SuperAdminLayout() {
     const flagValue = import.meta.env.VITE_ENABLE_ADMIN_INTERFACES;
     if (flagValue === 'false') {
       toast.error('Admin interfaces are currently disabled. Contact your platform administrator.');
-      void navigate({ to: '/' });
+      void navigate({ to: '/' as never });
     }
   }, [navigate]);
 

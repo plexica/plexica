@@ -11,10 +11,18 @@
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as AnalyticsRouteImport } from './routes/analytics';
-import { Route as IndexRouteImport } from './routes/index';
-import { Route as UsersIndexRouteImport } from './routes/users/index';
-import { Route as TenantsIndexRouteImport } from './routes/tenants/index';
-import { Route as PluginsIndexRouteImport } from './routes/plugins/index';
+import { Route as LayoutRouteImport } from './routes/_layout';
+import { Route as LayoutIndexRouteImport } from './routes/_layout/index';
+import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard';
+import { Route as LayoutAuditLogsIndexRouteImport } from './routes/_layout/audit-logs/index';
+import { Route as LayoutHealthIndexRouteImport } from './routes/_layout/health/index';
+import { Route as LayoutPluginsIndexRouteImport } from './routes/_layout/plugins/index';
+import { Route as LayoutSystemConfigIndexRouteImport } from './routes/_layout/system-config/index';
+import { Route as LayoutTenantsIndexRouteImport } from './routes/_layout/tenants/index';
+import { Route as LayoutTenantsNewRouteImport } from './routes/_layout/tenants/new';
+import { Route as LayoutTenantsTenantIdRouteImport } from './routes/_layout/tenants/$tenantId';
+import { Route as LayoutUsersIndexRouteImport } from './routes/_layout/users/index';
+import { Route as LayoutPluginsPluginIdConfigRouteImport } from './routes/_layout/plugins/$pluginId/config';
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -26,67 +34,179 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => rootRouteImport,
 } as any);
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
+const LayoutRoute = LayoutRouteImport.update({
+  id: '/_layout',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const LayoutIndexRoute = LayoutIndexRouteImport.update({
+  id: '/_layout/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LayoutRoute,
 } as any);
-const UsersIndexRoute = UsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => rootRouteImport,
+const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
+  id: '/_layout/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => LayoutRoute,
 } as any);
-const TenantsIndexRoute = TenantsIndexRouteImport.update({
-  id: '/tenants/',
-  path: '/tenants/',
-  getParentRoute: () => rootRouteImport,
+const LayoutAuditLogsIndexRoute = LayoutAuditLogsIndexRouteImport.update({
+  id: '/_layout/audit-logs/',
+  path: '/audit-logs/',
+  getParentRoute: () => LayoutRoute,
 } as any);
-const PluginsIndexRoute = PluginsIndexRouteImport.update({
-  id: '/plugins/',
+const LayoutHealthIndexRoute = LayoutHealthIndexRouteImport.update({
+  id: '/_layout/health/',
+  path: '/health/',
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutPluginsIndexRoute = LayoutPluginsIndexRouteImport.update({
+  id: '/_layout/plugins/',
   path: '/plugins/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutSystemConfigIndexRoute = LayoutSystemConfigIndexRouteImport.update({
+  id: '/_layout/system-config/',
+  path: '/system-config/',
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutTenantsIndexRoute = LayoutTenantsIndexRouteImport.update({
+  id: '/_layout/tenants/',
+  path: '/tenants/',
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutTenantsNewRoute = LayoutTenantsNewRouteImport.update({
+  id: '/_layout/tenants/new',
+  path: '/tenants/new',
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutTenantsTenantIdRoute = LayoutTenantsTenantIdRouteImport.update({
+  id: '/_layout/tenants/$tenantId',
+  path: '/tenants/$tenantId',
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutUsersIndexRoute = LayoutUsersIndexRouteImport.update({
+  id: '/_layout/users/',
+  path: '/users/',
+  getParentRoute: () => LayoutRoute,
+} as any);
+const LayoutPluginsPluginIdConfigRoute = LayoutPluginsPluginIdConfigRouteImport.update({
+  id: '/_layout/plugins/$pluginId/config',
+  path: '/plugins/$pluginId/config',
+  getParentRoute: () => LayoutRoute,
 } as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute;
   '/analytics': typeof AnalyticsRoute;
   '/login': typeof LoginRoute;
-  '/plugins/': typeof PluginsIndexRoute;
-  '/tenants/': typeof TenantsIndexRoute;
-  '/users/': typeof UsersIndexRoute;
+  '/': typeof LayoutIndexRoute;
+  '/dashboard': typeof LayoutDashboardRoute;
+  '/audit-logs/': typeof LayoutAuditLogsIndexRoute;
+  '/health/': typeof LayoutHealthIndexRoute;
+  '/plugins/': typeof LayoutPluginsIndexRoute;
+  '/system-config/': typeof LayoutSystemConfigIndexRoute;
+  '/tenants/': typeof LayoutTenantsIndexRoute;
+  '/tenants/new': typeof LayoutTenantsNewRoute;
+  '/tenants/$tenantId': typeof LayoutTenantsTenantIdRoute;
+  '/users/': typeof LayoutUsersIndexRoute;
+  '/plugins/$pluginId/config': typeof LayoutPluginsPluginIdConfigRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute;
   '/analytics': typeof AnalyticsRoute;
   '/login': typeof LoginRoute;
-  '/plugins': typeof PluginsIndexRoute;
-  '/tenants': typeof TenantsIndexRoute;
-  '/users': typeof UsersIndexRoute;
+  '/': typeof LayoutIndexRoute;
+  '/dashboard': typeof LayoutDashboardRoute;
+  '/audit-logs': typeof LayoutAuditLogsIndexRoute;
+  '/health': typeof LayoutHealthIndexRoute;
+  '/plugins': typeof LayoutPluginsIndexRoute;
+  '/system-config': typeof LayoutSystemConfigIndexRoute;
+  '/tenants': typeof LayoutTenantsIndexRoute;
+  '/tenants/new': typeof LayoutTenantsNewRoute;
+  '/tenants/$tenantId': typeof LayoutTenantsTenantIdRoute;
+  '/users': typeof LayoutUsersIndexRoute;
+  '/plugins/$pluginId/config': typeof LayoutPluginsPluginIdConfigRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
-  '/': typeof IndexRoute;
   '/analytics': typeof AnalyticsRoute;
   '/login': typeof LoginRoute;
-  '/plugins/': typeof PluginsIndexRoute;
-  '/tenants/': typeof TenantsIndexRoute;
-  '/users/': typeof UsersIndexRoute;
+  '/_layout': typeof LayoutRoute;
+  '/_layout/': typeof LayoutIndexRoute;
+  '/_layout/dashboard': typeof LayoutDashboardRoute;
+  '/_layout/audit-logs/': typeof LayoutAuditLogsIndexRoute;
+  '/_layout/health/': typeof LayoutHealthIndexRoute;
+  '/_layout/plugins/': typeof LayoutPluginsIndexRoute;
+  '/_layout/system-config/': typeof LayoutSystemConfigIndexRoute;
+  '/_layout/tenants/': typeof LayoutTenantsIndexRoute;
+  '/_layout/tenants/new': typeof LayoutTenantsNewRoute;
+  '/_layout/tenants/$tenantId': typeof LayoutTenantsTenantIdRoute;
+  '/_layout/users/': typeof LayoutUsersIndexRoute;
+  '/_layout/plugins/$pluginId/config': typeof LayoutPluginsPluginIdConfigRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: '/' | '/analytics' | '/login' | '/plugins/' | '/tenants/' | '/users/';
+  fullPaths:
+    | '/analytics'
+    | '/login'
+    | '/'
+    | '/dashboard'
+    | '/audit-logs/'
+    | '/health/'
+    | '/plugins/'
+    | '/system-config/'
+    | '/tenants/'
+    | '/tenants/new'
+    | '/tenants/$tenantId'
+    | '/users/'
+    | '/plugins/$pluginId/config';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/' | '/analytics' | '/login' | '/plugins' | '/tenants' | '/users';
-  id: '__root__' | '/' | '/analytics' | '/login' | '/plugins/' | '/tenants/' | '/users/';
+  to:
+    | '/analytics'
+    | '/login'
+    | '/'
+    | '/dashboard'
+    | '/audit-logs'
+    | '/health'
+    | '/plugins'
+    | '/system-config'
+    | '/tenants'
+    | '/tenants/new'
+    | '/tenants/$tenantId'
+    | '/users'
+    | '/plugins/$pluginId/config';
+  id:
+    | '__root__'
+    | '/analytics'
+    | '/login'
+    | '/_layout'
+    | '/_layout/'
+    | '/_layout/dashboard'
+    | '/_layout/audit-logs/'
+    | '/_layout/health/'
+    | '/_layout/plugins/'
+    | '/_layout/system-config/'
+    | '/_layout/tenants/'
+    | '/_layout/tenants/new'
+    | '/_layout/tenants/$tenantId'
+    | '/_layout/users/'
+    | '/_layout/plugins/$pluginId/config';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
   AnalyticsRoute: typeof AnalyticsRoute;
   LoginRoute: typeof LoginRoute;
-  PluginsIndexRoute: typeof PluginsIndexRoute;
-  TenantsIndexRoute: typeof TenantsIndexRoute;
-  UsersIndexRoute: typeof UsersIndexRoute;
+  LayoutRoute: typeof LayoutRoute;
+}
+export interface LayoutRouteChildren {
+  LayoutIndexRoute: typeof LayoutIndexRoute;
+  LayoutDashboardRoute: typeof LayoutDashboardRoute;
+  LayoutAuditLogsIndexRoute: typeof LayoutAuditLogsIndexRoute;
+  LayoutHealthIndexRoute: typeof LayoutHealthIndexRoute;
+  LayoutPluginsIndexRoute: typeof LayoutPluginsIndexRoute;
+  LayoutSystemConfigIndexRoute: typeof LayoutSystemConfigIndexRoute;
+  LayoutTenantsIndexRoute: typeof LayoutTenantsIndexRoute;
+  LayoutTenantsNewRoute: typeof LayoutTenantsNewRoute;
+  LayoutTenantsTenantIdRoute: typeof LayoutTenantsTenantIdRoute;
+  LayoutUsersIndexRoute: typeof LayoutUsersIndexRoute;
+  LayoutPluginsPluginIdConfigRoute: typeof LayoutPluginsPluginIdConfigRoute;
 }
 
 declare module '@tanstack/react-router' {
@@ -105,44 +225,113 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnalyticsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
-    '/': {
-      id: '/';
+    '/_layout': {
+      id: '/_layout';
+      path: '';
+      fullPath: '';
+      preLoaderRoute: typeof LayoutRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/_layout/': {
+      id: '/_layout/';
       path: '/';
       fullPath: '/';
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
+      preLoaderRoute: typeof LayoutIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
     };
-    '/users/': {
-      id: '/users/';
-      path: '/users';
-      fullPath: '/users/';
-      preLoaderRoute: typeof UsersIndexRouteImport;
-      parentRoute: typeof rootRouteImport;
+    '/_layout/dashboard': {
+      id: '/_layout/dashboard';
+      path: '/dashboard';
+      fullPath: '/dashboard';
+      preLoaderRoute: typeof LayoutDashboardRouteImport;
+      parentRoute: typeof LayoutRouteImport;
     };
-    '/tenants/': {
-      id: '/tenants/';
-      path: '/tenants';
-      fullPath: '/tenants/';
-      preLoaderRoute: typeof TenantsIndexRouteImport;
-      parentRoute: typeof rootRouteImport;
+    '/_layout/audit-logs/': {
+      id: '/_layout/audit-logs/';
+      path: '/audit-logs';
+      fullPath: '/audit-logs/';
+      preLoaderRoute: typeof LayoutAuditLogsIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
     };
-    '/plugins/': {
-      id: '/plugins/';
+    '/_layout/health/': {
+      id: '/_layout/health/';
+      path: '/health';
+      fullPath: '/health/';
+      preLoaderRoute: typeof LayoutHealthIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/plugins/': {
+      id: '/_layout/plugins/';
       path: '/plugins';
       fullPath: '/plugins/';
-      preLoaderRoute: typeof PluginsIndexRouteImport;
-      parentRoute: typeof rootRouteImport;
+      preLoaderRoute: typeof LayoutPluginsIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/system-config/': {
+      id: '/_layout/system-config/';
+      path: '/system-config';
+      fullPath: '/system-config/';
+      preLoaderRoute: typeof LayoutSystemConfigIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/tenants/': {
+      id: '/_layout/tenants/';
+      path: '/tenants';
+      fullPath: '/tenants/';
+      preLoaderRoute: typeof LayoutTenantsIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/tenants/new': {
+      id: '/_layout/tenants/new';
+      path: '/tenants/new';
+      fullPath: '/tenants/new';
+      preLoaderRoute: typeof LayoutTenantsNewRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/tenants/$tenantId': {
+      id: '/_layout/tenants/$tenantId';
+      path: '/tenants/$tenantId';
+      fullPath: '/tenants/$tenantId';
+      preLoaderRoute: typeof LayoutTenantsTenantIdRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/users/': {
+      id: '/_layout/users/';
+      path: '/users';
+      fullPath: '/users/';
+      preLoaderRoute: typeof LayoutUsersIndexRouteImport;
+      parentRoute: typeof LayoutRouteImport;
+    };
+    '/_layout/plugins/$pluginId/config': {
+      id: '/_layout/plugins/$pluginId/config';
+      path: '/plugins/$pluginId/config';
+      fullPath: '/plugins/$pluginId/config';
+      preLoaderRoute: typeof LayoutPluginsPluginIdConfigRouteImport;
+      parentRoute: typeof LayoutRouteImport;
     };
   }
 }
 
+const layoutRouteChildren: LayoutRouteChildren = {
+  LayoutIndexRoute: LayoutIndexRoute,
+  LayoutDashboardRoute: LayoutDashboardRoute,
+  LayoutAuditLogsIndexRoute: LayoutAuditLogsIndexRoute,
+  LayoutHealthIndexRoute: LayoutHealthIndexRoute,
+  LayoutPluginsIndexRoute: LayoutPluginsIndexRoute,
+  LayoutSystemConfigIndexRoute: LayoutSystemConfigIndexRoute,
+  LayoutTenantsIndexRoute: LayoutTenantsIndexRoute,
+  LayoutTenantsNewRoute: LayoutTenantsNewRoute,
+  LayoutTenantsTenantIdRoute: LayoutTenantsTenantIdRoute,
+  LayoutUsersIndexRoute: LayoutUsersIndexRoute,
+  LayoutPluginsPluginIdConfigRoute: LayoutPluginsPluginIdConfigRoute,
+};
+
+const LayoutRouteWithChildren = LayoutRoute._addFileChildren(layoutRouteChildren);
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   LoginRoute: LoginRoute,
-  PluginsIndexRoute: PluginsIndexRoute,
-  TenantsIndexRoute: TenantsIndexRoute,
-  UsersIndexRoute: UsersIndexRoute,
+  LayoutRoute: LayoutRouteWithChildren,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

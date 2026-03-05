@@ -183,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       const updated = saveRecentSearch(item.title);
       setRecentSearches(updated);
       // Navigate if the item has a navigable path (type used as fallback)
-      void navigate({ to: `/${item.type}/${item.id}` });
+      void navigate({ to: `/${item.type}/${item.id}` as never });
     },
     [navigate]
   );
@@ -228,7 +228,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
       }
       // Navigate to the linked resource if present
       if (notification.metadata?.link) {
-        void navigate({ to: notification.metadata.link as string });
+        void navigate({ to: notification.metadata.link as never });
       }
     },
     [token, navigate]

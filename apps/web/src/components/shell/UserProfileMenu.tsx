@@ -82,7 +82,7 @@ export const UserProfileMenu: React.FC = () => {
 
   const handleManageTenant = useCallback(() => {
     setOpen(false);
-    navigate({ to: '/workspace-settings' });
+    navigate({ to: '/workspace-settings' as never });
   }, [navigate]);
 
   const handleSignOut = useCallback(async () => {
