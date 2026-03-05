@@ -185,7 +185,7 @@ function ConfigControl({ entry, localValue, onChange }: ConfigControlProps) {
         <Switch
           id={inputId}
           role="switch"
-          aria-checked={String(checked) as 'true' | 'false'}
+          aria-checked={checked}
           checked={checked}
           onCheckedChange={(val) => onChange(key, val)}
           aria-describedby={hintId}
@@ -302,17 +302,20 @@ function SystemConfigPage() {
     if (changed.length === 0) return;
 
     setIsSaving(true);
-    const errors: string[] = [];
 
-    for (const [key, value] of changed) {
-      try {
-        await updateEntryAsync({ key, dto: { value } });
-      } catch (err) {
-        errors.push(`${key}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-    }
+    const results = await Promise.allSettled(
+      changed.map(([key, value]) => updateEntryAsync({ key, dto: { value } }))
+    );
 
     setIsSaving(false);
+
+    const errors = results
+      .map((result, i) =>
+        result.status === 'rejected'
+          ? `${changed[i][0]}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`
+          : null
+      )
+      .filter((e): e is string => e !== null);
 
     if (errors.length > 0) {
       toast.error(`Some settings failed to save:\n${errors.join('\n')}`);

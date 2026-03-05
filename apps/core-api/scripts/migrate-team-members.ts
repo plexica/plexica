@@ -11,15 +11,17 @@
 
 import { PrismaClient } from '@plexica/database';
 
+// user_id intentionally has no FK to users because user identities are
+// managed in Keycloak and are not necessarily pre-seeded in the tenant schema.
+// Role values must match schema-step.ts exactly.
 const TEAM_MEMBERS_DDL = (schema: string) => `
   CREATE TABLE IF NOT EXISTS "${schema}"."team_members" (
     team_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('MEMBER', 'ADMIN')),
+    role TEXT NOT NULL CHECK (role IN ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER')),
     joined_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (team_id, user_id),
-    FOREIGN KEY (team_id) REFERENCES "${schema}"."teams"(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES "${schema}"."users"(id) ON DELETE CASCADE
+    FOREIGN KEY (team_id) REFERENCES "${schema}"."teams"(id) ON DELETE CASCADE
   )
 `;
 

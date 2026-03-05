@@ -66,7 +66,7 @@ export function useSystemConfig(category?: string) {
 
     // Always re-sync from the server after settle (success or error).
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['systemConfig'] });
+      void queryClient.invalidateQueries({ queryKey: ['systemConfig', category] });
     },
   });
 

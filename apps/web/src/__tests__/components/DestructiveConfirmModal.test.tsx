@@ -13,6 +13,7 @@
 //  8. shows error message when error prop provided
 //  9. both buttons disabled when isLoading=true
 
+import type React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
