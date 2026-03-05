@@ -7,5 +7,5 @@ export const db: PrismaClient = prisma;
 
 // Graceful shutdown
 process.on('beforeExit', async () => {
-  await db.$disconnect();
+  await db.$disconnect?.();
 });
