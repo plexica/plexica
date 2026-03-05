@@ -43,7 +43,7 @@ function DashboardStatCard({ title, value, icon, trend, linkTo }: StatCardProps)
   );
 
   if (linkTo) {
-    return <Link to={linkTo}>{content}</Link>;
+    return <Link to={linkTo as never}>{content}</Link>;
   }
 
   return content;
@@ -124,7 +124,7 @@ export function DashboardView() {
           <p className="text-sm text-muted-foreground mb-4">
             Manage workspace tenants, view their status, and control access.
           </p>
-          <Link to="/tenants">
+          <Link to={'/tenants' as never}>
             <span className="text-sm text-primary hover:underline cursor-pointer">
               Go to Tenants →
             </span>
@@ -139,7 +139,7 @@ export function DashboardView() {
           <p className="text-sm text-muted-foreground mb-4">
             Browse the global plugin marketplace and manage plugin availability.
           </p>
-          <Link to="/plugins">
+          <Link to={'/plugins' as never}>
             <span className="text-sm text-primary hover:underline cursor-pointer">
               Go to Plugins →
             </span>
@@ -154,7 +154,7 @@ export function DashboardView() {
           <p className="text-sm text-muted-foreground mb-4">
             View and manage users across all tenants with role-based access.
           </p>
-          <Link to="/users">
+          <Link to={'/users' as never}>
             <span className="text-sm text-primary hover:underline cursor-pointer">
               Go to Users →
             </span>

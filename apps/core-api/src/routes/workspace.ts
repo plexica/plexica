@@ -29,6 +29,11 @@ import {
 } from '../modules/workspace/dto/index.js';
 import type { CreateWorkspaceDto } from '../modules/workspace/dto/create-workspace.dto.js';
 import type { UpdateWorkspaceDto } from '../modules/workspace/dto/update-workspace.dto.js';
+import {
+  validateWorkspaceSettingsUpdate,
+  updateSettingsBodyJsonSchema,
+  type WorkspaceSettingsUpdate,
+} from '../modules/workspace/schemas/workspace-settings.schema.js';
 import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';
 import type { UpdateMemberRoleDto } from '../modules/workspace/dto/update-member-role.dto.js';
 import type { ShareResourceDto, ListSharedResourcesDto } from '../modules/workspace/dto/index.js';
@@ -1876,6 +1881,89 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
       try {
         await workspacePluginService.disablePlugin(workspaceId, pluginId, request.tenant!);
         return reply.code(204).send();
+      } catch (error) {
+        handleServiceError(error, reply);
+      }
+    }
+  );
+
+  // ────────────────────────────────────────────────────────────────
+  // PATCH /workspaces/:workspaceId/settings — Update workspace settings
+  // Spec 009, Task 4 / Gap 4 — ADMIN only
+  // Rate limit: MEMBER_MANAGEMENT (50/min per workspace) — closest workspace-scoped write tier
+  // ────────────────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { workspaceId: string };
+    Body: WorkspaceSettingsUpdate;
+  }>(
+    '/workspaces/:workspaceId/settings',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['workspaceId'],
+          properties: { workspaceId: { type: 'string' } },
+        },
+        body: updateSettingsBodyJsonSchema,
+        tags: ['workspaces'],
+        summary: 'Update workspace settings',
+        description:
+          'Partially updates workspace settings. Unspecified fields retain current values. Requires ADMIN role.',
+        response: {
+          200: {
+            description: 'Settings updated successfully',
+            type: 'object',
+            properties: {
+              defaultMemberRole: { type: 'string' },
+              allowCrossWorkspaceSharing: { type: 'boolean' },
+              maxMembers: { type: 'integer' },
+              isPublic: { type: 'boolean' },
+              notificationsEnabled: { type: 'boolean' },
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+        workspaceRoleGuard(['ADMIN']),
+      ],
+    },
+    async (request, reply) => {
+      const { workspaceId } = request.params;
+
+      // Zod layer validation (strict — rejects unknown keys, enforces types)
+      const validation = validateWorkspaceSettingsUpdate(request.body);
+      if (!validation.valid) {
+        return reply.status(400).send({
+          error: {
+            code: WorkspaceErrorCode.VALIDATION_ERROR,
+            message: 'Invalid settings data',
+            details: { fields: validation.errors },
+          },
+        });
+      }
+
+      // Only write keys the user explicitly sent — not Zod-injected defaults.
+      // WorkspaceSettingsUpdateSchema.partial() applies defaults for every field
+      // even when the caller omits them, so we intersect the validated result with
+      // the raw request body keys to get a true partial update.
+      const sentKeys = Object.keys(request.body) as Array<keyof WorkspaceSettingsUpdate>;
+      const partialUpdate = sentKeys.reduce<WorkspaceSettingsUpdate>((acc, key) => {
+        (acc as Record<string, unknown>)[key] = validation.settings![key];
+        return acc;
+      }, {});
+
+      try {
+        const settings = await workspaceService.updateSettings(
+          workspaceId,
+          partialUpdate,
+          request.tenant!
+        );
+        return reply.send({ ...settings, updatedAt: new Date().toISOString() });
       } catch (error) {
         handleServiceError(error, reply);
       }

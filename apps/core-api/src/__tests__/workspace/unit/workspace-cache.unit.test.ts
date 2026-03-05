@@ -247,8 +247,9 @@ describe('WorkspaceService Membership Caching', () => {
             .fn()
             .mockResolvedValueOnce([{ id: workspaceId }]) // First call: workspaceCheck returns workspace exists
             .mockResolvedValueOnce([]) // Second call: existingCheck returns empty (user not a member yet)
+            .mockResolvedValueOnce([{ settings: null }]) // Third call: maxMembers settings check — no limit
             .mockResolvedValueOnce([
-              // Third call: getMember returns the new member
+              // Fourth call: getMember returns the new member
               {
                 workspace_id: workspaceId,
                 user_id: userId,

@@ -25,7 +25,7 @@ export function useRequireSuperAdmin(): User | null {
   useEffect(() => {
     if (isLoading) return;
     if (!isAuthenticated || !isSuperAdmin()) {
-      void navigate({ to: '/' });
+      void navigate({ to: '/' as never });
     }
   }, [isLoading, isAuthenticated, isSuperAdmin, navigate]);
 

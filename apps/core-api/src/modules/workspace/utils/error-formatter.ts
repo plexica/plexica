@@ -65,6 +65,8 @@ export enum WorkspaceErrorCode {
   PLUGIN_NOT_TENANT_ENABLED = 'PLUGIN_NOT_TENANT_ENABLED',
   /** 400 — Workspace creation blocked by a plugin before_create hook */
   HOOK_REJECTED_CREATION = 'HOOK_REJECTED_CREATION',
+  /** 400 — Adding member would exceed workspace maxMembers setting */
+  WORKSPACE_MEMBER_LIMIT_EXCEEDED = 'WORKSPACE_MEMBER_LIMIT_EXCEEDED',
 }
 
 /**
@@ -93,6 +95,7 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.WORKSPACE_PLUGIN_NOT_FOUND]: 404,
   [WorkspaceErrorCode.PLUGIN_NOT_TENANT_ENABLED]: 400,
   [WorkspaceErrorCode.HOOK_REJECTED_CREATION]: 400,
+  [WorkspaceErrorCode.WORKSPACE_MEMBER_LIMIT_EXCEEDED]: 400,
 };
 
 /**

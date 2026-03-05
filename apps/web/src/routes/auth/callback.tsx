@@ -47,7 +47,7 @@ export function AuthCallbackPage() {
 
         // Restore deep-link or go home
         const deepLink = consumeDeepLink();
-        navigate({ to: deepLink ?? '/', replace: true });
+        navigate({ to: (deepLink ?? '/') as never, replace: true });
       })
       .catch((err: unknown) => {
         const code =

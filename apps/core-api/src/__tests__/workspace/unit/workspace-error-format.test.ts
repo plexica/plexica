@@ -14,7 +14,7 @@ import {
 } from '../../../modules/workspace/utils/error-formatter.js';
 
 describe('WorkspaceErrorCode', () => {
-  it('should define all 22 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, Spec 011 Phase 2 template/plugin codes, and Spec 011 Phase 3 hook codes', () => {
+  it('should define all 23 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, Spec 011 Phase 2 template/plugin codes, and Spec 011 Phase 3 hook codes', () => {
     const expectedCodes = [
       // Spec 009 core codes
       'WORKSPACE_NOT_FOUND',
@@ -28,6 +28,7 @@ describe('WorkspaceErrorCode', () => {
       'VALIDATION_ERROR',
       'RESOURCE_ALREADY_SHARED',
       'SHARING_DISABLED',
+      'WORKSPACE_MEMBER_LIMIT_EXCEEDED',
       // Spec 011 Phase 1 hierarchy codes
       'HIERARCHY_DEPTH_EXCEEDED',
       'PARENT_WORKSPACE_NOT_FOUND',
@@ -45,7 +46,7 @@ describe('WorkspaceErrorCode', () => {
     ];
 
     const actualCodes = Object.values(WorkspaceErrorCode);
-    expect(actualCodes).toHaveLength(22);
+    expect(actualCodes).toHaveLength(23);
 
     for (const code of expectedCodes) {
       expect(actualCodes).toContain(code);
@@ -110,6 +111,7 @@ describe('getStatusForCode', () => {
       [WorkspaceErrorCode.VALIDATION_ERROR, 400],
       [WorkspaceErrorCode.RESOURCE_ALREADY_SHARED, 409],
       [WorkspaceErrorCode.SHARING_DISABLED, 403],
+      [WorkspaceErrorCode.WORKSPACE_MEMBER_LIMIT_EXCEEDED, 400],
       // Spec 011 Phase 2 template & plugin codes
       [WorkspaceErrorCode.TEMPLATE_NOT_FOUND, 404],
       [WorkspaceErrorCode.TEMPLATE_PLUGIN_NOT_INSTALLED, 400],

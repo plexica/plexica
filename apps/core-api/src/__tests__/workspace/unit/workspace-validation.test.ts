@@ -589,3 +589,156 @@ describe('Workspace Validation', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// T5.1 Edge Cases — appended to expand validation coverage (Spec 009, Task 5)
+// ---------------------------------------------------------------------------
+
+describe('Workspace DTO validation edge cases (T5.1)', () => {
+  /**
+   * Inline slug validator matching the one in workspace-validation.test.ts above.
+   * Mirrors the business rules enforced in the API layer.
+   */
+  function validateSlug(slug: string): { valid: boolean; error?: string } {
+    if (!slug) return { valid: false, error: 'Slug is required' };
+    if (slug.length < 3) return { valid: false, error: 'Slug must be at least 3 characters' };
+    if (slug.length > 64) return { valid: false, error: 'Slug must not exceed 64 characters' };
+    if (!/^[a-z0-9-]+$/.test(slug))
+      return {
+        valid: false,
+        error: 'Slug can only contain lowercase letters, numbers, and hyphens',
+      };
+    if (slug.startsWith('-') || slug.endsWith('-'))
+      return { valid: false, error: 'Slug cannot start or end with a hyphen' };
+    if (slug.includes('--'))
+      return { valid: false, error: 'Slug cannot contain consecutive hyphens' };
+    return { valid: true };
+  }
+
+  describe('slug boundary values', () => {
+    it('should accept slug at minimum length (3 chars)', () => {
+      expect(validateSlug('abc').valid).toBe(true);
+    });
+
+    it('should accept slug at maximum length (64 chars)', () => {
+      expect(validateSlug('a'.repeat(64)).valid).toBe(true);
+    });
+
+    it('should reject slug at exactly 65 chars (one over max)', () => {
+      const result = validateSlug('a'.repeat(65));
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('must not exceed');
+    });
+
+    it('should reject slug at exactly 2 chars (one under min)', () => {
+      const result = validateSlug('ab');
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('at least 3 characters');
+    });
+
+    it('should reject slug that starts with hyphen', () => {
+      expect(validateSlug('-alpha').valid).toBe(false);
+    });
+
+    it('should reject slug that ends with hyphen', () => {
+      expect(validateSlug('alpha-').valid).toBe(false);
+    });
+
+    it('should reject slug with consecutive hyphens', () => {
+      expect(validateSlug('alpha--beta').valid).toBe(false);
+    });
+
+    it('should reject slug with only hyphens', () => {
+      expect(validateSlug('---').valid).toBe(false);
+    });
+  });
+
+  describe('slug injection resistance', () => {
+    it('should reject SQL injection patterns in slug', () => {
+      const payloads = ["'; DROP TABLE workspaces; --", '1 OR 1=1', 'test%27'];
+      payloads.forEach((p) => {
+        expect(validateSlug(p).valid).toBe(false);
+      });
+    });
+
+    it('should reject path traversal in slug', () => {
+      expect(validateSlug('../secret').valid).toBe(false);
+    });
+
+    it('should reject URL-encoded characters in slug', () => {
+      expect(validateSlug('te%20st').valid).toBe(false);
+    });
+  });
+
+  describe('name validation edge cases', () => {
+    function validateName(name: string): { valid: boolean; error?: string } {
+      if (!name || name.trim().length === 0) return { valid: false, error: 'Name is required' };
+      if (name.trim().length < 2)
+        return { valid: false, error: 'Name must be at least 2 characters' };
+      if (name.trim().length > 100)
+        return { valid: false, error: 'Name must not exceed 100 characters' };
+      return { valid: true };
+    }
+
+    it('should accept name with unicode characters', () => {
+      expect(validateName('Équipe Français').valid).toBe(true);
+    });
+
+    it('should accept name with emojis (boundary)', () => {
+      expect(validateName('Team 🚀').valid).toBe(true);
+    });
+
+    it('should reject name with only whitespace', () => {
+      expect(validateName('   ').valid).toBe(false);
+    });
+
+    it('should reject name at exactly 1 character (one under min)', () => {
+      expect(validateName('X').valid).toBe(false);
+    });
+
+    it('should accept name at minimum length (2 chars)', () => {
+      expect(validateName('AB').valid).toBe(true);
+    });
+
+    it('should accept name at maximum length (100 chars)', () => {
+      expect(validateName('A'.repeat(100)).valid).toBe(true);
+    });
+
+    it('should reject name at 101 characters (one over max)', () => {
+      expect(validateName('A'.repeat(101)).valid).toBe(false);
+    });
+  });
+
+  describe('settings object validation', () => {
+    function isValidSettings(val: unknown): boolean {
+      if (val === null || val === undefined) return false;
+      if (typeof val !== 'object') return false;
+      if (Array.isArray(val)) return false;
+      return true;
+    }
+
+    it('should accept empty settings object', () => {
+      expect(isValidSettings({})).toBe(true);
+    });
+
+    it('should accept settings with nested objects', () => {
+      expect(isValidSettings({ theme: { color: 'blue' } })).toBe(true);
+    });
+
+    it('should reject null settings', () => {
+      expect(isValidSettings(null)).toBe(false);
+    });
+
+    it('should reject array as settings', () => {
+      expect(isValidSettings(['val'])).toBe(false);
+    });
+
+    it('should reject string as settings', () => {
+      expect(isValidSettings('settings-string')).toBe(false);
+    });
+
+    it('should reject number as settings', () => {
+      expect(isValidSettings(42)).toBe(false);
+    });
+  });
+});

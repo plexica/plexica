@@ -350,6 +350,8 @@ describe('WorkspaceService Event Publishing', () => {
           [{ id: WORKSPACE_ID }],
           // User already member check — not a member
           [],
+          // maxMembers settings check — no limit configured
+          [{ settings: null }],
           // Fetch created member with user info
           [
             {

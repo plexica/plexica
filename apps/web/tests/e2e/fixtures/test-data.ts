@@ -45,6 +45,14 @@ export const mockWorkspaces = [
     tenantId: 'mock-tenant-id',
     ownerId: 'mock-tenant-user-id',
     memberRole: 'ADMIN',
+    // settings.allowCrossWorkspaceSharing must be true so workspace-sharing.tsx
+    // renders the full UI (SharedResourcesList) rather than SharingDisabledEmptyState.
+    settings: {
+      defaultTeamRole: 'MEMBER',
+      allowCrossWorkspaceSharing: true,
+      maxMembers: 0,
+      isDiscoverable: true,
+    },
     createdAt: '2026-01-10T00:00:00Z',
     updatedAt: '2026-01-15T00:00:00Z',
   },
@@ -388,6 +396,42 @@ export const mockAuditLogs = {
   ],
   pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
 };
+
+// ---------------------------------------------------------------------------
+// Workspace Settings (Spec 009 T8.1 — PATCH /api/v1/workspaces/:id/settings)
+// ---------------------------------------------------------------------------
+
+export const mockWorkspaceSettings = {
+  defaultTeamRole: 'MEMBER' as const,
+  allowCrossWorkspaceSharing: true,
+  maxMembers: 0,
+  isDiscoverable: true,
+};
+
+// ---------------------------------------------------------------------------
+// Workspace Shared Resources (Spec 009 T3 / T8 — GET /api/v1/workspaces/:id/resources)
+// ---------------------------------------------------------------------------
+
+export const mockWorkspaceResources = [
+  {
+    id: 'share-1',
+    resourceType: 'PLUGIN',
+    resourceId: 'plugin-crm',
+    resourceName: 'CRM Pro',
+    sharedWithWorkspaceName: 'Marketing',
+    sharedByEmail: 'user@acme-corp.plexica.local',
+    sharedAt: '2026-02-01T00:00:00Z',
+  },
+  {
+    id: 'share-2',
+    resourceType: 'PLUGIN',
+    resourceId: 'plugin-analytics',
+    resourceName: 'Analytics Dashboard',
+    sharedFromWorkspaceName: 'Marketing',
+    sharedByEmail: 'admin@acme-corp.plexica.local',
+    sharedAt: '2026-02-05T00:00:00Z',
+  },
+];
 
 // ---------------------------------------------------------------------------
 // API Endpoints used by WebApiClient

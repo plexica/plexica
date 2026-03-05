@@ -265,7 +265,11 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             {CORE_ITEMS.map((item) => {
               const active = isActive(item.path, item.path === '/');
               return (
-                <Link key={item.path} to={item.path} onClick={isOverlayMode ? onClose : undefined}>
+                <Link
+                  key={item.path}
+                  to={item.path as never}
+                  onClick={isOverlayMode ? onClose : undefined}
+                >
                   <div className={itemClass(active)} aria-current={active ? 'page' : undefined}>
                     <span className="flex-shrink-0">{item.icon}</span>
                     {(!collapsed || isOverlayMode) && <span className="flex-1">{item.label}</span>}
@@ -313,7 +317,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                   return (
                     <Link
                       key={item.id}
-                      to={item.path ?? '/'}
+                      to={(item.path ?? '/') as never}
                       onClick={isOverlayMode ? onClose : undefined}
                     >
                       <div className={itemClass(active)} aria-current={active ? 'page' : undefined}>

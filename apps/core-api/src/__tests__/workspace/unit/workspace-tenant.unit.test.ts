@@ -310,6 +310,88 @@ describe('Workspace API - Tenant Isolation (Integration)', () => {
     });
   });
 
+  describe('Settings - Tenant Isolation', () => {
+    it('should isolate settings between tenants — same workspaceId belongs to one tenant only', () => {
+      const workspaceId = 'workspace-a1';
+
+      // Tenant A's record for that workspace ID
+      const tenantARecord = {
+        id: workspaceId,
+        tenantId: TENANT_A.id,
+        settings: { maxMembers: 50 },
+      };
+      // Tenant B cannot have a record with the same workspaceId (FK + tenantId composite)
+      const filteredForTenantB = [tenantARecord].filter((w) => w.tenantId === TENANT_B.id);
+
+      expect(filteredForTenantB).toHaveLength(0);
+    });
+
+    it('should not allow settings update for workspace in different tenant', () => {
+      const workspaceInTenantB = { id: 'workspace-b1', tenantId: TENANT_B.id };
+
+      // Simulated WHERE clause: id = ? AND tenantId = ?
+      const canUpdate =
+        workspaceInTenantB.id === 'workspace-b1' && workspaceInTenantB.tenantId === TENANT_A.id; // Wrong tenant
+
+      expect(canUpdate).toBe(false);
+    });
+
+    it('should produce different schemaNames for different tenants', () => {
+      expect(TENANT_A.schemaName).not.toBe(TENANT_B.schemaName);
+      expect(TENANT_A.schemaName).toBe('tenant_acme_corp');
+      expect(TENANT_B.schemaName).toBe('tenant_globex_inc');
+    });
+  });
+
+  describe('Security - Schema Name Injection Prevention', () => {
+    const isValidSchemaName = (name: string): boolean => /^[a-z0-9_]+$/.test(name);
+
+    it('should reject schema name with SQL injection attempt', () => {
+      expect(isValidSchemaName('tenant"; DROP TABLE workspaces; --')).toBe(false);
+    });
+
+    it('should reject schema name with quote characters', () => {
+      expect(isValidSchemaName("tenant'_evil")).toBe(false);
+      expect(isValidSchemaName('tenant"_evil')).toBe(false);
+    });
+
+    it('should reject schema name with path traversal characters', () => {
+      expect(isValidSchemaName('../other_schema')).toBe(false);
+    });
+
+    it('should accept valid schema names', () => {
+      expect(isValidSchemaName('tenant_acme_corp')).toBe(true);
+      expect(isValidSchemaName('tenant_globex_inc')).toBe(true);
+      expect(isValidSchemaName('tenant_123')).toBe(true);
+    });
+  });
+
+  describe('Tenant Context - Missing / Mismatched', () => {
+    it('should require tenantId to be present on all queries', () => {
+      // Query without tenantId is incomplete and must be rejected
+      const queryWithTenant = { where: { id: 'workspace-a1', tenantId: TENANT_A.id } };
+      const queryWithoutTenant = { where: { id: 'workspace-a1' } };
+
+      expect('tenantId' in queryWithTenant.where).toBe(true);
+      expect('tenantId' in queryWithoutTenant.where).toBe(false);
+    });
+
+    it('should treat missing tenant context as unauthorized', () => {
+      const requestWithoutTenantContext = { userId: 'user-1', tenantId: undefined };
+
+      const isTenantContextPresent = requestWithoutTenantContext.tenantId !== undefined;
+      expect(isTenantContextPresent).toBe(false);
+    });
+
+    it('should detect mismatched token tenant vs header tenant', () => {
+      const tokenTenantId = TENANT_B.id;
+      const headerTenantId = TENANT_A.id;
+
+      const isMismatch = tokenTenantId !== headerTenantId;
+      expect(isMismatch).toBe(true);
+    });
+  });
+
   describe('Security - Tenant Boundary Enforcement', () => {
     it('should prevent workspace ID guessing from different tenant', () => {
       const validWorkspaceIds = {

@@ -477,6 +477,7 @@ describe('Workspace Integration Tests', () => {
               .fn()
               .mockResolvedValueOnce([{ id: 'workspace-1' }]) // workspace check
               .mockResolvedValueOnce([]) // user is not a member
+              .mockResolvedValueOnce([{ settings: null }]) // maxMembers settings check (0 = unlimited)
               .mockResolvedValueOnce([
                 {
                   workspace_id: 'workspace-1',
@@ -562,6 +563,7 @@ describe('Workspace Integration Tests', () => {
               .fn()
               .mockResolvedValueOnce([{ id: 'workspace-1', tenant_id: 'test-tenant-123' }]) // get workspace
               .mockResolvedValueOnce([]) // user is not a member
+              .mockResolvedValueOnce([{ settings: null }]) // maxMembers settings check (0 = unlimited)
               .mockResolvedValueOnce([
                 {
                   workspace_id: 'workspace-1',

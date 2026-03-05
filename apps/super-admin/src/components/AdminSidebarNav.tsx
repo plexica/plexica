@@ -132,7 +132,7 @@ export const AdminSidebarNav: React.FC<AdminSidebarNavProps> = ({
           return (
             <li key={item.path} role="none">
               <Link
-                to={item.path}
+                to={item.path as never}
                 ref={(el) => {
                   itemRefs.current[index] = el;
                 }}

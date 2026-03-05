@@ -95,7 +95,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ overrides = {} }) => {
                 </span>
               ) : (
                 <>
-                  <Link to={item.href} className="hover:text-foreground transition-colors">
+                  <Link to={item.href as never} className="hover:text-foreground transition-colors">
                     {item.label}
                   </Link>
                   <span aria-hidden="true" className="text-muted-foreground/50">
