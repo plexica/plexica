@@ -2304,13 +2304,17 @@ export class WorkspaceService {
     // Wrap SELECT + UPDATE in a transaction so the merge is atomic: no other
     // concurrent update can interleave between reading existing settings and
     // writing the merged result (read-your-own-writes guarantee).
+    // Use Prisma.sql (not tagged template literals) so Prisma correctly handles
+    // Prisma.raw() table identifiers alongside bound parameters — tagged
+    // templates with Prisma.raw() interpolations mis-classify parameters as
+    // text, triggering "operator does not exist: text = uuid" (PG error 42883).
     const merged = await this.db.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.raw(`SET LOCAL search_path TO "${schemaName}", public`));
 
-      const rows = await tx.$queryRaw<Array<{ settings: unknown }>>`
-        SELECT settings FROM ${workspacesTable}
-        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid
-      `;
+      const rows = await tx.$queryRaw<Array<{ settings: unknown }>>(
+        Prisma.sql`SELECT settings FROM ${workspacesTable}
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+      );
 
       if (!rows || rows.length === 0) {
         throw new Error(`Workspace ${workspaceId} not found`);
@@ -2320,11 +2324,11 @@ export class WorkspaceService {
       const mergedSettings = mergeSettings(existingSettings, update);
       const settingsJson = JSON.stringify(mergedSettings);
 
-      const updateCount = await tx.$executeRaw`
-        UPDATE ${workspacesTable}
+      const updateCount = await tx.$executeRaw(
+        Prisma.sql`UPDATE ${workspacesTable}
         SET settings = ${settingsJson}::jsonb, updated_at = NOW()
-        WHERE id = ${workspaceId}::uuid AND tenant_id = ${tenantId}::uuid
-      `;
+        WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
+      );
 
       if (updateCount === 0) {
         throw new Error(`Workspace ${workspaceId} not found`);
