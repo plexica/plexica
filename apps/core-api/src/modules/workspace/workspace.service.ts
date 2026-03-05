@@ -2320,7 +2320,14 @@ export class WorkspaceService {
         throw new Error(`Workspace ${workspaceId} not found`);
       }
 
-      const existingSettings = rows[0].settings as WorkspaceSettings | null;
+      // Prisma may return jsonb columns as a JSON string or a parsed object
+      // depending on the driver version.  Normalise to an object so that
+      // mergeSettings always receives a plain Record (or null).
+      const rawSettings = rows[0].settings;
+      const existingSettings: WorkspaceSettings | null =
+        typeof rawSettings === 'string'
+          ? (JSON.parse(rawSettings) as WorkspaceSettings)
+          : (rawSettings as WorkspaceSettings | null);
       const mergedSettings = mergeSettings(existingSettings, update);
       const settingsJson = JSON.stringify(mergedSettings);
 
