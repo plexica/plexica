@@ -63,6 +63,13 @@ export default defineConfig({
         'src/components/workspace/SharingDisabledEmptyState.tsx',
         'src/components/workspace/SharedResourcesList.tsx',
         'src/components/WorkspaceSwitcher.tsx',
+        // Spec 011 Workspace Hierarchy & Templates components (T011-20 through T011-25)
+        'src/components/workspace/WorkspaceTreeNode.tsx',
+        'src/components/workspace/WorkspaceTreeView.tsx',
+        'src/components/workspace/TemplateCard.tsx',
+        'src/components/workspace/TemplatePickerGrid.tsx',
+        'src/components/workspace/PluginToggleCard.tsx',
+        'src/components/workspace/MoveWorkspaceDialog.tsx',
       ],
       exclude: [
         'src/**/*.d.ts',

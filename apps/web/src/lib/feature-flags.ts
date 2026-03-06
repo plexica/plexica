@@ -17,6 +17,7 @@
  * | ENABLE_DARK_MODE            | false   | Expose dark-mode toggle in UI                    |
  * | ENABLE_PLUGIN_WIDGETS       | false   | Allow plugins to embed cross-plugin widgets      |
  * | ENABLE_ADMIN_INTERFACES     | false   | Show Tenant Admin portal routes (Spec 008)       |
+ * | ENABLE_WORKSPACE_HIERARCHY | false   | Show workspace hierarchy tree & template picker (Spec 011) |
  */
 export type FeatureFlagName =
   | 'ENABLE_NEW_SIDEBAR'
@@ -24,7 +25,8 @@ export type FeatureFlagName =
   | 'ENABLE_AUTH_WARNINGS'
   | 'ENABLE_DARK_MODE'
   | 'ENABLE_PLUGIN_WIDGETS'
-  | 'ENABLE_ADMIN_INTERFACES';
+  | 'ENABLE_ADMIN_INTERFACES'
+  | 'ENABLE_WORKSPACE_HIERARCHY';
 
 /**
  * Returns `true` when the given feature flag is enabled.

@@ -38,6 +38,45 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /* =========================================================
+   * Spec 011: Workspace Hierarchy & Template UI design tokens
+   * ========================================================= */
+
+  /* Tree structure */
+  --ws-tree-indent: 24px;
+  --ws-tree-connector: oklch(0.922 0 0);
+  --ws-tree-connector-width: 1px;
+
+  /* Depth-level accent colors */
+  --ws-depth-0: oklch(0.205 0 0);
+  --ws-depth-1: oklch(0.488 0.243 264.376);
+  --ws-depth-2: oklch(0.546 0.245 262.881);
+  --ws-depth-3: oklch(0.623 0.214 259.815);
+
+  /* Tree node interaction */
+  --ws-tree-node-hover: oklch(0.97 0 0);
+  --ws-tree-node-selected: oklch(0.488 0.243 264.376 / 10%);
+  --ws-tree-node-selected-fg: oklch(0.488 0.243 264.376);
+
+  /* Hierarchical reader badge */
+  --ws-hierarchical-reader-bg: oklch(0.97 0.03 250);
+  --ws-hierarchical-reader-fg: oklch(0.488 0.243 264.376);
+
+  /* Template card */
+  --template-card-bg: oklch(1 0 0);
+  --template-card-border: oklch(0.922 0 0);
+  --template-card-hover: oklch(0.97 0 0);
+  --template-card-selected: oklch(0.488 0.243 264.376 / 8%);
+  --template-card-selected-border: oklch(0.488 0.243 264.376);
+  --template-default-badge-bg: oklch(0.97 0.05 145);
+  --template-default-badge-fg: oklch(0.4 0.15 145);
+
+  /* Plugin toggle card */
+  --plugin-toggle-card-bg: oklch(1 0 0);
+  --plugin-toggle-card-border: oklch(0.922 0 0);
+  --plugin-toggle-enabled: oklch(0.55 0.18 145);
+  --plugin-toggle-disabled: oklch(0.7 0 0);
+
+  /* =========================================================
    * Spec 007: Core Services design tokens (design-spec.md §5)
    * ========================================================= */
   --notification-dot: #2563eb;
@@ -84,6 +123,32 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* =========================================================
+   * Spec 011: Workspace Hierarchy & Template UI — dark mode overrides
+   * ========================================================= */
+
+  --ws-tree-connector: oklch(1 0 0 / 10%);
+  --ws-depth-0: oklch(0.985 0 0);
+  --ws-depth-1: oklch(0.809 0.105 251.813);
+  --ws-depth-2: oklch(0.623 0.214 259.815);
+  --ws-depth-3: oklch(0.546 0.245 262.881);
+  --ws-tree-node-hover: oklch(0.269 0 0);
+  --ws-tree-node-selected: oklch(0.488 0.243 264.376 / 20%);
+  --ws-tree-node-selected-fg: oklch(0.809 0.105 251.813);
+  --ws-hierarchical-reader-bg: oklch(0.3 0.05 250);
+  --ws-hierarchical-reader-fg: oklch(0.809 0.105 251.813);
+  --template-card-bg: oklch(0.205 0 0);
+  --template-card-border: oklch(1 0 0 / 10%);
+  --template-card-hover: oklch(0.269 0 0);
+  --template-card-selected: oklch(0.488 0.243 264.376 / 15%);
+  --template-card-selected-border: oklch(0.809 0.105 251.813);
+  --template-default-badge-bg: oklch(0.25 0.05 145);
+  --template-default-badge-fg: oklch(0.7 0.15 145);
+  --plugin-toggle-card-bg: oklch(0.205 0 0);
+  --plugin-toggle-card-border: oklch(1 0 0 / 10%);
+  --plugin-toggle-enabled: oklch(0.65 0.18 145);
+  --plugin-toggle-disabled: oklch(0.5 0 0);
 
   /* =========================================================
    * Spec 007: Core Services design tokens — dark mode overrides

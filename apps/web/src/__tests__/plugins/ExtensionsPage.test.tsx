@@ -318,6 +318,12 @@ describe('ExtensionsPage', () => {
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([disabledPlugin]);
     vi.mocked(apiClient.enableTenantPlugin).mockResolvedValue(undefined as unknown as TenantPlugin);
 
+    renderPage();
+    await screen.findByText('Analytics Pro');
+
+    const toggle = screen.getByRole('switch', { name: /enable analytics pro/i });
+    fireEvent.click(toggle);
+
     await waitFor(() => {
       expect(apiClient.enableTenantPlugin).toHaveBeenCalledWith(disabledPlugin.plugin.id);
     });

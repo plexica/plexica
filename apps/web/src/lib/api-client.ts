@@ -10,6 +10,19 @@
 
 import { TenantApiClient, AdminApiClient } from '@plexica/api-client';
 
+// ---------------------------------------------------------------------------
+// Typed HTTP interface
+// ---------------------------------------------------------------------------
+// TenantApiClient exposes `get` and `patch` as public methods at runtime but
+// they are not declared in the public TypeScript surface.  Rather than
+// sprinkling `as unknown as` double-casts across the codebase, we declare the
+// interface once here and re-export it alongside the singleton.
+
+export interface ApiClient {
+  get<T>(url: string): Promise<T>;
+  patch<T>(url: string, body: unknown): Promise<T>;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 class WebApiClient extends TenantApiClient {

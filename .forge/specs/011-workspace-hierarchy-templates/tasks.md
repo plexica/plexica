@@ -1,7 +1,7 @@
 # Spec 011 — Task Breakdown
 
 **Spec**: Workspace Hierarchy & Templates
-**Status**: Ready for Implementation
+**Status**: Complete
 **Total Tasks**: 27
 **Total Points**: ~64
 **Phases**: 4
@@ -13,34 +13,34 @@
 
 | Task     | Title                                                         | Phase | Sprint  | Points | Depends On                | Status |
 | -------- | ------------------------------------------------------------- | ----- | ------- | ------ | ------------------------- | ------ |
-| T011-01  | DB Migration — Workspace Hierarchy Columns                    | 1     | 3, Wk 1 | 3      | —                         | [ ]    |
-| T011-02  | WorkspaceHierarchyService — Core Path Operations              | 1     | 3, Wk 1 | 5      | T011-01                   | [ ]    |
-| T011-02b | FR-004b — Configurable Max Depth (`WORKSPACE_MAX_DEPTH`)      | 1     | 3, Wk 1 | 1      | T011-02                   | [ ]    |
-| T011-03  | Ancestor Permission Checks                                    | 1     | 3, Wk 2 | 2      | T011-02                   | [ ]    |
-| T011-04  | `workspace.guard.ts` — Hierarchical Access                    | 1     | 3, Wk 2 | 2      | T011-03                   | [ ]    |
-| T011-05  | API Routes — Tree View & Children                             | 1     | 3, Wk 2 | 2      | T011-04                   | [ ]    |
-| T011-06  | `WorkspaceService` — Create/Update/Delete hierarchy wiring    | 1     | 3, Wk 2 | 3      | T011-02b                  | [ ]    |
-| T011-07  | Phase 1 Tests                                                 | 1     | 3, Wk 3 | 2      | T011-01–T011-06           | [ ]    |
-| T011-07b | Performance Hardening — Indexes, Cache, Benchmarks            | 1     | 3, Wk 3 | 2      | T011-01, T011-02, T011-07 | [ ]    |
-| T011-08  | DB Migration — Template & WorkspacePlugin Models              | 2     | 4, Wk 4 | 3      | T011-01                   | [ ]    |
-| T011-09  | `WorkspacePluginService`                                      | 2     | 4, Wk 4 | 3      | T011-08                   | [ ]    |
-| T011-10  | `WorkspaceTemplateService` — CRUD                             | 2     | 4, Wk 4 | 3      | T011-08                   | [ ]    |
-| T011-11  | `WorkspaceTemplateService` — Transactional Application        | 2     | 4, Wk 4 | 2      | T011-09, T011-10          | [ ]    |
-| T011-12  | API Routes — Templates & Workspace Plugins                    | 2     | 4, Wk 5 | 2      | T011-11                   | [ ]    |
-| T011-13  | Phase 2 Tests                                                 | 2     | 4, Wk 5 | 2      | T011-08–T011-12           | [ ]    |
-| T011-14  | Plugin Hooks — `before_create` (Sequential)                   | 3     | 4, Wk 5 | 3      | T011-06                   | [ ]    |
-| T011-15  | Plugin Hooks — `created`/`deleted` (Parallel Fire-and-Forget) | 3     | 5, Wk 5 | 2      | T011-14                   | [ ]    |
-| T011-16  | EventBus Integration — `core.workspace.*` Events              | 3     | 5, Wk 6 | 2      | T011-15                   | [ ]    |
-| T011-17  | Plugin Template Registration API                              | 3     | 5, Wk 6 | 2      | T011-10, T011-14          | [ ]    |
-| T011-18  | Phase 3 Tests                                                 | 3     | 5, Wk 7 | 3      | T011-14–T011-17           | [ ]    |
-| T011-19  | Design Tokens — Hierarchy & Template UI                       | 4     | 5, Wk 8 | 1      | —                         | [ ]    |
-| T011-20  | `WorkspaceTreeNode` Component                                 | 4     | 5, Wk 8 | 2      | T011-19                   | [ ]    |
-| T011-21  | `WorkspaceTreeView` Component                                 | 4     | 5, Wk 8 | 3      | T011-20                   | [ ]    |
-| T011-22  | `TemplateCard` Component                                      | 4     | 5, Wk 8 | 2      | T011-19                   | [ ]    |
-| T011-23  | `TemplatePickerGrid` Component                                | 4     | 5, Wk 8 | 2      | T011-22                   | [ ]    |
-| T011-24  | `PluginToggleCard` Component                                  | 4     | 5, Wk 9 | 2      | T011-19                   | [ ]    |
-| T011-25  | `MoveWorkspaceDialog` Component                               | 4     | 5, Wk 9 | 3      | T011-21                   | [ ]    |
-| T011-26  | Frontend Tests & Accessibility Verification                   | 4     | 5, Wk 9 | 4      | T011-20–T011-25           | [ ]    |
+| T011-01  | DB Migration — Workspace Hierarchy Columns                    | 1     | 3, Wk 1 | 3      | —                         | [x]    |
+| T011-02  | WorkspaceHierarchyService — Core Path Operations              | 1     | 3, Wk 1 | 5      | T011-01                   | [x]    |
+| T011-02b | FR-004b — Configurable Max Depth (`WORKSPACE_MAX_DEPTH`)      | 1     | 3, Wk 1 | 1      | T011-02                   | [x]    |
+| T011-03  | Ancestor Permission Checks                                    | 1     | 3, Wk 2 | 2      | T011-02                   | [x]    |
+| T011-04  | `workspace.guard.ts` — Hierarchical Access                    | 1     | 3, Wk 2 | 2      | T011-03                   | [x]    |
+| T011-05  | API Routes — Tree View & Children                             | 1     | 3, Wk 2 | 2      | T011-04                   | [x]    |
+| T011-06  | `WorkspaceService` — Create/Update/Delete hierarchy wiring    | 1     | 3, Wk 2 | 3      | T011-02b                  | [x]    |
+| T011-07  | Phase 1 Tests                                                 | 1     | 3, Wk 3 | 2      | T011-01–T011-06           | [x]    |
+| T011-07b | Performance Hardening — Indexes, Cache, Benchmarks            | 1     | 3, Wk 3 | 2      | T011-01, T011-02, T011-07 | [x]    |
+| T011-08  | DB Migration — Template & WorkspacePlugin Models              | 2     | 4, Wk 4 | 3      | T011-01                   | [x]    |
+| T011-09  | `WorkspacePluginService`                                      | 2     | 4, Wk 4 | 3      | T011-08                   | [x]    |
+| T011-10  | `WorkspaceTemplateService` — CRUD                             | 2     | 4, Wk 4 | 3      | T011-08                   | [x]    |
+| T011-11  | `WorkspaceTemplateService` — Transactional Application        | 2     | 4, Wk 4 | 2      | T011-09, T011-10          | [x]    |
+| T011-12  | API Routes — Templates & Workspace Plugins                    | 2     | 4, Wk 5 | 2      | T011-11                   | [x]    |
+| T011-13  | Phase 2 Tests                                                 | 2     | 4, Wk 5 | 2      | T011-08–T011-12           | [x]    |
+| T011-14  | Plugin Hooks — `before_create` (Sequential)                   | 3     | 4, Wk 5 | 3      | T011-06                   | [x]    |
+| T011-15  | Plugin Hooks — `created`/`deleted` (Parallel Fire-and-Forget) | 3     | 5, Wk 5 | 2      | T011-14                   | [x]    |
+| T011-16  | EventBus Integration — `core.workspace.*` Events              | 3     | 5, Wk 6 | 2      | T011-15                   | [x]    |
+| T011-17  | Plugin Template Registration API                              | 3     | 5, Wk 6 | 2      | T011-10, T011-14          | [x]    |
+| T011-18  | Phase 3 Tests                                                 | 3     | 5, Wk 7 | 3      | T011-14–T011-17           | [x]    |
+| T011-19  | Design Tokens — Hierarchy & Template UI                       | 4     | 5, Wk 8 | 1      | —                         | [x]    |
+| T011-20  | `WorkspaceTreeNode` Component                                 | 4     | 5, Wk 8 | 2      | T011-19                   | [x]    |
+| T011-21  | `WorkspaceTreeView` Component                                 | 4     | 5, Wk 8 | 3      | T011-20                   | [x]    |
+| T011-22  | `TemplateCard` Component                                      | 4     | 5, Wk 8 | 2      | T011-19                   | [x]    |
+| T011-23  | `TemplatePickerGrid` Component                                | 4     | 5, Wk 8 | 2      | T011-22                   | [x]    |
+| T011-24  | `PluginToggleCard` Component                                  | 4     | 5, Wk 9 | 2      | T011-19                   | [x]    |
+| T011-25  | `MoveWorkspaceDialog` Component                               | 4     | 5, Wk 9 | 3      | T011-21                   | [x]    |
+| T011-26  | Frontend Tests & Accessibility Verification                   | 4     | 5, Wk 9 | 4      | T011-20–T011-25           | [x]    |
 
 ---
 
