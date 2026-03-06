@@ -7,6 +7,7 @@ import nodemailer from 'nodemailer';
 import { logger } from '../../lib/logger.js';
 import {
   INotificationService,
+  IJobQueueService,
   Notification,
   NotificationChannel,
   NotificationStatus,
@@ -66,9 +67,7 @@ export class NotificationService implements INotificationService {
   private readonly smtp: SmtpConfig | null;
   private transporter: nodemailer.Transporter | null = null;
   /** Optional: reference to JobQueueService for sendBulk — injected post-construction */
-  private jobQueueService: {
-    enqueue: (job: any, opts?: any) => Promise<{ jobId: string }>;
-  } | null = null;
+  private jobQueueService: Pick<IJobQueueService, 'enqueue'> | null = null;
 
   constructor(repository: NotificationRepository, smtp: SmtpConfig | null) {
     this.repository = repository;
@@ -85,7 +84,7 @@ export class NotificationService implements INotificationService {
   }
 
   /** Inject JobQueueService after construction to avoid circular dependency */
-  setJobQueueService(svc: { enqueue: (job: any, opts?: any) => Promise<{ jobId: string }> }): void {
+  setJobQueueService(svc: Pick<IJobQueueService, 'enqueue'>): void {
     this.jobQueueService = svc;
   }
 
@@ -95,14 +94,16 @@ export class NotificationService implements INotificationService {
 
   async send(notification: Notification): Promise<Notification> {
     switch (notification.channel) {
-      case NotificationChannel.EMAIL:
+      case NotificationChannel.EMAIL: {
+        const emailNotif = notification as Notification & EmailMessage;
         await this.email(notification.tenantId, {
-          to: (notification as any).to ?? '',
-          subject: (notification as any).subject ?? notification.title,
+          to: emailNotif.to ?? '',
+          subject: emailNotif.subject ?? notification.title,
           body: notification.body,
-          htmlBody: (notification as any).htmlBody,
+          htmlBody: emailNotif.htmlBody,
         });
         break;
+      }
       case NotificationChannel.PUSH:
         await this.push(notification.tenantId, {
           userId: notification.userId,
@@ -119,7 +120,7 @@ export class NotificationService implements INotificationService {
         });
       default:
         throw Object.assign(
-          new Error(`Unknown notification channel: ${(notification as any).channel}`),
+          new Error(`Unknown notification channel: ${(notification as Notification).channel}`),
           { code: NotificationErrorCode.SEND_FAILED, statusCode: 400 }
         );
     }

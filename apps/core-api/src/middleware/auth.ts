@@ -75,9 +75,12 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
         // Same-tenant request: validate JWT tenant exists and is not suspended
         try {
           tenant = await tenantService.getTenantBySlug(payload.tenantSlug);
-        } catch (error: any) {
+        } catch (error: unknown) {
           request.log.warn(
-            { tenantSlug: payload.tenantSlug, error: error.message },
+            {
+              tenantSlug: payload.tenantSlug,
+              error: error instanceof Error ? error.message : String(error),
+            },
             'Tenant not found for authenticated user'
           );
           return reply.code(403).send({
@@ -158,11 +161,12 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
       tenantSlug: payload.tenantSlug,
     };
     request.token = payload;
-  } catch (error: any) {
-    request.log.error({ error: error.message }, 'Authentication failed');
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    request.log.error({ error: err.message }, 'Authentication failed');
 
     // Determine error type and return appropriate response
-    if (error.message && error.message.includes('expired')) {
+    if (err.message && err.message.includes('expired')) {
       return reply.code(401).send({
         error: {
           code: 'AUTH_TOKEN_EXPIRED',
@@ -205,7 +209,7 @@ export async function optionalAuthMiddleware(
       };
       request.token = payload;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     request.log.warn({ error }, 'Optional auth failed, continuing without auth');
   }
 }
@@ -492,9 +496,10 @@ export async function requireTenantAccess(
   let userTenant;
   try {
     userTenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string };
     request.log.error(
-      { error: error.message, tenantSlug: request.user.tenantSlug },
+      { error: err.message, tenantSlug: request.user.tenantSlug },
       'Failed to fetch user tenant'
     );
     return reply.code(500).send({
@@ -503,7 +508,7 @@ export async function requireTenantAccess(
         message: 'Failed to verify tenant access',
         details: {
           tenantSlug: request.user.tenantSlug,
-          reason: error.message,
+          reason: err.message,
         },
       },
     });

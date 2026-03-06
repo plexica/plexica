@@ -9,9 +9,10 @@ if (process.env.NODE_ENV !== 'test' || !process.env.DATABASE_URL) {
   dotenv.config();
 }
 
-// Custom boolean transformer for environment variables
-const booleanFromString = z
+// Boolean schema with default false — optional env var that defaults to 'false' string
+const booleanFromStringWithDefault = z
   .string()
+  .default('false')
   .transform((val) => val === 'true' || val === '1')
   .pipe(z.boolean());
 
@@ -39,7 +40,7 @@ const configSchema = z.object({
   redisHost: z.string().default('localhost'),
   redisPort: z.coerce.number().default(6379),
   redisPassword: z.string().optional(),
-  redisTls: booleanFromString.default(false as any),
+  redisTls: booleanFromStringWithDefault,
 
   // Keycloak
   keycloakUrl: z.string(),
@@ -56,7 +57,7 @@ const configSchema = z.object({
   storageEndpoint: z.string().default('localhost:9000'),
   storageAccessKey: z.string(),
   storageSecretKey: z.string(),
-  storageUseSsl: booleanFromString.default(false as any),
+  storageUseSsl: booleanFromStringWithDefault,
 
   // JWT
   jwtSecret: z.string(),

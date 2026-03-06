@@ -1,6 +1,20 @@
 import { getWorkspaceIdOrThrow, getWorkspaceId } from '../../../middleware/tenant-context.js';
 
 /**
+ * Minimal interface representing a Prisma-like client with a `contact` model,
+ * used only in the ExampleContactRepository illustration below.
+ */
+interface ExamplePrismaClient {
+  contact: {
+    findMany(args: Record<string, unknown>): Promise<unknown[]>;
+    findUnique(args: Record<string, unknown>): Promise<unknown | null>;
+    create(args: Record<string, unknown>): Promise<unknown>;
+    update(args: Record<string, unknown>): Promise<unknown>;
+    delete(args: Record<string, unknown>): Promise<unknown>;
+  };
+}
+
+/**
  * Base Repository for Workspace-Scoped Resources
  *
  * Provides helper methods to automatically filter queries by workspace.
@@ -113,7 +127,7 @@ export class ExampleContactRepository extends WorkspaceRepositoryBase {
   /**
    * Find all contacts in current workspace
    */
-  async findAll(prismaClient: any) {
+  async findAll(prismaClient: ExamplePrismaClient) {
     return prismaClient.contact.findMany({
       where: this.applyWorkspaceFilter({}),
       orderBy: { createdAt: 'desc' },
@@ -123,7 +137,7 @@ export class ExampleContactRepository extends WorkspaceRepositoryBase {
   /**
    * Find contact by ID within current workspace
    */
-  async findById(prismaClient: any, id: string) {
+  async findById(prismaClient: ExamplePrismaClient, id: string) {
     return prismaClient.contact.findUnique({
       where: this.applyWorkspaceFilter({ id }),
     });
@@ -132,7 +146,7 @@ export class ExampleContactRepository extends WorkspaceRepositoryBase {
   /**
    * Create contact in current workspace
    */
-  async create(prismaClient: any, data: any) {
+  async create(prismaClient: ExamplePrismaClient, data: Record<string, unknown>) {
     const workspaceId = this.getWorkspaceId();
     return prismaClient.contact.create({
       data: {
@@ -145,7 +159,7 @@ export class ExampleContactRepository extends WorkspaceRepositoryBase {
   /**
    * Update contact (automatically scoped to workspace)
    */
-  async update(prismaClient: any, id: string, data: any) {
+  async update(prismaClient: ExamplePrismaClient, id: string, data: Record<string, unknown>) {
     return prismaClient.contact.update({
       where: this.applyWorkspaceFilter({ id }),
       data,
@@ -155,7 +169,7 @@ export class ExampleContactRepository extends WorkspaceRepositoryBase {
   /**
    * Delete contact (automatically scoped to workspace)
    */
-  async delete(prismaClient: any, id: string) {
+  async delete(prismaClient: ExamplePrismaClient, id: string) {
     return prismaClient.contact.delete({
       where: this.applyWorkspaceFilter({ id }),
     });

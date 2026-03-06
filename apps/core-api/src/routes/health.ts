@@ -111,7 +111,12 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
       // Search check: verify search_documents table accessible (T007-23 — NFR-004)
       try {
         const prisma = getPrismaClient();
-        await (prisma as any).searchDocument.count({ take: 0 });
+        await (
+          prisma as unknown as Record<
+            string,
+            { count: (args: Record<string, unknown>) => Promise<number> }
+          >
+        )['searchDocument']?.count({ take: 0 });
         checks.search = 'ok';
       } catch {
         // Table may not exist yet (pre-migration) — degrade gracefully

@@ -27,7 +27,7 @@ import { Search, Save, AlertCircle, Check, AlertTriangle } from 'lucide-react';
 import { toast } from '@/components/ToastProvider';
 import { z } from 'zod';
 
-export const Route = createFileRoute('/admin/translation-overrides' as any)({
+export const Route = createFileRoute('/admin/translation-overrides' as never)({
   component: TranslationOverridesPage,
 });
 
@@ -101,8 +101,12 @@ function TranslationOverridesPage() {
           '/api/v1/tenant/translations/overrides'
         );
         setOverrides(response.overrides || {});
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.error?.message || 'Failed to load overrides';
+      } catch (err: unknown) {
+        const e = err as {
+          response?: { data?: { error?: { message?: string } } };
+          message?: string;
+        };
+        const errorMessage = e.response?.data?.error?.message || 'Failed to load overrides';
         setError(errorMessage);
         toast.error(errorMessage);
       } finally {
@@ -229,9 +233,10 @@ function TranslationOverridesPage() {
       setEditedValues({});
       setHasUnsavedChanges(false);
       toast.success('Translation overrides saved successfully!');
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
       const errorMessage =
-        err.response?.data?.error?.message || err.message || 'Failed to save overrides';
+        e.response?.data?.error?.message || e.message || 'Failed to save overrides';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {

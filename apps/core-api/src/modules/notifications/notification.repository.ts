@@ -3,6 +3,7 @@
 // Methods: create, markAsRead, markAllAsRead, listForUser, getUnreadCount
 
 import { db } from '../../lib/db.js';
+import { Prisma } from '@plexica/database';
 import { NotificationChannel, NotificationStatus } from '../../types/core-services.types.js';
 
 // ============================================================================
@@ -49,7 +50,7 @@ export class NotificationRepository {
   // --------------------------------------------------------------------------
 
   async create(input: CreateNotificationInput): Promise<DbNotification> {
-    const notif = await (db as any).notification.create({
+    const notif = await db.notification.create({
       data: {
         tenantId: input.tenantId,
         userId: input.userId,
@@ -57,7 +58,10 @@ export class NotificationRepository {
         status: input.status,
         title: input.title,
         body: input.body,
-        metadata: (input.metadata as any) ?? null,
+        metadata:
+          input.metadata !== undefined
+            ? (input.metadata as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
       },
     });
     return notif as DbNotification;
@@ -69,12 +73,12 @@ export class NotificationRepository {
 
   async markAsRead(id: string, tenantId: string, userId: string): Promise<DbNotification | null> {
     // First verify ownership (tenant + user isolation)
-    const existing = await (db as any).notification.findFirst({
+    const existing = await db.notification.findFirst({
       where: { id, tenantId, userId },
     });
     if (!existing) return null;
 
-    const notif = await (db as any).notification.update({
+    const notif = await db.notification.update({
       where: { id },
       data: {
         status: NotificationStatus.READ,
@@ -89,7 +93,7 @@ export class NotificationRepository {
   // --------------------------------------------------------------------------
 
   async markAllAsRead(tenantId: string, userId: string): Promise<number> {
-    const result = await (db as any).notification.updateMany({
+    const result = await db.notification.updateMany({
       where: {
         tenantId,
         userId,
@@ -125,7 +129,7 @@ export class NotificationRepository {
       where['status'] = { not: NotificationStatus.READ };
     }
 
-    const notifications = await (db as any).notification.findMany({
+    const notifications = await db.notification.findMany({
       where,
       skip: offset,
       take: limit,
@@ -140,7 +144,7 @@ export class NotificationRepository {
   // --------------------------------------------------------------------------
 
   async getUnreadCount(tenantId: string, userId: string): Promise<number> {
-    const count = await (db as any).notification.count({
+    const count = await db.notification.count({
       where: {
         tenantId,
         userId,
@@ -156,7 +160,7 @@ export class NotificationRepository {
   // --------------------------------------------------------------------------
 
   async updateStatus(id: string, status: NotificationStatus): Promise<void> {
-    await (db as any).notification.update({
+    await db.notification.update({
       where: { id },
       data: { status },
     });

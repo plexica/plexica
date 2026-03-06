@@ -43,7 +43,7 @@ function SpacingPage() {
     <div style={{ padding: '24px', fontFamily: "'JetBrains Mono Variable', monospace" }}>
       <h1 style={{ fontSize: '28px', fontWeight: 600, marginBottom: '8px' }}>Spacing & Radius</h1>
       <p style={{ fontSize: '14px', color: 'var(--muted-foreground)', marginBottom: '32px' }}>
-        Spacing uses Tailwind's 4px base unit. Radius is computed from a single{' '}
+        Spacing uses Tailwind&apos;s 4px base unit. Radius is computed from a single{' '}
         <code>--radius</code> variable.
       </p>
 

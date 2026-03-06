@@ -33,7 +33,7 @@ export async function advancedRateLimitMiddleware(
     // If rate limit exceeded, return 429
     if (!limitStatus.allowed) {
       const ip = getClientIP(request);
-      const userId = (request as any).user?.id;
+      const userId = request.user?.id;
 
       console.warn(
         `[RateLimit] Request denied: ${limitStatus.reason} (IP: ${ip}, User: ${userId || 'anonymous'})`

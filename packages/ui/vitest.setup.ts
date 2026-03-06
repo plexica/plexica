@@ -25,7 +25,6 @@ if (!globalThis.ResizeObserver) {
     observe = vi.fn();
     unobserve = vi.fn();
     disconnect = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     constructor(_callback: ResizeObserverCallback) {}
   }
   globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;

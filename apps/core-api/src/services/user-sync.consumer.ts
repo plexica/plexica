@@ -289,7 +289,7 @@ export class UserSyncConsumer {
       }
 
       // Build update data (only include changed fields)
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, string> = {};
       if (validatedData.email !== undefined) updateData.email = validatedData.email;
       if (validatedData.firstName !== undefined) updateData.firstName = validatedData.firstName;
       if (validatedData.lastName !== undefined) updateData.lastName = validatedData.lastName;

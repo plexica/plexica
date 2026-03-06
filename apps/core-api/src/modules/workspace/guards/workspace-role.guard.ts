@@ -21,7 +21,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 export function workspaceRoleGuard(requiredRoles: ('ADMIN' | 'MEMBER' | 'VIEWER')[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     try {
-      const membership = (request as any).workspaceMembership;
+      const membership = request.workspaceMembership;
 
       if (!membership) {
         return reply.code(403).send({

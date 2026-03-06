@@ -51,10 +51,11 @@ function ReviewDialog({ plugin, onClose, onReview }: ReviewDialogProps) {
 
       onReview();
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const e = error as { response?: { data?: { message?: string } }; message?: string };
       toast({
         title: 'Error',
-        description: error.response?.data?.message || `Failed to ${action} plugin`,
+        description: e.response?.data?.message || `Failed to ${action} plugin`,
         variant: 'destructive',
       });
     } finally {
@@ -287,7 +288,7 @@ export function PluginReviewQueue() {
         limit: 100,
       });
       setPlugins(response.data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch pending plugins:', error);
       toast({
         title: 'Error',

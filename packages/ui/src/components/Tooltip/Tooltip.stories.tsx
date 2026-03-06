@@ -73,7 +73,7 @@ export const LongContent: Story = {
       <TooltipContent className="max-w-xs">
         <p>
           This is a longer tooltip that contains more detailed information about the feature or
-          element you're hovering over. It can wrap to multiple lines.
+          element you&apos;re hovering over. It can wrap to multiple lines.
         </p>
       </TooltipContent>
     </Tooltip>

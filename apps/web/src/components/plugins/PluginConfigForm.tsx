@@ -14,7 +14,7 @@
 //
 // T004-32 — config form section
 
-import { useState, useCallback, useId } from 'react';
+import { useState, useCallback, useMemo, useId } from 'react';
 import { Button } from '@plexica/ui';
 import { Input } from '@plexica/ui';
 import { Switch } from '@plexica/ui';
@@ -419,7 +419,7 @@ export function PluginConfigForm({
   onSubmit,
   onCancel,
 }: PluginConfigFormProps) {
-  const properties = schema.properties ?? {};
+  const properties = useMemo(() => schema.properties ?? {}, [schema.properties]);
   const requiredFields = schema.required ?? [];
 
   // Build initial form state from schema defaults + provided values

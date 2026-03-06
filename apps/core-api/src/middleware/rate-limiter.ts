@@ -49,8 +49,7 @@ export const WORKSPACE_RATE_LIMITS = {
     limit: 10,
     windowSeconds: 60,
     keyExtractor: (req: FastifyRequest) => {
-      const tenant = (req as any).tenant;
-      return tenant?.tenantId || 'unknown-tenant';
+      return req.tenant?.tenantId || 'unknown-tenant';
     },
   } satisfies RateLimitConfig,
 
@@ -60,7 +59,7 @@ export const WORKSPACE_RATE_LIMITS = {
     limit: 100,
     windowSeconds: 60,
     keyExtractor: (req: FastifyRequest) => {
-      return (req as any).user?.id || 'anonymous';
+      return req.user?.id || 'anonymous';
     },
   } satisfies RateLimitConfig,
 

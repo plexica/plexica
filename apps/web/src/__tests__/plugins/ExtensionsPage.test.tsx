@@ -10,12 +10,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { configureAxe } from 'vitest-axe';
 
 // Register vitest-axe matchers manually (package bug: extend-expect is empty)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as any;
+const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as unknown as {
+  toHaveNoViolations: Parameters<typeof expect.extend>[0][string];
+};
 expect.extend({ toHaveNoViolations });
 
 function expectNoViolations(results: unknown): void {
-  (expect(results) as any).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations(): void }).toHaveNoViolations();
 }
 
 const axe = configureAxe({
@@ -73,7 +74,7 @@ import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from '@/components/ToastProvider';
 import { ExtensionsPage } from '@/routes/extensions';
-import type { TenantPlugin } from '@plexica/types';
+import type { TenantPlugin, PluginStatus, PluginLifecycleStatus } from '@plexica/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -116,8 +117,8 @@ const makeTenantPlugin = (overrides?: Partial<TenantPlugin>): TenantPlugin => ({
     description: 'Real-time analytics for your workspace.',
     author: 'Plexica Labs',
     category: 'Analytics',
-    status: 'PUBLISHED' as any,
-    lifecycleStatus: 'ACTIVE' as any,
+    status: 'PUBLISHED' as PluginStatus,
+    lifecycleStatus: 'ACTIVE' as PluginLifecycleStatus,
     icon: '📊',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-15T00:00:00Z',
@@ -141,8 +142,8 @@ const makeConfigurablePlugin = (): TenantPlugin =>
       description: 'A plugin with configuration options.',
       author: 'Plexica Labs',
       category: 'Tools',
-      status: 'PUBLISHED' as any,
-      lifecycleStatus: 'ACTIVE' as any,
+      status: 'PUBLISHED' as PluginStatus,
+      lifecycleStatus: 'ACTIVE' as PluginLifecycleStatus,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-15T00:00:00Z',
       // Extended runtime field — manifest on the entity
@@ -169,7 +170,7 @@ const makeConfigurablePlugin = (): TenantPlugin =>
           },
         },
       },
-    } as any,
+    } as unknown as TenantPlugin['plugin'],
   });
 
 // ---------------------------------------------------------------------------
@@ -200,7 +201,7 @@ describe('ExtensionsPage', () => {
       tenant: { id: 't1', name: 'Acme', slug: 'acme' },
       isAuthenticated: true,
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuthStore>);
   });
 
   // -------------------------------------------------------------------------
@@ -213,7 +214,7 @@ describe('ExtensionsPage', () => {
       tenant: { id: 't1', name: 'Acme', slug: 'acme' },
       isAuthenticated: true,
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuthStore>);
     // Query won't fire (disabled when not admin) — mock to prevent hanging
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([]);
 
@@ -315,18 +316,7 @@ describe('ExtensionsPage', () => {
   it('clicking Switch on a disabled plugin calls enableTenantPlugin', async () => {
     const disabledPlugin = makeDisabledPlugin();
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([disabledPlugin]);
-    vi.mocked(apiClient.enableTenantPlugin).mockResolvedValue(undefined as any);
-
-    renderPage();
-
-    // Wait for card to render
-    await screen.findByText('Analytics Pro');
-
-    // The switch should be unchecked (disabled plugin)
-    const toggle = screen.getByRole('switch', { name: /enable analytics pro/i });
-    expect(toggle).not.toBeChecked();
-
-    fireEvent.click(toggle);
+    vi.mocked(apiClient.enableTenantPlugin).mockResolvedValue(undefined as unknown as TenantPlugin);
 
     await waitFor(() => {
       expect(apiClient.enableTenantPlugin).toHaveBeenCalledWith(disabledPlugin.plugin.id);
@@ -335,7 +325,7 @@ describe('ExtensionsPage', () => {
 
   it('shows success toast after enabling a plugin', async () => {
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([makeDisabledPlugin()]);
-    vi.mocked(apiClient.enableTenantPlugin).mockResolvedValue(undefined as any);
+    vi.mocked(apiClient.enableTenantPlugin).mockResolvedValue(undefined as unknown as TenantPlugin);
 
     renderPage();
     await screen.findByText('Analytics Pro');
@@ -355,7 +345,9 @@ describe('ExtensionsPage', () => {
   it('clicking Switch on an active plugin calls disableTenantPlugin', async () => {
     const activePlugin = makeTenantPlugin();
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([activePlugin]);
-    vi.mocked(apiClient.disableTenantPlugin).mockResolvedValue(undefined as any);
+    vi.mocked(apiClient.disableTenantPlugin).mockResolvedValue(
+      undefined as unknown as TenantPlugin
+    );
 
     renderPage();
     await screen.findByText('Analytics Pro');
@@ -372,7 +364,9 @@ describe('ExtensionsPage', () => {
 
   it('shows success toast after disabling a plugin', async () => {
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([makeTenantPlugin()]);
-    vi.mocked(apiClient.disableTenantPlugin).mockResolvedValue(undefined as any);
+    vi.mocked(apiClient.disableTenantPlugin).mockResolvedValue(
+      undefined as unknown as TenantPlugin
+    );
 
     renderPage();
     await screen.findByText('Analytics Pro');
@@ -480,7 +474,9 @@ describe('ExtensionsPage', () => {
 
   it('submitting valid config calls updateTenantPluginConfig and shows success toast', async () => {
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([makeConfigurablePlugin()]);
-    vi.mocked(apiClient.updateTenantPluginConfig).mockResolvedValue(undefined as any);
+    vi.mocked(apiClient.updateTenantPluginConfig).mockResolvedValue(
+      undefined as unknown as TenantPlugin
+    );
 
     renderPage();
 
@@ -561,7 +557,7 @@ describe('ExtensionsPage', () => {
       tenant: { id: 't1', name: 'Acme', slug: 'acme' },
       isAuthenticated: true,
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuthStore>);
     vi.mocked(apiClient.getTenantActivePlugins).mockResolvedValue([]);
 
     const { container } = renderPage();

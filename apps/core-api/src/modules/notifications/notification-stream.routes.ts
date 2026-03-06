@@ -22,14 +22,14 @@ const REDIS_SORTED_SET_TTL = REPLAY_WINDOW_SECONDS + 60; // slight buffer
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  const tenantId = (request as any).user?.tenantId ?? (request as any).tenantContext?.tenantId;
+  const tenantId = request.user?.tenantSlug ?? request.tenant?.tenantId;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
 }
 
 function getUserId(request: FastifyRequest): string {
-  const userId = (request as any).user?.id ?? (request as any).user?.sub;
+  const userId = request.user?.id;
   if (!userId) throw Object.assign(new Error('User context not available'), { statusCode: 401 });
   return userId;
 }
@@ -158,7 +158,7 @@ export const notificationStreamRoutes: FastifyPluginAsync = async (server) => {
       // ADR-023: `Last-Event-ID` header for replay on reconnect
       const lastEventId =
         (request.headers['last-event-id'] as string | undefined) ??
-        (request.query as any).lastEventId;
+        (request.query as Record<string, string | undefined>)['lastEventId'];
 
       // --- SSE headers ---
       reply.raw.writeHead(200, {
@@ -170,7 +170,7 @@ export const notificationStreamRoutes: FastifyPluginAsync = async (server) => {
 
       // Create a dedicated subscriber connection (ioredis requires separate
       // connections for pub/sub and regular commands)
-      const subscriber = new Redis(redis.options as any);
+      const subscriber = new Redis(redis.options);
       const channel = notificationChannel(tenantId, userId);
 
       logger.info({ tenantId, userId, channel }, 'SSE: client connected to notification stream');

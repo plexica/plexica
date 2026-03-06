@@ -18,7 +18,7 @@ export interface UseFormReturn<T> {
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  setFieldValue: (field: keyof T, value: any) => void;
+  setFieldValue: (field: keyof T, value: T[keyof T]) => void;
   setFieldError: (field: keyof T, error: string) => void;
   setFieldTouched: (field: keyof T, touched: boolean) => void;
   reset: () => void;
@@ -59,7 +59,7 @@ export interface UseFormReturn<T> {
  * }
  * ```
  */
-export function useForm<T extends Record<string, any>>({
+export function useForm<T extends Record<string, unknown>>({
   initialValues,
   validationSchema,
   onSubmit,
@@ -71,24 +71,28 @@ export function useForm<T extends Record<string, any>>({
   const [isDirty, setIsDirty] = useState(false);
 
   const validateField = useCallback(
-    (fieldName: keyof T, value: any): string | undefined => {
+    (fieldName: keyof T, value: unknown): string | undefined => {
       if (!validationSchema) return undefined;
 
       try {
         if ('shape' in validationSchema && validationSchema.shape) {
           // Zod schema with shape
-          const shape = validationSchema.shape as Record<string, any>;
+          const shape = validationSchema.shape as Record<
+            string,
+            { parse: (v: unknown) => unknown }
+          >;
           const fieldSchema = shape[String(fieldName)];
           if (fieldSchema) {
             fieldSchema.parse(value);
           }
         }
         return undefined;
-      } catch (error: any) {
-        if (error.issues && error.issues[0]) {
-          return error.issues[0].message;
+      } catch (error: unknown) {
+        const e = error as { issues?: Array<{ message: string }>; message?: string };
+        if (e.issues && e.issues[0]) {
+          return e.issues[0].message;
         }
-        return error.message || 'Validation error';
+        return e.message || 'Validation error';
       }
     },
     [validationSchema]
@@ -101,10 +105,11 @@ export function useForm<T extends Record<string, any>>({
       await validationSchema.parseAsync(values);
       setErrors({});
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const newErrors: Partial<Record<keyof T, string>> = {};
-      if (error.issues) {
-        error.issues.forEach((err: any) => {
+      const e = error as { issues?: Array<{ path: Array<unknown>; message: string }> };
+      if (e.issues) {
+        e.issues.forEach((err: { path: Array<unknown>; message: string }) => {
           const field = err.path[0] as keyof T;
           if (field) {
             newErrors[field] = err.message;
@@ -183,7 +188,7 @@ export function useForm<T extends Record<string, any>>({
     [values, validateForm, onSubmit]
   );
 
-  const setFieldValue = useCallback((field: keyof T, value: any) => {
+  const setFieldValue = useCallback((field: keyof T, value: T[keyof T]) => {
     setValues((prev) => ({
       ...prev,
       [field]: value,

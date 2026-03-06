@@ -49,7 +49,7 @@ export class MarketplaceService {
 
     // Build where clause
     // When status is provided, filter by it; when undefined, show all statuses (for admin views)
-    const where: any = {};
+    const where: Prisma.PluginWhereInput = {};
 
     if (status) {
       where.status = status;
@@ -74,7 +74,7 @@ export class MarketplaceService {
     }
 
     // Build orderBy
-    const orderBy: any = {};
+    const orderBy: Prisma.PluginOrderByWithRelationInput = {};
     switch (sortBy) {
       case 'rating':
         orderBy.averageRating = sortOrder;
@@ -535,7 +535,7 @@ export class MarketplaceService {
     const { page = 1, limit = 20, minRating } = options;
     const skip = (page - 1) * limit;
 
-    const where: any = { pluginId };
+    const where: Prisma.PluginRatingWhereInput = { pluginId };
     if (minRating) {
       where.rating = { gte: minRating };
     }

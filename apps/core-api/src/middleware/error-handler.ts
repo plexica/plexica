@@ -21,7 +21,7 @@ interface ErrorResponse {
   error: {
     code: string;
     message: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
   };
 }
 
@@ -123,7 +123,7 @@ export function setupErrorHandler(server: FastifyInstance) {
         console.log('[error-handler] INVOKED with error:', {
           name: error.name,
           message: error.message,
-          code: (error as any).code,
+          code: (error as { code?: unknown }).code,
           statusCode: error.statusCode,
         });
       }
@@ -138,8 +138,8 @@ export function setupErrorHandler(server: FastifyInstance) {
           errorType,
           statusCode: error.statusCode,
           requestId: request.id,
-          userId: (request as any).user?.id,
-          tenantId: (request as any).tenantId,
+          userId: request.user?.id,
+          tenantId: request.tenant?.tenantId,
         },
         'Request error'
       );
@@ -204,7 +204,7 @@ export function setupErrorHandler(server: FastifyInstance) {
           originalError: {
             name: error.name,
             message: error.message,
-            code: (error as any).code,
+            code: (error as { code?: unknown }).code,
             statusCode: error.statusCode,
           },
         });

@@ -74,8 +74,9 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
       // Reset form and close
       setNewWorkspaceName('');
       setIsCreating(false);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create workspace');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      setError(e.response?.data?.message || 'Failed to create workspace');
     }
   };
 

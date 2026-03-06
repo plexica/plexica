@@ -115,9 +115,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         setCurrentWorkspace(null);
         apiClient.setWorkspaceId(null);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[WorkspaceContext] Failed to fetch workspaces:', err);
-      setError(err.response?.data?.message || 'Failed to load workspaces');
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      setError(e.response?.data?.message || 'Failed to load workspaces');
       setWorkspaces([]);
       setCurrentWorkspace(null);
     } finally {
@@ -157,9 +158,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         }
 
         console.log('[WorkspaceContext] Workspace selected:', workspace.name);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[WorkspaceContext] Failed to select workspace:', err);
-        setError(err.response?.data?.message || 'Failed to select workspace');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e.response?.data?.message || 'Failed to select workspace');
         throw err;
       }
     },
@@ -182,9 +184,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
 
         console.log('[WorkspaceContext] Workspace created:', newWorkspace.name);
         return newWorkspace;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[WorkspaceContext] Failed to create workspace:', err);
-        setError(err.response?.data?.message || 'Failed to create workspace');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e.response?.data?.message || 'Failed to create workspace');
         throw err;
       }
     },
@@ -212,9 +215,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         }
 
         console.log('[WorkspaceContext] Workspace updated:', workspaceId);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[WorkspaceContext] Failed to update workspace:', err);
-        setError(err.response?.data?.message || 'Failed to update workspace');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e.response?.data?.message || 'Failed to update workspace');
         throw err;
       }
     },
@@ -246,9 +250,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         }
 
         console.log('[WorkspaceContext] Workspace deleted:', workspaceId);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[WorkspaceContext] Failed to delete workspace:', err);
-        setError(err.response?.data?.message || 'Failed to delete workspace');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e.response?.data?.message || 'Failed to delete workspace');
         throw err;
       }
     },
@@ -264,9 +269,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         setError(null);
         await apiClient.addWorkspaceMember(workspaceId, { userId, role });
         console.log('[WorkspaceContext] Member added to workspace:', workspaceId);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[WorkspaceContext] Failed to add member:', err);
-        setError(err.response?.data?.message || 'Failed to add member');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e.response?.data?.message || 'Failed to add member');
         throw err;
       }
     },
@@ -282,9 +288,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         setError(null);
         await apiClient.updateWorkspaceMemberRole(workspaceId, userId, { role });
         console.log('[WorkspaceContext] Member role updated:', workspaceId, userId, role);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[WorkspaceContext] Failed to update member role:', err);
-        setError(err.response?.data?.message || 'Failed to update member role');
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        setError(e.response?.data?.message || 'Failed to update member role');
         throw err;
       }
     },
@@ -299,9 +306,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       setError(null);
       await apiClient.removeWorkspaceMember(workspaceId, userId);
       console.log('[WorkspaceContext] Member removed from workspace:', workspaceId, userId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[WorkspaceContext] Failed to remove member:', err);
-      setError(err.response?.data?.message || 'Failed to remove member');
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      setError(e.response?.data?.message || 'Failed to remove member');
       throw err;
     }
   }, []);

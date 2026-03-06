@@ -61,9 +61,7 @@ function EditRolePage() {
     if (role) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(role.name);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDescription(role.description ?? '');
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPermissions(new Set(role.permissions));
     }
   }, [role]);

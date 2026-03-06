@@ -61,8 +61,8 @@ export function useTranslations(options: UseTranslationsOptions) {
 
         return data;
       } catch (error: unknown) {
-        // Proper type guard for error status code
-        const statusCode = (error as any)?.statusCode ?? (error as any)?.response?.status ?? null;
+        const typedError = error as { statusCode?: number; response?: { status?: number } };
+        const statusCode = typedError.statusCode ?? typedError.response?.status ?? null;
 
         // Handle 404 gracefully (namespace not found or disabled)
         if (statusCode === 404) {
@@ -134,7 +134,8 @@ export function useNamespaces(namespaces: string[]) {
           );
           return { namespace, translations: response };
         } catch (error: unknown) {
-          const status = (error as any)?.statusCode ?? (error as any)?.response?.status;
+          const typedErr = error as { statusCode?: number; response?: { status?: number } };
+          const status = typedErr.statusCode ?? typedErr.response?.status;
           if (status === 404) {
             // Namespace not found - return empty translations
             return { namespace, translations: {} };

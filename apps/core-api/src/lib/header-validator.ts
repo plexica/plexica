@@ -82,14 +82,17 @@ export interface CustomHeaders {
   errors: string[];
 }
 
-export function validateCustomHeaders(headers: Record<string, any>): CustomHeaders {
+export function validateCustomHeaders(
+  headers: Record<string, string | string[] | undefined>
+): CustomHeaders {
   const result: CustomHeaders = {
     errors: [],
   };
 
   // Validate X-Tenant-Slug header
   if (headers['x-tenant-slug']) {
-    const tenantSlug = sanitizeHeaderValue(headers['x-tenant-slug']);
+    const rawSlug = headers['x-tenant-slug'];
+    const tenantSlug = sanitizeHeaderValue(Array.isArray(rawSlug) ? rawSlug[0] : rawSlug);
 
     if (!isValidTenantSlug(tenantSlug)) {
       result.errors.push(
@@ -102,7 +105,8 @@ export function validateCustomHeaders(headers: Record<string, any>): CustomHeade
 
   // Validate X-Workspace-ID header (if present)
   if (headers['x-workspace-id']) {
-    const workspaceId = sanitizeHeaderValue(headers['x-workspace-id']);
+    const rawId = headers['x-workspace-id'];
+    const workspaceId = sanitizeHeaderValue(Array.isArray(rawId) ? rawId[0] : rawId);
 
     if (!isValidWorkspaceId(workspaceId)) {
       result.errors.push(`Invalid X-Workspace-ID header: "${workspaceId}" is not a valid UUID`);

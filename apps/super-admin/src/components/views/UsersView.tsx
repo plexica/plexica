@@ -53,7 +53,7 @@ export function UsersView() {
           className="px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="all">All Tenants</option>
-          {tenants.map((tenant: any) => (
+          {tenants.map((tenant: { id: string; name: string; slug: string }) => (
             <option key={tenant.id} value={tenant.slug}>
               {tenant.name}
             </option>

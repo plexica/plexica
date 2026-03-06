@@ -89,8 +89,8 @@ export const useAuthStore = create<AuthStore>()(
           if (tokenParsed && userInfo) {
             const userData: User = {
               id: tokenParsed.sub || '',
-              email: (userInfo as any).email || tokenParsed.email || '',
-              name: (userInfo as any).name || tokenParsed.name || 'Super Admin',
+              email: (userInfo as { email?: string }).email || tokenParsed.email || '',
+              name: (userInfo as { name?: string }).name || tokenParsed.name || 'Super Admin',
               roles: tokenParsed.realm_access?.roles || [],
             };
 
@@ -130,7 +130,7 @@ export const useAuthStore = create<AuthStore>()(
           const token = getToken();
           if (token) {
             try {
-              const decoded = jwtDecode(token) as any;
+              const decoded = jwtDecode<{ exp?: number }>(token);
               const expiryTime = decoded.exp ? decoded.exp * 1000 : null;
 
               if (!expiryTime || Date.now() >= expiryTime) {
@@ -162,5 +162,5 @@ export const useAuthStore = create<AuthStore>()(
 
 // Expose auth store instance globally for Keycloak token refresh error handling
 if (typeof window !== 'undefined') {
-  (window as any).__authStoreInstance = useAuthStore;
+  (window as unknown as Record<string, unknown>).__authStoreInstance = useAuthStore;
 }

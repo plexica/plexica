@@ -24,7 +24,7 @@ const hierarchyService = new WorkspaceHierarchyService();
 export async function workspaceGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     // Get tenant context from request (set by tenantContextMiddleware)
-    const tenantContext = (request as any).tenant;
+    const tenantContext = request.tenant;
     if (!tenantContext) {
       return reply.code(401).send({
         error: {
@@ -35,7 +35,7 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
     }
 
     // Extract user ID from request (assuming set by auth middleware)
-    const userId = (request as any).user?.id;
+    const userId = request.user?.id;
     if (!userId) {
       return reply.code(401).send({
         error: {
@@ -46,11 +46,14 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
     }
 
     // Extract workspace ID from multiple sources (priority order)
+    const params = request.params as Record<string, string | undefined>;
+    const query = request.query as Record<string, string | undefined>;
+    const body = request.body as Record<string, string | undefined> | null | undefined;
     const workspaceId =
       (request.headers['x-workspace-id'] as string) ||
-      (request.params as any)?.workspaceId ||
-      (request.query as any)?.workspaceId ||
-      (request.body as any)?.workspaceId;
+      params?.workspaceId ||
+      query?.workspaceId ||
+      body?.workspaceId;
 
     if (!workspaceId) {
       return reply.code(400).send({
@@ -80,8 +83,11 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
 
     if (membership) {
       // Direct member — attach membership and continue (unchanged behaviour)
-      (request as any).workspaceMembership = membership;
-      (request as any).workspaceAccess = {
+      request.workspaceMembership = {
+        ...membership,
+        role: membership.role as 'ADMIN' | 'MEMBER' | 'VIEWER',
+      };
+      request.workspaceAccess = {
         workspaceId,
         userId,
         role: membership.role as 'ADMIN' | 'MEMBER' | 'VIEWER',
@@ -91,14 +97,14 @@ export async function workspaceGuard(request: FastifyRequest, reply: FastifyRepl
     }
 
     // Step 2: Hierarchical fallback — only applicable if workspace has ancestors
-    const wsPath: string | undefined = (workspaceRow as any)?.path;
+    const wsPath: string | undefined = (workspaceRow as { id: string; path: string } | null)?.path;
     if (wsPath && wsPath.includes('/')) {
       // Workspace has at least one ancestor; check if user is ADMIN of any of them
       const isAncestorAdmin = await hierarchyService.isAncestorAdmin(userId, wsPath, tenantContext);
 
       if (isAncestorAdmin) {
         // Grant read-only hierarchical access
-        (request as any).workspaceAccess = {
+        request.workspaceAccess = {
           workspaceId,
           userId,
           role: 'HIERARCHICAL_READER',

@@ -102,7 +102,7 @@ export async function verifyKeycloakToken(
     }) as KeycloakJwtPayload;
 
     return payload;
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof jwt.TokenExpiredError) {
       throw new Error('Token expired');
     }
@@ -157,8 +157,8 @@ export async function verifyTokenWithTenant(
     // Check for tenant slug in preferred order: tenantSlug > tenant_id > tenant > issuer
     if (verifiedPayload.tenantSlug) {
       tenantSlug = verifiedPayload.tenantSlug;
-    } else if ((verifiedPayload as any).tenant_id) {
-      tenantSlug = (verifiedPayload as any).tenant_id;
+    } else if (verifiedPayload.tenant_id) {
+      tenantSlug = verifiedPayload.tenant_id;
     } else if (verifiedPayload.tenant) {
       tenantSlug = verifiedPayload.tenant;
     } else if (verifiedPayload.iss) {
@@ -316,12 +316,12 @@ export function extractUserInfo(payload: KeycloakJwtPayload): UserInfo {
  * This can be used for service-to-service communication
  */
 export function generateInternalToken(
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   expiresIn: string | number = '15m'
 ): string {
   const options: SignOptions = {
     algorithm: 'HS256', // SECURITY: Explicitly specify algorithm to prevent algorithm confusion attacks
-    expiresIn: expiresIn as any,
+    expiresIn: expiresIn as SignOptions['expiresIn'],
     issuer: 'plexica-core-api',
   };
   return jwt.sign(payload, config.jwtSecret, options);

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { Prisma, TenantStatus } from '@plexica/database';
+import { Prisma, PrismaClient, TenantStatus } from '@plexica/database';
 import { tenantService } from '../services/tenant.service.js';
 import { validateCustomHeaders, logSuspiciousHeader } from '../lib/header-validator.js';
 
@@ -52,7 +52,7 @@ export async function tenantContextMiddleware(
 
     // Method 1: Extract tenant from JWT token (primary method for authenticated requests)
     // authMiddleware sets request.user.tenantSlug from the JWT token's realm claim
-    const user = (request as any).user;
+    const user = request.user;
     if (user && user.tenantSlug) {
       tenantSlug = user.tenantSlug;
       jwtTenantSlug = user.tenantSlug; // Remember JWT tenant for validation
@@ -144,7 +144,8 @@ export async function tenantContextMiddleware(
       // Belt-and-suspenders: DELETED tenants must return 404 even when reached via the
       // cross-tenant path (e.g. regular user sends x-tenant-slug for a DELETED tenant).
       // This ensures spec T001-07 is enforced regardless of execution order edge-cases.
-      if (tenant.status === TenantStatus.DELETED) {
+      // Note: tenant.status is narrowed by the DELETED check above; cast to full enum for safety.
+      if ((tenant.status as TenantStatus) === TenantStatus.DELETED) {
         return reply.code(404).send({
           error: {
             code: 'TENANT_NOT_FOUND',
@@ -154,12 +155,12 @@ export async function tenantContextMiddleware(
         });
       }
 
-      const roles = user?.roles ?? user?.realm_access?.roles ?? [];
+      const roles = user?.roles ?? [];
       const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
 
       if (!isSuperAdmin) {
         request.log.warn(
-          { jwtTenant: jwtTenantSlug, headerTenant: tenantSlug, userId: user.id },
+          { jwtTenant: jwtTenantSlug, headerTenant: tenantSlug, userId: user?.id },
           'Cross-tenant access attempt detected'
         );
         return reply.code(403).send({
@@ -178,7 +179,7 @@ export async function tenantContextMiddleware(
     // SUSPENDED / PENDING_DELETION: Super Admins can still access; regular users get 403
     // Note: DELETED is already handled above — this guard is for SUSPENDED / PENDING_DELETION only.
     if (tenant.status !== TenantStatus.ACTIVE) {
-      const roles: string[] = user?.roles ?? user?.realm_access?.roles ?? [];
+      const roles: string[] = user?.roles ?? [];
       const isSuperAdmin = roles.includes('super_admin') || roles.includes('super-admin');
 
       if (!isSuperAdmin) {
@@ -209,7 +210,7 @@ export async function tenantContextMiddleware(
     tenantContextStorage.enterWith(context);
 
     // Also add context to request for easy access
-    (request as any).tenant = context;
+    request.tenant = context;
 
     // NOTE: User sync to tenant schema is now handled asynchronously via UserSyncConsumer
     // (Phase 5, FR-007) - no request-time UPSERT needed
@@ -217,9 +218,7 @@ export async function tenantContextMiddleware(
     // Handle tenant-not-found separately (getTenantBySlug throws instead of returning null)
     if (error instanceof Error && error.message === 'Tenant not found') {
       const resolvedSlug =
-        (request as any).user?.tenantSlug ||
-        (request.headers['x-tenant-slug'] as string) ||
-        'unknown';
+        request.user?.tenantSlug || (request.headers['x-tenant-slug'] as string) || 'unknown';
 
       request.log.warn(
         { tenantSlug: resolvedSlug, error: error.message },
@@ -331,8 +330,8 @@ export function setUserId(userId: string): void {
  * }, tenantContext);
  */
 export async function executeInTenantSchema<T>(
-  prismaClient: any,
-  callback: (client: any) => Promise<T>,
+  prismaClient: PrismaClient,
+  callback: (client: PrismaClient) => Promise<T>,
   tenantCtx?: TenantContext
 ): Promise<T> {
   const context = tenantCtx || getTenantContext();

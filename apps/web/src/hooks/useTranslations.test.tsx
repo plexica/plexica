@@ -93,7 +93,7 @@ describe('useTranslations', () => {
 
   it('should re-throw non-404 errors', async () => {
     const error = new Error('Internal server error');
-    (error as any).statusCode = 500;
+    (error as Error & { statusCode: number }).statusCode = 500;
 
     vi.mocked(apiClient.get).mockRejectedValueOnce(error);
 

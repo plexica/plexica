@@ -7,6 +7,7 @@ import { marketplaceService } from '../services/marketplace.service.js';
 import { adminService } from '../services/admin.service.js';
 import { pluginRegistryService } from '../services/plugin.service.js';
 import { TenantStatus } from '@plexica/database';
+import type { PluginCategory as MarketplacePluginCategory } from '../schemas/marketplace.schema.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { getJobQueueServiceInstance } from '../modules/jobs/job-queue.singleton.js';
 import { db } from '../lib/db.js';
@@ -166,7 +167,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
             totalPages,
           },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
         return reply.code(500).send({
           error: {
@@ -237,8 +238,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       name: string;
       adminEmail: string;
       pluginIds?: string[];
-      settings?: Record<string, any>;
-      theme?: Record<string, any>;
+      settings?: Record<string, unknown>;
+      theme?: Record<string, unknown>;
     };
   }>(
     '/admin/tenants',
@@ -353,20 +354,20 @@ export async function adminRoutes(fastify: FastifyInstance) {
           name: string;
           adminEmail: string;
           pluginIds?: string[];
-          settings?: Record<string, any>;
-          theme?: Record<string, any>;
+          settings?: Record<string, unknown>;
+          theme?: Record<string, unknown>;
         };
       }>,
       reply: FastifyReply
     ) => {
       // Handle schema-level validation failures (required fields, format: 'email', etc.)
       // attachValidation: true prevents Fastify from auto-sending a 400, so we intercept here.
-      if ((request as any).validationError) {
-        const ve = (request as any).validationError;
+      const reqWithValidation = request as unknown as { validationError?: { message?: string } };
+      if (reqWithValidation.validationError) {
         return reply.code(400).send({
           error: {
             code: 'VALIDATION_ERROR',
-            message: ve.message ?? 'Request body validation failed',
+            message: reqWithValidation.validationError.message ?? 'Request body validation failed',
           },
         });
       }
@@ -410,35 +411,36 @@ export async function adminRoutes(fastify: FastifyInstance) {
         request.log.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant created successfully');
 
         return reply.code(201).send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, body: request.body }, 'Failed to create tenant');
 
         // Handle validation errors
-        if (error.message.includes('must be')) {
+        if (err.message.includes('must be')) {
           return reply.code(400).send({
             error: {
               code: 'VALIDATION_ERROR',
-              message: error.message,
+              message: err.message,
             },
           });
         }
 
         // Handle duplicate slug errors
-        if (error.message.includes('already exists')) {
+        if (err.message.includes('already exists')) {
           return reply.code(409).send({
             error: {
               code: 'SLUG_CONFLICT',
-              message: error.message,
+              message: err.message,
             },
           });
         }
 
         // Handle provisioning errors
-        if (error.message.includes('Failed to provision')) {
+        if (err.message.includes('Failed to provision')) {
           return reply.code(500).send({
             error: {
               code: 'PROVISIONING_FAILED',
-              message: error.message,
+              message: err.message,
             },
           });
         }
@@ -510,10 +512,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const tenant = await tenantService.getTenant(request.params.id);
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, tenantId: request.params.id }, 'Failed to get tenant');
 
-        if (error.message === 'Tenant not found') {
+        if (err.message === 'Tenant not found') {
           return reply.code(404).send({
             error: {
               code: 'TENANT_NOT_FOUND',
@@ -583,15 +586,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
         void auditLogService.log({
           action: 'tenant.suspended',
           tenantId: request.params.id,
-          userId: (request as any).user?.sub,
+          userId: request.token?.sub,
           resourceType: 'tenant',
           resourceId: request.params.id,
         });
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, tenantId: request.params.id }, 'Failed to suspend tenant');
 
-        if (error.message === 'Tenant not found') {
+        if (err.message === 'Tenant not found') {
           return reply.code(404).send({
             error: {
               code: 'TENANT_NOT_FOUND',
@@ -600,11 +604,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
           });
         }
 
-        if (error.message?.startsWith('Cannot suspend tenant with status:')) {
+        if (err.message?.startsWith('Cannot suspend tenant with status:')) {
           return reply.code(409).send({
             error: {
               code: 'INVALID_TENANT_STATE',
-              message: error.message,
+              message: err.message,
             },
           });
         }
@@ -669,24 +673,25 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const tenant = await tenantService.activateTenant(request.params.id);
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, tenantId: request.params.id }, 'Failed to activate tenant');
 
-        if (error.message === 'Tenant not found') {
+        if (err.message === 'Tenant not found') {
           return reply.code(404).send({
             error: {
               code: 'TENANT_NOT_FOUND',
-              message: error.message,
+              message: err.message,
               details: { tenantId: request.params.id },
             },
           });
         }
 
-        if (error.message?.startsWith('Cannot activate tenant with status:')) {
+        if (err.message?.startsWith('Cannot activate tenant with status:')) {
           return reply.code(400).send({
             error: {
               code: 'INVALID_STATUS_TRANSITION',
-              message: error.message,
+              message: err.message,
             },
           });
         }
@@ -758,7 +763,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         }
         const tenant = await tenantService.activateTenant(request.params.id);
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to reactivate tenant');
         return reply.code(500).send({
           error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to reactivate tenant' },
@@ -805,8 +810,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const settings = (tenant.settings ?? {}) as Record<string, any>;
-        const adminEmail: string | undefined = settings.adminEmail;
+        const settings = (tenant.settings ?? {}) as Record<string, unknown>;
+        const adminEmail: string | undefined =
+          typeof settings.adminEmail === 'string' ? settings.adminEmail : undefined;
 
         if (!adminEmail) {
           return reply.code(400).send({
@@ -848,7 +854,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         request.log.info({ tenantId: tenant.id, adminEmail }, 'Invitation email resent');
 
         return reply.send({ message: 'Invitation email sent successfully', sentAt });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error, tenantId: request.params.id }, 'Failed to resend invitation');
 
         return reply.code(500).send({
@@ -923,7 +929,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         void auditLogService.log({
           action: 'tenant.deleted',
           tenantId: request.params.id,
-          userId: (request as any).user?.sub,
+          userId: request.token?.sub,
           resourceType: 'tenant',
           resourceId: request.params.id,
         });
@@ -934,10 +940,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
           deletionScheduledAt: deletionScheduledAt.toISOString(),
           message: 'Tenant scheduled for deletion in 30 days',
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, tenantId: request.params.id }, 'Failed to delete tenant');
 
-        if (error.message === 'Tenant not found') {
+        if (err.message === 'Tenant not found') {
           return reply.code(404).send({
             error: {
               code: 'TENANT_NOT_FOUND',
@@ -946,15 +953,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
           });
         }
 
-        if (error.message?.startsWith('Cannot delete tenant with status:')) {
+        if (err.message?.startsWith('Cannot delete tenant with status:')) {
           // Map PENDING_DELETION back to 400, other invalid states to 409
-          const isPendingDeletion = error.message.includes('PENDING_DELETION');
+          const isPendingDeletion = err.message.includes('PENDING_DELETION');
           return reply.code(isPendingDeletion ? 400 : 409).send({
             error: {
               code: isPendingDeletion ? 'ALREADY_PENDING_DELETION' : 'INVALID_TENANT_STATE',
-              message: isPendingDeletion
-                ? 'Tenant is already scheduled for deletion'
-                : error.message,
+              message: isPendingDeletion ? 'Tenant is already scheduled for deletion' : err.message,
             },
           });
         }
@@ -976,8 +981,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     Params: { id: string };
     Body: {
       name?: string;
-      settings?: Record<string, any>;
-      theme?: Record<string, any>;
+      settings?: Record<string, unknown>;
+      theme?: Record<string, unknown>;
     };
   }>(
     '/admin/tenants/:id',
@@ -1049,15 +1054,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
         Params: { id: string };
         Body: {
           name?: string;
-          settings?: Record<string, any>;
-          theme?: Record<string, any>;
+          settings?: Record<string, unknown>;
+          theme?: Record<string, unknown>;
         };
       }>,
       reply: FastifyReply
     ) => {
       try {
         const { name, settings, theme } = request.body;
-        const updateData: Record<string, any> = {};
+        const updateData: Record<string, unknown> = {};
 
         if (name !== undefined) updateData.name = name;
         if (settings !== undefined) updateData.settings = settings;
@@ -1090,10 +1095,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         request.log.info({ tenantId: tenant.id }, 'Tenant updated successfully');
 
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, tenantId: request.params.id }, 'Failed to update tenant');
 
-        if (error.message === 'Tenant not found') {
+        if (err.message === 'Tenant not found') {
           return reply.code(404).send({
             error: {
               code: 'TENANT_NOT_FOUND',
@@ -1229,7 +1235,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
 
         return reply.send(result);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
         return reply.code(500).send({
           error: {
@@ -1279,14 +1285,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
           includeAllVersions
         );
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, pluginId: request.params.id }, 'Failed to get plugin');
 
-        if (error.message.includes('not found')) {
+        if (err.message.includes('not found')) {
           return reply.code(404).send({
             error: {
               code: 'PLUGIN_NOT_FOUND',
-              message: error.message,
+              message: err.message,
               details: { pluginId: request.params.id },
             },
           });
@@ -1368,7 +1375,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
             name,
             version,
             description,
-            category: category as any,
+            category: category as MarketplacePluginCategory,
             author,
             authorEmail: 'admin@plexica.io',
             manifest: {},
@@ -1380,12 +1387,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         request.log.info({ pluginId: plugin.id }, 'Plugin created by admin');
         return reply.code(201).send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error }, 'Failed to create plugin');
         return reply.code(400).send({
           error: {
             code: 'VALIDATION_ERROR',
-            message: error.message,
+            message: err.message,
           },
         });
       }
@@ -1494,14 +1502,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         request.log.info({ pluginId: request.params.id }, 'Plugin updated by admin');
         return reply.send(plugin);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, pluginId: request.params.id }, 'Failed to update plugin');
 
-        if (error.message.includes('not found')) {
+        if (err.message.includes('not found')) {
           return reply.code(404).send({
             error: {
               code: 'PLUGIN_NOT_FOUND',
-              message: error.message,
+              message: err.message,
               details: { pluginId: request.params.id },
             },
           });
@@ -1577,24 +1586,25 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         request.log.info({ pluginId: request.params.id }, 'Plugin deleted by admin');
         return reply.send({ message: 'Plugin deleted successfully' });
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, pluginId: request.params.id }, 'Failed to delete plugin');
 
-        if (error.message.includes('not found')) {
+        if (err.message.includes('not found')) {
           return reply.code(404).send({
             error: {
               code: 'PLUGIN_NOT_FOUND',
-              message: error.message,
+              message: err.message,
               details: { pluginId: request.params.id },
             },
           });
         }
 
-        if (error.message.includes('Cannot delete')) {
+        if (err.message.includes('Cannot delete')) {
           return reply.code(409).send({
             error: {
               code: 'PLUGIN_DELETE_CONFLICT',
-              message: error.message,
+              message: err.message,
               details: { pluginId: request.params.id },
             },
           });
@@ -1685,17 +1695,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
             installedAt: i.installedAt.toISOString(),
           }))
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error(
           { error, pluginId: request.params.id },
           'Failed to get plugin installations'
         );
 
-        if (error.message?.includes('not found')) {
+        if (err.message?.includes('not found')) {
           return reply.code(404).send({
             error: {
               code: 'PLUGIN_NOT_FOUND',
-              message: error.message,
+              message: err.message,
               details: { pluginId: request.params.id },
             },
           });
@@ -1821,7 +1832,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
             totalPages: result.totalPages,
           },
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
         return reply.code(500).send({
           error: {
@@ -1902,14 +1913,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const user = await adminService.getUserById(request.params.id);
         return reply.send(user);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error, userId: request.params.id }, 'Failed to get user');
 
-        if (error.message.includes('not found')) {
+        if (err.message.includes('not found')) {
           return reply.code(404).send({
             error: {
               code: 'USER_NOT_FOUND',
-              message: error.message,
+              message: err.message,
               details: { userId: request.params.id },
             },
           });
@@ -1968,7 +1980,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const overview = await analyticsService.getOverview();
         return reply.send(overview);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to fetch analytics overview');
         return reply.code(500).send({
           error: {
@@ -2031,7 +2043,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const days = (request.query.days ?? Number(request.query.period)) || 30;
         const data = await analyticsService.getTenantGrowth(days);
         return reply.send(data);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to fetch tenant growth data');
         return reply.code(500).send({
           error: {
@@ -2086,7 +2098,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const plugins = await analyticsService.getPluginUsage();
         return reply.send(plugins);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to fetch plugin usage data');
         return reply.code(500).send({
           error: {
@@ -2159,7 +2171,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const { hours = 24 } = request.query;
         const metrics = await analyticsService.getApiCallMetrics(hours);
         return reply.send(metrics);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to fetch API call metrics');
         return reply.code(500).send({
           error: {
@@ -2227,7 +2239,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const admins = await adminService.listSuperAdmins();
         return reply.send({ data: admins, meta: { total: admins.length, page: 1, limit: 50 } });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to list super admins');
         return reply.code(500).send({
           error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to list super admins' },
@@ -2288,20 +2300,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
           userId,
           email,
           name,
-          grantedBy: (request as any).user?.sub ?? 'system',
+          grantedBy: request.token?.sub ?? 'system',
         });
         await auditLogService.log({
           action: 'super_admin.granted',
-          userId: (request as any).user?.sub,
+          userId: request.token?.sub,
           resourceType: 'super_admin',
           resourceId: admin.id,
           details: { email },
         });
         return reply.code(201).send(admin);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
         request.log.error({ error }, 'Failed to create super admin');
         return reply.code(400).send({
-          error: { code: 'SUPER_ADMIN_CREATE_FAILED', message: error.message },
+          error: { code: 'SUPER_ADMIN_CREATE_FAILED', message: err.message },
         });
       }
     }
@@ -2353,12 +2366,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
         await adminService.revokeSuperAdmin(request.params.id);
         await auditLogService.log({
           action: 'super_admin.revoked',
-          userId: (request as any).user?.sub,
+          userId: request.token?.sub,
           resourceType: 'super_admin',
           resourceId: request.params.id,
         });
         return reply.code(204).send();
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error instanceof SuperAdminNotFoundError) {
           return reply.code(404).send({
             error: { code: error.code, message: error.message },
@@ -2414,7 +2427,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const health = await adminService.getSystemHealth();
         return reply.send(health);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to get system health');
         return reply.code(500).send({
           error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get system health' },
@@ -2470,7 +2483,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const { category } = request.query;
         const items = await systemConfigService.list(category);
         return reply.send({ data: items });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to list system config');
         return reply.code(500).send({
           error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to list system config' },
@@ -2523,7 +2536,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       try {
         const item = await systemConfigService.get(request.params.key);
         return reply.send(item);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error instanceof SystemConfigNotFoundError) {
           return reply.code(404).send({
             error: { code: error.code, message: error.message },
@@ -2584,7 +2597,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const updatedBy = (request as any).user?.sub ?? 'system';
+        const updatedBy = request.token?.sub ?? 'system';
         const updated = await systemConfigService.update(
           request.params.key,
           request.body.value,
@@ -2598,7 +2611,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           details: { key: request.params.key },
         });
         return reply.send({ data: updated });
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (error instanceof SystemConfigNotFoundError) {
           return reply.code(404).send({
             error: { code: error.code, message: error.message },
@@ -2705,10 +2718,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
           limit,
         });
         return reply.send(result);
-      } catch (error: any) {
-        if (error.code === 'AUDIT_LOG_RESULT_WINDOW_EXCEEDED') {
+      } catch (error: unknown) {
+        const err = error as Error & { code?: string };
+        if (err.code === 'AUDIT_LOG_RESULT_WINDOW_EXCEEDED') {
           return reply.code(400).send({
-            error: { code: 'RESULT_WINDOW_EXCEEDED', message: error.message },
+            error: { code: 'RESULT_WINDOW_EXCEEDED', message: err.message },
           });
         }
         request.log.error({ error }, 'Failed to query audit logs');
@@ -2802,8 +2816,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
 
       const body = parseResult.data;
-      const requestingUserId =
-        (request.user as any)?.sub ?? (request.user as any)?.id ?? '__platform__';
+      const requestingUserId = request.token?.sub ?? request.user?.id ?? '__platform__';
 
       try {
         const jobQueueService = getJobQueueServiceInstance();
@@ -2842,7 +2855,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
 
         return reply.code(202).send({ jobId, estimatedSeconds: 30 });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error({ error }, 'Failed to enqueue audit log export job');
         return reply.code(500).send({
           error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to enqueue export job' },

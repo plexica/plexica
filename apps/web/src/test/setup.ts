@@ -17,7 +17,7 @@ const localStorageMock = {
   length: 0,
   key: vi.fn(),
 };
-globalThis.localStorage = localStorageMock as any;
+globalThis.localStorage = localStorageMock as unknown as Storage;
 
 // Mock navigator.language (make it configurable so tests can override it)
 Object.defineProperty(globalThis.navigator, 'language', {

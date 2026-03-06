@@ -1288,7 +1288,13 @@ export class WorkspaceService {
     }
 
     // Try to get cached membership (but always verify workspace existence)
-    let cachedMembership: any = null;
+    let cachedMembership: {
+      workspaceId: string;
+      userId: string;
+      role: string;
+      invitedBy: string;
+      joinedAt: Date;
+    } | null = null;
     if (this.cache) {
       try {
         const cacheKey = this.membershipCacheKey(tenantContext.tenantId, workspaceId, userId);

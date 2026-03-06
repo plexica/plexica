@@ -1,4 +1,4 @@
-import { PrismaClient, TenantStatus, type Tenant } from '@plexica/database';
+import { Prisma, PrismaClient, TenantStatus, type Tenant } from '@plexica/database';
 import { keycloakService } from './keycloak.service.js';
 import { db } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
@@ -20,16 +20,16 @@ export interface CreateTenantInput {
   name: string;
   /** Optional — when omitted the admin_user and invitation_sent steps are skipped */
   adminEmail?: string;
-  settings?: Record<string, any>;
-  theme?: Record<string, any>;
+  settings?: Record<string, unknown>;
+  theme?: Record<string, unknown>;
   pluginIds?: string[];
 }
 
 export interface UpdateTenantInput {
   name?: string;
   status?: TenantStatus;
-  settings?: Record<string, any>;
-  theme?: Record<string, any>;
+  settings?: Record<string, unknown>;
+  theme?: Record<string, unknown>;
 }
 
 export class TenantService {
@@ -81,15 +81,16 @@ export class TenantService {
           slug,
           name,
           status: TenantStatus.PROVISIONING,
-          settings,
-          theme,
+          settings: settings as Prisma.InputJsonValue,
+          theme: theme as Prisma.InputJsonValue,
         },
       });
-    } catch (error: any) {
-      const errorMessage = error?.message?.toString() || '';
-      const errorString = error?.toString?.() || '';
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
+      const errorMessage = err?.message?.toString() || '';
+      const errorString = String(error) || '';
       if (
-        error.code === 'P2002' ||
+        err.code === 'P2002' ||
         errorMessage.includes('Unique constraint failed') ||
         errorString.includes('Unique constraint failed')
       ) {
@@ -148,7 +149,9 @@ export class TenantService {
   /**
    * Get tenant by ID
    */
-  async getTenant(id: string): Promise<any> {
+  async getTenant(
+    id: string
+  ): Promise<Prisma.TenantGetPayload<{ include: { plugins: { include: { plugin: true } } } }>> {
     const tenant = await this.db.tenant.findUnique({
       where: { id },
       include: {
@@ -170,7 +173,9 @@ export class TenantService {
   /**
    * Get tenant by slug
    */
-  async getTenantBySlug(slug: string): Promise<any> {
+  async getTenantBySlug(
+    slug: string
+  ): Promise<Prisma.TenantGetPayload<{ include: { plugins: { include: { plugin: true } } } }>> {
     const tenant = await this.db.tenant.findUnique({
       where: { slug },
       include: {
@@ -197,11 +202,14 @@ export class TenantService {
     take?: number;
     status?: TenantStatus;
     search?: string;
-  }): Promise<{ tenants: any[]; total: number }> {
+  }): Promise<{
+    tenants: Prisma.TenantGetPayload<{ include: { plugins: { include: { plugin: true } } } }>[];
+    total: number;
+  }> {
     const { skip = 0, take = 50, status, search } = options || {};
 
     // Build where clause with optional filters
-    const where: any = {};
+    const where: Prisma.TenantWhereInput = {};
 
     if (status) {
       where.status = status;
@@ -238,7 +246,7 @@ export class TenantService {
   /**
    * Update tenant information
    */
-  async updateTenant(id: string, input: UpdateTenantInput): Promise<any> {
+  async updateTenant(id: string, input: UpdateTenantInput): Promise<Tenant> {
     const tenant = await this.db.tenant.findUnique({
       where: { id },
     });
@@ -252,8 +260,8 @@ export class TenantService {
       data: {
         name: input.name,
         status: input.status,
-        settings: input.settings,
-        theme: input.theme,
+        settings: input.settings as Prisma.InputJsonValue | undefined,
+        theme: input.theme as Prisma.InputJsonValue | undefined,
       },
     });
 
@@ -430,8 +438,8 @@ export class TenantService {
   async installPlugin(
     tenantId: string,
     pluginId: string,
-    configuration: Record<string, any> = {}
-  ): Promise<any> {
+    configuration: Record<string, unknown> = {}
+  ): Promise<Prisma.TenantPluginGetPayload<{ include: { plugin: true } }>> {
     const tenant = await this.db.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -467,7 +475,7 @@ export class TenantService {
         tenantId,
         pluginId,
         enabled: true,
-        configuration,
+        configuration: configuration as Prisma.InputJsonValue,
       },
       include: {
         plugin: true,

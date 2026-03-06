@@ -1,7 +1,8 @@
 // File: apps/web/src/lib/plugin-registry.ts
 
-import type { LoadedPlugin, PluginManifest } from './plugin-loader';
+import type { LoadedPlugin, PluginManifest, PluginRoute, PluginMenuItem } from './plugin-loader';
 import { pluginLoader } from './plugin-loader';
+import type { TenantPlugin } from '@plexica/types';
 import { apiClient } from './api-client';
 
 export interface PluginFilter {
@@ -146,7 +147,7 @@ class PluginRegistryService {
   /**
    * Get remote entry URL for a plugin
    */
-  private getRemoteEntryUrl(plugin: any): string {
+  private getRemoteEntryUrl(plugin: { id: string; version: string }): string {
     const baseUrl = import.meta.env.DEV
       ? import.meta.env.VITE_PLUGIN_DEV_URL || 'http://localhost:3100'
       : import.meta.env.VITE_PLUGIN_CDN_URL || 'http://localhost:9000/plexica-plugins';
@@ -157,18 +158,18 @@ class PluginRegistryService {
   /**
    * Extract routes from tenant plugin configuration
    */
-  private extractRoutes(tenantPlugin: any): any[] {
-    const config = tenantPlugin.configuration || {};
-    return config.routes || [];
+  private extractRoutes(tenantPlugin: TenantPlugin): PluginRoute[] {
+    const config = (tenantPlugin.configuration as Record<string, unknown>) || {};
+    return (config.routes as PluginRoute[]) || [];
   }
 
   /**
    * Extract menu items from tenant plugin configuration
    */
-  private extractMenuItems(tenantPlugin: any): any[] {
-    const config = tenantPlugin.configuration || {};
+  private extractMenuItems(tenantPlugin: TenantPlugin): PluginMenuItem[] {
+    const config = (tenantPlugin.configuration as Record<string, unknown>) || {};
     return (
-      config.menuItems || [
+      (config.menuItems as PluginMenuItem[]) || [
         {
           label: tenantPlugin.plugin.name,
           path: `/plugins/${tenantPlugin.plugin.id}`,

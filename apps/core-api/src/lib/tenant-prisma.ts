@@ -45,7 +45,9 @@ export class TenantPrisma {
   /**
    * Execute within a transaction with tenant schema context
    */
-  async transaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
+  async transaction<T>(
+    callback: (client: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]) => Promise<T>
+  ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${this.schemaName}", public`);

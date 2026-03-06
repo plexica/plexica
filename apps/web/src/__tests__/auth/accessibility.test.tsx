@@ -13,17 +13,19 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { configureAxe } from 'vitest-axe';
+import type { AuthStore } from '@/stores/auth.store';
 
 // Import the runtime matcher function to register with expect.extend()
 // vitest-axe/extend-expect.js is empty (package bug), so we register manually.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as any;
+const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as unknown as {
+  toHaveNoViolations: Parameters<typeof expect.extend>[0][string];
+};
 expect.extend({ toHaveNoViolations });
 
-// Type-safe helper — avoids repeating `as any` at every assertion site
- 
+// Type-safe helper — avoids repeating casts at every assertion site
+
 function expectNoViolations(results: unknown): void {
-  (expect(results) as any).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations(): void }).toHaveNoViolations();
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +188,7 @@ describe('LoginPage — WCAG 2.1 AA', () => {
       consumeDeepLink: vi.fn(() => null),
       setError: vi.fn(),
       saveDeepLink: vi.fn(),
-    } as any);
+    } as unknown as AuthStore);
 
     const { LoginPage } = await import('@/routes/login');
     const { container } = render(<LoginPage />);
@@ -202,7 +204,7 @@ describe('LoginPage — WCAG 2.1 AA', () => {
       consumeDeepLink: vi.fn(() => null),
       setError: vi.fn(),
       saveDeepLink: vi.fn(),
-    } as any);
+    } as unknown as AuthStore);
 
     const { LoginPage } = await import('@/routes/login');
     const { container } = render(<LoginPage />);

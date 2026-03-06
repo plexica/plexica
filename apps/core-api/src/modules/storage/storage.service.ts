@@ -110,9 +110,7 @@ export class StorageService implements IStorageService {
     options: UploadOptions = {}
   ): Promise<FileInfo> {
     const sanitized = sanitizePath(path);
-    const client: Client = (getMinioClient() as any).client;
-
-    // Edge Case #1: file size check for Buffer uploads
+    const client: Client = (getMinioClient() as unknown as { client: Client }).client;
     if (options.maxSizeBytes !== undefined && Buffer.isBuffer(data)) {
       if (data.length > options.maxSizeBytes) {
         throw Object.assign(
@@ -166,7 +164,7 @@ export class StorageService implements IStorageService {
    */
   async download(path: string): Promise<NodeJS.ReadableStream> {
     const sanitized = sanitizePath(path);
-    const client: Client = (getMinioClient() as any).client;
+    const client: Client = (getMinioClient() as unknown as { client: Client }).client;
 
     try {
       return (await withRetry(() =>
@@ -175,7 +173,8 @@ export class StorageService implements IStorageService {
     } catch (err) {
       if (
         err instanceof Error &&
-        (err.message.includes('NoSuchKey') || (err as any).code === 'NoSuchKey')
+        (err.message.includes('NoSuchKey') ||
+          (err as Error & { code?: string }).code === 'NoSuchKey')
       ) {
         throw Object.assign(new Error(`File not found: ${sanitized}`), {
           code: StorageErrorCode.FILE_NOT_FOUND,
@@ -194,7 +193,7 @@ export class StorageService implements IStorageService {
    */
   async delete(path: string): Promise<void> {
     const sanitized = sanitizePath(path);
-    const client: Client = (getMinioClient() as any).client;
+    const client: Client = (getMinioClient() as unknown as { client: Client }).client;
 
     try {
       await withRetry(() => client.removeObject(this.bucketName, sanitized));
@@ -211,7 +210,7 @@ export class StorageService implements IStorageService {
    * List files in the tenant's bucket, optionally filtered by prefix.
    */
   async list(prefix?: string): Promise<FileInfo[]> {
-    const client: Client = (getMinioClient() as any).client;
+    const client: Client = (getMinioClient() as unknown as { client: Client }).client;
     const results: FileInfo[] = [];
 
     const stream = client.listObjects(this.bucketName, prefix ?? '', true);
@@ -240,7 +239,7 @@ export class StorageService implements IStorageService {
    */
   async getSignedUrl(path: string, options: SignedUrlOptions = {}): Promise<string> {
     const sanitized = sanitizePath(path);
-    const client: Client = (getMinioClient() as any).client;
+    const client: Client = (getMinioClient() as unknown as { client: Client }).client;
     const expiresIn = options.expiresIn ?? 3600;
 
     try {

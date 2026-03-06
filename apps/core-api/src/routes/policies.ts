@@ -40,7 +40,7 @@ import { logger } from '../lib/logger.js';
 
 /** Resolve tenantId + schemaName from request context (set by tenantContextMiddleware) */
 function resolveTenantContext(request: FastifyRequest): { tenantId: string; schemaName: string } {
-  const tenant = (request as any).tenant as { tenantId: string; tenantSlug: string } | undefined;
+  const tenant = request.tenant;
   if (!tenant?.tenantId || !tenant?.tenantSlug) {
     throw new Error('Tenant context not available on request');
   }

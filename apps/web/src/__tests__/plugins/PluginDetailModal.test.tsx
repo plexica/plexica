@@ -10,12 +10,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { configureAxe } from 'vitest-axe';
 
 // Register vitest-axe matchers manually (package bug: extend-expect is empty)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as any;
+const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as unknown as {
+  toHaveNoViolations: Parameters<typeof expect.extend>[0][string];
+};
 expect.extend({ toHaveNoViolations });
 
 function expectNoViolations(results: unknown): void {
-  (expect(results) as any).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations(): void }).toHaveNoViolations();
 }
 
 const axe = configureAxe({
@@ -72,7 +73,7 @@ function renderWithQuery(ui: React.ReactElement) {
 // Test data
 // ---------------------------------------------------------------------------
 
-import type { PluginDetail, PluginLifecycleStatus } from '@plexica/types';
+import type { PluginDetail, PluginLifecycleStatus, PluginStatus } from '@plexica/types';
 import type { TimelineEntry } from '@/components/plugins/PluginTimeline';
 import type {
   TenantAdoptionEntry,
@@ -87,7 +88,7 @@ const mockPlugin: PluginDetail = {
   description: 'Real-time analytics plugin for dashboards.',
   author: 'Acme Corp',
   category: 'Analytics',
-  status: 'PUBLISHED' as any,
+  status: 'PUBLISHED' as PluginStatus,
   lifecycleStatus: 'ACTIVE' as PluginLifecycleStatus,
   icon: '📊',
   homepage: 'https://example.com/analytics',

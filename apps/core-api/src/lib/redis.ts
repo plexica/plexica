@@ -49,7 +49,7 @@ async function safeQuitRedis() {
 
   try {
     // ioredis exposes a `.status` property; skip if already closed
-    const status = (redis as any).status as string | undefined;
+    const status = (redis as unknown as { status?: string }).status;
     if (status === 'end' || status === 'close') return;
 
     await redis.quit();

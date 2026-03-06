@@ -179,9 +179,11 @@ export async function tenantRoutes(fastify: FastifyInstance) {
       try {
         const tenant = await tenantService.createTenant(request.body);
         return reply.code(201).send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({ error: error.message });
+        return reply
+          .code(400)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -227,9 +229,11 @@ export async function tenantRoutes(fastify: FastifyInstance) {
       try {
         const result = await tenantService.listTenants(request.query);
         return reply.send({ ...result, tenants: result.tenants.map(sanitizeTenant) });
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(500).send({ error: error.message });
+        return reply
+          .code(500)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -283,9 +287,11 @@ export async function tenantRoutes(fastify: FastifyInstance) {
       try {
         const tenant = await tenantService.getTenantBySlug(request.params.slug);
         return reply.send(tenant);
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(404)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -334,9 +340,11 @@ export async function tenantRoutes(fastify: FastifyInstance) {
       try {
         const tenant = await tenantService.getTenant(request.params.id);
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(404)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -384,9 +392,11 @@ export async function tenantRoutes(fastify: FastifyInstance) {
       try {
         const tenant = await tenantService.updateTenant(request.params.id, request.body);
         return reply.send(sanitizeTenant(tenant));
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(404)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );
@@ -421,9 +431,11 @@ export async function tenantRoutes(fastify: FastifyInstance) {
       try {
         await tenantService.deleteTenant(request.params.id);
         return reply.code(204).send();
-      } catch (error: any) {
+      } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(404).send({ error: error.message });
+        return reply
+          .code(404)
+          .send({ error: error instanceof Error ? error.message : String(error) });
       }
     }
   );

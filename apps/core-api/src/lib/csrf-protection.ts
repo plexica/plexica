@@ -2,6 +2,7 @@
 
 import * as crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
+import type { FastifyRequest } from 'fastify';
 
 /**
  * CSRF Protection Module
@@ -97,19 +98,21 @@ export function revokeSessionTokens(sessionId: string): void {
 /**
  * Extract session ID from various sources
  */
-export function getSessionId(request: any): string {
+export function getSessionId(request: FastifyRequest): string {
   // Method 1: From JWT token (sub claim)
   if (request.user?.id) {
     return request.user.id;
   }
 
   // Method 2: From session cookie
-  if (request.cookies?.sessionId) {
-    return request.cookies.sessionId;
+  const cookies = (request as FastifyRequest & { cookies?: Record<string, string | undefined> })
+    .cookies;
+  if (cookies?.['sessionId']) {
+    return cookies['sessionId'];
   }
 
   // Method 3: Generate temporary session ID from IP + User-Agent
-  const ip = request.ip || request.connection.remoteAddress || 'unknown';
+  const ip = request.ip || 'unknown';
   const userAgent = request.headers['user-agent'] || 'unknown';
   return crypto.createHash('sha256').update(`${ip}:${userAgent}`).digest('hex');
 }
@@ -117,7 +120,7 @@ export function getSessionId(request: any): string {
 /**
  * Extract user agent from request
  */
-export function getUserAgent(request: any): string | undefined {
+export function getUserAgent(request: FastifyRequest): string | undefined {
   return request.headers['user-agent'];
 }
 
@@ -134,7 +137,7 @@ export function shouldCheckCSRF(method: string): boolean {
  * Extract CSRF token from request
  * Looks in: X-CSRF-Token header, CSRF-Token cookie
  */
-export function extractCSRFToken(request: any): string | null {
+export function extractCSRFToken(request: FastifyRequest): string | null {
   // Method 1: X-CSRF-Token header (preferred)
   const headerToken = request.headers['x-csrf-token'];
   if (headerToken && typeof headerToken === 'string') {
@@ -148,8 +151,11 @@ export function extractCSRFToken(request: any): string | null {
   }
 
   // Method 3: CSRF-Token cookie
-  if (request.cookies?.['csrf-token']) {
-    return request.cookies['csrf-token'];
+  const cookiesForExtract = (
+    request as FastifyRequest & { cookies?: Record<string, string | undefined> }
+  ).cookies;
+  if (cookiesForExtract?.['csrf-token']) {
+    return cookiesForExtract['csrf-token'];
   }
 
   return null;

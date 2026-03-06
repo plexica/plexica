@@ -5,12 +5,12 @@
  * a namespaced key-value store (M2.3)
  */
 
-import { PrismaClient } from '@prisma/client';
+import { type PrismaClient, Prisma } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { FastifyBaseLogger } from 'fastify';
 
 // Shared data entry
-export interface SharedDataEntry<T = any> {
+export interface SharedDataEntry<T = unknown> {
   key: string;
   value: T;
   ownerId: string;
@@ -37,7 +37,7 @@ export class SharedDataService {
   /**
    * Set shared data
    */
-  async set<T = any>(
+  async set<T = unknown>(
     tenantId: string,
     namespace: string,
     key: string,
@@ -62,12 +62,12 @@ export class SharedDataService {
           tenantId,
           namespace,
           key,
-          value: value as any,
+          value: value as Prisma.InputJsonValue,
           ownerId,
           expiresAt,
         },
         update: {
-          value: value as any,
+          value: value as Prisma.InputJsonValue,
           ownerId,
           expiresAt,
           updatedAt: new Date(),
@@ -89,7 +89,7 @@ export class SharedDataService {
   /**
    * Get shared data
    */
-  async get<T = any>(tenantId: string, namespace: string, key: string): Promise<T | null> {
+  async get<T = unknown>(tenantId: string, namespace: string, key: string): Promise<T | null> {
     // Try cache first
     const cached = await this.getFromCache<T>(tenantId, namespace, key);
     if (cached !== null) {
@@ -189,7 +189,7 @@ export class SharedDataService {
   /**
    * Get all entries in a namespace
    */
-  async getAll<T = any>(
+  async getAll<T = unknown>(
     tenantId: string,
     namespace: string,
     options?: {

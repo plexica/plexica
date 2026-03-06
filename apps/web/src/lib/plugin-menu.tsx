@@ -34,9 +34,10 @@ class PluginMenuManager {
       `[PluginMenu] Registering ${menuItems.length} menu items for plugin: ${manifest.id}`
     );
 
-    menuItems.forEach((item: any) => {
+    menuItems.forEach((item) => {
+      const itemWithId = item as typeof item & { id?: string };
       const menuItem: DynamicMenuItem = {
-        id: item.id || `${manifest.id}-${item.label.toLowerCase().replace(/\s+/g, '-')}`,
+        id: itemWithId.id || `${manifest.id}-${item.label.toLowerCase().replace(/\s+/g, '-')}`,
         label: item.label,
         icon: item.icon,
         path: item.path,
