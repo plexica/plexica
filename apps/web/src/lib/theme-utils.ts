@@ -10,6 +10,9 @@
 //  - Partial themes: merged with defaults (never rejected entirely).
 
 import { logger } from './logger.js';
+import { contrastRatio } from './contrast-utils.js';
+import { FONT_CATALOG } from '@plexica/types';
+import { loadFonts } from './font-loader.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,7 +141,20 @@ export function validateTheme(raw: Partial<TenantTheme> | null | undefined): Ten
   for (const key of Object.keys(DEFAULT_TENANT_THEME.fonts) as (keyof TenantThemeFonts)[]) {
     const value = (rawFonts as Partial<TenantThemeFonts>)[key];
     if (typeof value === 'string' && value.trim().length > 0) {
-      validatedFonts[key] = value.trim();
+      // Validate against the ADR-020 curated font catalog.
+      // Accept both kebab-case IDs (e.g. "inter") and display names (e.g. "Inter").
+      const trimmed = value.trim();
+      const matched = FONT_CATALOG.find((f) => f.id === trimmed || f.name === trimmed);
+      if (matched) {
+        // Always store the display name for consistency with DEFAULT_TENANT_THEME
+        validatedFonts[key] = matched.name;
+      } else {
+        logger.warn(
+          { key, value: trimmed },
+          `Invalid tenant theme font for "${key}" — not in ADR-020 curated font list. Using default.`
+        );
+        validatedFonts[key] = DEFAULT_TENANT_THEME.fonts[key];
+      }
     } else {
       if (value !== undefined) {
         logger.warn(
@@ -189,6 +205,31 @@ export function applyTheme(theme: TenantTheme): void {
   root.style.setProperty('--tenant-font-heading', theme.fonts.heading);
   root.style.setProperty('--tenant-font-body', theme.fonts.body);
   root.style.setProperty('--tenant-font-mono', theme.fonts.mono);
+
+  // Trigger actual font face loading via FontFace API (ADR-020 §Font Loading).
+  // Fire-and-forget: CSS variables are already set above; font files load in the
+  // background with font-display: swap so text is never hidden while loading.
+  void loadFonts({ heading: theme.fonts.heading, body: theme.fonts.body });
+
+  // T010-18: Non-blocking WCAG AA contrast warning (FR-020).
+  // Skip the check for the default theme to avoid noise in development.
+  const isDefaultTheme =
+    theme.colors.primary === DEFAULT_TENANT_THEME.colors.primary &&
+    theme.colors.background === DEFAULT_TENANT_THEME.colors.background;
+
+  if (!isDefaultTheme) {
+    const ratio = contrastRatio(theme.colors.primary, theme.colors.background);
+    if (ratio !== null && ratio < 4.5) {
+      logger.warn(
+        {
+          primary: theme.colors.primary,
+          background: theme.colors.background,
+          ratio: ratio.toFixed(2),
+        },
+        `Tenant theme contrast ratio ${ratio.toFixed(1)}:1 is below WCAG AA 4.5:1 minimum`
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -196,11 +237,18 @@ export function applyTheme(theme: TenantTheme): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse a 6-digit hex colour into [r, g, b] components in the 0–255 range.
- * Returns null for invalid or 3-digit hex strings.
+ * Parse a 6-digit or 3-digit hex colour into [r, g, b] components in the 0–255 range.
+ * 3-digit hex (#RGB) is expanded to 6-digit (#RRGGBB) before parsing.
+ * Returns null for invalid input.
  */
 function hexToRgb(hex: string): [number, number, number] | null {
-  const m = /^#([A-Fa-f0-9]{6})$/.exec(hex);
+  // Expand 3-digit shorthand (#RGB → #RRGGBB)
+  const shorthand = /^#([A-Fa-f0-9])([A-Fa-f0-9])([A-Fa-f0-9])$/.exec(hex);
+  const normalized = shorthand
+    ? `#${shorthand[1]}${shorthand[1]}${shorthand[2]}${shorthand[2]}${shorthand[3]}${shorthand[3]}`
+    : hex;
+
+  const m = /^#([A-Fa-f0-9]{6})$/.exec(normalized);
   if (!m) return null;
   const n = parseInt(m[1], 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];

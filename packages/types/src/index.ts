@@ -35,6 +35,7 @@ export type {
   PluginProps,
   PluginRoute,
   PluginMenuItem,
+  PluginWidget,
   PluginManifest,
   PluginLoaderManifest,
   PluginLoaderRoute,
@@ -65,4 +66,10 @@ export type {
 
 // Fonts (ADR-020)
 export type { FontDefinition, FontManifest } from './fonts.js';
-export { FONT_CATALOG, DEFAULT_HEADING_FONT, DEFAULT_BODY_FONT, FONT_IDS } from './fonts.js';
+export {
+  FONT_CATALOG,
+  DEFAULT_HEADING_FONT,
+  DEFAULT_BODY_FONT,
+  FONT_IDS,
+  isFontId,
+} from './fonts.js';

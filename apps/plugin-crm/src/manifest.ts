@@ -40,6 +40,13 @@ export const manifest: PluginManifest = {
       order: 10,
     },
   ],
+  widgets: [
+    {
+      name: 'ContactCard',
+      props: ['contactId'],
+      description: 'Displays contact name, email, and phone for a given CRM contact ID.',
+    },
+  ],
   permissions: [
     'plugin.crm.view',
     'plugin.crm.contacts.view',

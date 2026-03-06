@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import { FONT_CATALOG, DEFAULT_HEADING_FONT, DEFAULT_BODY_FONT } from '@plexica/types';
 import type { FontDefinition, FontManifest } from '@plexica/types';
+import { logger } from './logger.js';
 
 // ---------------------------------------------------------------------------
 // Zod validation — only allow font IDs present in FONT_CATALOG
@@ -50,6 +51,12 @@ let manifestCache: FontManifest | null = null;
 /**
  * Fetch /fonts/manifest.json exactly once per page session.
  * Subsequent calls return the cached result.
+ *
+ * Note: `loadFonts` and `loadSingleFont` do NOT call this internally — they
+ * derive font URLs directly from the statically-bundled FONT_CATALOG to avoid
+ * an extra network round-trip on every page load (ADR-020 §Performance).
+ * `getManifest` is exported as a public API for callers that need to inspect
+ * the full manifest (e.g. admin UI font selector, preload hint generation).
  */
 export async function getManifest(): Promise<FontManifest> {
   if (manifestCache) return manifestCache;
@@ -79,7 +86,7 @@ async function loadSingleFont(fontId: string): Promise<void> {
 
   const def = getFontDefinition(fontId);
   if (!def) {
-    console.warn(`[font-loader] Unknown font ID "${fontId}" — skipping`);
+    logger.warn({ fontId }, '[font-loader] Unknown font ID — skipping');
     return;
   }
 
@@ -95,8 +102,9 @@ async function loadSingleFont(fontId: string): Promise<void> {
       (document.fonts as any).add(fontFace);
     } catch (err) {
       // Non-fatal: log warn but do not re-throw (ADR-020 §Failure handling)
-      console.warn(
-        `[font-loader] Failed to load ${def.name} weight ${weight}: ${err instanceof Error ? err.message : String(err)}`
+      logger.warn(
+        { fontName: def.name, weight, err: err instanceof Error ? err.message : String(err) },
+        '[font-loader] Failed to load font weight'
       );
     }
   });
@@ -132,8 +140,9 @@ export async function loadFonts({
   const bodyResult = fontIdSchema.safeParse(body);
 
   if (!headingResult.success) {
-    console.warn(
-      `[font-loader] Invalid heading font "${heading}" — falling back to "${DEFAULT_HEADING_FONT}"`
+    logger.warn(
+      { heading, fallback: DEFAULT_HEADING_FONT },
+      '[font-loader] Invalid heading font — falling back'
     );
     headingId = DEFAULT_HEADING_FONT;
   } else {
@@ -141,8 +150,9 @@ export async function loadFonts({
   }
 
   if (!bodyResult.success) {
-    console.warn(
-      `[font-loader] Invalid body font "${body}" — falling back to "${DEFAULT_BODY_FONT}"`
+    logger.warn(
+      { body, fallback: DEFAULT_BODY_FONT },
+      '[font-loader] Invalid body font — falling back'
     );
     bodyId = DEFAULT_BODY_FONT;
   } else {
@@ -181,7 +191,7 @@ const preloadedFontIds = new Set<string>();
 export function preloadFont(fontIdOrName: string): void {
   const result = fontIdSchema.safeParse(fontIdOrName);
   if (!result.success) {
-    console.warn(`[font-loader] preloadFont: unknown font "${fontIdOrName}" — skipping`);
+    logger.warn({ fontIdOrName }, '[font-loader] preloadFont: unknown font — skipping');
     return;
   }
   const fontId = result.data;

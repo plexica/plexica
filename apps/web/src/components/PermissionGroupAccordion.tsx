@@ -64,34 +64,10 @@ function GroupPanel({ group, selected, onChange, disabled }: GroupPanelProps) {
 
   return (
     <div className="border rounded-lg overflow-hidden">
-      {/* Group header row */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 bg-muted/30 cursor-pointer select-none"
-        role="button"
-        aria-expanded={open}
-        aria-controls={`${headerId}-panel`}
-        tabIndex={0}
-        id={headerId}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setOpen((v) => !v);
-          }
-        }}
-      >
-        {/* Expand icon */}
-        {open ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-        ) : (
-          <ChevronRight
-            className="h-4 w-4 text-muted-foreground flex-shrink-0"
-            aria-hidden="true"
-          />
-        )}
-
-        {/* Select-all checkbox — stop propagation so click doesn't toggle accordion */}
-        <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      {/* Group header row — flex row with button and checkbox as siblings (WCAG: no nested-interactive) */}
+      <div className="flex items-center bg-muted/30">
+        {/* Select-all checkbox — sibling to the expand button, not nested inside it */}
+        <div className="pl-4 py-3 flex items-center">
           <Checkbox
             id={`${headerId}-all`}
             checked={allSelected}
@@ -102,17 +78,40 @@ function GroupPanel({ group, selected, onChange, disabled }: GroupPanelProps) {
           />
         </div>
 
-        <label
-          htmlFor={`${headerId}-all`}
-          className="flex-1 text-sm font-medium text-foreground cursor-pointer"
-          onClick={(e) => e.stopPropagation()}
+        {/* Expand button — contains only the label text and chevron icon, no interactive children */}
+        <button
+          type="button"
+          className="flex flex-1 items-center gap-3 px-3 py-3 cursor-pointer select-none text-left"
+          aria-expanded={open}
+          aria-controls={`${headerId}-panel`}
+          id={headerId}
+          onClick={() => setOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setOpen((v) => !v);
+            }
+          }}
         >
-          {group.displayName}
-        </label>
+          {/* Expand icon */}
+          {open ? (
+            <ChevronDown
+              className="h-4 w-4 text-muted-foreground flex-shrink-0"
+              aria-hidden="true"
+            />
+          ) : (
+            <ChevronRight
+              className="h-4 w-4 text-muted-foreground flex-shrink-0"
+              aria-hidden="true"
+            />
+          )}
 
-        <Badge variant="secondary" className="text-xs tabular-nums">
-          {selectedCount} / {groupIds.length}
-        </Badge>
+          <span className="flex-1 text-sm font-medium text-foreground">{group.displayName}</span>
+
+          <Badge variant="secondary" className="text-xs tabular-nums">
+            {selectedCount} / {groupIds.length}
+          </Badge>
+        </button>
       </div>
 
       {/* Permission list */}
@@ -167,13 +166,9 @@ export function PermissionGroupAccordion({
   return (
     <div className="space-y-2" role="list" aria-label="Permission groups">
       {groups.map((g) => (
-        <GroupPanel
-          key={g.source}
-          group={g}
-          selected={selected}
-          onChange={onChange}
-          disabled={disabled}
-        />
+        <div key={g.source} role="listitem">
+          <GroupPanel group={g} selected={selected} onChange={onChange} disabled={disabled} />
+        </div>
       ))}
     </div>
   );

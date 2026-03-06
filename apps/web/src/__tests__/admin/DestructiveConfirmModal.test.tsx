@@ -39,12 +39,7 @@ vi.mock('@plexica/ui', () => ({
     open: boolean;
     children: React.ReactNode;
     onOpenChange?: (open: boolean) => void;
-  }) =>
-    open ? (
-      <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    ) : null,
+  }) => (open ? <>{children}</> : null),
 
   DialogContent: ({
     children,
@@ -53,7 +48,11 @@ vi.mock('@plexica/ui', () => ({
     children: React.ReactNode;
     'aria-labelledby'?: string;
     [key: string]: unknown;
-  }) => <div aria-labelledby={ariaLabelledby}>{children}</div>,
+  }) => (
+    <div role="dialog" aria-modal="true" aria-labelledby={ariaLabelledby}>
+      {children}
+    </div>
+  ),
 
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 

@@ -175,17 +175,32 @@ describe('useCreateRole', () => {
 
   it('invalidates roles query on success', async () => {
     vi.mocked(createTenantRole).mockResolvedValue(makeRole('r-new'));
+    // getTenantRoles is called once on mount (useTenantRoles) and again after
+    // invalidation triggered by the successful mutation (useCreateRole).
     const spy = vi.mocked(getTenantRoles).mockResolvedValue([]);
 
-    const { result } = renderHook(() => useCreateRole(), { wrapper: createWrapper() });
+    // Render both hooks sharing the same QueryClient so invalidation triggers a refetch.
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result: rolesResult } = renderHook(() => useTenantRoles(), { wrapper });
+    const { result: createResult } = renderHook(() => useCreateRole(), { wrapper });
+
+    // Wait for initial fetch
+    await waitFor(() => expect(rolesResult.current.isSuccess).toBe(true));
+
+    const callsBefore = spy.mock.calls.length;
 
     await act(async () => {
-      result.current.mutate({ name: 'New Role', permissions: [] });
+      createResult.current.mutate({ name: 'New Role', permissions: [] });
     });
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    // getTenantRoles is called after invalidation (initial load + refetch after mutation)
-    expect(spy).toHaveBeenCalled();
+    await waitFor(() => expect(createResult.current.isSuccess).toBe(true));
+    // After invalidation, getTenantRoles should have been called again
+    await waitFor(() => expect(spy.mock.calls.length).toBeGreaterThan(callsBefore));
   });
 
   it('sets isError=true when creation fails', async () => {

@@ -97,8 +97,22 @@ export interface PluginMenuItem {
 }
 
 /**
+ * A widget contributed by a frontend plugin (T010-23, FR-022).
+ * Widgets are reusable UI components loaded via Module Federation's
+ * WidgetLoader in the host shell.
+ */
+export interface PluginWidget {
+  /** Exported component name (e.g. "ContactCard") — must be PascalCase */
+  name: string;
+  /** Names of props the widget accepts (for documentation / tooling) */
+  props?: string[];
+  /** Optional human-readable description of the widget */
+  description?: string;
+}
+
+/**
  * Frontend plugin manifest — declared by every frontend plugin in `manifest.ts`.
- * Describes what routes, menu items, and permissions the plugin provides.
+ * Describes what routes, menu items, widgets, and permissions the plugin provides.
  */
 export interface PluginManifest {
   id: string;
@@ -109,6 +123,8 @@ export interface PluginManifest {
   icon?: string;
   routes: PluginRoute[];
   menuItems: PluginMenuItem[];
+  /** Optional widgets exposed via Module Federation for use by the host shell */
+  widgets?: PluginWidget[];
   permissions?: string[];
 }
 

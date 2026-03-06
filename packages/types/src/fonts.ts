@@ -389,3 +389,20 @@ export const DEFAULT_BODY_FONT = 'roboto';
 
 /** Set of all valid font IDs — used for Zod validation in font-loader.ts */
 export const FONT_IDS = FONT_CATALOG.map((f) => f.id) as [string, ...string[]];
+
+/** Set for O(1) lookup — used by isFontId() type guard */
+const FONT_ID_SET = new Set<string>(FONT_IDS);
+
+/**
+ * Type guard that returns true when `id` is a valid ADR-020 curated font ID.
+ *
+ * @example
+ * ```ts
+ * if (isFontId(rawInput)) {
+ *   // TypeScript knows rawInput is a valid font ID string
+ * }
+ * ```
+ */
+export function isFontId(id: unknown): id is string {
+  return typeof id === 'string' && FONT_ID_SET.has(id);
+}

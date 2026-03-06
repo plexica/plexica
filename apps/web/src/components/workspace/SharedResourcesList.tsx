@@ -155,7 +155,9 @@ export function SharedResourcesList({
     } catch (err: unknown) {
       const apiErr = err as { response?: { data?: { error?: { message?: string } } } };
       setShareError(apiErr?.response?.data?.error?.message ?? 'Failed to share plugin');
-      throw err; // Keeps dialog open
+      // Do NOT re-throw: dialog stays open because setShareDialogOpen(false) is only
+      // called on the success path above. Re-throwing causes unhandled rejections in tests
+      // and provides no additional UX benefit since the error is already displayed.
     }
   }
 

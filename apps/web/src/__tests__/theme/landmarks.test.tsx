@@ -64,6 +64,10 @@ vi.mock('@plexica/ui', () => ({
   Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
+  NotificationBell: () => <div data-testid="notification-bell" />,
+  SearchOverlay: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="search-overlay">{children}</div>
+  ),
 }));
 
 vi.mock('@/components/shell/UserProfileMenu', () => ({

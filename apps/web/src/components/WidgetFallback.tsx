@@ -40,8 +40,8 @@ export function WidgetFallback({ pluginId, widgetName }: WidgetFallbackProps) {
         📦
       </div>
 
-      {/* Heading */}
-      <p className="text-sm font-medium text-muted-foreground mb-1">Widget Unavailable</p>
+      {/* Heading — T010-32: A11Y-M02 changed from <p> to <h3> for semantic heading structure */}
+      <h3 className="text-sm font-medium text-muted-foreground mb-1">Widget Unavailable</h3>
 
       {/* Description */}
       <p className="text-xs text-muted-foreground mb-2">
