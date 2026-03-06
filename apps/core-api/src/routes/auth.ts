@@ -103,7 +103,11 @@ export async function authRoutes(fastify: FastifyInstance) {
    * (e.g. in unit-test environments that use a bare Fastify instance).
    */
   fastify.setErrorHandler((error, _request, reply) => {
-    const errorAny = error as any;
+    const errorAny = error as Error & {
+      validation?: unknown;
+      code?: string;
+      statusCode?: number;
+    };
 
     // Check if this is a Fastify validation error (by validation property or error code)
     if (errorAny.validation || errorAny.code === 'FST_ERR_VALIDATION') {
@@ -269,13 +273,14 @@ export async function authRoutes(fastify: FastifyInstance) {
         );
 
         return reply.send({ authUrl });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // AuthService throws Constitution-compliant errors
-        if (error.error && error.error.code) {
+        const errObj = error as { error?: { code?: string } } | null;
+        if (errObj && typeof errObj === 'object' && errObj.error?.code) {
           const statusCode =
-            error.error.code === 'AUTH_TENANT_NOT_FOUND'
+            errObj.error.code === 'AUTH_TENANT_NOT_FOUND'
               ? 404
-              : error.error.code === 'AUTH_TENANT_SUSPENDED'
+              : errObj.error.code === 'AUTH_TENANT_SUSPENDED'
                 ? 403
                 : 500;
 
@@ -449,15 +454,16 @@ export async function authRoutes(fastify: FastifyInstance) {
           expires_in: tokens.expires_in,
           refresh_expires_in: tokens.refresh_expires_in,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // AuthService throws Constitution-compliant errors
-        if (error.error && error.error.code) {
+        const errObj = error as { error?: { code?: string } } | null;
+        if (errObj && typeof errObj === 'object' && errObj.error?.code) {
           const statusCode =
-            error.error.code === 'AUTH_CODE_EXCHANGE_FAILED'
+            errObj.error.code === 'AUTH_CODE_EXCHANGE_FAILED'
               ? 401
-              : error.error.code === 'AUTH_TENANT_NOT_FOUND'
+              : errObj.error.code === 'AUTH_TENANT_NOT_FOUND'
                 ? 404
-                : error.error.code === 'AUTH_TENANT_SUSPENDED'
+                : errObj.error.code === 'AUTH_TENANT_SUSPENDED'
                   ? 403
                   : 500;
 
@@ -603,15 +609,16 @@ export async function authRoutes(fastify: FastifyInstance) {
           refresh_expires_in: tokens.refresh_expires_in,
           token_type: tokens.token_type,
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // AuthService throws Constitution-compliant errors
-        if (error.error && error.error.code) {
+        const errObj = error as { error?: { code?: string } } | null;
+        if (errObj && typeof errObj === 'object' && errObj.error?.code) {
           const statusCode =
-            error.error.code === 'AUTH_TOKEN_REFRESH_FAILED'
+            errObj.error.code === 'AUTH_TOKEN_REFRESH_FAILED'
               ? 401
-              : error.error.code === 'AUTH_TENANT_NOT_FOUND'
+              : errObj.error.code === 'AUTH_TENANT_NOT_FOUND'
                 ? 404
-                : error.error.code === 'AUTH_TENANT_SUSPENDED'
+                : errObj.error.code === 'AUTH_TENANT_SUSPENDED'
                   ? 403
                   : 500;
 
@@ -736,7 +743,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         );
 
         return reply.send({ success: true });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Even if an unexpected error occurs, return success
         // Token revocation is best-effort
         logger.warn(
@@ -1017,7 +1024,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         );
 
         return reply.type('application/json').send(jwks);
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error(
           {
             error: error instanceof Error ? error.message : String(error),
@@ -1027,7 +1034,8 @@ export async function authRoutes(fastify: FastifyInstance) {
         );
 
         // Handle axios network errors
-        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        const errWithCode = error as Error & { code?: string };
+        if (errWithCode.code === 'ECONNREFUSED' || errWithCode.code === 'ETIMEDOUT') {
           return reply.code(500).send({
             error: {
               code: 'JWKS_FETCH_FAILED',

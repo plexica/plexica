@@ -4,6 +4,19 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
+// --- Mock logger (ADR-021: Pino structured logging) ---
+const { mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+}));
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    warn: mockLoggerWarn,
+    error: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 // --- Mock @plexica/types so tests run without actual WOFF2 files ---
 vi.mock('@plexica/types', () => {
   const FONT_CATALOG = [
@@ -94,6 +107,7 @@ describe('font-loader (T005-06)', () => {
     mockFontFaceLoad.mockClear();
     mockFontsAdd.mockClear();
     mockFontsCheck.mockReturnValue(false);
+    mockLoggerWarn.mockClear();
     vi.spyOn(document.documentElement.style, 'setProperty').mockImplementation(() => {});
     // Default: successful manifest fetch
     global.fetch = vi.fn().mockResolvedValue({
@@ -145,21 +159,22 @@ describe('font-loader (T005-06)', () => {
     expect(isFontLoaded('inter')).toBe(true);
   });
 
-  it('loadFonts falls back gracefully when FontFace.load() rejects — no throw, warns to console', async () => {
+  it('loadFonts falls back gracefully when FontFace.load() rejects — no throw, warns via logger', async () => {
     mockFontFaceLoad.mockRejectedValue(new Error('Network error'));
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     // Should not throw
     await expect(loadFonts({ heading: 'inter', body: 'roboto' })).resolves.toBeUndefined();
-    expect(warnSpy).toHaveBeenCalled();
+    expect(mockLoggerWarn).toHaveBeenCalled();
   });
 
   it('rejects invalid font ID with Zod validation before any FontFace call and falls back to default', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await loadFonts({ heading: 'not-a-real-font', body: 'roboto' });
 
-    // Should have warned about the invalid font
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid heading font'));
+    // Should have warned about the invalid font with structured fields
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ heading: 'not-a-real-font' }),
+      expect.stringContaining('Invalid heading font')
+    );
     // FontFace should still be called for the fallback (inter) and body (roboto)
     expect(MockFontFace).toHaveBeenCalled();
   });
@@ -188,15 +203,16 @@ describe('font-loader (T005-06)', () => {
   });
 
   it('preloadFont warns and returns early for unknown font ID', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const appendChildSpy = vi.spyOn(document.head, 'appendChild');
 
     preloadFont('unknown-font-xyz');
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown font'));
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ fontIdOrName: 'unknown-font-xyz' }),
+      expect.stringContaining('unknown font')
+    );
     expect(appendChildSpy).not.toHaveBeenCalled();
 
-    warnSpy.mockRestore();
     appendChildSpy.mockRestore();
   });
 

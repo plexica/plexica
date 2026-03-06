@@ -53,7 +53,9 @@ function PluginPage() {
   const { tenant, user } = useAuthStore();
   const { currentWorkspace } = useWorkspace();
 
-  const [PluginComponent, setPluginComponent] = useState<ComponentType<any> | null>(null);
+  const [PluginComponent, setPluginComponent] = useState<ComponentType<
+    Record<string, unknown>
+  > | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isResolvingComponent, setIsResolvingComponent] = useState(true);
 

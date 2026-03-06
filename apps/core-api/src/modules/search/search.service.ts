@@ -8,12 +8,14 @@ import { db } from '../../lib/db.js';
 import { logger } from '../../lib/logger.js';
 import {
   ISearchService,
+  IJobQueueService,
   Indexable,
   SearchQuery,
   SearchResult,
   JobEnqueueResult,
   SearchErrorCode,
 } from '../../types/core-services.types.js';
+import { Prisma } from '@plexica/database';
 
 // ============================================================================
 // SearchService
@@ -24,12 +26,10 @@ export class SearchService implements ISearchService {
    * Optional reference to JobQueueService — injected post-construction
    * to avoid circular dependencies.
    */
-  private jobQueueService: {
-    enqueue: (job: any, opts?: any) => Promise<JobEnqueueResult>;
-  } | null = null;
+  private jobQueueService: Pick<IJobQueueService, 'enqueue'> | null = null;
 
   /** Inject JobQueueService after construction */
-  setJobQueueService(svc: { enqueue: (job: any, opts?: any) => Promise<JobEnqueueResult> }): void {
+  setJobQueueService(svc: Pick<IJobQueueService, 'enqueue'>): void {
     this.jobQueueService = svc;
   }
 
@@ -44,7 +44,7 @@ export class SearchService implements ISearchService {
    */
   async index(tenantId: string, doc: Indexable): Promise<void> {
     try {
-      await (db as any).searchDocument.upsert({
+      await db.searchDocument.upsert({
         where: {
           tenantId_type_documentId: {
             tenantId,
@@ -55,7 +55,7 @@ export class SearchService implements ISearchService {
         update: {
           title: doc.title,
           body: doc.body,
-          metadata: (doc.metadata as any) ?? null,
+          metadata: (doc.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         },
         create: {
           tenantId,
@@ -63,7 +63,7 @@ export class SearchService implements ISearchService {
           type: doc.type,
           title: doc.title,
           body: doc.body,
-          metadata: (doc.metadata as any) ?? null,
+          metadata: (doc.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         },
       });
 
@@ -120,7 +120,7 @@ export class SearchService implements ISearchService {
       }>;
 
       if (type) {
-        rows = await (db as any).$queryRaw`
+        rows = await db.$queryRaw`
           SELECT
             document_id,
             type,
@@ -138,7 +138,7 @@ export class SearchService implements ISearchService {
           LIMIT ${safeLimit}
         `;
       } else {
-        rows = await (db as any).$queryRaw`
+        rows = await db.$queryRaw`
           SELECT
             document_id,
             type,
@@ -178,7 +178,7 @@ export class SearchService implements ISearchService {
 
   async delete(tenantId: string, documentId: string, type: string): Promise<void> {
     try {
-      await (db as any).searchDocument.deleteMany({
+      await db.searchDocument.deleteMany({
         where: { tenantId, documentId, type },
       });
 

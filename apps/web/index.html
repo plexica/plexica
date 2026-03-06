@@ -35,35 +35,8 @@
     />
   </head>
   <body>
-    <!-- T005-19: Skip-to-content link for keyboard/screen-reader users (WCAG 2.4.1) -->
-    <a
-      href="#main-content"
-      class="skip-to-content"
-      style="
-        position: absolute;
-        left: -9999px;
-        top: auto;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        z-index: 9999;
-        background: #fff;
-        color: #000;
-        padding: 8px 16px;
-        text-decoration: none;
-        font-weight: 600;
-      "
-      onfocus="
-        this.style.left = '50%';
-        this.style.transform = 'translateX(-50%)';
-      "
-      onblur="
-        this.style.left = '-9999px';
-        this.style.transform = '';
-      "
-      >Skip to main content</a
-    >
-
+    <!-- T010-32: Skip-to-content link moved to AppLayout.tsx (A11Y-S01).
+         React sr-only/focus:not-sr-only pattern replaces inline-JS approach. -->
     <div id="root"></div>
 
     <!-- T005-21: Noscript fallback -->

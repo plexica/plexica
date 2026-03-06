@@ -130,7 +130,10 @@ export async function tenantPluginsV1Routes(fastify: FastifyInstance) {
         return reply.code(200).send(result);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Enable failed';
-        const code = (error as any)?.code;
+        const code =
+          error instanceof Error && 'code' in error
+            ? (error as Error & { code: string }).code
+            : undefined;
 
         if (code === 'PLUGIN_NOT_GLOBALLY_ACTIVE') {
           return reply.code(409).send({

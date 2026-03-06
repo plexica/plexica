@@ -42,8 +42,7 @@ export const authzRateLimiter: preHandlerHookHandler = async function authzRateL
 
   try {
     // Resolve tenant ID from request context
-    const tenantId =
-      (request as any).tenant?.tenantId ?? (request.user as any)?.tenantId ?? 'unknown-tenant';
+    const tenantId = request.tenant?.tenantId ?? request.user?.tenantSlug ?? 'unknown-tenant';
     const redisKey = authzRateLimitKey(tenantId);
 
     // Atomic increment in sliding window

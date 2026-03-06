@@ -74,9 +74,14 @@ export class AuthService {
           },
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Re-throw Constitution-compliant errors from the block above
-      if (error?.error?.code === 'VALIDATION_ERROR') {
+      if (
+        error !== null &&
+        typeof error === 'object' &&
+        'error' in error &&
+        (error as { error: { code?: string } }).error?.code === 'VALIDATION_ERROR'
+      ) {
         throw error;
       }
       // URL parsing failed — reject malformed URIs

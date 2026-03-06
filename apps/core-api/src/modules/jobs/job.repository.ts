@@ -3,6 +3,7 @@
 // Stores job status transitions for the admin dashboard and auditing.
 
 import { db } from '../../lib/db.js';
+import { Prisma } from '@plexica/database';
 import { JobStatus } from '../../types/core-services.types.js';
 
 // ============================================================================
@@ -63,13 +64,13 @@ export class JobRepository {
   // --------------------------------------------------------------------------
 
   async create(input: CreateJobInput): Promise<DbJob> {
-    const job = await (db as any).job.create({
+    const job = await db.job.create({
       data: {
         tenantId: input.tenantId,
         name: input.name,
         pluginId: input.pluginId ?? null,
         status: input.status,
-        payload: (input.payload as any) ?? {},
+        payload: (input.payload ?? {}) as Prisma.InputJsonValue,
         maxRetries: input.maxRetries ?? 3,
         cronExpression: input.cronExpression ?? null,
         retries: 0,
@@ -90,7 +91,7 @@ export class JobRepository {
     const data: Record<string, unknown> = { status };
 
     if (extras.error !== undefined) data['error'] = extras.error;
-    if (extras.result !== undefined) data['result'] = extras.result as any;
+    if (extras.result !== undefined) data['result'] = extras.result as Prisma.InputJsonValue;
     if (extras.startedAt !== undefined) data['startedAt'] = extras.startedAt;
     if (extras.completedAt !== undefined) data['completedAt'] = extras.completedAt;
 
@@ -99,7 +100,7 @@ export class JobRepository {
       data['retries'] = { increment: 1 };
     }
 
-    const job = await (db as any).job.update({ where: { id }, data });
+    const job = await db.job.update({ where: { id }, data });
     return job as DbJob;
   }
 
@@ -109,18 +110,19 @@ export class JobRepository {
 
   async findById(id: string, tenantId: string): Promise<DbJob | null> {
     try {
-      const job = await (db as any).job.findFirst({
+      const job = await db.job.findFirst({
         where: { id, tenantId },
       });
       return job as DbJob | null;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Prisma throws PrismaClientKnownRequestError for invalid UUID syntax.
       // A non-UUID string can never match a UUID column, so returning null
       // is semantically correct (the job doesn't exist).
+      const prismaErr = err as { constructor?: { name?: string }; code?: string; message?: string };
       if (
-        err.constructor?.name === 'PrismaClientKnownRequestError' ||
-        err.code === 'P2023' ||
-        (err.message && err.message.includes('invalid input syntax'))
+        prismaErr.constructor?.name === 'PrismaClientKnownRequestError' ||
+        prismaErr.code === 'P2023' ||
+        (prismaErr.message && prismaErr.message.includes('invalid input syntax'))
       ) {
         return null;
       }
@@ -145,13 +147,13 @@ export class JobRepository {
     if (pluginId) where['pluginId'] = pluginId;
 
     const [jobs, total] = await Promise.all([
-      (db as any).job.findMany({
+      db.job.findMany({
         where,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
       }),
-      (db as any).job.count({ where }),
+      db.job.count({ where }),
     ]);
 
     return { jobs: jobs as DbJob[], total };

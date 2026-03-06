@@ -1,7 +1,7 @@
 // File: apps/web/src/lib/plugin-routes.tsx
 
 import { Suspense, lazy, type ComponentType } from 'react';
-import type { LoadedPlugin } from './plugin-loader';
+import type { LoadedPlugin, PluginRoute } from './plugin-loader';
 import { pluginLoader } from './plugin-loader';
 
 // ---------------------------------------------------------------------------
@@ -74,6 +74,13 @@ export interface DynamicPluginRoute {
   permissions?: string[];
 }
 
+/** Extended plugin route with optional fields sourced from manifest */
+interface ExtendedPluginRoute extends PluginRoute {
+  title?: string;
+  layout?: 'default' | 'fullscreen' | 'minimal';
+  permissions?: string[];
+}
+
 /**
  * Plugin Route Manager
  * Manages dynamic registration and rendering of plugin routes
@@ -81,7 +88,7 @@ export interface DynamicPluginRoute {
 /* c8 ignore start */
 class PluginRouteManager {
   private routes: Map<string, DynamicPluginRoute> = new Map();
-  private componentCache: Map<string, ComponentType<any>> = new Map();
+  private componentCache: Map<string, ComponentType<Record<string, unknown>>> = new Map();
 
   /**
    * Register routes from a loaded plugin
@@ -95,13 +102,14 @@ class PluginRouteManager {
       const fullPath = this.normalizePath(route.path);
       const routeKey = `${manifest.id}:${fullPath}`;
 
+      const extRoute = route as ExtendedPluginRoute;
       const dynamicRoute: DynamicPluginRoute = {
         path: fullPath,
         pluginId: manifest.id,
         componentName: route.component || 'default',
-        title: (route as any).title || manifest.name,
-        layout: (route as any).layout || 'default',
-        permissions: (route as any).permissions,
+        title: extRoute.title || manifest.name,
+        layout: extRoute.layout || 'default',
+        permissions: extRoute.permissions,
       };
 
       this.routes.set(routeKey, dynamicRoute);
@@ -173,7 +181,9 @@ class PluginRouteManager {
   /**
    * Get a component for a specific route
    */
-  async getRouteComponent(route: DynamicPluginRoute): Promise<ComponentType<any>> {
+  async getRouteComponent(
+    route: DynamicPluginRoute
+  ): Promise<ComponentType<Record<string, unknown>>> {
     const cacheKey = `${route.pluginId}:${route.path}`;
 
     // Check cache
@@ -199,14 +209,14 @@ class PluginRouteManager {
   /**
    * Create a lazy-loaded component wrapper for a route
    */
-  createLazyComponent(route: DynamicPluginRoute): ComponentType<any> {
+  createLazyComponent(route: DynamicPluginRoute): ComponentType<Record<string, unknown>> {
     const LazyComponent = lazy(async () => {
       const component = await this.getRouteComponent(route);
       return { default: component };
     });
 
     // Return a wrapper with Suspense
-    return (props: any) => (
+    return (props: Record<string, unknown>) => (
       <Suspense fallback={<PluginLoadingFallback title={route.title} />}>
         <LazyComponent {...props} />
       </Suspense>
@@ -219,11 +229,11 @@ class PluginRouteManager {
   private async loadComponentFromPlugin(
     loadedPlugin: LoadedPlugin,
     componentName: string
-  ): Promise<ComponentType<any>> {
+  ): Promise<ComponentType<Record<string, unknown>>> {
     const { module, manifest } = loadedPlugin;
 
     // Try to get the component from the module
-    let component: ComponentType<any> | undefined;
+    let component: ComponentType<Record<string, unknown>> | undefined;
 
     if (componentName === 'default' || componentName === 'Default') {
       component = module.default || module;

@@ -5,7 +5,7 @@
  * for plugin-to-plugin communication (M2.3)
  */
 
-import { PrismaClient, ServiceStatus } from '@prisma/client';
+import { Prisma, PrismaClient, ServiceStatus } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { FastifyBaseLogger } from 'fastify';
 
@@ -17,7 +17,7 @@ export interface ServiceRegistration {
   version: string;
   baseUrl?: string;
   endpoints?: ServiceEndpoint[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Service endpoint definition
@@ -26,7 +26,7 @@ export interface ServiceEndpoint {
   path: string;
   description?: string;
   permissions?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Type guard for HTTP methods
@@ -43,7 +43,7 @@ export interface DiscoveredService {
   baseUrl?: string;
   status: ServiceStatus;
   endpoints: ServiceEndpoint[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   lastSeenAt: Date;
 }
 
@@ -87,14 +87,14 @@ export class ServiceRegistryService {
           version: registration.version,
           baseUrl: registration.baseUrl,
           status: ServiceStatus.HEALTHY,
-          metadata: registration.metadata || {},
+          metadata: (registration.metadata || {}) as Prisma.InputJsonValue,
           lastSeenAt: new Date(),
         },
         update: {
           version: registration.version,
           baseUrl: registration.baseUrl,
           status: ServiceStatus.HEALTHY,
-          metadata: registration.metadata || {},
+          metadata: (registration.metadata || {}) as Prisma.InputJsonValue,
           lastSeenAt: new Date(),
         },
       });
@@ -114,7 +114,7 @@ export class ServiceRegistryService {
             path: endpoint.path,
             description: endpoint.description,
             permissions: endpoint.permissions || [],
-            metadata: endpoint.metadata || {},
+            metadata: (endpoint.metadata || {}) as Prisma.InputJsonValue,
           })),
         });
       }
@@ -205,10 +205,10 @@ export class ServiceRegistryService {
           path: endpoint.path,
           description: endpoint.description || undefined,
           permissions: (endpoint.permissions as string[]) || [],
-          metadata: (endpoint.metadata as Record<string, any>) || {},
+          metadata: (endpoint.metadata as Record<string, unknown>) || {},
         };
       }),
-      metadata: (service.metadata as Record<string, any>) || {},
+      metadata: (service.metadata as Record<string, unknown>) || {},
       lastSeenAt: service.lastSeenAt,
     };
 
@@ -259,10 +259,10 @@ export class ServiceRegistryService {
           path: endpoint.path,
           description: endpoint.description || undefined,
           permissions: (endpoint.permissions as string[]) || [],
-          metadata: (endpoint.metadata as Record<string, any>) || {},
+          metadata: (endpoint.metadata as Record<string, unknown>) || {},
         };
       }),
-      metadata: (service.metadata as Record<string, any>) || {},
+      metadata: (service.metadata as Record<string, unknown>) || {},
       lastSeenAt: service.lastSeenAt,
     }));
   }

@@ -16,12 +16,12 @@ export interface PluginApiCallRequest {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   headers?: Record<string, string>;
-  body?: any;
+  body?: unknown;
   query?: Record<string, string>;
 }
 
 // API call response
-export interface PluginApiCallResponse<T = any> {
+export interface PluginApiCallResponse<T = unknown> {
   status: number;
   headers: Record<string, string>;
   data: T;
@@ -39,7 +39,7 @@ export class PluginGatewayError extends Error {
     message: string,
     public readonly code: string,
     public readonly statusCode: number = 500,
-    public readonly details?: any
+    public readonly details?: unknown
   ) {
     super(message);
     this.name = 'PluginGatewayError';
@@ -64,7 +64,7 @@ export class PluginApiGateway {
   /**
    * Call a plugin API endpoint
    */
-  async callPluginApi<T = any>(
+  async callPluginApi<T = unknown>(
     callerPluginId: string,
     tenantId: string,
     request: PluginApiCallRequest
@@ -146,7 +146,7 @@ export class PluginApiGateway {
         method: request.method,
         url: fullUrl,
         headers,
-        ...(request.body && { data: request.body }),
+        ...(request.body !== undefined && { data: request.body as Record<string, unknown> }),
       };
 
       this.logger.debug({ url: fullUrl, method: request.method }, 'Making HTTP request');

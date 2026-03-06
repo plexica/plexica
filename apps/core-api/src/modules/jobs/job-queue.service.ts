@@ -4,8 +4,7 @@
 // FR-010: every job payload must include tenantId
 // NFR-003: enqueue <50ms P95, NFR-006: at-least-once delivery
 
-import { Queue, QueueOptions } from 'bullmq';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+import { Queue, QueueOptions, ConnectionOptions } from 'bullmq';
 const CronParserLib = require('cron-parser') as {
   CronExpressionParser: { parse: (expr: string) => unknown };
 };
@@ -41,7 +40,7 @@ export class JobQueueService implements IJobQueueService {
     this.repository = repository;
 
     const queueOpts: QueueOptions = {
-      connection: redis as any,
+      connection: redis as unknown as ConnectionOptions,
       defaultJobOptions: {
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 200 },

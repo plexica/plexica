@@ -32,6 +32,22 @@ vi.mock('@/lib/logger', () => ({
   createContextLogger: vi.fn(() => ({ error: vi.fn(), warn: mockWarn })),
 }));
 
+// ---------------------------------------------------------------------------
+// Mock font-loader (must be hoisted so applyTheme's import resolves to mock)
+// MED-2: Without this mock, applyTheme calls the real loadFonts which attempts
+// FontFace API operations in jsdom — and any regression that drops the call
+// would silently ship. The assertion below guards against that.
+// ---------------------------------------------------------------------------
+
+const { mockLoadFonts } = vi.hoisted(() => {
+  const mockLoadFonts = vi.fn().mockResolvedValue(undefined);
+  return { mockLoadFonts };
+});
+
+vi.mock('@/lib/font-loader', () => ({
+  loadFonts: mockLoadFonts,
+}));
+
 import {
   isValidHexColor,
   isValidHttpsUrl,
@@ -137,7 +153,7 @@ describe('validateTheme — valid colors pass through', () => {
         warning: '#ff8800',
       },
       fonts: {
-        heading: 'Arial',
+        heading: 'Lato',
         body: 'Roboto',
         mono: 'Fira Code',
       },
@@ -146,7 +162,7 @@ describe('validateTheme — valid colors pass through', () => {
     expect(result.colors.primary).toBe('#ff5733');
     expect(result.colors.secondary).toBe('#33c1ff');
     expect(result.logo).toBe('https://cdn.example.com/logo.png');
-    expect(result.fonts.heading).toBe('Arial');
+    expect(result.fonts.heading).toBe('Lato');
     expect(mockWarn).not.toHaveBeenCalled();
   });
 });
@@ -205,10 +221,10 @@ describe('validateTheme — partial theme merged with defaults', () => {
 
   it('fills missing fonts from defaults', () => {
     const result = validateTheme({
-      fonts: { ...DEFAULT_TENANT_THEME.fonts, heading: 'Georgia' },
+      fonts: { ...DEFAULT_TENANT_THEME.fonts, heading: 'Merriweather' },
     });
 
-    expect(result.fonts.heading).toBe('Georgia');
+    expect(result.fonts.heading).toBe('Merriweather');
     expect(result.fonts.body).toBe(DEFAULT_TENANT_THEME.fonts.body);
     expect(result.fonts.mono).toBe(DEFAULT_TENANT_THEME.fonts.mono);
   });
@@ -294,5 +310,52 @@ describe('applyTheme', () => {
     expect(primaryCalls[1][1]).toBe('#abcdef');
 
     spy.mockRestore();
+  });
+
+  // T010-18: WCAG AA contrast ratio warning
+  it('emits logger.warn when primary/background contrast ratio is below 4.5:1', () => {
+    // White text (#ffffff) on white background (#ffffff) → ratio 1:1
+    applyTheme({
+      ...DEFAULT_TENANT_THEME,
+      colors: {
+        ...DEFAULT_TENANT_THEME.colors,
+        primary: '#ffffff',
+        background: '#eeeeee',
+      },
+    });
+
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ primary: '#ffffff', background: '#eeeeee' }),
+      expect.stringContaining('below WCAG AA 4.5:1 minimum')
+    );
+  });
+
+  it('does NOT emit logger.warn for the default theme', () => {
+    applyTheme(DEFAULT_TENANT_THEME);
+    expect(mockWarn).not.toHaveBeenCalled();
+  });
+
+  // MED-2: Guard against regression where applyTheme stops calling loadFonts.
+  // applyTheme() calls `void loadFonts({ heading, body })` as a fire-and-forget
+  // side-effect (H-3 fix). If someone removes that call, font loading silently
+  // breaks in production. This test makes that regression visible immediately.
+  it('calls loadFonts with heading and body font names from the theme', () => {
+    applyTheme(DEFAULT_TENANT_THEME);
+
+    expect(mockLoadFonts).toHaveBeenCalledOnce();
+    expect(mockLoadFonts).toHaveBeenCalledWith({
+      heading: DEFAULT_TENANT_THEME.fonts.heading,
+      body: DEFAULT_TENANT_THEME.fonts.body,
+    });
+  });
+
+  it('passes updated font names to loadFonts when theme changes', () => {
+    const customTheme = {
+      ...DEFAULT_TENANT_THEME,
+      fonts: { ...DEFAULT_TENANT_THEME.fonts, heading: 'Lato', body: 'Merriweather' },
+    };
+    applyTheme(customTheme);
+
+    expect(mockLoadFonts).toHaveBeenCalledWith({ heading: 'Lato', body: 'Merriweather' });
   });
 });

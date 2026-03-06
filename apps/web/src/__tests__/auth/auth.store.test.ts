@@ -468,4 +468,92 @@ describe('auth.store', () => {
       expect(getAccessToken()).toBeNull();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // bootstrapAuth
+  // -------------------------------------------------------------------------
+  describe('bootstrapAuth', () => {
+    it('should set isLoading=false and return early when no refresh token is stored', async () => {
+      const { useAuthStore, bootstrapAuth } = await importStore();
+
+      // Ensure no refresh token in sessionStorage
+      sessionStorageMock.getItem.mockReturnValue(null as unknown as string);
+
+      await act(async () => {
+        await bootstrapAuth();
+      });
+
+      // setLoading(false) was called; state should reflect it
+      expect(useAuthStore.getState().isLoading).toBe(false);
+      // fetch should NOT have been called (no refresh attempted)
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('should call refreshTokens when a saved refresh token exists', async () => {
+      const { useAuthStore, bootstrapAuth } = await importStore();
+
+      // Simulate a stored refresh token
+      sessionStorageMock.getItem.mockReturnValue('saved-refresh-token');
+
+      // Mock successful refresh
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'valid-access-token',
+          refresh_token: 'new-refresh-token',
+          expires_in: 3600,
+        }),
+      });
+
+      await act(async () => {
+        await bootstrapAuth();
+      });
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    it('should expire session if stored refresh token is rejected', async () => {
+      const { useAuthStore, bootstrapAuth } = await importStore();
+
+      sessionStorageMock.getItem.mockReturnValue('bad-refresh-token');
+
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 401 });
+
+      const listener = vi.fn();
+      window.addEventListener('plexica:session-expired', listener);
+
+      await act(async () => {
+        await bootstrapAuth();
+      });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+
+      window.removeEventListener('plexica:session-expired', listener);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // consumeDeepLink — catch block (lines 318-320 in auth.store.ts)
+  // -------------------------------------------------------------------------
+  describe('consumeDeepLink — sessionStorage error path', () => {
+    it('returns null and does not throw when sessionStorage.getItem throws', async () => {
+      const { useAuthStore } = await importStore();
+      const store = useAuthStore.getState();
+
+      // Force sessionStorage.getItem to throw on the next call
+      sessionStorageMock.getItem.mockImplementationOnce(() => {
+        throw new Error('SecurityError: sessionStorage is blocked');
+      });
+
+      let result: string | null;
+      act(() => {
+        result = store.consumeDeepLink();
+      });
+
+      // Catch block must return null without re-throwing
+      expect(result!).toBeNull();
+    });
+  });
 });

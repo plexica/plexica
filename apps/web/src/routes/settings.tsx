@@ -29,7 +29,7 @@ import { toast } from '@/components/ToastProvider';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { BrandingTab } from './settings.branding';
 import { z } from 'zod';
-import type { WorkspaceMember, Team } from '../types';
+import type { WorkspaceMember, Team, Workspace } from '../types';
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage,
@@ -168,8 +168,8 @@ function SettingsTabsList() {
 // ─── General Tab ──────────────────────────────────────────────────────────────
 
 interface GeneralTabProps {
-  workspace: any;
-  onUpdate: (workspaceId: string, data: any) => Promise<void>;
+  workspace: Workspace;
+  onUpdate: (workspaceId: string, data: { name?: string; description?: string }) => Promise<void>;
   onDelete: (workspaceId: string) => Promise<void>;
   isAdmin: boolean;
 }
@@ -197,8 +197,9 @@ function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps)
         await onUpdate(workspace.id, values);
         toast.success('Workspace updated successfully!');
         setIsEditing(false);
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to update workspace');
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        toast.error(e.message || 'Failed to update workspace');
       }
     },
   });
@@ -366,8 +367,9 @@ function GeneralTab({ workspace, onUpdate, onDelete, isAdmin }: GeneralTabProps)
                   onClick={async () => {
                     try {
                       await onDelete(workspace.id);
-                    } catch (err: any) {
-                      toast.error(err.message || 'Failed to delete workspace');
+                    } catch (err: unknown) {
+                      const e = err as { message?: string };
+                      toast.error(e.message || 'Failed to delete workspace');
                       setShowDeleteConfirm(false);
                     }
                   }}
@@ -407,8 +409,9 @@ function MembersTab({ workspaceId, currentUserId, isAdmin }: MembersTabProps) {
       setError(null);
       const data = await apiClient.getWorkspaceMembers(workspaceId);
       setMembers(data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load members');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      setError(e.response?.data?.message || 'Failed to load members');
     } finally {
       setIsLoading(false);
     }
@@ -425,8 +428,9 @@ function MembersTab({ workspaceId, currentUserId, isAdmin }: MembersTabProps) {
       await apiClient.removeWorkspaceMember(workspaceId, userId);
       toast.success('Member removed');
       await loadMembers();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to remove member');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      toast.error(e.response?.data?.message || 'Failed to remove member');
     }
   };
 
@@ -439,8 +443,9 @@ function MembersTab({ workspaceId, currentUserId, isAdmin }: MembersTabProps) {
       });
       toast.success('Member role updated');
       await loadMembers();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to update role');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      toast.error(e.response?.data?.message || 'Failed to update role');
     }
   };
 
@@ -571,8 +576,9 @@ function AddMemberDialog({ open, onOpenChange, workspaceId, onSuccess }: AddMemb
         toast.success('Member added successfully!');
         onSuccess();
         onOpenChange(false);
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Failed to add member');
+      } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } } };
+        toast.error(e.response?.data?.message || 'Failed to add member');
       }
     },
   });
@@ -613,7 +619,9 @@ function AddMemberDialog({ open, onOpenChange, workspaceId, onSuccess }: AddMemb
               name="role"
               value={values.role}
               onChange={(e) =>
-                handleChange({ target: { name: 'role', value: e.target.value } } as any)
+                handleChange({
+                  target: { name: 'role', value: e.target.value },
+                } as React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>)
               }
               disabled={isSubmitting}
               className="w-full mt-2 px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"

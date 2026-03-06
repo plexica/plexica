@@ -22,7 +22,7 @@ function useFormField() {
 
 // --- Form ---
 
-export interface FormProps extends React.FormHTMLAttributes<HTMLFormElement> {}
+export type FormProps = React.FormHTMLAttributes<HTMLFormElement>;
 
 const Form = React.forwardRef<HTMLFormElement, FormProps>(({ className, ...props }, ref) => {
   return <form ref={ref} className={cn('space-y-6', className)} {...props} />;
@@ -49,7 +49,7 @@ FormField.displayName = 'FormField';
 
 // --- FormItem ---
 
-export interface FormItemProps extends React.HTMLAttributes<HTMLDivElement> {}
+export type FormItemProps = React.HTMLAttributes<HTMLDivElement>;
 
 const FormItem = React.forwardRef<HTMLDivElement, FormItemProps>(({ className, ...props }, ref) => {
   return <div ref={ref} className={cn('space-y-2', className)} {...props} />;
@@ -58,7 +58,7 @@ FormItem.displayName = 'FormItem';
 
 // --- FormLabel ---
 
-export interface FormLabelProps extends React.ComponentPropsWithoutRef<typeof Label> {}
+export type FormLabelProps = React.ComponentPropsWithoutRef<typeof Label>;
 
 const FormLabel = React.forwardRef<React.ComponentRef<typeof Label>, FormLabelProps>(
   ({ className, ...props }, ref) => {
@@ -77,7 +77,7 @@ FormLabel.displayName = 'FormLabel';
 
 // --- FormControl ---
 
-export interface FormControlProps extends React.HTMLAttributes<HTMLDivElement> {}
+export type FormControlProps = React.HTMLAttributes<HTMLDivElement>;
 
 const FormControl = React.forwardRef<HTMLDivElement, FormControlProps>(
   ({ className, children, ...props }, ref) => {
@@ -103,7 +103,7 @@ FormControl.displayName = 'FormControl';
 
 // --- FormDescription ---
 
-export interface FormDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {}
+export type FormDescriptionProps = React.HTMLAttributes<HTMLParagraphElement>;
 
 const FormDescription = React.forwardRef<HTMLParagraphElement, FormDescriptionProps>(
   ({ className, ...props }, ref) => {

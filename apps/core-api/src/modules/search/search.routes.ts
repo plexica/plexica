@@ -7,6 +7,7 @@
 
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware, requireRole } from '../../middleware/auth.js';
+import { type UserInfo } from '../../lib/jwt.js';
 import { SearchService } from './search.service.js';
 import { getJobQueueServiceInstance } from '../jobs/job-queue.singleton.js';
 import {
@@ -39,9 +40,9 @@ function getTenantId(request: FastifyRequest): string {
   // Priority: request.tenant.tenantId (set by tenantContextMiddleware in integration/E2E)
   // → user.tenantSlug (set by authMiddleware) → user.tenantId (unit test mocks)
   const tenantId =
-    (request as any).tenant?.tenantId ??
-    (request as any).user?.tenantSlug ??
-    (request as any).user?.tenantId;
+    request.tenant?.tenantId ??
+    request.user?.tenantSlug ??
+    (request.user as (UserInfo & { tenantSlug: string; tenantId?: string }) | undefined)?.tenantId;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
@@ -91,8 +92,8 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
-      const body = request.body as any;
+      const userId = request.user?.id ?? request.token?.sub;
+      const body = request.body as Record<string, unknown>;
 
       const parsed = SearchQuerySchema.safeParse(body);
       if (!parsed.success) {
@@ -117,9 +118,10 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
           '[SearchRoute] search completed'
         );
         return reply.send({ results, count: results.length, query: parsed.data.q });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { message?: string };
         request.log.error(
-          { tenantId, userId, query: parsed.data.q, err: err.message },
+          { tenantId, userId, query: parsed.data.q, err: errWithCode.message },
           '[SearchRoute] search failed'
         );
         return reply
@@ -162,8 +164,8 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
-      const body = request.body as any;
+      const userId = request.user?.id ?? request.token?.sub;
+      const body = request.body as Record<string, unknown>;
 
       const parsed = IndexableSchema.safeParse(body);
       if (!parsed.success) {
@@ -190,9 +192,10 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
         return reply
           .code(201)
           .send({ message: 'Document indexed', documentId: parsed.data.documentId });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { message?: string };
         request.log.error(
-          { tenantId, userId, documentId: parsed.data.documentId, err: err.message },
+          { tenantId, userId, documentId: parsed.data.documentId, err: errWithCode.message },
           '[SearchRoute] index failed'
         );
         return reply
@@ -237,7 +240,7 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const { documentId } = request.params;
       const { type } = request.query;
 
@@ -259,9 +262,10 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
           '[SearchRoute] document deleted from index'
         );
         return reply.code(204).send();
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { message?: string };
         request.log.error(
-          { tenantId, userId, documentId, type, err: err.message },
+          { tenantId, userId, documentId, type, err: errWithCode.message },
           '[SearchRoute] delete failed'
         );
         return reply
@@ -309,10 +313,10 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
-      const body = request.body as any;
+      const userId = request.user?.id ?? request.token?.sub;
+      const body = request.body as Record<string, unknown>;
 
-      if (!body?.type || typeof body.type !== 'string') {
+      if (!body?.['type'] || typeof body['type'] !== 'string') {
         request.log.warn(
           { tenantId, userId, code: 'VALIDATION_ERROR' },
           '[SearchRoute] reindex: missing "type" in body'
@@ -324,22 +328,23 @@ export const searchRoutes: FastifyPluginAsync = async (server) => {
 
       try {
         const svc = getSearchService();
-        const result = await svc.reindex(tenantId, body.type);
+        const result = await svc.reindex(tenantId, body['type'] as string);
         request.log.info(
-          { tenantId, userId, type: body.type, jobId: result.jobId },
+          { tenantId, userId, type: body['type'], jobId: result.jobId },
           '[SearchRoute] reindex job enqueued'
         );
         // 202 Accepted — job is enqueued, not yet complete
         return reply.code(202).send({ message: 'Reindex job enqueued', ...result });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { message?: string };
         request.log.error(
-          { tenantId, userId, type: body.type, err: err.message },
+          { tenantId, userId, type: body['type'], err: errWithCode.message },
           '[SearchRoute] reindex failed'
         );
         return reply.code(500).send({
           error: {
             code: SearchErrorCode.REINDEX_FAILED,
-            message: err.message ?? 'Reindex failed',
+            message: errWithCode.message ?? 'Reindex failed',
           },
         });
       }

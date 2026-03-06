@@ -88,7 +88,13 @@ export function LoginPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[var(--auth-bg-gradient-from)] to-[var(--auth-bg-gradient-to)]">
-        <div className="w-full max-w-[var(--auth-card-max-width)] p-8 space-y-4 sm:border sm:border-border sm:rounded-lg sm:shadow-lg sm:bg-card">
+        {/* T010-32: A11Y-M03 — role="status" + aria-label so screen readers
+            announce that authentication state is loading (WCAG 4.1.3) */}
+        <div
+          className="w-full max-w-[var(--auth-card-max-width)] p-8 space-y-4 sm:border sm:border-border sm:rounded-lg sm:shadow-lg sm:bg-card"
+          role="status"
+          aria-label="Loading authentication status"
+        >
           {/* Skeleton logo */}
           <div className="flex justify-center">
             <div className="h-16 w-16 rounded-lg bg-muted animate-pulse" aria-hidden="true" />

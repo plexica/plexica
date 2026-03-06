@@ -8,6 +8,7 @@
 
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware, requireRole } from '../../middleware/auth.js';
+import { type UserInfo } from '../../lib/jwt.js';
 import { StorageService } from './storage.service.js';
 import { StorageErrorCode } from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
@@ -20,9 +21,9 @@ function getTenantId(request: FastifyRequest): string {
   // Priority: request.tenant.tenantId (set by tenantContextMiddleware in integration/E2E)
   // → user.tenantSlug (set by authMiddleware) → user.tenantId (unit test mocks)
   const tenantId =
-    (request as any).tenant?.tenantId ??
-    (request as any).user?.tenantSlug ??
-    (request as any).user?.tenantId;
+    request.tenant?.tenantId ??
+    request.user?.tenantSlug ??
+    (request.user as (UserInfo & { tenantSlug: string; tenantId?: string }) | undefined)?.tenantId;
   if (!tenantId) {
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   }
@@ -99,7 +100,7 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const svc = getStorageService(request);
 
       try {
@@ -115,9 +116,10 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
         const path = `uploads/${Date.now()}-${filename}`;
 
         // Max file size from query param or default 100 MB
+        const queryParams = request.query as Record<string, string | undefined>;
         const maxSizeBytes =
-          typeof (request.query as any).maxSizeMb === 'string'
-            ? parseInt((request.query as any).maxSizeMb, 10) * 1024 * 1024
+          typeof queryParams['maxSizeMb'] === 'string'
+            ? parseInt(queryParams['maxSizeMb'], 10) * 1024 * 1024
             : 100 * 1024 * 1024;
 
         // Buffer the stream for size validation
@@ -137,22 +139,30 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           '[StorageRoute] file uploaded'
         );
         return reply.code(201).send(fileInfo);
-      } catch (err: any) {
-        if (err.code === StorageErrorCode.FILE_TOO_LARGE) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        if (errWithCode.code === StorageErrorCode.FILE_TOO_LARGE) {
           request.log.warn(
-            { tenantId, userId, code: err.code },
+            { tenantId, userId, code: errWithCode.code },
             '[StorageRoute] upload rejected: file too large'
           );
-          return reply.code(413).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(413)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
-        if (err.code === StorageErrorCode.PATH_TRAVERSAL) {
+        if (errWithCode.code === StorageErrorCode.PATH_TRAVERSAL) {
           request.log.warn(
-            { tenantId, userId, code: err.code },
+            { tenantId, userId, code: errWithCode.code },
             '[StorageRoute] upload rejected: path traversal'
           );
-          return reply.code(400).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(400)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
-        request.log.error({ tenantId, userId, err: err.message }, '[StorageRoute] upload failed');
+        request.log.error(
+          { tenantId, userId, err: errWithCode.message },
+          '[StorageRoute] upload failed'
+        );
         return reply
           .code(500)
           .send({ error: { code: 'STORAGE_UPLOAD_FAILED', message: 'Upload failed' } });
@@ -189,9 +199,9 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const svc = getStorageService(request);
-      const path = (request.params as any)['*'] as string;
+      const path = (request.params as Record<string, string>)['*'];
 
       try {
         const stream = await svc.download(path);
@@ -199,23 +209,28 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
         request.log.info({ tenantId, userId, path }, '[StorageRoute] file download started');
         reply.header('Content-Disposition', `attachment; filename="${filename}"`);
         return reply.send(stream);
-      } catch (err: any) {
-        if (err.code === StorageErrorCode.FILE_NOT_FOUND) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        if (errWithCode.code === StorageErrorCode.FILE_NOT_FOUND) {
           request.log.warn(
-            { tenantId, userId, path, code: err.code },
+            { tenantId, userId, path, code: errWithCode.code },
             '[StorageRoute] file not found'
           );
-          return reply.code(404).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(404)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
-        if (err.code === StorageErrorCode.PATH_TRAVERSAL) {
+        if (errWithCode.code === StorageErrorCode.PATH_TRAVERSAL) {
           request.log.warn(
-            { tenantId, userId, code: err.code },
+            { tenantId, userId, code: errWithCode.code },
             '[StorageRoute] download rejected: path traversal'
           );
-          return reply.code(400).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(400)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
         request.log.error(
-          { tenantId, userId, path, err: err.message },
+          { tenantId, userId, path, err: errWithCode.message },
           '[StorageRoute] download failed'
         );
         return reply
@@ -259,24 +274,27 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const svc = getStorageService(request);
-      const path = (request.params as any)['*'] as string;
+      const path = (request.params as Record<string, string>)['*'];
 
       try {
         await svc.delete(path);
         request.log.info({ tenantId, userId, path }, '[StorageRoute] file deleted');
         return reply.code(204).send();
-      } catch (err: any) {
-        if (err.code === StorageErrorCode.PATH_TRAVERSAL) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        if (errWithCode.code === StorageErrorCode.PATH_TRAVERSAL) {
           request.log.warn(
-            { tenantId, userId, code: err.code },
+            { tenantId, userId, code: errWithCode.code },
             '[StorageRoute] delete rejected: path traversal'
           );
-          return reply.code(400).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(400)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
         request.log.error(
-          { tenantId, userId, path, err: err.message },
+          { tenantId, userId, path, err: errWithCode.message },
           '[StorageRoute] delete failed'
         );
         return reply
@@ -318,16 +336,20 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const svc = getStorageService(request);
-      const prefix = (request.query as any).prefix as string | undefined;
+      const prefix = (request.query as Record<string, string | undefined>)['prefix'];
 
       try {
         const files = await svc.list(prefix);
         request.log.info({ tenantId, userId, count: files.length }, '[StorageRoute] files listed');
         return reply.send({ files, count: files.length });
-      } catch (err: any) {
-        request.log.error({ tenantId, userId, err: err.message }, '[StorageRoute] list failed');
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { message?: string };
+        request.log.error(
+          { tenantId, userId, err: errWithCode.message },
+          '[StorageRoute] list failed'
+        );
         return reply
           .code(500)
           .send({ error: { code: 'STORAGE_LIST_FAILED', message: 'List failed' } });
@@ -378,17 +400,20 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
     async (request, reply) => {
       // Check raw URL BEFORE Fastify normalization strips traversal sequences
       const rawUrl = request.raw?.url ?? request.url ?? '';
-      const wildcardParam = (request.params as any)['*'] ?? '';
+      const wildcardParam = (request.params as Record<string, string>)['*'] ?? '';
       if (rawUrl.includes('..') || wildcardParam.includes('..')) {
         return reply.code(400).send({
           error: { code: StorageErrorCode.PATH_TRAVERSAL, message: 'Path traversal detected' },
         });
       }
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const svc = getStorageService(request);
-      const path = (request.params as any)['*'] as string;
-      const expiresIn = parseInt((request.query as any).expiresIn ?? '3600', 10);
+      const path = (request.params as Record<string, string>)['*'];
+      const expiresIn = parseInt(
+        (request.query as Record<string, string | undefined>)['expiresIn'] ?? '3600',
+        10
+      );
 
       try {
         const url = await svc.getSignedUrl(path, { expiresIn });
@@ -397,16 +422,19 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
           '[StorageRoute] signed URL generated'
         );
         return reply.send({ url, expiresIn });
-      } catch (err: any) {
-        if (err.code === StorageErrorCode.PATH_TRAVERSAL) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        if (errWithCode.code === StorageErrorCode.PATH_TRAVERSAL) {
           request.log.warn(
-            { tenantId, userId, code: err.code },
+            { tenantId, userId, code: errWithCode.code },
             '[StorageRoute] signed-url rejected: path traversal'
           );
-          return reply.code(400).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(400)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
         request.log.error(
-          { tenantId, userId, path, err: err.message },
+          { tenantId, userId, path, err: errWithCode.message },
           '[StorageRoute] signed URL failed'
         );
         return reply.code(500).send({

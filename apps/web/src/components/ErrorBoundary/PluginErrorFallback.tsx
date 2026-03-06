@@ -16,6 +16,7 @@
 // └─────────────────────────────────────────┘
 
 import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
 import { Button } from '@plexica/ui';
 
 export interface PluginErrorFallbackProps {
@@ -29,13 +30,22 @@ export interface PluginErrorFallbackProps {
 
 export function PluginErrorFallback({ pluginName, error, onRetry }: PluginErrorFallbackProps) {
   const navigate = useNavigate();
+  // M-7: Focus the fallback container when it mounts so screen readers announce
+  // the error immediately (WCAG 2.4.3 Focus Order).
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
 
   return (
     <div className="flex items-center justify-center py-16 px-4">
       <div
+        ref={containerRef}
         className="w-full max-w-[500px] rounded-lg border border-border bg-card p-8 shadow-sm"
         role="alert"
         aria-live="assertive"
+        tabIndex={-1}
+        style={{ outline: 'none' }}
       >
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
@@ -51,8 +61,8 @@ export function PluginErrorFallback({ pluginName, error, onRetry }: PluginErrorF
           be loaded. This might be a temporary network issue.
         </p>
 
-        {/* Error detail */}
-        {error?.message && (
+        {/* Error detail — only shown in development (never exposed in production) */}
+        {import.meta.env.DEV && error?.message && (
           <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 mb-6">
             <p className="text-xs font-mono text-destructive break-all">Error: {error.message}</p>
           </div>
@@ -60,10 +70,22 @@ export function PluginErrorFallback({ pluginName, error, onRetry }: PluginErrorF
 
         {/* Actions */}
         <div className="flex items-center gap-3">
-          <Button onClick={onRetry} variant="default" size="sm">
+          {/* T010-32: A11Y-S02 — explicit aria-label as defensive measure in case
+              Button component wraps children with aria-hidden in some variants */}
+          <Button
+            onClick={onRetry}
+            variant="default"
+            size="sm"
+            aria-label={`Retry loading ${pluginName} plugin`}
+          >
             Retry
           </Button>
-          <Button onClick={() => void navigate({ to: '/plugins' })} variant="secondary" size="sm">
+          <Button
+            onClick={() => void navigate({ to: '/plugins' })}
+            variant="secondary"
+            size="sm"
+            aria-label="Go back to plugins list"
+          >
             Go Back
           </Button>
         </div>

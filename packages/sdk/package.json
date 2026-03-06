@@ -2,6 +2,7 @@
   "name": "@plexica/sdk",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Plugin SDK for the Plexica platform — base classes, API client, event client, and service helpers",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

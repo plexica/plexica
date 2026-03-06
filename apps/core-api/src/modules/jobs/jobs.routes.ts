@@ -10,9 +10,10 @@
 
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware, requireRole } from '../../middleware/auth.js';
+import { type UserInfo } from '../../lib/jwt.js';
 import { JobRepository } from './job.repository.js';
 import { getJobQueueServiceInstance } from './job-queue.singleton.js';
-import { JobSchema, JobStatus, JobErrorCode } from '../../types/core-services.types.js';
+import { JobSchema, JobStatus, JobErrorCode, type Job } from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
 
 // ============================================================================
@@ -36,9 +37,9 @@ function getTenantId(request: FastifyRequest): string {
   // Priority: request.tenant.tenantId (set by tenantContextMiddleware in integration/E2E)
   // → user.tenantSlug (set by authMiddleware) → user.tenantId (unit test mocks)
   const tenantId =
-    (request as any).tenant?.tenantId ??
-    (request as any).user?.tenantSlug ??
-    (request as any).user?.tenantId;
+    request.tenant?.tenantId ??
+    request.user?.tenantSlug ??
+    (request.user as (UserInfo & { tenantSlug: string; tenantId?: string }) | undefined)?.tenantId;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
@@ -93,13 +94,13 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
-      const body = request.body as any;
+      const userId = request.user?.id ?? request.token?.sub;
+      const body = request.body as Record<string, unknown>;
 
       const parsed = JobSchema.safeParse({
         ...body,
         tenantId,
-        payload: { ...(body.payload ?? {}), tenantId },
+        payload: { ...((body['payload'] as Record<string, unknown>) ?? {}), tenantId },
       });
       if (!parsed.success) {
         request.log.warn(
@@ -117,21 +118,22 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
 
       try {
         const svc = getJobQueueService();
-        const result = await svc.enqueue(parsed.data as any);
+        const result = await svc.enqueue(parsed.data as Job);
         request.log.info(
           { tenantId, userId, jobId: result.jobId, name: parsed.data.name },
           '[JobsRoute] job enqueued'
         );
         return reply.code(201).send(result);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : 'Failed to enqueue job';
         request.log.error(
-          { tenantId, userId, name: parsed.data.name, err: err.message },
+          { tenantId, userId, name: parsed.data.name, err: errMsg },
           '[JobsRoute] enqueue failed'
         );
         return reply.code(500).send({
           error: {
             code: JobErrorCode.ENQUEUE_FAILED,
-            message: err.message ?? 'Failed to enqueue job',
+            message: errMsg,
           },
         });
       }
@@ -180,10 +182,10 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
-      const body = request.body as any;
+      const userId = request.user?.id ?? request.token?.sub;
+      const body = request.body as Record<string, unknown>;
 
-      if (!body.cronExpression) {
+      if (!body['cronExpression']) {
         request.log.warn(
           { tenantId, userId, code: JobErrorCode.INVALID_CRON },
           '[JobsRoute] schedule missing cronExpression'
@@ -214,9 +216,9 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
 
       try {
         const svc = getJobQueueService();
-        const result = await svc.schedule(parsed.data as any, {
-          cronExpression: body.cronExpression,
-          timezone: body.timezone,
+        const result = await svc.schedule(parsed.data as Job, {
+          cronExpression: body['cronExpression'] as string,
+          timezone: body['timezone'] as string | undefined,
         });
         request.log.info(
           {
@@ -224,21 +226,22 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
             userId,
             jobId: result.jobId,
             name: parsed.data.name,
-            cron: body.cronExpression,
+            cron: body['cronExpression'],
           },
           '[JobsRoute] job scheduled'
         );
         return reply.code(201).send(result);
-      } catch (err: any) {
-        const statusCode = err.code === JobErrorCode.INVALID_CRON ? 400 : 500;
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        const statusCode = errWithCode.code === JobErrorCode.INVALID_CRON ? 400 : 500;
         request.log.error(
-          { tenantId, userId, name: body.name, err: err.message },
+          { tenantId, userId, name: body['name'], err: errWithCode.message },
           '[JobsRoute] schedule failed'
         );
         return reply.code(statusCode).send({
           error: {
-            code: err.code ?? JobErrorCode.SCHEDULE_FAILED,
-            message: err.message ?? 'Failed to schedule job',
+            code: errWithCode.code ?? JobErrorCode.SCHEDULE_FAILED,
+            message: errWithCode.message ?? 'Failed to schedule job',
           },
         });
       }
@@ -269,7 +272,7 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const { id } = request.params;
 
       try {
@@ -280,19 +283,22 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
           '[JobsRoute] job status retrieved'
         );
         return reply.send(status);
-      } catch (err: any) {
-        if (err.code === JobErrorCode.JOB_NOT_FOUND) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        if (errWithCode.code === JobErrorCode.JOB_NOT_FOUND) {
           request.log.warn({ tenantId, userId, jobId: id }, '[JobsRoute] job not found');
-          return reply.code(404).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(404)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
         request.log.error(
-          { tenantId, userId, jobId: id, err: err.message },
+          { tenantId, userId, jobId: id, err: errWithCode.message },
           '[JobsRoute] get status failed'
         );
         return reply.code(500).send({
           error: {
             code: 'JOB_STATUS_FAILED',
-            message: err.message ?? 'Failed to get job status',
+            message: errWithCode.message ?? 'Failed to get job status',
           },
         });
       }
@@ -321,7 +327,7 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const { id } = request.params;
 
       try {
@@ -329,24 +335,32 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
         await svc.cancel(id, tenantId);
         request.log.info({ tenantId, userId, jobId: id }, '[JobsRoute] job cancelled');
         return reply.code(204).send();
-      } catch (err: any) {
-        if (err.code === JobErrorCode.JOB_NOT_FOUND) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
+        if (errWithCode.code === JobErrorCode.JOB_NOT_FOUND) {
           request.log.warn({ tenantId, userId, jobId: id }, '[JobsRoute] cancel: job not found');
-          return reply.code(404).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(404)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
-        if (err.code === JobErrorCode.ALREADY_CANCELLED) {
+        if (errWithCode.code === JobErrorCode.ALREADY_CANCELLED) {
           request.log.warn(
             { tenantId, userId, jobId: id },
             '[JobsRoute] cancel: job already cancelled'
           );
-          return reply.code(409).send({ error: { code: err.code, message: err.message } });
+          return reply
+            .code(409)
+            .send({ error: { code: errWithCode.code, message: errWithCode.message } });
         }
         request.log.error(
-          { tenantId, userId, jobId: id, err: err.message },
+          { tenantId, userId, jobId: id, err: errWithCode.message },
           '[JobsRoute] cancel failed'
         );
         return reply.code(500).send({
-          error: { code: 'JOB_CANCEL_FAILED', message: err.message ?? 'Failed to cancel job' },
+          error: {
+            code: 'JOB_CANCEL_FAILED',
+            message: errWithCode.message ?? 'Failed to cancel job',
+          },
         });
       }
     }
@@ -392,8 +406,8 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
-      const query = request.query as any;
+      const userId = request.user?.id ?? request.token?.sub;
+      const query = request.query as Record<string, string | undefined>;
 
       const filter = {
         status: query.status as JobStatus | undefined,
@@ -454,7 +468,7 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const { id } = request.params;
 
       const repo = getJobRepo();
@@ -494,15 +508,16 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
           '[JobsRoute] job retried'
         );
         return reply.code(201).send(result);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
         request.log.error(
-          { tenantId, userId, jobId: id, err: err.message },
+          { tenantId, userId, jobId: id, err: errWithCode.message },
           '[JobsRoute] retry enqueue failed'
         );
         return reply.code(500).send({
           error: {
             code: JobErrorCode.ENQUEUE_FAILED,
-            message: err.message ?? 'Failed to retry job',
+            message: errWithCode.message ?? 'Failed to retry job',
           },
         });
       }
@@ -546,7 +561,7 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
     },
     async (request, reply) => {
       const tenantId = getTenantId(request);
-      const userId = (request as any).user?.id ?? (request as any).user?.sub;
+      const userId = request.user?.id ?? request.token?.sub;
       const { id } = request.params;
 
       const repo = getJobRepo();
@@ -579,15 +594,16 @@ export const jobsRoutes: FastifyPluginAsync = async (server) => {
         await svc.cancel(id, tenantId);
         request.log.info({ tenantId, userId, jobId: id }, '[JobsRoute] cron schedule disabled');
         return reply.send({ message: 'Schedule disabled', jobId: id });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errWithCode = err as Error & { code?: string; message?: string };
         request.log.error(
-          { tenantId, userId, jobId: id, err: err.message },
+          { tenantId, userId, jobId: id, err: errWithCode.message },
           '[JobsRoute] disable-schedule failed'
         );
         return reply.code(500).send({
           error: {
             code: 'JOB_DISABLE_FAILED',
-            message: err.message ?? 'Failed to disable schedule',
+            message: errWithCode.message ?? 'Failed to disable schedule',
           },
         });
       }

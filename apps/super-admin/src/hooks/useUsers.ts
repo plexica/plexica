@@ -43,7 +43,7 @@ export function useUsers() {
       // Pass tenant filter to API for server-side filtering
       if (tenantFilter !== 'all') {
         // Find the tenant ID from the slug
-        const tenant = tenants.find((t: any) => t.slug === tenantFilter);
+        const tenant = tenants.find((t: { id: string; slug: string }) => t.slug === tenantFilter);
         if (tenant) {
           params.tenantId = tenant.id;
         }

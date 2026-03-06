@@ -1,6 +1,7 @@
 // apps/web/src/__tests__/layout/AppLayout.test.tsx
 //
 // T005-24: Unit tests for AppLayout ARIA landmarks and sidebar state.
+// T010-32: Added skip-to-content link test (A11Y-S01).
 
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -28,7 +29,26 @@ vi.mock('../../contexts/PluginContext', () => ({
 }));
 
 vi.mock('../../stores/auth.store', () => ({
-  useAuthStore: () => ({ user: null }),
+  useAuthStore: vi.fn(
+    (
+      selector?: (s: {
+        user: null;
+        tokenSet: null;
+        refreshFailed: boolean;
+        setRefreshFailed: () => void;
+        refreshTokens: () => void;
+      }) => unknown
+    ) => {
+      const state = {
+        user: null,
+        tokenSet: null,
+        refreshFailed: false,
+        setRefreshFailed: () => {},
+        refreshTokens: () => {},
+      };
+      return selector ? selector(state) : state;
+    }
+  ),
 }));
 
 vi.mock('../../contexts/ThemeContext', () => ({
@@ -51,6 +71,10 @@ vi.mock('@plexica/ui', () => ({
   LanguageSelector: () => <div data-testid="language-selector" />,
   Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
     <button onClick={onClick}>{children}</button>
+  ),
+  NotificationBell: () => <div data-testid="notification-bell" />,
+  SearchOverlay: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="search-overlay">{children}</div>
   ),
 }));
 
@@ -116,5 +140,14 @@ describe('AppLayout', () => {
     });
 
     expect(screen.getByRole('main')).toBeInTheDocument();
+  });
+
+  // ---- Test 4 (T010-32) -------------------------------------------------------
+  it('renders a skip-to-content link pointing at #main-content (WCAG 2.4.1)', () => {
+    render(<AppLayout>Page content</AppLayout>);
+
+    const skipLink = screen.getByRole('link', { name: /skip to main content/i });
+    expect(skipLink).toBeInTheDocument();
+    expect(skipLink).toHaveAttribute('href', '#main-content');
   });
 });

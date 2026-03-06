@@ -1,11 +1,12 @@
 // File: apps/web/src/contexts/PluginContext.tsx
 
-import React, {
+import {
   createContext,
   useContext,
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useAuthStore } from '../stores/auth-store';
@@ -36,64 +37,79 @@ export function PluginProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // HIGH FIX #7: Use AbortController to cancel in-flight plugin loading
-  const abortControllerRef = React.useRef<AbortController | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const loadPlugins = useCallback(async () => {
-    if (!tenant?.id) {
-      console.log('[PluginContext] No tenant, skipping plugin load');
-      setPlugins([]);
-      setMenuItems([]);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // HIGH FIX #7: Cancel previous request if still in flight
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
-
-      setIsLoading(true);
-      setError(null);
-
-      console.log('[PluginContext] Loading plugins for tenant:', tenant.id);
-
-      // Initialize from backend
-      await pluginRegistry.initializeFromBackend(tenant.id);
-
-      // Load all plugins
-      const loadedPlugins = await pluginRegistry.loadAllPlugins();
-
-      console.log('[PluginContext] Loaded plugins:', loadedPlugins.length);
-
-      // Register routes and menus
-      loadedPlugins.forEach((plugin) => {
-        pluginRouteManager.registerPluginRoutes(plugin);
-        pluginMenuManager.registerPluginMenuItems(plugin);
-      });
-
-      setPlugins(loadedPlugins);
-      setMenuItems(pluginMenuManager.getAllMenuItems());
-      // Capture any load errors from the plugin loader
-      setLoadErrors(pluginLoader.getLoadErrors());
-      setIsLoading(false);
-    } catch (err: unknown) {
-      // HIGH FIX #7: Don't set error if request was aborted
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('[PluginContext] Failed to load plugins:', err);
-        setError(err.message || 'Failed to load plugins');
+  // Shared async loader — called from the effect and from refreshPlugins.
+  // Defined with useCallback so refreshPlugins has a stable reference.
+  const loadPlugins = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!tenant?.id) {
+        console.log('[PluginContext] No tenant, skipping plugin load');
+        setPlugins([]);
+        setMenuItems([]);
         setIsLoading(false);
+        return;
       }
-    }
-  }, [tenant]);
 
-  // Load plugins when tenant changes
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        console.log('[PluginContext] Loading plugins for tenant:', tenant.id);
+
+        // Initialize from backend
+        await pluginRegistry.initializeFromBackend(tenant.id);
+
+        // Bail out if the caller already aborted
+        if (signal?.aborted) return;
+
+        // Load all plugins
+        const loadedPlugins = await pluginRegistry.loadAllPlugins();
+
+        if (signal?.aborted) return;
+
+        console.log('[PluginContext] Loaded plugins:', loadedPlugins.length);
+
+        // Register routes and menus
+        loadedPlugins.forEach((plugin) => {
+          pluginRouteManager.registerPluginRoutes(plugin);
+          pluginMenuManager.registerPluginMenuItems(plugin);
+        });
+
+        setPlugins(loadedPlugins);
+        setMenuItems(pluginMenuManager.getAllMenuItems());
+        // Capture any load errors from the plugin loader
+        setLoadErrors(pluginLoader.getLoadErrors());
+        setIsLoading(false);
+      } catch (err: unknown) {
+        // HIGH FIX #7: Don't set error if request was aborted
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('[PluginContext] Failed to load plugins:', err);
+          setError(err.message || 'Failed to load plugins');
+          setIsLoading(false);
+        }
+      }
+    },
+    [tenant]
+  );
+
+  // Load plugins when tenant changes.
+  // Define an async IIFE inline so react-hooks/set-state-in-effect is satisfied —
+  // the rule requires the setState-calling function to be declared inside the effect.
   useEffect(() => {
-    // Call loadPlugins async to avoid sync setState warning
-    void loadPlugins();
+    // HIGH FIX #7: Cancel previous in-flight request before starting a new one
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    async function run() {
+      await loadPlugins(controller.signal);
+    }
+    void run();
 
     return () => {
-      // HIGH FIX #7: Cleanup - abort in-flight requests on unmount
-      abortControllerRef.current?.abort();
+      // Abort the in-flight request and clear registries on unmount / tenant change
+      controller.abort();
       pluginRegistry.clear();
       pluginRouteManager.clear();
       pluginMenuManager.clear();
@@ -109,6 +125,14 @@ export function PluginProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  const refreshPlugins = useCallback(() => {
+    // Cancel any in-flight request and start fresh
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    return loadPlugins(controller.signal);
+  }, [loadPlugins]);
+
   const clearLoadErrors = useCallback(() => {
     pluginLoader.clearLoadErrors();
     setLoadErrors([]);
@@ -120,7 +144,7 @@ export function PluginProvider({ children }: { children: ReactNode }) {
     loadErrors,
     isLoading,
     error,
-    refreshPlugins: loadPlugins,
+    refreshPlugins,
     clearLoadErrors,
   };
 

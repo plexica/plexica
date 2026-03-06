@@ -221,14 +221,25 @@ describe.sequential('Tenant Context Middleware', () => {
     });
 
     it('should handle X-Tenant-Slug header as array (take first value)', async () => {
+      const mockTenant = {
+        id: 'tenant-123',
+        slug: 'test-tenant',
+        name: 'Test Tenant',
+        status: 'ACTIVE',
+      };
+
       mockRequest.headers = {
         'x-tenant-slug': ['test-tenant', 'other-tenant'], // Array case
       };
 
-      // Should return 400 since header is array (typeof !== 'string')
+      // Middleware takes rawSlug[0] from the array — should succeed with 'test-tenant'
+      vi.mocked(tenantService.getTenantBySlug).mockResolvedValue(mockTenant as any);
+      vi.mocked(tenantService.getSchemaName).mockReturnValue('tenant_test_tenant');
+
       await tenantContextMiddleware(mockRequest as FastifyRequest, mockReply as FastifyReply);
 
-      expect(mockReply.code).toHaveBeenCalledWith(400);
+      expect(tenantService.getTenantBySlug).toHaveBeenCalledWith('test-tenant');
+      expect(mockReply.code).not.toHaveBeenCalled();
     });
 
     it('should attach tenant context to request object', async () => {

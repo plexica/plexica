@@ -85,7 +85,7 @@ export interface CreateUserDto {
   displayName?: string | null;
   avatarUrl?: string | null;
   locale?: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
   status?: UserStatus;
 }
 
@@ -100,7 +100,7 @@ export interface UpdateUserDto {
   displayName?: string | null;
   avatarUrl?: string | null;
   locale?: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
   status?: UserStatus;
 }
 

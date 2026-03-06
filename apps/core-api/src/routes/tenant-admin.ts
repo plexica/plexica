@@ -176,8 +176,8 @@ async function teamAuthGuard(
   teamId: string,
   requestedRole: string
 ): Promise<boolean> {
-  const callerRoles: string[] = (request as any).user?.roles ?? [];
-  const callerId: string = (request as any).user?.sub ?? '';
+  const callerRoles: string[] = request.user?.roles ?? [];
+  const callerId: string = request.token?.sub ?? '';
 
   // 1. Keycloak ceiling
   const kcMaxRank = keycloakMaxRoleRank(callerRoles);
@@ -462,7 +462,7 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
   fastify.post('/tenant/teams', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { tenantId, schemaName } = request.tenant!;
-      const requestingUserId = (request as any).user?.sub ?? 'system';
+      const requestingUserId = request.token?.sub ?? request.user?.id ?? 'system';
       const dto = CreateTeamSchema.parse(request.body);
       const result = await tenantAdminService.createTeam(tenantId, schemaName, {
         ...dto,
@@ -807,7 +807,7 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const tenantId = (request as any).tenant?.tenantId;
+      const tenantId = request.tenant?.tenantId;
       if (!tenantId) {
         return reply.code(400).send({
           error: { code: 'MISSING_TENANT_CONTEXT', message: 'Tenant context is required' },
@@ -836,8 +836,7 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
       }
 
       const body = parseResult.data;
-      const requestingUserId =
-        (request.user as any)?.sub ?? (request.user as any)?.id ?? '__unknown__';
+      const requestingUserId = request.token?.sub ?? request.user?.id ?? '__unknown__';
 
       try {
         const jobQueueService = getJobQueueServiceInstance();

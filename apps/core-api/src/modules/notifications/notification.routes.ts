@@ -10,7 +10,11 @@ import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware, requireRole } from '../../middleware/auth.js';
 import { NotificationService } from './notification.service.js';
 import { NotificationRepository } from './notification.repository.js';
-import { NotificationSchema, NotificationErrorCode } from '../../types/core-services.types.js';
+import {
+  Notification,
+  NotificationSchema,
+  NotificationErrorCode,
+} from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
 
 // ============================================================================
@@ -18,19 +22,17 @@ import { USER_ROLES } from '../../constants/index.js';
 // ============================================================================
 
 function getTenantId(request: FastifyRequest): string {
-  // Priority: request.tenant.tenantId (set by tenantContextMiddleware in integration/E2E)
-  // → user.tenantSlug (set by authMiddleware) → user.tenantId (unit test mocks)
   const tenantId =
-    (request as any).tenant?.tenantId ??
-    (request as any).user?.tenantSlug ??
-    (request as any).user?.tenantId;
+    request.tenant?.tenantId ??
+    request.user?.tenantSlug ??
+    (request.user as (typeof request.user & { tenantId?: string }) | undefined)?.tenantId;
   if (!tenantId)
     throw Object.assign(new Error('Tenant context not available'), { statusCode: 400 });
   return tenantId;
 }
 
 function getUserId(request: FastifyRequest): string {
-  const userId = (request as any).user?.id ?? (request as any).user?.sub;
+  const userId = request.user?.id;
   if (!userId) throw Object.assign(new Error('User context not available'), { statusCode: 401 });
   return userId;
 }
@@ -98,7 +100,7 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       const userId = getUserId(request);
-      const body = request.body as any;
+      const body = request.body as Record<string, unknown>;
 
       const parsed = NotificationSchema.safeParse({ ...body, tenantId });
       if (!parsed.success) {
@@ -116,22 +118,23 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       }
 
       try {
-        const result = await notifSvc.send(parsed.data as any);
+        const result = await notifSvc.send(parsed.data);
         request.log.info(
           { tenantId, userId, channel: parsed.data.channel },
           '[NotificationRoute] notification sent'
         );
         return reply.code(201).send(result);
-      } catch (err: any) {
-        if (err.code === NotificationErrorCode.INVALID_EMAIL) {
+      } catch (err: unknown) {
+        const error = err as { code?: string; message?: string };
+        if (error.code === NotificationErrorCode.INVALID_EMAIL) {
           request.log.warn(
-            { tenantId, userId, code: err.code },
+            { tenantId, userId, code: error.code },
             '[NotificationRoute] invalid email address'
           );
-          return reply.code(400).send({ error: { code: err.code, message: err.message } });
+          return reply.code(400).send({ error: { code: error.code, message: error.message } });
         }
         request.log.error(
-          { tenantId, userId, err: err.message },
+          { tenantId, userId, err: error.message },
           '[NotificationRoute] send failed'
         );
         return reply.code(500).send({
@@ -183,7 +186,7 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       const userId = getUserId(request);
-      const body = request.body as any;
+      const body = request.body as unknown;
 
       if (!Array.isArray(body)) {
         return reply.code(400).send({
@@ -196,9 +199,12 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
 
       // Per-item Zod validation (HIGH #2) — validate each item before enqueuing
       const validationErrors: { index: number; errors: object }[] = [];
-      const notifications: any[] = [];
+      const notifications: Notification[] = [];
       for (let i = 0; i < body.length; i++) {
-        const parsed = NotificationSchema.safeParse({ ...body[i], tenantId });
+        const parsed = NotificationSchema.safeParse({
+          ...(body[i] as Record<string, unknown>),
+          tenantId,
+        });
         if (!parsed.success) {
           validationErrors.push({ index: i, errors: parsed.error.flatten() });
         } else {
@@ -221,7 +227,7 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
       }
 
       try {
-        await notifSvc.sendBulk(notifications as any[]);
+        await notifSvc.sendBulk(notifications);
         request.log.info(
           { tenantId, userId, count: notifications.length },
           '[NotificationRoute] bulk notifications enqueued'
@@ -229,9 +235,10 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
         return reply
           .code(202)
           .send({ message: 'Bulk notifications enqueued', count: notifications.length });
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const error = err as { message?: string };
         request.log.error(
-          { tenantId, userId, err: err.message },
+          { tenantId, userId, err: error.message },
           '[NotificationRoute] bulk send failed'
         );
         return reply.code(500).send({
@@ -280,12 +287,17 @@ export const notificationRoutes: FastifyPluginAsync = async (server) => {
         },
       },
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{
+        Querystring: { limit?: string; unread?: string | boolean; offset?: string };
+      }>,
+      reply: FastifyReply
+    ) => {
       const tenantId = getTenantId(request);
       const userId = getUserId(request);
-      const query = request.query as any;
-      const limit = Math.min(parseInt(query.limit ?? '10', 10), 100);
-      const offset = parseInt(query.offset ?? '0', 10);
+      const query = request.query;
+      const limit = Math.min(parseInt(String(query.limit ?? '10'), 10), 100);
+      const offset = parseInt(String(query.offset ?? '0'), 10);
       const unreadOnly = query.unread === true || query.unread === 'true';
 
       const [notifications, unreadCount] = await Promise.all([

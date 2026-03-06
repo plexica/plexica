@@ -8,7 +8,7 @@
  * Constitution Article 6.3: Structured Pino logging.
  */
 
-import { type PrismaClient } from '@plexica/database';
+import { type PrismaClient, Prisma } from '@plexica/database';
 import { db } from '../lib/db.js';
 import { logger } from '../lib/logger.js';
 import { redis } from '../lib/redis.js';
@@ -126,12 +126,12 @@ export class SystemConfigService {
       where: { key },
       create: {
         key,
-        value: value as any,
+        value: value as Prisma.InputJsonValue,
         category: 'general',
         updatedBy,
       },
       update: {
-        value: value as any,
+        value: value as Prisma.InputJsonValue,
         updatedBy,
       },
     });
@@ -165,7 +165,7 @@ export class SystemConfigService {
       const updated = await this.db.systemConfig.update({
         where: { key },
         data: {
-          value: value as any,
+          value: value as Prisma.InputJsonValue,
           updatedBy,
         },
       });
@@ -189,9 +189,14 @@ export class SystemConfigService {
         updatedAt: updated.updatedAt,
         createdAt: updated.createdAt,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Prisma throws P2025 when the record does not exist
-      if (err?.code === 'P2025') {
+      if (
+        err !== null &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2025'
+      ) {
         throw new SystemConfigNotFoundError(key);
       }
       logger.error({ err, key }, 'SystemConfigService.update: failed to update config');

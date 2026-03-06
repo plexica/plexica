@@ -393,8 +393,9 @@ function CreateTeamDialog({
         toast.success('Team created successfully!');
         onSuccess();
         onOpenChange(false);
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || 'Failed to create team');
+      } catch (err: unknown) {
+        const e = err as { response?: { data?: { message?: string } }; message?: string };
+        toast.error(e.response?.data?.message || e.message || 'Failed to create team');
       }
     },
   });

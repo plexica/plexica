@@ -128,7 +128,7 @@ export const useAuthStore = create<AuthStore>()(
           const token = getToken();
           if (token) {
             try {
-              const decoded = jwtDecode(token) as any;
+              const decoded = jwtDecode<{ exp?: number }>(token);
               const expiryTime = decoded.exp ? decoded.exp * 1000 : null;
 
               if (!expiryTime || Date.now() >= expiryTime) {

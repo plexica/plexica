@@ -22,13 +22,13 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { configureAxe } from 'vitest-axe';
 
 // Register vitest-axe matchers manually (package bug: extend-expect is empty)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as any;
+const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as unknown as {
+  toHaveNoViolations: Parameters<typeof expect.extend>[0][string];
+};
 expect.extend({ toHaveNoViolations });
 
 function expectNoViolations(results: unknown): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (expect(results) as any).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations(): void }).toHaveNoViolations();
 }
 
 const axe = configureAxe({
@@ -61,6 +61,7 @@ vi.mock('@/lib/api-client', () => ({
 
 import { adminApiClient } from '@/lib/api-client';
 import { toast } from '@/components/ToastProvider';
+import type { PluginEntity } from '@plexica/types';
 
 // ---------------------------------------------------------------------------
 // Component imports (after mocks)
@@ -155,7 +156,7 @@ describe('PluginInstallProgress', () => {
         name: 'Test Plugin',
         version: '1.0.0',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -168,7 +169,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent({ pluginName: 'Acme Analytics', pluginVersion: '2.3.1' });
 
@@ -180,7 +181,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -193,7 +194,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -209,7 +210,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -222,7 +223,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -237,7 +238,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -269,7 +270,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -295,7 +296,7 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -305,7 +306,7 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       await advanceTimers(2_100);
 
@@ -320,7 +321,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -341,7 +342,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -357,7 +358,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -372,7 +373,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -393,7 +394,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -408,8 +409,8 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
-      vi.mocked(adminApiClient.cancelInstall).mockResolvedValue({ message: 'cancelled' } as any);
+      } as unknown as PluginEntity);
+      vi.mocked(adminApiClient.cancelInstall).mockResolvedValue({ message: 'cancelled' });
 
       const onCancel = vi.fn();
       renderComponent({ onCancel });
@@ -438,8 +439,8 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
-      vi.mocked(adminApiClient.cancelInstall).mockResolvedValue({ message: 'cancelled' } as any);
+      } as unknown as PluginEntity);
+      vi.mocked(adminApiClient.cancelInstall).mockResolvedValue({ message: 'cancelled' });
 
       renderComponent();
 
@@ -461,7 +462,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
       vi.mocked(adminApiClient.cancelInstall).mockRejectedValue(new Error('Network error'));
 
       renderComponent();
@@ -486,7 +487,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -507,7 +508,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -522,7 +523,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       const onComplete = vi.fn();
       renderComponent({ onComplete });
@@ -539,7 +540,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'ACTIVE',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -560,7 +561,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent({ pluginName: 'My Plugin', pluginVersion: '3.0.0' });
 
@@ -586,14 +587,14 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValueOnce({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
       // Poll 2: throw — sets errorRef.current
       getRegistryPlugin.mockRejectedValueOnce(new Error('Container crashed'));
       // Poll 3: INSTALLING again — advanceStep sees errorRef → marks step 1 failed
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -611,12 +612,12 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValueOnce({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
       getRegistryPlugin.mockRejectedValueOnce(new Error('OOM'));
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 
@@ -635,12 +636,12 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValueOnce({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
       getRegistryPlugin.mockRejectedValueOnce(new Error('Timeout'));
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       const onRetry = vi.fn();
       renderComponent({ onRetry });
@@ -658,12 +659,12 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValueOnce({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
       getRegistryPlugin.mockRejectedValueOnce(new Error('Timeout'));
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       const onRetry = vi.fn();
       renderComponent({ onRetry });
@@ -682,12 +683,12 @@ describe('PluginInstallProgress', () => {
       getRegistryPlugin.mockResolvedValueOnce({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
       getRegistryPlugin.mockRejectedValueOnce(new Error('Container crashed'));
       getRegistryPlugin.mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent({ pluginName: 'Bad Plugin', pluginVersion: '0.0.1' });
 
@@ -785,7 +786,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       const { container } = renderComponent();
 
@@ -798,7 +799,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLED',
-      } as any);
+      } as unknown as PluginEntity);
 
       const { container } = renderComponent();
 
@@ -818,7 +819,7 @@ describe('PluginInstallProgress', () => {
       vi.mocked(adminApiClient.getRegistryPlugin).mockResolvedValue({
         id: 'plugin-test-001',
         lifecycleStatus: 'INSTALLING',
-      } as any);
+      } as unknown as PluginEntity);
 
       renderComponent();
 

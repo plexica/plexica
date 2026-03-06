@@ -851,3 +851,357 @@ describe('WorkspaceSwitcher', () => {
     expect(liveRegion).toHaveTextContent(/1 workspace found/i);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5-ext. SharePluginDialog — coverage gap tests (lines 126–157, 211)
+// ---------------------------------------------------------------------------
+
+describe('SharePluginDialog — extended coverage', () => {
+  const plugins = [
+    { id: 'p-1', name: 'Analytics' },
+    { id: 'p-2', name: 'Billing' },
+  ];
+  const workspaces = [
+    { id: 'ws-a', name: 'Team Alpha' },
+    { id: 'ws-b', name: 'Team Beta' },
+    { id: 'ws-c', name: 'Current WS', isCurrent: true },
+  ];
+
+  it('shows loading spinner when isLoadingPlugins=true', () => {
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={[]}
+        targetWorkspaces={workspaces}
+        isLoadingPlugins={true}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    // Spinner renders inside the plugin selector area
+    const spinnerContainer = document.querySelector('.flex.items-center.justify-center.h-20');
+    expect(spinnerContainer).not.toBeNull();
+  });
+
+  it('disables Cancel button and shows "Sharing..." text when isSubmitting=true', () => {
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={plugins}
+        targetWorkspaces={workspaces}
+        isSubmitting={true}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled();
+    expect(screen.getByText('Sharing...')).toBeInTheDocument();
+  });
+
+  it('disables plugin checkboxes when isSubmitting=true', () => {
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={plugins}
+        targetWorkspaces={workspaces}
+        isSubmitting={true}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    const analyticsCheckbox = screen.getByRole('checkbox', { name: /analytics/i });
+    expect(analyticsCheckbox).toBeDisabled();
+  });
+
+  it('filters plugin list when plugin search query is typed', async () => {
+    const user = userEvent.setup();
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={plugins}
+        targetWorkspaces={workspaces}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    const searchInput = screen.getByRole('searchbox', { name: /search installed plugins/i });
+    await user.type(searchInput, 'Ana');
+    expect(screen.getByText('Analytics')).toBeInTheDocument();
+    expect(screen.queryByText('Billing')).not.toBeInTheDocument();
+  });
+
+  it('filters workspace list when workspace search query is typed', async () => {
+    const user = userEvent.setup();
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={plugins}
+        targetWorkspaces={workspaces}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    const searchInput = screen.getByRole('searchbox', { name: /search workspaces/i });
+    await user.type(searchInput, 'Alpha');
+    expect(screen.getByText('Team Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Team Beta')).not.toBeInTheDocument();
+  });
+
+  it('disables checkbox for isCurrent=true workspace and shows "(current)" label', () => {
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={plugins}
+        targetWorkspaces={workspaces}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    const currentCheckbox = screen.getByRole('checkbox', {
+      name: /current workspace, disabled/i,
+    });
+    expect(currentCheckbox).toBeDisabled();
+    expect(screen.getByText('(current)')).toBeInTheDocument();
+  });
+
+  it('shows selection summary after selecting a plugin and a workspace', async () => {
+    const user = userEvent.setup();
+    render(
+      <SharePluginDialog
+        open={true}
+        plugins={plugins}
+        targetWorkspaces={[{ id: 'ws-a', name: 'Team Alpha' }]}
+        error={null}
+        onClose={vi.fn()}
+        onShare={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole('checkbox', { name: /analytics/i }));
+    await user.click(screen.getByRole('checkbox', { name: /team alpha/i }));
+    // The summary <p> contains a <span>Selected:</span> followed by plugin/workspace names
+    expect(screen.getAllByText(/selected/i).length).toBeGreaterThan(0);
+    // The selection summary paragraph should contain the names
+    const summary = document.querySelector('p.text-xs.text-muted-foreground.bg-muted');
+    expect(summary?.textContent).toMatch(/Analytics/);
+    expect(summary?.textContent).toMatch(/Team Alpha/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6-ext. SharedResourcesList — coverage gap tests (lines 66, 197, 211–275)
+// ---------------------------------------------------------------------------
+
+describe('SharedResourcesList — extended coverage', () => {
+  const mockRevokeMutate = vi.fn();
+  const outboundResource: SharedResource = {
+    id: 'res-out-1',
+    resourceType: 'PLUGIN',
+    resourceId: 'plugin-1',
+    resourceName: 'My Plugin',
+    sharedWithWorkspaceName: 'Target WS',
+    sharedByEmail: 'admin@example.com',
+    sharedAt: '2026-01-15T12:00:00Z',
+  };
+  const inboundResource: SharedResource = {
+    id: 'res-in-1',
+    resourceType: 'PLUGIN',
+    resourceId: 'plugin-2',
+    resourceName: 'Inbound Plugin',
+    sharedFromWorkspaceName: 'Source WS',
+    sharedByEmail: 'other@example.com',
+    sharedAt: '2026-01-10T12:00:00Z',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useMutation).mockReturnValue({
+      mutate: mockRevokeMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof useMutation>);
+  });
+
+  it('shows "Share Your First Plugin" button for admin when outbound list is empty', () => {
+    vi.mocked(useQuery).mockReturnValue({ data: [], isLoading: false } as ReturnType<
+      typeof useQuery
+    >);
+    render(
+      <SharedResourcesList
+        workspaceId="ws-1"
+        isAdmin={true}
+        sharingEnabled={true}
+        onGoToSettings={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: /share your first plugin/i })).toBeInTheDocument();
+  });
+
+  it('does not show "Share Your First Plugin" button for non-admin', () => {
+    vi.mocked(useQuery).mockReturnValue({ data: [], isLoading: false } as ReturnType<
+      typeof useQuery
+    >);
+    render(
+      <SharedResourcesList
+        workspaceId="ws-1"
+        isAdmin={false}
+        sharingEnabled={true}
+        onGoToSettings={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByRole('button', { name: /share your first plugin/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders inbound resource rows in the "Resources Shared With This Workspace" section', () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: [inboundResource],
+      isLoading: false,
+    } as ReturnType<typeof useQuery>);
+    render(
+      <SharedResourcesList
+        workspaceId="ws-1"
+        isAdmin={true}
+        sharingEnabled={true}
+        onGoToSettings={vi.fn()}
+      />
+    );
+    expect(screen.getByText('Inbound Plugin')).toBeInTheDocument();
+    expect(screen.getByText('Resources Shared With This Workspace')).toBeInTheDocument();
+  });
+
+  it('clicking Revoke on a row opens the RevokeShareDialog', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useQuery).mockReturnValue({
+      data: [outboundResource],
+      isLoading: false,
+    } as ReturnType<typeof useQuery>);
+    render(
+      <SharedResourcesList
+        workspaceId="ws-1"
+        isAdmin={true}
+        sharingEnabled={true}
+        onGoToSettings={vi.fn()}
+      />
+    );
+    const revokeBtn = screen.getByRole('button', { name: /revoke access to my plugin/i });
+    await user.click(revokeBtn);
+    // RevokeShareDialog title should now be visible
+    expect(screen.getByText('Revoke Sharing')).toBeInTheDocument();
+  });
+
+  it('confirming revoke calls revokeMutation.mutate with the resource id', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useQuery).mockReturnValue({
+      data: [outboundResource],
+      isLoading: false,
+    } as ReturnType<typeof useQuery>);
+    render(
+      <SharedResourcesList
+        workspaceId="ws-1"
+        isAdmin={true}
+        sharingEnabled={true}
+        onGoToSettings={vi.fn()}
+      />
+    );
+    // Open revoke dialog
+    await user.click(screen.getByRole('button', { name: /revoke access to my plugin/i }));
+    // Confirm revoke
+    await user.click(screen.getByRole('button', { name: /revoke access/i }));
+    expect(mockRevokeMutate).toHaveBeenCalledWith(outboundResource.id);
+  });
+
+  it('sets shareError state when handleShare throws', async () => {
+    const user = userEvent.setup();
+    vi.mocked(useQuery).mockReturnValue({ data: [], isLoading: false } as ReturnType<
+      typeof useQuery
+    >);
+    const { apiClient: mockApiClient } = await import('@/lib/api-client');
+    vi.spyOn(mockApiClient, 'shareWorkspaceResource').mockRejectedValueOnce({
+      response: { data: { error: { message: 'Share failed' } } },
+    });
+    render(
+      <SharedResourcesList
+        workspaceId="ws-1"
+        isAdmin={true}
+        sharingEnabled={true}
+        onGoToSettings={vi.fn()}
+        availablePlugins={[{ id: 'p-1', name: 'Test Plugin' }]}
+        tenantWorkspaces={[{ id: 'ws-2', name: 'Other WS' }]}
+      />
+    );
+    // Open share dialog
+    await user.click(screen.getByRole('button', { name: /share plugin/i }));
+    // Select a plugin and workspace
+    await user.click(screen.getByRole('checkbox', { name: /test plugin/i }));
+    await user.click(screen.getByRole('checkbox', { name: /other ws/i }));
+    await user.click(screen.getByRole('button', { name: /share selected/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Share failed')).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4-ext. WorkspaceSettingsForm — coverage gap tests (lines 126–135, 177, 252)
+// ---------------------------------------------------------------------------
+
+describe('WorkspaceSettingsForm — extended coverage', () => {
+  const defaultSettings = {
+    defaultTeamRole: 'MEMBER' as const,
+    allowCrossWorkspaceSharing: false,
+    maxMembers: 0,
+    isDiscoverable: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('Discard button resets form to last saved values', async () => {
+    const user = userEvent.setup();
+    render(
+      <WorkspaceSettingsForm workspaceId="ws-1" initialSettings={defaultSettings} isAdmin={true} />
+    );
+    // Toggle sharing to dirty the form
+    await user.click(screen.getByRole('switch', { name: /allow cross-workspace sharing/i }));
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+
+    // Click Discard
+    await user.click(screen.getByRole('button', { name: /discard/i }));
+
+    // Unsaved indicator should be gone
+    expect(screen.queryByText(/unsaved changes/i)).not.toBeInTheDocument();
+  });
+
+  it('shows plain <span> with role text when isAdmin=false (readonly path)', () => {
+    render(
+      <WorkspaceSettingsForm workspaceId="ws-1" initialSettings={defaultSettings} isAdmin={false} />
+    );
+    // In readonly mode, defaultTeamRole is shown as a <span> not a Select
+    expect(screen.getByText('MEMBER')).toBeInTheDocument();
+    // The Select trigger should NOT be present in readonly mode
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('shows "Failed to save settings" fallback when error response has no message field', async () => {
+    const { apiClient: mockApiClient } = await import('@/lib/api-client');
+    vi.spyOn(mockApiClient, 'patchWorkspaceSettings').mockRejectedValueOnce(
+      new Error('Network error with no structured body')
+    );
+    const user = userEvent.setup();
+    render(
+      <WorkspaceSettingsForm workspaceId="ws-1" initialSettings={defaultSettings} isAdmin={true} />
+    );
+    await user.click(screen.getByRole('switch', { name: /allow cross-workspace sharing/i }));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Failed to save settings')).toBeInTheDocument();
+    });
+  });
+});

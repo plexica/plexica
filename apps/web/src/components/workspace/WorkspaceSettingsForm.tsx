@@ -101,17 +101,12 @@ export function WorkspaceSettingsForm({
   const hasValidationErrors = maxMembersError !== null;
   const readonly = !isAdmin;
 
-  // Sync if parent provides new initialSettings — use stable primitives as deps
+  // Sync if parent provides new initialSettings
   useEffect(() => {
     setSettings(initialSettings);
     setSaved(initialSettings);
     setMaxMembersInput(String(initialSettings.maxMembers));
-  }, [
-    initialSettings.defaultTeamRole,
-    initialSettings.allowCrossWorkspaceSharing,
-    initialSettings.maxMembers,
-    initialSettings.isDiscoverable,
-  ]);
+  }, [initialSettings]);
 
   // Validate on blur with Zod; update settings state only on valid input
   function handleMaxMembersChange(raw: string) {

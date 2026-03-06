@@ -160,8 +160,9 @@ function WorkspaceMembersPage() {
       setRemoveTarget(null);
       setRemoveError(null);
     },
-    onError: (err: any) => {
-      setRemoveError(err?.response?.data?.error?.message || 'Failed to remove member');
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: { message?: string } } } };
+      setRemoveError(e?.response?.data?.error?.message || 'Failed to remove member');
     },
   });
 

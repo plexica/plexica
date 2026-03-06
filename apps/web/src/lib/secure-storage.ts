@@ -1,5 +1,7 @@
 // apps/web/src/lib/secure-storage.ts
 
+import type { Tenant } from '@/types';
+
 /**
  * Secure storage service for sensitive data
  *
@@ -100,7 +102,7 @@ export function clearToken(): void {
 /**
  * Save tenant (non-sensitive, OK in sessionStorage)
  */
-export function saveTenant(tenant: any): void {
+export function saveTenant(tenant: Tenant): void {
   try {
     if (isStorageSupported()) {
       sessionStorage.setItem(TENANT_KEY, JSON.stringify(tenant));
@@ -113,7 +115,7 @@ export function saveTenant(tenant: any): void {
 /**
  * Get tenant from storage
  */
-export function getTenant(): any | null {
+export function getTenant(): Tenant | null {
   try {
     if (isStorageSupported()) {
       const tenant = sessionStorage.getItem(TENANT_KEY);

@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@plexica/ui';
 import { AlertCircle, Plus } from 'lucide-react';
 import { DataTable } from '@plexica/ui';
 import { SearchableSelect } from '@plexica/ui';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef, CellContext } from '@tanstack/react-table';
 import type { WorkspaceMember, WorkspaceRole } from '../types';
 import { useForm } from '@/hooks/useForm';
 import { toast } from '@/components/ToastProvider';
@@ -288,7 +288,7 @@ function MembersTable({
           {
             id: 'actions',
             header: 'Actions',
-            cell: (info: any) => {
+            cell: (info: CellContext<WorkspaceMember, unknown>) => {
               const member = info.row.original;
               return (
                 <Button
@@ -360,7 +360,9 @@ function InviteDialog({
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
-    handleChange({ target: { name, value } } as any);
+    handleChange({ target: { name, value } } as React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement
+    >);
   };
 
   return (

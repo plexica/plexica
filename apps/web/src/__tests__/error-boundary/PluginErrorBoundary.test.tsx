@@ -12,8 +12,8 @@
 //   - Reset error on retry                                        ✓
 //   - Children rendered when no error                             ✓
 
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // ---------------------------------------------------------------------------
 // Mock Pino logger before importing the component.
@@ -321,5 +321,153 @@ describe('PluginErrorBoundary async error (simulated)', () => {
     // The error was captured in the closure (simulating useEffect throw)
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toBe('async-error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: unhandledrejection bridge (M-8 — real window event)
+// ---------------------------------------------------------------------------
+
+describe('PluginErrorBoundary unhandledrejection bridge', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows fallback UI when window fires unhandledrejection with an Error', async () => {
+    const { unmount } = render(
+      <PluginErrorBoundary pluginId="billing" pluginName="Billing Plugin">
+        <div data-testid="content">plugin running</div>
+      </PluginErrorBoundary>
+    );
+
+    // Confirm healthy state first
+    expect(screen.getByTestId('content')).toBeInTheDocument();
+    expect(screen.queryByText('Plugin Unavailable')).not.toBeInTheDocument();
+
+    // Dispatch a real unhandledrejection event on window
+    const rejectionError = new Error('async plugin fetch failed');
+    // Silence the rejection so Vitest doesn't catch it as an unhandled error.
+    // The PromiseRejectionEvent carries the reason; the actual promise is only
+    // needed to satisfy the constructor signature.
+    const silencedPromise = Promise.reject(rejectionError);
+    silencedPromise.catch(() => {});
+    const event = new PromiseRejectionEvent('unhandledrejection', {
+      promise: silencedPromise,
+      reason: rejectionError,
+      cancelable: true,
+      bubbles: false,
+    });
+
+    await act(async () => {
+      window.dispatchEvent(event);
+    });
+
+    // The boundary should have caught the rejection and shown the fallback
+    expect(screen.getByText('Plugin Unavailable')).toBeInTheDocument();
+    expect(screen.getByText(/"Billing Plugin"/)).toBeInTheDocument();
+
+    // H-2 verification: event.defaultPrevented must remain false
+    // (we no longer call event.preventDefault())
+    expect(event.defaultPrevented).toBe(false);
+
+    unmount();
+  });
+
+  it('shows fallback UI when rejection reason is a plain string', async () => {
+    const { unmount } = render(
+      <PluginErrorBoundary pluginId="crm" pluginName="CRM">
+        <div data-testid="ok">ok</div>
+      </PluginErrorBoundary>
+    );
+
+    const silencedPromise2 = Promise.reject('string reason');
+    silencedPromise2.catch(() => {});
+    const event = new PromiseRejectionEvent('unhandledrejection', {
+      promise: silencedPromise2,
+      reason: 'string reason',
+      cancelable: true,
+      bubbles: false,
+    });
+
+    await act(async () => {
+      window.dispatchEvent(event);
+    });
+
+    expect(screen.getByText('Plugin Unavailable')).toBeInTheDocument();
+    unmount();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: MED-1 — multi-boundary unhandledrejection behaviour
+// ---------------------------------------------------------------------------
+
+describe('PluginErrorBoundary multi-boundary unhandledrejection', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('both boundaries show fallback when a single rejection fires (known best-effort behaviour)', async () => {
+    // Mount two independent PluginErrorBoundary instances in the same tree.
+    // Both subscribe to the global window.unhandledrejection event.
+    // When the event fires, BOTH boundaries receive it — this is the documented
+    // best-effort limitation: attribution is per-boundary, not per-subtree.
+    // See MED-1 in decision-log.md and the comment in handleUnhandledRejection.
+    const { unmount } = render(
+      <>
+        <PluginErrorBoundary pluginId="crm" pluginName="CRM Plugin">
+          <div data-testid="crm-content">crm running</div>
+        </PluginErrorBoundary>
+        <PluginErrorBoundary pluginId="billing" pluginName="Billing Plugin">
+          <div data-testid="billing-content">billing running</div>
+        </PluginErrorBoundary>
+      </>
+    );
+
+    // Both boundaries are healthy initially
+    expect(screen.getByTestId('crm-content')).toBeInTheDocument();
+    expect(screen.getByTestId('billing-content')).toBeInTheDocument();
+
+    const rejectionError = new Error('shared rejection');
+    const silencedPromise = Promise.reject(rejectionError);
+    silencedPromise.catch(() => {});
+    const event = new PromiseRejectionEvent('unhandledrejection', {
+      promise: silencedPromise,
+      reason: rejectionError,
+      cancelable: true,
+      bubbles: false,
+    });
+
+    await act(async () => {
+      window.dispatchEvent(event);
+    });
+
+    // Both boundaries should have caught the same event and shown their fallbacks.
+    // The "Plugin Unavailable" heading appears twice — once per boundary.
+    const headings = screen.getAllByText('Plugin Unavailable');
+    expect(headings).toHaveLength(2);
+
+    // Neither boundary suppresses the event (H-2 rule still applies)
+    expect(event.defaultPrevented).toBe(false);
+
+    unmount();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: H-1 — error.message hidden in production mode
+// ---------------------------------------------------------------------------
+
+describe('PluginErrorFallback DEV guard on error.message', () => {
+  it('renders error message when import.meta.env.DEV is true (Vitest default)', () => {
+    // In Vitest, import.meta.env.DEV === true, so error message SHOULD appear
+    render(
+      <PluginErrorFallback
+        pluginName="CRM"
+        error={new Error('secret-stack-trace-xyz')}
+        onRetry={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/secret-stack-trace-xyz/)).toBeInTheDocument();
   });
 });

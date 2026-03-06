@@ -1,6 +1,15 @@
 // File: apps/web/src/lib/plugin-loader.ts
 
+import type { ComponentType } from 'react';
 import type { TenantPlugin } from '@plexica/types';
+
+/**
+ * Module Federation container interface exposed on `window` by Vite MF plugins.
+ */
+interface ModuleFederationContainer {
+  init(scope: Record<string, unknown>): Promise<void>;
+  get(module: string): Promise<() => { default: ComponentType<Record<string, unknown>> }>;
+}
 import type {
   PluginLoaderManifest as PluginManifest,
   PluginLoaderRoute as PluginRoute,
@@ -142,14 +151,18 @@ class PluginLoaderService {
       await this.loadRemoteEntry(manifest.remoteEntry, manifest.id);
 
       // Get the plugin container
-      const container = (window as any)[manifest.id];
+      const win = window as unknown as Record<string, ModuleFederationContainer | undefined>;
+      const container = win[manifest.id];
       if (!container) {
         throw new Error(`Plugin container not found: ${manifest.id}`);
       }
 
       // Initialize the container with shared scope
       // For Vite Module Federation, use __federation_shared__
-      const sharedScope = (window as any).__federation_shared__ || {};
+      const sharedScope =
+        (window as unknown as Record<string, Record<string, unknown> | undefined>)[
+          '__federation_shared__'
+        ] || {};
       await container.init(sharedScope);
 
       // Get the plugin module (Vite MF uses './Plugin' by convention)
@@ -245,7 +258,7 @@ class PluginLoaderService {
         };
 
         return await this.loadPlugin(manifest);
-      } catch (error: any) {
+      } catch (error: unknown) {
         const pluginError: PluginLoadError = {
           pluginId: tenantPlugin.plugin.id,
           pluginName: tenantPlugin.plugin.name,
@@ -293,7 +306,7 @@ class PluginLoaderService {
     return this.loadErrors.get(pluginId);
   }
 
-  private getPluginRemoteEntry(plugin: any): string {
+  private getPluginRemoteEntry(plugin: { id: string; version: string }): string {
     // In development, plugins are served from a local dev server
     // In production, they are served from CDN (MinIO or CloudFront)
     const baseUrl = import.meta.env.DEV
@@ -305,15 +318,15 @@ class PluginLoaderService {
 
   private getPluginRoutes(tenantPlugin: TenantPlugin): PluginRoute[] {
     // Routes could be defined in plugin configuration
-    const config = tenantPlugin.configuration as any;
-    return config?.routes || [];
+    const config = tenantPlugin.configuration as Record<string, unknown>;
+    return (config?.routes as PluginRoute[]) || [];
   }
 
   private getPluginMenuItems(tenantPlugin: TenantPlugin): PluginMenuItem[] {
     // Menu items could be defined in plugin configuration
-    const config = tenantPlugin.configuration as any;
+    const config = tenantPlugin.configuration as Record<string, unknown>;
     return (
-      config?.menuItems || [
+      (config?.menuItems as PluginMenuItem[]) || [
         {
           label: tenantPlugin.plugin.name,
           path: `/plugins/${tenantPlugin.plugin.id}`,
@@ -343,7 +356,7 @@ class PluginLoaderService {
     }
 
     // Clear the container from window
-    delete (window as any)[pluginId];
+    (window as unknown as Record<string, unknown>)[pluginId] = undefined;
   }
 
   /**

@@ -74,6 +74,15 @@ export default defineConfig([
       'react/no-unescaped-entities': 'warn',
     },
   },
+  // TanStack Table's useReactTable() returns functions that the React Compiler
+  // cannot memoize safely — this is a known library incompatibility, not a
+  // code defect. Suppress the compiler warning for the DataTable component only.
+  {
+    files: ['**/DataTable/DataTable.tsx'],
+    rules: {
+      'react-hooks/incompatible-library': 'off',
+    },
+  },
   // Test setup files
   {
     files: ['**/test-setup.d.ts'],

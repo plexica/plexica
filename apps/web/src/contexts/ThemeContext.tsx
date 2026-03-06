@@ -166,7 +166,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setTenantThemeLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch when tenant slug becomes available or changes

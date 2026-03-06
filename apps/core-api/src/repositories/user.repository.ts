@@ -80,12 +80,15 @@ export class UserRepository {
    * @param tenantCtx - Optional tenant context override (for testing)
    * @returns User or null if not found
    */
-  async findByKeycloakId(keycloakId: string, tenantCtx?: TenantContext): Promise<any | null> {
+  async findByKeycloakId(
+    keycloakId: string,
+    tenantCtx?: TenantContext
+  ): Promise<Record<string, unknown> | null> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
     try {
       // Use parameterized query via Prisma (Constitution Art. 3.3, Art. 5.3)
-      const result = await db.$queryRaw<any[]>`
+      const result = await db.$queryRaw<Record<string, unknown>[]>`
         SELECT * FROM ${Prisma.raw(`"${schemaName}"."users"`)}
         WHERE keycloak_id = ${keycloakId}
         LIMIT 1
@@ -108,10 +111,13 @@ export class UserRepository {
    * @param tenantCtx - Optional tenant context override (for testing)
    * @returns User or null if not found
    */
-  async findByEmail(email: string, tenantCtx?: TenantContext): Promise<any | null> {
+  async findByEmail(
+    email: string,
+    tenantCtx?: TenantContext
+  ): Promise<Record<string, unknown> | null> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
-    const result = await db.$queryRaw<any[]>`
+    const result = await db.$queryRaw<Record<string, unknown>[]>`
       SELECT * FROM ${Prisma.raw(`"${schemaName}"."users"`)}
       WHERE email = ${email}
       LIMIT 1
@@ -127,10 +133,10 @@ export class UserRepository {
    * @param tenantCtx - Optional tenant context override (for testing)
    * @returns User or null if not found
    */
-  async findById(id: string, tenantCtx?: TenantContext): Promise<any | null> {
+  async findById(id: string, tenantCtx?: TenantContext): Promise<Record<string, unknown> | null> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
-    const result = await db.$queryRaw<any[]>`
+    const result = await db.$queryRaw<Record<string, unknown>[]>`
       SELECT * FROM ${Prisma.raw(`"${schemaName}"."users"`)}
       WHERE id = ${id}
       LIMIT 1
@@ -146,7 +152,7 @@ export class UserRepository {
    * @param tenantCtx - Optional tenant context override (for testing)
    * @returns Created user record
    */
-  async create(data: CreateUserDto, tenantCtx?: TenantContext): Promise<any> {
+  async create(data: CreateUserDto, tenantCtx?: TenantContext): Promise<Record<string, unknown>> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
     try {
@@ -160,7 +166,7 @@ export class UserRepository {
       const status = data.status || 'ACTIVE';
 
       // Use parameterized INSERT query
-      const result = await db.$queryRaw<any[]>`
+      const result = await db.$queryRaw<Record<string, unknown>[]>`
         INSERT INTO ${Prisma.raw(`"${schemaName}"."users"`)} (
           id, keycloak_id, email, first_name, last_name, display_name, 
           avatar_url, locale, preferences, status, created_at, updated_at
@@ -215,13 +221,17 @@ export class UserRepository {
    * @returns Updated user record
    * @throws Error if user not found
    */
-  async update(keycloakId: string, data: UpdateUserDto, tenantCtx?: TenantContext): Promise<any> {
+  async update(
+    keycloakId: string,
+    data: UpdateUserDto,
+    tenantCtx?: TenantContext
+  ): Promise<Record<string, unknown>> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
     try {
       // Build dynamic SET clause based on provided fields
       const updates: string[] = [];
-      const values: any[] = [];
+      const values: (string | number | boolean | null)[] = [];
 
       if (data.email !== undefined) {
         updates.push(`email = $${values.length + 1}`);
@@ -275,7 +285,7 @@ export class UserRepository {
         RETURNING *
       `;
 
-      const result = await db.$queryRawUnsafe<any[]>(query, ...values);
+      const result = await db.$queryRawUnsafe<Record<string, unknown>[]>(query, ...values);
 
       if (result.length === 0) {
         throw new Error(`User with keycloakId '${keycloakId}' not found in tenant schema`);
@@ -304,10 +314,13 @@ export class UserRepository {
    * @returns Updated user record with status='DELETED'
    * @throws Error if user not found
    */
-  async softDelete(keycloakId: string, tenantCtx?: TenantContext): Promise<any> {
+  async softDelete(
+    keycloakId: string,
+    tenantCtx?: TenantContext
+  ): Promise<Record<string, unknown>> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
-    const result = await db.$queryRaw<any[]>`
+    const result = await db.$queryRaw<Record<string, unknown>[]>`
       UPDATE ${Prisma.raw(`"${schemaName}"."users"`)}
       SET status = 'DELETED'::"core"."UserStatus",
           updated_at = NOW()
@@ -330,7 +343,7 @@ export class UserRepository {
    * @param tenantCtx - Optional tenant context override (for testing)
    * @returns Upserted user record
    */
-  async upsert(data: CreateUserDto, tenantCtx?: TenantContext): Promise<any> {
+  async upsert(data: CreateUserDto, tenantCtx?: TenantContext): Promise<Record<string, unknown>> {
     const schemaName = this.getTenantSchemaOrThrow(tenantCtx);
 
     // Prepare optional fields with safe defaults
@@ -343,7 +356,7 @@ export class UserRepository {
     const status = data.status || 'ACTIVE';
 
     // UPSERT query (INSERT ... ON CONFLICT DO UPDATE)
-    const result = await db.$queryRaw<any[]>`
+    const result = await db.$queryRaw<Record<string, unknown>[]>`
       INSERT INTO ${Prisma.raw(`"${schemaName}"."users"`)} (
         id, keycloak_id, email, first_name, last_name, display_name, 
         avatar_url, locale, preferences, status, created_at, updated_at

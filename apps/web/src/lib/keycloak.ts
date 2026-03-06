@@ -106,7 +106,9 @@ export const initKeycloak = async (): Promise<boolean> => {
               console.error('[Keycloak] Token refresh failed:', error);
               // MEDIUM FIX #9: Notify auth store of refresh failure
               // This allows the app to redirect to login if token refresh fails
-              const authStore = (window as any).__authStoreInstance;
+              const authStore = (
+                window as unknown as Record<string, { clearAuth?: () => void } | undefined>
+              ).__authStoreInstance;
               if (authStore && typeof authStore.clearAuth === 'function') {
                 console.warn('[Keycloak] Clearing auth due to token refresh failure');
                 authStore.clearAuth();

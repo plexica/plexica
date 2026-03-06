@@ -120,11 +120,15 @@ describe('WidgetContainer', () => {
   it('renders a custom loading fallback while loading', () => {
     const customFallback = <div data-testid="custom-loader">Custom loading…</div>;
 
+    // Use a unique pluginId/widgetName combination that has NOT been used in
+    // prior tests to ensure the module-level _widgetComponentCache has no
+    // entry for this key. A cached (already-resolved) lazy component skips
+    // Suspense entirely, so the custom fallback would never render.
     render(
       <WidgetContainer
-        pluginId="crm"
-        widgetName="SalesChart"
-        title="Monthly Sales"
+        pluginId="test-unique-plugin"
+        widgetName="UniqueWidget"
+        title="Unique Widget"
         fallback={customFallback}
       />
     );

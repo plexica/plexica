@@ -22,7 +22,6 @@ export const logger = pino({
       ? {
           send: (_level, logEvent) => {
             const { messages, bindings, ts, level } = logEvent;
-            // eslint-disable-next-line no-console
             console.log(
               `[${level.label.toUpperCase()}]`,
               ...bindings.flatMap((b) => Object.entries(b).flat()),

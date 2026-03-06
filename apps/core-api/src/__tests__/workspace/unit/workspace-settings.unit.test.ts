@@ -24,6 +24,7 @@ import {
   mergeSettings,
 } from '../../../modules/workspace/schemas/workspace-settings.schema.js';
 import type { WorkspaceSettings } from '../../../modules/workspace/schemas/workspace-settings.schema.js';
+import { WorkspaceService } from '../../../modules/workspace/workspace.service.js';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -340,7 +341,6 @@ describe('WorkspaceService.updateSettings()', () => {
     });
     const mockLogger = createMockLogger();
 
-    const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
     const service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
 
     // Act
@@ -360,7 +360,6 @@ describe('WorkspaceService.updateSettings()', () => {
     const mockDb = createMockDb({ updateReturningRows: [] });
     const mockLogger = createMockLogger();
 
-    const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
     const service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
 
     // Act + Assert
@@ -377,7 +376,6 @@ describe('WorkspaceService.updateSettings()', () => {
     });
     const mockLogger = createMockLogger();
 
-    const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
     const service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
 
     // Act
@@ -397,7 +395,6 @@ describe('WorkspaceService.updateSettings()', () => {
     });
     const mockLogger = createMockLogger();
 
-    const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
     const service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
 
     // Act
@@ -416,7 +413,6 @@ describe('WorkspaceService.updateSettings()', () => {
     const mockDb = createMockDb({});
     const mockLogger = createMockLogger();
 
-    const { WorkspaceService } = await import('../../../modules/workspace/workspace.service.js');
     const service = new WorkspaceService(mockDb as any, undefined, undefined, mockLogger as any);
 
     // Act + Assert

@@ -10,13 +10,13 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 // vitest-axe setup
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as any;
+const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as unknown as {
+  toHaveNoViolations: Parameters<typeof expect.extend>[0][string];
+};
 expect.extend({ toHaveNoViolations });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function expectNoViolations(results: unknown): void {
-  (expect(results) as any).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations(): void }).toHaveNoViolations();
 }
 
 import { configureAxe } from 'vitest-axe';
@@ -39,12 +39,7 @@ vi.mock('@plexica/ui', () => ({
     open: boolean;
     children: React.ReactNode;
     onOpenChange?: (open: boolean) => void;
-  }) =>
-    open ? (
-      <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    ) : null,
+  }) => (open ? <>{children}</> : null),
 
   DialogContent: ({
     children,
@@ -53,7 +48,11 @@ vi.mock('@plexica/ui', () => ({
     children: React.ReactNode;
     'aria-labelledby'?: string;
     [key: string]: unknown;
-  }) => <div aria-labelledby={ariaLabelledby}>{children}</div>,
+  }) => (
+    <div role="dialog" aria-modal="true" aria-labelledby={ariaLabelledby}>
+      {children}
+    </div>
+  ),
 
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 

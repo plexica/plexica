@@ -1,6 +1,7 @@
 // apps/core-api/src/lib/advanced-rate-limit.ts
 
 import { LRUCache } from 'lru-cache';
+import type { FastifyRequest } from 'fastify';
 
 /**
  * Advanced Rate Limiting Module
@@ -90,43 +91,44 @@ export interface RateLimitStatus {
 /**
  * Extract client IP from request
  */
-export function getClientIP(request: any): string {
+export function getClientIP(request: FastifyRequest): string {
   // Try X-Forwarded-For header first (behind proxy)
   const forwarded = request.headers['x-forwarded-for'];
   if (forwarded) {
-    const ips = forwarded.split(',');
+    const fwd = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    const ips = fwd.split(',');
     return ips[0].trim();
   }
 
   // Try X-Real-IP header (nginx reverse proxy)
   const realIP = request.headers['x-real-ip'];
   if (realIP) {
-    return realIP;
+    return Array.isArray(realIP) ? realIP[0] : realIP;
   }
 
   // Fall back to connection IP
-  return request.ip || request.connection.remoteAddress || 'unknown';
+  return request.ip || 'unknown';
 }
 
 /**
  * Get user ID from request
  */
-export function getUserId(request: any): string | null {
+export function getUserId(request: FastifyRequest): string | null {
   return request.user?.id || null;
 }
 
 /**
  * Get endpoint identifier (method + path)
  */
-export function getEndpointId(request: any): string {
+export function getEndpointId(request: FastifyRequest): string {
   return `${request.method}:${request.url}`;
 }
 
 /**
  * Get tenant ID from request
  */
-export function getTenantId(request: any): string | null {
-  return (request as any).tenant?.tenantId || null;
+export function getTenantId(request: FastifyRequest): string | null {
+  return request.tenant?.tenantId || null;
 }
 
 /**
@@ -298,7 +300,7 @@ export function checkTenantRateLimit(
  * Checks all applicable limits and returns first failure
  */
 export function checkAllRateLimits(
-  request: any,
+  request: FastifyRequest,
   config: Partial<RateLimitConfig> = {}
 ): RateLimitStatus {
   // Check IP limit first (always applies)

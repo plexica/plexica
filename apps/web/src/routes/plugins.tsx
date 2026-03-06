@@ -25,7 +25,10 @@ export const Route = createFileRoute('/plugins')({
 function createPluginToggleHandler(
   pluginId: string,
   currentStatus: string,
-  toggleStatusMutation: any
+  toggleStatusMutation: {
+    mutate: (args: { pluginId: string; currentStatus: string }) => void;
+    isPending: boolean;
+  }
 ): () => void {
   return () => {
     toggleStatusMutation.mutate({ pluginId, currentStatus });
@@ -33,7 +36,10 @@ function createPluginToggleHandler(
 }
 
 // LOW FIX #11: Extract common uninstall action handler
-function createPluginUninstallHandler(pluginId: string, uninstallMutation: any): () => void {
+function createPluginUninstallHandler(
+  pluginId: string,
+  uninstallMutation: { mutate: (pluginId: string) => void; isPending: boolean }
+): () => void {
   return () => {
     if (confirm('Are you sure you want to uninstall this plugin?')) {
       uninstallMutation.mutate(pluginId);
@@ -100,14 +106,17 @@ function PluginsPage() {
     onMutate: async ({ pluginId, currentStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['tenant-plugins', tenant?.id] });
       const previousData = queryClient.getQueryData(['tenant-plugins', tenant?.id]);
-      queryClient.setQueryData(['tenant-plugins', tenant?.id], (old: any) => {
-        if (!old) return old;
-        return old.map((p: TenantPlugin) =>
-          p.plugin.id === pluginId
-            ? { ...p, status: currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }
-            : p
-        );
-      });
+      queryClient.setQueryData(
+        ['tenant-plugins', tenant?.id],
+        (old: TenantPlugin[] | undefined) => {
+          if (!old) return old;
+          return old.map((p: TenantPlugin) =>
+            p.plugin.id === pluginId
+              ? { ...p, status: currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }
+              : p
+          );
+        }
+      );
       return { previousData };
     },
     onError: (_error, _variables, context) => {
@@ -129,10 +138,13 @@ function PluginsPage() {
     onMutate: async (pluginId) => {
       await queryClient.cancelQueries({ queryKey: ['tenant-plugins', tenant?.id] });
       const previousData = queryClient.getQueryData(['tenant-plugins', tenant?.id]);
-      queryClient.setQueryData(['tenant-plugins', tenant?.id], (old: any) => {
-        if (!old) return old;
-        return old.filter((p: TenantPlugin) => p.plugin.id !== pluginId);
-      });
+      queryClient.setQueryData(
+        ['tenant-plugins', tenant?.id],
+        (old: TenantPlugin[] | undefined) => {
+          if (!old) return old;
+          return old.filter((p: TenantPlugin) => p.plugin.id !== pluginId);
+        }
+      );
       return { previousData };
     },
     onError: (_error, _pluginId, context) => {

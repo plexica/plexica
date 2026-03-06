@@ -174,8 +174,8 @@ export class TenantAdminService {
         invited: userMap['invited'] ?? 0,
         deactivated: userMap['deactivated'] ?? 0,
       },
-      teams: { total: Number((teamCount[0] as any)?.count ?? 0) },
-      workspaces: { total: Number((workspaceCount[0] as any)?.count ?? 0) },
+      teams: { total: Number(teamCount[0]?.count ?? 0) },
+      workspaces: { total: Number(workspaceCount[0]?.count ?? 0) },
       plugins: { enabled: pluginEnabled, total: pluginTotal },
       roles: { system: systemRoles, custom: customRoles },
     };
@@ -214,7 +214,7 @@ export class TenantAdminService {
     }
 
     const [users, totalResult] = await Promise.all([
-      db.$queryRaw<any[]>(
+      db.$queryRaw<Record<string, unknown>[]>(
         Prisma.sql`
           SELECT
             u.id, u.email, u.display_name, u.status, u.created_at,
@@ -238,12 +238,12 @@ export class TenantAdminService {
       ),
     ]);
 
-    const total = Number((totalResult[0] as any)?.count ?? 0);
+    const total = Number(totalResult[0]?.count ?? 0);
 
     // COUNT() returns BigInt from Prisma raw queries — convert to Number for JSON serialization.
-    const data = users.map((u: any) => ({
+    const data = users.map((u) => ({
       ...u,
-      team_count: Number(u.team_count ?? 0),
+      team_count: Number(u['team_count'] ?? 0),
     }));
 
     return {
@@ -407,7 +407,7 @@ export class TenantAdminService {
           AND r.name IN ('tenant_admin', 'tenant_owner')
       `
     );
-    const adminUsers = Number((adminCount[0] as any)?.count ?? 0);
+    const adminUsers = Number(adminCount[0]?.count ?? 0);
     if (adminUsers <= 1) {
       // Check if the user being deactivated is one of those admins
       const isAdmin = await db.$queryRaw<{ count: bigint }[]>(
@@ -419,7 +419,7 @@ export class TenantAdminService {
             AND r.name IN ('tenant_admin', 'tenant_owner')
         `
       );
-      if (Number((isAdmin[0] as any)?.count ?? 0) > 0) {
+      if (Number(isAdmin[0]?.count ?? 0) > 0) {
         throw new DomainError('LAST_TENANT_ADMIN', 'Cannot deactivate the last tenant admin', 409);
       }
     }
@@ -427,8 +427,14 @@ export class TenantAdminService {
     // Disable in Keycloak
     const keycloakId = existing[0].keycloak_id;
     if (keycloakId) {
-      await (keycloakService as any).withRealmScope(tenantSlug, async () => {
-        await (keycloakService as any).client.users.update({ id: keycloakId }, { enabled: false });
+      const kc = keycloakService as unknown as {
+        withRealmScope: (realm: string, fn: () => Promise<void>) => Promise<void>;
+        client: {
+          users: { update: (args: { id: string }, data: { enabled: boolean }) => Promise<void> };
+        };
+      };
+      await kc.withRealmScope(tenantSlug, async () => {
+        await kc.client.users.update({ id: keycloakId }, { enabled: false });
       });
     }
 
@@ -468,8 +474,14 @@ export class TenantAdminService {
     // Re-enable in Keycloak
     const keycloakId = existing[0].keycloak_id;
     if (keycloakId) {
-      await (keycloakService as any).withRealmScope(tenantSlug, async () => {
-        await (keycloakService as any).client.users.update({ id: keycloakId }, { enabled: true });
+      const kc = keycloakService as unknown as {
+        withRealmScope: (realm: string, fn: () => Promise<void>) => Promise<void>;
+        client: {
+          users: { update: (args: { id: string }, data: { enabled: boolean }) => Promise<void> };
+        };
+      };
+      await kc.withRealmScope(tenantSlug, async () => {
+        await kc.client.users.update({ id: keycloakId }, { enabled: true });
       });
     }
 
@@ -557,8 +569,14 @@ export class TenantAdminService {
     // Cancel: set status to cancelled, disable in Keycloak
     const keycloakId = existing[0].keycloak_id;
     if (keycloakId) {
-      await (keycloakService as any).withRealmScope(tenantSlug, async () => {
-        await (keycloakService as any).client.users.update({ id: keycloakId }, { enabled: false });
+      const kc = keycloakService as unknown as {
+        withRealmScope: (realm: string, fn: () => Promise<void>) => Promise<void>;
+        client: {
+          users: { update: (args: { id: string }, data: { enabled: boolean }) => Promise<void> };
+        };
+      };
+      await kc.withRealmScope(tenantSlug, async () => {
+        await kc.client.users.update({ id: keycloakId }, { enabled: false });
       });
     }
 
@@ -591,12 +609,12 @@ export class TenantAdminService {
 
     // Use explicit branching instead of embedded Prisma.sql fragments to avoid
     // any Prisma template parameter-numbering issues with embedded WHERE fragments.
-    let teams: any[];
+    let teams: Record<string, unknown>[];
     let totalResult: { count: bigint }[];
 
     if (filters.workspaceId) {
       [teams, totalResult] = await Promise.all([
-        db.$queryRaw<any[]>(
+        db.$queryRaw<Record<string, unknown>[]>(
           Prisma.sql`
             SELECT
               t.id, t.name, t.description, t.workspace_id, t.created_at,
@@ -619,7 +637,7 @@ export class TenantAdminService {
       ]);
     } else {
       [teams, totalResult] = await Promise.all([
-        db.$queryRaw<any[]>(
+        db.$queryRaw<Record<string, unknown>[]>(
           Prisma.sql`
             SELECT
               t.id, t.name, t.description, t.workspace_id, t.created_at,
@@ -637,11 +655,11 @@ export class TenantAdminService {
       ]);
     }
 
-    const total = Number((totalResult[0] as any)?.count ?? 0);
+    const total = Number(totalResult[0]?.count ?? 0);
     // COUNT() returns BigInt from Prisma raw queries — convert to Number for JSON serialization.
-    const data = teams.map((t: any) => ({
+    const data = teams.map((t) => ({
       ...t,
-      member_count: Number(t.member_count ?? 0),
+      member_count: Number((t['member_count'] as bigint | number | null) ?? 0),
     }));
     return {
       data,
@@ -773,12 +791,13 @@ export class TenantAdminService {
           VALUES (${teamId}, ${dto.userId}, ${dto.role}, NOW())
         `
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // PostgreSQL unique violation / PK conflict
+      const pgErr = err as { code?: string; message?: string };
       if (
-        err?.code === '23505' ||
-        err?.message?.includes('duplicate') ||
-        err?.message?.includes('unique')
+        pgErr?.code === '23505' ||
+        pgErr?.message?.includes('duplicate') ||
+        pgErr?.message?.includes('unique')
       ) {
         throw new DomainError(
           'MEMBER_ALREADY_EXISTS',
@@ -894,7 +913,7 @@ export class TenantAdminService {
     validateSchemaName(schemaName);
     const schema = Prisma.raw(schemaName);
 
-    const roles = await db.$queryRaw<any[]>(
+    const roles = await db.$queryRaw<Record<string, unknown>[]>(
       Prisma.sql`
         SELECT r.id, r.name, r.description, r.is_system, r.created_at,
           COALESCE(
@@ -924,7 +943,7 @@ export class TenantAdminService {
     const customCount = await db.$queryRaw<{ count: bigint }[]>(
       Prisma.sql`SELECT COUNT(*) AS count FROM ${schema}."roles" WHERE is_system = false`
     );
-    if (Number((customCount[0] as any)?.count ?? 0) >= 50) {
+    if (Number(customCount[0]?.count ?? 0) >= 50) {
       throw new DomainError(
         'CUSTOM_ROLE_LIMIT_EXCEEDED',
         'Maximum of 50 custom roles reached',
@@ -1080,7 +1099,7 @@ export class TenantAdminService {
     validateSchemaName(schemaName);
     const schema = Prisma.raw(schemaName);
 
-    const permissions = await db.$queryRaw<any[]>(
+    const permissions = await db.$queryRaw<Record<string, unknown>[]>(
       Prisma.sql`
         SELECT id, key, name, description, plugin_id, created_at
         FROM ${schema}."permissions"
@@ -1145,7 +1164,7 @@ export class TenantAdminService {
               theme: {
                 ...(tenant.theme as Record<string, unknown>),
                 ...dto.theme,
-              } as any,
+              } as Prisma.InputJsonValue,
             }
           : {}),
         ...(dto.settings !== undefined
@@ -1153,7 +1172,7 @@ export class TenantAdminService {
               settings: {
                 ...(tenant.settings as Record<string, unknown>),
                 ...dto.settings,
-              } as any,
+              } as Prisma.InputJsonValue,
             }
           : {}),
       },

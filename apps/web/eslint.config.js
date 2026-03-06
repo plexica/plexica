@@ -65,11 +65,19 @@ export default defineConfig([
   },
   // Test files - more lenient rules
   {
-    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    files: [
+      '**/__tests__/**/*.{ts,tsx}',
+      '**/test/**/*.{ts,tsx}',
+      '**/*.test.{ts,tsx}',
+      '**/*.spec.{ts,tsx}',
+    ],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       'prefer-const': 'warn',
+      // Test utility files mix component factories with non-component exports — fast refresh
+      // rules are irrelevant in test context.
+      'react-refresh/only-export-components': 'off',
     },
   },
 ]);

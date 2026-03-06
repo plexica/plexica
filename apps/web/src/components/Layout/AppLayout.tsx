@@ -2,6 +2,8 @@
 //
 // T005-24: Wired with SidebarNav (ENABLE_NEW_SIDEBAR flag), Breadcrumbs,
 // ARIA landmarks (main, footer), and mobile sidebar open/close state.
+// T010-32: Skip-to-content link moved here from index.html (A11Y-S01).
+//          Uses sr-only focus:not-sr-only pattern — no inline JS required.
 
 import React, { useState, useEffect } from 'react';
 import { SidebarNav } from './SidebarNav';
@@ -36,6 +38,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, showFooter = tru
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Skip-to-content — T010-32: A11Y-S01 WCAG 2.4.1 bypass mechanism.
+          sr-only until focused, then rendered visibly above all content. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-1/2 focus:-translate-x-1/2 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded focus:bg-background focus:text-foreground focus:font-semibold focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
+
       {/* Header — Fixed at top, height 64px */}
       <Header onMenuClick={handleMenuClick} />
 

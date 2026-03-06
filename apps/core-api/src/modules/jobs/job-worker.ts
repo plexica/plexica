@@ -4,7 +4,7 @@
 // NFR-006: at-least-once delivery (BullMQ lockDuration handles crash/restart Edge Case #4)
 // Art. 6.3: structured Pino logging on job lifecycle
 
-import { Worker, Job as BullJob, WorkerOptions } from 'bullmq';
+import { Worker, Job as BullJob, WorkerOptions, ConnectionOptions } from 'bullmq';
 import { redis } from '../../lib/redis.js';
 import { logger } from '../../lib/logger.js';
 import { QUEUE_NAME } from './job-queue.service.js';
@@ -81,7 +81,7 @@ export class JobWorker {
     }
 
     const workerOptions: WorkerOptions = {
-      connection: redis as any,
+      connection: redis as unknown as ConnectionOptions,
       concurrency: this.concurrency,
       // lockDuration: 30000 (default) — ensures crash recovery (Edge Case #4)
       lockDuration: 30_000,

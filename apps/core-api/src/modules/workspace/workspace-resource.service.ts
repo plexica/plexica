@@ -19,6 +19,28 @@ interface WorkspaceResourceRow {
 }
 
 /**
+ * Extended Error with HTTP metadata for workspace resource errors.
+ */
+interface WorkspaceResourceError extends Error {
+  code: string;
+  statusCode: number;
+  details: Record<string, unknown>;
+}
+
+function createWorkspaceResourceError(
+  message: string,
+  code: string,
+  statusCode: number,
+  details: Record<string, unknown>
+): WorkspaceResourceError {
+  const error = new Error(message) as WorkspaceResourceError;
+  error.code = code;
+  error.statusCode = statusCode;
+  error.details = details;
+  return error;
+}
+
+/**
  * Workspace Resource Service
  *
  * Handles cross-workspace resource sharing within a tenant:
@@ -89,11 +111,12 @@ export class WorkspaceResourceService {
     const allowSharing = settings.allowCrossWorkspaceSharing === true;
 
     if (!allowSharing) {
-      const error = new Error('Cross-workspace sharing is disabled for this workspace');
-      (error as any).code = 'SHARING_DISABLED';
-      (error as any).statusCode = 403;
-      (error as any).details = { workspaceId, allowCrossWorkspaceSharing: false };
-      throw error;
+      throw createWorkspaceResourceError(
+        'Cross-workspace sharing is disabled for this workspace',
+        'SHARING_DISABLED',
+        403,
+        { workspaceId, allowCrossWorkspaceSharing: false }
+      );
     }
 
     // Check if resource is already shared (duplicate check)
@@ -106,17 +129,12 @@ export class WorkspaceResourceService {
     );
 
     if (existingResource.length > 0) {
-      const error = new Error(
-        `Resource '${dto.resourceType}:${dto.resourceId}' is already shared with workspace ${workspaceId}`
+      throw createWorkspaceResourceError(
+        `Resource '${dto.resourceType}:${dto.resourceId}' is already shared with workspace ${workspaceId}`,
+        'RESOURCE_ALREADY_SHARED',
+        409,
+        { workspaceId, resourceType: dto.resourceType, resourceId: dto.resourceId }
       );
-      (error as any).code = 'RESOURCE_ALREADY_SHARED';
-      (error as any).statusCode = 409;
-      (error as any).details = {
-        workspaceId,
-        resourceType: dto.resourceType,
-        resourceId: dto.resourceId,
-      };
-      throw error;
     }
 
     // Create resource link within tenant schema transaction
@@ -246,11 +264,12 @@ export class WorkspaceResourceService {
     );
 
     if (resourceLink.length === 0) {
-      const error = new Error(`Resource link not found: ${resourceId}`);
-      (error as any).code = 'RESOURCE_NOT_FOUND';
-      (error as any).statusCode = 404;
-      (error as any).details = { workspaceId, resourceId };
-      throw error;
+      throw createWorkspaceResourceError(
+        `Resource link not found: ${resourceId}`,
+        'RESOURCE_NOT_FOUND',
+        404,
+        { workspaceId, resourceId }
+      );
     }
 
     const resource = resourceLink[0];

@@ -10,13 +10,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 // vitest-axe setup
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as any;
+const { toHaveNoViolations } = (await import('vitest-axe/matchers')) as unknown as {
+  toHaveNoViolations: Parameters<typeof expect.extend>[0][string];
+};
 expect.extend({ toHaveNoViolations });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function expectNoViolations(results: unknown): void {
-  (expect(results) as any).toHaveNoViolations();
+  (expect(results) as unknown as { toHaveNoViolations(): void }).toHaveNoViolations();
 }
 
 import { configureAxe } from 'vitest-axe';
