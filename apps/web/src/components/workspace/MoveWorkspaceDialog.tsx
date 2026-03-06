@@ -24,7 +24,6 @@ import {
 import { cn } from '@/lib/utils';
 import { WorkspaceTreeView } from './WorkspaceTreeView';
 import { apiClient } from '@/lib/api-client';
-import type { ApiClient } from '@/lib/api-client';
 import type { TreeNodeData } from './WorkspaceTreeNode';
 import { logger } from '@/lib/logger';
 import { useFeatureFlag } from '@/lib/feature-flags';
@@ -52,7 +51,7 @@ function getErrorMessage(error: unknown): string {
 // ---------------------------------------------------------------------------
 
 async function reparentWorkspace(workspaceId: string, newParentId: string | null): Promise<void> {
-  await (apiClient as unknown as ApiClient).patch(`/api/workspaces/${workspaceId}/parent`, {
+  await apiClient.patch(`/api/workspaces/${workspaceId}/parent`, {
     parentId: newParentId,
   });
 }

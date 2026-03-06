@@ -15,7 +15,6 @@ import { Skeleton } from '@plexica/ui';
 import { TemplateCard } from './TemplateCard';
 import type { TemplateCardData } from './TemplateCard';
 import { apiClient } from '@/lib/api-client';
-import type { ApiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
@@ -23,7 +22,7 @@ import { logger } from '@/lib/logger';
 // ---------------------------------------------------------------------------
 
 async function fetchTemplates(): Promise<TemplateCardData[]> {
-  return (apiClient as unknown as ApiClient).get<TemplateCardData[]>('/api/workspace-templates');
+  return apiClient.get<TemplateCardData[]>('/api/workspace-templates');
 }
 
 // ---------------------------------------------------------------------------

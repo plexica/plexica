@@ -267,7 +267,7 @@ async function seedMinimalData() {
       INSERT INTO "tenant_acme"."workspaces" (id, tenant_id, slug, name, description, settings)
       VALUES 
         ('workspace-acme-default', 'tenant-acme', 'default', 'Default Workspace', 'Main workspace for Acme', '{"visibility": "private"}')
-      ON CONFLICT (tenant_id, slug) DO NOTHING
+      ON CONFLICT (id) DO NOTHING
     `);
 
     // Add workspace members
@@ -285,7 +285,7 @@ async function seedMinimalData() {
       INSERT INTO "tenant_demo"."workspaces" (id, tenant_id, slug, name, description, settings)
       VALUES 
         ('workspace-demo-default', 'tenant-demo', 'default', 'Default Workspace', 'Main workspace for Demo', '{"visibility": "private"}')
-      ON CONFLICT (tenant_id, slug) DO NOTHING
+      ON CONFLICT (id) DO NOTHING
     `);
 
     await prisma.$executeRawUnsafe(`

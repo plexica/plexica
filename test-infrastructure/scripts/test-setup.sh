@@ -56,6 +56,19 @@ timeout 120 bash -c 'until curl -sf http://localhost:9000/health/ready > /dev/nu
 }
 echo "✅ Keycloak is ready"
 
+# Configure Keycloak master realm to allow HTTP (sslRequired=none) so that
+# the admin-cli client can authenticate from localhost via HTTP without hitting
+# "HTTPS required" errors. This is safe for the test environment only.
+echo ""
+echo "🔧 Configuring Keycloak master realm (disable SSL requirement for HTTP testing)..."
+docker exec plexica-keycloak-test /opt/keycloak/bin/kcadm.sh update realms/master \
+  -s sslRequired=none \
+  --server http://localhost:8080 \
+  --realm master \
+  --user admin \
+  --password admin > /dev/null 2>&1 && echo "✅ Keycloak SSL requirement disabled (test environment)" || \
+  echo "⚠️  Could not configure Keycloak SSL setting (non-fatal)"
+
 echo ""
 echo "⏳ Waiting for Redis to be ready..."
 timeout 30 bash -c 'until docker exec plexica-redis-test redis-cli ping > /dev/null 2>&1; do sleep 1; done' || {

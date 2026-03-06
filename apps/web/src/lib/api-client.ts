@@ -59,7 +59,11 @@ class WebApiClient extends TenantApiClient {
   }
 }
 
-export const apiClient = new WebApiClient();
+// Cast once here so all consumers can call `apiClient.get()` / `apiClient.patch()`
+// directly without repeating the double-cast at every call site (TD-012).
+// TenantApiClient exposes these methods at runtime; the cast makes them visible
+// to TypeScript via the ApiClient interface declared above.
+export const apiClient: WebApiClient & ApiClient = new WebApiClient() as WebApiClient & ApiClient;
 export default apiClient;
 
 // ---------------------------------------------------------------------------

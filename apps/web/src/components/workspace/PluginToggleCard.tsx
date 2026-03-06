@@ -23,7 +23,6 @@ import {
 } from '@plexica/ui';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
-import type { ApiClient } from '@/lib/api-client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,10 +56,7 @@ async function patchWorkspacePlugin(
   pluginId: string,
   body: { enabled: boolean } | { configuration: Record<string, unknown> }
 ): Promise<void> {
-  await (apiClient as unknown as ApiClient).patch(
-    `/api/workspaces/${workspaceId}/plugins/${pluginId}`,
-    body
-  );
+  await apiClient.patch(`/api/workspaces/${workspaceId}/plugins/${pluginId}`, body);
 }
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,6 @@ import { FolderTree, Home } from 'lucide-react';
 import { WorkspaceTreeNode, TreeFocusProvider, useTreeFocus } from './WorkspaceTreeNode';
 import type { TreeNodeData } from './WorkspaceTreeNode';
 import { apiClient } from '@/lib/api-client';
-import type { ApiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { useFeatureFlag } from '@/lib/feature-flags';
@@ -28,7 +27,7 @@ import { useFeatureFlag } from '@/lib/feature-flags';
 // ---------------------------------------------------------------------------
 
 async function fetchWorkspaceTree(): Promise<TreeNodeData[]> {
-  return (apiClient as unknown as ApiClient).get<TreeNodeData[]>('/api/workspaces/tree');
+  return apiClient.get<TreeNodeData[]>('/api/workspaces/tree');
 }
 
 // ---------------------------------------------------------------------------
