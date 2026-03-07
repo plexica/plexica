@@ -1,21 +1,13 @@
 import 'dotenv/config';
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import { WorkspaceService } from '../../../modules/workspace/workspace.service.js';
-import { WorkspaceResourceService } from '../../../modules/workspace/workspace-resource.service.js';
+import {
+  WorkspaceResourceService,
+  type WorkspaceResource,
+} from '../../../modules/workspace/workspace-resource.service.js';
 import { db } from '../../../lib/db.js';
 import { tenantContextStorage, type TenantContext } from '../../../middleware/tenant-context.js';
 import { testDb } from '../../../../../../test-infrastructure/helpers/test-database.helper.js';
-
-/**
- * Type for workspace resource row (snake_case column names from database)
- */
-interface WorkspaceResourceRow {
-  id: string;
-  workspace_id: string;
-  resource_type: string;
-  resource_id: string;
-  created_at: Date;
-}
 
 /**
  * E2E Tests for Workspace Resource Sharing
@@ -51,6 +43,32 @@ describe('Workspace Resource Sharing E2E Tests', () => {
   const testResourceId1 = crypto.randomUUID();
   const testResourceId2 = crypto.randomUUID();
   const testResourceId3 = crypto.randomUUID();
+
+  /**
+   * Register one or more plugin IDs in core.plugins + core.tenant_plugins so
+   * that WorkspaceResourceService.shareResource() plugin guard passes.
+   *
+   * Uses ON CONFLICT DO NOTHING so calling it multiple times is idempotent.
+   * The core.plugins FK constraint requires a row in plugins before tenant_plugins.
+   */
+  async function registerPluginsForTenant(tenantId: string, pluginIds: string[]): Promise<void> {
+    for (const pluginId of pluginIds) {
+      await db.$executeRawUnsafe(
+        `INSERT INTO core.plugins (id, name, version, manifest, status, category, updated_at)
+         VALUES ($1, $2, '1.0.0', '{}', 'PUBLISHED'::"PluginStatus", 'other', NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        pluginId,
+        `test-plugin-${pluginId.slice(0, 8)}`
+      );
+      await db.$executeRawUnsafe(
+        `INSERT INTO core.tenant_plugins ("tenantId", "pluginId", enabled, configuration)
+         VALUES ($1, $2, true, '{}')
+         ON CONFLICT ("tenantId", "pluginId") DO NOTHING`,
+        tenantId,
+        pluginId
+      );
+    }
+  }
 
   // Helper to run test in tenant context
   async function runInContext<T>(fn: () => Promise<T>): Promise<T> {
@@ -140,6 +158,10 @@ describe('Workspace Resource Sharing E2E Tests', () => {
     );
 
     secondWorkspaceId = workspace2.id;
+
+    // Register plugin IDs used throughout the suite so WorkspaceResourceService
+    // plugin guard passes. (core.tenant_plugins FK requires a core.plugins row first.)
+    await registerPluginsForTenant(testTenantId, [testResourceId1, testResourceId3]);
   });
 
   afterEach(async () => {
@@ -185,14 +207,14 @@ describe('Workspace Resource Sharing E2E Tests', () => {
           },
           testUserId
         )
-      )) as unknown as WorkspaceResourceRow;
+      )) as WorkspaceResource;
 
       expect(sharedResource).toBeDefined();
       expect(sharedResource.id).toBeDefined();
-      expect(sharedResource.workspace_id).toBe(testWorkspaceId);
-      expect(sharedResource.resource_type).toBe('plugin');
-      expect(sharedResource.resource_id).toBe(testResourceId1);
-      expect(sharedResource.created_at).toBeDefined();
+      expect(sharedResource.workspaceId).toBe(testWorkspaceId);
+      expect(sharedResource.resourceType).toBe('plugin');
+      expect(sharedResource.resourceId).toBe(testResourceId1);
+      expect(sharedResource.createdAt).toBeDefined();
 
       // Step 3: List shared resources - should include the one we just shared
       const listResult = await runInContext(async () =>
@@ -204,9 +226,9 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       expect(Array.isArray(listResult.data)).toBe(true);
       expect(listResult.data.length).toBe(1);
 
-      const firstResource = listResult.data[0] as unknown as WorkspaceResourceRow;
-      expect(firstResource.resource_id).toBe(testResourceId1);
-      expect(firstResource.resource_type).toBe('plugin');
+      const firstResource = listResult.data[0] as WorkspaceResource;
+      expect(firstResource.resourceId).toBe(testResourceId1);
+      expect(firstResource.resourceType).toBe('plugin');
       expect(listResult.pagination.total).toBe(1);
       expect(listResult.pagination.hasMore).toBe(false);
 
@@ -258,7 +280,8 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       await runInContext(async () =>
         resourceService.shareResource(
           testWorkspaceId,
-          { resourceType: 'document', resourceId: testResourceId2 },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { resourceType: 'document' as any, resourceId: testResourceId2 },
           testUserId
         )
       );
@@ -290,9 +313,7 @@ describe('Workspace Resource Sharing E2E Tests', () => {
 
       expect(pluginResources.data.length).toBe(2);
       expect(
-        pluginResources.data.every(
-          (r: any) => (r as WorkspaceResourceRow).resource_type === 'plugin'
-        )
+        pluginResources.data.every((r: any) => (r as WorkspaceResource).resourceType === 'plugin')
       ).toBe(true);
 
       // Filter by type 'document' - should get 1 result
@@ -305,9 +326,7 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       );
 
       expect(documentResources.data.length).toBe(1);
-      expect((documentResources.data[0] as unknown as WorkspaceResourceRow).resource_type).toBe(
-        'document'
-      );
+      expect((documentResources.data[0] as WorkspaceResource).resourceType).toBe('document');
 
       // Test pagination - limit 2, offset 0
       const page1 = await runInContext(async () =>
@@ -437,10 +456,10 @@ describe('Workspace Resource Sharing E2E Tests', () => {
           { resourceType: 'plugin', resourceId: testResourceId1 },
           testUserId
         )
-      )) as unknown as WorkspaceResourceRow;
+      )) as WorkspaceResource;
 
       expect(sharedResource).toBeDefined();
-      expect(sharedResource.resource_id).toBe(testResourceId1);
+      expect(sharedResource.resourceId).toBe(testResourceId1);
 
       // Cleanup
       await runInContext(async () =>
@@ -508,6 +527,10 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       const tenant1ResourceId = crypto.randomUUID();
       const tenant2ResourceId = crypto.randomUUID();
 
+      // Register plugins so the guard passes for each tenant
+      await registerPluginsForTenant(testTenantId, [tenant1ResourceId]);
+      await registerPluginsForTenant(tenant2.id, [tenant2ResourceId]);
+
       // Share a resource in tenant1
       await runInContext(async () =>
         resourceService.shareResource(
@@ -539,8 +562,12 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       expect(tenant1Resources.data.length).toBe(1);
       expect(tenant2Resources.data.length).toBe(1);
 
-      const tenant1ResourceIds = tenant1Resources.data.map((r: any) => r.resource_id);
-      const tenant2ResourceIds = tenant2Resources.data.map((r: any) => r.resource_id);
+      const tenant1ResourceIds = tenant1Resources.data.map(
+        (r: any) => (r as WorkspaceResource).resourceId
+      );
+      const tenant2ResourceIds = tenant2Resources.data.map(
+        (r: any) => (r as WorkspaceResource).resourceId
+      );
 
       // No overlap between tenant1 and tenant2 resource IDs
       const overlap = tenant1ResourceIds.filter((id: string) => tenant2ResourceIds.includes(id));
@@ -580,6 +607,9 @@ describe('Workspace Resource Sharing E2E Tests', () => {
   describe('Concurrent Share Attempts', () => {
     it('should handle duplicate sharing attempts gracefully', async () => {
       const resourceId = crypto.randomUUID();
+
+      // Register the plugin so the guard passes before sharing
+      await registerPluginsForTenant(testTenantId, [resourceId]);
 
       // Attempt to share the same resource 5 times concurrently
       const sharePromises = Array.from({ length: 5 }, () =>
@@ -629,6 +659,9 @@ describe('Workspace Resource Sharing E2E Tests', () => {
     it('should handle concurrent shares of different resources', async () => {
       // Create 10 unique resources
       const resourceIds = Array.from({ length: 10 }, () => crypto.randomUUID());
+
+      // Register all plugin IDs before concurrent sharing so the guard passes
+      await registerPluginsForTenant(testTenantId, resourceIds);
 
       // Share all 10 resources concurrently
       const sharePromises = resourceIds.map((resourceId) =>
@@ -681,6 +714,9 @@ describe('Workspace Resource Sharing E2E Tests', () => {
 
       // Share 5 resources with this workspace
       const resourceIds = Array.from({ length: 5 }, () => crypto.randomUUID());
+
+      // Register plugins so the guard passes
+      await registerPluginsForTenant(testTenantId, resourceIds);
 
       for (const resourceId of resourceIds) {
         await runInContext(async () =>

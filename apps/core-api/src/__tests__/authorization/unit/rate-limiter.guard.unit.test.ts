@@ -175,16 +175,24 @@ describe('authzRateLimiter', () => {
     expect(mockRedis.expire).not.toHaveBeenCalled();
   });
 
-  it('should fall back to unknown-tenant when tenant context is absent', async () => {
+  it('should return 403 and NOT call Redis when tenant context is absent', async () => {
     process.env.NODE_ENV = 'production';
-    mockRedis.incr.mockResolvedValue(1);
 
     const req = { tenant: undefined, user: undefined } as unknown as FastifyRequest;
     const reply = makeReply();
 
     await asyncGuard(req as FastifyRequest, reply as unknown as FastifyReply);
 
-    expect(mockRedis.incr).toHaveBeenCalledWith(expect.stringContaining('unknown-tenant'));
+    // Must NOT rate-limit an unknown tenant key — fail loudly with 403
+    expect(mockRedis.incr).not.toHaveBeenCalled();
+    expect(reply.code).toHaveBeenCalledWith(403);
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'AUTH_TENANT_CONTEXT_MISSING',
+        }),
+      })
+    );
   });
 
   it('should use minimum Retry-After of 1 second when TTL is 0 or negative', async () => {

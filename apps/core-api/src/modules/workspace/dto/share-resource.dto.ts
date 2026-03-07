@@ -2,16 +2,16 @@ import { z } from 'zod';
 
 /**
  * Zod schema for sharing a resource with a workspace
+ *
+ * Supports plugin, template, and dataset resource types.
+ * The plugin guard (Phase 1) only fires for resourceType='plugin';
+ * template and dataset types skip the guard and proceed directly to
+ * the serializable transaction.
  */
 export const ShareResourceSchema = z.object({
-  resourceType: z
-    .string({ error: 'resourceType is required and must be a string' })
-    .min(1, 'resourceType cannot be empty')
-    .max(100, 'resourceType cannot exceed 100 characters')
-    .regex(
-      /^[a-z0-9][a-z0-9\-_]*[a-z0-9]$/,
-      'resourceType must contain only lowercase alphanumeric characters, hyphens, and underscores'
-    ),
+  resourceType: z.enum(['plugin', 'template', 'dataset'], {
+    error: 'resourceType must be one of: "plugin", "template", "dataset"',
+  }),
   resourceId: z
     .string({ error: 'resourceId is required and must be a string' })
     .regex(
@@ -34,12 +34,9 @@ export const shareResourceSchema = {
   properties: {
     resourceType: {
       type: 'string',
-      minLength: 1,
-      maxLength: 100,
-      pattern: '^[a-z0-9][a-z0-9\\-_]*[a-z0-9]$',
-      description:
-        'Type of resource to share (e.g., "plugin", "template", "dataset"). Must contain only lowercase alphanumeric characters, hyphens, and underscores.',
-      examples: ['plugin', 'template', 'dataset', 'custom-resource'],
+      enum: ['plugin', 'template', 'dataset'],
+      description: 'Type of resource to share (plugin, template, or dataset).',
+      examples: ['plugin'],
     },
     resourceId: {
       type: 'string',

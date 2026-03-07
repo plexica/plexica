@@ -131,7 +131,7 @@ export function RoleAssignmentDialog({
                     id={`role-assign-${role.id}`}
                     checked={pendingIds.has(role.id)}
                     onCheckedChange={() => toggle(role.id)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || role.isSystem}
                   />
                   <label
                     htmlFor={`role-assign-${role.id}`}

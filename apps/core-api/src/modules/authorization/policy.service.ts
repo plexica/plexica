@@ -139,16 +139,20 @@ export class PolicyService {
    * Reads the abac_enabled feature flag from the public tenants table.
    * Returns false (safe default) if the tenant does not exist or the flag
    * is missing/null.
+   *
+   * Uses $queryRaw tagged template (not $queryRawUnsafe) to comply with
+   * Constitution Art. 5.3 (parameterized queries only). The schema
+   * identifier "core" is a string literal in the template; tenantId is
+   * a parameterized Prisma binding.
    */
   private async isAbacEnabled(tenantId: string): Promise<boolean> {
     try {
-      const rows = await db.$queryRawUnsafe<Array<{ abac_enabled: string | null }>>(
-        `SELECT settings->'features'->>'abac_enabled' AS abac_enabled
-         FROM "core"."tenants"
-         WHERE id = $1
-         LIMIT 1`,
-        tenantId
-      );
+      const rows = await db.$queryRaw<Array<{ abac_enabled: string | null }>>`
+        SELECT settings->'features'->>'abac_enabled' AS abac_enabled
+        FROM "core"."tenants"
+        WHERE id = ${tenantId}
+        LIMIT 1
+      `;
       return rows[0]?.abac_enabled === 'true';
     } catch {
       return false;

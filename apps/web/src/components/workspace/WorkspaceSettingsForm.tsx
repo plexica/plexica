@@ -1,11 +1,13 @@
 // apps/web/src/components/workspace/WorkspaceSettingsForm.tsx
 //
 // T8.1 / T4 frontend: Typed settings form for workspace configuration.
-// Per design-spec.md §3.3 — settings card with 4 fields:
-//   defaultTeamRole, allowCrossWorkspaceSharing, maxMembers, isDiscoverable.
+// Per design-spec.md §3.3 — settings card.
 // Connects to PATCH /api/v1/workspaces/:id/settings (T4 API).
 // Constitution Art. 5.3 — Zod client-side validation.
 // Constitution Art. 1.3 — WCAG 2.1 AA (role="switch", aria-checked).
+//
+// Field names MUST match the canonical backend schema:
+//   defaultMemberRole, allowCrossWorkspaceSharing, maxMembers, isPublic, notificationsEnabled
 
 import { useState, useEffect } from 'react';
 import { Button, Input, Label, Spinner } from '@plexica/ui';
@@ -93,10 +95,11 @@ export function WorkspaceSettingsForm({
 
   // Field-by-field dirty check (not JSON.stringify) to avoid false positives
   const hasChanges =
-    settings.defaultTeamRole !== saved.defaultTeamRole ||
+    settings.defaultMemberRole !== saved.defaultMemberRole ||
     settings.allowCrossWorkspaceSharing !== saved.allowCrossWorkspaceSharing ||
     settings.maxMembers !== saved.maxMembers ||
-    settings.isDiscoverable !== saved.isDiscoverable;
+    settings.isPublic !== saved.isPublic ||
+    settings.notificationsEnabled !== saved.notificationsEnabled;
 
   const hasValidationErrors = maxMembersError !== null;
   const readonly = !isAdmin;
@@ -152,36 +155,39 @@ export function WorkspaceSettingsForm({
     <div className="rounded-lg border border-border bg-card p-6 space-y-4">
       <h3 className="text-sm font-semibold text-foreground">Workspace Settings</h3>
 
-      {/* Default Team Member Role */}
+      {/* Default Member Role */}
       <div className="py-3 border-b border-border">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <Label htmlFor="defaultTeamRole" className="text-sm font-medium text-foreground">
-              Default Team Member Role
+            <Label htmlFor="defaultMemberRole" className="text-sm font-medium text-foreground">
+              Default Member Role
             </Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Role assigned to new team members
+              Role assigned to new workspace members
             </p>
           </div>
           {readonly ? (
-            <span className="text-sm text-foreground font-medium">{settings.defaultTeamRole}</span>
+            <span className="text-sm text-foreground font-medium">
+              {settings.defaultMemberRole}
+            </span>
           ) : (
             <Select
-              value={settings.defaultTeamRole}
+              value={settings.defaultMemberRole}
               onValueChange={(v) =>
                 setSettings((prev) => ({
                   ...prev,
-                  defaultTeamRole: v as 'ADMIN' | 'MEMBER',
+                  defaultMemberRole: v as 'ADMIN' | 'MEMBER' | 'VIEWER',
                 }))
               }
               disabled={isSaving}
             >
-              <SelectTrigger id="defaultTeamRole" className="w-32">
+              <SelectTrigger id="defaultMemberRole" className="w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ADMIN">ADMIN</SelectItem>
                 <SelectItem value="MEMBER">MEMBER</SelectItem>
+                <SelectItem value="VIEWER">VIEWER</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -237,14 +243,24 @@ export function WorkspaceSettingsForm({
         </div>
       </div>
 
-      {/* Workspace Discoverable toggle */}
+      {/* Workspace Discoverable (isPublic) toggle */}
       <ToggleField
-        id="isDiscoverable"
+        id="isPublic"
         label="Workspace Discoverable"
         hint="Make workspace visible in tenant directory"
-        checked={settings.isDiscoverable}
+        checked={settings.isPublic}
         disabled={readonly || isSaving}
-        onChange={(v) => setSettings((prev) => ({ ...prev, isDiscoverable: v }))}
+        onChange={(v) => setSettings((prev) => ({ ...prev, isPublic: v }))}
+      />
+
+      {/* Notifications enabled toggle */}
+      <ToggleField
+        id="notificationsEnabled"
+        label="Notifications"
+        hint="Enable workspace-level notifications"
+        checked={settings.notificationsEnabled}
+        disabled={readonly || isSaving}
+        onChange={(v) => setSettings((prev) => ({ ...prev, notificationsEnabled: v }))}
       />
 
       {/* Unsaved changes indicator */}

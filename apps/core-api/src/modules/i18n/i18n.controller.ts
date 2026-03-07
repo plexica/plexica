@@ -103,6 +103,18 @@ const listLocalesSchema = {
         defaultLocale: { type: 'string' },
       },
     },
+    500: {
+      type: 'object',
+      properties: {
+        error: {
+          type: 'object',
+          properties: {
+            code: { type: 'string' },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
   },
 };
 
@@ -282,7 +294,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
     {
       schema: {
         description:
-          'Get translations by content hash — returns immutably-cacheable bundle or 301 redirect to current hash (NFR-005)',
+          'Get translations by content hash — returns immutably-cacheable bundle or 302 redirect to current hash (NFR-005)',
         tags: ['translations'],
         params: getTranslationsByHashSchema.params,
         querystring: getTranslationsByHashSchema.querystring,
@@ -427,7 +439,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
         });
       } catch (error) {
         fastify.log.error({ error }, 'Locale list error');
-        return reply.send({
+        return reply.status(500).send({
           error: {
             code: 'INTERNAL_ERROR',
             message: 'Failed to fetch available locales',

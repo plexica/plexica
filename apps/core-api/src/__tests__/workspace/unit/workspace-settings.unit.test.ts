@@ -19,8 +19,10 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   WorkspaceSettingsSchema,
   WorkspaceSettingsUpdateSchema,
+  PatchWorkspaceSettingsSchema,
   validateWorkspaceSettings,
   validateWorkspaceSettingsUpdate,
+  validatePatchWorkspaceSettings,
   mergeSettings,
 } from '../../../modules/workspace/schemas/workspace-settings.schema.js';
 import type { WorkspaceSettings } from '../../../modules/workspace/schemas/workspace-settings.schema.js';
@@ -132,6 +134,50 @@ describe('WorkspaceSettingsUpdateSchema', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Schema validation — PatchWorkspaceSettingsSchema (true PATCH, no defaults)
+// ---------------------------------------------------------------------------
+
+describe('PatchWorkspaceSettingsSchema', () => {
+  it('should return empty object when parsing {} — no defaults injected (TD-015)', () => {
+    // PatchWorkspaceSettingsSchema must NOT inject defaults for omitted fields.
+    const result = PatchWorkspaceSettingsSchema.parse({});
+    expect(result).toEqual({});
+    expect(result.defaultMemberRole).toBeUndefined();
+    expect(result.maxMembers).toBeUndefined();
+    expect(result.isPublic).toBeUndefined();
+  });
+
+  it('should only include fields that were explicitly provided', () => {
+    const result = PatchWorkspaceSettingsSchema.parse({ isPublic: true });
+    expect(result.isPublic).toBe(true);
+    // All other fields must be absent (not defaulted to their zero values)
+    expect(result.maxMembers).toBeUndefined();
+    expect(result.defaultMemberRole).toBeUndefined();
+    expect(result.notificationsEnabled).toBeUndefined();
+    expect(result.allowCrossWorkspaceSharing).toBeUndefined();
+  });
+
+  it('should still validate field values when provided', () => {
+    expect(() => PatchWorkspaceSettingsSchema.parse({ maxMembers: -1 })).toThrow();
+    expect(() =>
+      PatchWorkspaceSettingsSchema.parse({ defaultMemberRole: 'SUPERUSER' as any })
+    ).toThrow();
+  });
+
+  it('should accept all 5 fields simultaneously', () => {
+    const input = {
+      defaultMemberRole: 'ADMIN' as const,
+      allowCrossWorkspaceSharing: true,
+      maxMembers: 50,
+      isPublic: true,
+      notificationsEnabled: false,
+    };
+    const result = PatchWorkspaceSettingsSchema.parse(input);
+    expect(result).toEqual(input);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // validateWorkspaceSettings()
 // ---------------------------------------------------------------------------
 
@@ -210,6 +256,40 @@ describe('validateWorkspaceSettingsUpdate()', () => {
     const result = validateWorkspaceSettingsUpdate({ maxMembers: -10 });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes('maxMembers'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validatePatchWorkspaceSettings() — no defaults injected (TD-015 fix)
+// ---------------------------------------------------------------------------
+
+describe('validatePatchWorkspaceSettings()', () => {
+  it('should return valid=true with empty settings for empty object — no defaults', () => {
+    // Core TD-015 assertion: parsing {} must NOT inject default values
+    const result = validatePatchWorkspaceSettings({});
+    expect(result.valid).toBe(true);
+    expect(result.settings).toEqual({});
+    expect(result.settings?.defaultMemberRole).toBeUndefined();
+    expect(result.settings?.maxMembers).toBeUndefined();
+  });
+
+  it('should only include fields explicitly provided by the caller', () => {
+    const result = validatePatchWorkspaceSettings({ isPublic: true });
+    expect(result.valid).toBe(true);
+    expect(result.settings?.isPublic).toBe(true);
+    // No other fields should leak in
+    expect(Object.keys(result.settings!)).toEqual(['isPublic']);
+  });
+
+  it('should return valid=false for invalid field values', () => {
+    const result = validatePatchWorkspaceSettings({ maxMembers: -5 });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('maxMembers'))).toBe(true);
+  });
+
+  it('should return valid=false for unknown field types', () => {
+    const result = validatePatchWorkspaceSettings({ notificationsEnabled: 'yes' as any });
+    expect(result.valid).toBe(false);
   });
 });
 
@@ -296,7 +376,7 @@ describe('mergeSettings()', () => {
 describe('WorkspaceService.updateSettings()', () => {
   // Mock helpers
   //
-  // The service now uses a single atomic `UPDATE … RETURNING settings`
+  // The service now uses a single atomic `UPDATE … RETURNING settings, updated_at`
   // statement via $queryRawUnsafe.  There is no separate SELECT or
   // $executeRawUnsafe call anymore.
   function createMockDb(opts: {
@@ -334,10 +414,11 @@ describe('WorkspaceService.updateSettings()', () => {
 
   it('should return merged settings after atomic UPDATE … RETURNING', async () => {
     // Arrange — the DB returns the already-merged settings blob (as PostgreSQL
-    // would after applying `settings || $1::jsonb`).
+    // would after applying `settings || $1::jsonb`), plus updated_at from DB.
     const dbReturnedSettings = makeFullSettings({ maxMembers: 10, isPublic: true });
+    const dbUpdatedAt = new Date('2026-03-07T12:00:00Z');
     const mockDb = createMockDb({
-      updateReturningRows: [{ settings: dbReturnedSettings }],
+      updateReturningRows: [{ settings: dbReturnedSettings, updated_at: dbUpdatedAt }],
     });
     const mockLogger = createMockLogger();
 
@@ -349,6 +430,8 @@ describe('WorkspaceService.updateSettings()', () => {
     // Assert
     expect(result.isPublic).toBe(true);
     expect(result.maxMembers).toBe(10); // preserved from what DB returned
+    // updatedAt must come from the DB, not from the app server clock
+    expect(result.updatedAt).toBe(dbUpdatedAt);
     // Exactly one $queryRawUnsafe call (the atomic UPDATE … RETURNING)
     expect(mockDb.$queryRawUnsafe).toHaveBeenCalledOnce();
     // $executeRawUnsafe must NOT be called (no separate UPDATE step)
@@ -372,7 +455,7 @@ describe('WorkspaceService.updateSettings()', () => {
     // Arrange — workspace existed but settings column was `{}`; DB returns `{}`
     // after the merge (update was also `{}`).  Zod defaults must fill the gaps.
     const mockDb = createMockDb({
-      updateReturningRows: [{ settings: {} }],
+      updateReturningRows: [{ settings: {}, updated_at: new Date('2026-03-07T10:00:00Z') }],
     });
     const mockLogger = createMockLogger();
 
@@ -391,7 +474,12 @@ describe('WorkspaceService.updateSettings()', () => {
   it('should apply schema defaults when DB returns settings as a JSON string', async () => {
     // Arrange — some driver versions return JSONB as a raw JSON string
     const mockDb = createMockDb({
-      updateReturningRows: [{ settings: JSON.stringify({ maxMembers: 42, isPublic: true }) }],
+      updateReturningRows: [
+        {
+          settings: JSON.stringify({ maxMembers: 42, isPublic: true }),
+          updated_at: new Date('2026-03-07T11:00:00Z'),
+        },
+      ],
     });
     const mockLogger = createMockLogger();
 

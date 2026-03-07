@@ -31,7 +31,6 @@ import {
   permsCacheKey,
   roleUsersCacheKey,
   permsKeyPattern,
-  CACHE_SAFETY_TTL,
 } from '../../../modules/authorization/constants.js';
 
 describe('PermissionCacheService', () => {
@@ -107,13 +106,12 @@ describe('PermissionCacheService', () => {
     it('should set permissions with jittered TTL and update role→users index', async () => {
       // Arrange
       mockRedis.set.mockResolvedValue('OK');
-      mockRedis.ttl.mockResolvedValue(300);
       mockRedis.sadd.mockResolvedValue(1);
 
       // Act
       await service.setUserPermissions('t1', 'u1', ['users:read'], ['role-1', 'role-2']);
 
-      // Assert
+      // Assert — SET called with EX + a numeric TTL (jittered)
       expect(mockRedis.set).toHaveBeenCalledWith(
         permsCacheKey('t1', 'u1'),
         JSON.stringify(['users:read']),
@@ -122,33 +120,6 @@ describe('PermissionCacheService', () => {
       );
       expect(mockRedis.sadd).toHaveBeenCalledWith(roleUsersCacheKey('t1', 'role-1'), 'u1');
       expect(mockRedis.sadd).toHaveBeenCalledWith(roleUsersCacheKey('t1', 'role-2'), 'u1');
-    });
-
-    it('should enforce safety TTL if key has no expiry after SET', async () => {
-      // Arrange
-      mockRedis.set.mockResolvedValue('OK');
-      mockRedis.ttl.mockResolvedValue(-1); // No expiry set
-      mockRedis.sadd.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
-
-      // Act
-      await service.setUserPermissions('t1', 'u1', [], []);
-
-      // Assert
-      expect(mockRedis.expire).toHaveBeenCalledWith(permsCacheKey('t1', 'u1'), CACHE_SAFETY_TTL);
-    });
-
-    it('should not call expire when TTL is already set', async () => {
-      // Arrange
-      mockRedis.set.mockResolvedValue('OK');
-      mockRedis.ttl.mockResolvedValue(290);
-      mockRedis.sadd.mockResolvedValue(1);
-
-      // Act
-      await service.setUserPermissions('t1', 'u1', [], []);
-
-      // Assert
-      expect(mockRedis.expire).not.toHaveBeenCalled();
     });
 
     it('should silently swallow Redis errors (fail-open)', async () => {

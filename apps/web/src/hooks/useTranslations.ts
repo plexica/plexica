@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { useIntl } from '@/contexts/IntlContext';
 import { apiClient } from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth.store';
+import { useAuthStore, getAccessToken } from '@/stores/auth.store';
+import { getTenantFromUrl } from '@/lib/tenant';
 
 interface UseTranslationsOptions {
   namespace: string;
@@ -28,7 +29,13 @@ interface TranslationResponse {
 async function fetchWithHash(
   url: string
 ): Promise<{ data: TranslationResponse; hash: string | null }> {
-  const response = await fetch(url, { credentials: 'include' });
+  const headers: Record<string, string> = {};
+  const accessToken = getAccessToken();
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(url, { credentials: 'include', headers });
   if (!response.ok) {
     const err = new Error(`HTTP ${response.status}`);
     // Attach status so callers can handle 404 gracefully
@@ -80,8 +87,12 @@ export function useTranslations(options: UseTranslationsOptions) {
   const { namespace, locale: providedLocale, enabled = true } = options;
   const { locale: contextLocale, mergeMessages } = useIntl();
 
-  // H-002: read tenant slug from auth store to pass as ?tenant= query param
-  const tenantSlug = useAuthStore((s) => s.user?.tenantId ?? null);
+  // C2: The ?tenant= query param expects a slug, not a UUID. AuthUser only carries
+  // tenantId (a UUID). The canonical slug source is the subdomain URL (same approach
+  // used by auth-client.ts, auth.store.ts). When the user is not authenticated,
+  // no tenant param is sent and global translations are returned.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const tenantSlug = isAuthenticated ? getTenantFromUrl() : null;
 
   // Use provided locale or fall back to context locale
   const locale = providedLocale || contextLocale;
@@ -138,8 +149,17 @@ export function useTranslations(options: UseTranslationsOptions) {
         ? `/api/v1/translations/${locale}/${namespace}/${contentHash}?tenant=${encodeURIComponent(tenantSlug)}`
         : `/api/v1/translations/${locale}/${namespace}/${contentHash}`;
 
-      // The server will 301-redirect stale hashes; fetch follows redirects by default.
-      const response = await fetch(url, { credentials: 'include', redirect: 'follow' });
+      // The server will 302-redirect stale hashes; fetch follows redirects by default.
+      const hashHeaders: Record<string, string> = {};
+      const accessTokenForHash = getAccessToken();
+      if (accessTokenForHash) {
+        hashHeaders['Authorization'] = `Bearer ${accessTokenForHash}`;
+      }
+      const response = await fetch(url, {
+        credentials: 'include',
+        redirect: 'follow',
+        headers: hashHeaders,
+      });
       if (!response.ok) {
         const err = new Error(`HTTP ${response.status}`);
         (err as unknown as { statusCode: number }).statusCode = response.status;

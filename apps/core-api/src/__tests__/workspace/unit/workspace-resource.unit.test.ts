@@ -125,13 +125,17 @@ describe('WorkspaceResourceService', () => {
 
         const mockDb = createMockDb({
           queryRawResults: [
-            // Workspace settings check (allowCrossWorkspaceSharing: true)
+            // Phase 0: workspace pre-check (outer db.$queryRaw — fast-fail)
             [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: true } }],
-            // Duplicate check (no existing resource)
+            // Phase 1: plugin existence guard (outer db.$queryRaw — after pre-check)
+            [{ id: RESOURCE_ID }],
+            // Phase 2 transaction — workspace FOR UPDATE re-check (tx.$queryRaw)
+            [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: true } }],
+            // Phase 2 transaction — duplicate check (tx.$queryRaw, no existing resource)
             [],
-            // gen_random_uuid() for resource link ID
+            // Phase 2 transaction — gen_random_uuid() for resource link ID (tx.$queryRaw)
             [{ id: RESOURCE_LINK_ID }],
-            // Fetch created resource
+            // Phase 2 transaction — fetch created resource (tx.$queryRaw)
             [
               {
                 id: RESOURCE_LINK_ID,
@@ -159,12 +163,12 @@ describe('WorkspaceResourceService', () => {
 
         const result = await service.shareResource(WORKSPACE_ID, dto, USER_ID, tenantCtx);
 
-        // Verify result (service returns snake_case from database)
+        // Verify result (service returns camelCase via toWorkspaceResource() mapper)
         expect(result.id).toBe(RESOURCE_LINK_ID);
-        expect(result.workspace_id).toBe(WORKSPACE_ID);
-        expect(result.resource_type).toBe('plugin');
-        expect(result.resource_id).toBe(RESOURCE_ID);
-        expect(result.created_at).toBeInstanceOf(Date);
+        expect(result.workspaceId).toBe(WORKSPACE_ID);
+        expect(result.resourceType).toBe('plugin');
+        expect(result.resourceId).toBe(RESOURCE_ID);
+        expect(result.createdAt).toBeInstanceOf(Date);
 
         // Verify event published
         expect(mockEventBus.publish).toHaveBeenCalledWith(
@@ -200,7 +204,7 @@ describe('WorkspaceResourceService', () => {
         mockEventBus.publish.mockRejectedValueOnce(new Error('Event bus unavailable'));
 
         const dto: ShareResourceDto = {
-          resourceType: 'template',
+          resourceType: 'plugin',
           resourceId: RESOURCE_ID,
         };
 
@@ -223,9 +227,9 @@ describe('WorkspaceResourceService', () => {
       it('should throw SHARING_DISABLED error when workspace disallows sharing', async () => {
         const mockDb = createMockDb({
           queryRawResults: [
-            // Workspace settings check (allowCrossWorkspaceSharing: false)
+            // Phase 0: workspace pre-check returns sharing disabled
             [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: false } }],
-            // Second call - reset mock
+            // Second call for the catch block's second shareResource() invocation
             [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: false } }],
           ],
         });
@@ -260,7 +264,7 @@ describe('WorkspaceResourceService', () => {
       it('should throw SHARING_DISABLED when settings is missing (default false)', async () => {
         const mockDb = createMockDb({
           queryRawResults: [
-            // Workspace settings check (no settings object)
+            // Phase 0: workspace pre-check — settings is null (defaults to no sharing)
             [{ id: WORKSPACE_ID, settings: null }],
           ],
         });
@@ -268,7 +272,7 @@ describe('WorkspaceResourceService', () => {
         service = new WorkspaceResourceService(mockDb as any, undefined, mockLogger as any);
 
         const dto: ShareResourceDto = {
-          resourceType: 'dataset',
+          resourceType: 'plugin',
           resourceId: RESOURCE_ID,
         };
 
@@ -280,7 +284,7 @@ describe('WorkspaceResourceService', () => {
       it('should throw error when workspace not found', async () => {
         const mockDb = createMockDb({
           queryRawResults: [
-            // Workspace settings check (workspace not found)
+            // Phase 0: workspace pre-check — workspace not found
             [],
           ],
         });
@@ -300,9 +304,13 @@ describe('WorkspaceResourceService', () => {
       it('should throw RESOURCE_ALREADY_SHARED when resource is already shared', async () => {
         const mockDb = createMockDb({
           queryRawResults: [
-            // Workspace settings check (allowCrossWorkspaceSharing: true)
+            // Phase 0: workspace pre-check (sharing enabled)
             [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: true } }],
-            // Duplicate check (existing resource found)
+            // Phase 1: plugin guard (plugin exists)
+            [{ id: RESOURCE_ID }],
+            // Phase 2 transaction — workspace FOR UPDATE re-check
+            [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: true } }],
+            // Phase 2 transaction — duplicate check (existing resource found)
             [{ id: 'existing-link-123' }],
           ],
         });
@@ -322,7 +330,13 @@ describe('WorkspaceResourceService', () => {
         // Reset mock results for second call
         const mockDb2 = createMockDb({
           queryRawResults: [
+            // Phase 0: workspace pre-check (sharing enabled)
             [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: true } }],
+            // Phase 1: plugin guard (plugin exists)
+            [{ id: RESOURCE_ID }],
+            // Phase 2 transaction — workspace FOR UPDATE re-check
+            [{ id: WORKSPACE_ID, settings: { allowCrossWorkspaceSharing: true } }],
+            // Phase 2 transaction — duplicate check (existing resource found)
             [{ id: 'existing-link-123' }],
           ],
         });
@@ -495,10 +509,10 @@ describe('WorkspaceResourceService', () => {
       expect(result.data).toHaveLength(2);
       expect(result.data[0]).toEqual({
         id: 'link-1',
-        workspace_id: WORKSPACE_ID,
-        resource_type: 'plugin',
-        resource_id: 'plugin-1',
-        created_at: expect.any(Date),
+        workspaceId: WORKSPACE_ID,
+        resourceType: 'plugin',
+        resourceId: 'plugin-1',
+        createdAt: expect.any(Date),
       });
       expect(result.pagination).toEqual({
         limit: 50,
@@ -547,7 +561,7 @@ describe('WorkspaceResourceService', () => {
       const result = await service.listResources(WORKSPACE_ID, dto, tenantCtx);
 
       expect(result.data).toHaveLength(1);
-      expect(result.data[0].resource_type).toBe('plugin');
+      expect(result.data[0].resourceType).toBe('plugin');
       expect(result.pagination.total).toBe(1);
     });
 
@@ -654,10 +668,10 @@ describe('WorkspaceResourceService', () => {
 
       expect(result).toEqual({
         id: RESOURCE_LINK_ID,
-        workspace_id: WORKSPACE_ID,
-        resource_type: 'plugin',
-        resource_id: RESOURCE_ID,
-        created_at: expect.any(Date),
+        workspaceId: WORKSPACE_ID,
+        resourceType: 'plugin',
+        resourceId: RESOURCE_ID,
+        createdAt: expect.any(Date),
       });
     });
 

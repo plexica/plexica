@@ -41,8 +41,23 @@ export const authzRateLimiter: preHandlerHookHandler = async function authzRateL
   }
 
   try {
-    // Resolve tenant ID from request context
-    const tenantId = request.tenant?.tenantId ?? request.user?.tenantSlug ?? 'unknown-tenant';
+    // Resolve tenant ID from request context.
+    // authMiddleware must run before this guard, so tenantId must be present.
+    // If it is missing, that is a programming error (misconfigured route) and
+    // we must fail loudly rather than rate-limit an incorrect key.
+    const tenantId = request.tenant?.tenantId;
+    if (!tenantId) {
+      logger.error(
+        { url: request.url },
+        'authzRateLimiter: tenantId missing — authMiddleware must run before this guard'
+      );
+      return reply.code(403).send({
+        error: {
+          code: 'AUTH_TENANT_CONTEXT_MISSING',
+          message: 'Request cannot be processed: tenant context is missing',
+        },
+      });
+    }
     const redisKey = authzRateLimitKey(tenantId);
 
     // Atomic increment in sliding window

@@ -5,7 +5,7 @@
 
 | Field  | Value                |
 | ------ | -------------------- |
-| Status | Pending              |
+| Status | Complete             |
 | Author | forge-scrum          |
 | Date   | 2026-02-23           |
 | Spec   | [spec.md](./spec.md) |
@@ -28,7 +28,7 @@
 > the tenant provisioning DDL to create the normalized authorization tables.
 > All migration work must be backward-compatible (zero-downtime, Art. 9.1).
 
-- [ ] **1.1** `[FR-001]` `[FR-003]` `[P]` Define authorization TypeScript interfaces
+- [x] **1.1** `[FR-001]` `[FR-003]` `[P]` Define authorization TypeScript interfaces
   - **File**: `apps/core-api/src/modules/authorization/types/authorization.types.ts`
   - **Type**: Create new file
   - **Description**: Define all domain interfaces: `Role`, `Permission`, `Policy`,
@@ -39,7 +39,7 @@
   - **Dependencies**: None
   - **Estimated**: M (1–2h)
 
-- [ ] **1.2** `[FR-001]` `[FR-003]` `[P]` Define authorization barrel export for types
+- [x] **1.2** `[FR-001]` `[FR-003]` `[P]` Define authorization barrel export for types
   - **File**: `apps/core-api/src/modules/authorization/types/index.ts`
   - **Type**: Create new file
   - **Description**: Re-export all types from `authorization.types.ts`.
@@ -47,7 +47,7 @@
   - **Dependencies**: Task 1.1
   - **Estimated**: S (< 15 min)
 
-- [ ] **1.3** `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Define core permission constants
+- [x] **1.3** `[FR-001]` `[FR-002]` `[FR-003]` `[P]` Define core permission constants
   - **File**: `apps/core-api/src/modules/authorization/constants.ts`
   - **Type**: Create new file
   - **Description**: Define colon-separated core permission keys (`users:read`,
@@ -63,7 +63,7 @@
   - **Dependencies**: None
   - **Estimated**: M (1h)
 
-- [ ] **1.4** `[FR-001]` `[FR-003]` `[FR-004]` `[FR-005]` Update tenant provisioning DDL
+- [x] **1.4** `[FR-001]` `[FR-003]` `[FR-004]` `[FR-005]` Update tenant provisioning DDL
   - **File**: `apps/core-api/src/services/tenant.service.ts`
   - **Type**: Modify existing
   - **Location**: `createTenantSchema()` / tenant provisioning DDL section
@@ -87,7 +87,7 @@
   - **Dependencies**: Tasks 1.1, 1.3
   - **Estimated**: L (3–4h)
 
-- [ ] **1.5** `[FR-001]` `[FR-018]` Write data migration script (legacy → normalized)
+- [x] **1.5** `[FR-001]` `[FR-018]` Write data migration script (legacy → normalized)
   - **File**: `apps/core-api/src/modules/authorization/migrations/migrate-legacy-permissions.ts`
   - **Type**: Create new file
   - **Description**: For existing tenants: (1) read each role's JSONB `permissions`
@@ -101,7 +101,7 @@
   - **Dependencies**: Task 1.4
   - **Estimated**: L (3–4h)
 
-- [ ] **1.6** `[FR-001]` Write migration rollback script
+- [x] **1.6** `[FR-001]` Write migration rollback script
   - **File**: `apps/core-api/src/modules/authorization/migrations/rollback-legacy-permissions.ts`
   - **Type**: Create new file
   - **Description**: Restore JSONB `permissions` column on `roles` from
@@ -111,7 +111,7 @@
   - **Dependencies**: Task 1.5
   - **Estimated**: M (1–2h)
 
-- [ ] **1.7** `[FR-001]` `[FR-018]` Write migration integration tests
+- [x] **1.7** `[FR-001]` `[FR-018]` Write migration integration tests
   - **File**: `apps/core-api/src/__tests__/authorization/integration/migration.integration.test.ts`
   - **Type**: Create new file
   - **Description**: Test that the forward migration correctly converts dot-separated
@@ -132,7 +132,7 @@
 
 ### Phase 2a: Services (parallelizable after Phase 1)
 
-- [ ] **2.1** `[FR-019]` `[NFR-002]` `[NFR-007]` `[NFR-008]` `[P]` Implement PermissionCacheService
+- [x] **2.1** `[FR-019]` `[NFR-002]` `[NFR-007]` `[NFR-008]` `[P]` Implement PermissionCacheService
   - **File**: `apps/core-api/src/modules/authorization/permission-cache.service.ts`
   - **Type**: Create new file
   - **Description**: Redis-backed permission cache. Implement all methods per
@@ -147,7 +147,7 @@
   - **Dependencies**: Tasks 1.1, 1.3
   - **Estimated**: L (3–4h)
 
-- [ ] **2.2** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-018]` `[FR-019]` `[P]` Implement RoleService
+- [x] **2.2** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-018]` `[FR-019]` `[P]` Implement RoleService
   - **File**: `apps/core-api/src/modules/authorization/role.service.ts`
   - **Type**: Create new file
   - **Description**: Implement all methods per plan §4.2. Key behaviors:
@@ -164,7 +164,7 @@
   - **Dependencies**: Tasks 1.1, 1.3, 2.1
   - **Estimated**: L (4–6h)
 
-- [ ] **2.3** `[FR-011]` `[FR-012]` `[FR-013]` `[P]` Implement PermissionRegistrationService
+- [x] **2.3** `[FR-011]` `[FR-012]` `[FR-013]` `[P]` Implement PermissionRegistrationService
   - **File**: `apps/core-api/src/modules/authorization/permission-registration.service.ts`
   - **Type**: Create new file
   - **Description**: Implement per plan §4.4:
@@ -180,7 +180,7 @@
   - **Dependencies**: Tasks 1.1, 1.3, 2.1
   - **Estimated**: M (2–3h)
 
-- [ ] **2.4** `[FR-001]` `[FR-002]` `[FR-006]` `[FR-010]` `[FR-016]` `[NFR-003]` `[NFR-005]` `[P]` Implement AuthorizationService
+- [x] **2.4** `[FR-001]` `[FR-002]` `[FR-006]` `[FR-010]` `[FR-016]` `[NFR-003]` `[NFR-005]` `[P]` Implement AuthorizationService
   - **File**: `apps/core-api/src/modules/authorization/authorization.service.ts`
   - **Type**: Create new file
   - **Description**: Central authorization decision engine per plan §4.1.
@@ -203,7 +203,7 @@
 
 ### Phase 2b: DTOs & Guards (parallelizable)
 
-- [ ] **2.5** `[FR-001]` `[FR-005]` `[P]` Create role Zod DTOs
+- [x] **2.5** `[FR-001]` `[FR-005]` `[P]` Create role Zod DTOs
   - **Files**:
     - `apps/core-api/src/modules/authorization/dto/create-role.dto.ts` — `{ name: z.string().min(1).max(100), description: z.string().max(500).optional(), permissionIds: z.array(z.string().uuid()).max(200) }`
     - `apps/core-api/src/modules/authorization/dto/update-role.dto.ts` — all fields optional via `.partial()`
@@ -216,7 +216,7 @@
   - **Dependencies**: None
   - **Estimated**: S (45 min)
 
-- [ ] **2.6** `[NFR-010]` `[P]` Implement auth management rate limiter guard
+- [x] **2.6** `[NFR-010]` `[P]` Implement auth management rate limiter guard
   - **File**: `apps/core-api/src/modules/authorization/guards/rate-limiter.guard.ts`
   - **Type**: Create new file
   - **Description**: Fastify preHandler plugin implementing 60 mutations/tenant/min
@@ -232,7 +232,7 @@
 
 ### Phase 2c: API Routes
 
-- [ ] **2.7** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-016]` `[FR-024]` `[NFR-004]` `[NFR-010]` Implement authorization route plugin
+- [x] **2.7** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[FR-016]` `[FR-024]` `[NFR-004]` `[NFR-010]` Implement authorization route plugin
   - **File**: `apps/core-api/src/routes/authorization.ts`
   - **Type**: Create new file
   - **Description**: Fastify route plugin registering 9 endpoints per plan §3.1–§3.9:
@@ -254,7 +254,7 @@
 
 ### Phase 2d: Middleware Refactor & Integration
 
-- [ ] **2.8** `[FR-016]` `[NFR-003]` `[NFR-004]` `[NFR-005]` Refactor `requirePermission()` middleware
+- [x] **2.8** `[FR-016]` `[NFR-003]` `[NFR-004]` `[NFR-005]` Refactor `requirePermission()` middleware
   - **File**: `apps/core-api/src/middleware/auth.ts`
   - **Type**: Modify existing
   - **Location**: Lines 245–296 (`requirePermission` and `getUserPermissions`)
@@ -269,7 +269,7 @@
   - **Dependencies**: Task 2.4
   - **Estimated**: M (2–3h)
 
-- [ ] **2.9** `[NFR-004]` Refactor `requireRole()` middleware
+- [x] **2.9** `[NFR-004]` Refactor `requireRole()` middleware
   - **File**: `apps/core-api/src/middleware/auth.ts`
   - **Type**: Modify existing
   - **Location**: Lines 204–231 (`requireRole`)
@@ -280,7 +280,7 @@
   - **Dependencies**: None (can be done independently)
   - **Estimated**: S (30 min)
 
-- [ ] **2.10** `[FR-011]` `[FR-013]` Integrate PermissionRegistrationService into plugin lifecycle
+- [x] **2.10** `[FR-011]` `[FR-013]` Integrate PermissionRegistrationService into plugin lifecycle
   - **File**: `apps/core-api/src/modules/plugin/` (plugin install/uninstall handlers)
   - **Type**: Modify existing
   - **Location**: Plugin install and uninstall hook functions
@@ -293,7 +293,7 @@
   - **Dependencies**: Task 2.3
   - **Estimated**: M (1–2h)
 
-- [ ] **2.11** `[FR-003]` Deprecate legacy permission service
+- [x] **2.11** `[FR-003]` Deprecate legacy permission service
   - **File**: `apps/core-api/src/services/permission.service.ts`
   - **Type**: Modify existing
   - **Location**: Entire file
@@ -305,7 +305,7 @@
   - **Dependencies**: Task 2.4
   - **Estimated**: M (45 min–1h)
 
-- [ ] **2.12** `[FR-003]` Register authorization routes in application bootstrap
+- [x] **2.12** `[FR-003]` Register authorization routes in application bootstrap
   - **File**: `apps/core-api/src/routes/` (index or app.ts / main route registration)
   - **Type**: Modify existing
   - **Location**: Route registration section
@@ -325,7 +325,7 @@
 
 ### Phase 3a: API Hooks (foundation for all UI)
 
-- [ ] **3.1** `[FR-003]` `[FR-005]` `[FR-024]` Create authorization API client and React Query hooks
+- [x] **3.1** `[FR-003]` `[FR-005]` `[FR-024]` Create authorization API client and React Query hooks
   - **Files**:
     - `apps/web/src/hooks/useAuthorizationApi.ts` — raw fetch wrappers for all authorization endpoints (list roles, create/update/delete role, list permissions, assign/remove user role, get me/roles, get me/permissions)
     - `apps/web/src/hooks/useRoles.ts` — React Query hooks: `useRoles(filters)`, `useRole(id)`, `useCreateRole()`, `useUpdateRole()`, `useDeleteRole()`; invalidate on mutation
@@ -341,7 +341,7 @@
 
 ### Phase 3b: Primitive Components (parallelizable)
 
-- [ ] **3.2** `[FR-023]` `[FR-017]` `[P]` Create SystemRoleBadge and EffectBadge components
+- [x] **3.2** `[FR-023]` `[FR-017]` `[P]` Create SystemRoleBadge and EffectBadge components
   - **Files**:
     - `apps/web/src/components/authorization/SystemRoleBadge.tsx` — Lock icon (lucide-react) + "System" text badge; all edit controls disabled when present
     - `apps/web/src/components/authorization/EffectBadge.tsx` — DENY (red variant) / FILTER (blue variant) using `@plexica/ui` Badge component
@@ -354,7 +354,7 @@
   - **Dependencies**: Task 3.1
   - **Estimated**: S (45 min)
 
-- [ ] **3.3** `[FR-020]` `[FR-021]` `[P]` Create PermissionGroupAccordion and WildcardPermissionRow
+- [x] **3.3** `[FR-020]` `[FR-021]` `[P]` Create PermissionGroupAccordion and WildcardPermissionRow
   - **Files**:
     - `apps/web/src/components/authorization/PermissionGroupAccordion.tsx` — collapsible accordion section per permission source ("Core", plugin name). Renders a list of `WildcardPermissionRow` items.
     - `apps/web/src/components/authorization/WildcardPermissionRow.tsx` — checkbox row for a permission key; if the permission ends in `*`, checking it auto-selects all sub-permissions; unchecking a sub-permission unchecks the wildcard row.
@@ -367,7 +367,7 @@
   - **Dependencies**: Tasks 3.1, 3.2
   - **Estimated**: L (3–4h)
 
-- [ ] **3.4** `[FR-022]` `[FR-008]` `[P]` Create ABAC condition builder components
+- [x] **3.4** `[FR-022]` `[FR-008]` `[P]` Create ABAC condition builder components
   - **Files**:
     - `apps/web/src/components/authorization/ConditionBuilder.tsx` — recursive root component for building nested AND/OR/NOT condition trees
     - `apps/web/src/components/authorization/ConditionRow.tsx` — single leaf condition (attribute selector, operator dropdown, value input)
@@ -385,7 +385,7 @@
   - **Dependencies**: Task 3.1
   - **Estimated**: L (4–6h)
 
-- [ ] **3.5** `[FR-007]` `[P]` Create PolicySummary and RoleAssignmentDialog components
+- [x] **3.5** `[FR-007]` `[P]` Create PolicySummary and RoleAssignmentDialog components
   - **Files**:
     - `apps/web/src/components/authorization/PolicySummary.tsx` — auto-generates plain-English summary of a policy's condition tree (e.g., "Allow when user.teamId equals resource.teamId AND resource.status is not archived")
     - `apps/web/src/components/authorization/RoleAssignmentDialog.tsx` — modal dialog for adding/removing roles from a user; shows current roles, diff preview of changes, confirm/cancel
@@ -400,7 +400,7 @@
 
 ### Phase 3c: Screens
 
-- [ ] **3.6** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-023]` Implement Role List screen
+- [x] **3.6** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-023]` Implement Role List screen
   - **File**: `apps/web/src/routes/access-control.roles.tsx`
   - **Type**: Create new file
   - **Description**: TanStack Router route. DataTable with columns: Name,
@@ -413,7 +413,7 @@
   - **Dependencies**: Tasks 3.1, 3.2, 3.3
   - **Estimated**: L (3–4h)
 
-- [ ] **3.7** `[FR-003]` `[FR-004]` `[FR-020]` Implement Role Detail and Role Editor screens
+- [x] **3.7** `[FR-003]` `[FR-004]` `[FR-020]` Implement Role Detail and Role Editor screens
   - **Files**:
     - `apps/web/src/routes/access-control.roles.$roleId.tsx` — Role Detail; two tabs: "Permissions" (read-only accordion grouped by source) and "Users" (list of assigned users with remove button for custom roles)
     - `apps/web/src/routes/access-control.roles.create.tsx` — Role Editor (create mode); form with name, description, `PermissionGroupAccordion` for selection, summary section; submit → POST /api/v1/roles
@@ -427,7 +427,7 @@
   - **Dependencies**: Tasks 3.1, 3.2, 3.3
   - **Estimated**: L (3–4h)
 
-- [ ] **3.8** `[FR-006]` `[FR-018]` Implement User Role Assignment screen
+- [x] **3.8** `[FR-006]` `[FR-018]` Implement User Role Assignment screen
   - **File**: `apps/web/src/routes/access-control.users.tsx`
   - **Type**: Create new file
   - **Description**: DataTable listing users in the tenant with their assigned roles
@@ -437,7 +437,7 @@
   - **Dependencies**: Tasks 3.1, 3.5
   - **Estimated**: L (3–4h)
 
-- [ ] **3.9** `[FR-007]` `[FR-009]` `[FR-017]` Implement ABAC Policy List and Policy Editor screens
+- [x] **3.9** `[FR-007]` `[FR-009]` `[FR-017]` Implement ABAC Policy List and Policy Editor screens
   - **Files**:
     - `apps/web/src/routes/access-control.policies.tsx` — Policy List; feature-flag gated: when `abac_enabled` is false, show info banner "Attribute-based access policies are coming soon." and hide "Create Policy" CTA. When enabled: DataTable with Name, Resource, Effect (`EffectBadge`), Source, Priority, Active toggle, Actions.
     - `apps/web/src/routes/access-control.policies.create.tsx` — Policy Editor (create); form with name, resource pattern, effect selector, priority, `ConditionBuilder`, `ConditionLimitIndicator`, `PolicySummary` preview; submit → POST /api/v1/policies
@@ -452,7 +452,7 @@
 
 ### Phase 3d: Navigation
 
-- [ ] **3.10** `[FR-020]` Add "Access Control" navigation section to sidebar
+- [x] **3.10** `[FR-020]` Add "Access Control" navigation section to sidebar
   - **Files**:
     - `apps/web/src/routes/__root.tsx` (or root layout file)
     - `apps/web/src/components/Layout/Sidebar.tsx` (or equivalent sidebar component)
@@ -474,7 +474,7 @@
 > `ConditionValidatorService`, `PolicyService`, and ABAC route plugin with
 > feature-flag gate. Depends on Phase 1 (DDL patterns) and Phase 2 (route patterns).
 
-- [ ] **4.1** `[FR-007]` `[FR-008]` `[FR-017]` Add `policies` table DDL to tenant provisioning
+- [x] **4.1** `[FR-007]` `[FR-008]` `[FR-017]` Add `policies` table DDL to tenant provisioning
   - **File**: `apps/core-api/src/services/tenant.service.ts`
   - **Type**: Modify existing
   - **Location**: Tenant provisioning section (after roles/permissions DDL from Task 1.4)
@@ -490,7 +490,7 @@
   - **Dependencies**: Task 1.4
   - **Estimated**: M (1h)
 
-- [ ] **4.2** `[FR-008]` `[P]` Implement recursive ABAC condition tree Zod schema
+- [x] **4.2** `[FR-008]` `[P]` Implement recursive ABAC condition tree Zod schema
   - **Files**:
     - `apps/core-api/src/modules/authorization/dto/condition-tree.dto.ts` — recursive Zod schema for `ConditionTree`
     - `apps/core-api/src/modules/authorization/dto/create-policy.dto.ts` — full policy creation schema with condition tree
@@ -507,7 +507,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 1.1
   - **Estimated**: M (2h)
 
-- [ ] **4.3** `[FR-008]` `[P]` Implement ConditionValidatorService
+- [x] **4.3** `[FR-008]` `[P]` Implement ConditionValidatorService
   - **File**: `apps/core-api/src/modules/authorization/condition-validator.service.ts`
   - **Type**: Create new file
   - **Description**: Per plan §4.6:
@@ -523,7 +523,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Tasks 1.1, 4.2
   - **Estimated**: M (1–2h)
 
-- [ ] **4.4** `[FR-007]` `[FR-008]` `[FR-009]` `[FR-014]` `[FR-015]` Implement PolicyService
+- [x] **4.4** `[FR-007]` `[FR-008]` `[FR-009]` `[FR-014]` `[FR-015]` Implement PolicyService
   - **File**: `apps/core-api/src/modules/authorization/policy.service.ts`
   - **Type**: Create new file
   - **Description**: Per plan §4.5:
@@ -541,7 +541,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Tasks 1.1, 4.1, 4.2, 4.3
   - **Estimated**: M (3–4h)
 
-- [ ] **4.5** `[FR-007]` `[FR-009]` `[FR-017]` `[NFR-010]` Implement policies route plugin
+- [x] **4.5** `[FR-007]` `[FR-009]` `[FR-017]` `[NFR-010]` Implement policies route plugin
   - **File**: `apps/core-api/src/routes/policies.ts`
   - **Type**: Create new file
   - **Description**: Fastify route plugin registering 4 endpoints per plan §3.10–§3.13:
@@ -557,7 +557,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Tasks 2.6, 4.4
   - **Estimated**: M (2–3h)
 
-- [ ] **4.6** `[FR-007]` Register policies routes in application bootstrap
+- [x] **4.6** `[FR-007]` Register policies routes in application bootstrap
   - **File**: `apps/core-api/src/routes/` (index or app.ts)
   - **Type**: Modify existing
   - **Location**: Route registration section (alongside authorization routes from Task 2.12)
@@ -576,7 +576,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
 
 ### Phase 5a: Unit Tests (parallelizable per component)
 
-- [ ] **5.1** `[NFR-002]` `[NFR-007]` `[NFR-008]` `[P]` Unit tests — PermissionCacheService
+- [x] **5.1** `[NFR-002]` `[NFR-007]` `[NFR-008]` `[P]` Unit tests — PermissionCacheService
   - **File**: `apps/core-api/src/__tests__/authorization/unit/permission-cache.service.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 15 tests per plan §8.1. Mock Redis client. Test: GET on
@@ -588,7 +588,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.1
   - **Estimated**: M (1–2h)
 
-- [ ] **5.2** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[P]` Unit tests — RoleService
+- [x] **5.2** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[P]` Unit tests — RoleService
   - **File**: `apps/core-api/src/__tests__/authorization/unit/role.service.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 18 tests per plan §8.1. Mock Prisma. Test: `createRole()`
@@ -600,7 +600,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.2
   - **Estimated**: M (1–2h)
 
-- [ ] **5.3** `[FR-001]` `[FR-002]` `[FR-006]` `[FR-010]` `[FR-016]` `[P]` Unit tests — AuthorizationService
+- [x] **5.3** `[FR-001]` `[FR-002]` `[FR-006]` `[FR-010]` `[FR-016]` `[P]` Unit tests — AuthorizationService
   - **File**: `apps/core-api/src/__tests__/authorization/unit/authorization.service.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 20 tests per plan §8.1 (security code = 100% coverage required).
@@ -615,7 +615,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.4
   - **Estimated**: M (2h)
 
-- [ ] **5.4** `[FR-011]` `[FR-012]` `[FR-013]` `[P]` Unit tests — PermissionRegistrationService
+- [x] **5.4** `[FR-011]` `[FR-012]` `[FR-013]` `[P]` Unit tests — PermissionRegistrationService
   - **File**: `apps/core-api/src/__tests__/authorization/unit/permission-registration.service.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 10 tests per plan §8.1. Test: `registerPluginPermissions()`
@@ -626,7 +626,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.3
   - **Estimated**: S (1h)
 
-- [ ] **5.5** `[NFR-004]` `[NFR-005]` `[P]` Unit tests — refactored requirePermission middleware
+- [x] **5.5** `[NFR-004]` `[NFR-005]` `[P]` Unit tests — refactored requirePermission middleware
   - **File**: `apps/core-api/src/__tests__/authorization/unit/require-permission.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 8 tests per plan §8.1. Test: 403 response body does NOT
@@ -637,7 +637,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.8
   - **Estimated**: S (45 min)
 
-- [ ] **5.6** `[NFR-010]` `[P]` Unit tests — rate limiter guard
+- [x] **5.6** `[NFR-010]` `[P]` Unit tests — rate limiter guard
   - **File**: `apps/core-api/src/__tests__/authorization/unit/rate-limiter.guard.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 6 tests per plan §8.1. Test: under-limit request passes,
@@ -648,7 +648,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.6
   - **Estimated**: S (45 min)
 
-- [ ] **5.7** `[FR-001]` `[FR-005]` `[P]` Unit tests — Zod DTOs
+- [x] **5.7** `[FR-001]` `[FR-005]` `[P]` Unit tests — Zod DTOs
   - **File**: `apps/core-api/src/__tests__/authorization/unit/dtos.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 12+ tests per plan §8.1. Test all DTO schemas: valid inputs,
@@ -660,7 +660,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Tasks 2.5, 4.2
   - **Estimated**: M (1–2h)
 
-- [ ] **5.8** `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Unit tests — PolicyService & ConditionValidatorService
+- [x] **5.8** `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Unit tests — PolicyService & ConditionValidatorService
   - **File**: `apps/core-api/src/__tests__/authorization/unit/policy.service.unit.test.ts`
   - **Type**: Create new file
   - **Description**: 27 tests per plan §8.1 (PolicyService: 12; ConditionValidator: 15).
@@ -673,7 +673,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Tasks 4.3, 4.4
   - **Estimated**: M (2h)
 
-- [ ] **5.9** `[FR-020]` `[FR-021]` `[FR-022]` `[FR-023]` `[P]` Unit tests — frontend components
+- [x] **5.9** `[FR-020]` `[FR-021]` `[FR-022]` `[FR-023]` `[P]` Unit tests — frontend components
   - **Files** (co-located or in `apps/web/src/__tests__/`):
     - Tests for: `PermissionGroupAccordion`, `WildcardPermissionRow`, `ConditionBuilder`,
       `PolicySummary`, `RoleAssignmentDialog`, `SystemRoleBadge`, `EffectBadge`
@@ -694,7 +694,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
 
 ### Phase 5b: Integration Tests (parallelizable per group)
 
-- [ ] **5.10** `[FR-003]` `[FR-004]` `[FR-005]` `[P]` Integration tests — role CRUD and system role immutability
+- [x] **5.10** `[FR-003]` `[FR-004]` `[FR-005]` `[P]` Integration tests — role CRUD and system role immutability
   - **File**: `apps/core-api/src/__tests__/authorization/integration/roles.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 16 tests per plan §8.2. Use `buildTestApp()` + `testContext`.
@@ -707,7 +707,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.7
   - **Estimated**: M (2h)
 
-- [ ] **5.11** `[FR-006]` `[FR-018]` `[FR-024]` `[P]` Integration tests — user role assignment and me endpoints
+- [x] **5.11** `[FR-006]` `[FR-018]` `[FR-024]` `[P]` Integration tests — user role assignment and me endpoints
   - **File**: `apps/core-api/src/__tests__/authorization/integration/user-roles.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 14 tests. POST /users/:id/roles: success, user not in tenant
@@ -718,7 +718,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.7
   - **Estimated**: M (1–2h)
 
-- [ ] **5.12** `[FR-019]` `[NFR-002]` `[NFR-007]` `[P]` Integration tests — permission cache invalidation
+- [x] **5.12** `[FR-019]` `[NFR-002]` `[NFR-007]` `[P]` Integration tests — permission cache invalidation
   - **File**: `apps/core-api/src/__tests__/authorization/integration/permission-cache.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 6 tests. Test: role permission change triggers role-scoped
@@ -729,7 +729,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.1
   - **Estimated**: M (1–2h)
 
-- [ ] **5.13** `[NFR-010]` `[P]` Integration tests — rate limiting on write endpoints
+- [x] **5.13** `[NFR-010]` `[P]` Integration tests — rate limiting on write endpoints
   - **File**: `apps/core-api/src/__tests__/authorization/integration/rate-limiting.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 4 tests. Test: 60th mutation returns 200, 61st returns 429
@@ -738,7 +738,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.7
   - **Estimated**: S (1h)
 
-- [ ] **5.14** `[FR-011]` `[FR-013]` `[P]` Integration tests — plugin permission registration
+- [x] **5.14** `[FR-011]` `[FR-013]` `[P]` Integration tests — plugin permission registration
   - **File**: `apps/core-api/src/__tests__/authorization/integration/plugin-permissions.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 8 tests. Plugin install registers permissions (namespaced
@@ -749,7 +749,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 2.10
   - **Estimated**: M (1–2h)
 
-- [ ] **5.15** `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Integration tests — policy CRUD
+- [x] **5.15** `[FR-007]` `[FR-008]` `[FR-009]` `[P]` Integration tests — policy CRUD
   - **File**: `apps/core-api/src/__tests__/authorization/integration/policies.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 14 tests. GET /policies with feature flag off (empty array,
@@ -761,7 +761,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Task 4.5
   - **Estimated**: M (1–2h)
 
-- [ ] **5.16** `[NFR-006]` `[P]` Integration tests — cross-tenant isolation
+- [x] **5.16** `[NFR-006]` `[P]` Integration tests — cross-tenant isolation
   - **File**: `apps/core-api/src/__tests__/authorization/integration/cross-tenant.integration.test.ts`
   - **Type**: Create new file
   - **Description**: 4 tests. Verify: roles from tenant A are not accessible via
@@ -774,7 +774,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
 
 ### Phase 5c: E2E Tests
 
-- [ ] **5.17** `[FR-001]` `[FR-006]` `[FR-010]` Full RBAC flow E2E tests
+- [x] **5.17** `[FR-001]` `[FR-006]` `[FR-010]` Full RBAC flow E2E tests
   - **File**: `apps/core-api/src/__tests__/authorization/e2e/rbac-flow.e2e.test.ts`
   - **Type**: Create new file
   - **Description**: 7 tests per plan §8.3. Test: assign role to user → check
@@ -786,7 +786,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: Tasks 2.7, 2.8
   - **Estimated**: M (2h)
 
-- [ ] **5.18** `[FR-020]` `[FR-021]` `[FR-023]` Frontend UI E2E tests (Playwright)
+- [x] **5.18** `[FR-020]` `[FR-021]` `[FR-023]` Frontend UI E2E tests (Playwright)
   - **File**: `apps/web/e2e/authorization.e2e.ts` (or equivalent Playwright path)
   - **Type**: Create new file
   - **Description**: 7 tests per plan §8.3. Role UI flow: navigate to Roles →
@@ -803,7 +803,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
 
 ## Phase 6: Polish & Documentation
 
-- [ ] **6.1** `[NFR-003]` `[NFR-004]` Adversarial review and security audit
+- [x] **6.1** `[NFR-003]` `[NFR-004]` Adversarial review and security audit
   - **Command**: `/forge-review .forge/specs/003-authorization/`
   - **Expected**: All HIGH severity findings resolved; MEDIUM severity documented
   - **Focus areas**: NFR-004 (no permission names in 403), NFR-006 (tenant
@@ -812,7 +812,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: All implementation phases complete
   - **Estimated**: M (1–2h review + fixes)
 
-- [ ] **6.2** `[NFR-003]` `[P]` Update AUTHORIZATION.md to reference Spec 003
+- [x] **6.2** `[NFR-003]` `[P]` Update AUTHORIZATION.md to reference Spec 003
   - **File**: `docs/AUTHORIZATION.md`
   - **Type**: Modify existing
   - **Description**: Add deprecation notice at top: the ABAC ALLOW effect and
@@ -823,7 +823,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: None (can be done anytime)
   - **Estimated**: S (20 min)
 
-- [ ] **6.3** `[NFR-003]` `[P]` Update security-architecture.md to reference Spec 003
+- [x] **6.3** `[NFR-003]` `[P]` Update security-architecture.md to reference Spec 003
   - **File**: `docs/security-architecture.md`
   - **Type**: Modify existing
   - **Description**: Add deprecation notice: prior ABAC model (ALLOW effect,
@@ -833,7 +833,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: None (can be done anytime)
   - **Estimated**: S (15 min)
 
-- [ ] **6.4** `[FR-003]` `[P]` Run full test suite and verify coverage thresholds
+- [x] **6.4** `[FR-003]` `[P]` Run full test suite and verify coverage thresholds
   - **Command**: `cd apps/core-api && pnpm test:coverage`
   - **Expected**:
     - Authorization module overall: ≥ 85%
@@ -843,7 +843,7 @@ value }`, combinator nodes `{ all: [...] }`, `{ any: [...] }`, `{ not: {...} }`.
   - **Dependencies**: All phases complete
   - **Estimated**: S (run + review)
 
-- [ ] **6.5** `[ALL]` Final CI green check
+- [x] **6.5** `[ALL]` Final CI green check
   - **Commands**: `pnpm lint && pnpm build && pnpm test`
   - **Expected**: All checks pass, no TypeScript errors, no ESLint violations
   - **Dependencies**: Task 6.4

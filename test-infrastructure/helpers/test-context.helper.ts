@@ -10,6 +10,7 @@ import { testKeycloak } from './test-keycloak.helper';
 import { testAuth } from './test-auth.helper';
 import { testMinio } from './test-minio.helper';
 import { testRedpanda } from './test-redpanda.helper';
+import { Redis } from 'ioredis';
 
 export class TestContext {
   private static instance: TestContext;
@@ -78,6 +79,14 @@ export class TestContext {
       console.log('    ✓ Database reset');
     }
 
+    // Flush workspace rate-limit keys from Redis so counters don't bleed
+    // across test files. Uses SCAN+DEL (not FLUSHALL) to only remove
+    // rate-limit keys, leaving other Redis data (sessions, cache) intact.
+    // Fail-open: if Redis is unavailable the rest of the reset continues.
+    console.log('  - Flushing rate-limit keys from Redis...');
+    await this.flushRateLimitKeys();
+    console.log('    ✓ Rate-limit keys flushed');
+
     // Clean up MinIO buckets
     console.log('  - Cleaning MinIO buckets...');
     await this.minio.cleanupAllBuckets();
@@ -90,6 +99,45 @@ export class TestContext {
     console.log('    ✓ Redpanda cleaned');
 
     console.log('✅ Test environment reset complete');
+  }
+
+  /**
+   * Delete all `ratelimit:*` keys from Redis using SCAN + DEL.
+   *
+   * SCAN is used instead of KEYS to avoid blocking the server.
+   * Fail-open: if Redis is unavailable this is a no-op so tests can still run.
+   */
+  private async flushRateLimitKeys(): Promise<void> {
+    const redis = new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6380,
+      password: process.env.REDIS_PASSWORD || undefined,
+      // Short timeout — if Redis is not up we fail-open immediately
+      connectTimeout: 2000,
+      maxRetriesPerRequest: 1,
+      lazyConnect: true,
+    });
+
+    try {
+      await redis.connect();
+
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', 'ratelimit:*', 'COUNT', 100);
+        cursor = nextCursor;
+        if (keys.length > 0) {
+          await redis.del(...keys);
+        }
+      } while (cursor !== '0');
+    } catch {
+      // Fail-open: rate-limit keys not cleared, but tests can still run
+    } finally {
+      try {
+        await redis.quit();
+      } catch {
+        // Ignore quit errors
+      }
+    }
   }
 
   /**

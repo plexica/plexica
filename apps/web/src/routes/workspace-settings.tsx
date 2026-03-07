@@ -4,8 +4,7 @@
 // Previously a redirect stub — now renders the settings form for the current workspace.
 // Constitution Art. 5.1 — editing is ADMIN-only (enforced inside WorkspaceSettingsForm).
 // Constitution Art. 1.3 — WCAG 2.1 AA handled by WorkspaceSettingsForm toggles (T9.2).
-// Spec 009 Appendix D: 4 fields only — defaultTeamRole, allowCrossWorkspaceSharing,
-// maxMembers, isDiscoverable. No isPublic, no notificationsEnabled.
+// Field names match canonical backend schema: defaultMemberRole, isPublic, notificationsEnabled.
 
 import { createFileRoute } from '@tanstack/react-router';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -21,10 +20,11 @@ import { Skeleton } from '@plexica/ui';
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SETTINGS: WorkspaceSettings = {
-  defaultTeamRole: 'MEMBER',
+  defaultMemberRole: 'MEMBER',
   allowCrossWorkspaceSharing: false,
   maxMembers: 0,
-  isDiscoverable: true,
+  isPublic: false,
+  notificationsEnabled: true,
 };
 
 // ---------------------------------------------------------------------------

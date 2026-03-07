@@ -345,7 +345,23 @@ async function mockUsersApi(page: Page) {
   await page.route(/\/api\/v1\/users\/[^/]+\/roles(\?.*)?$/, async (route) => {
     const method = route.request().method();
     if (method === 'POST') {
-      await route.fulfill({ status: 204 });
+      // Spec §3.6: role assignment response must include { data: { userId, roleId, roleName, assignedAt } }
+      const url = route.request().url();
+      const userIdMatch = url.match(/\/users\/([^/]+)\/roles/);
+      const userId = userIdMatch?.[1] ?? 'u-1';
+      const body = route.request().postDataJSON() as { roleId?: string } | null;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            userId,
+            roleId: body?.roleId ?? 'role-admin',
+            roleName: 'Admin',
+            assignedAt: new Date().toISOString(),
+          },
+        }),
+      });
     } else {
       await route.continue();
     }

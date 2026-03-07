@@ -113,10 +113,11 @@ vi.mock('@/lib/api-client', () => ({
   apiClient: {
     patch: vi.fn().mockResolvedValue({}),
     patchWorkspaceSettings: vi.fn().mockResolvedValue({
-      defaultTeamRole: 'MEMBER',
+      defaultMemberRole: 'MEMBER',
       allowCrossWorkspaceSharing: false,
       maxMembers: 0,
-      isDiscoverable: true,
+      isPublic: false,
+      notificationsEnabled: true,
     }),
     getWorkspaceResources: vi.fn().mockResolvedValue([]),
     shareWorkspaceResource: vi.fn().mockResolvedValue(undefined),
@@ -172,10 +173,11 @@ const mockResource: SharedResource = {
 };
 
 const defaultSettings = {
-  defaultTeamRole: 'MEMBER' as const,
+  defaultMemberRole: 'MEMBER' as const,
   allowCrossWorkspaceSharing: false,
   maxMembers: 0,
-  isDiscoverable: true,
+  isPublic: false,
+  notificationsEnabled: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -398,12 +400,12 @@ describe('WorkspaceSettingsForm', () => {
       <WorkspaceSettingsForm workspaceId="ws-1" initialSettings={defaultSettings} isAdmin={true} />
     );
     expect(screen.getByText('Workspace Settings')).toBeInTheDocument();
-    expect(screen.getByText('Default Team Member Role')).toBeInTheDocument();
+    expect(screen.getByText('Default Member Role')).toBeInTheDocument();
     expect(screen.getByText('Allow Cross-Workspace Sharing')).toBeInTheDocument();
     expect(screen.getByLabelText('Maximum Members')).toBeInTheDocument();
     expect(screen.getByText('Workspace Discoverable')).toBeInTheDocument();
-    // notificationsEnabled must NOT be present
-    expect(screen.queryByText('Workspace Notifications')).not.toBeInTheDocument();
+    // notificationsEnabled toggle IS now present
+    expect(screen.getByText('Notifications')).toBeInTheDocument();
   });
 
   it('Save and Discard buttons are visible for ADMIN', () => {
@@ -456,10 +458,11 @@ describe('WorkspaceSettingsForm', () => {
   it('calls apiClient.patchWorkspaceSettings on save and shows success message', async () => {
     const { apiClient: mockApiClient } = await import('@/lib/api-client');
     const patchSpy = vi.spyOn(mockApiClient, 'patchWorkspaceSettings').mockResolvedValue({
-      defaultTeamRole: 'ADMIN',
+      defaultMemberRole: 'ADMIN',
       allowCrossWorkspaceSharing: true,
       maxMembers: 10,
-      isDiscoverable: false,
+      isPublic: false,
+      notificationsEnabled: true,
     });
     const user = userEvent.setup();
     render(
@@ -1135,8 +1138,10 @@ describe('WorkspaceSwitcher — extended coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch workspace/i }));
     await user.click(screen.getByText('Create New Workspace'));
     expect(screen.getByPlaceholderText('Workspace name')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^create$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^create workspace$/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /^cancel creating workspace$/i })
+    ).toBeInTheDocument();
   });
 
   // --- Cancel button in create form collapses the form (lines 266–270) ---
@@ -1167,7 +1172,7 @@ describe('WorkspaceSwitcher — extended coverage', () => {
     // Form is open
     expect(screen.getByPlaceholderText('Workspace name')).toBeInTheDocument();
     // Click Cancel
-    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    await user.click(screen.getByRole('button', { name: /^cancel creating workspace$/i }));
     // Form is gone; "Create New Workspace" reappears
     expect(screen.queryByPlaceholderText('Workspace name')).not.toBeInTheDocument();
     expect(screen.getByText('Create New Workspace')).toBeInTheDocument();
@@ -1199,7 +1204,7 @@ describe('WorkspaceSwitcher — extended coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch workspace/i }));
     await user.click(screen.getByText('Create New Workspace'));
     // Submit without typing anything
-    await user.click(screen.getByRole('button', { name: /^create$/i }));
+    await user.click(screen.getByRole('button', { name: /^create workspace$/i }));
     expect(screen.getByText('Workspace name is required')).toBeInTheDocument();
   });
 
@@ -1229,7 +1234,7 @@ describe('WorkspaceSwitcher — extended coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch workspace/i }));
     await user.click(screen.getByText('Create New Workspace'));
     await user.type(screen.getByPlaceholderText('Workspace name'), 'New Team');
-    await user.click(screen.getByRole('button', { name: /^create$/i }));
+    await user.click(screen.getByRole('button', { name: /^create workspace$/i }));
     await waitFor(() => {
       expect(mockCreateWorkspace).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'New Team', slug: 'new-team' })
@@ -1266,7 +1271,7 @@ describe('WorkspaceSwitcher — extended coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch workspace/i }));
     await user.click(screen.getByText('Create New Workspace'));
     await user.type(screen.getByPlaceholderText('Workspace name'), 'Duplicate');
-    await user.click(screen.getByRole('button', { name: /^create$/i }));
+    await user.click(screen.getByRole('button', { name: /^create workspace$/i }));
     await waitFor(() => {
       expect(screen.getByText('Slug already taken')).toBeInTheDocument();
     });
@@ -1298,7 +1303,7 @@ describe('WorkspaceSwitcher — extended coverage', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch workspace/i }));
     await user.click(screen.getByText('Create New Workspace'));
     // Trigger validation error
-    await user.click(screen.getByRole('button', { name: /^create$/i }));
+    await user.click(screen.getByRole('button', { name: /^create workspace$/i }));
     expect(screen.getByText('Workspace name is required')).toBeInTheDocument();
     // Now type something — error should clear
     await user.type(screen.getByPlaceholderText('Workspace name'), 'X');
@@ -1750,10 +1755,11 @@ describe('SharedResourcesList — extended coverage', () => {
 
 describe('WorkspaceSettingsForm — extended coverage', () => {
   const defaultSettings = {
-    defaultTeamRole: 'MEMBER' as const,
+    defaultMemberRole: 'MEMBER' as const,
     allowCrossWorkspaceSharing: false,
     maxMembers: 0,
-    isDiscoverable: true,
+    isPublic: false,
+    notificationsEnabled: true,
   };
 
   beforeEach(() => {
@@ -1780,7 +1786,7 @@ describe('WorkspaceSettingsForm — extended coverage', () => {
     render(
       <WorkspaceSettingsForm workspaceId="ws-1" initialSettings={defaultSettings} isAdmin={false} />
     );
-    // In readonly mode, defaultTeamRole is shown as a <span> not a Select
+    // In readonly mode, defaultMemberRole is shown as a <span> not a Select
     expect(screen.getByText('MEMBER')).toBeInTheDocument();
     // The Select trigger should NOT be present in readonly mode
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
