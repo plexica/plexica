@@ -64,9 +64,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(201).send(plugin);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_REGISTRATION_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -131,9 +134,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(result);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(500)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'An unexpected error occurred',
+          },
+        });
       }
     }
   );
@@ -179,9 +185,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(plugin);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(404)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(404).send({
+          error: {
+            code: 'PLUGIN_NOT_FOUND',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -227,9 +236,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(plugin);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_UPDATE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -267,9 +279,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(204).send();
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_DELETE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -312,9 +327,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(stats);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(404)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(404).send({
+          error: {
+            code: 'PLUGIN_NOT_FOUND',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -378,9 +396,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(201).send(installation);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_INSTALL_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -424,9 +445,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(result);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_ACTIVATE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -470,9 +494,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(result);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_DEACTIVATE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -515,9 +542,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(204).send();
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_UNINSTALL_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -578,9 +608,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(result);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(400)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(400).send({
+          error: {
+            code: 'PLUGIN_CONFIG_UPDATE_FAILED',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
       }
     }
   );
@@ -617,9 +650,12 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.send(plugins);
       } catch (error: unknown) {
         request.log.error(error);
-        return reply
-          .code(500)
-          .send({ error: error instanceof Error ? error.message : String(error) });
+        return reply.code(500).send({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'An unexpected error occurred',
+          },
+        });
       }
     }
   );

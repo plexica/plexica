@@ -250,30 +250,36 @@ export class PluginRegistryService {
 
   /**
    * Delete a plugin from the registry
+   *
+   * CRITICAL-3 fix: findUnique → count → delete wrapped in a single $transaction
+   * to prevent a TOCTOU race where a concurrent installation could slip in between
+   * the count check and the delete, causing deletion of an in-use plugin.
    */
   async deletePlugin(pluginId: string): Promise<void> {
-    // Check if plugin exists
-    const plugin = await db.plugin.findUnique({
-      where: { id: pluginId },
-    });
+    await db.$transaction(async (tx) => {
+      // Check if plugin exists (inside transaction for consistent read)
+      const plugin = await tx.plugin.findUnique({
+        where: { id: pluginId },
+      });
 
-    if (!plugin) {
-      throw new Error(`Plugin '${pluginId}' not found`);
-    }
+      if (!plugin) {
+        throw new Error(`Plugin '${pluginId}' not found`);
+      }
 
-    // Check if plugin is installed in any tenant
-    const installations = await db.tenantPlugin.count({
-      where: { pluginId },
-    });
+      // Check if plugin is installed in any tenant (TOCTOU-safe inside transaction)
+      const installations = await tx.tenantPlugin.count({
+        where: { pluginId },
+      });
 
-    if (installations > 0) {
-      throw new Error(
-        `Cannot delete plugin '${pluginId}': it is installed in ${installations} tenant(s)`
-      );
-    }
+      if (installations > 0) {
+        throw new Error(
+          `Cannot delete plugin '${pluginId}': it is installed in ${installations} tenant(s)`
+        );
+      }
 
-    await db.plugin.delete({
-      where: { id: pluginId },
+      await tx.plugin.delete({
+        where: { id: pluginId },
+      });
     });
   }
 

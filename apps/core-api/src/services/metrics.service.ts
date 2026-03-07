@@ -11,7 +11,7 @@
  * Constitution Article 9.2: error rate alerting threshold 1% (see prometheus rules).
  */
 
-import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 
 export class MetricsService {
   private static instance: MetricsService;
@@ -26,6 +26,13 @@ export class MetricsService {
    * Buckets aligned with Constitution Art. 4.3 P95 < 200ms SLA.
    */
   readonly httpRequestDurationSeconds: Histogram<'method' | 'route' | 'status'>;
+
+  /**
+   * Current number of plugins grouped by lifecycleStatus.
+   * Updated on activate/deactivate/uninstall events (Spec 012 ADR-027).
+   * Label: status — one of the PluginLifecycleStatus enum values.
+   */
+  readonly activePluginsTotal: Gauge<'status'>;
 
   private constructor() {
     this.registry = new Registry();
@@ -47,6 +54,13 @@ export class MetricsService {
       // Buckets cover fast API responses up through the Constitution 200ms SLA
       // and wider monitoring bands (500ms, 1s, 2s, 5s) for outlier detection.
       buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.5, 1, 2, 5],
+      registers: [this.registry],
+    });
+
+    this.activePluginsTotal = new Gauge({
+      name: 'active_plugins_total',
+      help: 'Number of plugins grouped by lifecycle status',
+      labelNames: ['status'],
       registers: [this.registry],
     });
   }

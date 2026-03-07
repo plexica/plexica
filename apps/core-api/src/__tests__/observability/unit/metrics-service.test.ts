@@ -133,3 +133,50 @@ describe('MetricsService — getMetrics()', () => {
     expect(output).toContain('# HELP http_request_duration_seconds');
   });
 });
+
+// ---------------------------------------------------------------------------
+// activePluginsTotal gauge
+// ---------------------------------------------------------------------------
+
+describe('MetricsService — activePluginsTotal', () => {
+  it('should expose activePluginsTotal', () => {
+    expect(metricsService.activePluginsTotal).toBeDefined();
+  });
+
+  it('should be able to set a gauge value without throwing', () => {
+    expect(() => {
+      metricsService.activePluginsTotal.set({ status: 'ACTIVE' }, 3);
+    }).not.toThrow();
+  });
+
+  it('should be able to increment the gauge without throwing', () => {
+    expect(() => {
+      metricsService.activePluginsTotal.inc({ status: 'ACTIVE' });
+    }).not.toThrow();
+  });
+
+  it('should be able to decrement the gauge without throwing', () => {
+    expect(() => {
+      metricsService.activePluginsTotal.dec({ status: 'ACTIVE' });
+    }).not.toThrow();
+  });
+
+  it('should reflect set values in the registry output', async () => {
+    metricsService.activePluginsTotal.set({ status: 'DISABLED' }, 2);
+    const output = await metricsService.getMetrics();
+    expect(output).toContain('active_plugins_total');
+  });
+
+  it('should include the metric HELP line in registry output', async () => {
+    const output = await metricsService.getMetrics();
+    expect(output).toContain('# HELP active_plugins_total');
+  });
+
+  it('should support multiple status label values independently', () => {
+    expect(() => {
+      metricsService.activePluginsTotal.set({ status: 'ACTIVE' }, 5);
+      metricsService.activePluginsTotal.set({ status: 'DISABLED' }, 1);
+      metricsService.activePluginsTotal.set({ status: 'INSTALLED' }, 2);
+    }).not.toThrow();
+  });
+});

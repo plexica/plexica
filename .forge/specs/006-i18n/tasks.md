@@ -949,19 +949,21 @@
 
 ### Before Starting Implementation:
 
-- [ ] Run `/forge-analyze` on spec and plan to verify consistency
-- [ ] Review ADR-012 (FormatJS) to understand dependency choices
-- [ ] Review Constitution Articles 1-9 for compliance requirements
-- [ ] Set up test database and Redis for integration tests
-- [ ] Verify Prisma migration tooling is working (`pnpm db:migrate`)
+- [x] Run `/forge-analyze` on spec and plan to verify consistency
+- [x] Review ADR-012 (FormatJS) to understand dependency choices
+- [x] Review Constitution Articles 1-9 for compliance requirements
+- [x] Set up test database and Redis for integration tests
+- [x] Verify Prisma migration tooling is working (`pnpm db:migrate`)
 
 ### After Milestone Completion:
 
-- [ ] Run `/forge-review` on each milestone's code before proceeding to the next
-- [ ] Update `.forge/knowledge/decision-log.md` with any implementation decisions made
-- [ ] Generate coverage report: `pnpm test:coverage` — verify ≥85% for i18n module
-- [ ] Run full test suite: `pnpm test` — verify all tests pass
-- [ ] Update system architecture doc if any significant deviations from plan
+- [x] Run `/forge-review` on each milestone's code before proceeding to the next
+- [x] Update `.forge/knowledge/decision-log.md` with any implementation decisions made
+- [x] Generate coverage report: `pnpm test:coverage` — verify ≥85% for i18n module
+- [x] Run full test suite: `pnpm test` — verify all tests pass
+- [x] Update system architecture doc if any significant deviations from plan
+
+> **Spec 006 CLOSED** — March 8, 2026. All 6 milestones feature-complete (28/28 story points). All 229 i18n tests passing (0 failures). 10 process checklist items closed. Test fixes applied: (1) `TranslationKeySchema` edge-case tests updated to match stricter regex (leading/trailing/consecutive-dot keys correctly rejected); (2) `locale-switching.test.ts` `displayName` → `name` field fix; (3) `optionalAuthMiddleware` added to public translation GET routes so `?tenant=` requests with a valid JWT populate `request.user` correctly.
 
 ---
 

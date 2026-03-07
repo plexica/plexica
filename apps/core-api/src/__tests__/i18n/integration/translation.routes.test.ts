@@ -247,6 +247,9 @@ describe('Translation API Routes (Integration)', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(response.statusCode).toBe(200);
@@ -694,6 +697,9 @@ describe('Translation API Routes (Integration)', () => {
       const initialResponse = await app.inject({
         method: 'GET',
         url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(initialResponse.statusCode).toBe(200);
@@ -724,6 +730,9 @@ describe('Translation API Routes (Integration)', () => {
       const finalResponse = await app.inject({
         method: 'GET',
         url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(finalResponse.statusCode).toBe(200);

@@ -180,3 +180,75 @@ describe('PluginTargetsService.removeTarget()', () => {
     expect(mockWriteFile).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Serial promise queue mutex — concurrent rebuildTargetsFile() calls
+// ---------------------------------------------------------------------------
+
+describe('PluginTargetsService — serial mutex on rebuildTargetsFile()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should serialise concurrent calls so each write completes before the next starts', async () => {
+    // Track the order in which the DB query is invoked (one per rebuild).
+    const callOrder: number[] = [];
+    let callIndex = 0;
+
+    mockDbFindMany.mockImplementation(async () => {
+      const idx = ++callIndex;
+      // Introduce a small async delay on the first call to let the second
+      // call attempt to start — without the mutex it would interleave.
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+      callOrder.push(idx);
+      return [];
+    });
+
+    // Fire 3 concurrent rebuilds.
+    await Promise.all([
+      pluginTargetsService.rebuildTargetsFile(),
+      pluginTargetsService.rebuildTargetsFile(),
+      pluginTargetsService.rebuildTargetsFile(),
+    ]);
+
+    // All 3 DB queries must have been called.
+    expect(mockDbFindMany).toHaveBeenCalledTimes(3);
+    // They must have completed in order (1, 2, 3) — never interleaved.
+    expect(callOrder).toEqual([1, 2, 3]);
+  });
+
+  it('should complete all queued rebuilds even if one rejects', async () => {
+    let callCount = 0;
+    mockDbFindMany.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) throw new Error('DB error on first call');
+      return [];
+    });
+
+    // Kick off two rebuilds. The first will reject; the second should still run.
+    const first = pluginTargetsService.rebuildTargetsFile();
+    const second = pluginTargetsService.rebuildTargetsFile();
+
+    // First rebuild rejects — that's expected.
+    await expect(first).rejects.toThrow('DB error on first call');
+    // Second rebuild should still succeed.
+    await expect(second).resolves.toBeUndefined();
+
+    expect(mockDbFindMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('should write the file exactly N times for N sequential rebuilds', async () => {
+    mockDbFindMany.mockResolvedValue([]);
+
+    await pluginTargetsService.rebuildTargetsFile();
+    await pluginTargetsService.rebuildTargetsFile();
+    await pluginTargetsService.rebuildTargetsFile();
+
+    expect(mockWriteFile).toHaveBeenCalledTimes(3);
+    expect(mockRename).toHaveBeenCalledTimes(3);
+  });
+});

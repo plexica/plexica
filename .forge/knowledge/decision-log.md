@@ -3,12 +3,55 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: March 7, 2026 (ADR-026..030 created for Spec 012 Plugin Observability; TD-009 resolved; Sprint 008 and Sprint 009 created for Spec 012; forge-review remediation for TD-005/006/007/010 completed; TD-018 added for null-byte name bug; TD-018 resolved)
+**Last Updated**: March 8, 2026 (Spec 006 closed — 10 test fixes applied; optionalAuthMiddleware added to public translation routes)
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
 > March 2026 closed entries: [archives/2026-03/decisions-2026-03.md](./archives/2026-03/decisions-2026-03.md).
 > Historical decisions from 2025 and earlier: [archives/decision-log-2025.md](./archives/decision-log-2025.md)
+
+---
+
+### Spec 006 Closed: i18n System Test Fixes (March 8, 2026)
+
+**Date**: March 8, 2026
+**Context**: Spec 006 (i18n System) was feature-complete (28/28 story points, 6/6 milestones) but
+10 process checklist items remained open and 10 test failures were blocking a clean green suite.
+
+**Status**: ✅ All 10 test failures fixed; all 229 i18n tests passing; Spec 006 fully closed.
+
+**Fix 1 — `TranslationKeySchema` edge-case tests (3 tests)**
+`translation.schemas.test.ts` lines 147–160: Three tests expected that keys starting with `.`, ending
+with `.`, or containing `..` would be accepted by `TranslationKeySchema` ("Regex allows this"). The
+schema was tightened after the tests were written — the regex now requires keys to start and end with
+alphanumeric/underscore, and a `.refine()` explicitly rejects consecutive dots. Tests updated to
+`expect(result.success).toBe(false)` and comments corrected to reflect actual schema behaviour.
+
+**Fix 2 — `locale-switching.test.ts` `displayName` field (1 test)**
+`locale-switching.test.ts` line 293: `enLocale.displayName` does not exist on the `LocaleInfo` type.
+`getAvailableLocales()` returns `{ code, name, nativeName, namespaceCount }`. Test updated to assert
+`enLocale.name === 'English'` and `typeof enLocale.nativeName === 'string'`. The stale `isRTL` field
+(never part of the response schema) was also removed.
+
+**Fix 3 — `optionalAuthMiddleware` on public translation GET routes (6 tests)**
+`i18n.controller.ts`: The two public GET routes (`/translations/:locale/:namespace` and
+`/translations/:locale/:namespace/:hash`) had no `preHandler`. When a `?tenant=` query parameter
+was supplied with a valid JWT, the controller checked `if (!request.user)` but `request.user` was
+never populated because no middleware had decoded the token. Added `preHandler: optionalAuthMiddleware`
+to both routes — unauthenticated requests continue to work (no breaking change), and authenticated
+requests now have `request.user` available for the tenant ownership check. Six tests in
+`translation.routes.test.ts` that sent auth tokens to tenant-scoped GET requests were previously
+returning 401; they now return 200/302/403 as expected.
+
+**Fix 4 — Missing auth headers in two GET tests (part of Fix 3 root cause)**
+`translation.routes.test.ts`: The `should include tenant overrides` test (line 247) and two GET
+requests inside `should invalidate cache after updating overrides` (lines 694 and 724) were calling
+`GET /translations/en/core?tenant=...` without an `Authorization` header. These were relying on the
+now-fixed `optionalAuthMiddleware` gap but also genuinely needed auth tokens added. Auth headers
+added to all three call sites.
+
+**Resolves**: Spec 006 process checklist (10 items), 10 failing i18n tests
+**Files changed**: `i18n.controller.ts`, `translation.routes.test.ts`, `translation.schemas.test.ts`, `locale-switching.test.ts`
 
 ---
 
@@ -214,6 +257,8 @@ principle.
 | ~~TD-011~~ | ~~Plugin-workspace contract tests deferred~~ — **RESOLVED 2026-03-06**: 18 in-process contract tests written at `apps/core-api/src/__tests__/workspace/integration/workspace-plugins.contract.test.ts`. Covers all 4 endpoints (POST/GET/PATCH/DELETE), all status codes (200/201/204/400/401/403/404/409), and full response shape per Constitution Art. 6.2. All 18 tests pass.                                                                                                                                                                                                                                                                                                                                                                                                                                            | Quality     | ~~MEDIUM~~ | Resolved 2026-03-06                   | ~~Sprint 10~~ Done           |
 | ~~TD-012~~ | ~~`apiClient as unknown as ApiClient` double-cast in 3+ files~~ — **RESOLVED 2026-03-06**: `api-client.ts` exports `apiClient` typed as `WebApiClient & ApiClient`. All 4 call-site casts removed across `WorkspaceTreeView.tsx`, `MoveWorkspaceDialog.tsx`, `PluginToggleCard.tsx`, `TemplatePickerGrid.tsx`. `tsc --noEmit` clean, all 941 frontend tests pass.                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Quality     | ~~LOW~~    | Resolved 2026-03-06                   | ~~Sprint 7~~ Done            |
 | ~~TD-018~~ | ~~Null bytes in tenant `name` field not rejected at application layer — Zod `string()` schema accepts `\x00` bytes; they reach Prisma/PostgreSQL which throws a 500 (`invalid byte sequence for encoding "UTF8": 0x00`) instead of a clean 400.~~ — **RESOLVED 2026-03-07**: Added JSON Schema `pattern: '^[^\u0000]*$'` to the `name` field in all 4 locations: `createTenantSchema` and `updateTenantSchema` in `routes/tenant.ts`, and `POST /admin/tenants` and `PATCH /admin/tenants/:id` inline schemas in `routes/admin.ts`. Fastify/ajv now rejects null bytes at the schema-validation layer with a clean 400 before the request reaches Prisma. Test assertion in `security-headers.integration.test.ts` tightened from `[400, 500]` to strict `400`. All 11 security-header tests and 179 tenant unit tests pass. | Security    | ~~LOW~~    | Resolved 2026-03-07                   | ~~Sprint 10~~ Done           |
+| TD-019     | Spec 012 E2E tests not yet implemented — Constitution Art. 8.1 requires E2E tests for critical user flows; the Plugin Observability dashboard (FR-013, FR-014, FR-015, FR-028, FR-030, FR-031) has no Playwright E2E coverage. Unit and integration tests exist (T012-34..T012-37) but full user-journey E2E (open dashboard, view metrics, filter logs, view trace) is deferred. Risk: a wiring regression between the frontend chart components and the backend observability routes would not be caught by current tests.                                                                                                                                                                                                                                                                                                 | Quality     | MEDIUM     | forge-review 2026-03-08               | Sprint 011 (post-Spec 012)   |
+| TD-020     | Force-uninstall lifecycle status mismatch — Spec 012 plan.md T012-18 assumes plugins reach `PluginLifecycleStatus.ACTIVE` before being scraped; however Spec 004 US-002 (force-uninstall) sets `lifecycleStatus = UNINSTALLED` directly from `ACTIVE` without transitioning through `DEACTIVATED`. `PluginTargetsService.removeTarget()` is not called in the force-uninstall path, leaving stale Prometheus scrape targets in `plugins.json`. Low immediate risk (Prometheus will mark the target `down` after the next scrape interval), but needs explicit `removeTarget()` call in the force-uninstall handler and a regression test.                                                                                                                                                                                    | Quality     | LOW        | forge-review 2026-03-08               | Sprint 011                   |
 
 ### Deferred Decisions
 

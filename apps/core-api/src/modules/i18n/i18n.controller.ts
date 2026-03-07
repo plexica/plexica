@@ -27,7 +27,7 @@ import {
   type GetTranslationsByHashParams,
   type TranslationOverridePayload,
 } from './i18n.schemas.js';
-import { authMiddleware } from '../../middleware/auth.js';
+import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth.js';
 import { getTenantContext } from '../../middleware/tenant-context.js';
 import { tenantService } from '../../services/tenant.service.js';
 
@@ -240,6 +240,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
   }>(
     '/translations/:locale/:namespace',
     {
+      preHandler: optionalAuthMiddleware,
       schema: {
         description: 'Get translations for a specific locale and namespace',
         tags: ['translations'],
@@ -362,6 +363,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
   }>(
     '/translations/:locale/:namespace/:hash',
     {
+      preHandler: optionalAuthMiddleware,
       schema: {
         description:
           'Get translations by content hash — returns immutably-cacheable bundle or 302 redirect to current hash (NFR-005)',

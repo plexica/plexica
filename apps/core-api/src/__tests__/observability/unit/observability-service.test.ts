@@ -464,3 +464,181 @@ describe('ObservabilityService.getPluginLogs()', () => {
     expect(result.data[0].level).toBe('info');
   });
 });
+
+// ---------------------------------------------------------------------------
+// assertSafePluginId — CRITICAL-1 injection prevention (tested via public API)
+// ---------------------------------------------------------------------------
+
+describe('assertSafePluginId (via queryPluginMetrics / getPluginLogs)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('should accept alphanumeric plugin IDs', async () => {
+    mockFetchOk({ data: { resultType: 'matrix', result: [] } });
+    await expect(
+      observabilityService.queryPluginMetrics('plugin123', 'http_requests_total', HOUR_AGO, NOW)
+    ).resolves.toBeDefined();
+  });
+
+  it('should accept plugin IDs with hyphens and underscores', async () => {
+    mockFetchOk({ data: { resultType: 'matrix', result: [] } });
+    await expect(
+      observabilityService.queryPluginMetrics('my_plugin-v2', 'http_requests_total', HOUR_AGO, NOW)
+    ).resolves.toBeDefined();
+  });
+
+  it('should throw InvalidQueryError for plugin ID with PromQL injection attempt', async () => {
+    await expect(
+      observabilityService.queryPluginMetrics(
+        'plugin-x"} or 1=1 {job="',
+        'http_requests_total',
+        HOUR_AGO,
+        NOW
+      )
+    ).rejects.toThrow(InvalidQueryError);
+  });
+
+  it('should throw InvalidQueryError for plugin ID with curly braces', async () => {
+    await expect(observabilityService.getPluginLogs('plugin{bad}', HOUR_AGO, NOW)).rejects.toThrow(
+      InvalidQueryError
+    );
+  });
+
+  it('should throw InvalidQueryError for plugin ID with spaces', async () => {
+    await expect(observabilityService.getPluginLogs('plugin bad', HOUR_AGO, NOW)).rejects.toThrow(
+      InvalidQueryError
+    );
+  });
+
+  it('should throw InvalidQueryError for empty plugin ID', async () => {
+    await expect(observabilityService.getPluginLogs('', HOUR_AGO, NOW)).rejects.toThrow(
+      InvalidQueryError
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// msToLokiNanoseconds — CRITICAL-2 overflow fix (tested via getPluginLogs)
+// ---------------------------------------------------------------------------
+
+describe('msToLokiNanoseconds (via getPluginLogs Loki URL params)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('should not overflow for a real-world 2026 timestamp', async () => {
+    // 2026-03-07T12:00:00Z = 1741348800000 ms
+    // Arithmetic: 1741348800000 * 1_000_000 = 1.7413488e21 >> Number.MAX_SAFE_INTEGER (9e15)
+    // String concat: "1741348800000" + "000000" = "1741348800000000000" (correct)
+    const start2026 = '2026-03-07T12:00:00.000Z';
+    const end2026 = '2026-03-07T13:00:00.000Z';
+
+    let capturedUrl = '';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        capturedUrl = url;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: vi.fn().mockResolvedValue({ data: { result: [] } }),
+        });
+      })
+    );
+
+    await observabilityService.getPluginLogs('plugin-x', start2026, end2026);
+
+    // Extract the `start` query param from the Loki URL
+    const urlObj = new URL(capturedUrl);
+    const startParam = urlObj.searchParams.get('start') ?? '';
+    const endParam = urlObj.searchParams.get('end') ?? '';
+
+    // Must be 19 digits (nanoseconds for 2026 timestamps)
+    expect(startParam).toMatch(/^\d{19}$/);
+    expect(endParam).toMatch(/^\d{19}$/);
+
+    // Specifically: 1741348800000 ms → "1741348800000000000" ns
+    expect(startParam).toBe('1741348800000000000');
+    expect(endParam).toBe('1741352400000000000');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// _extractMetricName — CRITICAL-4 wrapper-stripping fix (tested via queryPluginMetrics)
+// ---------------------------------------------------------------------------
+
+describe('_extractMetricName (via queryPluginMetrics allowlist check)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('should allow histogram_quantile wrapping an allowlisted bucket metric', async () => {
+    mockFetchOk({ data: { resultType: 'matrix', result: [] } });
+    // histogram_quantile is a wrapper; the leaf metric is http_request_duration_seconds_bucket
+    await expect(
+      observabilityService.queryPluginMetrics(
+        'plugin-x',
+        'histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))',
+        HOUR_AGO,
+        NOW
+      )
+    ).resolves.toBeDefined();
+  });
+
+  it('should allow rate() wrapping an allowlisted metric', async () => {
+    mockFetchOk({ data: { resultType: 'matrix', result: [] } });
+    await expect(
+      observabilityService.queryPluginMetrics(
+        'plugin-x',
+        'rate(http_requests_total[5m])',
+        HOUR_AGO,
+        NOW
+      )
+    ).resolves.toBeDefined();
+  });
+
+  it('should allow increase() wrapping an allowlisted metric', async () => {
+    mockFetchOk({ data: { resultType: 'matrix', result: [] } });
+    await expect(
+      observabilityService.queryPluginMetrics(
+        'plugin-x',
+        'increase(http_requests_total[1h])',
+        HOUR_AGO,
+        NOW
+      )
+    ).resolves.toBeDefined();
+  });
+
+  it('should reject histogram_quantile wrapping a non-allowlisted metric', async () => {
+    await expect(
+      observabilityService.queryPluginMetrics(
+        'plugin-x',
+        'histogram_quantile(0.99, rate(secret_data_bucket[5m]))',
+        HOUR_AGO,
+        NOW
+      )
+    ).rejects.toThrow(InvalidQueryError);
+  });
+
+  it('should reject sum() wrapping a non-allowlisted metric', async () => {
+    await expect(
+      observabilityService.queryPluginMetrics(
+        'plugin-x',
+        'sum(rate(admin_passwords_total[5m]))',
+        HOUR_AGO,
+        NOW
+      )
+    ).rejects.toThrow(InvalidQueryError);
+  });
+
+  it('should allow a bare allowlisted metric name', async () => {
+    mockFetchOk({ data: { resultType: 'matrix', result: [] } });
+    await expect(
+      observabilityService.queryPluginMetrics('plugin-x', 'http_requests_total', HOUR_AGO, NOW)
+    ).resolves.toBeDefined();
+  });
+});

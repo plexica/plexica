@@ -679,12 +679,12 @@ describe('Plugin Marketplace Integration Tests', () => {
       });
     });
 
-    it.skip('should return plugin installation statistics', async () => {
+    it('should return plugin installation statistics', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/plugins/${statsPluginId}/stats`,
         headers: {
-          authorization: `Bearer ${regularUserToken}`,
+          authorization: `Bearer ${superAdminToken}`,
         },
       });
 
