@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { useIntl } from '@/contexts/IntlContext';
 import { apiClient } from '@/lib/api-client';
+import { useAuthStore } from '@/stores/auth.store';
 
 interface UseTranslationsOptions {
   namespace: string;
@@ -47,17 +48,22 @@ export function useTranslations(options: UseTranslationsOptions) {
   const { namespace, locale: providedLocale, enabled = true } = options;
   const { locale: contextLocale, mergeMessages } = useIntl();
 
+  // H-002: read tenant slug from auth store to pass as ?tenant= query param
+  const tenantSlug = useAuthStore((s) => s.user?.tenantId ?? null);
+
   // Use provided locale or fall back to context locale
   const locale = providedLocale || contextLocale;
 
   // Fetch translations using TanStack Query
   const query = useQuery({
-    queryKey: ['translations', locale, namespace],
+    queryKey: ['translations', locale, namespace, tenantSlug],
     queryFn: async (): Promise<TranslationResponse> => {
       try {
-        const data = await apiClient.get<TranslationResponse>(
-          `/api/v1/translations/${locale}/${namespace}`
-        );
+        const url = tenantSlug
+          ? `/api/v1/translations/${locale}/${namespace}?tenant=${encodeURIComponent(tenantSlug)}`
+          : `/api/v1/translations/${locale}/${namespace}`;
+
+        const data = await apiClient.get<TranslationResponse>(url);
 
         return data;
       } catch (error: unknown) {
@@ -89,12 +95,13 @@ export function useTranslations(options: UseTranslationsOptions) {
     retry: 1, // Only retry once on failure
   });
 
-  // Update IntlContext messages when translations load successfully
+  // M-004: Only merge messages when the returned locale matches the current context locale
+  // to prevent stale in-flight responses from a prior locale switch from corrupting the store.
   useEffect(() => {
-    if (query.data?.messages) {
+    if (query.data?.messages && query.data.locale === locale) {
       mergeMessages(query.data.messages);
     }
-  }, [query.data, mergeMessages]);
+  }, [query.data, locale, mergeMessages]);
 
   return {
     ...query,

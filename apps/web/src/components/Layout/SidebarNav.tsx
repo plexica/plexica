@@ -18,7 +18,9 @@ import {
   LayoutList,
   Puzzle,
   Settings,
+  ShieldCheck,
   User,
+  Users,
 } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { usePlugins } from '../../contexts/PluginContext';
@@ -97,6 +99,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   const location = useLocation();
   const { menuItems, isLoading } = usePlugins();
   const [pluginsExpanded, setPluginsExpanded] = useState(true);
+  const [accessControlExpanded, setAccessControlExpanded] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
   // Whether we are in mobile/tablet viewport (overlay mode)
@@ -281,7 +284,64 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
 
           <hr className="my-2 border-t border-border" />
 
-          {/* ---- Plugins group ---- */}
+          {/* ---- Access Control group ---- */}
+          <div className="px-3 py-2" role="group" aria-label="Access Control">
+            {(!collapsed || isOverlayMode) && (
+              <button
+                onClick={() => setAccessControlExpanded((v) => !v)}
+                className="flex items-center justify-between w-full mb-2 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                aria-expanded={accessControlExpanded}
+                aria-controls="sidebar-access-control-list"
+              >
+                <span>Access Control</span>
+                {accessControlExpanded ? (
+                  <ChevronUp className="w-3 h-3" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="w-3 h-3" aria-hidden="true" />
+                )}
+              </button>
+            )}
+            <div
+              id="sidebar-access-control-list"
+              hidden={!collapsed || isOverlayMode ? !accessControlExpanded : false}
+            >
+              {[
+                {
+                  label: 'Roles',
+                  path: '/access-control/roles',
+                  icon: <ShieldCheck className="w-5 h-5" aria-hidden="true" />,
+                },
+                {
+                  label: 'Users',
+                  path: '/access-control/users',
+                  icon: <Users className="w-5 h-5" aria-hidden="true" />,
+                },
+                {
+                  label: 'Policies',
+                  path: '/access-control/policies',
+                  icon: <LayoutList className="w-5 h-5" aria-hidden="true" />,
+                },
+              ].map((item) => {
+                const active = isActive(item.path, false);
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path as never}
+                    onClick={isOverlayMode ? onClose : undefined}
+                  >
+                    <div className={itemClass(active)} aria-current={active ? 'page' : undefined}>
+                      <span className="flex-shrink-0">{item.icon}</span>
+                      {(!collapsed || isOverlayMode) && (
+                        <span className="flex-1">{item.label}</span>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          <hr className="my-2 border-t border-border" />
           <div className="px-3 py-2" role="group" aria-label="Plugins">
             {/* Plugins section header / toggle */}
             {(!collapsed || isOverlayMode) && (

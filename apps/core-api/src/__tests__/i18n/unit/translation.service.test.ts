@@ -94,7 +94,7 @@ describe('TranslationService', () => {
         namespace: 'core',
         messages: mockFlattenedMessages,
       });
-      expect(result.contentHash).toMatch(/^[a-f0-9]{8}$/);
+      expect(result.hash).toMatch(/^[a-f0-9]{8}$/);
     });
 
     it('should merge tenant overrides when tenantSlug provided', async () => {
@@ -190,7 +190,7 @@ describe('TranslationService', () => {
       const result2 = await service.getTranslations('en', 'namespace2');
 
       // Assert
-      expect(result1.contentHash).not.toBe(result2.contentHash);
+      expect(result1.hash).not.toBe(result2.hash);
     });
   });
 

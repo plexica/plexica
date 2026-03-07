@@ -16,6 +16,7 @@
  */
 
 import { redis } from '../../lib/redis.js';
+import type { Logger } from 'pino';
 import type { TranslationBundle } from '@plexica/i18n';
 
 // Cache configuration
@@ -27,6 +28,33 @@ const HASH_PREFIX = 'i18n:hash';
  * TranslationCacheService - Redis caching for translation bundles
  */
 export class TranslationCacheService {
+  private logger: Logger;
+
+  constructor(logger?: Logger) {
+    // Use provided logger or fall back to a no-op pino instance
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    this.logger = logger ?? (require('pino')({ level: 'warn' }) as Logger);
+  }
+
+  /**
+   * Cursor-based SCAN helper — safe O(N) key enumeration that does not block Redis.
+   * Replaces O(N) blocking redis.keys() calls (C-001).
+   *
+   * @param pattern - Redis key glob pattern
+   * @returns All matching keys
+   */
+  private async scanKeys(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    let cursor = '0';
+
+    do {
+      const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
+
+    return keys;
+  }
   /**
    * Get cached translation bundle
    *
@@ -51,7 +79,7 @@ export class TranslationCacheService {
       return JSON.parse(cached) as TranslationBundle;
     } catch (error) {
       // Log error but don't throw - cache miss is acceptable
-      console.error(`Cache read error for key ${key}:`, error);
+      this.logger.error({ key, error }, 'Cache read error');
       return null;
     }
   }
@@ -76,10 +104,10 @@ export class TranslationCacheService {
       await redis.setex(key, ttl, JSON.stringify(bundle));
 
       // Store content hash separately for quick ETag lookup
-      await redis.setex(hashKey, ttl, bundle.contentHash);
+      await redis.setex(hashKey, ttl, bundle.hash);
     } catch (error) {
       // Log error but don't throw - cache write failure shouldn't block requests
-      console.error(`Cache write error for key ${key}:`, error);
+      this.logger.error({ key, error }, 'Cache write error');
     }
   }
 
@@ -97,7 +125,7 @@ export class TranslationCacheService {
     try {
       return await redis.get(hashKey);
     } catch (error) {
-      console.error(`Hash read error for key ${hashKey}:`, error);
+      this.logger.error({ hashKey, error }, 'Hash read error');
       return null;
     }
   }
@@ -110,13 +138,13 @@ export class TranslationCacheService {
    */
   async invalidateTenant(tenantSlug: string): Promise<void> {
     try {
-      // Find all keys matching this tenant's pattern
+      // Find all keys matching this tenant's pattern using SCAN (not blocking KEYS)
       const pattern = `${CACHE_PREFIX}:${tenantSlug}:*`;
-      const keys = await redis.keys(pattern);
+      const keys = await this.scanKeys(pattern);
 
       // Also find all hash keys for this tenant
       const hashPattern = `${HASH_PREFIX}:${tenantSlug}:*`;
-      const hashKeys = await redis.keys(hashPattern);
+      const hashKeys = await this.scanKeys(hashPattern);
 
       // Delete all keys in a pipeline for efficiency
       if (keys.length > 0 || hashKeys.length > 0) {
@@ -126,7 +154,7 @@ export class TranslationCacheService {
         await pipeline.exec();
       }
     } catch (error) {
-      console.error(`Cache invalidation error for tenant ${tenantSlug}:`, error);
+      this.logger.error({ tenantSlug, error }, 'Cache invalidation error for tenant');
       // Don't throw - invalidation failure shouldn't block the update operation
     }
   }
@@ -137,13 +165,13 @@ export class TranslationCacheService {
    */
   async invalidateAll(): Promise<void> {
     try {
-      // Find all i18n cache keys
+      // Find all i18n cache keys using SCAN (not blocking KEYS)
       const pattern = `${CACHE_PREFIX}:*`;
-      const keys = await redis.keys(pattern);
+      const keys = await this.scanKeys(pattern);
 
       // Find all hash keys
       const hashPattern = `${HASH_PREFIX}:*`;
-      const hashKeys = await redis.keys(hashPattern);
+      const hashKeys = await this.scanKeys(hashPattern);
 
       // Delete all keys
       if (keys.length > 0 || hashKeys.length > 0) {
@@ -153,7 +181,7 @@ export class TranslationCacheService {
         await pipeline.exec();
       }
     } catch (error) {
-      console.error('Cache invalidation error (invalidateAll):', error);
+      this.logger.error({ error }, 'Cache invalidation error (invalidateAll)');
     }
   }
 
@@ -170,12 +198,12 @@ export class TranslationCacheService {
       const globalKey = this.buildKey(locale, namespace);
       const globalHashKey = this.buildHashKey(locale, namespace);
 
-      // Tenant-specific keys (all tenants)
+      // Tenant-specific keys (all tenants) using SCAN (not blocking KEYS)
       const pattern = `${CACHE_PREFIX}:*:${locale}:${namespace}`;
-      const tenantKeys = await redis.keys(pattern);
+      const tenantKeys = await this.scanKeys(pattern);
 
       const hashPattern = `${HASH_PREFIX}:*:${locale}:${namespace}`;
-      const tenantHashKeys = await redis.keys(hashPattern);
+      const tenantHashKeys = await this.scanKeys(hashPattern);
 
       // Delete all matching keys
       const pipeline = redis.pipeline();
@@ -185,7 +213,7 @@ export class TranslationCacheService {
       tenantHashKeys.forEach((key) => pipeline.del(key));
       await pipeline.exec();
     } catch (error) {
-      console.error(`Cache invalidation error for namespace ${locale}:${namespace}:`, error);
+      this.logger.error({ locale, namespace, error }, 'Cache invalidation error for namespace');
     }
   }
 

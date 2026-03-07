@@ -9,7 +9,7 @@
 //   F-007: JSON schema validation — config must be a non-null, non-array plain object
 //   F-033: Pino structured logging on all mutation errors
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Puzzle, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { logger } from '@/lib/logger';
@@ -80,11 +80,13 @@ export function PluginToggleCard({
 
   // H-004: When the plugin prop changes (parent re-renders after cache invalidation)
   // and the user hasn't made unsaved edits, sync the textarea to the new value.
-  useEffect(() => {
-    if (!isConfigDirty) {
-      setConfigText(JSON.stringify(plugin.configuration, null, 2));
-    }
-  }, [plugin.configuration, isConfigDirty]);
+  // Uses derived state in render (React "adjusting state on prop change" pattern)
+  // to avoid setState-in-effect cascading renders.
+  const [prevSavedConfig, setPrevSavedConfig] = useState(savedConfig);
+  if (savedConfig !== prevSavedConfig && !isConfigDirty) {
+    setPrevSavedConfig(savedConfig);
+    setConfigText(savedConfig);
+  }
 
   const disabledDescId = `plugin-disabled-desc-${plugin.pluginId}`;
   const isAdmin = userRole === 'ADMIN';

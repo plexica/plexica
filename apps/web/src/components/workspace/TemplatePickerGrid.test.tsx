@@ -132,7 +132,7 @@ describe('TemplatePickerGrid', () => {
     });
     await screen.findByText('Template 0');
 
-    let selected = screen
+    const selected = screen
       .getAllByRole('radio')
       .find((el) => el.getAttribute('aria-checked') === 'true');
     expect(selected).toHaveTextContent('Template 0');

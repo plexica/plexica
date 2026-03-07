@@ -22,9 +22,12 @@ export const TranslationKeySchema = z
   .string()
   .max(128, 'Translation key must be 128 characters or less')
   .regex(
-    /^[a-zA-Z0-9._]+$/,
-    'Translation key must contain only alphanumeric characters, dots, and underscores'
+    /^[a-zA-Z0-9_][a-zA-Z0-9._]*[a-zA-Z0-9_]$|^[a-zA-Z0-9_]$/,
+    'Translation key must contain only alphanumeric characters, dots, and underscores; cannot start or end with a dot'
   )
+  .refine((key) => !key.includes('..'), {
+    message: 'Translation key cannot contain consecutive dots',
+  })
   .refine((key) => !key.startsWith('_system.'), {
     message: 'Translation key cannot start with reserved prefix "_system."',
   })

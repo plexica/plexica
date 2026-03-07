@@ -1,8 +1,13 @@
 # Authorization System (RBAC + ABAC)
 
-**Last Updated**: February 24, 2026  
-**Status**: ✅ Implemented (RBAC + ABAC deny-only overlay)  
+**Last Updated**: March 7, 2026  
+**Status**: ✅ Implemented (RBAC + ABAC deny-only overlay + Frontend UI)  
 **Spec Reference**: [`.forge/specs/003-authorization/spec.md`](../.forge/specs/003-authorization/spec.md)
+
+> **Frontend UI (Spec 003 Phase 3)**: The Access Control management UI is now live. Tenant
+> admins can manage roles, permissions, user role assignments, and ABAC policies directly
+> in the app at `/access-control/*`. See the routes under `apps/web/src/routes/access-control.*`
+> and the reusable components under `apps/web/src/components/authorization/`.
 
 > ⚠️ **Model Update (Spec 003)**: The prior authorization model described in earlier versions of this document — specifically the ABAC `ALLOW` effect and `INCONCLUSIVE` evaluation state — has been **superseded** by [Spec 003](../.forge/specs/003-authorization/spec.md). The authoritative model is now:
 >
@@ -15,14 +20,15 @@
 
 ## 📋 Implementation Status
 
-| Component              | Status         | Completion | Notes                                                                 |
-| ---------------------- | -------------- | ---------- | --------------------------------------------------------------------- |
-| RBAC (Role-Based)      | ✅ Implemented | 100%       | Fully functional, production-ready                                    |
-| Custom Roles           | ✅ Implemented | 100%       | Tenant admins can create up to 50 custom roles                        |
-| Permission Management  | ✅ Implemented | 100%       | CRUD operations for roles/permissions, plugin permission registration |
-| ABAC (Attribute-Based) | ✅ Implemented | 100%       | Deny-only overlay — policies can DENY or FILTER; cannot grant access  |
-| Policy Engine          | ✅ Implemented | 100%       | ConditionValidator + PolicyService with Redis-cached evaluation       |
-| Plugin Permissions     | ✅ Implemented | 100%       | Auto-registration on plugin install via PermissionRegistrationService |
+| Component              | Status         | Completion | Notes                                                                               |
+| ---------------------- | -------------- | ---------- | ----------------------------------------------------------------------------------- |
+| RBAC (Role-Based)      | ✅ Implemented | 100%       | Fully functional, production-ready                                                  |
+| Custom Roles           | ✅ Implemented | 100%       | Tenant admins can create up to 50 custom roles                                      |
+| Permission Management  | ✅ Implemented | 100%       | CRUD operations for roles/permissions, plugin permission registration               |
+| ABAC (Attribute-Based) | ✅ Implemented | 100%       | Deny-only overlay — policies can DENY or FILTER; cannot grant access                |
+| Policy Engine          | ✅ Implemented | 100%       | ConditionValidator + PolicyService with Redis-cached evaluation                     |
+| Plugin Permissions     | ✅ Implemented | 100%       | Auto-registration on plugin install via PermissionRegistrationService               |
+| Frontend UI (Phase 3)  | ✅ Implemented | 100%       | Roles/Users/Policies screens + ConditionBuilder + sidebar nav (`/access-control/*`) |
 
 **Overall Completion**: 100%
 
@@ -726,6 +732,41 @@ await core.permissions.registerPermissions([...]);
 ### Q: How do I contribute a policy from my plugin?
 
 **A**: (After ABAC implementation) Declare policies in your plugin manifest under the `policies` key. They will be automatically registered when the plugin is enabled.
+
+---
+
+## Frontend UI (Phase 3)
+
+The authorization management UI is available to tenant admins at `/access-control/*`.
+
+### Routes
+
+| Path                                      | Description                                              |
+| ----------------------------------------- | -------------------------------------------------------- |
+| `/access-control/roles`                   | List all roles, search, create/delete custom roles       |
+| `/access-control/roles/create`            | Create a new custom role with permission selection       |
+| `/access-control/roles/:roleId`           | Read-only role detail view                               |
+| `/access-control/roles/:roleId/edit`      | Edit name/description/permissions for custom roles       |
+| `/access-control/users`                   | List tenant users and manage their role assignments      |
+| `/access-control/policies`                | List ABAC policies (hidden behind `featureEnabled` flag) |
+| `/access-control/policies/create`         | Create a new ABAC policy with ConditionBuilder           |
+| `/access-control/policies/:policyId/edit` | Edit an existing ABAC policy                             |
+
+### Key Components
+
+- `apps/web/src/components/authorization/` — reusable authorization UI components
+  - `ConditionBuilder` — recursive ABAC condition tree editor (max 20 conditions, depth 5)
+  - `ConditionGroup` / `ConditionRow` / `NotGroup` — sub-components for condition tree nodes
+  - `PolicySummary` — compact read-only condition tree display
+  - `SystemRoleBadge` / `EffectBadge` — status indicators
+  - `RoleAssignmentDialog` — modal for assigning/removing roles from a user
+
+### API Hooks
+
+- `apps/web/src/hooks/useAuthorizationApi.ts` — raw fetch wrappers for all Spec 003 endpoints
+- `apps/web/src/hooks/usePermissions.ts` — `usePermissions(filters?)` query hook
+- `apps/web/src/hooks/usePolicies.ts` — `usePolicies`, `useCreatePolicy`, `useUpdatePolicy`, `useDeletePolicy`
+- `apps/web/src/hooks/useRoles.ts` — extended with Spec 003 role CRUD mutations
 
 ---
 

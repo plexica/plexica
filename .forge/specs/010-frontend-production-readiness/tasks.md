@@ -826,12 +826,12 @@ function PluginRoute() {
 
 **Acceptance Criteria:**
 
-- [ ] All components at ≥80% unit test coverage
-- [ ] `AuthProvider`, `ThemeProvider`, `PluginErrorBoundary`, `WidgetLoader` at ≥90%
-- [ ] Snapshot tests for 8 components: `PluginErrorFallback`, `WidgetFallback`, `Header`, `ThemeProvider` (2 variants), `LanguageSelector`, `PluginLoadingSkeleton`, `WidgetLoadingSkeleton`
-- [ ] Each snapshot covers ≥3 states (default, loading, error)
-- [ ] 25 screenshot snapshots total across ~12 test cases (per plan.md §5.4 visual regression matrix)
-- [ ] No test accesses `document.fonts` directly (mock FontFace API)
+- [x] All components at ≥80% unit test coverage
+- [x] `AuthProvider`, `ThemeProvider`, `PluginErrorBoundary`, `WidgetLoader` at ≥90%
+- [x] Snapshot tests for 8 components: `PluginErrorFallback`, `WidgetFallback`, `Header`, `ThemeProvider` (2 variants), `LanguageSelector`, `PluginLoadingSkeleton`, `WidgetLoadingSkeleton`
+- [x] Each snapshot covers ≥3 states (default, loading, error)
+- [x] 25 screenshot snapshots total across ~12 test cases (per plan.md §5.4 visual regression matrix)
+- [x] No test accesses `document.fonts` directly (mock FontFace API)
 
 **Files:**
 
@@ -854,12 +854,12 @@ function PluginRoute() {
 **Acceptance Criteria:**
 
 - [x] ≥15 integration tests added
-- [ ] Theme API lifecycle: fetch, apply, refresh, fallback (5 tests — verify T010-14 not already covering all)
-- [ ] Auth flow: login, logout, token refresh with ThemeProvider re-fetch (3 tests)
-- [ ] Plugin routes: load, error, retry (3 tests — verify T010-06 coverage)
-- [ ] Widget loading: success, failure, timeout (3 tests — verify T010-25 coverage)
-- [ ] Font loading: success, fallback, deduplication (3 tests)
-- [ ] All integration tests use MSW (Mock Service Worker) for API mocking — not `vi.mock` for HTTP calls
+- [x] Theme API lifecycle: fetch, apply, refresh, fallback (5 tests — verify T010-14 not already covering all)
+- [x] Auth flow: login, logout, token refresh with ThemeProvider re-fetch (3 tests)
+- [x] Plugin routes: load, error, retry (3 tests — verify T010-06 coverage)
+- [x] Widget loading: success, failure, timeout (3 tests — verify T010-25 coverage)
+- [x] Font loading: success, fallback, deduplication (3 tests)
+- [x] All integration tests use MSW (Mock Service Worker) for API mocking — not `vi.mock` for HTTP calls
 
 **Files:**
 

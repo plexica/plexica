@@ -77,9 +77,17 @@ export function createNamespacedIntl(
     // Fallback to key if translation is missing
     onError: (err) => {
       if (err.code === 'MISSING_TRANSLATION') {
-        console.warn(`[i18n] Missing translation: ${err.descriptor?.id} (locale: ${locale})`);
+        // Suppress in production; surface in dev only to avoid log noise
+        if (typeof process !== 'undefined' && process.env['NODE_ENV'] !== 'production') {
+          // eslint-disable-next-line no-console
+          console.warn(`[i18n] Missing translation: ${err.descriptor?.id} (locale: ${locale})`);
+        }
       } else {
-        console.error(`[i18n] FormatJS error:`, err);
+        // FormatJS errors are unexpected — surface in dev
+        if (typeof process !== 'undefined' && process.env['NODE_ENV'] !== 'production') {
+          // eslint-disable-next-line no-console
+          console.error(`[i18n] FormatJS error:`, err);
+        }
       }
     },
   };

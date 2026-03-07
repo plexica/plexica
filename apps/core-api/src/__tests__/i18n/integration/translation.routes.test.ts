@@ -93,7 +93,7 @@ describe('Translation API Routes (Integration)', () => {
       const body = JSON.parse(response.body);
       expect(body).toHaveProperty('locale', 'en');
       expect(body).toHaveProperty('namespace', 'core');
-      expect(body).toHaveProperty('contentHash');
+      expect(body).toHaveProperty('hash');
       expect(body).toHaveProperty('messages');
       expect(body.messages).toHaveProperty('contacts.title', 'Contacts');
     });
@@ -271,14 +271,20 @@ describe('Translation API Routes (Integration)', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      const locales = body.locales as Array<{ code: string; displayName: string; isRTL: boolean }>;
+      const locales = body.locales as Array<{
+        code: string;
+        name: string;
+        nativeName: string;
+        namespaceCount: number;
+      }>;
 
       expect(locales.length).toBeGreaterThan(0);
       const enLocale = locales.find((l) => l.code === 'en');
       expect(enLocale).toBeDefined();
       expect(enLocale).toHaveProperty('code');
-      expect(enLocale).toHaveProperty('displayName');
-      expect(enLocale).toHaveProperty('isRTL');
+      expect(enLocale).toHaveProperty('name');
+      expect(enLocale).toHaveProperty('nativeName');
+      expect(enLocale).toHaveProperty('namespaceCount');
     });
 
     it('should be a public endpoint (no authentication required)', async () => {

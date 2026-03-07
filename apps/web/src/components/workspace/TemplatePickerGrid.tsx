@@ -9,7 +9,7 @@
 //   F-022: Roving tabindex + arrow-key navigation within the radiogroup
 //   F-033: Pino structured logging on fetch error
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@plexica/ui';
 import { TemplateCard } from './TemplateCard';
@@ -117,12 +117,20 @@ export function TemplatePickerGrid({ onSelect, selectedId }: TemplatePickerGridP
   // M-002 fix (continued): once templates have loaded, re-sync the tabstop with selectedId.
   // The lazy initializer above only has access to the initial allOptions (before the async
   // fetch resolves), so we need a secondary sync for the post-load case.
-  useEffect(() => {
-    if (selectedId === undefined) return;
-    const effectiveId = selectedId === null ? '__none__' : selectedId;
-    const idx = allOptions.findIndex((o) => o.id === effectiveId);
-    if (idx >= 0) setFocusedIndex(idx);
-  }, [allOptions, selectedId]);
+  // Derived-state-in-render pattern (avoids react-hooks/set-state-in-effect):
+  // track which (allOptions, selectedId) pair we last synced from and update
+  // focusedIndex in the render phase when either changes.
+  const [prevAllOptions, setPrevAllOptions] = useState(allOptions);
+  const [prevSelectedId, setPrevSelectedId] = useState(selectedId);
+  if ((allOptions !== prevAllOptions || selectedId !== prevSelectedId) && !isError) {
+    setPrevAllOptions(allOptions);
+    setPrevSelectedId(selectedId);
+    if (selectedId !== undefined) {
+      const effectiveId = selectedId === null ? '__none__' : selectedId;
+      const idx = allOptions.findIndex((o) => o.id === effectiveId);
+      if (idx >= 0) setFocusedIndex(idx);
+    }
+  }
   // Refs array to imperatively focus individual cards on arrow-key nav
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 

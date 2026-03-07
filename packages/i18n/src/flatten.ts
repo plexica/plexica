@@ -57,7 +57,11 @@ export function flattenMessages(
       Object.assign(result, flattenMessages(value as NamespacedMessages, newKey));
     } else {
       // Skip non-string, non-object values (arrays, null, undefined, etc.)
-      console.warn(`[flattenMessages] Skipping non-string value at key "${newKey}":`, value);
+      // Use console.warn only in dev — this package runs in both Node and browser
+      if (typeof process !== 'undefined' && process.env['NODE_ENV'] !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn(`[flattenMessages] Skipping non-string value at key "${newKey}"`);
+      }
     }
   }
 
@@ -103,7 +107,7 @@ export function unflattenMessages(flat: Record<string, string>): NamespacedMessa
 
     const value = flat[key];
     const keys = key.split('.');
-    let current: any = result;
+    let current: Record<string, unknown> = result;
 
     for (let i = 0; i < keys.length; i++) {
       const k = keys[i];
@@ -116,7 +120,7 @@ export function unflattenMessages(flat: Record<string, string>): NamespacedMessa
         if (typeof current[k] !== 'object' || current[k] === null) {
           current[k] = {};
         }
-        current = current[k];
+        current = current[k] as Record<string, unknown>;
       }
     }
   }

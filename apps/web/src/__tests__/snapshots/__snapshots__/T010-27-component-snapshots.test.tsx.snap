@@ -1,0 +1,1111 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Header snapshots (T010-27) > snapshot: falls back to placeholder after logo img error 1`] = `
+<div>
+  <header
+    class="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4"
+    role="banner"
+  >
+    <div
+      class="flex items-center gap-4"
+    >
+      <button
+        aria-label="Toggle menu"
+        class="p-2 hover:bg-muted rounded-lg transition-colors md:hidden"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-menu w-5 h-5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M4 5h16"
+          />
+          <path
+            d="M4 12h16"
+          />
+          <path
+            d="M4 19h16"
+          />
+        </svg>
+      </button>
+      <button
+        aria-label="Plexica home"
+        class="flex items-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+      >
+        <img
+          alt="Plexica logo"
+          class="h-8 md:h-10 max-w-[160px] object-contain"
+          data-testid="tenant-logo"
+          src="/plexica-logo.svg"
+        />
+      </button>
+    </div>
+    <div
+      class="flex-1 max-w-md hidden lg:block"
+    >
+      <button
+        aria-label="Open search (press /)"
+        class="relative w-full flex items-center gap-2 pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-search absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m21 21-4.34-4.34"
+          />
+          <circle
+            cx="11"
+            cy="11"
+            r="8"
+          />
+        </svg>
+        Search everywhere…
+        <kbd
+          class="ml-auto font-mono text-xs border border-border rounded px-1"
+        >
+          /
+        </kbd>
+      </button>
+    </div>
+    <div
+      class="flex items-center gap-3"
+    >
+      <button
+        aria-label="Search"
+        class="p-2 hover:bg-muted rounded-lg transition-colors lg:hidden"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-search w-5 h-5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m21 21-4.34-4.34"
+          />
+          <circle
+            cx="11"
+            cy="11"
+            r="8"
+          />
+        </svg>
+      </button>
+      <div
+        data-testid="notification-bell"
+      />
+      <div
+        data-testid="theme-toggle"
+      />
+      <select
+        aria-label="Select language"
+        data-testid="lang-selector"
+      >
+        <option
+          value="en"
+        >
+          English
+        </option>
+        <option
+          value="it"
+        >
+          Italiano
+        </option>
+      </select>
+      <div
+        class="hidden md:block"
+      >
+        <div
+          data-testid="workspace-switcher"
+        />
+      </div>
+      <div
+        data-testid="user-profile-menu"
+      />
+    </div>
+    <div
+      data-testid="search-overlay"
+    />
+  </header>
+</div>
+`;
+
+exports[`Header snapshots (T010-27) > snapshot: no tenant logo shows default placeholder 1`] = `
+<div>
+  <header
+    class="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4"
+    role="banner"
+  >
+    <div
+      class="flex items-center gap-4"
+    >
+      <button
+        aria-label="Toggle menu"
+        class="p-2 hover:bg-muted rounded-lg transition-colors md:hidden"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-menu w-5 h-5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M4 5h16"
+          />
+          <path
+            d="M4 12h16"
+          />
+          <path
+            d="M4 19h16"
+          />
+        </svg>
+      </button>
+      <button
+        aria-label="Plexica home"
+        class="flex items-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+      >
+        <div
+          class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold"
+        >
+          P
+        </div>
+        <span
+          class="hidden md:block text-lg font-semibold text-foreground"
+        >
+          Plexica
+        </span>
+      </button>
+    </div>
+    <div
+      class="flex-1 max-w-md hidden lg:block"
+    >
+      <button
+        aria-label="Open search (press /)"
+        class="relative w-full flex items-center gap-2 pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-search absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m21 21-4.34-4.34"
+          />
+          <circle
+            cx="11"
+            cy="11"
+            r="8"
+          />
+        </svg>
+        Search everywhere…
+        <kbd
+          class="ml-auto font-mono text-xs border border-border rounded px-1"
+        >
+          /
+        </kbd>
+      </button>
+    </div>
+    <div
+      class="flex items-center gap-3"
+    >
+      <button
+        aria-label="Search"
+        class="p-2 hover:bg-muted rounded-lg transition-colors lg:hidden"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-search w-5 h-5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m21 21-4.34-4.34"
+          />
+          <circle
+            cx="11"
+            cy="11"
+            r="8"
+          />
+        </svg>
+      </button>
+      <div
+        data-testid="notification-bell"
+      />
+      <div
+        data-testid="theme-toggle"
+      />
+      <select
+        aria-label="Select language"
+        data-testid="lang-selector"
+      >
+        <option
+          value="en"
+        >
+          English
+        </option>
+        <option
+          value="it"
+        >
+          Italiano
+        </option>
+      </select>
+      <div
+        class="hidden md:block"
+      >
+        <div
+          data-testid="workspace-switcher"
+        />
+      </div>
+      <div
+        data-testid="user-profile-menu"
+      />
+    </div>
+    <div
+      data-testid="search-overlay"
+    />
+  </header>
+</div>
+`;
+
+exports[`Header snapshots (T010-27) > snapshot: tenant logo rendered as <img> 1`] = `
+<div>
+  <header
+    class="h-16 bg-background border-b border-border flex items-center justify-between px-4 gap-4"
+    role="banner"
+  >
+    <div
+      class="flex items-center gap-4"
+    >
+      <button
+        aria-label="Toggle menu"
+        class="p-2 hover:bg-muted rounded-lg transition-colors md:hidden"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-menu w-5 h-5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M4 5h16"
+          />
+          <path
+            d="M4 12h16"
+          />
+          <path
+            d="M4 19h16"
+          />
+        </svg>
+      </button>
+      <button
+        aria-label="Plexica home"
+        class="flex items-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+      >
+        <img
+          alt="Plexica logo"
+          class="h-8 md:h-10 max-w-[160px] object-contain"
+          data-testid="tenant-logo"
+          src="https://cdn.example.com/logo.png"
+        />
+      </button>
+    </div>
+    <div
+      class="flex-1 max-w-md hidden lg:block"
+    >
+      <button
+        aria-label="Open search (press /)"
+        class="relative w-full flex items-center gap-2 pl-10 pr-4 py-2 bg-muted border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-search absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m21 21-4.34-4.34"
+          />
+          <circle
+            cx="11"
+            cy="11"
+            r="8"
+          />
+        </svg>
+        Search everywhere…
+        <kbd
+          class="ml-auto font-mono text-xs border border-border rounded px-1"
+        >
+          /
+        </kbd>
+      </button>
+    </div>
+    <div
+      class="flex items-center gap-3"
+    >
+      <button
+        aria-label="Search"
+        class="p-2 hover:bg-muted rounded-lg transition-colors lg:hidden"
+      >
+        <svg
+          aria-hidden="true"
+          class="lucide lucide-search w-5 h-5"
+          fill="none"
+          height="24"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="m21 21-4.34-4.34"
+          />
+          <circle
+            cx="11"
+            cy="11"
+            r="8"
+          />
+        </svg>
+      </button>
+      <div
+        data-testid="notification-bell"
+      />
+      <div
+        data-testid="theme-toggle"
+      />
+      <select
+        aria-label="Select language"
+        data-testid="lang-selector"
+      >
+        <option
+          value="en"
+        >
+          English
+        </option>
+        <option
+          value="it"
+        >
+          Italiano
+        </option>
+      </select>
+      <div
+        class="hidden md:block"
+      >
+        <div
+          data-testid="workspace-switcher"
+        />
+      </div>
+      <div
+        data-testid="user-profile-menu"
+      />
+    </div>
+    <div
+      data-testid="search-overlay"
+    />
+  </header>
+</div>
+`;
+
+exports[`LanguageSelector snapshots (T010-27) > snapshot: English selected as default locale 1`] = `
+<div>
+  <button
+    aria-autocomplete="none"
+    aria-controls="radix-_r_0_"
+    aria-expanded="false"
+    aria-label="Select language"
+    class="flex h-10 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-accent hover:text-accent-foreground transition-colors"
+    data-state="closed"
+    dir="ltr"
+    role="combobox"
+    type="button"
+  >
+    <div
+      class="flex items-center gap-2"
+    >
+      <svg
+        aria-hidden="true"
+        class="lucide lucide-languages h-4 w-4 opacity-70"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m5 8 6 6"
+        />
+        <path
+          d="m4 14 6-6 2-3"
+        />
+        <path
+          d="M2 5h12"
+        />
+        <path
+          d="M7 2h1"
+        />
+        <path
+          d="m22 22-5-10-5 10"
+        />
+        <path
+          d="M14 18h6"
+        />
+      </svg>
+      <span
+        style="pointer-events: none;"
+      >
+        English
+      </span>
+    </div>
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6 9 6 6 6-6"
+      />
+    </svg>
+  </button>
+</div>
+`;
+
+exports[`LanguageSelector snapshots (T010-27) > snapshot: Italian selected as active locale 1`] = `
+<div>
+  <button
+    aria-autocomplete="none"
+    aria-controls="radix-_r_4_"
+    aria-expanded="false"
+    aria-label="Select language"
+    class="flex h-10 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-accent hover:text-accent-foreground transition-colors"
+    data-state="closed"
+    dir="ltr"
+    role="combobox"
+    type="button"
+  >
+    <div
+      class="flex items-center gap-2"
+    >
+      <svg
+        aria-hidden="true"
+        class="lucide lucide-languages h-4 w-4 opacity-70"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m5 8 6 6"
+        />
+        <path
+          d="m4 14 6-6 2-3"
+        />
+        <path
+          d="M2 5h12"
+        />
+        <path
+          d="M7 2h1"
+        />
+        <path
+          d="m22 22-5-10-5 10"
+        />
+        <path
+          d="M14 18h6"
+        />
+      </svg>
+      <span
+        style="pointer-events: none;"
+      >
+        Italiano
+      </span>
+    </div>
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6 9 6 6 6-6"
+      />
+    </svg>
+  </button>
+</div>
+`;
+
+exports[`LanguageSelector snapshots (T010-27) > snapshot: empty locales list — trigger shows placeholder 1`] = `
+<div>
+  <button
+    aria-autocomplete="none"
+    aria-controls="radix-_r_8_"
+    aria-expanded="false"
+    aria-label="Select language"
+    class="flex h-10 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-accent hover:text-accent-foreground transition-colors"
+    data-placeholder=""
+    data-state="closed"
+    dir="ltr"
+    role="combobox"
+    type="button"
+  >
+    <div
+      class="flex items-center gap-2"
+    >
+      <svg
+        aria-hidden="true"
+        class="lucide lucide-languages h-4 w-4 opacity-70"
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="m5 8 6 6"
+        />
+        <path
+          d="m4 14 6-6 2-3"
+        />
+        <path
+          d="M2 5h12"
+        />
+        <path
+          d="M7 2h1"
+        />
+        <path
+          d="m22 22-5-10-5 10"
+        />
+        <path
+          d="M14 18h6"
+        />
+      </svg>
+      <span
+        style="pointer-events: none;"
+      />
+    </div>
+    <svg
+      aria-hidden="true"
+      class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+      fill="none"
+      height="24"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      viewBox="0 0 24 24"
+      width="24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="m6 9 6 6 6-6"
+      />
+    </svg>
+  </button>
+</div>
+`;
+
+exports[`PluginErrorFallback snapshots (T010-27) > snapshot: default state — shows plugin name, retry and go-back buttons 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center py-16 px-4"
+  >
+    <div
+      aria-live="assertive"
+      class="w-full max-w-[500px] rounded-lg border border-border bg-card p-8 shadow-sm"
+      role="alert"
+      style="outline: none;"
+      tabindex="-1"
+    >
+      <div
+        class="flex items-center gap-3 mb-4"
+      >
+        <span
+          aria-hidden="true"
+          class="text-2xl"
+        >
+          ⚠️
+        </span>
+        <h2
+          class="text-lg font-semibold text-foreground"
+        >
+          Plugin Unavailable
+        </h2>
+      </div>
+      <p
+        class="text-sm text-muted-foreground mb-4"
+      >
+        The 
+        <span
+          class="font-medium text-foreground"
+        >
+          "
+          CRM
+          "
+        </span>
+         plugin could not be loaded. This might be a temporary network issue.
+      </p>
+      <div
+        class="flex items-center gap-3"
+      >
+        <button
+          aria-label="Retry loading CRM plugin"
+        >
+          Retry
+        </button>
+        <button
+          aria-label="Go back to plugins list"
+        >
+          Go Back
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PluginErrorFallback snapshots (T010-27) > snapshot: long plugin name renders without truncation 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center py-16 px-4"
+  >
+    <div
+      aria-live="assertive"
+      class="w-full max-w-[500px] rounded-lg border border-border bg-card p-8 shadow-sm"
+      role="alert"
+      style="outline: none;"
+      tabindex="-1"
+    >
+      <div
+        class="flex items-center gap-3 mb-4"
+      >
+        <span
+          aria-hidden="true"
+          class="text-2xl"
+        >
+          ⚠️
+        </span>
+        <h2
+          class="text-lg font-semibold text-foreground"
+        >
+          Plugin Unavailable
+        </h2>
+      </div>
+      <p
+        class="text-sm text-muted-foreground mb-4"
+      >
+        The 
+        <span
+          class="font-medium text-foreground"
+        >
+          "
+          Very Long Plugin Name For Testing Purposes
+          "
+        </span>
+         plugin could not be loaded. This might be a temporary network issue.
+      </p>
+      <div
+        class="flex items-center gap-3"
+      >
+        <button
+          aria-label="Retry loading Very Long Plugin Name For Testing Purposes plugin"
+        >
+          Retry
+        </button>
+        <button
+          aria-label="Go back to plugins list"
+        >
+          Go Back
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PluginErrorFallback snapshots (T010-27) > snapshot: with error object — error detail hidden in non-DEV mode 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center py-16 px-4"
+  >
+    <div
+      aria-live="assertive"
+      class="w-full max-w-[500px] rounded-lg border border-border bg-card p-8 shadow-sm"
+      role="alert"
+      style="outline: none;"
+      tabindex="-1"
+    >
+      <div
+        class="flex items-center gap-3 mb-4"
+      >
+        <span
+          aria-hidden="true"
+          class="text-2xl"
+        >
+          ⚠️
+        </span>
+        <h2
+          class="text-lg font-semibold text-foreground"
+        >
+          Plugin Unavailable
+        </h2>
+      </div>
+      <p
+        class="text-sm text-muted-foreground mb-4"
+      >
+        The 
+        <span
+          class="font-medium text-foreground"
+        >
+          "
+          Billing
+          "
+        </span>
+         plugin could not be loaded. This might be a temporary network issue.
+      </p>
+      <div
+        class="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 mb-6"
+      >
+        <p
+          class="text-xs font-mono text-destructive break-all"
+        >
+          Error: 
+          Failed to fetch module
+        </p>
+      </div>
+      <div
+        class="flex items-center gap-3"
+      >
+        <button
+          aria-label="Retry loading Billing plugin"
+        >
+          Retry
+        </button>
+        <button
+          aria-label="Go back to plugins list"
+        >
+          Go Back
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PluginLoadingSkeleton — structural snapshot (T010-27) > snapshot: loading text "Loading plugin…" is present in skeleton 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center py-24"
+  >
+    <div
+      class="text-center"
+    >
+      <div
+        class="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-4"
+      />
+      <p
+        class="text-muted-foreground"
+      >
+        Loading plugin...
+      </p>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PluginLoadingSkeleton — structural snapshot (T010-27) > snapshot: plugin loading skeleton DOM structure matches expected pattern 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center py-24"
+  >
+    <div
+      class="text-center"
+    >
+      <div
+        class="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-4"
+      />
+      <p
+        class="text-muted-foreground"
+      >
+        Loading plugin...
+      </p>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PluginLoadingSkeleton — structural snapshot (T010-27) > snapshot: spinner div has animate-spin class 1`] = `
+<div>
+  <div
+    class="flex items-center justify-center py-24"
+  >
+    <div
+      class="text-center"
+    >
+      <div
+        class="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-4"
+        data-testid="plugin-spinner"
+      />
+      <p
+        class="text-muted-foreground"
+      >
+        Loading plugin...
+      </p>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`ThemeProvider snapshots (T010-27) > snapshot: renders children even when theme API call fails 1`] = `
+<div>
+  <div
+    data-testid="theme-child-error"
+  >
+    error fallback content
+  </div>
+</div>
+`;
+
+exports[`ThemeProvider snapshots (T010-27) > snapshot: renders children inside ThemeProvider 1`] = `
+<div>
+  <div
+    data-testid="theme-child"
+  >
+    child content
+  </div>
+</div>
+`;
+
+exports[`ThemeProvider snapshots (T010-27) > snapshot: renders children with mocked tenant theme 1`] = `
+<div>
+  <div
+    data-testid="theme-child-custom"
+    style="color: var(--tenant-primary);"
+  >
+    themed content
+  </div>
+</div>
+`;
+
+exports[`WidgetFallback snapshots (T010-27) > snapshot: billing plugin widget fallback 1`] = `
+<div>
+  <div
+    aria-label="Widget unavailable: billing-plugin/InvoiceTable"
+    class="border-2 border-dashed border-muted rounded-lg p-4 text-center"
+    data-testid="widget-unavailable"
+    role="status"
+  >
+    <div
+      aria-hidden="true"
+      class="text-2xl mb-2"
+    >
+      📦
+    </div>
+    <h3
+      class="text-sm font-medium text-muted-foreground mb-1"
+    >
+      Widget Unavailable
+    </h3>
+    <p
+      class="text-xs text-muted-foreground mb-2"
+    >
+      The requested widget could not be loaded from the plugin.
+    </p>
+    <p
+      class="text-xs text-muted-foreground font-mono"
+    >
+      billing-plugin
+      /
+      InvoiceTable
+    </p>
+  </div>
+</div>
+`;
+
+exports[`WidgetFallback snapshots (T010-27) > snapshot: default state — shows plugin and widget identifiers 1`] = `
+<div>
+  <div
+    aria-label="Widget unavailable: crm-plugin/ContactCard"
+    class="border-2 border-dashed border-muted rounded-lg p-4 text-center"
+    data-testid="widget-unavailable"
+    role="status"
+  >
+    <div
+      aria-hidden="true"
+      class="text-2xl mb-2"
+    >
+      📦
+    </div>
+    <h3
+      class="text-sm font-medium text-muted-foreground mb-1"
+    >
+      Widget Unavailable
+    </h3>
+    <p
+      class="text-xs text-muted-foreground mb-2"
+    >
+      The requested widget could not be loaded from the plugin.
+    </p>
+    <p
+      class="text-xs text-muted-foreground font-mono"
+    >
+      crm-plugin
+      /
+      ContactCard
+    </p>
+  </div>
+</div>
+`;
+
+exports[`WidgetFallback snapshots (T010-27) > snapshot: minimal identifiers still render structure 1`] = `
+<div>
+  <div
+    aria-label="Widget unavailable: x/Y"
+    class="border-2 border-dashed border-muted rounded-lg p-4 text-center"
+    data-testid="widget-unavailable"
+    role="status"
+  >
+    <div
+      aria-hidden="true"
+      class="text-2xl mb-2"
+    >
+      📦
+    </div>
+    <h3
+      class="text-sm font-medium text-muted-foreground mb-1"
+    >
+      Widget Unavailable
+    </h3>
+    <p
+      class="text-xs text-muted-foreground mb-2"
+    >
+      The requested widget could not be loaded from the plugin.
+    </p>
+    <p
+      class="text-xs text-muted-foreground font-mono"
+    >
+      x
+      /
+      Y
+    </p>
+  </div>
+</div>
+`;
+
+exports[`WidgetLoader / WidgetLoadingSkeleton snapshots (T010-27) > snapshot: loading skeleton has aria-hidden and data-testid 1`] = `
+<div>
+  <div
+    aria-hidden="true"
+    class="animate-pulse rounded-md bg-muted h-24 w-full"
+    data-testid="widget-loading-skeleton"
+  />
+</div>
+`;
+
+exports[`WidgetLoader / WidgetLoadingSkeleton snapshots (T010-27) > snapshot: renders resolved widget component 1`] = `
+<div>
+  <div
+    data-testid="fake-widget"
+  >
+    Widget Content
+  </div>
+</div>
+`;
+
+exports[`WidgetLoader / WidgetLoadingSkeleton snapshots (T010-27) > snapshot: shows loading skeleton while widget is pending 1`] = `
+<div>
+  <div
+    aria-hidden="true"
+    class="animate-pulse rounded-md bg-muted h-24 w-full"
+    data-testid="widget-loading-skeleton"
+  />
+</div>
+`;

@@ -63,8 +63,9 @@ const listLocalesSchema = {
             type: 'object',
             properties: {
               code: { type: 'string' },
-              displayName: { type: 'string' },
-              isRTL: { type: 'boolean' },
+              name: { type: 'string' },
+              nativeName: { type: 'string' },
+              namespaceCount: { type: 'number' },
             },
           },
         },
@@ -116,6 +117,29 @@ export async function translationRoutes(fastify: FastifyInstance) {
       const { tenant } = request.query;
 
       try {
+        // H-001: If a tenant slug is provided, require authentication
+        // and verify the user belongs to that tenant
+        if (tenant) {
+          if (!request.user) {
+            return reply.status(401).send({
+              error: {
+                code: 'UNAUTHORIZED',
+                message: 'Authentication required to access tenant-specific translations',
+              },
+            });
+          }
+          // Verify the authenticated user belongs to the requested tenant
+          const userTenantSlug = request.user.tenantSlug;
+          if (userTenantSlug !== tenant) {
+            return reply.status(403).send({
+              error: {
+                code: 'FORBIDDEN',
+                message: 'You do not have access to translations for this tenant',
+              },
+            });
+          }
+        }
+
         // Validate locale and namespace format
         LocaleCodeSchema.parse(locale);
         NamespaceSchema.parse(namespace);
@@ -148,7 +172,9 @@ export async function translationRoutes(fastify: FastifyInstance) {
 
         // Set cache headers for immutable content (FR-010)
         // Use secure HMAC-based ETag to prevent cache poisoning
-        const secureETag = generateSecureETag(bundle.contentHash);
+        // NFR-005: Content-hashed URLs (e.g., /translations/en/core?v=a1b2c3d4) are deferred.
+        // See TD-013 in .forge/knowledge/decision-log.md
+        const secureETag = generateSecureETag(bundle.hash);
         reply
           .header('Cache-Control', 'public, immutable, max-age=31536000')
           .header('ETag', `"${secureETag}"`)

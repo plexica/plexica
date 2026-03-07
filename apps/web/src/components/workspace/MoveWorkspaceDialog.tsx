@@ -9,7 +9,7 @@
 //   F-033: Pino structured logging on mutation error
 //   F-013: WorkspaceTreeView showMoveToRoot=true so "move to root" is available
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import {
@@ -126,15 +126,20 @@ export function MoveWorkspaceDialog({
     [treeData, workspaceId]
   );
 
-  // WARNING #7 fix: reset selection if workspaceId changes while the dialog is
-  // open (e.g. parent component swaps the prop). Stale selection would allow
-  // confirming a move to a previously-selected parent that may now be invalid.
-  useEffect(() => {
+  // Derived state: reset selection and error when the dialog opens or when
+  // workspaceId changes while open. Uses the "adjusting state on prop change"
+  // pattern (React docs) to avoid setState-in-effect cascading renders.
+  // `resetKey` encodes the open+identity: non-empty only while open so that
+  // each open→close→open cycle triggers a fresh reset.
+  const [prevResetKey, setPrevResetKey] = useState<string>('');
+  const resetKey = open ? workspaceId : '';
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
     if (open) {
       setSelectedParentId(undefined);
       setApiError(null);
     }
-  }, [workspaceId, open]);
+  }
 
   const { mutate, isPending } = useMutation({
     // selectedParentId is guaranteed non-undefined when handleConfirm fires

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher';
 import { Menu, Search } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
@@ -14,19 +15,21 @@ import { UserProfileMenu } from '@/components/shell/UserProfileMenu';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantTheme } from '@/contexts/ThemeContext';
 import { useNotificationStream } from '@/hooks/useNotificationStream';
+import { apiClient } from '@/lib/api-client';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
-// Available locales for language selector
-const AVAILABLE_LOCALES = [
+interface LocaleOption {
+  code: string;
+  name: string;
+}
+
+// Fallback locales used while the API response is loading
+const FALLBACK_LOCALES: LocaleOption[] = [
   { code: 'en', name: 'English' },
   { code: 'it', name: 'Italiano' },
-  // Add more locales as translations become available
-  // { code: 'es', name: 'Español' },
-  // { code: 'fr', name: 'Français' },
-  // { code: 'de', name: 'Deutsch' },
 ];
 
 const DEFAULT_LOGO_PLACEHOLDER = '/plexica-logo.svg';
@@ -70,6 +73,22 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { locale, setLocale } = useIntl();
   const { tenantTheme } = useTenantTheme();
   const [logoError, setLogoError] = useState(false);
+
+  // H-003: Fetch available locales dynamically from the API
+  const { data: localesData } = useQuery({
+    queryKey: ['available-locales'],
+    queryFn: async () => {
+      const res = await apiClient.get<{
+        locales: LocaleOption[];
+        defaultLocale: string;
+      }>('/api/v1/translations/locales');
+      return res.locales;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour — locale list rarely changes
+    gcTime: 1000 * 60 * 60 * 24,
+  });
+
+  const availableLocales = localesData ?? FALLBACK_LOCALES;
 
   // Search overlay state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -314,7 +333,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 
         {/* Language Selector */}
         <LanguageSelector
-          locales={AVAILABLE_LOCALES}
+          locales={availableLocales}
           value={locale}
           onChange={setLocale}
           ariaLabel="Select language"

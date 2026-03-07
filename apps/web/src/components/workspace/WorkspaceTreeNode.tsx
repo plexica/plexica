@@ -21,10 +21,11 @@
 //   F-024: aria-setsize + aria-posinset on every treeitem
 //   F-010: rAF-debounced registerNode sort to avoid O(n²) on each render cycle
 
-import React, { useState, useCallback, useRef, createContext, useContext } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TreeFocusContext, useTreeFocus } from './WorkspaceTreeContext';
 
 export interface TreeNodeData {
   id: string;
@@ -41,29 +42,6 @@ export interface TreeNodeData {
     children: number;
   };
   children: TreeNodeData[];
-}
-
-// ---------------------------------------------------------------------------
-// Tree focus context — allows any node to request focus on an arbitrary node
-// and implements WAI-ARIA roving tabindex (F-021, F-010)
-// ---------------------------------------------------------------------------
-
-interface TreeFocusContextValue {
-  /** Flat ordered list of focusable node element refs by id */
-  registerNode: (id: string, el: HTMLDivElement | null) => void;
-  focusNext: (currentId: string) => void;
-  focusPrev: (currentId: string) => void;
-  focusFirst: () => void;
-  focusLast: () => void;
-  /** The id of the node that currently holds tabIndex=0 (roving tabindex) */
-  focusedId: string | null;
-  setFocusedId: (id: string | null) => void;
-}
-
-const TreeFocusContext = createContext<TreeFocusContextValue | null>(null);
-
-export function useTreeFocus() {
-  return useContext(TreeFocusContext);
 }
 
 // ---------------------------------------------------------------------------
@@ -323,7 +301,7 @@ export function WorkspaceTreeNode({
           break;
       }
     },
-    [handleSelect, hasChildren, expanded, focusCtx, node.id, onFocusParent]
+    [disabled, handleSelect, hasChildren, expanded, focusCtx, node.id, onFocusParent]
   );
 
   // Update focusedId in context when this node receives browser focus
