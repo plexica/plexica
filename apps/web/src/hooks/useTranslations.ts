@@ -19,15 +19,47 @@ interface TranslationResponse {
 }
 
 /**
+ * Fetch wrapper that also captures the X-Translation-Hash response header.
+ *
+ * The standard apiClient strips headers before returning the body, so we use
+ * a lower-level fetch here specifically to read the hash for the two-step
+ * content-addressed caching pattern (NFR-005 / TD-013).
+ */
+async function fetchWithHash(
+  url: string
+): Promise<{ data: TranslationResponse; hash: string | null }> {
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    const err = new Error(`HTTP ${response.status}`);
+    // Attach status so callers can handle 404 gracefully
+    (err as unknown as { statusCode: number }).statusCode = response.status;
+    throw err;
+  }
+  const data = (await response.json()) as TranslationResponse;
+  const hash = response.headers.get('x-translation-hash');
+  return { data, hash };
+}
+
+/**
  * useTranslations: React hook to fetch translations from API and cache in-memory
  *
- * Features:
- * - Fetches translations from GET /api/v1/translations/:locale/:namespace
- * - Supports tenant-specific overrides if user authenticated
- * - Caches loaded translations using TanStack Query
- * - Handles loading, error, and success states
- * - Respects ETag for 304 Not Modified responses (handled by axios)
- * - Automatically updates IntlContext messages when data loads
+ * Implements a two-step content-addressed caching strategy (NFR-005 / TD-013):
+ *
+ * Step 1 — Stable URL fetch (`staleTime: 60s`):
+ *   Hits `GET /api/v1/translations/:locale/:namespace`.  The server responds
+ *   with `max-age=60, stale-while-revalidate=3600` and an `X-Translation-Hash`
+ *   header containing the current 8-character content hash.
+ *
+ * Step 2 — Content-addressed fetch (`staleTime: Infinity`):
+ *   Once the hash is known, fetches
+ *   `GET /api/v1/translations/:locale/:namespace/:hash`.  If the hash matches
+ *   the live bundle the server returns `200 immutable; max-age=31536000`, so
+ *   this response is cached permanently by the browser and CDN.
+ *   If the hash is stale the server returns `301` to the new hash URL,
+ *   which TanStack Query follows automatically.
+ *
+ * Result: zero server revalidation requests for unchanged content once the
+ * content-addressed URL is in the browser cache — satisfying NFR-005.
  *
  * @param options - Configuration options
  * @returns Query result with translations data and loading states
@@ -54,18 +86,20 @@ export function useTranslations(options: UseTranslationsOptions) {
   // Use provided locale or fall back to context locale
   const locale = providedLocale || contextLocale;
 
-  // Fetch translations using TanStack Query
-  const query = useQuery({
-    queryKey: ['translations', locale, namespace, tenantSlug],
-    queryFn: async (): Promise<TranslationResponse> => {
+  // ── Step 1: Stable URL fetch ─────────────────────────────────────────────
+  // Fetches the bundle from the stable (mutable) URL and extracts the
+  // X-Translation-Hash header so Step 2 can build the immutable URL.
+  // staleTime: 60s mirrors the server's max-age=60 directive.
+  const stableQuery = useQuery({
+    queryKey: ['translations-stable', locale, namespace, tenantSlug],
+    queryFn: async (): Promise<{ bundle: TranslationResponse; hash: string | null }> => {
       try {
         const url = tenantSlug
           ? `/api/v1/translations/${locale}/${namespace}?tenant=${encodeURIComponent(tenantSlug)}`
           : `/api/v1/translations/${locale}/${namespace}`;
 
-        const data = await apiClient.get<TranslationResponse>(url);
-
-        return data;
+        const { data, hash } = await fetchWithHash(url);
+        return { bundle: data, hash };
       } catch (error: unknown) {
         const typedError = error as { statusCode?: number; response?: { status?: number } };
         const statusCode = typedError.statusCode ?? typedError.response?.status ?? null;
@@ -78,35 +112,71 @@ export function useTranslations(options: UseTranslationsOptions) {
             );
           }
           return {
-            locale,
-            namespace,
-            messages: {},
-            hash: '',
+            bundle: { locale, namespace, messages: {}, hash: '' },
+            hash: null,
           };
         }
 
-        // Re-throw other errors
         throw error;
       }
     },
     enabled: enabled && !!locale && !!namespace,
-    staleTime: 1000 * 60 * 60, // 1 hour (translations rarely change)
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours (keep in cache)
-    retry: 1, // Only retry once on failure
+    staleTime: 1000 * 60, // 60 seconds — matches server max-age=60
+    gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    retry: 1,
   });
 
-  // M-004: Only merge messages when the returned locale matches the current context locale
-  // to prevent stale in-flight responses from a prior locale switch from corrupting the store.
+  // ── Step 2: Content-addressed (immutable) fetch ──────────────────────────
+  // Only runs once Step 1 has resolved a non-empty hash.
+  // staleTime: Infinity — the URL itself encodes freshness; this response
+  // never needs to be re-fetched as long as the hash is the same.
+  const contentHash = stableQuery.data?.hash ?? null;
+  const hashedQuery = useQuery({
+    queryKey: ['translations-hashed', locale, namespace, tenantSlug, contentHash],
+    queryFn: async (): Promise<TranslationResponse> => {
+      const url = tenantSlug
+        ? `/api/v1/translations/${locale}/${namespace}/${contentHash}?tenant=${encodeURIComponent(tenantSlug)}`
+        : `/api/v1/translations/${locale}/${namespace}/${contentHash}`;
+
+      // The server will 301-redirect stale hashes; fetch follows redirects by default.
+      const response = await fetch(url, { credentials: 'include', redirect: 'follow' });
+      if (!response.ok) {
+        const err = new Error(`HTTP ${response.status}`);
+        (err as unknown as { statusCode: number }).statusCode = response.status;
+        throw err;
+      }
+      return (await response.json()) as TranslationResponse;
+    },
+    // Only fetch when Step 1 has a valid hash (non-empty 8-char hex)
+    enabled:
+      enabled && !!locale && !!namespace && !!contentHash && /^[a-f0-9]{8}$/.test(contentHash),
+    staleTime: Infinity, // Content-addressed URL — never stale
+    gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    retry: 1,
+  });
+
+  // Prefer the immutably-cached bundle from Step 2; fall back to Step 1 while
+  // Step 2 is loading or on the first render.
+  const resolvedData = hashedQuery.data ?? stableQuery.data?.bundle ?? null;
+
+  // M-004: Only merge messages when the returned locale matches the current
+  // context locale to prevent stale in-flight responses corrupting the store.
   useEffect(() => {
-    if (query.data?.messages && query.data.locale === locale) {
-      mergeMessages(query.data.messages);
+    if (resolvedData?.messages && resolvedData.locale === locale) {
+      mergeMessages(resolvedData.messages);
     }
-  }, [query.data, locale, mergeMessages]);
+  }, [resolvedData, locale, mergeMessages]);
+
+  const isLoading = stableQuery.isLoading || (!!contentHash && hashedQuery.isLoading);
+  const error = stableQuery.error ?? hashedQuery.error;
 
   return {
-    ...query,
-    translations: query.data?.messages || {},
-    hash: query.data?.hash,
+    isLoading,
+    isError: !!error,
+    error,
+    data: resolvedData,
+    translations: resolvedData?.messages ?? {},
+    hash: resolvedData?.hash,
   };
 }
 

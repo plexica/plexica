@@ -1,13 +1,15 @@
 /**
  * Translation API Routes Integration Tests
  *
- * Tests all 4 translation API endpoints with real database and Redis:
- * - GET /translations/:locale/:namespace (public)
+ * Tests all 5 translation API endpoints with real database and Redis:
+ * - GET /translations/:locale/:namespace (stable URL, public)
+ * - GET /translations/:locale/:namespace/:hash (content-addressed, public, NFR-005)
  * - GET /translations/locales (public)
  * - GET /tenant/translations/overrides (authenticated)
  * - PUT /tenant/translations/overrides (authenticated + tenant_admin)
  *
- * Tests cover FR-001 (namespace), FR-006 (overrides), FR-011 (validation), API endpoints.
+ * Tests cover FR-001 (namespace), FR-006 (overrides), FR-011 (validation), NFR-005
+ * (content-hashed URLs), API endpoints.
  * Constitution Art. 8.1 (integration tests for API endpoints)
  *
  * @module __tests__/i18n/integration/translation.routes
@@ -110,16 +112,21 @@ describe('Translation API Routes (Integration)', () => {
       expect(body.messages['contacts.title']).toBe('Contatti');
     });
 
-    it('should set immutable cache headers (FR-010)', async () => {
+    it('should set correct cache headers on stable URL (TD-013 / NFR-005)', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/translations/en/core',
       });
 
       expect(response.statusCode).toBe(200);
+      // Stable URL must NOT use immutable — content can change when overrides are updated
       expect(response.headers['cache-control']).toContain('public');
-      expect(response.headers['cache-control']).toContain('immutable');
-      expect(response.headers['cache-control']).toContain('max-age=31536000');
+      expect(response.headers['cache-control']).not.toContain('immutable');
+      expect(response.headers['cache-control']).toContain('max-age=60');
+      expect(response.headers['cache-control']).toContain('stale-while-revalidate=3600');
+      // X-Translation-Hash must expose the content hash for frontend two-step fetch
+      expect(response.headers['x-translation-hash']).toBeDefined();
+      expect(response.headers['x-translation-hash']).toMatch(/^[a-f0-9]{8}$/);
     });
 
     it('should set ETag header for caching', async () => {
@@ -246,6 +253,136 @@ describe('Translation API Routes (Integration)', () => {
       const body = JSON.parse(response.body);
       expect(body.messages['deals.title']).toBe('Opportunities'); // Override value
       expect(body.messages['contacts.title']).toBe('Contacts'); // Original value
+    });
+  });
+
+  describe('GET /api/v1/translations/:locale/:namespace/:hash (NFR-005 Content-Addressed)', () => {
+    it('should return 200 with immutable cache headers when hash matches current bundle', async () => {
+      // Arrange: fetch stable URL to obtain the current hash
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      expect(stableResponse.statusCode).toBe(200);
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      expect(currentHash).toMatch(/^[a-f0-9]{8}$/);
+
+      // Act: fetch with the correct hash
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+      });
+
+      // Assert
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('locale', 'en');
+      expect(body).toHaveProperty('namespace', 'core');
+      expect(body).toHaveProperty('hash', currentHash);
+      expect(body).toHaveProperty('messages');
+      // Must use immutable caching on the content-addressed URL
+      expect(response.headers['cache-control']).toContain('immutable');
+      expect(response.headers['cache-control']).toContain('max-age=31536000');
+      expect(response.headers['etag']).toBeDefined();
+    });
+
+    it('should return 301 redirect to current hash URL when hash is stale', async () => {
+      // Arrange: use a hash that is guaranteed to be wrong
+      const staleHash = 'deadbeef';
+
+      // Act
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${staleHash}`,
+      });
+
+      // Assert: 301 to the content-addressed URL with the real hash
+      expect(response.statusCode).toBe(301);
+      const location = response.headers['location'] as string;
+      expect(location).toBeDefined();
+      expect(location).toMatch(/^\/api\/v1\/translations\/en\/core\/[a-f0-9]{8}$/);
+      // Redirect must NOT go back to the stale hash
+      expect(location).not.toContain(staleHash);
+    });
+
+    it('should include tenant query param in 301 redirect Location when ?tenant is present', async () => {
+      // Arrange: authenticated request with a stale hash
+      const staleHash = 'deadbeef';
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${staleHash}?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(301);
+      const location = response.headers['location'] as string;
+      expect(location).toContain(`tenant=${encodeURIComponent(testTenantSlug)}`);
+    });
+
+    it('should return 401 when ?tenant is supplied without authentication', async () => {
+      // Get current hash first
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}?tenant=${testTenantSlug}`,
+        // No authorization header
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('should return 400 for invalid hash format (not 8-char hex)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core/not-a-hash',
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('INVALID_PARAMS');
+    });
+
+    it('should return 404 when namespace does not exist', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/nonexistent/abcd1234',
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('NAMESPACE_NOT_FOUND');
+    });
+
+    it('should serve the same bundle content as the stable URL endpoint', async () => {
+      // Fetch stable URL to get hash and content
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      expect(stableResponse.statusCode).toBe(200);
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      const stableBody = JSON.parse(stableResponse.body);
+
+      // Fetch hashed URL
+      const hashedResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+      });
+
+      expect(hashedResponse.statusCode).toBe(200);
+      const hashedBody = JSON.parse(hashedResponse.body);
+
+      // Content must be identical
+      expect(hashedBody.messages).toEqual(stableBody.messages);
+      expect(hashedBody.hash).toBe(stableBody.hash);
     });
   });
 

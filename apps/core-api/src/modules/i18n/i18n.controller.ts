@@ -2,7 +2,8 @@
  * Translation API Routes
  *
  * Endpoints:
- * - GET /api/v1/translations/:locale/:namespace - Get translations (public)
+ * - GET /api/v1/translations/:locale/:namespace - Get translations (stable URL, public)
+ * - GET /api/v1/translations/:locale/:namespace/:hash - Get translations by content hash (immutable, public)
  * - GET /api/v1/translations/locales - List available locales (public)
  * - GET /api/v1/tenant/translations/overrides - Get tenant overrides (authenticated)
  * - PUT /api/v1/tenant/translations/overrides - Update tenant overrides (authenticated + tenant_admin)
@@ -18,9 +19,11 @@ import { generateSecureETag } from '../../lib/crypto.js';
 import {
   LocaleCodeSchema,
   NamespaceSchema,
+  ContentHashSchema,
   TranslationOverridePayloadSchema,
   type GetTranslationsParams,
   type GetTranslationsQuery,
+  type GetTranslationsByHashParams,
   type TranslationOverridePayload,
 } from './i18n.schemas.js';
 import { authMiddleware } from '../../middleware/auth.js';
@@ -39,6 +42,31 @@ const getTranslationsSchema = {
     properties: {
       locale: { type: 'string', description: 'BCP 47 locale code (e.g., en, it)' },
       namespace: { type: 'string', description: 'Plugin namespace (e.g., core, crm)' },
+    },
+  },
+  querystring: {
+    type: 'object',
+    properties: {
+      tenant: {
+        type: 'string',
+        description: 'Tenant slug for tenant-specific overrides',
+      },
+    },
+  },
+};
+
+const getTranslationsByHashSchema = {
+  params: {
+    type: 'object',
+    required: ['locale', 'namespace', 'hash'],
+    properties: {
+      locale: { type: 'string', description: 'BCP 47 locale code (e.g., en, it)' },
+      namespace: { type: 'string', description: 'Plugin namespace (e.g., core, crm)' },
+      hash: {
+        type: 'string',
+        description: '8-character lowercase hex content hash (NFR-005)',
+        pattern: '^[a-f0-9]{8}$',
+      },
     },
   },
   querystring: {
@@ -170,14 +198,17 @@ export async function translationRoutes(fastify: FastifyInstance) {
           await cacheService.setCached(bundle, tenant);
         }
 
-        // Set cache headers for immutable content (FR-010)
-        // Use secure HMAC-based ETag to prevent cache poisoning
-        // NFR-005: Content-hashed URLs (e.g., /translations/en/core?v=a1b2c3d4) are deferred.
-        // See TD-013 in .forge/knowledge/decision-log.md
+        // Set cache headers for stable URL (NFR-005 / TD-013)
+        // Stable URL is MUTABLE — browsers/CDNs must revalidate periodically.
+        // ETag enables efficient conditional requests (304 Not Modified).
+        // stale-while-revalidate lets clients serve stale content while fetching fresh.
+        // X-Translation-Hash exposes the content hash so the frontend can build
+        // content-addressed URLs for fully immutable caching.
         const secureETag = generateSecureETag(bundle.hash);
         reply
-          .header('Cache-Control', 'public, immutable, max-age=31536000')
+          .header('Cache-Control', 'public, max-age=60, stale-while-revalidate=3600')
           .header('ETag', `"${secureETag}"`)
+          .header('X-Translation-Hash', bundle.hash)
           .header('Content-Type', 'application/json; charset=utf-8')
           .send(bundle);
       } catch (error) {
@@ -213,6 +244,133 @@ export async function translationRoutes(fastify: FastifyInstance) {
 
         // Internal server error
         fastify.log.error({ error }, 'Translation fetch error');
+        return reply.status(500).send({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to fetch translations',
+          },
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/v1/translations/:locale/:namespace/:hash
+   *
+   * Content-addressed translation endpoint (NFR-005 / TD-013).
+   *
+   * - If the client-supplied :hash matches the current bundle hash → 200 with
+   *   `Cache-Control: public, immutable, max-age=31536000`.  Browsers and CDNs
+   *   may cache this response permanently; the URL itself encodes freshness.
+   * - If the :hash is stale (content has since been updated) → 301 Permanent
+   *   Redirect to the current content-addressed URL.  The redirect URL uses the
+   *   live hash so the client fetches the latest bundle and caches it immutably.
+   *
+   * Auth: same as stable URL — unauthenticated for global content; ?tenant=<slug>
+   * requires the caller to be authenticated and belong to that tenant.
+   */
+  fastify.get<{
+    Params: GetTranslationsByHashParams;
+    Querystring: GetTranslationsQuery;
+  }>(
+    '/translations/:locale/:namespace/:hash',
+    {
+      schema: {
+        description:
+          'Get translations by content hash — returns immutably-cacheable bundle or 301 redirect to current hash (NFR-005)',
+        tags: ['translations'],
+        params: getTranslationsByHashSchema.params,
+        querystring: getTranslationsByHashSchema.querystring,
+      },
+    },
+    async (request, reply) => {
+      const { locale, namespace, hash } = request.params;
+      const { tenant } = request.query;
+
+      try {
+        // H-001: Tenant-scoped requests require authentication + tenant ownership
+        if (tenant) {
+          if (!request.user) {
+            return reply.status(401).send({
+              error: {
+                code: 'UNAUTHORIZED',
+                message: 'Authentication required to access tenant-specific translations',
+              },
+            });
+          }
+          const userTenantSlug = request.user.tenantSlug;
+          if (userTenantSlug !== tenant) {
+            return reply.status(403).send({
+              error: {
+                code: 'FORBIDDEN',
+                message: 'You do not have access to translations for this tenant',
+              },
+            });
+          }
+        }
+
+        // Validate path parameter formats
+        LocaleCodeSchema.parse(locale);
+        NamespaceSchema.parse(namespace);
+        ContentHashSchema.parse(hash);
+
+        // Fetch the bundle (cache-first, same as stable URL)
+        let bundle = await cacheService.getCached(locale, namespace, tenant);
+        if (!bundle) {
+          bundle = await translationService.getTranslations(locale, namespace, tenant);
+          await cacheService.setCached(bundle, tenant);
+        }
+
+        const currentHash = bundle.hash;
+
+        if (hash === currentHash) {
+          // Hash matches — serve with fully immutable cache headers
+          const secureETag = generateSecureETag(currentHash);
+          return reply
+            .header('Cache-Control', 'public, immutable, max-age=31536000')
+            .header('ETag', `"${secureETag}"`)
+            .header('Content-Type', 'application/json; charset=utf-8')
+            .send(bundle);
+        }
+
+        // Hash is stale — 301 redirect to current content-addressed URL
+        // 301 (Permanent) is intentional: the old hash URL is permanently invalid.
+        // The new URL uses the live hash and will be served immutably.
+        const tenantQuery = tenant ? `?tenant=${encodeURIComponent(tenant)}` : '';
+        const redirectUrl = `/api/v1/translations/${bundle.locale}/${namespace}/${currentHash}${tenantQuery}`;
+        return reply.redirect(redirectUrl, 301);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_PARAMS',
+              message: 'Invalid locale, namespace, or hash format',
+              details: error.issues,
+            },
+          });
+        }
+
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        if (errorMessage.includes('LOCALE_NOT_FOUND')) {
+          return reply.status(404).send({
+            error: {
+              code: 'LOCALE_NOT_FOUND',
+              message: errorMessage.replace('LOCALE_NOT_FOUND: ', ''),
+            },
+          });
+        }
+
+        if (errorMessage.includes('NAMESPACE_NOT_FOUND')) {
+          return reply.status(404).send({
+            error: {
+              code: 'NAMESPACE_NOT_FOUND',
+              message: errorMessage.replace('NAMESPACE_NOT_FOUND: ', ''),
+            },
+          });
+        }
+
+        fastify.log.error({ error }, 'Translation fetch error (hashed endpoint)');
         return reply.status(500).send({
           error: {
             code: 'INTERNAL_ERROR',

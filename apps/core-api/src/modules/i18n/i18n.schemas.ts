@@ -109,6 +109,27 @@ export const GetTranslationsParamsSchema = z.object({
 });
 
 /**
+ * Content Hash Schema (TD-013 / NFR-005)
+ *
+ * 8-character lowercase hex string produced by generateContentHash().
+ */
+export const ContentHashSchema = z
+  .string()
+  .regex(/^[a-f0-9]{8}$/, 'Content hash must be an 8-character lowercase hex string');
+
+/**
+ * Get Translations By Hash Params Schema
+ * (GET /api/v1/translations/:locale/:namespace/:hash)
+ *
+ * Path parameters for content-addressed translation retrieval (NFR-005).
+ */
+export const GetTranslationsByHashParamsSchema = z.object({
+  locale: LocaleCodeSchema,
+  namespace: NamespaceSchema,
+  hash: ContentHashSchema,
+});
+
+/**
  * Translation Bundle Response Schema
  *
  * Structure of the translation bundle returned by GET endpoints.
@@ -153,10 +174,12 @@ export const TenantOverridesResponseSchema = z.object({
 export type TranslationKey = z.infer<typeof TranslationKeySchema>;
 export type LocaleCode = z.infer<typeof LocaleCodeSchema>;
 export type Namespace = z.infer<typeof NamespaceSchema>;
+export type ContentHash = z.infer<typeof ContentHashSchema>;
 export type TenantOverride = z.infer<typeof TenantOverrideSchema>;
 export type TranslationOverridePayload = z.infer<typeof TranslationOverridePayloadSchema>;
 export type GetTranslationsQuery = z.infer<typeof GetTranslationsQuerySchema>;
 export type GetTranslationsParams = z.infer<typeof GetTranslationsParamsSchema>;
+export type GetTranslationsByHashParams = z.infer<typeof GetTranslationsByHashParamsSchema>;
 export type TranslationBundleResponse = z.infer<typeof TranslationBundleResponseSchema>;
 export type AvailableLocalesResponse = z.infer<typeof AvailableLocalesResponseSchema>;
 export type TenantOverridesResponse = z.infer<typeof TenantOverridesResponseSchema>;
