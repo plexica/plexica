@@ -74,16 +74,16 @@ completely untouched.
 
 **Acceptance Criteria**:
 
-- [ ] New `PluginLifecycleStatus` enum added to `schema.prisma` in `@@schema("core")` with
+- [x] New `PluginLifecycleStatus` enum added to `schema.prisma` in `@@schema("core")` with
       states: `REGISTERED`, `INSTALLING`, `INSTALLED`, `ACTIVE`, `DISABLED`,
       `UNINSTALLING`, `UNINSTALLED`
-- [ ] `Plugin` model has new field `lifecycleStatus PluginLifecycleStatus @default(REGISTERED) @map("lifecycle_status")`
-- [ ] Migration SQL creates the enum type in `"core"` schema
-- [ ] Migration SQL adds `lifecycle_status` column with `NOT NULL DEFAULT 'REGISTERED'`
-- [ ] Migration SQL backfills: `UPDATE "core"."plugins" SET lifecycle_status = 'INSTALLED' WHERE status = 'PUBLISHED'`
-- [ ] Migration SQL creates `idx_plugins_lifecycle_status` index
-- [ ] Existing `PluginStatus` enum and `status` column are unchanged
-- [ ] `pnpm build` passes in `packages/database`
+- [x] `Plugin` model has new field `lifecycleStatus PluginLifecycleStatus @default(REGISTERED) @map("lifecycle_status")`
+- [x] Migration SQL creates the enum type in `"core"` schema
+- [x] Migration SQL adds `lifecycle_status` column with `NOT NULL DEFAULT 'REGISTERED'`
+- [x] Migration SQL backfills: `UPDATE "core"."plugins" SET lifecycle_status = 'INSTALLED' WHERE status = 'PUBLISHED'`
+- [x] Migration SQL creates `idx_plugins_lifecycle_status` index
+- [x] Existing `PluginStatus` enum and `status` column are unchanged
+- [x] `pnpm build` passes in `packages/database`
 
 **Files to create/modify**:
 
@@ -98,9 +98,9 @@ completely untouched.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes in `packages/database`
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes in `packages/database`
+- [x] `pnpm lint` passes
 
 ---
 
@@ -129,11 +129,11 @@ import it without reaching into Prisma internals.
 
 **Acceptance Criteria**:
 
-- [ ] `pnpm db:generate` runs successfully with the updated schema
-- [ ] `PluginLifecycleStatus` is exported from `packages/database/src/index.ts`
-- [ ] `import { PluginLifecycleStatus } from '@plexica/database'` resolves without error
-- [ ] Existing `PluginStatus` export is not removed or changed
-- [ ] `pnpm build` passes in `packages/database`
+- [x] `pnpm db:generate` runs successfully with the updated schema
+- [x] `PluginLifecycleStatus` is exported from `packages/database/src/index.ts`
+- [x] `import { PluginLifecycleStatus } from '@plexica/database'` resolves without error
+- [x] Existing `PluginStatus` export is not removed or changed
+- [x] `pnpm build` passes in `packages/database`
 
 **Files to create/modify**:
 
@@ -146,9 +146,9 @@ import it without reaching into Prisma internals.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes in `packages/database` and `apps/core-api`
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes in `packages/database` and `apps/core-api`
+- [x] `pnpm lint` passes
 
 ---
 
@@ -189,20 +189,20 @@ rejected with clear errors.
 
 **Acceptance Criteria**:
 
-- [ ] Private `VALID_TRANSITIONS` map defined:
+- [x] Private `VALID_TRANSITIONS` map defined:
       `{ REGISTERED: ['INSTALLING'], INSTALLING: ['INSTALLED', 'REGISTERED'], INSTALLED: ['ACTIVE', 'UNINSTALLING'], ACTIVE: ['DISABLED'], DISABLED: ['ACTIVE', 'UNINSTALLING'], UNINSTALLING: ['UNINSTALLED'], UNINSTALLED: [] }`
-- [ ] Private `transitionLifecycleStatus(pluginId, target)` helper validates transition
+- [x] Private `transitionLifecycleStatus(pluginId, target)` helper validates transition
       and updates `Plugin.lifecycleStatus` via `db.plugin.update`
-- [ ] `installPlugin()` calls `transitionLifecycleStatus(id, 'INSTALLING')` at start,
+- [x] `installPlugin()` calls `transitionLifecycleStatus(id, 'INSTALLING')` at start,
       `transitionLifecycleStatus(id, 'INSTALLED')` on success, and
       `transitionLifecycleStatus(id, 'REGISTERED')` on failure (rollback)
-- [ ] `activatePlugin()` (super-admin) calls `transitionLifecycleStatus(id, 'ACTIVE')`
-- [ ] `deactivatePlugin()` (super-admin) calls `transitionLifecycleStatus(id, 'DISABLED')`
-- [ ] `uninstallPlugin()` (super-admin) calls `transitionLifecycleStatus(id, 'UNINSTALLING')`
+- [x] `activatePlugin()` (super-admin) calls `transitionLifecycleStatus(id, 'ACTIVE')`
+- [x] `deactivatePlugin()` (super-admin) calls `transitionLifecycleStatus(id, 'DISABLED')`
+- [x] `uninstallPlugin()` (super-admin) calls `transitionLifecycleStatus(id, 'UNINSTALLING')`
       then `transitionLifecycleStatus(id, 'UNINSTALLED')`
-- [ ] Invalid transition throws `Error` with message pattern: `Plugin '${id}' cannot transition from ${current} to ${target}`
-- [ ] Existing `TenantPlugin.enabled` boolean logic for tenant-level on/off is unchanged
-- [ ] `pnpm build` passes
+- [x] Invalid transition throws `Error` with message pattern: `Plugin '${id}' cannot transition from ${current} to ${target}`
+- [x] Existing `TenantPlugin.enabled` boolean logic for tenant-level on/off is unchanged
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -218,10 +218,10 @@ rejected with clear errors.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Tests pass (`pnpm test:unit`)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Tests pass (`pnpm test:unit`)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -263,20 +263,20 @@ failure in one tenant does not affect any others (spec Edge Case 2, FR-005).
 
 **Acceptance Criteria**:
 
-- [ ] `TenantMigrationService` class created and exported from new file
-- [ ] `runPluginMigrations(pluginId)` queries all tenants with `status = ACTIVE`
-- [ ] Each tenant's migrations run in an isolated `prisma.$transaction`; one failure
+- [x] `TenantMigrationService` class created and exported from new file
+- [x] `runPluginMigrations(pluginId)` queries all tenants with `status = ACTIVE`
+- [x] Each tenant's migrations run in an isolated `prisma.$transaction`; one failure
       does not roll back other tenants
-- [ ] `SET search_path TO "tenant_${tenantId}"` is set inside the transaction before
+- [x] `SET search_path TO "tenant_${tenantId}"` is set inside the transaction before
       migration SQL runs
-- [ ] Pre-execution DDL-only validation rejects SQL containing DML keywords
+- [x] Pre-execution DDL-only validation rejects SQL containing DML keywords
       (INSERT, UPDATE, DELETE, SELECT) with a clear error
-- [ ] `_plugin_migrations` tracking table created per schema on first run
-- [ ] Already-applied migrations are skipped (idempotent re-runs safe)
-- [ ] `MigrationResult[]` returned with per-tenant success/failure detail
-- [ ] On failure for a given tenant, the error is logged and that tenant's result has
+- [x] `_plugin_migrations` tracking table created per schema on first run
+- [x] Already-applied migrations are skipped (idempotent re-runs safe)
+- [x] `MigrationResult[]` returned with per-tenant success/failure detail
+- [x] On failure for a given tenant, the error is logged and that tenant's result has
       `success: false`; other tenants are not affected
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -292,10 +292,10 @@ failure in one tenant does not affect any others (spec Edge Case 2, FR-005).
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass (`pnpm test:unit`)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass (`pnpm test:unit`)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -335,15 +335,15 @@ at the per-tenant level as the current code partially does.
 
 **Acceptance Criteria**:
 
-- [ ] `installPlugin()` (super-admin path, operating on the global `Plugin` record)
+- [x] `installPlugin()` (super-admin path, operating on the global `Plugin` record)
       calls `permissionRegistrationService.registerPluginPermissions()` after the DB
       transaction succeeds
-- [ ] Each permission from `manifest.permissions` is mapped to `{ key, name, description }`
-- [ ] On `PERMISSION_KEY_CONFLICT`, the global `Plugin` record's `lifecycleStatus` is
+- [x] Each permission from `manifest.permissions` is mapped to `{ key, name, description }`
+- [x] On `PERMISSION_KEY_CONFLICT`, the global `Plugin` record's `lifecycleStatus` is
       reset to `REGISTERED` and the error is rethrown
-- [ ] Edge Case 6 is covered: second install with a conflicting permission key throws
+- [x] Edge Case 6 is covered: second install with a conflicting permission key throws
       an error whose message contains `PERMISSION_KEY_CONFLICT`
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -359,10 +359,10 @@ at the per-tenant level as the current code partially does.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Tests pass (`pnpm test:unit`)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Tests pass (`pnpm test:unit`)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -415,16 +415,16 @@ live Docker daemon.
 
 **Acceptance Criteria**:
 
-- [ ] `ContainerAdapter` interface exported from `apps/core-api/src/lib/container-adapter.ts`
-- [ ] `ContainerConfig` type exported alongside the interface
-- [ ] `NullContainerAdapter` class implements `ContainerAdapter`; all methods resolve
+- [x] `ContainerAdapter` interface exported from `apps/core-api/src/lib/container-adapter.ts`
+- [x] `ContainerConfig` type exported alongside the interface
+- [x] `NullContainerAdapter` class implements `ContainerAdapter`; all methods resolve
       without side effects; `health()` returns `'healthy'`
-- [ ] `createContainerAdapter()` factory function exported; returns `NullContainerAdapter`
+- [x] `createContainerAdapter()` factory function exported; returns `NullContainerAdapter`
       when `CONTAINER_ADAPTER !== 'docker'` (default)
-- [ ] `CONTAINER_ADAPTER=docker` path returns a placeholder that throws
+- [x] `CONTAINER_ADAPTER=docker` path returns a placeholder that throws
       `ContainerAdapter 'docker' requires DockerContainerAdapter — implement T004-07`
       (will be replaced by T004-07)
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -438,9 +438,9 @@ live Docker daemon.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -481,20 +481,20 @@ and resource limit enforcement (FR-001, FR-017).
 
 **Acceptance Criteria**:
 
-- [ ] `dockerode` and `@types/dockerode` added to `apps/core-api/package.json`
-- [ ] `DockerContainerAdapter` class in new file implements `ContainerAdapter`
-- [ ] `start()` pulls image if not local, creates container with env and port bindings,
+- [x] `dockerode` and `@types/dockerode` added to `apps/core-api/package.json`
+- [x] `DockerContainerAdapter` class in new file implements `ContainerAdapter`
+- [x] `start()` pulls image if not local, creates container with env and port bindings,
       attaches to `plexica-plugins` network, starts container
-- [ ] `start()` applies memory and CPU resource limits when present in `ContainerConfig`
-- [ ] `stop()` gracefully stops container (10s timeout), catches "container not running"
+- [x] `start()` applies memory and CPU resource limits when present in `ContainerConfig`
+- [x] `stop()` gracefully stops container (10s timeout), catches "container not running"
       errors without throwing
-- [ ] `health()` returns `'healthy' | 'unhealthy' | 'starting'` based on Docker
+- [x] `health()` returns `'healthy' | 'unhealthy' | 'starting'` based on Docker
       container inspect state
-- [ ] `remove()` removes stopped container; logs warning and resolves if not found
-- [ ] `createContainerAdapter()` factory in `container-adapter.ts` updated to return
+- [x] `remove()` removes stopped container; logs warning and resolves if not found
+- [x] `createContainerAdapter()` factory in `container-adapter.ts` updated to return
       `DockerContainerAdapter` when `CONTAINER_ADAPTER=docker`
-- [ ] All Docker errors wrapped with plugin context in the message
-- [ ] `pnpm build` passes
+- [x] All Docker errors wrapped with plugin context in the message
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -511,10 +511,10 @@ and resource limit enforcement (FR-001, FR-017).
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass (mock Docker — no live Docker required)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass (mock Docker — no live Docker required)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -564,19 +564,19 @@ it, and uninstalling removes it.
 
 **Acceptance Criteria**:
 
-- [ ] `PluginLifecycleService` constructor accepts optional `adapter: ContainerAdapter`
+- [x] `PluginLifecycleService` constructor accepts optional `adapter: ContainerAdapter`
       and `migrationService: TenantMigrationService` parameters
-- [ ] `activatePlugin()` calls `adapter.start()`, polls health with 5s timeout,
+- [x] `activatePlugin()` calls `adapter.start()`, polls health with 5s timeout,
       and rolls back `lifecycleStatus` to `INSTALLED` if health check fails
-- [ ] `deactivatePlugin()` calls `adapter.stop()` after transitioning to `DISABLED`
-- [ ] `uninstallPlugin()` calls `adapter.remove()` between `UNINSTALLING` and
+- [x] `deactivatePlugin()` calls `adapter.stop()` after transitioning to `DISABLED`
+- [x] `uninstallPlugin()` calls `adapter.remove()` between `UNINSTALLING` and
       `UNINSTALLED` transitions
-- [ ] `installPlugin()` calls `migrationService.runPluginMigrations(pluginId)` after
+- [x] `installPlugin()` calls `migrationService.runPluginMigrations(pluginId)` after
       the DB transaction; if any tenant migration fails, `lifecycleStatus` rolls back
       to `REGISTERED` and the error is thrown
-- [ ] `runLifecycleHook()` stub method is removed (or kept as empty private placeholder
+- [x] `runLifecycleHook()` stub method is removed (or kept as empty private placeholder
       clearly marked as deprecated)
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -592,10 +592,10 @@ it, and uninstalling removes it.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass with `NullContainerAdapter`
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass with `NullContainerAdapter`
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -644,15 +644,15 @@ as new v1 routes, without touching or removing the existing `plugin.ts` routes
 
 **Acceptance Criteria**:
 
-- [ ] New file `apps/core-api/src/routes/plugin-v1.ts` exports a Fastify plugin function
-- [ ] All 7 routes listed above are implemented with `requireSuperAdmin` guard
-- [ ] `listPlugins` supports query params `page`, `limit`, `status`, `lifecycleStatus`
-- [ ] `registerPlugin` validates body against `PluginManifestSchema` (existing Zod schema)
-- [ ] All handlers return HTTP 200 on success; errors return structured
+- [x] New file `apps/core-api/src/routes/plugin-v1.ts` exports a Fastify plugin function
+- [x] All 7 routes listed above are implemented with `requireSuperAdmin` guard
+- [x] `listPlugins` supports query params `page`, `limit`, `status`, `lifecycleStatus`
+- [x] `registerPlugin` validates body against `PluginManifestSchema` (existing Zod schema)
+- [x] All handlers return HTTP 200 on success; errors return structured
       `{ error: { code, message } }` response via Fastify's error handler
-- [ ] New routes registered in `apps/core-api/src/index.ts` under `/api/v1` prefix
-- [ ] Existing routes in `plugin.ts` are untouched
-- [ ] `pnpm build` passes
+- [x] New routes registered in `apps/core-api/src/index.ts` under `/api/v1` prefix
+- [x] Existing routes in `plugin.ts` are untouched
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -667,9 +667,9 @@ as new v1 routes, without touching or removing the existing `plugin.ts` routes
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -715,14 +715,14 @@ per-tenant configuration.
 
 **Acceptance Criteria**:
 
-- [ ] `tenant-plugins-v1.ts` exports a Fastify plugin function with all 4 routes
-- [ ] All routes use `requireTenantAccess` guard
-- [ ] `enableTenantPlugin` checks plugin `lifecycleStatus === 'ACTIVE'`, returns 409 if not
-- [ ] `disableTenantPlugin` sets `TenantPlugin.enabled = false`; data is preserved
-- [ ] `configTenantPlugin` validates body against manifest config schema; stores in
+- [x] `tenant-plugins-v1.ts` exports a Fastify plugin function with all 4 routes
+- [x] All routes use `requireTenantAccess` guard
+- [x] `enableTenantPlugin` checks plugin `lifecycleStatus === 'ACTIVE'`, returns 409 if not
+- [x] `disableTenantPlugin` sets `TenantPlugin.enabled = false`; data is preserved
+- [x] `configTenantPlugin` validates body against manifest config schema; stores in
       `TenantPlugin.configuration` JSONB column
-- [ ] Routes registered in `apps/core-api/src/index.ts` under `/api/v1`
-- [ ] `pnpm build` passes
+- [x] Routes registered in `apps/core-api/src/index.ts` under `/api/v1`
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -739,9 +739,9 @@ per-tenant configuration.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -782,12 +782,12 @@ knowing container addresses.
 
 **Acceptance Criteria**:
 
-- [ ] Three proxy routes added to `apps/core-api/src/routes/plugin-v1.ts`
-- [ ] All routes guarded with `requireSuperAdmin`
-- [ ] Health response is cached in Redis (TTL 10s); ready is not cached
-- [ ] Returns 503 when plugin is not `ACTIVE`
-- [ ] Returns 503 when container fetch times out or is unreachable
-- [ ] `pnpm build` passes
+- [x] Three proxy routes added to `apps/core-api/src/routes/plugin-v1.ts`
+- [x] All routes guarded with `requireSuperAdmin`
+- [x] Health response is cached in Redis (TTL 10s); ready is not cached
+- [x] Returns 503 when plugin is not `ACTIVE`
+- [x] Returns 503 when container fetch times out or is unreachable
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -800,9 +800,9 @@ knowing container addresses.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -853,15 +853,15 @@ before the container starts receiving traffic.
 
 **Acceptance Criteria**:
 
-- [ ] `PluginLifecycleService` accepts optional `topicManager?: TopicManager` constructor
+- [x] `PluginLifecycleService` accepts optional `topicManager?: TopicManager` constructor
       parameter
-- [ ] `activatePlugin()` calls `topicManager.createTopic()` for each event in
+- [x] `activatePlugin()` calls `topicManager.createTopic()` for each event in
       `manifest.events.publishes` and `manifest.events.subscribes` (using naming
       convention `plugin.${pluginId}.${eventName}`)
-- [ ] Topic creation failure is caught, logged at `warn` level, and does not abort
+- [x] Topic creation failure is caught, logged at `warn` level, and does not abort
       the enable operation (fail-open)
-- [ ] Topics are not deleted on `deactivatePlugin()` (data preservation)
-- [ ] `pnpm build` passes
+- [x] Topics are not deleted on `deactivatePlugin()` (data preservation)
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -877,10 +877,10 @@ before the container starts receiving traffic.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -919,19 +919,19 @@ modules (FR-011, ADR-011).
 
 **Acceptance Criteria**:
 
-- [ ] New Prisma migration adds `remote_entry_url TEXT` and `frontend_route_prefix TEXT`
+- [x] New Prisma migration adds `remote_entry_url TEXT` and `frontend_route_prefix TEXT`
       (both nullable) to `core.plugins`
-- [ ] `Plugin` model in `schema.prisma` has `remoteEntryUrl String? @map("remote_entry_url")`
+- [x] `Plugin` model in `schema.prisma` has `remoteEntryUrl String? @map("remote_entry_url")`
       and `frontendRoutePrefix String? @map("frontend_route_prefix")`
-- [ ] `ModuleFederationRegistryService` class created and exported from new file
-- [ ] `registerRemoteEntry()` updates the plugin record with URL and prefix
-- [ ] `getActiveRemoteEntries()` queries all `ACTIVE` (lifecycleStatus) plugins with
+- [x] `ModuleFederationRegistryService` class created and exported from new file
+- [x] `registerRemoteEntry()` updates the plugin record with URL and prefix
+- [x] `getActiveRemoteEntries()` queries all `ACTIVE` (lifecycleStatus) plugins with
       non-null `remoteEntryUrl`
-- [ ] `installPlugin()` in `PluginLifecycleService` calls `registerRemoteEntry()` when
+- [x] `installPlugin()` in `PluginLifecycleService` calls `registerRemoteEntry()` when
       manifest has a `frontend.remoteEntry` URL
-- [ ] `GET /api/v1/plugins/remotes` route added (no auth guard); returns array of
+- [x] `GET /api/v1/plugins/remotes` route added (no auth guard); returns array of
       remote entries
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -951,10 +951,10 @@ modules (FR-011, ADR-011).
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm db:generate` regenerates client with new fields
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm db:generate` regenerates client with new fields
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -991,11 +991,11 @@ plugin UI (FR-015).
 
 **Acceptance Criteria**:
 
-- [ ] `PluginLifecycleService` accepts optional `translationService?: TranslationService`
-- [ ] `activatePlugin()` calls translation loading for each namespace × locale combination
+- [x] `PluginLifecycleService` accepts optional `translationService?: TranslationService`
+- [x] `activatePlugin()` calls translation loading for each namespace × locale combination
       from `manifest.translations` when `translationService` is provided
-- [ ] Missing translation files are logged at `warn` level but do not abort enable
-- [ ] `pnpm build` passes
+- [x] Missing translation files are logged at `warn` level but do not abort enable
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -1010,10 +1010,10 @@ plugin UI (FR-015).
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -1051,14 +1051,14 @@ sprint.
 
 **Acceptance Criteria**:
 
-- [ ] `PluginLifecycleStatus` enum in `schema.prisma` matches ADR-018 state list exactly
-- [ ] `VALID_TRANSITIONS` map in `PluginLifecycleService` matches the state diagram in ADR-018
-- [ ] No lifecycle transition method modifies `Plugin.status` (marketplace column)
-- [ ] `ContainerAdapter` interface signature in `container-adapter.ts` matches ADR-019
-- [ ] `createContainerAdapter()` reads `CONTAINER_ADAPTER` env var per ADR-019
-- [ ] `NullContainerAdapter` is the default (no Docker required when `CONTAINER_ADAPTER` unset)
-- [ ] `plan.md` T004-15 row updated to note ADRs pre-completed; plan status updated to `In Progress`
-- [ ] Any discrepancies found are corrected with a comment referencing the ADR
+- [x] `PluginLifecycleStatus` enum in `schema.prisma` matches ADR-018 state list exactly
+- [x] `VALID_TRANSITIONS` map in `PluginLifecycleService` matches the state diagram in ADR-018
+- [x] No lifecycle transition method modifies `Plugin.status` (marketplace column)
+- [x] `ContainerAdapter` interface signature in `container-adapter.ts` matches ADR-019
+- [x] `createContainerAdapter()` reads `CONTAINER_ADAPTER` env var per ADR-019
+- [x] `NullContainerAdapter` is the default (no Docker required when `CONTAINER_ADAPTER` unset)
+- [x] `plan.md` T004-15 row updated to note ADRs pre-completed; plan status updated to `In Progress`
+- [x] Any discrepancies found are corrected with a comment referencing the ADR
 
 **Files to create/modify**:
 
@@ -1071,9 +1071,9 @@ sprint.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -1124,14 +1124,14 @@ wiring them to `EventClient` at runtime.
 
 **Acceptance Criteria**:
 
-- [ ] `packages/sdk/tsconfig.json` has `experimentalDecorators: true` and
+- [x] `packages/sdk/tsconfig.json` has `experimentalDecorators: true` and
       `emitDecoratorMetadata: true`
-- [ ] `@EventHandler(topic)` decorator stores topic metadata on the method via
+- [x] `@EventHandler(topic)` decorator stores topic metadata on the method via
       `Reflect.defineMetadata`
-- [ ] `@EventPublisher()` decorator stores a marker on the class
-- [ ] Both decorators exported from `packages/sdk/src/decorators/events.ts`
-- [ ] `packages/sdk/src/decorators/index.ts` re-exports all decorators
-- [ ] `pnpm build` passes in `packages/sdk`
+- [x] `@EventPublisher()` decorator stores a marker on the class
+- [x] Both decorators exported from `packages/sdk/src/decorators/events.ts`
+- [x] `packages/sdk/src/decorators/index.ts` re-exports all decorators
+- [x] `pnpm build` passes in `packages/sdk`
 
 **Files to create/modify**:
 
@@ -1147,10 +1147,10 @@ wiring them to `EventClient` at runtime.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass (`pnpm test` in `packages/sdk`)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass (`pnpm test` in `packages/sdk`)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -1181,11 +1181,11 @@ requires, which the platform reads at install time to register those permissions
 
 **Acceptance Criteria**:
 
-- [ ] `@Permission(key, name, description)` class decorator created
-- [ ] Multiple stacked `@Permission` decorators accumulate into an array (not overwrite)
-- [ ] Metadata stored with key `'plexica:permissions'` on the class target
-- [ ] Exported from `packages/sdk/src/decorators/permissions.ts`
-- [ ] `pnpm build` passes
+- [x] `@Permission(key, name, description)` class decorator created
+- [x] Multiple stacked `@Permission` decorators accumulate into an array (not overwrite)
+- [x] Metadata stored with key `'plexica:permissions'` on the class target
+- [x] Exported from `packages/sdk/src/decorators/permissions.ts`
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -1199,10 +1199,10 @@ requires, which the platform reads at install time to register those permissions
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -1235,11 +1235,11 @@ invokes at the appropriate workspace lifecycle events.
 
 **Acceptance Criteria**:
 
-- [ ] `WorkspaceHookType` type (`'before_create' | 'created' | 'before_delete' | 'deleted'`)
+- [x] `WorkspaceHookType` type (`'before_create' | 'created' | 'before_delete' | 'deleted'`)
       exported from the decorators file
-- [ ] `@Hook(type)` method decorator stores hook type metadata via `Reflect.defineMetadata`
-- [ ] Exported from `packages/sdk/src/decorators/hooks.ts`
-- [ ] `pnpm build` passes
+- [x] `@Hook(type)` method decorator stores hook type metadata via `Reflect.defineMetadata`
+- [x] Exported from `packages/sdk/src/decorators/hooks.ts`
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -1253,10 +1253,10 @@ invokes at the appropriate workspace lifecycle events.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Unit tests pass
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Unit tests pass
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -1295,13 +1295,13 @@ have a single reference for building plugins with `@plexica/sdk`.
 
 **Acceptance Criteria**:
 
-- [ ] `packages/sdk/src/index.ts` exports `EventHandler`, `EventPublisher`, `Permission`,
+- [x] `packages/sdk/src/index.ts` exports `EventHandler`, `EventPublisher`, `Permission`,
       `Hook`, `WorkspaceHookType` from `./decorators/index.js`
-- [ ] `packages/sdk/src/decorators/index.ts` exports all four decorators and
+- [x] `packages/sdk/src/decorators/index.ts` exports all four decorators and
       `WorkspaceHookType`
-- [ ] `docs/PLUGIN_SDK.md` created with all 9 sections listed above
-- [ ] All code examples in the guide are syntactically valid TypeScript
-- [ ] `pnpm build` passes in `packages/sdk`
+- [x] `docs/PLUGIN_SDK.md` created with all 9 sections listed above
+- [x] All code examples in the guide are syntactically valid TypeScript
+- [x] `pnpm build` passes in `packages/sdk`
 
 **Files to create/modify**:
 
@@ -1316,10 +1316,10 @@ have a single reference for building plugins with `@plexica/sdk`.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm build` passes in `packages/sdk` and `apps/core-api`
-- [ ] `pnpm lint` passes
-- [ ] Documentation review: all code examples compile
+- [x] All acceptance criteria checked
+- [x] `pnpm build` passes in `packages/sdk` and `apps/core-api`
+- [x] `pnpm lint` passes
+- [x] Documentation review: all code examples compile
 
 ---
 
@@ -1360,18 +1360,18 @@ happy paths, manifest validation rejections, dependency checks, and permission c
 
 **Acceptance Criteria**:
 
-- [ ] `registerPlugin()`: valid manifest → creates plugin record → returns `Plugin`
-- [ ] `registerPlugin()`: manifest with `id` not matching `[a-z0-9-]{1,64}` → throws
+- [x] `registerPlugin()`: valid manifest → creates plugin record → returns `Plugin`
+- [x] `registerPlugin()`: manifest with `id` not matching `[a-z0-9-]{1,64}` → throws
       `Invalid plugin manifest`
-- [ ] `registerPlugin()`: duplicate plugin ID → throws `already registered`
-- [ ] `registerPlugin()`: manifest with services → calls `ServiceRegistryService.registerService`
-- [ ] `registerPlugin()`: manifest with permissions conflict → registers permissions and
+- [x] `registerPlugin()`: duplicate plugin ID → throws `already registered`
+- [x] `registerPlugin()`: manifest with services → calls `ServiceRegistryService.registerService`
+- [x] `registerPlugin()`: manifest with permissions conflict → registers permissions and
       receives `PERMISSION_KEY_CONFLICT` → re-throws
-- [ ] `listPlugins()`: with `lifecycleStatus` filter → passes filter to `db.plugin.findMany`
-- [ ] `deletePlugin()`: plugin with active installations → throws
+- [x] `listPlugins()`: with `lifecycleStatus` filter → passes filter to `db.plugin.findMany`
+- [x] `deletePlugin()`: plugin with active installations → throws
       `Cannot delete plugin '${id}': it is installed in N tenant(s)`
-- [ ] Line coverage ≥85% for `PluginRegistryService` class
-- [ ] All tests pass (`pnpm test:unit`)
+- [x] Line coverage ≥85% for `PluginRegistryService` class
+- [x] All tests pass (`pnpm test:unit`)
 
 **Files to create/modify**:
 
@@ -1401,9 +1401,9 @@ describe('PluginRegistryService', () => {
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:unit` passes
-- [ ] Coverage report shows ≥85% for `PluginRegistryService`
+- [x] All acceptance criteria checked
+- [x] `pnpm test:unit` passes
+- [x] Coverage report shows ≥85% for `PluginRegistryService`
 
 ---
 
@@ -1431,16 +1431,16 @@ error rollback paths.
 
 **Acceptance Criteria**:
 
-- [ ] State machine: REGISTERED→INSTALLING→INSTALLED transitions succeed
-- [ ] State machine: REGISTERED→ACTIVE directly throws transition error
-- [ ] `installPlugin()`: migration failure resets `lifecycleStatus` to REGISTERED
-- [ ] `activatePlugin()`: health-check timeout (mock `NullContainerAdapter.health` to
+- [x] State machine: REGISTERED→INSTALLING→INSTALLED transitions succeed
+- [x] State machine: REGISTERED→ACTIVE directly throws transition error
+- [x] `installPlugin()`: migration failure resets `lifecycleStatus` to REGISTERED
+- [x] `activatePlugin()`: health-check timeout (mock `NullContainerAdapter.health` to
       return `'starting'` always) → `lifecycleStatus` reset to INSTALLED, error thrown
-- [ ] `activatePlugin()`: creates Redpanda topics (mock `TopicManager.createTopic()`)
-- [ ] `deactivatePlugin()`: calls `adapter.stop()`; preserves `TenantPlugin` data
-- [ ] `uninstallPlugin()`: calls `adapter.remove()`; progresses through UNINSTALLING→UNINSTALLED
-- [ ] Line coverage ≥85% for `PluginLifecycleService` class
-- [ ] All tests pass
+- [x] `activatePlugin()`: creates Redpanda topics (mock `TopicManager.createTopic()`)
+- [x] `deactivatePlugin()`: calls `adapter.stop()`; preserves `TenantPlugin` data
+- [x] `uninstallPlugin()`: calls `adapter.remove()`; progresses through UNINSTALLING→UNINSTALLED
+- [x] Line coverage ≥85% for `PluginLifecycleService` class
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1477,9 +1477,9 @@ describe('PluginLifecycleService', () => {
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:unit` passes
-- [ ] Coverage ≥85% for `PluginLifecycleService`
+- [x] All acceptance criteria checked
+- [x] `pnpm test:unit` passes
+- [x] Coverage ≥85% for `PluginLifecycleService`
 
 ---
 
@@ -1506,15 +1506,15 @@ and rollback on failure.
 
 **Acceptance Criteria**:
 
-- [ ] `runPluginMigrations()`: runs migrations for all active tenants
-- [ ] `runPluginMigrations()`: one tenant failure does not affect other tenants
-- [ ] `runPluginMigrations()`: returns `MigrationResult[]` with per-tenant status
-- [ ] `runPluginMigrations()`: idempotent — skips already-applied migrations
-- [ ] `runPluginMigrations()`: DDL-only validation rejects SQL containing `SELECT`
-- [ ] `runPluginMigrations()`: DDL-only validation rejects SQL containing `INSERT`
-- [ ] `runPluginMigrations()`: `SET search_path` called per tenant before migration SQL
-- [ ] Line coverage ≥85% for `TenantMigrationService`
-- [ ] All tests pass
+- [x] `runPluginMigrations()`: runs migrations for all active tenants
+- [x] `runPluginMigrations()`: one tenant failure does not affect other tenants
+- [x] `runPluginMigrations()`: returns `MigrationResult[]` with per-tenant status
+- [x] `runPluginMigrations()`: idempotent — skips already-applied migrations
+- [x] `runPluginMigrations()`: DDL-only validation rejects SQL containing `SELECT`
+- [x] `runPluginMigrations()`: DDL-only validation rejects SQL containing `INSERT`
+- [x] `runPluginMigrations()`: `SET search_path` called per tenant before migration SQL
+- [x] Line coverage ≥85% for `TenantMigrationService`
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1538,9 +1538,9 @@ describe('TenantMigrationService', () => {
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:unit` passes
-- [ ] Coverage ≥85% for `TenantMigrationService`
+- [x] All acceptance criteria checked
+- [x] `pnpm test:unit` passes
+- [x] Coverage ≥85% for `TenantMigrationService`
 
 ---
 
@@ -1567,23 +1567,23 @@ coverage on each new file.
 
 **Acceptance Criteria**:
 
-- [ ] `NullContainerAdapter`: all four methods resolve; `health()` returns `'healthy'`
-- [ ] `DockerContainerAdapter.start()`: calls `pullImage`, `createContainer`,
+- [x] `NullContainerAdapter`: all four methods resolve; `health()` returns `'healthy'`
+- [x] `DockerContainerAdapter.start()`: calls `pullImage`, `createContainer`,
       `container.start()` with correct config (mock dockerode)
-- [ ] `DockerContainerAdapter.start()`: passes memory and CPU resource limits to
+- [x] `DockerContainerAdapter.start()`: passes memory and CPU resource limits to
       `HostConfig`
-- [ ] `DockerContainerAdapter.health()`: maps Docker `'healthy'` state correctly
-- [ ] `DockerContainerAdapter.stop()`: does not throw when container is not running
-- [ ] `ModuleFederationRegistryService.registerRemoteEntry()`: updates Prisma with
+- [x] `DockerContainerAdapter.health()`: maps Docker `'healthy'` state correctly
+- [x] `DockerContainerAdapter.stop()`: does not throw when container is not running
+- [x] `ModuleFederationRegistryService.registerRemoteEntry()`: updates Prisma with
       correct URL and prefix
-- [ ] `ModuleFederationRegistryService.getActiveRemoteEntries()`: filters to `ACTIVE`
+- [x] `ModuleFederationRegistryService.getActiveRemoteEntries()`: filters to `ACTIVE`
       plugins only
-- [ ] `@EventHandler('topic')`: metadata retrievable via `Reflect.getMetadata`
-- [ ] `@EventPublisher()`: class-level metadata set
-- [ ] `@Permission(key, name, desc)`: stacked decorators accumulate into array
-- [ ] `@Hook('before_create')`: metadata retrievable via `Reflect.getMetadata`
-- [ ] Coverage ≥80% per file
-- [ ] All tests pass
+- [x] `@EventHandler('topic')`: metadata retrievable via `Reflect.getMetadata`
+- [x] `@EventPublisher()`: class-level metadata set
+- [x] `@Permission(key, name, desc)`: stacked decorators accumulate into array
+- [x] `@Hook('before_create')`: metadata retrievable via `Reflect.getMetadata`
+- [x] Coverage ≥80% per file
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1592,9 +1592,9 @@ coverage on each new file.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:unit` passes in both `apps/core-api` and `packages/sdk`
-- [ ] Coverage ≥80% for each target file
+- [x] All acceptance criteria checked
+- [x] `pnpm test:unit` passes in both `apps/core-api` and `packages/sdk`
+- [x] Coverage ≥80% for each target file
 
 ---
 
@@ -1636,21 +1636,21 @@ disable, uninstall, remotes) against a real test database using `buildTestApp()`
 
 **Acceptance Criteria**:
 
-- [ ] `POST /api/v1/plugins` (register) with valid manifest → 200 + plugin record
-- [ ] `POST /api/v1/plugins` without auth → 401
-- [ ] `POST /api/v1/plugins` with tenant admin token → 403
-- [ ] `POST /api/v1/plugins/:id/install` → 200; plugin `lifecycleStatus` becomes `INSTALLED`
-- [ ] `POST /api/v1/plugins/:id/enable` → 200; plugin `lifecycleStatus` becomes `ACTIVE`
-- [ ] `POST /api/v1/plugins/:id/disable` → 200; plugin `lifecycleStatus` becomes `DISABLED`
-- [ ] `DELETE /api/v1/plugins/:id` → 200; plugin `lifecycleStatus` becomes `UNINSTALLED`
-- [ ] `POST /api/v1/plugins/unknown-plugin/install` → 404
-- [ ] `POST /api/v1/plugins/:id/install` when already INSTALLING → 409 (invalid transition)
-- [ ] `GET /api/v1/plugins/remotes` (no auth) → 200 with array
-- [ ] After install with `manifest.frontend.remoteEntry` set, URL appears in remotes list
-- [ ] Plugin permissions registered in RBAC (query `permissionRegistrationService`)
-- [ ] Second plugin with conflicting permission key → install returns error with
+- [x] `POST /api/v1/plugins` (register) with valid manifest → 200 + plugin record
+- [x] `POST /api/v1/plugins` without auth → 401
+- [x] `POST /api/v1/plugins` with tenant admin token → 403
+- [x] `POST /api/v1/plugins/:id/install` → 200; plugin `lifecycleStatus` becomes `INSTALLED`
+- [x] `POST /api/v1/plugins/:id/enable` → 200; plugin `lifecycleStatus` becomes `ACTIVE`
+- [x] `POST /api/v1/plugins/:id/disable` → 200; plugin `lifecycleStatus` becomes `DISABLED`
+- [x] `DELETE /api/v1/plugins/:id` → 200; plugin `lifecycleStatus` becomes `UNINSTALLED`
+- [x] `POST /api/v1/plugins/unknown-plugin/install` → 404
+- [x] `POST /api/v1/plugins/:id/install` when already INSTALLING → 409 (invalid transition)
+- [x] `GET /api/v1/plugins/remotes` (no auth) → 200 with array
+- [x] After install with `manifest.frontend.remoteEntry` set, URL appears in remotes list
+- [x] Plugin permissions registered in RBAC (query `permissionRegistrationService`)
+- [x] Second plugin with conflicting permission key → install returns error with
       `PERMISSION_KEY_CONFLICT`
-- [ ] All tests pass
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1659,9 +1659,9 @@ disable, uninstall, remotes) against a real test database using `buildTestApp()`
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:integration` passes
-- [ ] Coverage on `plugin-v1.ts` ≥80%
+- [x] All acceptance criteria checked
+- [x] `pnpm test:integration` passes
+- [x] Coverage on `plugin-v1.ts` ≥80%
 
 ---
 
@@ -1689,18 +1689,18 @@ isolation and the 409 guard when a plugin is not globally `ACTIVE`.
 
 **Acceptance Criteria**:
 
-- [ ] `GET /api/v1/tenant/plugins` → 200; returns list of plugins for the tenant
-- [ ] `POST /api/v1/tenant/plugins/:id/enable` (plugin is globally ACTIVE) → 200;
+- [x] `GET /api/v1/tenant/plugins` → 200; returns list of plugins for the tenant
+- [x] `POST /api/v1/tenant/plugins/:id/enable` (plugin is globally ACTIVE) → 200;
       `TenantPlugin.enabled = true`
-- [ ] `POST /api/v1/tenant/plugins/:id/enable` (plugin is globally INSTALLED, not ACTIVE) →
+- [x] `POST /api/v1/tenant/plugins/:id/enable` (plugin is globally INSTALLED, not ACTIVE) →
       409 with `PLUGIN_NOT_GLOBALLY_ACTIVE`
-- [ ] `POST /api/v1/tenant/plugins/:id/disable` → 200; `TenantPlugin.enabled = false`;
+- [x] `POST /api/v1/tenant/plugins/:id/disable` → 200; `TenantPlugin.enabled = false`;
       data preserved in `TenantPlugin.configuration`
-- [ ] `PUT /api/v1/tenant/plugins/:id/config` with valid config → 200; config stored
-- [ ] `PUT /api/v1/tenant/plugins/:id/config` with invalid config (fails manifest schema) →
+- [x] `PUT /api/v1/tenant/plugins/:id/config` with valid config → 200; config stored
+- [x] `PUT /api/v1/tenant/plugins/:id/config` with invalid config (fails manifest schema) →
       400
-- [ ] Tenant A cannot enable/disable plugins for Tenant B (tenant isolation)
-- [ ] All tests pass
+- [x] Tenant A cannot enable/disable plugins for Tenant B (tenant isolation)
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1708,9 +1708,9 @@ isolation and the 409 guard when a plugin is not globally `ACTIVE`.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:integration` passes
-- [ ] Coverage on `tenant-plugins-v1.ts` ≥80%
+- [x] All acceptance criteria checked
+- [x] `pnpm test:integration` passes
+- [x] Coverage on `tenant-plugins-v1.ts` ≥80%
 
 ---
 
@@ -1745,16 +1745,16 @@ and reads tenant plugin list, verifying the full flow works together.
 
 **Acceptance Criteria**:
 
-- [ ] Full lifecycle from register to ACTIVE completes without error
-- [ ] After super-admin enable, `GET /api/v1/plugins` shows `lifecycleStatus: 'ACTIVE'`
-- [ ] After tenant enable, `GET /api/v1/tenant/plugins` includes the plugin with
+- [x] Full lifecycle from register to ACTIVE completes without error
+- [x] After super-admin enable, `GET /api/v1/plugins` shows `lifecycleStatus: 'ACTIVE'`
+- [x] After tenant enable, `GET /api/v1/tenant/plugins` includes the plugin with
       `enabled: true`
-- [ ] `GET /api/v1/plugins/:id/health` returns 503 (no real container — expected)
-- [ ] Disabling at tenant level → plugin still `ACTIVE` globally
-- [ ] Super-admin disable → plugin `DISABLED`; tenant list still shows plugin but
+- [x] `GET /api/v1/plugins/:id/health` returns 503 (no real container — expected)
+- [x] Disabling at tenant level → plugin still `ACTIVE` globally
+- [x] Super-admin disable → plugin `DISABLED`; tenant list still shows plugin but
       `enabled: false`
-- [ ] Super-admin uninstall → plugin `UNINSTALLED`; tenant list returns empty
-- [ ] All tests pass
+- [x] Super-admin uninstall → plugin `UNINSTALLED`; tenant list returns empty
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1762,9 +1762,9 @@ and reads tenant plugin list, verifying the full flow works together.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:e2e` passes
-- [ ] Test runtime < 30s total for this file
+- [x] All acceptance criteria checked
+- [x] `pnpm test:e2e` passes
+- [x] Test runtime < 30s total for this file
 
 ---
 
@@ -1807,17 +1807,17 @@ propagation on all plugin-to-plugin requests (FR-010, NFR-005).
 
 **Acceptance Criteria**:
 
-- [ ] Unit test: `DockerContainerAdapter.start()` sets `HostConfig.NetworkMode = 'plexica-plugins'`
-- [ ] Unit test: `DockerContainerAdapter.start()` does NOT set `NetworkMode: 'host'`
-- [ ] Unit test: `PluginHookService.invokeHook()` rejects hook URL that doesn't match
+- [x] Unit test: `DockerContainerAdapter.start()` sets `HostConfig.NetworkMode = 'plexica-plugins'`
+- [x] Unit test: `DockerContainerAdapter.start()` does NOT set `NetworkMode: 'host'`
+- [x] Unit test: `PluginHookService.invokeHook()` rejects hook URL that doesn't match
       `manifest.api.basePath` origin
-- [ ] Unit test: `PluginHookService.invokeHook()` rejects internal service URLs
+- [x] Unit test: `PluginHookService.invokeHook()` rejects internal service URLs
       (e.g., `http://localhost:5432`, `http://127.0.0.1`)
-- [ ] Unit test: `PluginApiGatewayService` outbound requests include `X-Tenant-ID`,
+- [x] Unit test: `PluginApiGatewayService` outbound requests include `X-Tenant-ID`,
       `X-User-ID`, `X-Trace-ID`
-- [ ] Integration test: request to `/api/v1/plugins/:id/enable` without `X-Tenant-ID`
+- [x] Integration test: request to `/api/v1/plugins/:id/enable` without `X-Tenant-ID`
       in a context where it's required returns 400
-- [ ] All tests pass
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -1830,9 +1830,9 @@ propagation on all plugin-to-plugin requests (FR-010, NFR-005).
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] `pnpm test:unit` and `pnpm test:integration` pass
-- [ ] No new security regressions introduced
+- [x] All acceptance criteria checked
+- [x] `pnpm test:unit` and `pnpm test:integration` pass
+- [x] No new security regressions introduced
 
 ---
 
@@ -1898,36 +1898,36 @@ Preserve existing Marketplace and Review Queue tabs.
 
 **Acceptance Criteria**:
 
-- [ ] Registry tab added as the primary (first/default) tab alongside Marketplace and
+- [x] Registry tab added as the primary (first/default) tab alongside Marketplace and
       Review Queue
-- [ ] Registry tab fetches plugins from `GET /api/v1/plugins` with `lifecycleStatus` and
+- [x] Registry tab fetches plugins from `GET /api/v1/plugins` with `lifecycleStatus` and
       `status` query params
-- [ ] Each plugin card displays lifecycle status badge using the ADR-018 badge mapping
+- [x] Each plugin card displays lifecycle status badge using the ADR-018 badge mapping
       (correct variant, color token, and icon per status)
-- [ ] Search input with `aria-label="Search plugins by name or description"` debounces
+- [x] Search input with `aria-label="Search plugins by name or description"` debounces
       input by 300ms before triggering API call
-- [ ] Status filter dropdown (`aria-label="Filter by lifecycle status"`) allows filtering
+- [x] Status filter dropdown (`aria-label="Filter by lifecycle status"`) allows filtering
       by any `PluginLifecycleStatus` value
-- [ ] Clear filters button resets search and status filter to defaults
-- [ ] Stat summary bar below filters shows counts per lifecycle status, uses
+- [x] Clear filters button resets search and status filter to defaults
+- [x] Stat summary bar below filters shows counts per lifecycle status, uses
       `aria-live="polite"` to announce changes to screen readers
-- [ ] Responsive grid: 3 columns at ≥1440px, 2 columns at ≥768px, 1 column below 768px
-- [ ] Plugin cards use `role="article"` with
+- [x] Responsive grid: 3 columns at ≥1440px, 2 columns at ≥768px, 1 column below 768px
+- [x] Plugin cards use `role="article"` with
       `aria-label="[Plugin name], version [version], status [status]"`
-- [ ] Tab list uses `role="tablist"` with `role="tab"` and `aria-selected` per tab;
+- [x] Tab list uses `role="tablist"` with `role="tab"` and `aria-selected` per tab;
       tab panels use `role="tabpanel"` with `aria-labelledby`
-- [ ] Loading state shows 6 `CardSkeleton` placeholders
-- [ ] Error state shows `Alert` (destructive) with retry button above grid
-- [ ] Empty (no data) state shows `EmptyState` with puzzle icon and "Register your first
+- [x] Loading state shows 6 `CardSkeleton` placeholders
+- [x] Error state shows `Alert` (destructive) with retry button above grid
+- [x] Empty (no data) state shows `EmptyState` with puzzle icon and "Register your first
       plugin to extend the platform." CTA
-- [ ] Empty (filtered) state shows `EmptyState` with search icon, "No plugins found",
+- [x] Empty (filtered) state shows `EmptyState` with search icon, "No plugins found",
       and "Clear filters" link
-- [ ] Action buttons are contextual: REGISTERED→[Install][View], INSTALLED→[Enable][View],
+- [x] Action buttons are contextual: REGISTERED→[Install][View], INSTALLED→[Enable][View],
       ACTIVE→[View][⋮ Disable/Update/Uninstall], DISABLED→[View][⋮ Enable/Uninstall]
-- [ ] Actions dropdown uses `aria-haspopup="menu"` and `aria-expanded`
-- [ ] Keyboard navigation: Tab between elements, Enter/Space to activate, Escape to close
+- [x] Actions dropdown uses `aria-haspopup="menu"` and `aria-expanded`
+- [x] Keyboard navigation: Tab between elements, Enter/Space to activate, Escape to close
       dropdowns, Arrow keys within tablist and dropdown
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -1947,10 +1947,10 @@ Preserve existing Marketplace and Review Queue tabs.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Visual review matches `design-spec.md` Screen 1 wireframe
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Visual review matches `design-spec.md` Screen 1 wireframe
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -2077,27 +2077,27 @@ action's impact, warnings, and safety guards as specified in `design-spec.md` Sc
 
 **Acceptance Criteria**:
 
-- [ ] `EnablePluginDialog` renders permissions list, event count, tenant impact text;
+- [x] `EnablePluginDialog` renders permissions list, event count, tenant impact text;
       calls `POST /api/v1/plugins/:id/enable` on confirm
-- [ ] `DisablePluginDialog` renders impact warning with tenant count (fetched from
+- [x] `DisablePluginDialog` renders impact warning with tenant count (fetched from
       plugin detail), data preservation note; calls `POST /api/v1/plugins/:id/disable`
       on confirm; uses destructive button variant
-- [ ] `UpdatePluginDialog` renders version change diff, changelog, breaking changes
+- [x] `UpdatePluginDialog` renders version change diff, changelog, breaking changes
       alert; requires name confirmation input when `breaking === true`; calls
       `POST /api/v1/plugins/:id/update` on confirm
-- [ ] `UninstallPluginDialog` renders tenant count warning, "Delete all plugin data"
+- [x] `UninstallPluginDialog` renders tenant count warning, "Delete all plugin data"
       checkbox, name confirmation input (must match `plugin.name` exactly to enable
       button); calls `DELETE /api/v1/plugins/:id` on confirm
-- [ ] `UninstallPluginDialog` blocked state: when `activeTenantCount > 0`, action button
+- [x] `UninstallPluginDialog` blocked state: when `activeTenantCount > 0`, action button
       is disabled with tooltip "Disable in all tenants first"
-- [ ] All dialogs use focus trap (existing `ConfirmDialog` behavior)
-- [ ] All dialogs close on Escape key (existing `ConfirmDialog` behavior)
-- [ ] Name confirmation inputs have `aria-describedby` linking to instruction text
+- [x] All dialogs use focus trap (existing `ConfirmDialog` behavior)
+- [x] All dialogs close on Escape key (existing `ConfirmDialog` behavior)
+- [x] Name confirmation inputs have `aria-describedby` linking to instruction text
       ("Type the plugin name to confirm")
-- [ ] All destructive actions use `variant="destructive"` button styling
-- [ ] ARIA: dialog uses `role="alertdialog"` with `aria-labelledby` (title) and
+- [x] All destructive actions use `variant="destructive"` button styling
+- [x] ARIA: dialog uses `role="alertdialog"` with `aria-labelledby` (title) and
       `aria-describedby` (description)
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -2113,10 +2113,10 @@ action's impact, warnings, and safety guards as specified in `design-spec.md` Sc
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Visual review matches `design-spec.md` Screen 3 wireframes (3a–3d)
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Visual review matches `design-spec.md` Screen 3 wireframes (3a–3d)
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -2157,27 +2157,27 @@ Screen 4.
 
 **Acceptance Criteria**:
 
-- [ ] `PluginDetailModal` renders as a large modal (max-width 800px) with plugin name
+- [x] `PluginDetailModal` renders as a large modal (max-width 800px) with plugin name
       and lifecycle status badge in the header
-- [ ] Lifecycle timeline renders vertically with timestamps and state transition labels;
+- [x] Lifecycle timeline renders vertically with timestamps and state transition labels;
       most recent at top
-- [ ] Tab list with 4 tabs: Overview, Health, Permissions, Events
-- [ ] Tab list uses ARIA tablist pattern: `role="tablist"`, each tab `role="tab"` with
+- [x] Tab list with 4 tabs: Overview, Health, Permissions, Events
+- [x] Tab list uses ARIA tablist pattern: `role="tablist"`, each tab `role="tab"` with
       `aria-selected` and `aria-controls`, each panel `role="tabpanel"` with
       `aria-labelledby`
-- [ ] Overview tab displays manifest fields, dependency list, runtime config
-- [ ] Health tab polls `GET /api/v1/plugins/:id/health` every 10s; displays health
+- [x] Overview tab displays manifest fields, dependency list, runtime config
+- [x] Health tab polls `GET /api/v1/plugins/:id/health` every 10s; displays health
       status badge (healthy/unhealthy/starting), resource usage bars for CPU and memory
-- [ ] Resource usage bars use `Progress` component with color thresholds: green ≤70%,
+- [x] Resource usage bars use `Progress` component with color thresholds: green ≤70%,
       yellow 70–90%, red >90%
-- [ ] Permissions tab lists all registered permissions with key, name, description
-- [ ] Events tab lists published and subscribed topics with last activity timestamp
-- [ ] Tenant adoption list shows tenants with plugin enabled, sortable by tenant name
-- [ ] Keyboard: Tab/Shift-Tab to navigate, Arrow keys to switch tabs, Escape to close
+- [x] Permissions tab lists all registered permissions with key, name, description
+- [x] Events tab lists published and subscribed topics with last activity timestamp
+- [x] Tenant adoption list shows tenants with plugin enabled, sortable by tenant name
+- [x] Keyboard: Tab/Shift-Tab to navigate, Arrow keys to switch tabs, Escape to close
       modal
-- [ ] Screen reader: tab content announced on switch, health status updates announced
+- [x] Screen reader: tab content announced on switch, health status updates announced
       via `aria-live="polite"` region
-- [ ] `pnpm build` passes
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -2197,10 +2197,10 @@ Screen 4.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Visual review matches `design-spec.md` Screen 4 wireframe
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Visual review matches `design-spec.md` Screen 4 wireframe
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -2247,26 +2247,26 @@ plugin settings via auto-generated forms from the manifest JSON Schema, as speci
 
 **Acceptance Criteria**:
 
-- [ ] `ExtensionsPage` route created at `apps/web/src/routes/extensions.tsx`
-- [ ] Page fetches tenant plugins from `GET /api/v1/tenant/plugins`
-- [ ] Each plugin card shows name, version, description, and enable/disable toggle
+- [x] `ExtensionsPage` route created at `apps/web/src/routes/extensions.tsx`
+- [x] Page fetches tenant plugins from `GET /api/v1/tenant/plugins`
+- [x] Each plugin card shows name, version, description, and enable/disable toggle
       (`Switch` from `@plexica/ui`)
-- [ ] Toggle calls `POST /api/v1/tenant/plugins/:id/enable` or `.../disable`
+- [x] Toggle calls `POST /api/v1/tenant/plugins/:id/enable` or `.../disable`
       based on current state
-- [ ] When plugin is enabled, "Configure" button appears; clicking opens
+- [x] When plugin is enabled, "Configure" button appears; clicking opens
       `PluginConfigForm` component
-- [ ] `PluginConfigForm` auto-generates form fields from `manifest.configuration.schema`
+- [x] `PluginConfigForm` auto-generates form fields from `manifest.configuration.schema`
       (JSON Schema → React form mapping as described)
-- [ ] Config form validates input against JSON Schema on submit; shows field-level
+- [x] Config form validates input against JSON Schema on submit; shows field-level
       errors for invalid values
-- [ ] Config form submits via `PUT /api/v1/tenant/plugins/:id/config`
-- [ ] RBAC guard: if user is not a tenant admin, renders 403 page with
+- [x] Config form submits via `PUT /api/v1/tenant/plugins/:id/config`
+- [x] RBAC guard: if user is not a tenant admin, renders 403 page with
       "You don't have permission to manage extensions" and "Go to Dashboard" link
-- [ ] Loading state: shows skeleton cards
-- [ ] Error state: shows Alert with retry
-- [ ] Empty state: "No extensions available. Contact your platform administrator."
-- [ ] All form fields have associated labels (`<label htmlFor>` or `aria-label`)
-- [ ] `pnpm build` passes
+- [x] Loading state: shows skeleton cards
+- [x] Error state: shows Alert with retry
+- [x] Empty state: "No extensions available. Contact your platform administrator."
+- [x] All form fields have associated labels (`<label htmlFor>` or `aria-label`)
+- [x] `pnpm build` passes
 
 **Files to create/modify**:
 
@@ -2285,10 +2285,10 @@ plugin settings via auto-generated forms from the manifest JSON Schema, as speci
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] Visual review matches `design-spec.md` Screen 5 wireframe
-- [ ] `pnpm build` passes
-- [ ] `pnpm lint` passes
+- [x] All acceptance criteria checked
+- [x] Visual review matches `design-spec.md` Screen 5 wireframe
+- [x] `pnpm build` passes
+- [x] `pnpm lint` passes
 
 ---
 
@@ -2426,28 +2426,28 @@ WCAG 2.1 AA accessibility audit.
 
 **Acceptance Criteria**:
 
-- [ ] **EnablePluginDialog**: renders permissions list, event count; confirm calls enable
+- [x] **EnablePluginDialog**: renders permissions list, event count; confirm calls enable
       API; cancel closes dialog
-- [ ] **DisablePluginDialog**: renders impact warning with tenant count; confirm calls
+- [x] **DisablePluginDialog**: renders impact warning with tenant count; confirm calls
       disable API with destructive button; cancel closes dialog
-- [ ] **UpdatePluginDialog**: renders version diff; when `breaking === true`, Confirm
+- [x] **UpdatePluginDialog**: renders version diff; when `breaking === true`, Confirm
       button disabled until plugin name is typed correctly in confirmation input
-- [ ] **UninstallPluginDialog**: renders tenant count warning; Uninstall button disabled
+- [x] **UninstallPluginDialog**: renders tenant count warning; Uninstall button disabled
       until plugin name typed correctly; "Delete all plugin data" checkbox state is passed
       to API call
-- [ ] **UninstallPluginDialog blocked state**: when `activeTenantCount > 0`, action
+- [x] **UninstallPluginDialog blocked state**: when `activeTenantCount > 0`, action
       button is disabled with "Disable in all tenants first" tooltip
-- [ ] Focus trap: focus is trapped within dialog (Tab cycles within dialog, not to
+- [x] Focus trap: focus is trapped within dialog (Tab cycles within dialog, not to
       background content)
-- [ ] Focus management: on open, focus moves to first interactive element; on close,
+- [x] Focus management: on open, focus moves to first interactive element; on close,
       focus returns to trigger element
-- [ ] Escape: pressing Escape closes dialog
-- [ ] Name confirmation inputs: `aria-describedby` links to instruction text
-- [ ] All destructive buttons use `variant="destructive"` (verify CSS class or data attr)
-- [ ] ARIA: dialogs use `role="alertdialog"` with `aria-labelledby` and `aria-describedby`
-- [ ] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level for each
+- [x] Escape: pressing Escape closes dialog
+- [x] Name confirmation inputs: `aria-describedby` links to instruction text
+- [x] All destructive buttons use `variant="destructive"` (verify CSS class or data attr)
+- [x] ARIA: dialogs use `role="alertdialog"` with `aria-labelledby` and `aria-describedby`
+- [x] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level for each
       dialog
-- [ ] All tests pass
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -2456,9 +2456,9 @@ WCAG 2.1 AA accessibility audit.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] All tests pass
-- [ ] axe audit passes with 0 violations for all four dialogs
+- [x] All acceptance criteria checked
+- [x] All tests pass
+- [x] axe audit passes with 0 violations for all four dialogs
 
 ---
 
@@ -2478,29 +2478,29 @@ adoption list, ARIA tablist pattern, and WCAG 2.1 AA accessibility audit.
 
 **Acceptance Criteria**:
 
-- [ ] Tab switching: clicking each tab (Overview, Health, Permissions, Events) shows
+- [x] Tab switching: clicking each tab (Overview, Health, Permissions, Events) shows
       the correct panel content and hides others
-- [ ] Tab switching: keyboard Arrow keys navigate between tabs; Enter/Space activates
-- [ ] Overview tab: renders manifest details (name, version, description, author,
+- [x] Tab switching: keyboard Arrow keys navigate between tabs; Enter/Space activates
+- [x] Overview tab: renders manifest details (name, version, description, author,
       license, category), dependency list, runtime config
-- [ ] Health tab: polls `GET /api/v1/plugins/:id/health` every 10s (verify with fake
+- [x] Health tab: polls `GET /api/v1/plugins/:id/health` every 10s (verify with fake
       timers that the fetch is called at 10s intervals)
-- [ ] Health tab: displays health status badge (healthy → green, unhealthy → red,
+- [x] Health tab: displays health status badge (healthy → green, unhealthy → red,
       starting → yellow)
-- [ ] Health tab: resource usage bars show correct fill percentage; color changes at
+- [x] Health tab: resource usage bars show correct fill percentage; color changes at
       70% (yellow) and 90% (red) thresholds
-- [ ] Permissions tab: renders all permission entries with key, name, description
-- [ ] Events tab: renders published and subscribed topic lists with last activity
-- [ ] Lifecycle timeline: renders state transitions in reverse chronological order with
+- [x] Permissions tab: renders all permission entries with key, name, description
+- [x] Events tab: renders published and subscribed topic lists with last activity
+- [x] Lifecycle timeline: renders state transitions in reverse chronological order with
       correct timestamps
-- [ ] Tenant adoption list: renders tenant names, enabled dates; sortable by name
-- [ ] ARIA: tab list has `role="tablist"`, each tab `role="tab"` with
+- [x] Tenant adoption list: renders tenant names, enabled dates; sortable by name
+- [x] ARIA: tab list has `role="tablist"`, each tab `role="tab"` with
       `aria-selected="true"` on active tab, `aria-controls` pointing to panel ID
-- [ ] ARIA: tab panels have `role="tabpanel"` with `aria-labelledby` pointing to tab ID
-- [ ] ARIA: health status updates use `aria-live="polite"` region
-- [ ] Modal close: Escape key closes modal; focus returns to trigger
-- [ ] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
-- [ ] All tests pass
+- [x] ARIA: tab panels have `role="tabpanel"` with `aria-labelledby` pointing to tab ID
+- [x] ARIA: health status updates use `aria-live="polite"` region
+- [x] Modal close: Escape key closes modal; focus returns to trigger
+- [x] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -2508,9 +2508,9 @@ adoption list, ARIA tablist pattern, and WCAG 2.1 AA accessibility audit.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] All tests pass
-- [ ] axe audit passes with 0 violations
+- [x] All acceptance criteria checked
+- [x] All tests pass
+- [x] axe audit passes with 0 violations
 
 ---
 
@@ -2530,29 +2530,29 @@ error/empty states, and WCAG 2.1 AA accessibility audit.
 
 **Acceptance Criteria**:
 
-- [ ] Toggle on: clicking Switch calls `POST /api/v1/tenant/plugins/:id/enable`;
+- [x] Toggle on: clicking Switch calls `POST /api/v1/tenant/plugins/:id/enable`;
       on success, Configure button appears
-- [ ] Toggle off: clicking Switch calls `POST /api/v1/tenant/plugins/:id/disable`;
+- [x] Toggle off: clicking Switch calls `POST /api/v1/tenant/plugins/:id/disable`;
       on success, Configure button disappears
-- [ ] Config form: auto-generates correct field types from JSON Schema
+- [x] Config form: auto-generates correct field types from JSON Schema
       (`string` → Input, `number` → Input[type=number], `boolean` → Switch,
       `enum` → Select)
-- [ ] Config form: `title` from schema renders as field label; `description` renders
+- [x] Config form: `title` from schema renders as field label; `description` renders
       as help text
-- [ ] Config form validation: required fields show error when empty on submit
-- [ ] Config form validation: type-specific validation (e.g., number field rejects
+- [x] Config form validation: required fields show error when empty on submit
+- [x] Config form validation: type-specific validation (e.g., number field rejects
       non-numeric input)
-- [ ] Config form submit: sends validated data to
+- [x] Config form submit: sends validated data to
       `PUT /api/v1/tenant/plugins/:id/config`; shows success toast
-- [ ] Config form error: API error shows Alert with error message
-- [ ] 403 guard: when user lacks tenant admin role, page renders "You don't have
+- [x] Config form error: API error shows Alert with error message
+- [x] 403 guard: when user lacks tenant admin role, page renders "You don't have
       permission to manage extensions" message with "Go to Dashboard" link
-- [ ] Loading state: renders skeleton cards
-- [ ] Error state: renders Alert with retry button
-- [ ] Empty state: renders "No extensions available. Contact your platform administrator."
-- [ ] All form fields have associated labels (`htmlFor` or `aria-label`)
-- [ ] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
-- [ ] All tests pass
+- [x] Loading state: renders skeleton cards
+- [x] Error state: renders Alert with retry button
+- [x] Empty state: renders "No extensions available. Contact your platform administrator."
+- [x] All form fields have associated labels (`htmlFor` or `aria-label`)
+- [x] Accessibility audit: `axe` reports no violations at WCAG 2.1 AA level
+- [x] All tests pass
 
 **Files to create/modify**:
 
@@ -2560,9 +2560,9 @@ error/empty states, and WCAG 2.1 AA accessibility audit.
 
 **Definition of Done**:
 
-- [ ] All acceptance criteria checked
-- [ ] All tests pass
-- [ ] axe audit passes with 0 violations
+- [x] All acceptance criteria checked
+- [x] All tests pass
+- [x] axe audit passes with 0 violations
 
 ---
 
