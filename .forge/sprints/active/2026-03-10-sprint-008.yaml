@@ -1,0 +1,336 @@
+# Sprint 008 — Active
+# Created: 2026-03-07
+# Managed by forge-scrum
+# Covers: Spec 012 Plugin Observability — Phase 3 completion (T012-21..T012-26 + T012-46)
+#
+# Context: Sprint 007 (2026-03-08 to 2026-03-21) covers Phase 1 + Phase 2 +
+# the first three Phase 3 tasks (T012-18, T012-19, T012-20 = 13 pts).
+# Sprint 008 completes Phase 3 with the remaining 7 tasks (~24 pts):
+# ObservabilityService methods, route registration, OpenAPI docs.
+
+version: 1
+sprint_number: 8
+status: active
+sprint_goal: >
+  Complete the backend observability API layer: implement the remaining five
+  ObservabilityService methods (queryPluginMetrics, getActiveAlerts,
+  getAlertHistory, searchTraces, getTrace, getPluginLogs), register all
+  seven observability endpoints under /api/v1/observability, and add
+  OpenAPI documentation for all eight new endpoints — leaving the backend
+  fully ready for frontend integration in Sprint 009.
+start_date: '2026-03-10'
+end_date: '2026-03-28'
+velocity_target: 24
+
+spec: '.forge/specs/012-plugin-observability/spec.md'
+tasks: '.forge/specs/012-plugin-observability/tasks.md'
+plan: '.forge/specs/012-plugin-observability/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-026-otel-direct-tempo-export.md'
+  - '.forge/knowledge/adr/adr-027-prom-client-core-metrics.md'
+  - '.forge/knowledge/adr/adr-028-log-ingestion-promtail-loki.md'
+  - '.forge/knowledge/adr/adr-029-chart-library-recharts.md'
+  - '.forge/knowledge/adr/adr-030-plugin-metrics-prometheus-format.md'
+
+# ---------------------------------------------------------------------------
+# Phase 3 (completion): API Endpoints — Metrics Proxy & Observability
+# Sprint 008, Weeks 1-3 | 24 story points
+# ---------------------------------------------------------------------------
+#
+# Objective: Implement all remaining ObservabilityService methods and register
+# the full /api/v1/observability/* route set. T012-19 (Zod schemas) and
+# T012-20 (getHealthSummary) were completed in Sprint 007.
+#
+# Parallelism note: T012-21, T012-22, T012-23, T012-24 can all run in
+# parallel — they each add an independent method to observability.service.ts
+# and have no intra-phase data dependencies. T012-25 (route registration)
+# must wait for all four service methods. T012-26 and T012-46 can run in
+# parallel once T012-25 is done.
+# ---------------------------------------------------------------------------
+
+stories:
+  - id: 'T012-21'
+    title: 'Implement ObservabilityService.queryPluginMetrics() — PromQL range query with plugin label injection, allowlist validation, 30-day range cap'
+    phase: 3
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-02']
+    tags: ['[FR-028]', 'service', 'observability', 'prometheus', 'promql', 'security']
+    notes: >
+      T012-19 (PromQL allowlist schema) must be done (Sprint 007) before this
+      task begins. T012-02 (Prometheus config) must be running locally.
+      Injects {plugin="<pluginId>"} label selector automatically to prevent
+      cross-plugin data leakage.
+
+  - id: 'T012-22'
+    title: 'Implement ObservabilityService.getActiveAlerts() and getAlertHistory() — Prometheus alerts API, severity filter, 7-day history, pagination'
+    phase: 3
+    week: 1
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-11']
+    tags: ['[FR-022]', '[FR-023]', 'service', 'observability', 'prometheus', 'alerting']
+    notes: >
+      T012-11 (Prometheus alert rules) must exist before testing alert queries
+      locally. Both methods live in the same observability.service.ts file
+      started by T012-20 in Sprint 007.
+
+  - id: 'T012-23'
+    title: 'Implement ObservabilityService.searchTraces() and getTrace() — Tempo HTTP search/detail API, nested span tree transformation'
+    phase: 3
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-03']
+    tags: ['[FR-030]', '[FR-031]', 'service', 'observability', 'tempo', 'tracing']
+    notes: >
+      T012-03 (Tempo config) must be running locally for integration testing.
+      getTrace() builds a recursive parent→children span tree from Tempo's flat
+      span list. TraceNotFoundError maps to HTTP 404 (Art. 6.2).
+
+  - id: 'T012-24'
+    title: 'Implement ObservabilityService.getPluginLogs() — Loki range query, LogQL allowlist validation, 24-hour range cap, log entry mapping'
+    phase: 3
+    week: 1
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-04']
+    tags: ['[FR-018]', 'service', 'observability', 'loki', 'logs']
+    notes: >
+      T012-04 (Loki config) must be running locally for integration testing.
+      LogQL filter allowlist (prefix check: must start with |=, |~, !=, !~)
+      defined in T012-19 (Sprint 007 Zod schemas) must be applied here.
+
+  - id: 'T012-25'
+    title: 'Create observability-v1.ts — register all 7 observability endpoints under /api/v1/observability with super_admin auth, Zod validation, error mapping'
+    phase: 3
+    week: 2
+    points: 5
+    status: pending
+    parallel: false
+    dependencies: ['T012-19', 'T012-20', 'T012-21', 'T012-22', 'T012-23', 'T012-24']
+    tags: ['[FR-024]', '[FR-036]', '[FR-037]', 'api', 'routes', 'fastify', 'auth']
+    notes: >
+      Gating dependency: all five ObservabilityService methods (T012-20 from
+      Sprint 007, T012-21–T012-24 from this sprint) must be complete before
+      T012-25. Maps ObservabilityBackendError → 502, InvalidQueryError → 400,
+      InvalidTimeRangeError → 400, TraceNotFoundError → 404. All success
+      responses wrapped in { data: ... } or { data: ..., pagination: ... }.
+
+  - id: 'T012-26'
+    title: 'Register observabilityRoutes in index.ts — wire /api/v1/observability prefix into Fastify app after auth middleware'
+    phase: 3
+    week: 2
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: ['T012-25']
+    tags: ['[FR-024]', 'wiring', 'index', 'fastify']
+    notes: >
+      Simple one-line registration. Can be done in parallel with T012-46
+      once T012-25 is complete.
+
+  - id: 'T012-46'
+    title: 'Add OpenAPI/Swagger schema definitions for all 8 new endpoints (GET /metrics + 7 /api/v1/observability/* routes) — Constitution Art. 3.4.5'
+    phase: 3
+    week: 2
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-25']
+    tags: ['[Art.3.4.5]', 'openapi', 'swagger', 'documentation', 'schemas']
+    notes: >
+      Uses Zod-to-JSON-schema conversion following the existing plugin-v1.ts
+      pattern (lines 200+). Tags all endpoints as ["Observability"]. Includes
+      example values for all query parameters. Can run in parallel with T012-26.
+
+# Phase 3 completion subtotal: 7 tasks, 24 points
+
+# ---------------------------------------------------------------------------
+# Sprint Totals
+# ---------------------------------------------------------------------------
+
+totals:
+  phase_3_completion_points: 24 # T012-21 → T012-26 + T012-46 (7 tasks)
+  total_tasks: 7
+  total_points: 24
+  done_points: 0
+  remaining_points: 24
+
+# ---------------------------------------------------------------------------
+# Coverage Targets
+# ---------------------------------------------------------------------------
+# Note: Full test coverage tasks (T012-35, T012-38) that exercise
+# ObservabilityService and the observability routes are deferred to Sprint 009
+# (Phase 5). Sprint 008 delivers complete service implementations and routes;
+# comprehensive tests begin in Sprint 009 Phase 5 once the full service
+# API is stable.
+
+coverage_targets:
+  - file: 'apps/core-api/src/services/observability.service.ts'
+    current: '0% (partial — getHealthSummary from Sprint 007)'
+    target: '≥85% (full service, via T012-35 in Sprint 009)'
+    status: 'pending (T012-35 in Sprint 009 Phase 5)'
+  - file: 'apps/core-api/src/routes/observability-v1.ts'
+    current: '0% (new)'
+    target: '≥85% (via T012-38 in Sprint 009)'
+    status: 'pending (T012-38 in Sprint 009 Phase 5)'
+  - file: 'apps/core-api/src/schemas/observability.schema.ts'
+    current: 'partial (Zod schemas from Sprint 007 T012-19)'
+    target: '≥80% (extended with OpenAPI defs T012-46)'
+    status: 'complete after T012-46'
+
+# ---------------------------------------------------------------------------
+# Velocity Reference
+# ---------------------------------------------------------------------------
+
+velocity:
+  previous_sprints:
+    - sprint: 7
+      completed_points: 0 # Sprint 007 in progress (target 61 pts)
+      total_points: 61
+      completion_rate: 'in progress'
+      notes: 'Spec 012 Phase 1+2 + T012-18/19/20'
+    - sprint: 6
+      completed_points: 92
+      total_points: 92
+      completion_rate: '100%'
+      notes: 'Spec 004 Plugin System — all 37 tasks done'
+    - sprint: 5
+      completed_points: 8
+      total_points: 8
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 3 + review fixes'
+    - sprint: 4
+      completed_points: 36
+      total_points: 36
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 1+2'
+    - sprint: 3
+      completed_points: 24
+      total_points: 24
+      completion_rate: '100%'
+      notes: 'Spec 009 Foundation'
+  average_velocity_5sprint: 33 # (0+92+8+36+24)/5 = 32 pts (Sprint 7 pending)
+  target_rationale: >
+    Sprint 008 targets 24 pts — well within the 5-sprint average of 33 pts
+    and a significant reduction from Sprint 007's 61-pt target. The modest
+    scope reflects: (1) Phase 3 completion only (7 tasks vs 20 in Sprint 007),
+    (2) heavy Prometheus/Tempo/Loki service dependency requiring Sprint 007
+    infrastructure to be fully operational, (3) overlap period with Sprint 007
+    (which ends 2026-03-21 while Sprint 008 starts 2026-03-10 — parallel
+    execution is possible for teams of 2+).
+
+# ---------------------------------------------------------------------------
+# Dependencies on Sprint 007
+# ---------------------------------------------------------------------------
+
+sprint_007_prerequisites:
+  - task: 'T012-02'
+    reason: 'Prometheus must be running for ObservabilityService integration tests (T012-21, T012-22)'
+  - task: 'T012-03'
+    reason: 'Tempo must be running for searchTraces/getTrace integration tests (T012-23)'
+  - task: 'T012-04'
+    reason: 'Loki must be running for getPluginLogs integration tests (T012-24)'
+  - task: 'T012-19'
+    reason: 'Zod schemas (PromQL allowlist, LogQL prefix validation) required by T012-21, T012-24, T012-25'
+  - task: 'T012-20'
+    reason: 'ObservabilityService skeleton (getHealthSummary) required by T012-25 (route registration)'
+
+# ---------------------------------------------------------------------------
+# Risks
+# ---------------------------------------------------------------------------
+
+risks:
+  - id: 'R007'
+    title: 'Sprint 007/008 timeline overlap — Phase 3 tasks start before Phase 1+2 infrastructure is proven'
+    description: >
+      Sprint 008 starts 2026-03-10 but Sprint 007 (which delivers the
+      infrastructure prerequisites: Prometheus, Tempo, Loki configs) does not
+      end until 2026-03-21. If Sprint 007 Phase 1 infrastructure tasks slip,
+      Sprint 008 service method implementations cannot be integration-tested
+      locally.
+    severity: medium
+    mitigation: >
+      Sprint 008 service methods (T012-21..T012-24) can be written with mocked
+      HTTP clients (via nock/msw) during the overlap period. Full local
+      integration testing can begin once Sprint 007 T012-01..T012-06 are
+      complete (~week 1 of Sprint 007). Unit tests (T012-35 in Sprint 009)
+      will use mocked backends regardless.
+    affects_tasks: ['T012-21', 'T012-22', 'T012-23', 'T012-24']
+
+  - id: 'R008'
+    title: 'T012-25 is a critical path bottleneck — all 4 service methods must be complete first'
+    description: >
+      Route registration (T012-25) requires T012-20 (Sprint 007) plus all four
+      new service methods (T012-21..T012-24 in Sprint 008). Any one of these
+      blocking prevents route registration and delays Sprint 009 frontend
+      integration.
+    severity: medium
+    mitigation: >
+      T012-21..T012-24 are all independently parallelizable. With 2 engineers,
+      they can be completed in ~3 days. T012-25 then has a clear 1-day path.
+      T012-26 and T012-46 follow with no contention.
+    affects_tasks: ['T012-25', 'T012-26']
+
+# ---------------------------------------------------------------------------
+# Success Criteria
+# ---------------------------------------------------------------------------
+# Sprint 008 is "done" when ALL of the following are true:
+#
+# ✓ observability.service.ts has all 6 methods implemented and exported:
+#     getHealthSummary (Sprint 007), queryPluginMetrics, getActiveAlerts,
+#     getAlertHistory, searchTraces, getTrace, getPluginLogs
+# ✓ GET /api/v1/observability/plugins/health-summary returns 200 (super_admin)
+# ✓ GET /api/v1/observability/plugins/:id/query returns 200 (valid PromQL)
+# ✓ GET /api/v1/observability/alerts returns 200
+# ✓ GET /api/v1/observability/alerts/history returns paginated 200
+# ✓ GET /api/v1/observability/traces returns 200
+# ✓ GET /api/v1/observability/traces/:traceId returns nested span tree
+# ✓ GET /api/v1/observability/plugins/:id/logs returns 200
+# ✓ All 8 endpoints return 401/403 for unauthenticated/non-super_admin
+# ✓ All 8 endpoints documented in OpenAPI/Swagger (Art. 3.4.5)
+# ✓ Error responses conform to Constitution Art. 6.2 format
+# ✓ pnpm lint and pnpm build pass with no new TypeScript errors
+# ---------------------------------------------------------------------------
+
+success_criteria:
+  - 'All 6 ObservabilityService methods implemented (getHealthSummary from Sprint 007 + 5 new)'
+  - '7 observability API endpoints registered and returning correct responses'
+  - 'All 8 new endpoints (GET /metrics + 7 observability) documented in OpenAPI'
+  - '401/403 auth guards verified on all new endpoints'
+  - 'Error responses conform to Constitution Art. 6.2 { error: { code, message } } format'
+  - 'pnpm lint and pnpm build pass with zero new TypeScript strict-mode errors'
+  - 'Frontend integration (Sprint 009) unblocked — all API contracts locked'
+
+# ---------------------------------------------------------------------------
+# Constraints & Notes
+# ---------------------------------------------------------------------------
+
+constraints:
+  - >
+    T012-25 (route registration) is the hard dependency gate for Sprint 009
+    frontend work. It must be merged and deployed before T012-28 (React Query
+    hooks) can be validated against real endpoints.
+  - >
+    No new PostgreSQL tables or Prisma migrations in this sprint.
+    All observability data served from Prometheus/Tempo/Loki.
+  - >
+    PromQL injection prevention (allowlist from T012-19) must be enforced in
+    T012-21.queryPluginMetrics() — this is a security requirement (Art. 5.3).
+  - >
+    LogQL injection prevention (prefix allowlist from T012-19) must be enforced
+    in T012-24.getPluginLogs() — same security requirement (Art. 5.3).
+  - >
+    1 story point ≈ 2h focused engineering. 24 pts ≈ 48h total.
+    Sprint duration: ~3 weeks with overlap against Sprint 007.
+  - >
+    Full test suite (T012-34..T012-43) is deferred to Sprint 009 Phase 5.
+    Sprint 008 focuses on implementation completeness; tests follow in Sprint 009.
+
+carried_over: []

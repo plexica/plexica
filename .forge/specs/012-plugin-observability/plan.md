@@ -24,7 +24,7 @@ system — the last major infrastructure gap before production readiness. The
 current platform has zero metrics collection, zero distributed tracing, zero
 log aggregation, and zero alerting. This plan addresses all 37 functional
 requirements and 22 non-functional requirements from Spec 012 across 5
-implementation phases with 45 tasks totalling ~158 story points (~131 hours).
+implementation phases with 47 tasks totalling ~162 story points (~135 hours).
 
 ### 1.1 Current State
 

@@ -33,9 +33,26 @@ async function waitForTenantStatus(
       url: `/api/tenants/${tenantId}`,
       headers: { authorization: `Bearer ${token}` },
     });
-    if (res.statusCode === 200 && res.json().status === expectedStatus) {
-      return;
+
+    // Fail fast on auth errors — spinning to timeout would obscure the real cause.
+    if (res.statusCode === 401 || res.statusCode === 403) {
+      throw new Error(
+        `waitForTenantStatus: auth failure polling tenant ${tenantId} — HTTP ${res.statusCode}`
+      );
     }
+
+    if (res.statusCode === 200) {
+      let body: { status?: string };
+      try {
+        body = res.json() as { status?: string };
+      } catch {
+        throw new Error(
+          `waitForTenantStatus: tenant ${tenantId} returned 200 with non-JSON body: ${res.payload}`
+        );
+      }
+      if (body.status === expectedStatus) return;
+    }
+
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   throw new Error(
@@ -338,6 +355,7 @@ describe('Tenant Concurrent Operations E2E', () => {
         },
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenantId = createResponse.json().id;
 
       // Send 10 concurrent updates to the SAME tenant
@@ -388,6 +406,7 @@ describe('Tenant Concurrent Operations E2E', () => {
         },
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenantId = createResponse.json().id;
 
       // Wait for provisioning to complete (status becomes ACTIVE).
@@ -785,6 +804,7 @@ describe('Tenant Concurrent Operations E2E', () => {
         },
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenantId = createResponse.json().id;
 
       // Immediately try concurrent operations while still provisioning

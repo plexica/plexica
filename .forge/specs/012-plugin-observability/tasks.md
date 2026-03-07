@@ -1055,7 +1055,7 @@ rate(http_request_duration_seconds_bucket{job="core-api"}[5m]))` three lines;
 
 ---
 
-**Phase 5 Total**: 12 tasks · 38 story points · ~38h
+**Phase 5 Total**: 12 tasks · 39 story points · ~39h
 
 ---
 
@@ -1063,10 +1063,10 @@ rate(http_request_duration_seconds_bucket{job="core-api"}[5m]))` three lines;
 
 | Metric                 | Value                                                  |
 | ---------------------- | ------------------------------------------------------ |
-| Total tasks            | 45                                                     |
+| Total tasks            | 47                                                     |
 | Total phases           | 5                                                      |
-| Total story points     | 158                                                    |
-| Total estimated effort | ~131h                                                  |
+| Total story points     | 162                                                    |
+| Total estimated effort | ~135h                                                  |
 | Parallelizable tasks   | 11 (marked `[P]` within phases)                        |
 | Requirements covered   | 37 FRs + 22 NFRs (full coverage per plan.md §10)       |
 | Test targets           | 80 tests (40 unit, 25 integration, 10 E2E, 5 contract) |

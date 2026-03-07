@@ -1,0 +1,729 @@
+# Sprint 009 — Active
+# Created: 2026-03-07
+# Managed by forge-scrum
+# Covers: Spec 012 Plugin Observability — Phase 4 (Frontend Dashboard) +
+#         Phase 5 (Testing, Grafana Dashboards & Documentation)
+
+version: 1
+sprint_number: 9
+status: active
+sprint_goal: >
+  Deliver the complete Plugin Observability feature: build the four-tab Super
+  Admin observability dashboard (Health, Metrics, Traces, Alerts) with full
+  WCAG 2.1 AA accessibility, write the 80-test suite (40 unit, 25 integration,
+  10 E2E, 5 contract), provision two pre-built Grafana dashboards, add the
+  observability_dashboard_enabled feature flag, and publish the developer
+  observability guide — leaving Spec 012 100% complete.
+start_date: '2026-03-31'
+end_date: '2026-04-11'
+velocity_target: 77
+
+spec: '.forge/specs/012-plugin-observability/spec.md'
+tasks: '.forge/specs/012-plugin-observability/tasks.md'
+plan: '.forge/specs/012-plugin-observability/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-026-otel-direct-tempo-export.md'
+  - '.forge/knowledge/adr/adr-027-prom-client-core-metrics.md'
+  - '.forge/knowledge/adr/adr-028-log-ingestion-promtail-loki.md'
+  - '.forge/knowledge/adr/adr-029-chart-library-recharts.md'
+  - '.forge/knowledge/adr/adr-030-plugin-metrics-prometheus-format.md'
+
+# ---------------------------------------------------------------------------
+# Phase 4: Frontend Dashboard
+# Sprint 009, Week 1 | 38 story points
+# ---------------------------------------------------------------------------
+#
+# Objective: Build the Super Admin observability dashboard with Health, Metrics,
+# Traces, and Alerts tabs inside apps/super-admin. All Phase 4 tasks depend on
+# Sprint 008 (T012-25) delivering the full observability API.
+#
+# Parallelism note:
+#   T012-27 (layout + nav) and T012-28 (React Query hooks) have no intra-phase
+#   dependencies and can run in parallel from day one.
+#   T012-29, T012-30, T012-31, T012-33 all depend on T012-28 and can then
+#   run in parallel with each other.
+#   T012-32 (SpanWaterfall) depends on T012-31 and is the most complex
+#   individual task (8h).
+#   T012-47 (feature flag) depends on T012-27 and is independent of T012-28+.
+# ---------------------------------------------------------------------------
+
+stories:
+  # --- Phase 4 ---
+
+  - id: 'T012-27'
+    title: 'Install recharts, create ObservabilityPage with tab nav (Health|Metrics|Traces|Alerts), add Observability sidebar nav item with active-alerts badge'
+    phase: 4
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-024]', '[NFR-018]', 'frontend', 'ui', 'recharts', 'navigation', '[ADR-029]']
+    notes: >
+      No backend dependency — page shell and nav can be wired before Sprint 008
+      is complete. Tabs use TanStack Router query params (?tab=health|...).
+      useActiveAlertsCount hook polls /api/v1/observability/alerts every 60s
+      for the sidebar badge count.
+
+  - id: 'T012-28'
+    title: 'Create useObservability.ts — 8 React Query hooks for all observability API calls (useHealthSummary, usePluginMetrics, useActiveAlerts, useAlertHistory, useTraces, useTraceDetail, usePluginLogs, useActiveAlertsCount)'
+    phase: 4
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-024]', 'hooks', 'react-query', 'frontend', 'api-client']
+    notes: >
+      Depends on Sprint 008 T012-25 for the API contract to be locked.
+      Can be written against mocked API responses first; integration-validated
+      once Sprint 008 is merged. staleTime and refetchInterval configured per
+      spec (health: 30s, alerts: 60s). Uses existing apiClient from @plexica/api-client.
+
+  - id: 'T012-47'
+    title: 'Add observability_dashboard_enabled feature flag — gate sidebar nav item and /observability route (Constitution Art. 9.1)'
+    phase: 4
+    week: 1
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T012-27']
+    tags: ['[Art.9.1]', 'feature-flag', 'frontend', 'rollout']
+    notes: >
+      Follows existing admin_interfaces_enabled pattern. Default: true in dev,
+      configurable via OBSERVABILITY_DASHBOARD_ENABLED env var. If disabled,
+      nav item hidden and /observability route redirects to dashboard root.
+
+  - id: 'T012-29'
+    title: 'Create HealthStatusBadge (colour+text for WCAG 1.4.1) and HealthSummaryTable (sortable, keyboard-navigable, 30s auto-refresh with skeleton loading)'
+    phase: 4
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-28']
+    tags: ['[FR-025]', '[NFR-019]', 'frontend', 'components', 'a11y', 'wcag']
+    notes: >
+      HealthStatusBadge uses colour AND icon/text (no colour-only, WCAG 1.4.1).
+      Table must have aria-sort on sortable headers and be keyboard navigable.
+      Clicking a row navigates to Metrics tab filtered to that plugin.
+      Shows AutoRefreshIndicator with 30s countdown.
+
+  - id: 'T012-30'
+    title: 'Create MetricsChartPanel (4-panel recharts grid: request rate, latency P50/P95/P99, error rate, resources), TimeRangeSelector, AutoRefreshIndicator, AccessibleChartToggle (chart ↔ data table)'
+    phase: 4
+    week: 1
+    points: 8
+    status: pending
+    parallel: true
+    dependencies: ['T012-28']
+    tags:
+      ['[FR-027]', '[NFR-018]', '[NFR-019]', 'frontend', 'charts', 'recharts', 'a11y', '[ADR-029]']
+    notes: >
+      Largest Phase 4 task (8h). Distinct dash patterns on chart lines — not
+      just colours — for WCAG 1.4.1. AccessibleChartToggle switches between
+      recharts SVG and HTML <table> fallback (ADR-029 requirement).
+      Code-split via React.lazy per NFR-018. aria-label on all SVG charts.
+
+  - id: 'T012-31'
+    title: 'Create TraceSearchForm (service/traceId/time-range/limit inputs) and TraceResultsTable (paginated, status badge colour+icon, click-to-waterfall)'
+    phase: 4
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-28']
+    tags: ['[FR-029]', '[FR-030]', 'frontend', 'components', 'traces', 'a11y']
+    notes: >
+      All form inputs have associated <label> elements (WCAG 4.1.2).
+      Status badge uses colour + icon (not colour-only). Selected trace
+      opens SpanWaterfall (T012-32) in adjacent panel or slide-over.
+
+  - id: 'T012-32'
+    title: 'Create SpanWaterfall (hierarchical span timeline, CSS-positioned, keyboard-navigable, error highlighting) and SpanDetailPanel (span attributes, copyable IDs)'
+    phase: 4
+    week: 2
+    points: 8
+    status: pending
+    parallel: false
+    dependencies: ['T012-31']
+    tags: ['[FR-029]', '[FR-031]', '[NFR-019]', 'frontend', 'components', 'traces', 'a11y']
+    notes: >
+      Most complex Phase 4 component (8h estimated). Custom CSS-positioned
+      waterfall — no Grafana embed. Arrow key navigation between span rows.
+      Error spans highlighted with aria-label="Error span". SpanDetailPanel
+      has role="complementary" and copyable span/trace IDs. Mobile: horizontal
+      scroll (NFR-018 breakpoints).
+
+  - id: 'T012-33'
+    title: 'Create ActiveAlertCard (severity badge colour+text, role="alert" for critical) and AlertHistoryTable (paginated, severity filter, "View Plugin" link)'
+    phase: 4
+    week: 2
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-28']
+    tags: ['[FR-032]', 'frontend', 'components', 'alerts', 'a11y']
+    notes: >
+      Cards sorted by severity (critical first) then activeAt (oldest first).
+      Empty state: green "All systems operational" message.
+      AlertHistoryTable uses useAlertHistory(page, perPage) with pagination
+      aria-labels. "View Plugin" link navigates to plugin detail page.
+
+  # Phase 4 subtotal: 8 tasks, 43 points
+  # (T012-27:5 + T012-28:5 + T012-47:2 + T012-29:5 + T012-30:8 + T012-31:5 + T012-32:8 + T012-33:5 = 43)
+  # Note: tasks.md Phase 4 total listed as 38 pts (8 tasks); T012-47 (1 pt, Art.9.1)
+  # adjusts to 39 pts when counted with T012-47. Sprint includes both.
+
+  # ---------------------------------------------------------------------------
+  # Phase 5: Testing, Grafana Dashboards & Documentation
+  # Sprint 009, Week 2 | 39 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Objective: Achieve the 80-test target (40 unit, 25 integration, 10 E2E,
+  # 5 contract), deliver two pre-built Grafana dashboards, and publish the
+  # developer observability guide. Test tasks may be started as soon as their
+  # implementation dependency completes — they are listed here but should be
+  # tracked individually. T012-34 (MetricsService unit tests) can start as
+  # soon as Sprint 007 T012-07 is done.
+  #
+  # Parallelism note: All test tasks (T012-34..T012-42) are independently
+  # parallelizable with each other, subject to their implementation deps.
+  # T012-43 and T012-44 (Grafana dashboards) depend only on T012-06.
+  # T012-45 (docs) should be last — it references all completed work.
+  # ---------------------------------------------------------------------------
+
+  # --- Phase 5 ---
+
+  - id: 'T012-34'
+    title: 'Unit tests: MetricsService — ≥10 tests covering registry isolation, counter/histogram/gauge behaviour, Fastify hooks, content type, merged registry output'
+    phase: 5
+    week: 2
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-07']
+    tags: ['[NFR-001]', '[NFR-002]', 'tests', 'unit', 'metrics-service']
+    notes: >
+      T012-07 (MetricsService) completed in Sprint 007. These tests can
+      technically start once Sprint 007 is merged — do not wait for Sprint 009
+      formally if bandwidth allows in Sprint 008 overlap period.
+      vi.mock isolates prom-client from real Prometheus.
+
+  - id: 'T012-35'
+    title: 'Unit tests: ObservabilityService — ≥15 tests covering all 6 methods (health mapping, status classification, query injection, pagination, trace tree build, log validation, backend errors)'
+    phase: 5
+    week: 2
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-20', 'T012-21', 'T012-22', 'T012-23', 'T012-24']
+    tags:
+      [
+        '[FR-018]',
+        '[FR-022]',
+        '[FR-023]',
+        '[FR-026]',
+        '[FR-028]',
+        '[FR-030]',
+        '[FR-031]',
+        'tests',
+        'unit',
+        'observability-service',
+      ]
+    notes: >
+      All outbound fetch calls mocked (vi.mock or undici mock interceptors).
+      Must cover both success paths and ObservabilityBackendError on network
+      failure for every method. Query injection prevention (PromQL + LogQL
+      allowlists) specifically tested in tests 5 and 12.
+
+  - id: 'T012-36'
+    title: 'Unit tests: PluginTargetsService — ≥8 tests covering atomic write (tmp→rename), ACTIVE-only filter, empty-array output, env var path, file label format'
+    phase: 5
+    week: 2
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-09']
+    tags: ['[FR-009]', '[FR-010]', 'tests', 'unit', 'plugin-targets']
+    notes: >
+      T012-09 completed in Sprint 007. fs/promises mocked with vi.mock —
+      no real filesystem writes. Tests verify atomic write pattern (tmp path
+      written first, then renamed to final path).
+
+  - id: 'T012-37'
+    title: 'Unit tests: telemetry.ts (≥6 tests — env var wiring, sampler, shutdown) AND trace-context.ts middleware (≥4 tests — log enrichment, no-span passthrough, isolation)'
+    phase: 5
+    week: 2
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-12', 'T012-13']
+    tags:
+      [
+        '[FR-011]',
+        '[FR-019]',
+        '[NFR-006]',
+        '[NFR-008]',
+        '[NFR-013]',
+        '[NFR-014]',
+        'tests',
+        'unit',
+        'telemetry',
+        'middleware',
+      ]
+    notes: >
+      @opentelemetry/sdk-node and @opentelemetry/api fully mocked via vi.mock.
+      Critical test: concurrent requests get isolated trace context (no
+      cross-request leakage — test 10). OTel import ordering constraint
+      (R002 in Sprint 007) should be asserted here.
+
+  - id: 'T012-38'
+    title: 'Integration tests: all 7 observability endpoints — ≥14 tests (200 responses, 401/403 auth, 502 backend unavailable, 400 invalid query/range, 404 trace not found)'
+    phase: 5
+    week: 2
+    points: 6
+    status: pending
+    parallel: true
+    dependencies: ['T012-25']
+    tags: ['[FR-024]', '[FR-036]', '[FR-037]', 'tests', 'integration', 'observability-routes']
+    notes: >
+      Uses buildTestApp() helper and mock Prometheus/Tempo/Loki HTTP servers
+      (nock or msw). All 14 test cases listed in tasks.md T012-38 description.
+      Validates Art. 6.2 error format on all error responses. 401 and 403
+      tests mandatory for every endpoint.
+
+  - id: 'T012-39'
+    title: 'Integration tests: /metrics endpoint — ≥6 tests (200 Prometheus text, HELP lines present, 401/403, response time P95 < 100ms under 10 sequential calls)'
+    phase: 5
+    week: 2
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-08']
+    tags: ['[FR-006]', '[NFR-002]', 'tests', 'integration', 'metrics-endpoint']
+    notes: >
+      T012-08 completed in Sprint 007. Performance assertion: 10 sequential
+      calls, each must respond in < 100ms (assert via Date.now() diff).
+      Must verify merged event-bus metrics (plexica_events_* prefix present).
+
+  - id: 'T012-40'
+    title: 'Integration tests: plugin metrics proxy (/api/v1/plugins/:id/metrics) — ≥8 tests (200 proxied body, 404 PLUGIN_NOT_FOUND, 503 PLUGIN_NOT_ACTIVE, PLUGIN_UNREACHABLE, PLUGIN_METRICS_UNAVAILABLE, 401, 403)'
+    phase: 5
+    week: 2
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-18']
+    tags:
+      [
+        '[FR-001]',
+        '[FR-002]',
+        '[FR-003]',
+        '[FR-004]',
+        '[FR-005]',
+        'tests',
+        'integration',
+        'metrics-proxy',
+      ]
+    notes: >
+      T012-18 completed in Sprint 007. Uses mock container HTTP server (nock
+      or test HTTP server). All error codes (PLUGIN_NOT_FOUND, PLUGIN_NOT_ACTIVE,
+      PLUGIN_UNREACHABLE, PLUGIN_METRICS_UNAVAILABLE) validated against
+      Art. 6.2 format.
+
+  - id: 'T012-41'
+    title: 'E2E tests: observability dashboard — ≥10 Playwright tests (3G load time, all 4 tabs, chart toggle, trace waterfall, WCAG axe-core scan per tab)'
+    phase: 5
+    week: 2
+    points: 4
+    status: pending
+    parallel: true
+    dependencies: ['T012-27', 'T012-28', 'T012-29', 'T012-30', 'T012-31', 'T012-32', 'T012-33']
+    tags:
+      [
+        '[FR-024]',
+        '[FR-025]',
+        '[FR-027]',
+        '[FR-029]',
+        '[FR-032]',
+        '[NFR-018]',
+        '[NFR-019]',
+        'tests',
+        'e2e',
+        'playwright',
+        'a11y',
+        '[ADR-022]',
+      ]
+    notes: >
+      Full stack: core API + super-admin app + mock observability backends.
+      WCAG test: @axe-core/playwright scan on each tab, zero critical/serious
+      violations (ADR-022, NFR-019). Page load throttled to 3G (Playwright
+      throttle) — must load within 2 seconds (Constitution Art. 1.3).
+
+  - id: 'T012-42'
+    title: 'Contract tests: plugin /metrics response format per ADR-030 — ≥5 tests (MIME type, required metric types, sample_limit=5000 enforcement)'
+    phase: 5
+    week: 2
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-18']
+    tags: ['[FR-001]', 'tests', 'contract', 'plugin-metrics', '[ADR-030]']
+    notes: >
+      In-process contract tests following workspace-plugins.contract.test.ts
+      pattern. Mock plugin container HTTP server. Validates both that the
+      required Prometheus metric types are present AND that the proxy enforces
+      sample_limit=5000 (503 PLUGIN_METRICS_UNAVAILABLE when exceeded).
+
+  - id: 'T012-43'
+    title: 'Grafana dashboard: "Plugin Overview" — plugin health matrix, top-N by error rate, latency distribution heatmap, per-plugin repeated panels, $plugin variable'
+    phase: 5
+    week: 2
+    points: 4
+    status: pending
+    parallel: true
+    dependencies: ['T012-06']
+    tags: ['[FR-034]', 'grafana', 'dashboard', 'infrastructure']
+    notes: >
+      T012-06 (Grafana provisioning config) completed in Sprint 007.
+      Dashboard JSON at infrastructure/observability/grafana/dashboards/plugin-overview.json.
+      UID: plugin-overview. Refresh: 30s. Time range: now-1h to now.
+      All Prometheus queries reference the plugin label variable.
+
+  - id: 'T012-44'
+    title: 'Grafana dashboard: "Core Platform" — request rate, error rate (1% alert threshold), latency P50/P95/P99, heap usage, event loop lag, active connections'
+    phase: 5
+    week: 2
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-06']
+    tags: ['[FR-035]', 'grafana', 'dashboard', 'infrastructure']
+    notes: >
+      Dashboard JSON at infrastructure/observability/grafana/dashboards/core-platform.json.
+      UID: core-platform. Refresh: 30s. Error rate panel includes alert
+      threshold line at 1% (CoreHighErrorRate rule from T012-11).
+
+  - id: 'T012-45'
+    title: 'Create docs/OBSERVABILITY.md — developer guide covering architecture, local setup, env vars, metrics/tracing/log usage, plugin metrics contract (ADR-030), Grafana access, troubleshooting, security'
+    phase: 5
+    week: 2
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: []
+    tags: ['[NFR-016]', 'documentation', 'developer-guide']
+    notes: >
+      Final task — should be written last to accurately reflect the completed
+      implementation. 9 sections per tasks.md T012-45 description. Format per
+      AGENTS.md documentation standards: English, Markdown, code blocks with
+      language identifiers, Table of Contents. No PII in examples (Art. 5.2).
+
+  # Phase 5 subtotal: 12 tasks, 39 points
+
+# ---------------------------------------------------------------------------
+# Sprint Totals
+# ---------------------------------------------------------------------------
+
+totals:
+  phase_4_points: 43 # T012-27→T012-33 + T012-47 (8 tasks)
+  phase_5_points: 39 # T012-34→T012-45 (12 tasks)
+  total_tasks: 20
+  total_points: 77 # 38 (Phase 4 per spec) + 39 (Phase 5) = 77 pts
+  done_points: 0
+  remaining_points: 77
+
+# Note on point discrepancy: tasks.md Phase 4 total = 38 pts (T012-27..T012-33 + T012-47).
+# The sum of individual task points above totals 43 because T012-32 (SpanWaterfall) is
+# 8 pts and T012-30 (MetricsChartPanel) is 8 pts. Accept the per-task estimates as
+# authoritative; plan.md Phase 4 headline of "~39 pts" (inc T012-47) is consistent.
+
+# ---------------------------------------------------------------------------
+# Test Coverage Targets
+# ---------------------------------------------------------------------------
+
+coverage_targets:
+  # Unit test targets (Phase 5)
+  - file: 'apps/core-api/src/services/metrics.service.ts'
+    current: '0% (new)'
+    target: '≥85%'
+    status: 'pending (T012-34)'
+  - file: 'apps/core-api/src/services/observability.service.ts'
+    current: '0% (new, all 6 methods)'
+    target: '≥85%'
+    status: 'pending (T012-35)'
+  - file: 'apps/core-api/src/services/plugin-targets.service.ts'
+    current: '0% (new)'
+    target: '≥85%'
+    status: 'pending (T012-36)'
+  - file: 'apps/core-api/src/lib/telemetry.ts'
+    current: '0% (new)'
+    target: '≥85%'
+    status: 'pending (T012-37)'
+  - file: 'apps/core-api/src/middleware/trace-context.ts'
+    current: '0% (new)'
+    target: '≥85%'
+    status: 'pending (T012-37)'
+  # Integration test targets
+  - file: 'apps/core-api/src/routes/observability-v1.ts'
+    current: '0% (new)'
+    target: '≥85%'
+    status: 'pending (T012-38)'
+  - file: 'apps/core-api/src/routes/metrics.ts'
+    current: 'existing (event-bus only)'
+    target: '≥80% (extended)'
+    status: 'pending (T012-39)'
+  - file: 'apps/core-api/src/routes/plugin-v1.ts'
+    current: 'existing'
+    target: '≥80% (new /metrics proxy route)'
+    status: 'pending (T012-40)'
+  # Overall project target
+  - scope: 'overall project'
+    current: '76.5%'
+    target: '≥80% (Constitution Art. 4.1 + AGENTS.md)'
+    status: 'Sprint 009 test tasks expected to close this gap'
+
+# ---------------------------------------------------------------------------
+# Test Count Targets
+# ---------------------------------------------------------------------------
+
+test_targets:
+  unit_tests: 40 # T012-34 (≥10) + T012-35 (≥15) + T012-36 (≥8) + T012-37 (≥6 + ≥4) = ≥43
+  integration_tests: 25 # T012-38 (≥14) + T012-39 (≥6) + T012-40 (≥8) = ≥28
+  e2e_tests: 10 # T012-41 (≥10 Playwright)
+  contract_tests: 5 # T012-42 (≥5)
+  total_new_tests: 80 # plan.md §8 target
+
+# ---------------------------------------------------------------------------
+# Velocity Reference
+# ---------------------------------------------------------------------------
+
+velocity:
+  previous_sprints:
+    - sprint: 8
+      completed_points: 0 # Sprint 008 not yet complete at planning time
+      total_points: 24
+      completion_rate: 'not started'
+      notes: 'Spec 012 Phase 3 completion'
+    - sprint: 7
+      completed_points: 0 # Sprint 007 in progress at planning time
+      total_points: 61
+      completion_rate: 'in progress'
+      notes: 'Spec 012 Phase 1+2 + T012-18/19/20'
+    - sprint: 6
+      completed_points: 92
+      total_points: 92
+      completion_rate: '100%'
+      notes: 'Spec 004 Plugin System — all 37 tasks done'
+    - sprint: 5
+      completed_points: 8
+      total_points: 8
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 3 + review fixes'
+    - sprint: 4
+      completed_points: 36
+      total_points: 36
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 1+2'
+  average_velocity_5sprint: 33
+  target_rationale: >
+    Sprint 009 targets 77 pts over 12 days (2026-03-31 to 2026-04-11).
+    This exceeds the 5-sprint average of 33 pts but is justified by:
+    (1) the 12-day sprint length vs the typical 7-day i18n sprints in the
+    average, (2) a mix of frontend component work (parallelizable) and
+    test-writing (CPU-bound but parallelizable across engineers), and
+    (3) Sprint 006 demonstrated 92 pts is achievable for implementation-heavy
+    sprints with 2 engineers. Recommend 2 engineers: one on Phase 4
+    frontend, one on Phase 5 testing, working in parallel from week 2.
+
+# ---------------------------------------------------------------------------
+# Dependencies on Previous Sprints
+# ---------------------------------------------------------------------------
+
+sprint_prerequisites:
+  from_sprint_007:
+    - task: 'T012-07'
+      consumed_by: ['T012-34']
+      reason: 'MetricsService must be implemented for unit tests'
+    - task: 'T012-08'
+      consumed_by: ['T012-39']
+      reason: '/metrics endpoint must be implemented for integration tests'
+    - task: 'T012-09'
+      consumed_by: ['T012-36']
+      reason: 'PluginTargetsService must be implemented for unit tests'
+    - task: 'T012-12'
+      consumed_by: ['T012-37']
+      reason: 'telemetry.ts must be implemented for unit tests'
+    - task: 'T012-13'
+      consumed_by: ['T012-37']
+      reason: 'trace-context.ts middleware must be implemented for unit tests'
+    - task: 'T012-18'
+      consumed_by: ['T012-40', 'T012-42']
+      reason: 'Plugin metrics proxy must be implemented for integration + contract tests'
+    - task: 'T012-06'
+      consumed_by: ['T012-43', 'T012-44']
+      reason: 'Grafana provisioning config must exist before dashboard JSON provisioning'
+  from_sprint_008:
+    - task: 'T012-25'
+      consumed_by: ['T012-28', 'T012-38']
+      reason: 'Full observability route set must be registered for hooks and integration tests'
+
+# ---------------------------------------------------------------------------
+# Risks
+# ---------------------------------------------------------------------------
+
+risks:
+  - id: 'R009'
+    title: 'Sprint 009 depends on both Sprint 007 and Sprint 008 being complete'
+    description: >
+      Sprint 009 frontend hooks (T012-28) require Sprint 008 T012-25
+      (all observability routes registered) to validate against real endpoints.
+      Sprint 009 test tasks (T012-34..T012-40) require Sprint 007 and 008
+      implementations. Any slip in Sprint 007 or 008 directly delays Sprint 009.
+    severity: high
+    mitigation: >
+      T012-27 (ObservabilityPage layout) and T012-28 (hooks, mocked initially)
+      can start before Sprint 008 is complete. T012-29..T012-33 (components)
+      can be built against mocked API data. Phase 5 test tasks for Sprint 007
+      work (T012-34, T012-36, T012-37, T012-39, T012-40) can start immediately
+      once Sprint 007 merges, during the Sprint 008 overlap window.
+    affects_tasks: ['T012-28', 'T012-38', 'T012-41']
+
+  - id: 'R010'
+    title: 'T012-32 (SpanWaterfall) is the highest-risk frontend task — 8h estimate, custom CSS layout'
+    description: >
+      SpanWaterfall requires a custom CSS-positioned hierarchical timeline
+      with keyboard navigation, error highlighting, and mobile horizontal
+      scroll. This is the most novel UI component in the sprint with no
+      existing internal reference implementation. The 8h estimate may be
+      optimistic if the CSS positioning math for proportional duration bars
+      proves complex.
+    severity: medium
+    mitigation: >
+      Descope SpanWaterfall to a simplified flat list (not hierarchical tree)
+      for MVP if blocked, deferring the indented tree layout to a follow-up
+      task. The SpanDetailPanel can still render all span attributes.
+      Keyboard navigation can be added as a fast-follow in Sprint 010.
+    affects_tasks: ['T012-32', 'T012-41']
+
+  - id: 'R011'
+    title: '77 pts in 12 days requires sustained parallel execution'
+    description: >
+      The sprint target of 77 pts over 12 days requires 2 engineers working
+      in parallel across Phase 4 (frontend) and Phase 5 (testing) tracks.
+      With a single engineer, the realistic throughput is ~40–45 pts in
+      12 days, which would require carrying T012-32, T012-41, and T012-43/44
+      into Sprint 010.
+    severity: medium
+    mitigation: >
+      If working solo: prioritise T012-27, T012-28, T012-29, T012-30 (core
+      dashboard), T012-34, T012-35, T012-38 (core tests), T012-45 (docs).
+      Defer T012-32 (SpanWaterfall), T012-41 (E2E), T012-43/44 (Grafana
+      dashboards) to Sprint 010 as acceptable scope reduction.
+    affects_tasks: ['T012-32', 'T012-41', 'T012-43', 'T012-44']
+
+  - id: 'R012'
+    title: 'WCAG compliance failures discovered late in T012-41 axe-core scan'
+    description: >
+      If @axe-core/playwright reports critical/serious violations in T012-41
+      (the final E2E test task), fixing them may require retroactive changes
+      to T012-29..T012-33 components. Late accessibility failures are costly.
+    severity: medium
+    mitigation: >
+      All Phase 4 component tasks (T012-29..T012-33) explicitly specify
+      WCAG requirements inline (aria-* attributes, colour+text badges,
+      keyboard navigation). T012-29 and T012-30 should run axe-core
+      component-level checks (vitest-axe per ADR-022) before T012-41.
+      Constitution Art. 1.3 and Art. 4.2 block merge on WCAG violations.
+    affects_tasks: ['T012-29', 'T012-30', 'T012-31', 'T012-32', 'T012-33', 'T012-41']
+
+# ---------------------------------------------------------------------------
+# Success Criteria
+# ---------------------------------------------------------------------------
+# Sprint 009 (and Spec 012 overall) is "done" when ALL of the following are true:
+#
+# Frontend:
+# ✓ /observability route exists in super-admin with 4-tab navigation
+# ✓ observability_dashboard_enabled feature flag gates nav item and route
+# ✓ Health tab: sortable table with HealthStatusBadge, 30s auto-refresh
+# ✓ Metrics tab: 4-panel recharts dashboard with AccessibleChartToggle
+# ✓ Traces tab: search form + paginated results + SpanWaterfall detail view
+# ✓ Alerts tab: active alert cards + paginated history table with severity filter
+# ✓ Sidebar nav shows active alert count badge
+#
+# Tests:
+# ✓ ≥40 unit tests passing (MetricsService, ObservabilityService, PluginTargets, OTel)
+# ✓ ≥25 integration tests passing (observability routes, /metrics, metrics proxy)
+# ✓ ≥10 E2E Playwright tests passing (full dashboard, all 4 tabs)
+# ✓ ≥5 contract tests passing (plugin /metrics format per ADR-030)
+# ✓ Zero axe-core critical/serious violations across all 4 dashboard tabs
+#
+# Infrastructure:
+# ✓ plugin-overview.json Grafana dashboard provisioned and loading in Grafana
+# ✓ core-platform.json Grafana dashboard provisioned and loading in Grafana
+#
+# Documentation:
+# ✓ docs/OBSERVABILITY.md published with all 9 sections (T012-45 scope)
+#
+# Quality:
+# ✓ Overall test coverage ≥80% (closing TD-001)
+# ✓ Observability module coverage ≥85% (plan.md §8 target)
+# ✓ pnpm lint, pnpm build, pnpm test all pass with zero regressions
+# ✓ Spec 012 status updated to Complete in planning/PROJECT_STATUS.md
+# ---------------------------------------------------------------------------
+
+success_criteria:
+  frontend:
+    - 'ObservabilityPage with Health/Metrics/Traces/Alerts tabs in super-admin'
+    - 'observability_dashboard_enabled feature flag (Art. 9.1) implemented'
+    - 'HealthSummaryTable with sortable columns, HealthStatusBadge (colour+text)'
+    - '4-panel MetricsChartPanel (recharts) with accessible data table toggle'
+    - 'TraceSearchForm, TraceResultsTable, SpanWaterfall, SpanDetailPanel'
+    - 'ActiveAlertCard (role=alert for critical) and AlertHistoryTable with filter'
+    - 'Sidebar alert badge counting firing alerts with 60s polling'
+  tests:
+    - '≥40 unit tests covering MetricsService, ObservabilityService, PluginTargetsService, telemetry, trace-context'
+    - '≥25 integration tests covering all observability endpoints'
+    - '≥10 E2E Playwright tests covering full dashboard on all 4 tabs'
+    - '≥5 contract tests verifying plugin /metrics format per ADR-030'
+    - 'Zero axe-core critical/serious WCAG violations on any dashboard tab'
+  infrastructure:
+    - 'plugin-overview.json and core-platform.json Grafana dashboards provisioned'
+  documentation:
+    - 'docs/OBSERVABILITY.md published with all 9 required sections'
+  quality:
+    - 'Overall project test coverage ≥80% (resolves TD-001)'
+    - 'Observability module coverage ≥85%'
+    - 'pnpm lint, pnpm build, pnpm test pass with zero regressions'
+    - 'planning/PROJECT_STATUS.md updated: Spec 012 marked Complete'
+
+# ---------------------------------------------------------------------------
+# Constraints & Notes
+# ---------------------------------------------------------------------------
+
+constraints:
+  - >
+    Phase 4 components (T012-29, T012-30, T012-31, T012-32, T012-33) must
+    follow WCAG 2.1 AA requirements inline during implementation — not
+    retrofitted after T012-41 axe-core scan. Constitution Art. 1.3 mandates
+    AA compliance; PR merge is blocked on violations (Art. 4.2).
+  - >
+    recharts (T012-27, T012-30) must be code-split via React.lazy —
+    the observability route must NOT increase the main bundle size
+    (NFR-018, ADR-029).
+  - >
+    No new PostgreSQL tables or Prisma migrations in this sprint.
+  - >
+    1 story point ≈ 2h focused engineering. 77 pts ≈ 154h total.
+    Sprint duration: 12 days × ~6h/day = ~72h per engineer.
+    Requires 2 engineers working in parallel to hit target.
+  - >
+    TD-001 (overall coverage at 76.5%, target 80%) is expected to be resolved
+    by the 80 new tests in Phase 5. Verify with pnpm test:coverage after
+    T012-34..T012-42 are complete.
+  - >
+    planning/PROJECT_STATUS.md MUST be updated to mark Spec 012 as Complete
+    on sprint close (AGENTS.md ⭐ Project Status Update Directive).
+
+carried_over: []

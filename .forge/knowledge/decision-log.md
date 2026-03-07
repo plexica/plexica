@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: March 7, 2026 (ADR-026..030 created for Spec 012 Plugin Observability; TD-009 resolved)
+**Last Updated**: March 7, 2026 (ADR-026..030 created for Spec 012 Plugin Observability; TD-009 resolved; Sprint 008 and Sprint 009 created for Spec 012)
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).

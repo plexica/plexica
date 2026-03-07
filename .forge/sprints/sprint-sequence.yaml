@@ -3,7 +3,7 @@
 # DO NOT EDIT MANUALLY
 
 version: 1
-next_sprint_number: 8
+next_sprint_number: 10
 last_updated: '2026-03-07'
 
 # History:
@@ -14,4 +14,6 @@ last_updated: '2026-03-07'
 # - Sprint 005: Completed 2026-02-21 (Spec 011 Phase 3 + review fixes, 8 pts)
 # - Sprint 006: Completed 2026-03-03 (Spec 004 Plugin System, 92 pts)
 # - Sprint 007: Active 2026-03-08 (Spec 012 Plugin Observability Phase 1+2+partial 3, 61 pts)
-# - Next sprint will be 008
+# - Sprint 008: Active 2026-03-10 (Spec 012 Phase 3 completion — T012-21..T012-26 + T012-46, 24 pts)
+# - Sprint 009: Active 2026-03-31 (Spec 012 Phase 4 Frontend + Phase 5 Testing/Docs, 77 pts)
+# - Next sprint will be 010
