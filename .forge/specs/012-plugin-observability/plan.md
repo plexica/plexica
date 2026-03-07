@@ -1027,20 +1027,20 @@ None.
 | T012-44 | Grafana dashboards: "Core Platform" (request rate, error rate, P50/P95/P99 latency, heap usage, event loop lag, active connections)                                 | 3      | 3h     | T012-06     |
 | T012-45 | docs/OBSERVABILITY.md: setup guide, docker-compose usage, adding custom metrics, tracing guide, Grafana access, env var reference                                   | 3      | 3h     | All         |
 
-**Phase 5 Total**: ~38 pts, ~38h
+**Phase 5 Total**: ~39 pts, ~39h
 
 ---
 
 ### Summary: All Phases
 
-| Phase     | Name                          | Tasks        | Points  | Effort    | Sprint       |
-| --------- | ----------------------------- | ------------ | ------- | --------- | ------------ |
-| 1         | Infrastructure & Core Metrics | T012-01..11  | 33      | 25h       | N W1-2       |
-| 2         | Distributed Tracing           | T012-12..17  | 15      | 10h       | N W2-3       |
-| 3         | API Endpoints                 | T012-18..26  | 35      | 26h       | N W3-4       |
-| 4         | Frontend Dashboard            | T012-27..33  | 37      | 32h       | N+1 W1-3     |
-| 5         | Testing, Grafana & Docs       | T012-34..45  | 38      | 38h       | N+1 W3-4     |
-| **Total** |                               | **45 tasks** | **158** | **~131h** | **~8 weeks** |
+| Phase     | Name                          | Tasks                | Points  | Effort    | Sprint       |
+| --------- | ----------------------------- | -------------------- | ------- | --------- | ------------ |
+| 1         | Infrastructure & Core Metrics | T012-01..11          | 33      | 25h       | N W1-2       |
+| 2         | Distributed Tracing           | T012-12..17          | 15      | 10h       | N W2-3       |
+| 3         | API Endpoints                 | T012-18..26, T012-46 | 37      | 28h       | N W3-4       |
+| 4         | Frontend Dashboard            | T012-27..33, T012-47 | 38      | 33h       | N+1 W1-3     |
+| 5         | Testing, Grafana & Docs       | T012-34..45          | 39      | 39h       | N+1 W3-4     |
+| **Total** |                               | **47 tasks**         | **162** | **~135h** | **~8 weeks** |
 
 ## 8. Testing Strategy
 
