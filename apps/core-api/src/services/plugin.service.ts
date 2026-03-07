@@ -35,6 +35,7 @@ import { TenantMigrationService } from './tenant-migration.service.js';
 import { TopicManager } from '@plexica/event-bus';
 import type { TranslationService } from '../modules/i18n/i18n.service.js';
 import { moduleFederationRegistryService } from './module-federation-registry.service.js';
+import { pluginTargetsService } from './plugin-targets.service.js';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -994,6 +995,14 @@ export class PluginLifecycleService {
       },
     });
 
+    // T012-10: Update Prometheus file-SD targets (fire-and-forget — non-blocking)
+    pluginTargetsService.addTarget(pluginId).catch((err: unknown) => {
+      this.logger.warn(
+        { pluginId, error: err instanceof Error ? err.message : String(err) },
+        'Failed to update Prometheus targets after plugin activation (non-blocking)'
+      );
+    });
+
     return updated;
   }
 
@@ -1099,6 +1108,14 @@ export class PluginLifecycleService {
       include: {
         plugin: true,
       },
+    });
+
+    // T012-10: Update Prometheus file-SD targets (fire-and-forget — non-blocking)
+    pluginTargetsService.removeTarget(pluginId).catch((err: unknown) => {
+      this.logger.warn(
+        { pluginId, error: err instanceof Error ? err.message : String(err) },
+        'Failed to update Prometheus targets after plugin deactivation (non-blocking)'
+      );
     });
 
     return updated;

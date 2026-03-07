@@ -30,10 +30,8 @@ import {
 import type { CreateWorkspaceDto } from '../modules/workspace/dto/create-workspace.dto.js';
 import type { UpdateWorkspaceDto } from '../modules/workspace/dto/update-workspace.dto.js';
 import {
-  validateWorkspaceSettingsUpdate,
   validatePatchWorkspaceSettings,
   updateSettingsBodyJsonSchema,
-  type WorkspaceSettingsUpdate,
   type PatchWorkspaceSettings,
 } from '../modules/workspace/schemas/workspace-settings.schema.js';
 import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';

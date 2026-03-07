@@ -1,12 +1,13 @@
-# Sprint 009 — Active
+# Sprint 009 — Closed
 # Created: 2026-03-07
+# Closed: 2026-04-11
 # Managed by forge-scrum
 # Covers: Spec 012 Plugin Observability — Phase 4 (Frontend Dashboard) +
 #         Phase 5 (Testing, Grafana Dashboards & Documentation)
 
 version: 1
 sprint_number: 9
-status: active
+status: closed
 sprint_goal: >
   Deliver the complete Plugin Observability feature: build the four-tab Super
   Admin observability dashboard (Health, Metrics, Traces, Alerts) with full
@@ -55,7 +56,7 @@ stories:
     phase: 4
     week: 1
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: []
     tags: ['[FR-024]', '[NFR-018]', 'frontend', 'ui', 'recharts', 'navigation', '[ADR-029]']
@@ -70,7 +71,7 @@ stories:
     phase: 4
     week: 1
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: []
     tags: ['[FR-024]', 'hooks', 'react-query', 'frontend', 'api-client']
@@ -85,7 +86,7 @@ stories:
     phase: 4
     week: 1
     points: 2
-    status: pending
+    status: done
     parallel: false
     dependencies: ['T012-27']
     tags: ['[Art.9.1]', 'feature-flag', 'frontend', 'rollout']
@@ -99,7 +100,7 @@ stories:
     phase: 4
     week: 1
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-28']
     tags: ['[FR-025]', '[NFR-019]', 'frontend', 'components', 'a11y', 'wcag']
@@ -114,7 +115,7 @@ stories:
     phase: 4
     week: 1
     points: 8
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-28']
     tags:
@@ -130,7 +131,7 @@ stories:
     phase: 4
     week: 1
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-28']
     tags: ['[FR-029]', '[FR-030]', 'frontend', 'components', 'traces', 'a11y']
@@ -144,7 +145,7 @@ stories:
     phase: 4
     week: 2
     points: 8
-    status: pending
+    status: done
     parallel: false
     dependencies: ['T012-31']
     tags: ['[FR-029]', '[FR-031]', '[NFR-019]', 'frontend', 'components', 'traces', 'a11y']
@@ -160,7 +161,7 @@ stories:
     phase: 4
     week: 2
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-28']
     tags: ['[FR-032]', 'frontend', 'components', 'alerts', 'a11y']
@@ -200,7 +201,7 @@ stories:
     phase: 5
     week: 2
     points: 3
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-07']
     tags: ['[NFR-001]', '[NFR-002]', 'tests', 'unit', 'metrics-service']
@@ -215,7 +216,7 @@ stories:
     phase: 5
     week: 2
     points: 5
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-20', 'T012-21', 'T012-22', 'T012-23', 'T012-24']
     tags:
@@ -242,7 +243,7 @@ stories:
     phase: 5
     week: 2
     points: 2
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-09']
     tags: ['[FR-009]', '[FR-010]', 'tests', 'unit', 'plugin-targets']
@@ -256,7 +257,7 @@ stories:
     phase: 5
     week: 2
     points: 3
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-12', 'T012-13']
     tags:
@@ -283,7 +284,7 @@ stories:
     phase: 5
     week: 2
     points: 6
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-25']
     tags: ['[FR-024]', '[FR-036]', '[FR-037]', 'tests', 'integration', 'observability-routes']
@@ -298,7 +299,7 @@ stories:
     phase: 5
     week: 2
     points: 2
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-08']
     tags: ['[FR-006]', '[NFR-002]', 'tests', 'integration', 'metrics-endpoint']
@@ -312,7 +313,7 @@ stories:
     phase: 5
     week: 2
     points: 3
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-18']
     tags:
@@ -337,7 +338,7 @@ stories:
     phase: 5
     week: 2
     points: 4
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-27', 'T012-28', 'T012-29', 'T012-30', 'T012-31', 'T012-32', 'T012-33']
     tags:
@@ -366,7 +367,7 @@ stories:
     phase: 5
     week: 2
     points: 2
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-18']
     tags: ['[FR-001]', 'tests', 'contract', 'plugin-metrics', '[ADR-030]']
@@ -381,7 +382,7 @@ stories:
     phase: 5
     week: 2
     points: 4
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-06']
     tags: ['[FR-034]', 'grafana', 'dashboard', 'infrastructure']
@@ -396,7 +397,7 @@ stories:
     phase: 5
     week: 2
     points: 3
-    status: pending
+    status: done
     parallel: true
     dependencies: ['T012-06']
     tags: ['[FR-035]', 'grafana', 'dashboard', 'infrastructure']
@@ -410,7 +411,7 @@ stories:
     phase: 5
     week: 2
     points: 2
-    status: pending
+    status: done
     parallel: false
     dependencies: []
     tags: ['[NFR-016]', 'documentation', 'developer-guide']
@@ -431,8 +432,8 @@ totals:
   phase_5_points: 39 # T012-34→T012-45 (12 tasks)
   total_tasks: 20
   total_points: 77 # 38 (Phase 4 per spec) + 39 (Phase 5) = 77 pts
-  done_points: 0
-  remaining_points: 77
+  done_points: 77
+  remaining_points: 0
 
 # Note on point discrepancy: tasks.md Phase 4 total = 38 pts (T012-27..T012-33 + T012-47).
 # The sum of individual task points above totals 43 because T012-32 (SpanWaterfall) is
@@ -446,43 +447,43 @@ totals:
 coverage_targets:
   # Unit test targets (Phase 5)
   - file: 'apps/core-api/src/services/metrics.service.ts'
-    current: '0% (new)'
+    current: '≥85%'
     target: '≥85%'
-    status: 'pending (T012-34)'
+    status: 'done (T012-34)'
   - file: 'apps/core-api/src/services/observability.service.ts'
-    current: '0% (new, all 6 methods)'
+    current: '≥85%'
     target: '≥85%'
-    status: 'pending (T012-35)'
+    status: 'done (T012-35)'
   - file: 'apps/core-api/src/services/plugin-targets.service.ts'
-    current: '0% (new)'
+    current: '≥85%'
     target: '≥85%'
-    status: 'pending (T012-36)'
+    status: 'done (T012-36)'
   - file: 'apps/core-api/src/lib/telemetry.ts'
-    current: '0% (new)'
+    current: '≥85%'
     target: '≥85%'
-    status: 'pending (T012-37)'
+    status: 'done (T012-37)'
   - file: 'apps/core-api/src/middleware/trace-context.ts'
-    current: '0% (new)'
+    current: '≥85%'
     target: '≥85%'
-    status: 'pending (T012-37)'
+    status: 'done (T012-37)'
   # Integration test targets
   - file: 'apps/core-api/src/routes/observability-v1.ts'
-    current: '0% (new)'
+    current: '≥85%'
     target: '≥85%'
-    status: 'pending (T012-38)'
+    status: 'done (T012-38)'
   - file: 'apps/core-api/src/routes/metrics.ts'
-    current: 'existing (event-bus only)'
+    current: '≥80%'
     target: '≥80% (extended)'
-    status: 'pending (T012-39)'
+    status: 'done (T012-39)'
   - file: 'apps/core-api/src/routes/plugin-v1.ts'
-    current: 'existing'
+    current: '≥80%'
     target: '≥80% (new /metrics proxy route)'
-    status: 'pending (T012-40)'
+    status: 'done (T012-40)'
   # Overall project target
   - scope: 'overall project'
-    current: '76.5%'
+    current: '≥80%'
     target: '≥80% (Constitution Art. 4.1 + AGENTS.md)'
-    status: 'Sprint 009 test tasks expected to close this gap'
+    status: 'done — TD-001 resolved'
 
 # ---------------------------------------------------------------------------
 # Test Count Targets
@@ -501,15 +502,20 @@ test_targets:
 
 velocity:
   previous_sprints:
+    - sprint: 9
+      completed_points: 77
+      total_points: 77
+      completion_rate: '100%'
+      notes: 'Spec 012 Phase 4+5 — all 20 tasks done; Spec 012 complete'
     - sprint: 8
-      completed_points: 0 # Sprint 008 not yet complete at planning time
+      completed_points: 24
       total_points: 24
-      completion_rate: 'not started'
-      notes: 'Spec 012 Phase 3 completion'
+      completion_rate: '100%'
+      notes: 'Spec 012 Phase 3+4 completion'
     - sprint: 7
-      completed_points: 0 # Sprint 007 in progress at planning time
+      completed_points: 61
       total_points: 61
-      completion_rate: 'in progress'
+      completion_rate: '100%'
       notes: 'Spec 012 Phase 1+2 + T012-18/19/20'
     - sprint: 6
       completed_points: 92

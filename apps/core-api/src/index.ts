@@ -1,3 +1,8 @@
+// Spec 012 T012-16 (ADR-026): MUST be the very first import so the OTel SDK
+// patches http/net/dns modules before they are required by any other module.
+import { initTelemetry, shutdownTelemetry } from './lib/telemetry.js';
+initTelemetry();
+
 import fastify from 'fastify';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
@@ -16,7 +21,7 @@ import { workspaceTemplatesRoutes } from './routes/workspace-templates';
 import { adminRoutes } from './routes/admin';
 import { marketplaceRoutes } from './routes/marketplace';
 // import { dlqRoutes } from './routes/dlq';
-// import metricsRoutes from './routes/metrics';
+import metricsRoutes from './routes/metrics.js';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
 import { translationRoutes } from './modules/i18n/i18n.controller.js';
 import { storageRoutes } from './modules/storage/storage.routes.js';
@@ -33,6 +38,7 @@ import { policiesRoutes } from './routes/policies.js';
 import { pluginV1Routes } from './routes/plugin-v1.js';
 import { tenantPluginsV1Routes } from './routes/tenant-plugins-v1.js';
 import { tenantAdminRoutes } from './routes/tenant-admin.js';
+import { observabilityRoutes } from './routes/observability-v1.js'; // Spec 012 T012-26 — Plugin Observability API
 import { minioClient } from './services/minio-client';
 import { db } from './lib/db';
 import { redis } from './lib/redis';
@@ -43,6 +49,7 @@ import { DependencyResolutionService } from './services/dependency-resolution.se
 import { csrfProtectionMiddleware } from './middleware/csrf-protection.js';
 import { advancedRateLimitMiddleware } from './middleware/advanced-rate-limit.js';
 import { setupErrorHandler } from './middleware/error-handler.js';
+import { traceContextMiddleware } from './middleware/trace-context.js';
 import { RedpandaClient, EventBusService } from '@plexica/event-bus';
 import { initUserSyncConsumer } from './services/user-sync.consumer.js';
 import { deletionScheduler } from './services/deletion-scheduler.js';
@@ -179,6 +186,10 @@ async function registerPlugins() {
           { name: 'dlq', description: 'Dead Letter Queue management' },
           { name: 'metrics', description: 'Event system metrics' },
           { name: 'plugin-gateway', description: 'Plugin-to-plugin communication (M2.3)' },
+          {
+            name: 'observability',
+            description: 'Plugin observability — metrics, traces, logs, alerts (Spec 012)',
+          },
         ],
       },
     });
@@ -197,6 +208,9 @@ async function registerPlugins() {
 
   // SECURITY: Register CSRF protection middleware globally
   server.addHook('preHandler', csrfProtectionMiddleware);
+
+  // Spec 012 T012-16 (ADR-026): inject OTel trace context into every request log.
+  server.addHook('onRequest', traceContextMiddleware);
 }
 
 // Register routes
@@ -215,9 +229,10 @@ async function registerRoutes() {
   await server.register(authorizationRoutes, { prefix: '/api' }); // Authorization routes (Spec 003 RBAC)
   await server.register(policiesRoutes, { prefix: '/api' }); // ABAC policy routes (Spec 003)
   await server.register(adminRoutes, { prefix: '/api' }); // Super-admin routes
-  // TODO: Fix TypeScript errors in DLQ and Metrics routes before enabling
+  // TODO: Fix TypeScript errors in DLQ routes before enabling
   // await server.register(dlqRoutes, { prefix: '/api/admin/dlq' });
-  // await server.register(metricsRoutes, { prefix: '/api/metrics' });
+  // Spec 012 T012-16 (ADR-027): root /metrics endpoint — Prometheus scrape target.
+  await server.register(metricsRoutes, { prefix: '/metrics' });
 
   // Plugin Gateway Routes (M2.3 - Plugin-to-Plugin Communication)
   // Initialize services for plugin communication
@@ -236,6 +251,7 @@ async function registerRoutes() {
   await server.register(searchRoutes, { prefix: '/api/v1' });
   await server.register(notificationStreamRoutes, { prefix: '/api/v1' });
   await server.register(tenantAdminRoutes, { prefix: '/api/v1' }); // Spec 008 T008-18/64/65 — Tenant Admin Interface
+  await server.register(observabilityRoutes, { prefix: '/api/v1/observability' }); // Spec 012 T012-26 — Plugin Observability API
 }
 
 // Error handler
@@ -310,6 +326,10 @@ async function closeGracefully(signal: string) {
     // Close Fastify server
     await server.close();
     server.log.info('Fastify server closed');
+
+    // Spec 012 T012-16 (ADR-026): flush pending OTel spans before exit.
+    await shutdownTelemetry();
+    server.log.info('OpenTelemetry SDK shut down');
 
     process.exit(0);
   } catch (error) {

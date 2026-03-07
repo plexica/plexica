@@ -4,61 +4,7 @@ import { buildTestApp } from '../../../test-app';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper';
 import { db } from '../../../lib/db';
 import { resetAllCaches } from '../../../lib/advanced-rate-limit';
-
-/**
- * Poll GET /api/tenants/:id until `tenant.status === expectedStatus` or timeout.
- *
- * Replaces hard-coded `setTimeout` sleeps (TD-005) that were flaky in CI when
- * Keycloak provisioning took longer than the fixed 2-second wait.
- *
- * @param app            - Fastify test instance
- * @param token          - Bearer token for the request
- * @param tenantId       - Tenant UUID to poll
- * @param expectedStatus - Status string to wait for (e.g. 'ACTIVE')
- * @param maxWaitMs      - Maximum wait time in milliseconds (default 15000)
- * @param intervalMs     - Polling interval in milliseconds (default 300)
- */
-async function waitForTenantStatus(
-  app: FastifyInstance,
-  token: string,
-  tenantId: string,
-  expectedStatus: string,
-  maxWaitMs = 15000,
-  intervalMs = 300
-): Promise<void> {
-  const deadline = Date.now() + maxWaitMs;
-  while (Date.now() < deadline) {
-    const res = await app.inject({
-      method: 'GET',
-      url: `/api/tenants/${tenantId}`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    // Fail fast on auth errors — spinning to timeout would obscure the real cause.
-    if (res.statusCode === 401 || res.statusCode === 403) {
-      throw new Error(
-        `waitForTenantStatus: auth failure polling tenant ${tenantId} — HTTP ${res.statusCode}`
-      );
-    }
-
-    if (res.statusCode === 200) {
-      let body: { status?: string };
-      try {
-        body = res.json() as { status?: string };
-      } catch {
-        throw new Error(
-          `waitForTenantStatus: tenant ${tenantId} returned 200 with non-JSON body: ${res.payload}`
-        );
-      }
-      if (body.status === expectedStatus) return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-  throw new Error(
-    `Tenant ${tenantId} did not reach status '${expectedStatus}' within ${maxWaitMs}ms`
-  );
-}
+import { waitForTenantStatus } from './tenant-e2e-helpers';
 
 /**
  * E2E Tests: Tenant Concurrent Operations
@@ -272,6 +218,10 @@ describe('Tenant Concurrent Operations E2E', () => {
 
       // Count successes and failures
       const successful = responses.filter((r) => r.statusCode === 201);
+      // Intentionally-invalid requests (300-char name) should fail with 4xx, never 5xx.
+      // A 5xx here indicates a server error regression (e.g. unhandled exception).
+      const errored = responses.filter((r) => r.statusCode >= 500);
+      expect(errored.length).toBe(0);
 
       // At least valid ones should succeed
       expect(successful.length).toBeGreaterThanOrEqual(5);

@@ -475,6 +475,59 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
+  // T012-18: GET /api/v1/plugins/:id/metrics
+  //
+  // Proxies the plugin container's Prometheus /metrics endpoint to the caller.
+  // ADR-030: plugin containers expose GET /metrics in Prometheus text exposition
+  // format v0.0.4. Core API proxies it here for super-admin access and Prometheus
+  // federation (sample_limit: 5000 enforced by Prometheus scrape config).
+  //
+  // Returns 503 when the plugin is not ACTIVE or its container is unreachable.
+  // ---------------------------------------------------------------------------
+  fastify.get<{ Params: { id: string } }>(
+    '/plugins/:id/metrics',
+    { preHandler: [authMiddleware, requireSuperAdmin] },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = request.params;
+
+      // Guard: plugin must be ACTIVE
+      try {
+        const plugin = await pluginRegistryService.getPlugin(id);
+        if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
+          return reply.code(503).send({
+            error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
+          });
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Plugin not found';
+        return reply.code(404).send({
+          error: { code: 'PLUGIN_NOT_FOUND', message },
+        });
+      }
+
+      // Proxy GET /metrics from plugin container — returns raw Prometheus text.
+      const baseUrl = resolveContainerBaseUrl(id);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), CONTAINER_PROXY_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${baseUrl}/metrics`, { signal: controller.signal });
+        clearTimeout(timer);
+        if (!response.ok) {
+          throw new Error(`Container responded with HTTP ${response.status}`);
+        }
+        const body = await response.text();
+        return reply.type('text/plain; version=0.0.4').send(body);
+      } catch (error: unknown) {
+        clearTimeout(timer);
+        request.log.warn({ pluginId: id, error }, 'Plugin container metrics fetch failed');
+        return reply.code(503).send({
+          error: { code: 'PLUGIN_UNREACHABLE', message: 'Plugin container is unreachable' },
+        });
+      }
+    }
+  );
+
+  // ---------------------------------------------------------------------------
   // T004-13: Public — Module Federation remote entry discovery
   // GET /api/v1/plugins/remotes
   //

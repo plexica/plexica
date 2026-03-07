@@ -264,7 +264,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               type: 'string',
               minLength: 1,
               maxLength: 255,
-              description: 'Tenant display name',
+              pattern: '^[^\\u0000]*$',
+              description: 'Tenant display name (must not contain null bytes)',
               examples: ['Acme Corporation', 'Globex Inc'],
             },
             adminEmail: {
@@ -1005,7 +1006,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               type: 'string',
               minLength: 1,
               maxLength: 255,
-              description: 'Tenant display name',
+              pattern: '^[^\\u0000]*$',
+              description: 'Tenant display name (must not contain null bytes)',
             },
             settings: {
               type: 'object',

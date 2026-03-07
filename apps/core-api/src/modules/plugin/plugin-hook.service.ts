@@ -13,11 +13,15 @@
 //
 // Uses Node.js ≥20 native fetch + AbortController for timeouts.
 // No additional HTTP client dependency required (Constitution Art. 2.2).
+//
+// Spec 012 T012-15 (ADR-026): X-Trace-ID replaced with W3C traceparent header
+// for distributed trace propagation to plugin containers.
 
 import type { PrismaClient } from '@plexica/database';
 import { db } from '../../lib/db.js';
 import { logger as rootLogger } from '../../lib/logger.js';
 import type { Logger } from 'pino';
+import { trace, context, propagation, isSpanContextValid } from '@opentelemetry/api';
 import { z } from 'zod';
 import type {
   HookResult,
@@ -360,13 +364,31 @@ export class PluginHookService {
     }
 
     try {
+      // Spec 012 T012-15 (ADR-026): build W3C traceparent from the active OTel
+      // span. If no span is active, fall back to a generated trace ID so the
+      // plugin container always receives a valid traceparent header.
+      const outboundHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Tenant-ID': tenantId,
+      };
+      const activeSpan = trace.getActiveSpan();
+      const spanCtx = activeSpan?.spanContext();
+      if (spanCtx && isSpanContextValid(spanCtx)) {
+        // Inject the full W3C trace context (traceparent + tracestate) via the
+        // OTel propagation API so all registered propagators are applied.
+        propagation.inject(context.active(), outboundHeaders);
+      } else {
+        // No active span — generate a fresh traceparent so plugin containers can
+        // still emit correlated logs even outside a traced request path.
+        const traceId =
+          crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '').slice(0, 0);
+        const spanId = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+        outboundHeaders['traceparent'] = `00-${traceId}-${spanId}-01`;
+      }
+
       const response = await fetch(hookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': tenantId,
-          'X-Trace-ID': crypto.randomUUID(),
-        },
+        headers: outboundHeaders,
         body: JSON.stringify(payload),
         signal: controller.signal,
       });

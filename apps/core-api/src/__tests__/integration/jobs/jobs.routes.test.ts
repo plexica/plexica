@@ -26,8 +26,6 @@ describe('Jobs Routes Integration', () => {
   let memberToken: string;
   let testTenantSlug: string;
   let tenantId: string;
-  /** Track job IDs created so we can assert state transitions */
-  const createdJobIds: string[] = [];
 
   beforeAll(async () => {
     await testContext.resetAll();
@@ -71,9 +69,8 @@ describe('Jobs Routes Integration', () => {
     _resetJobQueueSingletonForTests();
   });
 
-  // TD-010: Reset singleton after each test so that tests within this file
-  // cannot share stale singleton state if the singleton is re-initialised
-  // mid-suite (e.g. after a worker crash or restart simulation).
+  // TD-010: Reset singleton after each test to prevent stale singleton state from
+  // bleeding between tests within this file (defense-in-depth alongside the afterAll reset).
   afterEach(() => {
     _resetJobQueueSingletonForTests();
   });
@@ -101,7 +98,6 @@ describe('Jobs Routes Integration', () => {
       const json = res.json();
       expect(json).toHaveProperty('jobId');
       expect(typeof json.jobId).toBe('string');
-      createdJobIds.push(json.jobId);
     });
 
     it('should return 403 when called by a member', async () => {
@@ -199,7 +195,6 @@ describe('Jobs Routes Integration', () => {
       expect(res.statusCode).toBe(201);
       const json = res.json();
       expect(json).toHaveProperty('jobId');
-      createdJobIds.push(json.jobId);
     });
 
     it('should return 400 when cronExpression is missing', async () => {
@@ -241,7 +236,6 @@ describe('Jobs Routes Integration', () => {
       });
       expect(enqRes.statusCode).toBe(201);
       const { jobId } = enqRes.json();
-      createdJobIds.push(jobId);
 
       const res = await app.inject({
         method: 'GET',

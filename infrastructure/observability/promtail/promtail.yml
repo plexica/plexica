@@ -1,0 +1,49 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: status
+            values: ['running']
+
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+      - source_labels: [__meta_docker_container_image]
+        target_label: image
+
+    pipeline_stages:
+      # Parse Pino JSON log lines
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            tenant_id: tenantId
+            plugin_id: pluginId
+            trace_id: traceId
+            request_id: requestId
+            user_id: userId
+
+      # Promote extracted fields to Loki labels
+      - labels:
+          level:
+          tenant_id:
+          plugin_id:
+
+      # Keep structured fields as log line metadata
+      - output:
+          source: msg

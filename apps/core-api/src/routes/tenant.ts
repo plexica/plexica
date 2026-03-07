@@ -25,7 +25,8 @@ const createTenantSchema = {
         type: 'string',
         minLength: 1,
         maxLength: 255,
-        description: 'Tenant display name',
+        pattern: '^[^\\u0000]*$',
+        description: 'Tenant display name (must not contain null bytes)',
       },
       settings: {
         type: 'object',
@@ -50,7 +51,13 @@ const updateTenantSchema = {
   body: {
     type: 'object',
     properties: {
-      name: { type: 'string' },
+      name: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 255,
+        pattern: '^[^\\u0000]*$',
+        description: 'Tenant display name (must not contain null bytes)',
+      },
       slug: { type: 'string' },
       status: {
         type: 'string',

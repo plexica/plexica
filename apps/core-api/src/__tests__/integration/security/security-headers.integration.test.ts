@@ -12,7 +12,7 @@
 //
 // Uses buildTestApp() + app.inject() so no real Keycloak/DB required for the
 // header and error-format tests.  Input validation tests use the tenant API
-// because it has well-defined Zod schemas and requires only a mock token.
+// because it has well-defined JSON Schema (ajv) validation and requires only a mock token.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -219,6 +219,9 @@ describe('Security Headers & Input Validation Integration', () => {
       });
 
       expect(res.statusCode).not.toBe(201);
+      // The JSON Schema pattern '^[^\u0000]*$' on the name field now rejects
+      // null bytes at the Fastify/ajv layer, returning a clean 400 before the
+      // request ever reaches Prisma.
       expect(res.statusCode).toBe(400);
     });
   });
