@@ -271,11 +271,11 @@ This satisfies NFR-013: "Observability stack failure must not crash core API."
 
 ## Follow-Up Actions
 
-- [ ] Create `apps/core-api/src/lib/telemetry.ts` with SDK initialisation (T012-05)
-- [ ] Add `@opentelemetry/*` packages to `apps/core-api/package.json` (T012-05)
-- [ ] Import `telemetry.ts` as first import in `apps/core-api/src/index.ts` (T012-05)
-- [ ] Replace `X-Trace-ID` with `traceparent` in `plugin-hook.service.ts` (T012-08)
-- [ ] Enrich Pino logger with `traceId`/`spanId` from OTel context (T012-09)
+- [ ] Create `apps/core-api/src/lib/telemetry.ts` with SDK initialisation (T012-12)
+- [ ] Add `@opentelemetry/*` packages to `apps/core-api/package.json` (T012-17)
+- [ ] Import `telemetry.ts` as first import in `apps/core-api/src/index.ts` (T012-16)
+- [ ] Replace `X-Trace-ID` with `traceparent` in `plugin-hook.service.ts` (T012-15)
+- [ ] Enrich Pino logger with `traceId`/`spanId` from OTel context (T012-14)
 - [ ] Add Tempo service to `docker-compose.yml` (T012-03)
 - [ ] Evaluate OTel Collector for production-hardening spec (deferred)
 

@@ -24,7 +24,7 @@ system — the last major infrastructure gap before production readiness. The
 current platform has zero metrics collection, zero distributed tracing, zero
 log aggregation, and zero alerting. This plan addresses all 37 functional
 requirements and 22 non-functional requirements from Spec 012 across 5
-implementation phases with 38 tasks totalling ~92 story points.
+implementation phases with 45 tasks totalling ~158 story points (~131 hours).
 
 ### 1.1 Current State
 
@@ -577,33 +577,33 @@ The core API writes a JSON file consumed by Prometheus (spec §7.2):
 
 #### 4.7.1 ObservabilityLayout
 
-- **Location**: `apps/web/src/pages/admin/observability/index.tsx`
+- **Location**: `apps/super-admin/src/routes/_layout/observability/index.tsx`
 - **Responsibilities**: Tab navigation (Health/Metrics/Traces/Alerts), route management
 
 #### 4.7.2 HealthTable
 
-- **Location**: `apps/web/src/components/observability/HealthTable.tsx`
+- **Location**: `apps/super-admin/src/components/observability/HealthTable.tsx`
 - **Responsibilities**: Plugin health summary table, auto-refresh (30s), status badges
   with color + text (WCAG 2.1 AA), click-through to Metrics tab
 
 #### 4.7.3 MetricsCharts
 
-- **Location**: `apps/web/src/components/observability/MetricsCharts.tsx`
+- **Location**: `apps/super-admin/src/components/observability/MetricsCharts.tsx`
 - **Responsibilities**: 4-panel chart grid (request rate, latency, error rate, resources),
   plugin selector, time range selector, `recharts` line/area charts,
   `aria-label` descriptions, data table fallback for screen readers
 
 #### 4.7.4 TraceList / TraceWaterfall
 
-- **Location**: `apps/web/src/components/observability/TraceList.tsx`
-  and `apps/web/src/components/observability/TraceWaterfall.tsx`
+- **Location**: `apps/super-admin/src/components/observability/TraceList.tsx`
+  and `apps/super-admin/src/components/observability/TraceWaterfall.tsx`
 - **Responsibilities**: Trace search, results table, span waterfall (custom React component,
   not Grafana embed per OQ-004 resolution). Hierarchical timeline with parent-child
   span relationships, service name, operation, duration, error highlighting.
 
 #### 4.7.5 AlertsPanel
 
-- **Location**: `apps/web/src/components/observability/AlertsPanel.tsx`
+- **Location**: `apps/super-admin/src/components/observability/AlertsPanel.tsx`
 - **Responsibilities**: Active alerts (card layout, severity sorted), alert history
   (paginated table), severity filtering, "View Plugin" links
 
@@ -631,17 +631,17 @@ The core API writes a JSON file consumed by Prometheus (spec §7.2):
 | `infrastructure/observability/grafana/provisioning/dashboards/dashboards.yml`        | Grafana dashboard provisioning config                               | S              |
 | `infrastructure/observability/grafana/dashboards/plugin-overview.json`               | Pre-built Plugin Overview dashboard (FR-034)                        | L              |
 | `infrastructure/observability/grafana/dashboards/core-platform.json`                 | Pre-built Core Platform dashboard (FR-035)                          | L              |
-| `apps/web/src/pages/admin/observability/index.tsx`                                   | Observability layout with tab nav (FR-024)                          | M              |
-| `apps/web/src/pages/admin/observability/health.tsx`                                  | Health tab page                                                     | S              |
-| `apps/web/src/pages/admin/observability/metrics.tsx`                                 | Metrics tab page                                                    | S              |
-| `apps/web/src/pages/admin/observability/traces.tsx`                                  | Traces tab page                                                     | S              |
-| `apps/web/src/pages/admin/observability/alerts.tsx`                                  | Alerts tab page                                                     | S              |
-| `apps/web/src/components/observability/HealthTable.tsx`                              | Plugin health table component (FR-025)                              | M              |
-| `apps/web/src/components/observability/MetricsCharts.tsx`                            | Time-series chart panels with recharts (FR-027)                     | L              |
-| `apps/web/src/components/observability/TraceList.tsx`                                | Trace search and results list (FR-029)                              | M              |
-| `apps/web/src/components/observability/TraceWaterfall.tsx`                           | Span waterfall visualization (FR-029)                               | L              |
-| `apps/web/src/components/observability/AlertsPanel.tsx`                              | Alerts display component (FR-032)                                   | M              |
-| `apps/web/src/hooks/useObservability.ts`                                             | React Query hooks for observability API calls                       | M              |
+| `apps/super-admin/src/routes/_layout/observability/index.tsx`                        | Observability layout with tab nav (FR-024)                          | M              |
+| `apps/super-admin/src/routes/_layout/observability/health.tsx`                       | Health tab page                                                     | S              |
+| `apps/super-admin/src/routes/_layout/observability/metrics.tsx`                      | Metrics tab page                                                    | S              |
+| `apps/super-admin/src/routes/_layout/observability/traces.tsx`                       | Traces tab page                                                     | S              |
+| `apps/super-admin/src/routes/_layout/observability/alerts.tsx`                       | Alerts tab page                                                     | S              |
+| `apps/super-admin/src/components/observability/HealthTable.tsx`                      | Plugin health table component (FR-025)                              | M              |
+| `apps/super-admin/src/components/observability/MetricsCharts.tsx`                    | Time-series chart panels with recharts (FR-027)                     | L              |
+| `apps/super-admin/src/components/observability/TraceList.tsx`                        | Trace search and results list (FR-029)                              | M              |
+| `apps/super-admin/src/components/observability/TraceWaterfall.tsx`                   | Span waterfall visualization (FR-029)                               | L              |
+| `apps/super-admin/src/components/observability/AlertsPanel.tsx`                      | Alerts display component (FR-032)                                   | M              |
+| `apps/super-admin/src/hooks/useObservability.ts`                                     | React Query hooks for observability API calls                       | M              |
 | `apps/core-api/src/__tests__/observability/unit/metrics.service.test.ts`             | Unit tests for MetricsService                                       | M              |
 | `apps/core-api/src/__tests__/observability/unit/observability.service.test.ts`       | Unit tests for ObservabilityService                                 | L              |
 | `apps/core-api/src/__tests__/observability/unit/plugin-targets.service.test.ts`      | Unit tests for PluginTargetsService                                 | M              |
@@ -664,9 +664,9 @@ The core API writes a JSON file consumed by Prometheus (spec §7.2):
 | `apps/core-api/src/modules/plugin/plugin-hook.service.ts` | Line 368                                                            | Replace `'X-Trace-ID': crypto.randomUUID()` with `traceparent` from OTel (FR-013)              | S                |
 | `apps/core-api/src/services/plugin.service.ts`            | Lines 894, 1004 (activate/deactivate)                               | Call `pluginTargetsService.refreshTargets()` on lifecycle transitions (FR-010)                 | S                |
 | `apps/core-api/src/lib/logger.ts`                         | Full file                                                           | Add OTel trace context mixin for traceId/spanId in logs (FR-019)                               | S                |
-| `apps/core-api/package.json`                              | dependencies                                                        | Add `@opentelemetry/*` (6 packages), `prom-client`                                             | S                |
-| `apps/web/package.json`                                   | dependencies                                                        | Add `recharts`                                                                                 | S                |
-| `apps/web/src/pages/admin/` (sidebar config)              | Navigation array                                                    | Add "Observability" nav item after "Plugins"                                                   | S                |
+| `apps/core-api/package.json`                              | dependencies                                                        | Add `@opentelemetry/*` (7 packages per ADR-026), `prom-client`                                 | S                |
+| `apps/super-admin/package.json`                           | dependencies                                                        | Add `recharts`                                                                                 | S                |
+| `apps/super-admin/src/routes/_layout/` (sidebar config)   | Navigation array                                                    | Add "Observability" nav item after "Plugins"                                                   | S                |
 
 ### Files to Delete (if any)
 
@@ -696,6 +696,7 @@ None.
 | `@opentelemetry/sdk-node`                 | ^0.57   | OTel SDK for Node.js auto-instrumentation              | ADR-026 |
 | `@opentelemetry/exporter-trace-otlp-grpc` | ^0.57   | OTLP/gRPC span exporter to Tempo                       | ADR-026 |
 | `@opentelemetry/instrumentation-http`     | ^0.57   | Automatic HTTP span creation                           | ADR-026 |
+| `@opentelemetry/instrumentation-fastify`  | ^0.43   | Fastify route/handler span enrichment                  | ADR-026 |
 | `@opentelemetry/resources`                | ^1.30   | Resource attributes (service.name, version)            | ADR-026 |
 | `@opentelemetry/semantic-conventions`     | ^1.30   | Standard attribute names                               | ADR-026 |
 | `@opentelemetry/api`                      | ^1.9    | Context propagation, tracer API                        | ADR-026 |
@@ -833,19 +834,19 @@ None.
   - Estimated effort: 1h
 - `apps/core-api/package.json`
   - Section: dependencies
-  - Change: Add 6 @opentelemetry/\* packages
+  - Change: Add 7 @opentelemetry/\* packages (including instrumentation-fastify per ADR-026)
   - Estimated effort: 15m
 
 **Tasks**:
 
-| ID      | Task                                                                                                                            | Points | Effort | Phase Deps       |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ---------------- |
-| T012-12 | telemetry.ts: NodeSDK init with OTLPTraceExporter (gRPC), BatchSpanProcessor, TraceIdRatioBasedSampler, HttpInstrumentation     | 5      | 5h     | None             |
-| T012-13 | trace-context.ts: Fastify preHandler middleware extracting traceId/spanId from OTel context into Pino child logger              | 3      | 2h     | T012-12          |
-| T012-14 | logger.ts: Add Pino mixin for automatic traceId/spanId injection (FR-019)                                                       | 2      | 1h     | T012-12          |
-| T012-15 | plugin-hook.service.ts: Replace X-Trace-ID with W3C traceparent from OTel context propagation (FR-013)                          | 2      | 1h     | T012-12          |
-| T012-16 | index.ts: Wire telemetry init (must run BEFORE Fastify), register trace-context middleware, add shutdown() to graceful shutdown | 2      | 1h     | T012-12, T012-13 |
-| T012-17 | Install @opentelemetry/\* packages in apps/core-api/package.json (6 packages per ADR-026)                                       | 1      | 15m    | None             |
+| ID      | Task                                                                                                                                                | Points | Effort | Phase Deps       |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ---------------- |
+| T012-12 | telemetry.ts: NodeSDK init with OTLPTraceExporter (gRPC), BatchSpanProcessor, TraceIdRatioBasedSampler, HttpInstrumentation, FastifyInstrumentation | 5      | 5h     | None             |
+| T012-13 | trace-context.ts: Fastify preHandler middleware extracting traceId/spanId from OTel context into Pino child logger                                  | 3      | 2h     | T012-12          |
+| T012-14 | logger.ts: Add Pino mixin for automatic traceId/spanId injection (FR-019)                                                                           | 2      | 1h     | T012-12          |
+| T012-15 | plugin-hook.service.ts: Replace X-Trace-ID with W3C traceparent from OTel context propagation (FR-013)                                              | 2      | 1h     | T012-12          |
+| T012-16 | index.ts: Wire telemetry init (must run BEFORE Fastify), register trace-context middleware, add shutdown() to graceful shutdown                     | 2      | 1h     | T012-12, T012-13 |
+| T012-17 | Install @opentelemetry/\* packages in apps/core-api/package.json (7 packages per ADR-026)                                                           | 1      | 15m    | None             |
 
 **Phase 2 Total**: ~15 pts, ~10h
 
@@ -894,8 +895,9 @@ None.
 | T012-24 | ObservabilityService.getPluginLogs(): Proxy LogQL to Loki /loki/api/v1/query_range, validate input, paginate (FR-018, spec §8.3)                                                            | 3      | 2h     | T012-04     |
 | T012-25 | observability-v1.ts: Route registration for all 7 endpoints, super_admin auth, Zod validation, error format (FR-036, FR-037)                                                                | 5      | 5h     | T012-19..24 |
 | T012-26 | index.ts: Register observability routes under /api/v1 prefix                                                                                                                                | 1      | 30m    | T012-25     |
+| T012-46 | OpenAPI schema definitions for all 8 new endpoints (/metrics + 7 /api/v1/observability/\*), following existing pattern in plugin-v1.ts (Art. 3.4.5)                                         | 2      | 2h     | T012-25     |
 
-**Phase 3 Total**: ~35 pts, ~26h
+**Phase 3 Total**: ~37 pts, ~28h
 
 ---
 
@@ -905,46 +907,46 @@ None.
 
 **Files to Create**:
 
-- `apps/web/src/pages/admin/observability/index.tsx`
+- `apps/super-admin/src/routes/_layout/observability/index.tsx`
   - Purpose: Observability layout with tab nav
   - Estimated effort: 2h
-- `apps/web/src/pages/admin/observability/health.tsx`
+- `apps/super-admin/src/routes/_layout/observability/health.tsx`
   - Purpose: Health tab page
   - Estimated effort: 1h
-- `apps/web/src/pages/admin/observability/metrics.tsx`
+- `apps/super-admin/src/routes/_layout/observability/metrics.tsx`
   - Purpose: Metrics tab page
   - Estimated effort: 1h
-- `apps/web/src/pages/admin/observability/traces.tsx`
+- `apps/super-admin/src/routes/_layout/observability/traces.tsx`
   - Purpose: Traces tab page
   - Estimated effort: 1h
-- `apps/web/src/pages/admin/observability/alerts.tsx`
+- `apps/super-admin/src/routes/_layout/observability/alerts.tsx`
   - Purpose: Alerts tab page
   - Estimated effort: 1h
-- `apps/web/src/hooks/useObservability.ts`
+- `apps/super-admin/src/hooks/useObservability.ts`
   - Purpose: React Query hooks for observability API
   - Estimated effort: 3h
-- `apps/web/src/components/observability/HealthTable.tsx`
+- `apps/super-admin/src/components/observability/HealthTable.tsx`
   - Purpose: Plugin health table with auto-refresh
   - Estimated effort: 4h
-- `apps/web/src/components/observability/MetricsCharts.tsx`
+- `apps/super-admin/src/components/observability/MetricsCharts.tsx`
   - Purpose: Time-series charts with recharts
   - Estimated effort: 6h
-- `apps/web/src/components/observability/TraceList.tsx`
+- `apps/super-admin/src/components/observability/TraceList.tsx`
   - Purpose: Trace search + results
   - Estimated effort: 4h
-- `apps/web/src/components/observability/TraceWaterfall.tsx`
+- `apps/super-admin/src/components/observability/TraceWaterfall.tsx`
   - Purpose: Span waterfall visualization
   - Estimated effort: 8h
-- `apps/web/src/components/observability/AlertsPanel.tsx`
+- `apps/super-admin/src/components/observability/AlertsPanel.tsx`
   - Purpose: Active alerts + history
   - Estimated effort: 4h
 
 **Files to Modify**:
 
-- `apps/web/package.json`
+- `apps/super-admin/package.json`
   - Change: Add `recharts` ^2.15
   - Estimated effort: 15m
-- `apps/web/src/pages/admin/` (sidebar)
+- `apps/super-admin/src/routes/_layout/` (sidebar)
   - Change: Add Observability nav item
   - Estimated effort: 1h
 
@@ -959,8 +961,9 @@ None.
 | T012-31 | TraceList.tsx: Trace search form (service dropdown, trace ID input, time range picker), results table (trace ID, root service, duration, span count, status badge), pagination                                  | 5      | 4h     | T012-28    |
 | T012-32 | TraceWaterfall.tsx: Custom React span waterfall component — hierarchical timeline, parent-child relationships, service name/operation/duration/status per span, error highlighting, horizontal scroll on mobile | 8      | 8h     | T012-31    |
 | T012-33 | AlertsPanel.tsx: Active alerts (card layout sorted by severity), alert history (paginated table with severity filter), "View Plugin" links (FR-032)                                                             | 5      | 4h     | T012-28    |
+| T012-47 | Feature flag gate: Add `observability_dashboard_enabled` flag, gate sidebar nav item + observability route on it (Art. 9.1)                                                                                     | 1      | 1h     | T012-27    |
 
-**Phase 4 Total**: ~37 pts, ~32h
+**Phase 4 Total**: ~38 pts, ~33h
 
 ---
 
@@ -1009,20 +1012,20 @@ None.
 
 **Tasks**:
 
-| ID      | Task                                                                                                                                                               | Points | Effort | Phase Deps  |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ------ | ----------- |
-| T012-34 | Unit tests: MetricsService (registry creation, metric recording, merge, content type)                                                                              | 3      | 3h     | T012-07     |
-| T012-35 | Unit tests: ObservabilityService (all 7 methods, mock Prometheus/Tempo/Loki responses, error handling, validation rejection)                                       | 5      | 5h     | T012-20..24 |
-| T012-36 | Unit tests: PluginTargetsService (file write, atomic rename, ACTIVE filter, empty plugin list)                                                                     | 2      | 2h     | T012-09     |
-| T012-37 | Unit tests: telemetry.ts (SDK init, getTracer, shutdown, env var config)                                                                                           | 1      | 1h     | T012-12     |
-| T012-38 | Integration tests: 7 observability endpoints (auth, validation, proxy, pagination, error responses, 502 on backend down)                                           | 5      | 6h     | T012-25     |
-| T012-39 | Integration tests: /metrics endpoint (auth, Prometheus format, merged registries, NFR-002 latency)                                                                 | 3      | 2h     | T012-08     |
-| T012-40 | Integration tests: plugin metrics proxy (auth, 404/503 errors, timeout, content-type, proxy success)                                                               | 3      | 3h     | T012-18     |
-| T012-41 | E2E tests: observability dashboard (page load, tab navigation, health table rendering, chart rendering, trace detail, alert display, WCAG a11y audit via axe-core) | 5      | 4h     | T012-27..33 |
-| T012-42 | Contract tests: plugin /metrics response format (Prometheus text exposition, required metrics per ADR-030, sample_limit validation)                                | 2      | 2h     | T012-18     |
-| T012-43 | Grafana dashboards: "Plugin Overview" (health matrix, top-N error plugins, latency distribution, per-plugin panels with plugin label filter)                       | 3      | 4h     | T012-06     |
-| T012-44 | Grafana dashboards: "Core Platform" (request rate, error rate, P50/P95/P99 latency, heap usage, event loop lag, active connections)                                | 3      | 3h     | T012-06     |
-| T012-45 | docs/OBSERVABILITY.md: setup guide, docker-compose usage, adding custom metrics, tracing guide, Grafana access, env var reference                                  | 3      | 3h     | All         |
+| ID      | Task                                                                                                                                                                | Points | Effort | Phase Deps  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ | ----------- |
+| T012-34 | Unit tests: MetricsService (registry creation, metric recording, merge, content type)                                                                               | 3      | 3h     | T012-07     |
+| T012-35 | Unit tests: ObservabilityService (all 7 methods, mock Prometheus/Tempo/Loki responses, error handling, validation rejection)                                        | 5      | 5h     | T012-20..24 |
+| T012-36 | Unit tests: PluginTargetsService (file write, atomic rename, ACTIVE filter, empty plugin list)                                                                      | 2      | 2h     | T012-09     |
+| T012-37 | Unit tests: telemetry.ts (SDK init, getTracer, shutdown, env var config) AND trace-context.ts (Pino child logger enrichment, missing span handling, traceId format) | 2      | 2h     | T012-12     |
+| T012-38 | Integration tests: 7 observability endpoints (auth, validation, proxy, pagination, error responses, 502 on backend down)                                            | 5      | 6h     | T012-25     |
+| T012-39 | Integration tests: /metrics endpoint (auth, Prometheus format, merged registries, NFR-002 latency)                                                                  | 3      | 2h     | T012-08     |
+| T012-40 | Integration tests: plugin metrics proxy (auth, 404/503 errors, timeout, content-type, proxy success)                                                                | 3      | 3h     | T012-18     |
+| T012-41 | E2E tests: observability dashboard (page load, tab navigation, health table rendering, chart rendering, trace detail, alert display, WCAG a11y audit via axe-core)  | 5      | 4h     | T012-27..33 |
+| T012-42 | Contract tests: plugin /metrics response format (Prometheus text exposition, required metrics per ADR-030, sample_limit validation)                                 | 2      | 2h     | T012-18     |
+| T012-43 | Grafana dashboards: "Plugin Overview" (health matrix, top-N error plugins, latency distribution, per-plugin panels with plugin label filter)                        | 3      | 4h     | T012-06     |
+| T012-44 | Grafana dashboards: "Core Platform" (request rate, error rate, P50/P95/P99 latency, heap usage, event loop lag, active connections)                                 | 3      | 3h     | T012-06     |
+| T012-45 | docs/OBSERVABILITY.md: setup guide, docker-compose usage, adding custom metrics, tracing guide, Grafana access, env var reference                                   | 3      | 3h     | All         |
 
 **Phase 5 Total**: ~38 pts, ~38h
 
@@ -1200,7 +1203,12 @@ None.
 | `TEMPO_URL`                   | `http://tempo:3200`                    | Tempo HTTP query endpoint         | 3     |
 | `LOKI_URL`                    | `http://loki:3100`                     | Loki query endpoint               | 3     |
 | `PROMETHEUS_TARGETS_PATH`     | `/etc/prometheus/targets/plugins.json` | File-based service discovery path | 1     |
-| `METRICS_AUTH_REQUIRED`       | `true`                                 | Whether /metrics requires auth    | 1     |
+
+> **Note**: There is no `METRICS_AUTH_REQUIRED` toggle. The `/metrics` endpoint
+> **always** requires `super_admin` Bearer token authentication (Art. 5.1).
+> Prometheus scrapes `/metrics` using a Bearer token configured in
+> `prometheus.yml` via the `authorization.credentials` scrape config field
+> (see T012-02).
 
 ## 13. Performance Impact Analysis
 

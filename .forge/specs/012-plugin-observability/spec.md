@@ -828,12 +828,12 @@ errors (tail-based sampling if OTel Collector is adopted per OQ-001).
 | Docker config   | `infrastructure/observability/grafana/provisioning/`                   | Grafana data sources + dashboard provisioning                                    |
 | Grafana dash    | `infrastructure/observability/grafana/dashboards/plugin-overview.json` | Pre-built "Plugin Overview" dashboard                                            |
 | Grafana dash    | `infrastructure/observability/grafana/dashboards/core-platform.json`   | Pre-built "Core Platform" dashboard                                              |
-| React page      | `apps/web/src/pages/admin/observability/`                              | Observability dashboard pages (Health, Metrics, Traces, Alerts)                  |
-| React component | `apps/web/src/components/observability/HealthTable.tsx`                | Plugin health summary table                                                      |
-| React component | `apps/web/src/components/observability/MetricsCharts.tsx`              | Time-series chart panels                                                         |
-| React component | `apps/web/src/components/observability/TraceList.tsx`                  | Trace search results                                                             |
-| React component | `apps/web/src/components/observability/TraceWaterfall.tsx`             | Span waterfall detail view                                                       |
-| React component | `apps/web/src/components/observability/AlertsPanel.tsx`                | Active alerts and alert history                                                  |
+| React page      | `apps/super-admin/src/routes/_layout/observability/`                   | Observability dashboard pages (Health, Metrics, Traces, Alerts)                  |
+| React component | `apps/super-admin/src/components/observability/HealthTable.tsx`        | Plugin health summary table                                                      |
+| React component | `apps/super-admin/src/components/observability/MetricsCharts.tsx`      | Time-series chart panels                                                         |
+| React component | `apps/super-admin/src/components/observability/TraceList.tsx`          | Trace search results                                                             |
+| React component | `apps/super-admin/src/components/observability/TraceWaterfall.tsx`     | Span waterfall detail view                                                       |
+| React component | `apps/super-admin/src/components/observability/AlertsPanel.tsx`        | Active alerts and alert history                                                  |
 | Unit tests      | `apps/core-api/src/__tests__/observability/unit/`                      | Unit tests for observability services                                            |
 | Integration     | `apps/core-api/src/__tests__/observability/integration/`               | Integration tests for observability endpoints                                    |
 | E2E tests       | `apps/core-api/src/__tests__/observability/e2e/`                       | E2E tests for metrics proxy + dashboard                                          |
@@ -850,7 +850,7 @@ errors (tail-based sampling if OTel Collector is adopted per OQ-001).
 | `apps/core-api/src/modules/plugin/plugin-hook.service.ts` | Enhancement       | Replace `X-Trace-ID: crypto.randomUUID()` with W3C `traceparent` from OTel context (FR-013)     |
 | `apps/core-api/src/services/plugin.service.ts`            | Enhancement       | Call `PluginTargetsService` on lifecycle transitions (FR-010)                                   |
 | `apps/core-api/src/lib/logger.ts`                         | Enhancement       | Add OTel trace ID to Pino log context (FR-019)                                                  |
-| `apps/web/src/pages/admin/`                               | Enhancement       | Add "Observability" navigation item to Super Admin sidebar                                      |
+| `apps/super-admin/src/routes/_layout/observability/`      | Enhancement       | Add "Observability" navigation item to Super Admin sidebar                                      |
 
 ### Documentation Updates
 

@@ -281,7 +281,7 @@ Tempo traces, enabling one-click navigation from log line to trace waterfall.
 - [ ] Add Promtail service to `docker-compose.yml` (T012-03)
 - [ ] Create Loki config at `infrastructure/observability/loki/loki.yml` (T012-03)
 - [ ] Create Promtail config at `infrastructure/observability/promtail/promtail.yml` (T012-03)
-- [ ] Enrich Pino logger with `traceId`/`spanId` (T012-09, depends on ADR-026)
+- [ ] Enrich Pino logger with `traceId`/`spanId` (T012-14, depends on ADR-026)
 - [ ] Configure Grafana Loki data source with Derived Fields for trace linking (T012-04)
 
 ---

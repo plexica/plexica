@@ -1,0 +1,517 @@
+# Sprint 007 — Active
+# Created: 2026-03-08
+# Managed by forge-scrum
+# Covers: Spec 012 Plugin Observability — Phase 1 (Infrastructure & Core Metrics)
+#         + Phase 2 (Distributed Tracing) + Phase 3 tasks T012-18..T012-20
+
+version: 1
+sprint_number: 7
+status: active
+sprint_goal: >
+  Stand up the five-service observability infrastructure (Prometheus, Tempo,
+  Loki, Promtail, Grafana), instrument the core API with OpenTelemetry
+  distributed tracing and prom-client metrics, and begin the backend
+  observability API layer (plugin metrics proxy + Zod schemas + health summary).
+start_date: '2026-03-08'
+end_date: '2026-03-21'
+velocity_target: 67
+
+spec: '.forge/specs/012-plugin-observability/spec.md'
+tasks: '.forge/specs/012-plugin-observability/tasks.md'
+plan: '.forge/specs/012-plugin-observability/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-026-otel-direct-tempo-export.md'
+  - '.forge/knowledge/adr/adr-027-prom-client-core-metrics.md'
+  - '.forge/knowledge/adr/adr-028-log-ingestion-promtail-loki.md'
+  - '.forge/knowledge/adr/adr-029-chart-library-recharts.md'
+  - '.forge/knowledge/adr/adr-030-plugin-metrics-prometheus-format.md'
+
+# ---------------------------------------------------------------------------
+# Phase 1: Infrastructure & Core Metrics
+# Sprint 7, Week 1 | 33 story points
+# ---------------------------------------------------------------------------
+#
+# Objective: Stand up the five observability infrastructure services and
+# expose the core API /metrics endpoint. No application code depends on
+# Phase 2–5 completing; Phase 1 work is fully self-contained.
+#
+# Parallelism note: T012-02, T012-03, T012-04, T012-06 can all start
+# concurrently once T012-01 is done. T012-07 and T012-09 have no deps
+# and can run in parallel from day one.
+# ---------------------------------------------------------------------------
+
+stories:
+  # --- Phase 1 ---
+
+  - id: 'T012-01'
+    title: 'Add five observability services to docker-compose.yml (Prometheus, Tempo, Loki, Promtail, Grafana)'
+    phase: 1
+    week: 1
+    points: 5
+    status: pending
+    parallel: false
+    dependencies: []
+    tags: ['[NFR-017]', '[NFR-020]', '[NFR-021]', '[NFR-022]', 'infrastructure', 'docker']
+
+  - id: 'T012-02'
+    title: 'Create Prometheus configuration and file_sd targets directory'
+    phase: 1
+    week: 1
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-008]', '[NFR-004]', '[NFR-005]', '[NFR-010]', 'infrastructure', 'prometheus']
+
+  - id: 'T012-03'
+    title: 'Create Tempo configuration (OTLP/gRPC receiver, local storage, 7-day retention)'
+    phase: 1
+    week: 1
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-015]', '[NFR-011]', 'infrastructure', 'tempo', 'tracing']
+
+  - id: 'T012-04'
+    title: 'Create Loki configuration (ingester, compactor, local filesystem storage, 7-day retention)'
+    phase: 1
+    week: 1
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-016]', '[NFR-012]', 'infrastructure', 'loki', 'logging']
+
+  - id: 'T012-05'
+    title: 'Create Promtail configuration for Docker log scraping (Docker socket, Pino JSON pipeline stages)'
+    phase: 1
+    week: 1
+    points: 3
+    status: pending
+    parallel: false
+    dependencies: ['T012-01', 'T012-04']
+    tags: ['[FR-017]', '[NFR-007]', 'infrastructure', 'promtail', '[ADR-028]']
+
+  - id: 'T012-06'
+    title: 'Create Grafana provisioning configuration (data sources: Prometheus, Tempo, Loki + dashboard provider)'
+    phase: 1
+    week: 1
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-033]', 'infrastructure', 'grafana', 'provisioning']
+
+  - id: 'T012-07'
+    title: 'Create MetricsService with prom-client registry, HTTP counter/histogram, active_plugins gauge, and Fastify hooks'
+    phase: 1
+    week: 1
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-006]', '[FR-007]', '[NFR-002]', 'metrics', 'prom-client', '[ADR-027]', 'service']
+
+  - id: 'T012-08'
+    title: 'Extend /metrics endpoint to serve merged Prometheus text with super_admin auth'
+    phase: 1
+    week: 1
+    points: 3
+    status: pending
+    parallel: false
+    dependencies: ['T012-07']
+    tags: ['[FR-006]', '[NFR-002]', 'metrics', 'endpoint', 'auth']
+
+  - id: 'T012-09'
+    title: 'Create PluginTargetsService — atomic write of Prometheus file_sd targets (plugins.json)'
+    phase: 1
+    week: 1
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-009]', 'service', 'prometheus', 'service-discovery']
+
+  - id: 'T012-10'
+    title: 'Wire PluginTargetsService into plugin.service.ts lifecycle hooks (activatePlugin, deactivatePlugin)'
+    phase: 1
+    week: 1
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T012-09']
+    tags: ['[FR-010]', 'service', 'lifecycle', 'plugin']
+
+  - id: 'T012-11'
+    title: 'Create Prometheus alert rules (PluginHighErrorRate, PluginHighLatency, PluginHealthCheckFailing, PluginDown, PluginHighMemory, CoreHighErrorRate)'
+    phase: 1
+    week: 1
+    points: 3
+    status: pending
+    parallel: false
+    dependencies: ['T012-02']
+    tags: ['[FR-020]', '[FR-021]', 'prometheus', 'alerting', 'rules']
+
+  # Phase 1 subtotal: 33 points
+
+  # ---------------------------------------------------------------------------
+  # Phase 2: Distributed Tracing
+  # Sprint 7, Week 2 | 15 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Objective: Instrument core API with OpenTelemetry SDK, propagate W3C
+  # traceparent headers to plugin containers, enrich Pino logs with traceId/spanId.
+  #
+  # CRITICAL ORDERING: T012-17 (package install) must be done before T012-12.
+  # T012-16 (index.ts wiring) must be the LAST Phase 2 task — it calls
+  # initTelemetry() and this import must be the very first in index.ts.
+  # T012-12, T012-13, T012-14, T012-15 can run in parallel after T012-17.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T012-17'
+    title: 'Install @opentelemetry/* packages (7 packages per ADR-026) + prom-client in apps/core-api/package.json'
+    phase: 2
+    week: 2
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: []
+    tags: ['[NFR-006]', 'dependencies', 'packages', '[ADR-026]', '[ADR-027]']
+
+  - id: 'T012-12'
+    title: 'Create telemetry.ts — NodeSDK init with OTLPTraceExporter (gRPC), BatchSpanProcessor, TraceIdRatioBasedSampler, HttpInstrumentation, FastifyInstrumentation'
+    phase: 2
+    week: 2
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-17']
+    tags:
+      [
+        '[FR-011]',
+        '[FR-012]',
+        '[NFR-006]',
+        '[NFR-008]',
+        '[NFR-009]',
+        '[NFR-013]',
+        '[NFR-014]',
+        'otel',
+        'tracing',
+        '[ADR-026]',
+      ]
+
+  - id: 'T012-13'
+    title: 'Create trace-context.ts — Fastify preHandler middleware for Pino log enrichment with traceId/spanId'
+    phase: 2
+    week: 2
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: ['T012-12']
+    tags: ['[FR-019]', 'middleware', 'tracing', 'logging']
+
+  - id: 'T012-14'
+    title: 'Update logger.ts — add OTel trace context Pino mixin (auto-inject traceId/spanId into every log record)'
+    phase: 2
+    week: 2
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-12']
+    tags: ['[FR-019]', 'logging', 'pino', 'otel']
+
+  - id: 'T012-15'
+    title: 'Replace X-Trace-ID: crypto.randomUUID() with W3C traceparent in plugin-hook.service.ts'
+    phase: 2
+    week: 2
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: ['T012-12']
+    tags: ['[FR-013]', 'tracing', 'propagation', 'plugin-hook']
+
+  - id: 'T012-16'
+    title: 'Wire telemetry into index.ts — initTelemetry() as first import, register trace-context middleware, shutdown() in SIGTERM handler'
+    phase: 2
+    week: 2
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T012-12', 'T012-13']
+    tags: ['[FR-011]', '[NFR-006]', 'wiring', 'startup', 'shutdown']
+
+  # Phase 2 subtotal: 15 points
+
+  # ---------------------------------------------------------------------------
+  # Phase 3 (partial): API Endpoints — first 3 tasks
+  # Sprint 7, Week 2 | 13 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Objective: Begin the backend observability API layer. T012-17 (package
+  # install) and T012-19 (Zod schemas) have no blocking deps from Phase 2;
+  # T012-18 requires MetricsService (T012-07) only — it can run in parallel
+  # with Phase 2 tracing work. T012-20 (getHealthSummary) requires Prometheus
+  # to be reachable (T012-02).
+  # ---------------------------------------------------------------------------
+
+  - id: 'T012-18'
+    title: 'Plugin metrics proxy: GET /api/v1/plugins/:id/metrics in plugin-v1.ts — resolves TD-009'
+    phase: 3
+    week: 2
+    points: 5
+    status: pending
+    parallel: true
+    dependencies: ['T012-07']
+    tags:
+      [
+        '[FR-001]',
+        '[FR-002]',
+        '[FR-003]',
+        '[FR-004]',
+        '[FR-005]',
+        'api',
+        'proxy',
+        'plugin',
+        '[ADR-030]',
+      ]
+
+  - id: 'T012-19'
+    title: 'Create Zod schemas for all observability query parameters (PromQL allowlist, LogQL prefix validation, time range, pagination)'
+    phase: 3
+    week: 2
+    points: 3
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-036]', '[FR-037]', 'validation', 'zod', 'schemas', 'security']
+
+  - id: 'T012-20'
+    title: 'Implement ObservabilityService.getHealthSummary() — Prometheus instant query, HealthEntry mapping, status classification'
+    phase: 3
+    week: 2
+    points: 5
+    status: pending
+    parallel: false
+    dependencies: ['T012-02']
+    tags: ['[FR-026]', 'service', 'observability', 'prometheus', 'health']
+
+  # Phase 3 (partial) subtotal: 13 points
+
+# ---------------------------------------------------------------------------
+# Sprint Totals
+# ---------------------------------------------------------------------------
+
+totals:
+  phase_1_points: 33 # T012-01 → T012-11  (11 tasks)
+  phase_2_points: 15 # T012-12 → T012-17  (6 tasks, listed T012-17 first due to dep ordering)
+  phase_3_partial_points: 13 # T012-18 → T012-20  (3 tasks, first slice of Phase 3)
+  total_tasks: 20
+  total_points: 61 # 33 + 15 + 13 = 61 pts (sprint brief targets ~67; variance from rounding in plan)
+  done_points: 0
+  remaining_points: 61
+
+# ---------------------------------------------------------------------------
+# Coverage Targets
+# ---------------------------------------------------------------------------
+# Note: Full test coverage tasks (T012-34 through T012-43) are deferred to
+# Sprint 8 (Phase 5). Sprint 7 delivers working infrastructure + code;
+# tests begin in week 2 as each component stabilises.
+
+coverage_targets:
+  - file: 'apps/core-api/src/services/metrics.service.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'pending (via T012-34 in Sprint 8)'
+  - file: 'apps/core-api/src/services/plugin-targets.service.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'pending (via T012-36 in Sprint 8)'
+  - file: 'apps/core-api/src/lib/telemetry.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'pending (via T012-37 in Sprint 8)'
+  - file: 'apps/core-api/src/middleware/trace-context.ts'
+    current: '0% (new)'
+    target: '≥80%'
+    status: 'pending (via Sprint 8)'
+  - file: 'apps/core-api/src/routes/metrics.ts'
+    current: 'existing (event-bus only)'
+    target: '≥80% (extended)'
+    status: 'pending (via T012-39 in Sprint 8)'
+  - file: 'apps/core-api/src/routes/plugin-v1.ts'
+    current: 'existing'
+    target: '≥80% (new /metrics proxy route)'
+    status: 'pending (via T012-40 in Sprint 8)'
+  - file: 'apps/core-api/src/services/observability.service.ts'
+    current: '0% (new, partial — getHealthSummary only in Sprint 7)'
+    target: '≥80%'
+    status: 'pending (via T012-35 in Sprint 8)'
+
+# ---------------------------------------------------------------------------
+# Velocity Reference
+# ---------------------------------------------------------------------------
+
+velocity:
+  previous_sprints:
+    - sprint: 6
+      completed_points: 92
+      total_points: 92
+      completion_rate: '100%'
+      notes: 'Spec 004 Plugin System — all 37 tasks done'
+    - sprint: 5
+      completed_points: 8
+      total_points: 8
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 3 + review fixes'
+    - sprint: 4
+      completed_points: 36
+      total_points: 36
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 1+2'
+    - sprint: 3
+      completed_points: 24
+      total_points: 24
+      completion_rate: '100%'
+      notes: 'Spec 009 Foundation'
+    - sprint: 2
+      completed_points: 5
+      total_points: 5
+      completion_rate: '100%'
+      notes: 'i18n Frontend Integration'
+  average_velocity_5sprint: 33 # (92+8+36+24+5)/5 = 33 pts avg; Sprint 6 outlier at 92
+  conservative_target_rationale: >
+    Sprint 7 targets 61 pts against a 5-sprint average of 33 pts and a Sprint 6
+    peak of 92 pts. The conservative 61-pt target (66% of Sprint 6 velocity)
+    is justified by: (1) infrastructure-heavy work with external service
+    dependencies, (2) 5 new Docker services requiring configuration tuning,
+    (3) 8 new npm packages including complex OTel SDK setup, and (4) no
+    carried-over tasks from Sprint 6 to pad velocity. If Phase 1 infra
+    completes mid-week-1, Phase 2 tracing can begin in parallel.
+
+# ---------------------------------------------------------------------------
+# Risks
+# ---------------------------------------------------------------------------
+
+risks:
+  - id: 'R001'
+    title: 'Docker Compose memory pressure with 5 new observability services'
+    description: >
+      Adding Prometheus (512MB), Tempo (256MB), Loki (256MB), Promtail (128MB),
+      and Grafana (256MB) adds ~1.4GB to the development Docker Compose stack.
+      Developer machines with < 16GB RAM may hit memory limits, causing
+      OOM-killed containers or slow scrape cycles.
+    severity: medium
+    mitigation: >
+      Memory limits are explicitly set in T012-01 per spec NFR-020/021/022.
+      Provide a `docker-compose.observability.yml` override profile so developers
+      can opt-in to the full stack. Document minimum 16GB RAM requirement in
+      OBSERVABILITY.md (T012-45).
+    affects_tasks: ['T012-01']
+
+  - id: 'R002'
+    title: 'OTel SDK monkey-patching must precede Fastify initialisation'
+    description: >
+      OpenTelemetry's http instrumentation monkey-patches Node.js's built-in
+      `http` module. If `initTelemetry()` is called after Fastify loads, HTTP
+      spans will be missing. T012-16 adds `import './lib/telemetry.js'` as the
+      FIRST import in index.ts — any merge conflict or refactor that reorders
+      imports will silently break distributed tracing.
+    severity: high
+    mitigation: >
+      Add a unit test (T012-37) that verifies OTel SDK is started before the
+      Fastify instance. Add a lint rule or comment guard to index.ts marking
+      the telemetry import as import-order-sensitive. Document in ADR-026.
+    affects_tasks: ['T012-12', 'T012-16']
+
+  - id: 'R003'
+    title: 'Prometheus file_sd targets file write race condition in tests'
+    description: >
+      PluginTargetsService writes to a path from `PROMETHEUS_TARGETS_PATH` env
+      var. In CI, multiple test workers may attempt to write to the same default
+      path `/etc/prometheus/targets/plugins.json` simultaneously if the env var
+      is not isolated per worker. Atomic rename (tmp → final) reduces but does
+      not eliminate this risk in environments without filesystem isolation.
+    severity: medium
+    mitigation: >
+      T012-36 unit tests mock `fs/promises.rename` with `vi.mock` — no real
+      filesystem writes in unit tests. Integration tests should set a unique
+      `PROMETHEUS_TARGETS_PATH` per test run (e.g., `/tmp/test-targets-{uuid}.json`).
+    affects_tasks: ['T012-09', 'T012-36']
+
+  - id: 'R004'
+    title: 'pnpm deduplication of prom-client between core-api and event-bus'
+    description: >
+      T012-17 adds `prom-client ^15.1.3` to `apps/core-api/package.json`.
+      If pnpm resolves a different minor/patch version than the one in
+      `packages/event-bus`, two separate `Registry` instances will exist,
+      breaking `MetricsService.getMetrics()` merge logic.
+    severity: medium
+    mitigation: >
+      Pin prom-client to the exact version used in packages/event-bus. Verify
+      deduplication with `pnpm why prom-client` after running `pnpm install`.
+      ADR-027 explicitly calls this out as the expected behaviour.
+    affects_tasks: ['T012-07', 'T012-17']
+
+  - id: 'R005'
+    title: '8 new npm packages increase supply-chain attack surface'
+    description: >
+      Sprint 7 introduces 8 new production npm packages (7 @opentelemetry/*
+      plus prom-client). Each carries a supply-chain risk per Constitution
+      Art. 2.2 dependency policy.
+    severity: low
+    mitigation: >
+      All 8 packages are approved via ADR-026 and ADR-027. pnpm audit must
+      pass before merge. CI vulnerability scanning (Art. 5.4) will block
+      any packages with critical/high CVEs. @opentelemetry/* packages are
+      CNCF-graduated projects with >1M weekly downloads each.
+    affects_tasks: ['T012-17']
+
+  - id: 'R006'
+    title: 'Promtail Docker socket mount may require elevated permissions in CI'
+    description: >
+      T012-05 requires Promtail to bind-mount `/var/run/docker.sock:ro` for
+      Docker container auto-discovery (ADR-028). CI environments (e.g., GitHub
+      Actions with rootless Docker or DinD) may not allow socket mounts, causing
+      Promtail to fail to start in integration/E2E tests.
+    severity: medium
+    mitigation: >
+      Promtail is infrastructure-only (not required for unit or integration
+      tests). CI test pipeline uses `NullContainerAdapter` and does not run
+      the full docker-compose stack. Document CI skip condition in OBSERVABILITY.md.
+    affects_tasks: ['T012-05']
+
+# ---------------------------------------------------------------------------
+# Constraints & Notes
+# ---------------------------------------------------------------------------
+
+constraints:
+  - >
+    T012-17 (package installation) MUST run before T012-12 (telemetry.ts) as
+    the OTel imports will fail to compile without the packages present.
+  - >
+    T012-16 (index.ts wiring) MUST be the final Phase 2 task. The telemetry
+    import must be the very first import in index.ts — this is architecturally
+    critical (OTel http module monkey-patching, per ADR-026 §4.1).
+  - >
+    Prometheus, Tempo, Loki are infrastructure dependencies for T012-20
+    (ObservabilityService). These services must be running (via docker-compose)
+    during local integration testing of Phase 3 tasks.
+  - >
+    No new PostgreSQL tables or Prisma migrations in this sprint. All
+    observability data lands in Prometheus/Tempo/Loki (plan.md §2.1).
+  - >
+    Backward compatibility: existing `/api/v1/plugins` routes must not be
+    modified structurally; T012-18 adds a new route to plugin-v1.ts only
+    (Constitution Art. 1.2 §3).
+  - >
+    1 story point ≈ 2h focused engineering. 61 pts ≈ 122h total.
+    Sprint duration: 2 weeks × 5 days × ~6h/day = ~60h per engineer.
+    Requires 2 engineers working in parallel to hit target comfortably.
+  - >
+    Full test suite (T012-34 through T012-43) is deferred to Sprint 8.
+    Sprint 7 delivers working infrastructure + implementation code;
+    dedicated test tasks begin in week 3 (Sprint 8) once implementations
+    stabilise. Individual tasks may include basic smoke tests inline.
+
+carried_over: []
