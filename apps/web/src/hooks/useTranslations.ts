@@ -151,7 +151,10 @@ export function useTranslations(options: UseTranslationsOptions) {
     enabled:
       enabled && !!locale && !!namespace && !!contentHash && /^[a-f0-9]{8}$/.test(contentHash),
     staleTime: Infinity, // Content-addressed URL — never stale
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours
+    // LOW-10: Short gcTime prevents orphaned hash entries accumulating in the
+    // TanStack Query cache after each translation update (each update produces
+    // a new hash, leaving the old entry unreachable until gc).
+    gcTime: 1000 * 60 * 5, // 5 minutes
     retry: 1,
   });
 
@@ -167,7 +170,11 @@ export function useTranslations(options: UseTranslationsOptions) {
     }
   }, [resolvedData, locale, mergeMessages]);
 
-  const isLoading = stableQuery.isLoading || (!!contentHash && hashedQuery.isLoading);
+  // MEDIUM-5: Only show loading when we have no data yet.
+  // Without this guard, re-fetching Step 2 while Step 1 data is already
+  // available would cause a loading-spinner flash on every locale switch.
+  const isLoading =
+    !resolvedData && (stableQuery.isLoading || (!!contentHash && hashedQuery.isLoading));
   const error = stableQuery.error ?? hashedQuery.error;
 
   return {
@@ -203,7 +210,11 @@ export function useNamespaces(namespaces: string[]) {
   // Use useQueries to avoid Rules of Hooks violation (hooks in loops)
   const queries = useQueries({
     queries: namespaces.map((namespace) => ({
-      queryKey: ['translations', locale, namespace],
+      // MEDIUM-6: Align query key prefix with useTranslations ('translations-stable')
+      // so both hooks share the same cache entry for the same locale/namespace.
+      // Using a different prefix ('translations') caused double network requests and
+      // stale-data inconsistency between the two hooks.
+      queryKey: ['translations-stable', locale, namespace],
       queryFn: async () => {
         try {
           const response = await apiClient.get<Record<string, string>>(
@@ -220,7 +231,8 @@ export function useNamespaces(namespaces: string[]) {
           throw error;
         }
       },
-      staleTime: 1000 * 60 * 60, // 1 hour
+      // MEDIUM-6: staleTime aligned to 60s (matches server max-age=60 and useTranslations)
+      staleTime: 1000 * 60, // 60 seconds
       gcTime: 1000 * 60 * 60 * 24, // 24 hours
     })),
   });

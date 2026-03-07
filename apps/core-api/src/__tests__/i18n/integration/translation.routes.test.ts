@@ -286,9 +286,20 @@ describe('Translation API Routes (Integration)', () => {
       expect(response.headers['etag']).toBeDefined();
     });
 
-    it('should return 301 redirect to current hash URL when hash is stale', async () => {
-      // Arrange: use a hash that is guaranteed to be wrong
-      const staleHash = 'deadbeef';
+    it('should return 302 redirect to current hash URL when hash is stale', async () => {
+      // LOW-9: Derive a guaranteed-wrong hash by fetching the real one and flipping
+      // one character, so this test never accidentally passes for the wrong reason.
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      expect(stableResponse.statusCode).toBe(200);
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      // Flip the last hex character to produce a hash that is guaranteed stale
+      const lastChar = currentHash[7];
+      const flippedChar = lastChar === 'f' ? '0' : 'f';
+      const staleHash = currentHash.slice(0, 7) + flippedChar;
+      expect(staleHash).not.toBe(currentHash); // sanity check
 
       // Act
       const response = await app.inject({
@@ -296,18 +307,27 @@ describe('Translation API Routes (Integration)', () => {
         url: `/api/v1/translations/en/core/${staleHash}`,
       });
 
-      // Assert: 301 to the content-addressed URL with the real hash
-      expect(response.statusCode).toBe(301);
+      // Assert: 302 to the content-addressed URL with the real hash.
+      // 302 (not 301) so browsers never permanently cache the redirect.
+      expect(response.statusCode).toBe(302);
       const location = response.headers['location'] as string;
       expect(location).toBeDefined();
       expect(location).toMatch(/^\/api\/v1\/translations\/en\/core\/[a-f0-9]{8}$/);
       // Redirect must NOT go back to the stale hash
       expect(location).not.toContain(staleHash);
+      // Redirect response must not be cached by the browser
+      expect(response.headers['cache-control']).toContain('no-store');
     });
 
-    it('should include tenant query param in 301 redirect Location when ?tenant is present', async () => {
-      // Arrange: authenticated request with a stale hash
-      const staleHash = 'deadbeef';
+    it('should include tenant query param in 302 redirect Location when ?tenant is present', async () => {
+      // LOW-9: Derive a guaranteed-wrong stale hash (same technique as above)
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      const flippedChar = currentHash[7] === 'f' ? '0' : 'f';
+      const staleHash = currentHash.slice(0, 7) + flippedChar;
 
       const response = await app.inject({
         method: 'GET',
@@ -317,7 +337,7 @@ describe('Translation API Routes (Integration)', () => {
         },
       });
 
-      expect(response.statusCode).toBe(301);
+      expect(response.statusCode).toBe(302);
       const location = response.headers['location'] as string;
       expect(location).toContain(`tenant=${encodeURIComponent(testTenantSlug)}`);
     });
@@ -337,6 +357,61 @@ describe('Translation API Routes (Integration)', () => {
       });
 
       expect(response.statusCode).toBe(401);
+    });
+
+    it("should return 403 when authenticated user requests another tenant's hashed translations (MEDIUM-7)", async () => {
+      // Arrange: fetch the current hash
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+
+      // Act: request with a tenant slug that doesn't match the token's tenant
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}?tenant=some-other-tenant`,
+        headers: {
+          authorization: `Bearer ${authToken}`, // token is for testTenantSlug, not some-other-tenant
+        },
+      });
+
+      // Assert
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('should return 304 on hashed endpoint when ETag matches (MEDIUM-8 If-None-Match support)', async () => {
+      // Arrange: fetch current hash and get the ETag from hashed endpoint
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+
+      const firstHashedResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+      });
+      expect(firstHashedResponse.statusCode).toBe(200);
+      const etag = firstHashedResponse.headers['etag'];
+      expect(etag).toBeDefined();
+
+      // Act: conditional request with matching ETag
+      const conditionalResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+        headers: {
+          'if-none-match': etag!,
+        },
+      });
+
+      // Assert: 304 Not Modified — no body
+      expect(conditionalResponse.statusCode).toBe(304);
+      expect(conditionalResponse.body).toBe('');
+      // Immutable cache headers must still be present on the 304
+      expect(conditionalResponse.headers['cache-control']).toContain('immutable');
     });
 
     it('should return 400 for invalid hash format (not 8-char hex)', async () => {

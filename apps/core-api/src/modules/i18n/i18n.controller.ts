@@ -65,7 +65,10 @@ const getTranslationsByHashSchema = {
       hash: {
         type: 'string',
         description: '8-character lowercase hex content hash (NFR-005)',
-        pattern: '^[a-f0-9]{8}$',
+        // NOTE: No `pattern` here — Zod (ContentHashSchema) handles format validation
+        // exclusively. A Fastify JSON Schema `pattern` would fire first and return a
+        // non-standard 400 payload ({ message, error, statusCode }) that bypasses our
+        // Art. 6.2 error format { error: { code, message } }. (MEDIUM-4 fix)
       },
     },
   },
@@ -262,9 +265,11 @@ export async function translationRoutes(fastify: FastifyInstance) {
    * - If the client-supplied :hash matches the current bundle hash → 200 with
    *   `Cache-Control: public, immutable, max-age=31536000`.  Browsers and CDNs
    *   may cache this response permanently; the URL itself encodes freshness.
-   * - If the :hash is stale (content has since been updated) → 301 Permanent
-   *   Redirect to the current content-addressed URL.  The redirect URL uses the
-   *   live hash so the client fetches the latest bundle and caches it immutably.
+   * - If the :hash is stale (content has since been updated) → 302 Temporary
+   *   Redirect to the current content-addressed URL.  302 is chosen over 301
+   *   because 301 is cached permanently by browsers, creating growing redirect
+   *   chains on each translation update.  The redirect carries
+   *   `Cache-Control: no-store` so browsers never cache the redirect itself.
    *
    * Auth: same as stable URL — unauthenticated for global content; ?tenant=<slug>
    * requires the caller to be authenticated and belong to that tenant.
@@ -324,8 +329,22 @@ export async function translationRoutes(fastify: FastifyInstance) {
         const currentHash = bundle.hash;
 
         if (hash === currentHash) {
-          // Hash matches — serve with fully immutable cache headers
+          // Hash matches — serve with fully immutable cache headers.
+          // MEDIUM-8: Honour If-None-Match / 304 even on the immutable endpoint so
+          // CDN edge revalidations (which send ETag) get a cheap 304 instead of a
+          // full body transfer on every CDN node expiry.
           const secureETag = generateSecureETag(currentHash);
+          const clientETagHashed = request.headers['if-none-match'];
+          if (clientETagHashed) {
+            const cleanClientETag = clientETagHashed.replace(/^"|"$/g, '');
+            if (cleanClientETag === secureETag) {
+              return reply
+                .header('Cache-Control', 'public, immutable, max-age=31536000')
+                .header('ETag', `"${secureETag}"`)
+                .status(304)
+                .send();
+            }
+          }
           return reply
             .header('Cache-Control', 'public, immutable, max-age=31536000')
             .header('ETag', `"${secureETag}"`)
@@ -333,12 +352,15 @@ export async function translationRoutes(fastify: FastifyInstance) {
             .send(bundle);
         }
 
-        // Hash is stale — 301 redirect to current content-addressed URL
-        // 301 (Permanent) is intentional: the old hash URL is permanently invalid.
-        // The new URL uses the live hash and will be served immutably.
+        // Hash is stale — 302 temporary redirect to current content-addressed URL.
+        // HIGH-2: Use 302 (not 301) — 301 would be permanently cached by browsers,
+        // creating an ever-growing redirect chain on each translation update.
+        // HIGH-3: Re-validate bundle.locale via Zod before embedding in Location
+        // header to prevent HTTP response-splitting via a malformed Redis-cached value.
+        const safeLocale = LocaleCodeSchema.parse(bundle.locale);
         const tenantQuery = tenant ? `?tenant=${encodeURIComponent(tenant)}` : '';
-        const redirectUrl = `/api/v1/translations/${bundle.locale}/${namespace}/${currentHash}${tenantQuery}`;
-        return reply.redirect(redirectUrl, 301);
+        const redirectUrl = `/api/v1/translations/${safeLocale}/${namespace}/${currentHash}${tenantQuery}`;
+        return reply.header('Cache-Control', 'no-store').redirect(redirectUrl, 302);
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({

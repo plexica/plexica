@@ -58,9 +58,11 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   });
 
   // CORS
+  // exposedHeaders mirrors production config so tests catch CORS regressions.
   await app.register(cors, {
     origin: config.corsOrigins,
     credentials: true,
+    exposedHeaders: ['X-Translation-Hash', 'ETag', 'Cache-Control'],
   });
 
   // Rate limiting - very relaxed for tests (allow high concurrency)

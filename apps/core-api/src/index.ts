@@ -119,9 +119,12 @@ async function registerPlugins() {
 
   // CORS
   // SECURITY: Origins are now validated by cors-validator.ts
+  // exposedHeaders: browsers hide custom headers unless explicitly listed here.
+  // X-Translation-Hash is required by the NFR-005 two-step content-addressed fetch.
   await server.register(cors, {
     origin: config.corsOrigins,
     credentials: true,
+    exposedHeaders: ['X-Translation-Hash', 'ETag', 'Cache-Control'],
   });
 
   // Rate limiting
