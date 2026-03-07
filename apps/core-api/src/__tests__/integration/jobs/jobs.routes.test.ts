@@ -14,7 +14,7 @@
 // Pattern: buildTestApp() + app.inject() + mock tokens (workspace-crud pattern)
 // Constitution Art. 6.2: error responses are { error: { code, message } }
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp } from '../../../test-app.js';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
@@ -68,6 +68,13 @@ describe('Jobs Routes Integration', () => {
   afterAll(async () => {
     if (app) await app.close();
     // Reset BullMQ singleton so other test files get a fresh instance (TD-010)
+    _resetJobQueueSingletonForTests();
+  });
+
+  // TD-010: Reset singleton after each test so that tests within this file
+  // cannot share stale singleton state if the singleton is re-initialised
+  // mid-suite (e.g. after a worker crash or restart simulation).
+  afterEach(() => {
     _resetJobQueueSingletonForTests();
   });
 

@@ -109,6 +109,10 @@ async function registerPlugins() {
             },
           }
         : false,
+    // SECURITY: Always deny framing regardless of environment (TD-007).
+    // Production CSP frame-ancestors:'none' covers modern browsers; X-Frame-Options
+    // covers legacy browsers and is set unconditionally via frameguard.
+    frameguard: { action: 'deny' },
     // SECURITY: Prevent SSL stripping attacks
     hsts: {
       maxAge: 31536000, // 1 year

@@ -11,7 +11,7 @@
 // Constitution Art. 6.2: error responses are { error: { code, message } }
 // TD-010: _resetJobQueueSingletonForTests() called in afterAll (search uses job queue for reindex)
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp } from '../../../test-app.js';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
@@ -61,6 +61,13 @@ describe('Search Routes Integration', () => {
   afterAll(async () => {
     if (app) await app.close();
     // Reset BullMQ singleton — search routes use job queue for reindex (TD-010)
+    _resetJobQueueSingletonForTests();
+  });
+
+  // TD-010: Reset singleton after each test so that tests within this file
+  // cannot share stale singleton state if the singleton is re-initialised
+  // mid-suite (e.g. after a worker crash or restart simulation).
+  afterEach(() => {
     _resetJobQueueSingletonForTests();
   });
 

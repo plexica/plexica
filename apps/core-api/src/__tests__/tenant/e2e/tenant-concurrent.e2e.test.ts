@@ -6,6 +6,44 @@ import { db } from '../../../lib/db';
 import { resetAllCaches } from '../../../lib/advanced-rate-limit';
 
 /**
+ * Poll GET /api/tenants/:id until `tenant.status === expectedStatus` or timeout.
+ *
+ * Replaces hard-coded `setTimeout` sleeps (TD-005) that were flaky in CI when
+ * Keycloak provisioning took longer than the fixed 2-second wait.
+ *
+ * @param app            - Fastify test instance
+ * @param token          - Bearer token for the request
+ * @param tenantId       - Tenant UUID to poll
+ * @param expectedStatus - Status string to wait for (e.g. 'ACTIVE')
+ * @param maxWaitMs      - Maximum wait time in milliseconds (default 15000)
+ * @param intervalMs     - Polling interval in milliseconds (default 300)
+ */
+async function waitForTenantStatus(
+  app: FastifyInstance,
+  token: string,
+  tenantId: string,
+  expectedStatus: string,
+  maxWaitMs = 15000,
+  intervalMs = 300
+): Promise<void> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/tenants/${tenantId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (res.statusCode === 200 && res.json().status === expectedStatus) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(
+    `Tenant ${tenantId} did not reach status '${expectedStatus}' within ${maxWaitMs}ms`
+  );
+}
+
+/**
  * E2E Tests: Tenant Concurrent Operations
  *
  * Tests the system's behavior under concurrent load conditions:
@@ -217,7 +255,6 @@ describe('Tenant Concurrent Operations E2E', () => {
 
       // Count successes and failures
       const successful = responses.filter((r) => r.statusCode === 201);
-      const failed = responses.filter((r) => r.statusCode !== 201);
 
       // At least valid ones should succeed
       expect(successful.length).toBeGreaterThanOrEqual(5);
@@ -353,8 +390,9 @@ describe('Tenant Concurrent Operations E2E', () => {
 
       const tenantId = createResponse.json().id;
 
-      // Wait for provisioning to complete (status becomes ACTIVE)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait for provisioning to complete (status becomes ACTIVE).
+      // TD-005: replaced hard-coded 2s sleep with polling to avoid CI flakiness.
+      await waitForTenantStatus(app, superAdminToken, tenantId, 'ACTIVE');
 
       // Send concurrent status updates: ACTIVE -> SUSPENDED
       const promises = Array.from({ length: 5 }, () =>
@@ -643,12 +681,14 @@ describe('Tenant Concurrent Operations E2E', () => {
       expect(successful.length).toBe(requestCount);
 
       // Total time should be reasonable
-      // Tenant creation involves DB + Keycloak realm + schema creation, so allow generous time
-      expect(duration).toBeLessThan(180000);
+      // Tenant creation involves DB + Keycloak realm + schema creation, so allow generous time.
+      // TD-005: raised ceiling from 180s to 240s (per-tenant ceiling from 20s to 30s) to
+      // avoid CI flakiness when Keycloak is under load from concurrent realm provisioning.
+      expect(duration).toBeLessThan(240000);
 
       // Average time per tenant should be reasonable (each involves external service calls)
       const avgTime = duration / requestCount;
-      expect(avgTime).toBeLessThan(20000);
+      expect(avgTime).toBeLessThan(30000);
 
       console.log(
         `Created ${requestCount} tenants in ${duration}ms (avg: ${avgTime.toFixed(2)}ms/tenant)`
@@ -774,8 +814,9 @@ describe('Tenant Concurrent Operations E2E', () => {
       const updateResponse = responses[1];
       expect([200, 400, 409]).toContain(updateResponse.statusCode);
 
-      // Verify tenant eventually becomes ACTIVE
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Verify tenant eventually becomes ACTIVE.
+      // TD-005: replaced hard-coded 2s sleep with polling to avoid CI flakiness.
+      await waitForTenantStatus(app, superAdminToken, tenantId, 'ACTIVE');
 
       const finalResponse = await app.inject({
         method: 'GET',

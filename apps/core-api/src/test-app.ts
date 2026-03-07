@@ -54,6 +54,9 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   // Security
   await app.register(helmet, {
     contentSecurityPolicy: false, // Disable CSP in tests
+    // SECURITY: Always deny framing regardless of environment (TD-007).
+    // X-Frame-Options: DENY is set unconditionally to match production behaviour.
+    frameguard: { action: 'deny' },
     hsts: false,
   });
 
