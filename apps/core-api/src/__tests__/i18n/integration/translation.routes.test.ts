@@ -732,6 +732,112 @@ describe('Translation API Routes (Integration)', () => {
     });
   });
 
+  describe('AC-007: Tenant Override Round-Trip (PUT → stable URL → hashed URL)', () => {
+    it('should reflect PUT override immediately on stable URL and on content-addressed URL', async () => {
+      // ── Step 1: Capture the pre-override hash ──────────────────────────────
+      const preOverrideStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(preOverrideStable.statusCode).toBe(200);
+      const preHash = preOverrideStable.headers['x-translation-hash'] as string;
+      expect(preHash).toMatch(/^[a-f0-9]{8}$/);
+
+      // ── Step 2: PUT a tenant override via API ──────────────────────────────
+      const putResponse = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/tenant/translations/overrides',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: {
+          overrides: {
+            en: {
+              core: {
+                'deals.title': 'AC007 Opportunities',
+              },
+            },
+          },
+        },
+      });
+      expect(putResponse.statusCode).toBe(200);
+
+      // ── Step 3: Stable URL should now reflect the override ─────────────────
+      const postOverrideStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(postOverrideStable.statusCode).toBe(200);
+      const postStableBody = JSON.parse(postOverrideStable.body);
+      expect(postStableBody.messages['deals.title']).toBe('AC007 Opportunities');
+
+      // ── Step 4: Hash must have changed after the override ─────────────────
+      const postHash = postOverrideStable.headers['x-translation-hash'] as string;
+      expect(postHash).toMatch(/^[a-f0-9]{8}$/);
+      expect(postHash).not.toBe(preHash); // content changed → new hash
+
+      // ── Step 5: Content-addressed URL with new hash must serve the override ─
+      const hashedResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${postHash}?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(hashedResponse.statusCode).toBe(200);
+      const hashedBody = JSON.parse(hashedResponse.body);
+      expect(hashedBody.messages['deals.title']).toBe('AC007 Opportunities');
+      // Immutable cache headers must be set on the content-addressed URL
+      expect(hashedResponse.headers['cache-control']).toContain('immutable');
+      expect(hashedResponse.headers['cache-control']).toContain('max-age=31536000');
+    });
+
+    it('should return 302 to the new (post-override) hash URL when old hash is requested', async () => {
+      // ── Step 1: Capture pre-override hash ─────────────────────────────────
+      const preOverrideStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(preOverrideStable.statusCode).toBe(200);
+      const oldHash = preOverrideStable.headers['x-translation-hash'] as string;
+
+      // ── Step 2: Apply a new override to change the hash ───────────────────
+      const putResponse = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/tenant/translations/overrides',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: {
+          overrides: {
+            en: { core: { 'contacts.title': 'AC007 Clients' } },
+          },
+        },
+      });
+      expect(putResponse.statusCode).toBe(200);
+
+      // Verify hash actually changed
+      const newStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      const newHash = newStable.headers['x-translation-hash'] as string;
+      // Only test the redirect if the hash changed (may be same in rare hash collision)
+      if (oldHash === newHash) {
+        return; // Hash collision — skip redirect assertion
+      }
+
+      // ── Step 3: Request with old hash → 302 to new hash URL ──────────────
+      const staleHashResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${oldHash}?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(staleHashResponse.statusCode).toBe(302);
+      const location = staleHashResponse.headers['location'] as string;
+      expect(location).toContain(newHash);
+      expect(location).toContain(`tenant=${encodeURIComponent(testTenantSlug)}`);
+    });
+  });
+
   describe('Performance (NFR-001)', () => {
     it('should return cached translations in < 50ms', async () => {
       // Prime the cache

@@ -89,19 +89,29 @@ export class TranslationService {
       throw new Error(`${ERROR_CODES.NAMESPACE_NOT_FOUND}: Invalid namespace format`);
     }
 
-    // H-004: If namespace is not a core/admin namespace, verify it belongs to an enabled plugin
-    if (!CORE_NAMESPACES.has(namespace) && tenantSlug) {
-      const tenant = await db.tenant.findUnique({
+    // W5: Hoist a single tenant query that selects both id and translationOverrides
+    // so the two previously-separate db.tenant.findUnique() calls (one for the
+    // plugin-namespace check and one for override merging) are replaced by one.
+    // This halves the number of DB round-trips for any tenant-scoped request.
+    let tenantRecord: {
+      id: string;
+      translationOverrides: import('@plexica/database').Prisma.JsonValue;
+    } | null = null;
+
+    if (tenantSlug) {
+      tenantRecord = await db.tenant.findUnique({
         where: { slug: tenantSlug },
-        select: { id: true },
+        select: { id: true, translationOverrides: true },
       });
-      if (tenant) {
-        const enabledNamespaces = await this.getEnabledNamespaces(tenant.id);
-        if (!enabledNamespaces.includes(namespace)) {
-          throw new Error(
-            `${ERROR_CODES.NAMESPACE_NOT_FOUND}: Namespace '${namespace}' is not available (plugin may be disabled)`
-          );
-        }
+    }
+
+    // H-004: If namespace is not a core/admin namespace, verify it belongs to an enabled plugin
+    if (!CORE_NAMESPACES.has(namespace) && tenantRecord) {
+      const enabledNamespaces = await this.getEnabledNamespaces(tenantRecord.id);
+      if (!enabledNamespaces.includes(namespace)) {
+        throw new Error(
+          `${ERROR_CODES.NAMESPACE_NOT_FOUND}: Namespace '${namespace}' is not available (plugin may be disabled)`
+        );
       }
     }
 

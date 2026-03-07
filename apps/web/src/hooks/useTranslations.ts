@@ -25,9 +25,13 @@ interface TranslationResponse {
  * The standard apiClient strips headers before returning the body, so we use
  * a lower-level fetch here specifically to read the hash for the two-step
  * content-addressed caching pattern (NFR-005 / TD-013).
+ *
+ * @param url - The URL to fetch
+ * @param signal - Optional AbortSignal for request cancellation (W9 / Edge Case #6)
  */
 async function fetchWithHash(
-  url: string
+  url: string,
+  signal?: AbortSignal
 ): Promise<{ data: TranslationResponse; hash: string | null }> {
   const headers: Record<string, string> = {};
   const accessToken = getAccessToken();
@@ -35,7 +39,7 @@ async function fetchWithHash(
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(url, { credentials: 'include', headers });
+  const response = await fetch(url, { credentials: 'include', headers, signal });
   if (!response.ok) {
     const err = new Error(`HTTP ${response.status}`);
     // Attach status so callers can handle 404 gracefully
@@ -62,7 +66,7 @@ async function fetchWithHash(
  *   `GET /api/v1/translations/:locale/:namespace/:hash`.  If the hash matches
  *   the live bundle the server returns `200 immutable; max-age=31536000`, so
  *   this response is cached permanently by the browser and CDN.
- *   If the hash is stale the server returns `301` to the new hash URL,
+ *   If the hash is stale the server returns `302` to the new hash URL,
  *   which TanStack Query follows automatically.
  *
  * Result: zero server revalidation requests for unchanged content once the
@@ -103,13 +107,13 @@ export function useTranslations(options: UseTranslationsOptions) {
   // staleTime: 60s mirrors the server's max-age=60 directive.
   const stableQuery = useQuery({
     queryKey: ['translations-stable', locale, namespace, tenantSlug],
-    queryFn: async (): Promise<{ bundle: TranslationResponse; hash: string | null }> => {
+    queryFn: async ({ signal }): Promise<{ bundle: TranslationResponse; hash: string | null }> => {
       try {
         const url = tenantSlug
           ? `/api/v1/translations/${locale}/${namespace}?tenant=${encodeURIComponent(tenantSlug)}`
           : `/api/v1/translations/${locale}/${namespace}`;
 
-        const { data, hash } = await fetchWithHash(url);
+        const { data, hash } = await fetchWithHash(url, signal);
         return { bundle: data, hash };
       } catch (error: unknown) {
         const typedError = error as { statusCode?: number; response?: { status?: number } };
@@ -144,7 +148,7 @@ export function useTranslations(options: UseTranslationsOptions) {
   const contentHash = stableQuery.data?.hash ?? null;
   const hashedQuery = useQuery({
     queryKey: ['translations-hashed', locale, namespace, tenantSlug, contentHash],
-    queryFn: async (): Promise<TranslationResponse> => {
+    queryFn: async ({ signal }): Promise<TranslationResponse> => {
       const url = tenantSlug
         ? `/api/v1/translations/${locale}/${namespace}/${contentHash}?tenant=${encodeURIComponent(tenantSlug)}`
         : `/api/v1/translations/${locale}/${namespace}/${contentHash}`;
@@ -159,6 +163,7 @@ export function useTranslations(options: UseTranslationsOptions) {
         credentials: 'include',
         redirect: 'follow',
         headers: hashHeaders,
+        signal,
       });
       if (!response.ok) {
         const err = new Error(`HTTP ${response.status}`);
@@ -183,9 +188,16 @@ export function useTranslations(options: UseTranslationsOptions) {
   const resolvedData = hashedQuery.data ?? stableQuery.data?.bundle ?? null;
 
   // M-004: Only merge messages when the returned locale matches the current
-  // context locale to prevent stale in-flight responses corrupting the store.
+  // context locale (or is the English fallback per FR-003) to prevent stale
+  // in-flight responses corrupting the store.
+  // W1: When the requested locale has no translations the backend falls back to
+  // 'en' (FR-003). Without the `|| resolvedData.locale === 'en'` guard the
+  // fallback response is silently discarded, breaking FR-003 in the frontend.
   useEffect(() => {
-    if (resolvedData?.messages && resolvedData.locale === locale) {
+    if (
+      resolvedData?.messages &&
+      (resolvedData.locale === locale || resolvedData.locale === 'en')
+    ) {
       mergeMessages(resolvedData.messages);
     }
   }, [resolvedData, locale, mergeMessages]);
@@ -237,10 +249,12 @@ export function useNamespaces(namespaces: string[]) {
       queryKey: ['translations-stable', locale, namespace],
       queryFn: async () => {
         try {
-          const response = await apiClient.get<Record<string, string>>(
+          // C1: API returns TranslationResponse { locale, namespace, messages, hash },
+          // not Record<string, string> directly. Use the correct type and extract .messages.
+          const response = await apiClient.get<TranslationResponse>(
             `/api/v1/translations/${locale}/${namespace}`
           );
-          return { namespace, translations: response };
+          return { namespace, translations: response.messages };
         } catch (error: unknown) {
           const typedErr = error as { statusCode?: number; response?: { status?: number } };
           const status = typedErr.statusCode ?? typedErr.response?.status;

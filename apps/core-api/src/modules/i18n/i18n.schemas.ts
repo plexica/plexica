@@ -93,9 +93,15 @@ export const TranslationOverridePayloadSchema = z.object({
  * Get Translations Query Schema (GET /api/v1/translations/:locale/:namespace)
  *
  * Query parameters for translation retrieval with optional tenant context.
+ * W2: tenant slug is validated with a strict regex to prevent path traversal
+ * and injection attacks (Constitution Art. 5.3 — all external input via Zod).
  */
 export const GetTranslationsQuerySchema = z.object({
-  tenant: z.string().optional(),
+  tenant: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'Tenant slug must contain only lowercase letters, numbers, and hyphens')
+    .max(63, 'Tenant slug must be 63 characters or less')
+    .optional(),
 });
 
 /**

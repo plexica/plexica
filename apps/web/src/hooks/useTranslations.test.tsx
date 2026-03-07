@@ -22,16 +22,23 @@ import { IntlProvider } from '@/contexts/IntlContext';
 import type { ReactNode } from 'react';
 
 // ---------------------------------------------------------------------------
-// Mock auth store so getAccessToken() returns a controlled value
+// Mock auth store so getAccessToken() returns a controlled value.
+// useTranslations now selects `s.isAuthenticated` (a boolean), not s.user.
 // ---------------------------------------------------------------------------
 vi.mock('@/stores/auth.store', () => ({
-  useAuthStore: vi.fn((selector: (s: { user: { tenantId: string } | null }) => unknown) =>
-    selector({ user: null })
-  ),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useAuthStore: vi.fn((selector: (s: any) => unknown) => selector({ isAuthenticated: false })),
   getAccessToken: vi.fn(() => null),
 }));
 
 import { getAccessToken } from '@/stores/auth.store';
+
+// Mock getTenantFromUrl — default returns 'default'; individual tests override this.
+vi.mock('@/lib/tenant', () => ({
+  getTenantFromUrl: vi.fn(() => 'default'),
+}));
+
+import { getTenantFromUrl } from '@/lib/tenant';
 
 // Mock apiClient used by useNamespaces
 vi.mock('@/lib/api-client', () => ({
@@ -237,12 +244,13 @@ describe('useTranslations', () => {
   });
 
   it('appends ?tenant= query param when tenantSlug is present', async () => {
-    // Simulate an authenticated user with a tenantId
+    // Simulate an authenticated user; getTenantFromUrl provides the slug
     const { useAuthStore: mockUseAuthStore } = await import('@/stores/auth.store');
-    vi.mocked(mockUseAuthStore).mockImplementation(
-      (selector: (s: { user: { tenantId: string } | null }) => unknown) =>
-        selector({ user: { tenantId: 'acme' } })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(mockUseAuthStore).mockImplementation((selector: (s: any) => unknown) =>
+      selector({ isAuthenticated: true })
     );
+    vi.mocked(getTenantFromUrl).mockReturnValue('acme');
 
     const fetchMock = vi
       .fn()
@@ -349,6 +357,72 @@ describe('useTranslations', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.translations).toEqual({});
+  });
+
+  it('W3/FR-003: merges English fallback when backend returns locale="en" for a non-English request', async () => {
+    // When backend falls back to English (FR-003), the response has locale "en" even though
+    // the caller requested "fr". W1 guard (resolvedData.locale === 'en') must allow the merge.
+    const frenchRequestEnFallbackBundle = {
+      locale: 'en', // server fell back
+      namespace: 'core',
+      messages: { greeting: 'Hello (en fallback)' },
+      hash: 'fb000001',
+    };
+
+    const fetchMock = vi
+      .fn()
+      // Step 1 — stable URL returns the English fallback
+      .mockResolvedValueOnce(makeFetchResponse(frenchRequestEnFallbackBundle, { hash: 'fb000001' }))
+      // Step 2 — content-addressed URL returns the same bundle
+      .mockResolvedValueOnce(makeFetchResponse(frenchRequestEnFallbackBundle));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'fr' }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // The fallback messages must be available — W1 guard allows locale 'en' through
+    expect(result.current.translations).toEqual({ greeting: 'Hello (en fallback)' });
+    expect(result.current.isError).toBe(false);
+  });
+
+  it('W3/Edge Case #6: AbortSignal is threaded into both Step 1 and Step 2 fetch calls', async () => {
+    // Verify that the signal from TanStack Query is passed all the way through
+    // fetchWithHash (Step 1) and the hashed fetch (Step 2) for proper cancellation support.
+    const stableBundle = {
+      locale: 'en',
+      namespace: 'core',
+      messages: { greeting: 'Hello' },
+      hash: 'ab12cd34',
+    };
+
+    let capturedStep1Signal: AbortSignal | undefined;
+    let capturedStep2Signal: AbortSignal | undefined;
+
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if ((url as string).includes('/ab12cd34')) {
+        capturedStep2Signal = init?.signal ?? undefined;
+        return Promise.resolve(makeFetchResponse(stableBundle));
+      } else {
+        capturedStep1Signal = init?.signal ?? undefined;
+        return Promise.resolve(makeFetchResponse(stableBundle, { hash: 'ab12cd34' }));
+      }
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Both steps must have received an AbortSignal instance
+    expect(capturedStep1Signal).toBeInstanceOf(AbortSignal);
+    expect(capturedStep2Signal).toBeInstanceOf(AbortSignal);
   });
 });
 

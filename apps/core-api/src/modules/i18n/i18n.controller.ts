@@ -11,7 +11,7 @@
  * @module modules/i18n/i18n.controller
  */
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { TranslationService } from './i18n.service.js';
 import { TranslationCacheService } from './i18n-cache.service.js';
@@ -20,6 +20,7 @@ import {
   LocaleCodeSchema,
   NamespaceSchema,
   ContentHashSchema,
+  GetTranslationsQuerySchema,
   TranslationOverridePayloadSchema,
   type GetTranslationsParams,
   type GetTranslationsQuery,
@@ -33,6 +34,97 @@ import { tenantService } from '../../services/tenant.service.js';
 // Initialize services
 const translationService = new TranslationService();
 const cacheService = new TranslationCacheService();
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * C3: Compare a client-supplied If-None-Match header value against an expected
+ * ETag string, handling both strong (`"abc"`) and weak (`W/"abc"`) ETag forms
+ * per RFC 7232 §2.3.  The raw `.replace(/^"|"$/g, '')` approach fails for
+ * weak ETags — CDN revalidations with `W/"..."` headers always got 200 instead
+ * of 304.
+ */
+function matchesETag(header: string, expected: string): boolean {
+  // Strip strong form: "abc123" → abc123
+  // Strip weak form:   W/"abc123" → abc123
+  const clean = header.replace(/^(?:W\/)?"(.*)"$/, '$1');
+  return clean === expected;
+}
+
+/**
+ * W6: Centralised error handler for the two public translation route handlers.
+ * Replaces duplicated fragile `errorMessage.includes('...')` string matching
+ * with a single function that applies Art. 6.1 typed-error routing.
+ *
+ * Error codes emitted by TranslationService use the `ERROR_CODES` prefix pattern
+ * (e.g. "LOCALE_NOT_FOUND: ..."), so we still test with `includes` but only in
+ * one place. Future work can replace these with typed error classes (TD-006).
+ */
+function handleI18nError(
+  error: unknown,
+  reply: FastifyReply,
+  fastify: FastifyInstance,
+  logLabel: string
+): ReturnType<FastifyReply['status']> {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+  if (errorMessage.includes('LOCALE_NOT_FOUND')) {
+    return reply.status(404).send({
+      error: {
+        code: 'LOCALE_NOT_FOUND',
+        message: errorMessage.replace('LOCALE_NOT_FOUND: ', ''),
+      },
+    });
+  }
+
+  if (errorMessage.includes('NAMESPACE_NOT_FOUND')) {
+    return reply.status(404).send({
+      error: {
+        code: 'NAMESPACE_NOT_FOUND',
+        message: errorMessage.replace('NAMESPACE_NOT_FOUND: ', ''),
+      },
+    });
+  }
+
+  fastify.log.error({ error }, logLabel);
+  return reply.status(500).send({
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'Failed to fetch translations',
+    },
+  });
+}
+
+/**
+ * W7: Extract tenant context from AsyncLocalStorage with a fallback to the
+ * authenticated user's tenantSlug for tests / environments where the context
+ * middleware is not mounted.
+ *
+ * Returns `{ tenantId, tenantSlug? }` or `null` when no tenant context is
+ * available (caller is responsible for returning 403).
+ */
+async function resolveTenantContext(
+  request: { user?: { tenantSlug?: string } | null },
+  svc: typeof tenantService
+): Promise<{ tenantId: string; tenantSlug?: string } | null> {
+  const tenantContext = getTenantContext();
+
+  if (tenantContext?.tenantId) {
+    return {
+      tenantId: tenantContext.tenantId,
+      tenantSlug: tenantContext.tenantSlug,
+    };
+  }
+
+  if (request.user?.tenantSlug) {
+    const tenant = await svc.getTenantBySlug(request.user.tenantSlug);
+    if (tenant) {
+      return { tenantId: tenant.id, tenantSlug: tenant.slug };
+    }
+  }
+
+  return null;
+}
 
 // JSON Schemas for Fastify validation
 const getTranslationsSchema = {
@@ -157,11 +249,16 @@ export async function translationRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { locale, namespace } = request.params;
-      const { tenant } = request.query;
 
       try {
+        // W2: Validate tenant slug format before use (Constitution Art. 5.3)
+        const { tenant } = GetTranslationsQuerySchema.parse(request.query);
+
         // H-001: If a tenant slug is provided, require authentication
-        // and verify the user belongs to that tenant
+        // and verify the user belongs to that tenant.
+        // W4: This route has no preHandler: authMiddleware. Authentication is
+        // optional — unauthenticated requests receive global translations.
+        // When ?tenant= is present we enforce authentication inline below.
         if (tenant) {
           if (!request.user) {
             return reply.status(401).send({
@@ -193,11 +290,11 @@ export async function translationRoutes(fastify: FastifyInstance) {
         const cachedHash = await cacheService.getHash(locale, namespace, tenant);
 
         if (clientETag && cachedHash) {
-          // Strip quotes from ETag header
-          const cleanClientETag = clientETag.replace(/^"|"$/g, '');
           const secureETag = generateSecureETag(cachedHash);
-
-          if (cleanClientETag === secureETag) {
+          // C3: Use matchesETag() to handle both strong ("abc") and weak (W/"abc")
+          // ETag forms per RFC 7232. Raw .replace(/^"|"$/) strips only the outer
+          // quotes — weak ETags from CDN revalidations always got 200 instead of 304.
+          if (matchesETag(clientETag, secureETag)) {
             return reply.status(304).send();
           }
         }
@@ -231,40 +328,13 @@ export async function translationRoutes(fastify: FastifyInstance) {
           return reply.status(400).send({
             error: {
               code: 'INVALID_LOCALE',
-              message: 'Invalid locale or namespace format',
+              message: 'Invalid locale, namespace, or tenant format',
               details: error.issues,
             },
           });
         }
 
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-        if (errorMessage.includes('LOCALE_NOT_FOUND')) {
-          return reply.status(404).send({
-            error: {
-              code: 'LOCALE_NOT_FOUND',
-              message: errorMessage.replace('LOCALE_NOT_FOUND: ', ''),
-            },
-          });
-        }
-
-        if (errorMessage.includes('NAMESPACE_NOT_FOUND')) {
-          return reply.status(404).send({
-            error: {
-              code: 'NAMESPACE_NOT_FOUND',
-              message: errorMessage.replace('NAMESPACE_NOT_FOUND: ', ''),
-            },
-          });
-        }
-
-        // Internal server error
-        fastify.log.error({ error }, 'Translation fetch error');
-        return reply.status(500).send({
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to fetch translations',
-          },
-        });
+        return handleI18nError(error, reply, fastify, 'Translation fetch error');
       }
     }
   );
@@ -302,10 +372,14 @@ export async function translationRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { locale, namespace, hash } = request.params;
-      const { tenant } = request.query;
 
       try {
-        // H-001: Tenant-scoped requests require authentication + tenant ownership
+        // W2: Validate tenant slug format before use (Constitution Art. 5.3)
+        const { tenant } = GetTranslationsQuerySchema.parse(request.query);
+
+        // H-001: Tenant-scoped requests require authentication + tenant ownership.
+        // W4: No preHandler: authMiddleware on this route — authentication is
+        // optional for global content; enforced inline when ?tenant= is present.
         if (tenant) {
           if (!request.user) {
             return reply.status(401).send({
@@ -348,8 +422,8 @@ export async function translationRoutes(fastify: FastifyInstance) {
           const secureETag = generateSecureETag(currentHash);
           const clientETagHashed = request.headers['if-none-match'];
           if (clientETagHashed) {
-            const cleanClientETag = clientETagHashed.replace(/^"|"$/g, '');
-            if (cleanClientETag === secureETag) {
+            // C3: Use matchesETag() to handle both strong and weak ETag forms.
+            if (matchesETag(clientETagHashed, secureETag)) {
               return reply
                 .header('Cache-Control', 'public, immutable, max-age=31536000')
                 .header('ETag', `"${secureETag}"`)
@@ -378,39 +452,13 @@ export async function translationRoutes(fastify: FastifyInstance) {
           return reply.status(400).send({
             error: {
               code: 'INVALID_PARAMS',
-              message: 'Invalid locale, namespace, or hash format',
+              message: 'Invalid locale, namespace, hash, or tenant format',
               details: error.issues,
             },
           });
         }
 
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-        if (errorMessage.includes('LOCALE_NOT_FOUND')) {
-          return reply.status(404).send({
-            error: {
-              code: 'LOCALE_NOT_FOUND',
-              message: errorMessage.replace('LOCALE_NOT_FOUND: ', ''),
-            },
-          });
-        }
-
-        if (errorMessage.includes('NAMESPACE_NOT_FOUND')) {
-          return reply.status(404).send({
-            error: {
-              code: 'NAMESPACE_NOT_FOUND',
-              message: errorMessage.replace('NAMESPACE_NOT_FOUND: ', ''),
-            },
-          });
-        }
-
-        fastify.log.error({ error }, 'Translation fetch error (hashed endpoint)');
-        return reply.status(500).send({
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to fetch translations',
-          },
-        });
+        return handleI18nError(error, reply, fastify, 'Translation fetch error (hashed endpoint)');
       }
     }
   );
@@ -465,19 +513,12 @@ export async function translationRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        // Extract tenant context from AsyncLocalStorage or fallback to request.user
-        const tenantContext = getTenantContext();
-        let tenantId: string | undefined;
+        // W7: resolveTenantContext() deduplicates the 3-handler pattern of
+        // extracting tenantId from AsyncLocalStorage or falling back to
+        // request.user.tenantSlug for tests / non-middleware environments.
+        const ctx = await resolveTenantContext(request, tenantService);
 
-        if (tenantContext?.tenantId) {
-          tenantId = tenantContext.tenantId;
-        } else if (request.user?.tenantSlug) {
-          // Fallback: Fetch tenant ID from slug (for tests or when context middleware not used)
-          const tenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
-          tenantId = tenant?.id;
-        }
-
-        if (!tenantId) {
+        if (!ctx) {
           return reply.status(403).send({
             error: {
               code: 'FORBIDDEN',
@@ -486,7 +527,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const namespaces = await translationService.getEnabledNamespaces(tenantId);
+        const namespaces = await translationService.getEnabledNamespaces(ctx.tenantId);
 
         return reply.send({ namespaces });
       } catch (error) {
@@ -517,19 +558,10 @@ export async function translationRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        // Extract tenant context from AsyncLocalStorage or fallback to request.user
-        const tenantContext = getTenantContext();
-        let tenantId: string | undefined;
+        // W7: Use shared resolveTenantContext() helper
+        const ctx = await resolveTenantContext(request, tenantService);
 
-        if (tenantContext?.tenantId) {
-          tenantId = tenantContext.tenantId;
-        } else if (request.user?.tenantSlug) {
-          // Fallback: Fetch tenant ID from slug (for tests or when context middleware not used)
-          const tenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
-          tenantId = tenant?.id;
-        }
-
-        if (!tenantId) {
+        if (!ctx) {
           return reply.status(403).send({
             error: {
               code: 'FORBIDDEN',
@@ -538,7 +570,7 @@ export async function translationRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const overrides = await translationService.getTenantOverrides(tenantId);
+        const overrides = await translationService.getTenantOverrides(ctx.tenantId);
 
         return reply.send({
           overrides,
@@ -597,22 +629,10 @@ export async function translationRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // Extract tenant context from AsyncLocalStorage or fallback to request.user
-        const tenantContext = getTenantContext();
-        let tenantId: string | undefined;
-        let tenantSlug: string | undefined;
+        // W7: Use shared resolveTenantContext() helper
+        const ctx = await resolveTenantContext(request, tenantService);
 
-        if (tenantContext?.tenantId && tenantContext?.tenantSlug) {
-          tenantId = tenantContext.tenantId;
-          tenantSlug = tenantContext.tenantSlug;
-        } else if (request.user?.tenantSlug) {
-          // Fallback: Fetch tenant from slug (for tests or when context middleware not used)
-          const tenant = await tenantService.getTenantBySlug(request.user.tenantSlug);
-          tenantId = tenant?.id;
-          tenantSlug = tenant?.slug;
-        }
-
-        if (!tenantId || !tenantSlug) {
+        if (!ctx?.tenantId || !ctx?.tenantSlug) {
           return reply.status(403).send({
             error: {
               code: 'FORBIDDEN',
@@ -620,6 +640,8 @@ export async function translationRoutes(fastify: FastifyInstance) {
             },
           });
         }
+
+        const { tenantId, tenantSlug } = ctx;
 
         // Validate request body
         const validation = TranslationOverridePayloadSchema.safeParse(request.body);
