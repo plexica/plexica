@@ -43,7 +43,7 @@ export function RoleAssignmentDialog({
     }
   }
 
-  const roles = rolePage?.data ?? [];
+  const roles = useMemo(() => rolePage?.data ?? [], [rolePage]);
 
   // Compute diff
   const toAdd = useMemo(

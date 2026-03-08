@@ -32,7 +32,6 @@ export class TranslationCacheService {
 
   constructor(logger?: Logger) {
     // Use provided logger or fall back to a no-op pino instance
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     this.logger = logger ?? (require('pino')({ level: 'warn' }) as Logger);
   }
 

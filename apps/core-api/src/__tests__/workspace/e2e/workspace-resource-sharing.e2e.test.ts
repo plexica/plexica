@@ -280,7 +280,6 @@ describe('Workspace Resource Sharing E2E Tests', () => {
       await runInContext(async () =>
         resourceService.shareResource(
           testWorkspaceId,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           { resourceType: 'document' as any, resourceId: testResourceId2 },
           testUserId
         )

@@ -12,7 +12,7 @@
 // All data is fetched from /api/v1/observability/* endpoints (Spec 012 §8.3).
 // 502 responses from the backend are handled gracefully (NFR-013 fail-open).
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -417,9 +417,12 @@ function MetricsTab({
   const [timeRange, setTimeRange] = useState<TimeRange>('1h');
 
   // Keep plugin in sync when parent updates it (e.g. clicking "View Metrics" from Health tab)
-  useEffect(() => {
+  // Uses "adjust state during render" pattern to avoid setState inside an effect.
+  const [prevInitialPlugin, setPrevInitialPlugin] = useState(initialPlugin);
+  if (prevInitialPlugin !== initialPlugin) {
+    setPrevInitialPlugin(initialPlugin);
     if (initialPlugin) setSelectedPlugin(initialPlugin);
-  }, [initialPlugin]);
+  }
 
   return (
     <div className="space-y-4">
