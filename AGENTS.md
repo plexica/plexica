@@ -2,26 +2,103 @@
 
 This file provides essential guidelines for AI coding agents working in the Plexica repository, including build/test commands, code style, and best practices.
 
+---
+
+## FORGE Governance
+
+This project uses the **FORGE methodology** (Framework for Orchestrated Requirements, Governance & Engineering) for all structured AI-assisted development. Every implementation, review, and architectural decision must follow FORGE conventions.
+
+### Constitution
+
+All architectural and design decisions must comply with the project constitution at [`.forge/constitution.md`](.forge/constitution.md). The constitution defines non-negotiable principles for:
+
+- Technology choices and dependency policy (Article 2)
+- Architecture patterns — microservices, layered architecture, DDD (Article 3)
+- Code quality and test coverage thresholds (Article 4)
+- Security — tenant isolation, RBAC, parameterized queries, input validation (Article 5)
+- Error handling, logging standards (Article 6)
+- Naming and API conventions (Articles 7–8)
+- Operational requirements — zero-downtime deployments, monitoring, alerting (Article 9)
+
+> **Before any implementation, review the constitution to ensure compliance.**
+
+### Knowledge Base
+
+Before making architectural decisions, always check existing decisions:
+
+| Location                              | Contents                                                           |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `.forge/knowledge/adr/`               | Formal Architectural Decision Records (ADR-001 through ADR-030)    |
+| `.forge/knowledge/decision-log.md`    | Session-level decisions and active technical debt (TD-xxx, DD-xxx) |
+| `.forge/knowledge/lessons-learned.md` | Past mistakes, insights, and anti-patterns to avoid                |
+
+**ADRs in force cover** (among others): monorepo strategy (ADR-001), multi-tenancy schema (ADR-002), plugin lifecycle (ADR-018/019), Module Federation (ADR-004/011), event system (ADR-005), Fastify (ADR-006), Prisma (ADR-007), font hosting (ADR-020), ABAC engine (ADR-017), team-member roles vs Keycloak (ADR-024), audit logs placement (ADR-025), SSE notifications (ADR-023), and the full observability stack (ADR-026–030).
+
+> Any new dependency or technology change requires an ADR **before** implementation (Constitution Art. 2.2).
+
+### Spec-Code Traceability
+
+Every implementation **must** trace back to a spec or story. Unspecified changes are only permitted in the **Hotfix track**.
+
+| Artifact     | Location                                | Purpose                                       |
+| ------------ | --------------------------------------- | --------------------------------------------- |
+| Feature spec | `.forge/specs/NNN-slug/spec.md`         | Requirements and acceptance criteria          |
+| Plan         | `.forge/specs/NNN-slug/plan.md`         | Architecture decisions and task breakdown     |
+| Tasks        | `.forge/specs/NNN-slug/tasks.md`        | Implementation tracking (check off as you go) |
+| Design spec  | `.forge/specs/NNN-slug/design-spec.md`  | UX wireframes and component specs             |
+| User journey | `.forge/specs/NNN-slug/user-journey.md` | User flows and personas                       |
+| Sprint files | `.forge/sprints/active/`                | Active sprint story tracking                  |
+
+All 12 specs (001–012) are complete. New work must start with `/forge-specify` to create a new spec.
+
+### Review Standards
+
+All code changes go through a **mandatory dual-review process**:
+
+1. **AI adversarial review** — run `/forge-review` before human review. Invokes both `forge-reviewer` (Claude) and `forge-reviewer-codex` (GPT-Codex) in parallel across 7 dimensions: correctness, security, performance, maintainability, test-spec coherence, UX quality, and constitution compliance.
+2. **Human review** — a team member reviews the code and the AI review findings. All HIGH-severity findings must be resolved before merge.
+
+> **PRs that skip `/forge-review` will be rejected.** This rule cannot be bypassed without explicit team confirmation.
+
+### FORGE Commands
+
+| Command            | Purpose                                                    | Track    |
+| ------------------ | ---------------------------------------------------------- | -------- |
+| `/forge-specify`   | Create or update a feature spec                            | Feature+ |
+| `/forge-plan`      | Generate implementation plan + ADRs                        | Feature+ |
+| `/forge-tasks`     | Break plan into sprint tasks                               | Feature+ |
+| `/forge-implement` | Implement tasks (auto-chains `/forge-review`)              | All      |
+| `/forge-review`    | Dual-model adversarial code review                         | All      |
+| `/forge-test`      | Generate and validate test strategy                        | All      |
+| `/forge-hotfix`    | Single-file emergency fix (auto-chains `/forge-review`)    | Hotfix   |
+| `/forge-quick`     | Lightweight feature ≤5 tasks (auto-chains `/forge-review`) | Quick    |
+| `/forge-adr`       | Create a formal Architectural Decision Record              | Any      |
+| `/forge-analyze`   | Validate spec/plan consistency before implementation       | Feature+ |
+| `/forge-sprint`    | Plan or update a sprint                                    | Epic+    |
+| `/forge-status`    | Show current sprint dashboard                              | Any      |
+
+---
+
 ## Quick Start - Essential Commands
 
-````bash
+```bash
 # Setup and development
 pnpm install                    # Install dependencies
 pnpm dev                        # Start development servers (all packages)
 pnpm build                      # Build all packages
 pnpm lint                       # Run linting across all packages
 pnpm format                     # Format code with Prettier
-
-# Testing - Core API (main package)
+```
 
 ## Current Test Status
 
 **For current test statistics and coverage details, see [docs/TESTING.md](docs/TESTING.md#test-suite-overview)**
 
 Quick summary:
-- 2,118+ total tests (1,855 backend + 263 i18n)
-- 63% overall coverage (target: 80%)
-- i18n system: 95% average coverage ✅
+
+- 2,200+ total tests (backend + i18n + observability)
+- ≥80% overall coverage ✅ (TD-001 resolved in Sprint 009)
+- i18n system: 95%+ average coverage ✅
 - 100% pass rate when infrastructure running
 
 ## Quick Test Commands
@@ -54,7 +131,7 @@ pnpm test -- auth/              # Auth module only
 pnpm test -- tenant/            # Tenant module only
 pnpm test -- workspace/         # Workspace module only
 pnpm test -- plugin/            # Plugin module only
-````
+```
 
 ## Test Infrastructure Setup
 
@@ -106,7 +183,7 @@ pnpm db:seed                   # Seed test data
 - **Functions/Variables**: camelCase (e.g., `getUserById`, `tenantContext`)
 - **Constants**: SCREAMING_SNAKE_CASE for module-level constants
 - **Database tables**: snake_case (e.g., `workspace_members`, `created_at`)
-- **GraphQL/API**: Use `Dto` suffix for data transfer objects (e.g., `CreateUserDto`)
+- **REST API**: Use `Dto` suffix for data transfer objects (e.g., `CreateUserDto`)
 
 ### Error Handling
 
@@ -172,27 +249,49 @@ describe('ServiceName.methodName', () => {
 
 ```
 plexica/
-├── apps/core-api/                    # Main backend application
-│   ├── src/
-│   │   ├── modules/                  # Feature modules
-│   │   ├── services/                 # Shared services
-│   │   ├── middleware/               # Request middleware
-│   │   ├── lib/                      # Utilities and helpers
-│   │   ├── __tests__/                # Test suite (~870 tests)
-│   │   │   ├── setup/                # Test utilities and setup
-│   │   │   ├── auth/                 # Auth module tests
-│   │   │   ├── tenant/               # Tenant module tests
-│   │   │   ├── workspace/            # Workspace module tests
-│   │   │   ├── plugin/               # Plugin module tests
-│   │   │   └── unit/integration/e2e/ # Test organization
-│   │   └── index.ts                  # Entry point
-│   ├── test/                         # Vitest configurations
-│   └── package.json                  # Scripts and deps
+├── apps/
+│   ├── core-api/                     # Main backend application
+│   │   ├── src/
+│   │   │   ├── modules/              # Feature modules
+│   │   │   ├── services/             # Shared services
+│   │   │   ├── middleware/           # Request middleware
+│   │   │   ├── lib/                  # Utilities and helpers
+│   │   │   ├── __tests__/            # Test suite (2,200+ tests)
+│   │   │   │   ├── setup/            # Test utilities and setup
+│   │   │   │   ├── auth/             # Auth module tests
+│   │   │   │   ├── authorization/    # Authorization tests
+│   │   │   │   ├── tenant/           # Tenant module tests
+│   │   │   │   ├── workspace/        # Workspace module tests
+│   │   │   │   ├── plugin/           # Plugin module tests
+│   │   │   │   ├── i18n/             # i18n module tests
+│   │   │   │   ├── observability/    # Observability tests
+│   │   │   │   ├── services/         # Shared service tests
+│   │   │   │   └── unit/integration/e2e/ # Test organization
+│   │   │   └── index.ts              # Entry point
+│   │   ├── test/                     # Vitest configurations
+│   │   └── package.json              # Scripts and deps
+│   ├── web/                          # Tenant-facing frontend (React + Vite)
+│   ├── super-admin/                  # Super-admin frontend
+│   ├── plugin-analytics/             # Analytics plugin app
+│   ├── plugin-crm/                   # CRM plugin app
+│   └── plugins/                      # Shared plugin utilities
 ├── packages/
 │   ├── database/                     # Prisma schema and migrations
-│   └── event-bus/                    # Event system
-├── specs/                            # Technical specifications
-├── planning/                         # Project planning documents
+│   ├── event-bus/                    # Event system (KafkaJS)
+│   ├── i18n/                         # i18n package (@plexica/i18n)
+│   ├── ui/                           # Shared UI components (@plexica/ui)
+│   ├── sdk/                          # Plugin SDK (@plexica/sdk)
+│   ├── api-client/                   # Typed API client
+│   ├── types/                        # Shared TypeScript types
+│   ├── config/                       # Shared configuration
+│   └── lib/                          # Shared utilities
+├── docs/                             # Developer guides and references
+├── specs/                            # Functional/technical specifications
+├── planning/                         # Project planning and ADRs
+├── .forge/                           # FORGE methodology artifacts
+│   ├── specs/                        # Feature specs (001–012)
+│   ├── knowledge/                    # ADRs and decision log
+│   └── sprints/                      # Sprint files
 └── test-infrastructure/              # Docker and test utilities
 ```
 
@@ -482,6 +581,40 @@ When creating or updating documentation:
 - ✅ **Mark deprecations**: Clearly indicate outdated content
 - ✅ **Update metadata**: Keep Date/Status/Author fields current
 
+## Git Workflow
+
+### Branch Naming
+
+| Type    | Pattern                 | Example                            |
+| ------- | ----------------------- | ---------------------------------- |
+| Feature | `feat/<spec-id>-<slug>` | `feat/012-observability-dashboard` |
+| Fix     | `fix/<spec-id>-<slug>`  | `fix/006-translation-cache`        |
+| Hotfix  | `hotfix/<slug>`         | `hotfix/tenant-isolation-leak`     |
+| Epic    | `epic/<epic-id>-<slug>` | `epic/E01-plugin-system`           |
+
+### Commit Format
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `ci`
+
+**Examples:**
+
+```bash
+feat(plugin): add lifecycle status transitions
+fix(i18n): reject null bytes in translation keys
+test(workspace): add contract tests for plugin scoping API
+docs(adr): add ADR-031 for new dependency decision
+```
+
 ## CI/CD Integration
 
 All pull requests must pass automated checks:
@@ -586,43 +719,14 @@ await db.$queryRaw`SELECT * FROM users WHERE email = ${email}`;
 - **Security Guidelines**: 🔒 **[docs/SECURITY.md](docs/SECURITY.md)** - **MANDATORY** security best practices (SQL injection prevention, authentication, multi-tenant security)
 - **Project Status**: See `planning/PROJECT_STATUS.md` for current sprint and milestone status
 - **Full Guidelines**: The longer AGENTS.md sections below contain comprehensive test policy, documentation standards, and development guidelines
-- **Test Documentation**: `TEST_IMPLEMENTATION_PLAN.md` for testing strategies
-- **Quick Start**: `QUICKSTART_GUIDE.md` for 5-10 minute setup
+- **Test Documentation**: [`docs/TESTING.md`](docs/TESTING.md) for testing guide and current stats
+- **Quick Start**: [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for 5-10 minute setup
 
-### Recent Sprints (Last 7 Days)
+### Sprint Status
 
-**Sprint 2: i18n Frontend Integration** ✅ COMPLETE (Feb 16, 2026)
+For the full sprint history and current progress, see [`planning/PROJECT_STATUS.md`](planning/PROJECT_STATUS.md).
 
-- **Duration**: 1 day (planned 7 days, 700% efficiency)
-- **Velocity**: 5/5 story points (100% completion)
-- **Epic**: E01-S006 Frontend i18n Integration
-- **Deliverables**:
-  - ✅ IntlContext and react-intl setup (16 tests, 82.85% coverage)
-  - ✅ useTranslations and useNamespaces hooks (15 tests, 100% coverage)
-  - ✅ LanguageSelector component in @plexica/ui (15 tests, 100% coverage, 9 Storybook stories)
-  - ✅ Translation override admin UI (600+ lines, full RBAC)
-  - ✅ Locale switching E2E tests (14 Playwright tests)
-  - ✅ Developer documentation (928 lines, comprehensive guide)
-- **Quality**: 45 tests added, 95% average coverage, 0 bugs/security issues
-- **Files**: IntlContext, useTranslations, LanguageSelector, admin UI, E2E tests, I18N_USAGE.md
-- **Commits**: `eed8e55`, `98f6759`, `830ea69`, `c3c1c0f`
-
-**Sprint 1: i18n Backend Implementation** ✅ COMPLETE (Feb 15, 2026)
-
-- **Duration**: 3 days
-- **Velocity**: 23/28 story points (82% completion, 5/6 stories)
-- **Epic**: E01 i18n System (Milestones 1-5)
-- **Deliverables**:
-  - ✅ Database schema (translation_overrides, default_locale)
-  - ✅ @plexica/i18n package (115 tests, 94.9% coverage)
-  - ✅ Backend i18n Service (TranslationService, 4 API endpoints, Redis caching)
-  - ✅ Plugin manifest integration (translation validation)
-  - ✅ Testing & QA (218 tests: 141 unit, 56 integration, 21 E2E)
-  - ✅ Security fixes (9 issues: 4 HIGH, 4 MEDIUM, 1 LOW)
-- **Quality**: 218 tests, 100% pass rate, 6 security issues fixed
-- **Commits**: `07c4df0`, `a90b6fb` + 15 milestone commits
-
-**i18n System Status**: ✅ **100% COMPLETE** (6/6 milestones, 28 story points total)
+All 12 specs (001–012) are complete. The project is at version 0.12.0 with ≥80% test coverage and 0 known security vulnerabilities.
 
 ---
 
@@ -746,8 +850,19 @@ describe('TenantService.createTenant', () => {
 
 ## Pull Request Policy
 
-**ALL pull requests will be rejected if:**
+**Step 1 — FORGE review (MANDATORY)**: Run `/forge-review` before requesting human review.
+Both `forge-reviewer` (Claude) and `forge-reviewer-codex` (GPT-Codex) must complete in parallel.
+All HIGH-severity findings must be resolved before merge. MEDIUM-severity findings require
+documented justification if not fixed. **PRs that skip `/forge-review` will be rejected.**
+This rule cannot be bypassed without explicit team confirmation.
 
+**Step 2 — Human review**: At least one team member reviews the code together with the AI
+review findings. The PR description must reference the spec ID or story ID
+(e.g., `Closes spec 012, task T012-18`).
+
+**ALL pull requests will also be rejected if:**
+
+- ❌ `/forge-review` was not run or HIGH-severity findings are unresolved
 - ❌ New features/changes lack tests
 - ❌ Coverage drops below thresholds (≥80%)
 - ❌ Tests don't follow quality standards
@@ -794,12 +909,11 @@ describe('TenantService.createTenant', () => {
 ## Resources
 
 - **Security Guidelines**: 🔒 **[docs/SECURITY.md](docs/SECURITY.md)** - SQL injection prevention, authentication, authorization, multi-tenant security
-- **Project Status**: `PROJECT_COMPLETE.md` (~870 tests implemented)
-- **Test Strategy**: `TEST_IMPLEMENTATION_PLAN.md`
+- **Project Status**: [`planning/PROJECT_STATUS.md`](planning/PROJECT_STATUS.md) — all 12 specs complete, Sprint 009 closed
 - **Specifications**: `specs/FUNCTIONAL_SPECIFICATIONS.md`, `specs/TECHNICAL_SPECIFICATIONS.md`
 - **CI/CD**: `.github/workflows/` and `.github/docs/CI_CD_DOCUMENTATION.md`
 - **Planning**: `planning/MILESTONES.md`, `planning/ROADMAP.md`, `planning/DECISIONS.md`
 
 _Plexica Development Guidelines v3.0_  
-_Last updated: February 2025_  
+_Last updated: March 2026_  
 _Optimized for Agentic Coding_

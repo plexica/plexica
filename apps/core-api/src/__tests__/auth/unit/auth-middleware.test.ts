@@ -918,7 +918,6 @@ describe('requireTenantAccess', () => {
         message: 'Failed to verify tenant access',
         details: {
           tenantSlug: 'acme-corp',
-          reason: 'Database connection failed',
         },
       },
     });

@@ -530,9 +530,9 @@ describe('msToLokiNanoseconds (via getPluginLogs Loki URL params)', () => {
   });
 
   it('should not overflow for a real-world 2026 timestamp', async () => {
-    // 2026-03-07T12:00:00Z = 1741348800000 ms
-    // Arithmetic: 1741348800000 * 1_000_000 = 1.7413488e21 >> Number.MAX_SAFE_INTEGER (9e15)
-    // String concat: "1741348800000" + "000000" = "1741348800000000000" (correct)
+    // 2026-03-07T12:00:00Z = 1772884800000 ms
+    // Arithmetic: 1772884800000 * 1_000_000 = 1.7728848e21 >> Number.MAX_SAFE_INTEGER (9e15)
+    // String concat: "1772884800000" + "000000" = "1772884800000000000" (correct)
     const start2026 = '2026-03-07T12:00:00.000Z';
     const end2026 = '2026-03-07T13:00:00.000Z';
 
@@ -560,9 +560,9 @@ describe('msToLokiNanoseconds (via getPluginLogs Loki URL params)', () => {
     expect(startParam).toMatch(/^\d{19}$/);
     expect(endParam).toMatch(/^\d{19}$/);
 
-    // Specifically: 1741348800000 ms → "1741348800000000000" ns
-    expect(startParam).toBe('1741348800000000000');
-    expect(endParam).toBe('1741352400000000000');
+    // Specifically: 1772884800000 ms → "1772884800000000000" ns
+    expect(startParam).toBe('1772884800000000000');
+    expect(endParam).toBe('1772888400000000000');
   });
 });
 

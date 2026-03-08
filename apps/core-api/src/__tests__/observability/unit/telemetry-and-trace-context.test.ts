@@ -67,6 +67,44 @@ vi.mock('@opentelemetry/semantic-conventions', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Helper: re-register all OTel mocks after vi.resetModules().
+// vi.resetModules() clears the module cache but does NOT re-register top-level
+// vi.mock() factories for subsequent dynamic imports — vi.doMock() must be used.
+// Classes are required (arrow functions cannot be used with `new`).
+// ---------------------------------------------------------------------------
+
+function registerOtelMocks() {
+  vi.doMock('@opentelemetry/sdk-node', () => ({
+    NodeSDK: class {
+      start = mockSdkStart;
+      shutdown = mockSdkShutdown;
+    },
+  }));
+  vi.doMock('@opentelemetry/exporter-trace-otlp-grpc', () => ({
+    OTLPTraceExporter: class {},
+  }));
+  vi.doMock('@opentelemetry/sdk-trace-node', () => ({
+    BatchSpanProcessor: class {},
+  }));
+  vi.doMock('@opentelemetry/sdk-trace-base', () => ({
+    TraceIdRatioBasedSampler: class {},
+    ParentBasedSampler: class {},
+  }));
+  vi.doMock('@opentelemetry/core', () => ({
+    W3CTraceContextPropagator: class {},
+    CompositePropagator: class {},
+    W3CBaggagePropagator: class {},
+  }));
+  vi.doMock('@opentelemetry/resources', () => ({
+    Resource: class {},
+  }));
+  vi.doMock('@opentelemetry/semantic-conventions', () => ({
+    ATTR_SERVICE_NAME: 'service.name',
+    ATTR_SERVICE_VERSION: 'service.version',
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Tests — telemetry
 // ---------------------------------------------------------------------------
 
@@ -78,6 +116,7 @@ describe('telemetry — initTelemetry()', () => {
   it('should call sdk.start() on the first call', async () => {
     // Re-import to get a fresh module state (vi.resetModules clears the module cache)
     vi.resetModules();
+    registerOtelMocks();
     const { initTelemetry } = await import('../../../lib/telemetry.js');
     initTelemetry();
     expect(mockSdkStart).toHaveBeenCalledTimes(1);
@@ -85,6 +124,7 @@ describe('telemetry — initTelemetry()', () => {
 
   it('should be idempotent — second call is a no-op (sdk.start not called again)', async () => {
     vi.resetModules();
+    registerOtelMocks();
     const { initTelemetry } = await import('../../../lib/telemetry.js');
     initTelemetry();
     initTelemetry();
@@ -96,6 +136,7 @@ describe('telemetry — initTelemetry()', () => {
     mockSdkStart.mockImplementationOnce(() => {
       throw new Error('OTel unavailable');
     });
+    registerOtelMocks();
     const { initTelemetry } = await import('../../../lib/telemetry.js');
     expect(() => initTelemetry()).not.toThrow();
   });
@@ -108,6 +149,7 @@ describe('telemetry — shutdownTelemetry()', () => {
 
   it('should call sdk.shutdown() after a successful initTelemetry()', async () => {
     vi.resetModules();
+    registerOtelMocks();
     const { initTelemetry, shutdownTelemetry } = await import('../../../lib/telemetry.js');
     initTelemetry();
     await shutdownTelemetry();
@@ -116,6 +158,7 @@ describe('telemetry — shutdownTelemetry()', () => {
 
   it('should be a no-op when sdk was never initialised', async () => {
     vi.resetModules();
+    registerOtelMocks();
     const { shutdownTelemetry } = await import('../../../lib/telemetry.js');
     await expect(shutdownTelemetry()).resolves.toBeUndefined();
     expect(mockSdkShutdown).not.toHaveBeenCalled();

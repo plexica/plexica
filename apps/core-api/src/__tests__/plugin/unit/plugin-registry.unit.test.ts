@@ -306,6 +306,8 @@ describe('PluginRegistryService.deletePlugin()', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     service = new PluginRegistryService();
+    // deletePlugin wraps all logic in db.$transaction — execute the callback with db
+    vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
   });
 
   it('should delete a plugin with no tenant installations', async () => {

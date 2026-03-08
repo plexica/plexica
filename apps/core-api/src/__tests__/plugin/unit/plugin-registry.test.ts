@@ -21,6 +21,7 @@ vi.mock('../../../lib/db', () => ({
       update: vi.fn(),
       count: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
 }));
 
@@ -117,6 +118,10 @@ describe('PluginRegistryService', () => {
   });
 
   describe('deletePlugin', () => {
+    beforeEach(() => {
+      vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+    });
+
     it('should delete a plugin when not installed in any tenant', async () => {
       const mockPlugin = {
         id: 'plugin-1',

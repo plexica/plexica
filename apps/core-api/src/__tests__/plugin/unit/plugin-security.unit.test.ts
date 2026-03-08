@@ -239,10 +239,10 @@ describe('Security: PluginHookService.invokeHook() — URL validation', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 9. X-Trace-ID is included on every outbound hook request
+  // 9. traceparent is included on every outbound hook request (ADR-026)
   // -------------------------------------------------------------------------
 
-  it('should include X-Trace-ID header on every outbound hook request', async () => {
+  it('should include traceparent header on every outbound hook request', async () => {
     const plugin = buildPlugin({
       hookUrl: 'http://plugin-crm:8080/hook',
       basePath: 'http://plugin-crm:8080',
@@ -254,7 +254,7 @@ describe('Security: PluginHookService.invokeHook() — URL validation', () => {
       expect.any(String),
       expect.objectContaining({
         headers: expect.objectContaining({
-          'X-Trace-ID': expect.any(String),
+          traceparent: expect.any(String),
         }),
       })
     );

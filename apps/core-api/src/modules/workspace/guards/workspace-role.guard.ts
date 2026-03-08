@@ -25,8 +25,10 @@ export function workspaceRoleGuard(requiredRoles: ('ADMIN' | 'MEMBER' | 'VIEWER'
 
       if (!membership) {
         return reply.code(403).send({
-          error: 'Forbidden',
-          message: 'Workspace membership not found. Ensure workspaceGuard is applied first.',
+          error: {
+            code: 'MISSING_WORKSPACE_MEMBERSHIP',
+            message: 'Workspace membership not found. Ensure workspaceGuard is applied first.',
+          },
         });
       }
 
@@ -34,15 +36,19 @@ export function workspaceRoleGuard(requiredRoles: ('ADMIN' | 'MEMBER' | 'VIEWER'
 
       if (!hasRole) {
         return reply.code(403).send({
-          error: 'Forbidden',
-          message: `Insufficient permissions. Required role(s): ${requiredRoles.join(', ')}. Your role: ${membership.role}`,
+          error: {
+            code: 'INSUFFICIENT_PERMISSIONS',
+            message: `Insufficient permissions. Required role(s): ${requiredRoles.join(', ')}. Your role: ${membership.role}`,
+          },
         });
       }
     } catch (error) {
       request.log.error(error, 'Error in workspace role guard');
       return reply.code(500).send({
-        error: 'Internal Server Error',
-        message: 'Failed to validate workspace role',
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to validate workspace role',
+        },
       });
     }
   };

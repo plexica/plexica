@@ -99,4 +99,9 @@ class WebAdminApiClient extends AdminApiClient {
   }
 }
 
-export const adminApiClient = new WebAdminApiClient();
+// Cast once here so consumers can call `adminApiClient.get<T>()` directly
+// without repeating `as unknown as ApiClient` at every call site (M-02, TD-012).
+// AdminApiClient extends HttpClient which exposes `get<T>` at runtime; the cast
+// makes it visible to TypeScript via the ApiClient interface declared above.
+export const adminApiClient: WebAdminApiClient & ApiClient =
+  new WebAdminApiClient() as WebAdminApiClient & ApiClient;

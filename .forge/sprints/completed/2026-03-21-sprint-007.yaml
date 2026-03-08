@@ -1,0 +1,284 @@
+# Sprint 007 — Closed
+# Created: 2026-03-08
+# Closed: 2026-03-21
+# Managed by forge-scrum
+# Covers: Spec 012 Plugin Observability — Phase 1 (Infrastructure & Core Metrics)
+#         + Phase 2 (Distributed Tracing) + Phase 3 tasks T012-18..T012-20
+
+version: 1
+sprint_number: 7
+status: closed
+sprint_goal: >
+  Stand up the five-service observability infrastructure (Prometheus, Tempo,
+  Loki, Promtail, Grafana), instrument the core API with OpenTelemetry
+  distributed tracing and prom-client metrics, and begin the backend
+  observability API layer (plugin metrics proxy + Zod schemas + health summary).
+start_date: '2026-03-08'
+end_date: '2026-03-21'
+closed_date: '2026-03-21'
+velocity_target: 67
+
+spec: '.forge/specs/012-plugin-observability/spec.md'
+tasks: '.forge/specs/012-plugin-observability/tasks.md'
+plan: '.forge/specs/012-plugin-observability/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-026-otel-direct-tempo-export.md'
+  - '.forge/knowledge/adr/adr-027-prom-client-core-metrics.md'
+  - '.forge/knowledge/adr/adr-028-log-ingestion-promtail-loki.md'
+  - '.forge/knowledge/adr/adr-029-chart-library-recharts.md'
+  - '.forge/knowledge/adr/adr-030-plugin-metrics-prometheus-format.md'
+
+stories:
+  # --- Phase 1 ---
+
+  - id: 'T012-01'
+    title: 'Add five observability services to docker-compose.yml (Prometheus, Tempo, Loki, Promtail, Grafana)'
+    phase: 1
+    week: 1
+    points: 5
+    status: done
+    parallel: false
+    dependencies: []
+    tags: ['[NFR-017]', '[NFR-020]', '[NFR-021]', '[NFR-022]', 'infrastructure', 'docker']
+
+  - id: 'T012-02'
+    title: 'Create Prometheus configuration and file_sd targets directory'
+    phase: 1
+    week: 1
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-008]', '[NFR-004]', '[NFR-005]', '[NFR-010]', 'infrastructure', 'prometheus']
+
+  - id: 'T012-03'
+    title: 'Create Tempo configuration (OTLP/gRPC receiver, local storage, 7-day retention)'
+    phase: 1
+    week: 1
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-015]', '[NFR-011]', 'infrastructure', 'tempo', 'tracing']
+
+  - id: 'T012-04'
+    title: 'Create Loki configuration (ingester, compactor, local filesystem storage, 7-day retention)'
+    phase: 1
+    week: 1
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-016]', '[NFR-012]', 'infrastructure', 'loki', 'logging']
+
+  - id: 'T012-05'
+    title: 'Create Promtail configuration for Docker log scraping (Docker socket, Pino JSON pipeline stages)'
+    phase: 1
+    week: 1
+    points: 3
+    status: done
+    parallel: false
+    dependencies: ['T012-01', 'T012-04']
+    tags: ['[FR-017]', '[NFR-007]', 'infrastructure', 'promtail', '[ADR-028]']
+
+  - id: 'T012-06'
+    title: 'Create Grafana provisioning configuration (data sources: Prometheus, Tempo, Loki + dashboard provider)'
+    phase: 1
+    week: 1
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T012-01']
+    tags: ['[FR-033]', 'infrastructure', 'grafana', 'provisioning']
+
+  - id: 'T012-07'
+    title: 'Create MetricsService with prom-client registry, HTTP counter/histogram, active_plugins gauge, and Fastify hooks'
+    phase: 1
+    week: 1
+    points: 5
+    status: done
+    parallel: true
+    dependencies: []
+    tags: ['[FR-006]', '[FR-007]', '[NFR-002]', 'metrics', 'prom-client', '[ADR-027]', 'service']
+
+  - id: 'T012-08'
+    title: 'Extend /metrics endpoint to serve merged Prometheus text with super_admin auth'
+    phase: 1
+    week: 1
+    points: 3
+    status: done
+    parallel: false
+    dependencies: ['T012-07']
+    tags: ['[FR-006]', '[NFR-002]', 'metrics', 'endpoint', 'auth']
+
+  - id: 'T012-09'
+    title: 'Create PluginTargetsService — atomic write of Prometheus file_sd targets (plugins.json)'
+    phase: 1
+    week: 1
+    points: 3
+    status: done
+    parallel: true
+    dependencies: []
+    tags: ['[FR-009]', 'service', 'prometheus', 'service-discovery']
+
+  - id: 'T012-10'
+    title: 'Wire PluginTargetsService into plugin.service.ts lifecycle hooks (activatePlugin, deactivatePlugin)'
+    phase: 1
+    week: 1
+    points: 2
+    status: done
+    parallel: false
+    dependencies: ['T012-09']
+    tags: ['[FR-010]', 'service', 'lifecycle', 'plugin']
+
+  - id: 'T012-11'
+    title: 'Create Prometheus alert rules (PluginHighErrorRate, PluginHighLatency, PluginHealthCheckFailing, PluginDown, PluginHighMemory, CoreHighErrorRate)'
+    phase: 1
+    week: 1
+    points: 3
+    status: done
+    parallel: false
+    dependencies: ['T012-02']
+    tags: ['[FR-020]', '[FR-021]', 'prometheus', 'alerting', 'rules']
+
+  # --- Phase 2 ---
+
+  - id: 'T012-17'
+    title: 'Install @opentelemetry/* packages (7 packages per ADR-026) + prom-client in apps/core-api/package.json'
+    phase: 2
+    week: 2
+    points: 1
+    status: done
+    parallel: false
+    dependencies: []
+    tags: ['[NFR-006]', 'dependencies', 'packages', '[ADR-026]', '[ADR-027]']
+
+  - id: 'T012-12'
+    title: 'Create telemetry.ts — NodeSDK init with OTLPTraceExporter (gRPC), BatchSpanProcessor, TraceIdRatioBasedSampler, HttpInstrumentation, FastifyInstrumentation'
+    phase: 2
+    week: 2
+    points: 5
+    status: done
+    parallel: true
+    dependencies: ['T012-17']
+    tags:
+      [
+        '[FR-011]',
+        '[FR-012]',
+        '[NFR-006]',
+        '[NFR-008]',
+        '[NFR-009]',
+        '[NFR-013]',
+        '[NFR-014]',
+        'otel',
+        'tracing',
+        '[ADR-026]',
+      ]
+
+  - id: 'T012-13'
+    title: 'Create trace-context.ts — Fastify preHandler middleware for Pino log enrichment with traceId/spanId'
+    phase: 2
+    week: 2
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T012-12']
+    tags: ['[FR-019]', 'middleware', 'tracing', 'logging']
+
+  - id: 'T012-14'
+    title: 'Update logger.ts — add OTel trace context Pino mixin (auto-inject traceId/spanId into every log record)'
+    phase: 2
+    week: 2
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T012-12']
+    tags: ['[FR-019]', 'logging', 'pino', 'otel']
+
+  - id: 'T012-15'
+    title: 'Replace X-Trace-ID: crypto.randomUUID() with W3C traceparent in plugin-hook.service.ts'
+    phase: 2
+    week: 2
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T012-12']
+    tags: ['[FR-013]', 'tracing', 'propagation', 'plugin-hook']
+
+  - id: 'T012-16'
+    title: 'Wire telemetry into index.ts — initTelemetry() as first import, register trace-context middleware, shutdown() in SIGTERM handler'
+    phase: 2
+    week: 2
+    points: 2
+    status: done
+    parallel: false
+    dependencies: ['T012-12', 'T012-13']
+    tags: ['[FR-011]', '[NFR-006]', 'wiring', 'startup', 'shutdown']
+
+  # --- Phase 3 (partial) ---
+
+  - id: 'T012-18'
+    title: 'Plugin metrics proxy: GET /api/v1/plugins/:id/metrics in plugin-v1.ts — resolves TD-009'
+    phase: 3
+    week: 2
+    points: 5
+    status: done
+    parallel: true
+    dependencies: ['T012-07']
+    tags:
+      [
+        '[FR-001]',
+        '[FR-002]',
+        '[FR-003]',
+        '[FR-004]',
+        '[FR-005]',
+        'api',
+        'proxy',
+        'plugin',
+        '[ADR-030]',
+      ]
+
+  - id: 'T012-19'
+    title: 'Create Zod schemas for all observability query parameters (PromQL allowlist, LogQL prefix validation, time range, pagination)'
+    phase: 3
+    week: 2
+    points: 3
+    status: done
+    parallel: true
+    dependencies: []
+    tags: ['[FR-036]', '[FR-037]', 'validation', 'zod', 'schemas', 'security']
+
+  - id: 'T012-20'
+    title: 'Implement ObservabilityService.getHealthSummary() — Prometheus instant query, HealthEntry mapping, status classification'
+    phase: 3
+    week: 2
+    points: 5
+    status: done
+    parallel: false
+    dependencies: ['T012-02']
+    tags: ['[FR-026]', 'service', 'observability', 'prometheus', 'health']
+
+totals:
+  phase_1_points: 33
+  phase_2_points: 15
+  phase_3_partial_points: 13
+  total_tasks: 20
+  total_points: 61
+  done_points: 61
+  remaining_points: 0
+
+velocity:
+  previous_sprints:
+    - sprint: 6
+      completed_points: 92
+      total_points: 92
+      completion_rate: '100%'
+      notes: 'Spec 004 Plugin System — all 37 tasks done'
+    - sprint: 5
+      completed_points: 8
+      total_points: 8
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 3 + review fixes'
+  average_velocity_5sprint: 33
+
+carried_over: []
