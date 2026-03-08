@@ -32,6 +32,8 @@ import { policiesRoutes } from './routes/policies.js';
 import { pluginV1Routes } from './routes/plugin-v1.js';
 import { tenantPluginsV1Routes } from './routes/tenant-plugins-v1.js';
 import { tenantAdminRoutes } from './routes/tenant-admin.js';
+import metricsRoutes from './routes/metrics.js'; // Spec 012 T012-16 — Prometheus metrics endpoint
+import { observabilityRoutes } from './routes/observability-v1.js'; // Spec 012 T012-26 — Plugin Observability API
 import { db } from './lib/db.js';
 import { redis } from './lib/redis.js';
 import { ServiceRegistryService } from './services/service-registry.service.js';
@@ -107,6 +109,9 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(authorizationRoutes, { prefix: '/api' }); // Authorization routes (Spec 003 RBAC)
   await app.register(policiesRoutes, { prefix: '/api' }); // ABAC policy routes (Spec 003)
   await app.register(tenantAdminRoutes, { prefix: '/api/v1' }); // Spec 008 — Tenant Admin Interface
+  await app.register(metricsRoutes, { prefix: '/metrics' }); // Spec 012 T012-16 — Prometheus metrics endpoint (scrape target)
+  await app.register(metricsRoutes, { prefix: '/api/metrics' }); // Spec 012 T012-16 — legacy /api/metrics/events path
+  await app.register(observabilityRoutes, { prefix: '/api/v1/observability' }); // Spec 012 T012-26 — Plugin Observability API
 
   // Spec 007 Core Services routes — registered with tenantContextMiddleware
   // so that getTenantId() can read request.tenant.tenantId

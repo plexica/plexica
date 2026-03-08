@@ -460,3 +460,154 @@ _Archived: February 19, 2026 — 19 entries moved from active decision log_
 **Resolution**: Achieved 96.1% unit test coverage + 19 integration tests added. Closed as part of auth module coverage sprint (February 2026).
 
 _Added to archive: March 2, 2026_
+
+---
+
+## Archival Batch — March 8, 2026 (February-dated entries)
+
+### ADR-023 Created: SSE for Real-Time Notification Delivery (February 28, 2026)
+
+**Date**: February 28, 2026
+**Context**: Spec 007 (Core Services) design-spec Open Question #2 — real-time
+delivery mechanism for notification badge updates and job status counters.
+Three options evaluated: SSE, WebSocket, HTTP polling.
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-023** — Server-Sent Events for Real-Time Notification Delivery
+**File**: `.forge/knowledge/adr/adr-023-sse-real-time-notifications.md`
+**Decision**: Server-Sent Events (SSE) via `GET /api/v1/notifications/stream`.
+Browser `EventSource` API (no new npm dependency). Redis pub/sub fan-out
+on channel `notifications:{tenantId}:{userId}` for multi-instance support.
+Ping every 30s; 5-minute replay window on reconnect via Redis sorted set.
+
+**Key implications**:
+
+- **Zero new dependencies**: Native browser `EventSource` + existing Fastify + Redis
+- **DD-002 compliance**: WebSocket (collaboration) remains deferred to Q2 2026; SSE serves a different concern
+- **Tenant isolation**: Redis channels scoped to `{tenantId}:{userId}` — cross-tenant delivery architecturally impossible
+- **Infrastructure**: Fastify `connectionTimeout: 0` for SSE routes; Nginx `proxy_read_timeout 65s`
+
+**Resolves**: design-spec.md Open Question #2
+**Blocks**: Spec 007 notification endpoint implementation (T007-NNN)
+
+---
+
+### ADR-020 Created: Font Hosting Strategy for Tenant Theming (February 26, 2026)
+
+**Date**: February 26, 2026
+**Context**: Spec 005 (Frontend Architecture) design-spec Open Question #3 flagged by forge-ux agent — font hosting strategy has CSP, GDPR, and performance implications requiring architectural decision before implementation planning.
+
+**Status**: ✅ ADR written and Accepted
+
+**ADR-020** — Font Hosting Strategy
+**File**: `.forge/knowledge/adr/adr-020-font-hosting-strategy.md`
+**Decision**: Self-host a curated library of ~25 popular open-source fonts (WOFF2) via MinIO/CDN. Fonts loaded via `FontFace` API and applied through CSS custom properties (`--font-heading`, `--font-body`). Google Fonts CDN rejected due to GDPR risk (user IP transmission) and wider CSP surface. Tenant-uploaded custom fonts deferred due to font-file exploit risk and validation complexity.
+
+**Key implications**:
+
+- **CSP**: `font-src 'self'` — tightest possible policy, no third-party origins
+- **GDPR**: Zero user data transmitted to third parties for font loading
+- **Performance**: Single-origin WOFF2 with preloading; <200ms on 3G
+- **Font selector**: Curated dropdown (25 fonts), not arbitrary URL input
+
+**Resolves**: Design-spec Open Question #3
+**Blocks**: Spec 010 Phase 2 (Tenant Theming) font selector implementation
+
+---
+
+### Spec 004 ADRs Created: Plugin Lifecycle & Container Adapter (February 24, 2026)
+
+**Date**: February 24, 2026
+**Context**: Branch `feature/spec-004-plugin-system` — plan.md identified two architectural decisions requiring formal ADRs before implementation can begin.
+
+**Status**: ✅ ADRs written and Accepted
+
+**ADR-018** — Plugin Lifecycle vs Marketplace Status
+**File**: `.forge/knowledge/adr/adr-018-plugin-lifecycle-status.md`
+**Decision**: Add separate `lifecycleStatus` column (`PluginLifecycleStatus` enum: REGISTERED→INSTALLING→INSTALLED→ACTIVE→DISABLED→UNINSTALLING→UNINSTALLED) to `plugins` table alongside the existing `status` column (marketplace: DRAFT/PUBLISHED/etc.). The two concerns are orthogonal and must not be conflated.
+
+**ADR-019** — Pluggable Container Adapter
+**File**: `.forge/knowledge/adr/adr-019-pluggable-container-adapter.md`
+**Decision**: Define `ContainerAdapter` interface with `DockerContainerAdapter` (using `dockerode`) and `NullContainerAdapter` (no-op for tests). Selected via `CONTAINER_ADAPTER` env var at startup. K8s adapter deferred to Phase 5.
+
+**Key implementation tasks unlocked**:
+
+- T004-01: Add `PluginLifecycleStatus` enum + migration
+- T004-06/07: Implement `ContainerAdapter` interface + Docker adapter
+- T004-08: Wire adapter into `PluginLifecycleService` (replaces `runLifecycleHook` stub)
+
+---
+
+### Spec 011 Plan & ADRs: Workspace Hierarchy & Templates (February 20, 2026)
+
+**Date**: February 20, 2026
+**Context**: Spec 011 architecture planning for workspace hierarchy, templates, and plugin hook integration
+
+**Status**: ✅ Plan, ADRs, and performance analysis complete — implementation NOT STARTED (Sprint 3)
+
+**Deliverables Created**:
+
+1. **Plan 011**: `.forge/specs/011-workspace-hierarchy-templates/plan.md` (~1900 lines)
+   - 18 tasks across 3 phases (~49 story points)
+   - 3 database migrations, 4 new services, 12 new endpoints
+   - 110 tests planned (52 unit + 36 integration + 17 E2E + 5 benchmark)
+   - **§14 Performance Impact Analysis**: descendant query sargability, scale scenarios, re-parenting cost, NFR-P01–P05
+2. **ADR-013**: Materialised Path for Workspace Hierarchy (`.forge/knowledge/adr/adr-013-materialised-path.md`)
+   - Chosen over adjacency list (recursive CTEs) and nested sets (expensive writes)
+   - O(log n) descendant queries via B-TREE indexed path column
+   - Path immutability aligns with parentId immutability requirement (FR-006)
+3. **ADR-014**: WorkspacePlugin Scoping (`.forge/knowledge/adr/adr-014-workspace-plugin-scoping.md`)
+   - Separate `workspace_plugins` table (not extending `tenant_plugins`)
+   - Cascade disable on tenant plugin removal; no cascade re-enable
+   - DDD bounded context separation (Art. 3.2)
+
+**Key Architectural Decisions**:
+
+- Materialised path pattern for unlimited-depth hierarchy (ADR-013)
+- Separate workspace_plugins join table scoped to workspace (ADR-014)
+- Template application in single DB transaction; failure = full rollback
+- Hook timeout fail-open at 5s; before_create sequential, created parallel fire-and-forget
+- All queries use `Prisma.$queryRaw` + schema-per-tenant pattern
+
+**Performance Analysis Findings** (plan.md §14):
+
+- `WHERE path LIKE 'rootId/%'` is **sargable** only with `varchar_pattern_ops` B-TREE index — must be explicit in T011-01 migration
+- `getAggregatedCounts` rewritten to single-pass JOIN (not two correlated subqueries)
+- Scale scenario (500 ws, 10k members): uncached aggregation ~10–25ms — within 200ms P95 SLA
+- Re-parenting > 100-node subtrees needs chunked batch UPDATE to avoid lock contention
+- Redis cache (TTL 300s) for `agg_counts` and `descendants` results required
+- New task **T011-07b** (2 pts, Sprint 3): performance hardening — indexes + cache + benchmarks
+
+**Phase Plan**: Phase 1: Hierarchy (~23 pts, Sprint 3) → Phase 2: Templates (~13 pts, Sprint 4) → Phase 3: Plugin Integration (~13 pts, Sprint 4-5)
+
+---
+
+### workspace-resources.integration.test.ts Architecture Mismatch (February 17, 2026)
+
+**Date**: February 17, 2026
+**Context**: Investigating 35 integration test failures (JWT 401 errors)
+
+**Status**: DEFERRED — tracked as TD-004 (24 integration tests deferred, oauth-flow + ws-resources)
+
+**Finding**: `workspace-resources.integration.test.ts` has fundamental architecture mismatch
+
+**Problems**:
+
+1. Creates standalone Fastify app instead of using `buildTestApp()` helper
+2. Manually creates schemas/tables with raw SQL instead of using Prisma
+3. Bypasses tenant/workspace services that routes expect
+4. Routes use Prisma-based services which expect different table structures
+
+**Correct Pattern** (from `workspace-crud.integration.test.ts` and `workspace-members.integration.test.ts`):
+
+- Use `buildTestApp()` to get fully configured app
+- Use `testContext.auth.createMockToken()` for JWT generation
+- Create tenants via `/api/admin/tenants` endpoint (proper provisioning)
+- Let services handle database operations
+
+**Decision**: Mark this test file for complete rewrite. Tracked as TD-004 in active log.
+
+---
+
+_Appended: March 8, 2026 — 5 February-dated entries promoted from active decision log_

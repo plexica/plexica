@@ -220,7 +220,7 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
         },
         querystring: {
           type: 'object',
-          required: ['query', 'start', 'end'],
+          required: ['start', 'end'],
           properties: {
             query: { type: 'string', description: 'PromQL expression (metric name allowlisted)' },
             start: { type: 'string', description: 'Start time (RFC3339)' },
@@ -243,11 +243,27 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
           },
           400: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
           502: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
         },
       },
@@ -324,7 +340,14 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
             type: 'object',
             properties: {
               data: { type: 'array' },
-              pagination: { type: 'object' },
+              pagination: {
+                type: 'object',
+                properties: {
+                  total: { type: 'number' },
+                  limit: { type: 'number' },
+                  hasMore: { type: 'boolean' },
+                },
+              },
             },
           },
         },
@@ -463,12 +486,28 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
             type: 'object',
             properties: {
               data: { type: 'array' },
-              pagination: { type: 'object' },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'number' },
+                  per_page: { type: 'number' },
+                  total: { type: 'number' },
+                  total_pages: { type: 'number' },
+                },
+              },
             },
           },
           502: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
         },
       },
@@ -540,16 +579,39 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
                   },
                 },
               },
-              pagination: { type: 'object' },
+              pagination: {
+                type: 'object',
+                properties: {
+                  total: { type: 'number' },
+                  limit: { type: 'number' },
+                  hasMore: { type: 'boolean' },
+                },
+              },
             },
           },
           400: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
           502: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
         },
       },
@@ -610,11 +672,27 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
           },
           404: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
           502: {
             type: 'object',
-            properties: { error: { type: 'object' } },
+            properties: {
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string' },
+                  message: { type: 'string' },
+                },
+              },
+            },
           },
         },
       },

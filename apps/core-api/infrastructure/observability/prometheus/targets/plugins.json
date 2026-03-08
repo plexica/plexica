@@ -1,12 +1,1 @@
-[
-  {
-    "targets": [
-      "plugin-plugin-e2e-test-full-lifecycle:8080"
-    ],
-    "labels": {
-      "plugin_id": "plugin-e2e-test-full-lifecycle",
-      "plugin_name": "E2E Full Lifecycle Plugin",
-      "job": "plugins"
-    }
-  }
-]
+[]
