@@ -26,6 +26,15 @@ import {
 import { Search, Save, AlertCircle, Check, AlertTriangle } from 'lucide-react';
 import { toast } from '@/components/ToastProvider';
 import { z } from 'zod';
+import IntlMessageFormat from 'intl-messageformat';
+
+interface LocaleOption {
+  code: string;
+  name: string;
+}
+
+// Fallback locales shown while the API response is loading (H-003)
+const FALLBACK_LOCALES: LocaleOption[] = [{ code: 'en', name: 'English' }];
 
 export const Route = createFileRoute('/admin/translation-overrides' as never)({
   component: TranslationOverridesPage,
@@ -67,6 +76,21 @@ function TranslationOverridesPage() {
 
   // RBAC check: Only tenant_admin can access this page
   const isTenantAdmin = user?.roles?.includes('tenant_admin') ?? false;
+
+  // H-003: Fetch available locales dynamically from the API
+  const { data: localesData } = useQuery({
+    queryKey: ['available-locales'],
+    queryFn: async () => {
+      const res = await apiClient.get<{
+        locales: LocaleOption[];
+        defaultLocale: string;
+      }>('/api/v1/translations/locales');
+      return res.locales;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour — locale list rarely changes
+  });
+
+  const availableLocales = localesData ?? FALLBACK_LOCALES;
 
   // Load available namespaces from API (core + enabled plugins)
   const { data: namespacesData } = useQuery({
@@ -178,18 +202,29 @@ function TranslationOverridesPage() {
     setHasUnsavedChanges(true);
   }, []);
 
-  // Validate edited value
+  // Validate edited value: Zod length + ICU syntax (M-007)
   const validateValue = (value: string): string | null => {
     try {
       overrideValueSchema.parse(value);
-      return null;
     } catch (err) {
       if (err instanceof z.ZodError) {
         return err.issues[0]?.message || 'Invalid value';
       }
       return 'Invalid value';
     }
+    // ICU message format parse check
+    try {
+      new IntlMessageFormat(value, 'en');
+      return null;
+    } catch {
+      return 'Invalid ICU message format';
+    }
   };
+
+  // Returns true if any currently-edited value has an ICU/validation error (M-007)
+  const hasValidationErrors = Object.values(editedValues).some(
+    (v) => v.trim() !== '' && validateValue(v) !== null
+  );
 
   // Handle save overrides
   const handleSave = async () => {
@@ -315,11 +350,11 @@ function TranslationOverridesPage() {
                   <SelectValue placeholder="Select locale" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="en">English (en)</SelectItem>
-                  <SelectItem value="it">Italiano (it)</SelectItem>
-                  <SelectItem value="es">Español (es)</SelectItem>
-                  <SelectItem value="fr">Français (fr)</SelectItem>
-                  <SelectItem value="de">Deutsch (de)</SelectItem>
+                  {availableLocales.map((loc) => (
+                    <SelectItem key={loc.code} value={loc.code}>
+                      {loc.name} ({loc.code})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -362,7 +397,7 @@ function TranslationOverridesPage() {
           <div className="flex gap-2 mt-4 pt-4 border-t border-border">
             <Button
               onClick={handleSave}
-              disabled={!hasUnsavedChanges || isSaving}
+              disabled={!hasUnsavedChanges || isSaving || hasValidationErrors}
               className="flex items-center gap-2"
             >
               <Save className="h-4 w-4" />

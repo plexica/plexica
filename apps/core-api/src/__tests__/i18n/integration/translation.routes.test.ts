@@ -1,13 +1,15 @@
 /**
  * Translation API Routes Integration Tests
  *
- * Tests all 4 translation API endpoints with real database and Redis:
- * - GET /translations/:locale/:namespace (public)
+ * Tests all 5 translation API endpoints with real database and Redis:
+ * - GET /translations/:locale/:namespace (stable URL, public)
+ * - GET /translations/:locale/:namespace/:hash (content-addressed, public, NFR-005)
  * - GET /translations/locales (public)
  * - GET /tenant/translations/overrides (authenticated)
  * - PUT /tenant/translations/overrides (authenticated + tenant_admin)
  *
- * Tests cover FR-001 (namespace), FR-006 (overrides), FR-011 (validation), API endpoints.
+ * Tests cover FR-001 (namespace), FR-006 (overrides), FR-011 (validation), NFR-005
+ * (content-hashed URLs), API endpoints.
  * Constitution Art. 8.1 (integration tests for API endpoints)
  *
  * @module __tests__/i18n/integration/translation.routes
@@ -93,7 +95,7 @@ describe('Translation API Routes (Integration)', () => {
       const body = JSON.parse(response.body);
       expect(body).toHaveProperty('locale', 'en');
       expect(body).toHaveProperty('namespace', 'core');
-      expect(body).toHaveProperty('contentHash');
+      expect(body).toHaveProperty('hash');
       expect(body).toHaveProperty('messages');
       expect(body.messages).toHaveProperty('contacts.title', 'Contacts');
     });
@@ -110,16 +112,21 @@ describe('Translation API Routes (Integration)', () => {
       expect(body.messages['contacts.title']).toBe('Contatti');
     });
 
-    it('should set immutable cache headers (FR-010)', async () => {
+    it('should set correct cache headers on stable URL (TD-013 / NFR-005)', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/translations/en/core',
       });
 
       expect(response.statusCode).toBe(200);
+      // Stable URL must NOT use immutable — content can change when overrides are updated
       expect(response.headers['cache-control']).toContain('public');
-      expect(response.headers['cache-control']).toContain('immutable');
-      expect(response.headers['cache-control']).toContain('max-age=31536000');
+      expect(response.headers['cache-control']).not.toContain('immutable');
+      expect(response.headers['cache-control']).toContain('max-age=60');
+      expect(response.headers['cache-control']).toContain('stale-while-revalidate=3600');
+      // X-Translation-Hash must expose the content hash for frontend two-step fetch
+      expect(response.headers['x-translation-hash']).toBeDefined();
+      expect(response.headers['x-translation-hash']).toMatch(/^[a-f0-9]{8}$/);
     });
 
     it('should set ETag header for caching', async () => {
@@ -240,12 +247,220 @@ describe('Translation API Routes (Integration)', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.messages['deals.title']).toBe('Opportunities'); // Override value
       expect(body.messages['contacts.title']).toBe('Contacts'); // Original value
+    });
+  });
+
+  describe('GET /api/v1/translations/:locale/:namespace/:hash (NFR-005 Content-Addressed)', () => {
+    it('should return 200 with immutable cache headers when hash matches current bundle', async () => {
+      // Arrange: fetch stable URL to obtain the current hash
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      expect(stableResponse.statusCode).toBe(200);
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      expect(currentHash).toMatch(/^[a-f0-9]{8}$/);
+
+      // Act: fetch with the correct hash
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+      });
+
+      // Assert
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('locale', 'en');
+      expect(body).toHaveProperty('namespace', 'core');
+      expect(body).toHaveProperty('hash', currentHash);
+      expect(body).toHaveProperty('messages');
+      // Must use immutable caching on the content-addressed URL
+      expect(response.headers['cache-control']).toContain('immutable');
+      expect(response.headers['cache-control']).toContain('max-age=31536000');
+      expect(response.headers['etag']).toBeDefined();
+    });
+
+    it('should return 302 redirect to current hash URL when hash is stale', async () => {
+      // LOW-9: Derive a guaranteed-wrong hash by fetching the real one and flipping
+      // one character, so this test never accidentally passes for the wrong reason.
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      expect(stableResponse.statusCode).toBe(200);
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      // Flip the last hex character to produce a hash that is guaranteed stale
+      const lastChar = currentHash[7];
+      const flippedChar = lastChar === 'f' ? '0' : 'f';
+      const staleHash = currentHash.slice(0, 7) + flippedChar;
+      expect(staleHash).not.toBe(currentHash); // sanity check
+
+      // Act
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${staleHash}`,
+      });
+
+      // Assert: 302 to the content-addressed URL with the real hash.
+      // 302 (not 301) so browsers never permanently cache the redirect.
+      expect(response.statusCode).toBe(302);
+      const location = response.headers['location'] as string;
+      expect(location).toBeDefined();
+      expect(location).toMatch(/^\/api\/v1\/translations\/en\/core\/[a-f0-9]{8}$/);
+      // Redirect must NOT go back to the stale hash
+      expect(location).not.toContain(staleHash);
+      // Redirect response must not be cached by the browser
+      expect(response.headers['cache-control']).toContain('no-store');
+    });
+
+    it('should include tenant query param in 302 redirect Location when ?tenant is present', async () => {
+      // LOW-9: Derive a guaranteed-wrong stale hash (same technique as above)
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      const flippedChar = currentHash[7] === 'f' ? '0' : 'f';
+      const staleHash = currentHash.slice(0, 7) + flippedChar;
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${staleHash}?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(302);
+      const location = response.headers['location'] as string;
+      expect(location).toContain(`tenant=${encodeURIComponent(testTenantSlug)}`);
+    });
+
+    it('should return 401 when ?tenant is supplied without authentication', async () => {
+      // Get current hash first
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}?tenant=${testTenantSlug}`,
+        // No authorization header
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("should return 403 when authenticated user requests another tenant's hashed translations (MEDIUM-7)", async () => {
+      // Arrange: fetch the current hash
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+
+      // Act: request with a tenant slug that doesn't match the token's tenant
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}?tenant=some-other-tenant`,
+        headers: {
+          authorization: `Bearer ${authToken}`, // token is for testTenantSlug, not some-other-tenant
+        },
+      });
+
+      // Assert
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('should return 304 on hashed endpoint when ETag matches (MEDIUM-8 If-None-Match support)', async () => {
+      // Arrange: fetch current hash and get the ETag from hashed endpoint
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+
+      const firstHashedResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+      });
+      expect(firstHashedResponse.statusCode).toBe(200);
+      const etag = firstHashedResponse.headers['etag'];
+      expect(etag).toBeDefined();
+
+      // Act: conditional request with matching ETag
+      const conditionalResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+        headers: {
+          'if-none-match': etag!,
+        },
+      });
+
+      // Assert: 304 Not Modified — no body
+      expect(conditionalResponse.statusCode).toBe(304);
+      expect(conditionalResponse.body).toBe('');
+      // Immutable cache headers must still be present on the 304
+      expect(conditionalResponse.headers['cache-control']).toContain('immutable');
+    });
+
+    it('should return 400 for invalid hash format (not 8-char hex)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core/not-a-hash',
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('INVALID_PARAMS');
+    });
+
+    it('should return 404 when namespace does not exist', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/nonexistent/abcd1234',
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('NAMESPACE_NOT_FOUND');
+    });
+
+    it('should serve the same bundle content as the stable URL endpoint', async () => {
+      // Fetch stable URL to get hash and content
+      const stableResponse = await app.inject({
+        method: 'GET',
+        url: '/api/v1/translations/en/core',
+      });
+      expect(stableResponse.statusCode).toBe(200);
+      const currentHash = stableResponse.headers['x-translation-hash'] as string;
+      const stableBody = JSON.parse(stableResponse.body);
+
+      // Fetch hashed URL
+      const hashedResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${currentHash}`,
+      });
+
+      expect(hashedResponse.statusCode).toBe(200);
+      const hashedBody = JSON.parse(hashedResponse.body);
+
+      // Content must be identical
+      expect(hashedBody.messages).toEqual(stableBody.messages);
+      expect(hashedBody.hash).toBe(stableBody.hash);
     });
   });
 
@@ -271,14 +486,20 @@ describe('Translation API Routes (Integration)', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      const locales = body.locales as Array<{ code: string; displayName: string; isRTL: boolean }>;
+      const locales = body.locales as Array<{
+        code: string;
+        name: string;
+        nativeName: string;
+        namespaceCount: number;
+      }>;
 
       expect(locales.length).toBeGreaterThan(0);
       const enLocale = locales.find((l) => l.code === 'en');
       expect(enLocale).toBeDefined();
       expect(enLocale).toHaveProperty('code');
-      expect(enLocale).toHaveProperty('displayName');
-      expect(enLocale).toHaveProperty('isRTL');
+      expect(enLocale).toHaveProperty('name');
+      expect(enLocale).toHaveProperty('nativeName');
+      expect(enLocale).toHaveProperty('namespaceCount');
     });
 
     it('should be a public endpoint (no authentication required)', async () => {
@@ -476,6 +697,9 @@ describe('Translation API Routes (Integration)', () => {
       const initialResponse = await app.inject({
         method: 'GET',
         url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(initialResponse.statusCode).toBe(200);
@@ -506,11 +730,120 @@ describe('Translation API Routes (Integration)', () => {
       const finalResponse = await app.inject({
         method: 'GET',
         url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: {
+          authorization: `Bearer ${authToken}`,
+        },
       });
 
       expect(finalResponse.statusCode).toBe(200);
       const finalBody = JSON.parse(finalResponse.body);
       expect(finalBody.messages['deals.title']).toBe('Deals Updated');
+    });
+  });
+
+  describe('AC-007: Tenant Override Round-Trip (PUT → stable URL → hashed URL)', () => {
+    it('should reflect PUT override immediately on stable URL and on content-addressed URL', async () => {
+      // ── Step 1: Capture the pre-override hash ──────────────────────────────
+      const preOverrideStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(preOverrideStable.statusCode).toBe(200);
+      const preHash = preOverrideStable.headers['x-translation-hash'] as string;
+      expect(preHash).toMatch(/^[a-f0-9]{8}$/);
+
+      // ── Step 2: PUT a tenant override via API ──────────────────────────────
+      const putResponse = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/tenant/translations/overrides',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: {
+          overrides: {
+            en: {
+              core: {
+                'deals.title': 'AC007 Opportunities',
+              },
+            },
+          },
+        },
+      });
+      expect(putResponse.statusCode).toBe(200);
+
+      // ── Step 3: Stable URL should now reflect the override ─────────────────
+      const postOverrideStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(postOverrideStable.statusCode).toBe(200);
+      const postStableBody = JSON.parse(postOverrideStable.body);
+      expect(postStableBody.messages['deals.title']).toBe('AC007 Opportunities');
+
+      // ── Step 4: Hash must have changed after the override ─────────────────
+      const postHash = postOverrideStable.headers['x-translation-hash'] as string;
+      expect(postHash).toMatch(/^[a-f0-9]{8}$/);
+      expect(postHash).not.toBe(preHash); // content changed → new hash
+
+      // ── Step 5: Content-addressed URL with new hash must serve the override ─
+      const hashedResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${postHash}?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(hashedResponse.statusCode).toBe(200);
+      const hashedBody = JSON.parse(hashedResponse.body);
+      expect(hashedBody.messages['deals.title']).toBe('AC007 Opportunities');
+      // Immutable cache headers must be set on the content-addressed URL
+      expect(hashedResponse.headers['cache-control']).toContain('immutable');
+      expect(hashedResponse.headers['cache-control']).toContain('max-age=31536000');
+    });
+
+    it('should return 302 to the new (post-override) hash URL when old hash is requested', async () => {
+      // ── Step 1: Capture pre-override hash ─────────────────────────────────
+      const preOverrideStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(preOverrideStable.statusCode).toBe(200);
+      const oldHash = preOverrideStable.headers['x-translation-hash'] as string;
+
+      // ── Step 2: Apply a new override to change the hash ───────────────────
+      const putResponse = await app.inject({
+        method: 'PUT',
+        url: '/api/v1/tenant/translations/overrides',
+        headers: { authorization: `Bearer ${authToken}` },
+        payload: {
+          overrides: {
+            en: { core: { 'contacts.title': 'AC007 Clients' } },
+          },
+        },
+      });
+      expect(putResponse.statusCode).toBe(200);
+
+      // Verify hash actually changed
+      const newStable = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      const newHash = newStable.headers['x-translation-hash'] as string;
+      // Only test the redirect if the hash changed (may be same in rare hash collision)
+      if (oldHash === newHash) {
+        return; // Hash collision — skip redirect assertion
+      }
+
+      // ── Step 3: Request with old hash → 302 to new hash URL ──────────────
+      const staleHashResponse = await app.inject({
+        method: 'GET',
+        url: `/api/v1/translations/en/core/${oldHash}?tenant=${testTenantSlug}`,
+        headers: { authorization: `Bearer ${authToken}` },
+      });
+      expect(staleHashResponse.statusCode).toBe(302);
+      const location = staleHashResponse.headers['location'] as string;
+      expect(location).toContain(newHash);
+      expect(location).toContain(`tenant=${encodeURIComponent(testTenantSlug)}`);
     });
   });
 

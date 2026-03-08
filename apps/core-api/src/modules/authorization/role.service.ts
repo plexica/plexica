@@ -11,6 +11,7 @@
 
 import { db } from '../../lib/db.js';
 import { logger } from '../../lib/logger.js';
+import redis from '../../lib/redis.js';
 import { MAX_CUSTOM_ROLES, roleUsersCacheKey } from './constants.js';
 import { permissionCacheService } from './permission-cache.service.js';
 import type {
@@ -95,6 +96,29 @@ interface PermissionRow {
   description: string | null;
   plugin_id: string | null;
   created_at: Date;
+}
+
+/**
+ * Combined row returned by the listRoles JOIN query.
+ * Permission columns are nullable because a role may have no permissions.
+ */
+interface RolePermissionJoinRow {
+  // Role columns
+  role_id: string;
+  role_tenant_id: string;
+  role_name: string;
+  role_description: string | null;
+  role_is_system: boolean;
+  role_created_at: Date;
+  role_updated_at: Date;
+  // Permission columns (nullable — LEFT JOIN)
+  perm_id: string | null;
+  perm_tenant_id: string | null;
+  perm_key: string | null;
+  perm_name: string | null;
+  perm_description: string | null;
+  perm_plugin_id: string | null;
+  perm_created_at: Date | null;
 }
 
 interface UserRoleRow {
@@ -226,6 +250,9 @@ export class RoleService {
 
   /**
    * Returns a paginated list of roles for a tenant.
+   *
+   * Uses a single JOIN query to fetch roles + their permissions in one round-trip
+   * instead of N+1 queries (one per role).
    */
   async listRoles(
     tenantId: string,
@@ -253,30 +280,87 @@ export class RoleService {
       paramIndex++;
     }
 
+    // Total count query (roles only, no JOIN needed)
     const countRows = await db.$queryRawUnsafe<Array<{ total: string }>>(
       `SELECT COUNT(*) AS total FROM "${schemaName}".roles r ${whereClauses}`,
       ...params
     );
     const total = parseInt(countRows[0]?.total ?? '0', 10);
 
-    const roleRows = await db.$queryRawUnsafe<RoleRow[]>(
-      `SELECT r.id, r.tenant_id, r.name, r.description, r.is_system, r.created_at, r.updated_at
-       FROM "${schemaName}".roles r
-       ${whereClauses}
-       ORDER BY r.is_system DESC, r.name ASC
-       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+    // Single JOIN query: fetch the paginated role page + all their permissions in one round-trip.
+    // LEFT JOIN means roles with no permissions still appear (perm columns = NULL).
+    // The ORDER BY must include r.id (stable secondary sort) so that multi-row roles
+    // (one row per permission) appear contiguously and the LIMIT/OFFSET on the outer
+    // paginated role list is correct — we apply LIMIT/OFFSET on the roles CTE, then JOIN.
+    const joinRows = await db.$queryRawUnsafe<RolePermissionJoinRow[]>(
+      `WITH paginated_roles AS (
+         SELECT r.id, r.tenant_id, r.name, r.description, r.is_system, r.created_at, r.updated_at
+         FROM "${schemaName}".roles r
+         ${whereClauses}
+         ORDER BY r.is_system DESC, r.name ASC
+         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+       )
+       SELECT
+         pr.id              AS role_id,
+         pr.tenant_id       AS role_tenant_id,
+         pr.name            AS role_name,
+         pr.description     AS role_description,
+         pr.is_system       AS role_is_system,
+         pr.created_at      AS role_created_at,
+         pr.updated_at      AS role_updated_at,
+         p.id               AS perm_id,
+         p.tenant_id        AS perm_tenant_id,
+         p.key              AS perm_key,
+         p.name             AS perm_name,
+         p.description      AS perm_description,
+         p.plugin_id        AS perm_plugin_id,
+         p.created_at       AS perm_created_at
+       FROM paginated_roles pr
+       LEFT JOIN "${schemaName}".role_permissions rp
+         ON rp.role_id = pr.id AND rp.tenant_id = pr.tenant_id
+       LEFT JOIN "${schemaName}".permissions p
+         ON p.id = rp.permission_id AND p.tenant_id = rp.tenant_id
+       ORDER BY pr.is_system DESC, pr.name ASC, p.key ASC`,
       ...params,
       limit,
       offset
     );
 
-    // Fetch permissions for each role
-    const rolesWithPerms: RoleWithPermissions[] = await Promise.all(
-      roleRows.map(async (row) => {
-        const permissions = await this.getRolePermissions(tenantId, schemaName, row.id);
-        return { ...mapRole(row), permissions };
-      })
-    );
+    // Group JOIN rows into RoleWithPermissions objects (preserving ORDER BY role sort)
+    const roleMap = new Map<string, RoleWithPermissions>();
+    // Track insertion order so the final array preserves the DB sort
+    const roleOrder: string[] = [];
+
+    for (const row of joinRows) {
+      if (!roleMap.has(row.role_id)) {
+        roleMap.set(row.role_id, {
+          id: row.role_id,
+          tenantId: row.role_tenant_id,
+          name: row.role_name,
+          description: row.role_description ?? undefined,
+          isSystem: row.role_is_system,
+          createdAt: row.role_created_at,
+          updatedAt: row.role_updated_at,
+          permissions: [],
+        });
+        roleOrder.push(row.role_id);
+      }
+
+      if (row.perm_id !== null && row.perm_key !== null) {
+        const role = roleMap.get(row.role_id)!;
+        role.permissions.push({
+          id: row.perm_id,
+          tenantId: row.perm_tenant_id!,
+          key: row.perm_key,
+          name: row.perm_name!,
+          description: row.perm_description ?? undefined,
+          pluginId: row.perm_plugin_id,
+          createdAt: row.perm_created_at!,
+        });
+      }
+    }
+
+    const rolesWithPerms: RoleWithPermissions[] = roleOrder.map((id) => roleMap.get(id)!);
 
     // Custom role count for meta
     const customCountRows = await db.$queryRawUnsafe<Array<{ count: string }>>(
@@ -464,7 +548,7 @@ export class RoleService {
 
     // Update reverse index in Redis
     try {
-      await require('../../lib/redis.js').default.sadd(roleUsersCacheKey(tenantId, roleId), userId);
+      await redis.sadd(roleUsersCacheKey(tenantId, roleId), userId);
     } catch {
       // Non-critical — next getUserPermissions call will repopulate
     }
@@ -501,7 +585,7 @@ export class RoleService {
 
     // Remove from reverse index
     try {
-      await require('../../lib/redis.js').default.srem(roleUsersCacheKey(tenantId, roleId), userId);
+      await redis.srem(roleUsersCacheKey(tenantId, roleId), userId);
     } catch {
       // Non-critical
     }

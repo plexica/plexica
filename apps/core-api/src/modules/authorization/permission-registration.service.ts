@@ -11,7 +11,7 @@
 
 import { db } from '../../lib/db.js';
 import { logger } from '../../lib/logger.js';
-import { CORE_PERMISSIONS, SYSTEM_ROLE_PERMISSIONS } from './constants.js';
+import { CORE_PERMISSIONS, SUPER_ADMIN_WILDCARD, SYSTEM_ROLE_PERMISSIONS } from './constants.js';
 import { permissionCacheService } from './permission-cache.service.js';
 import type { Permission } from './types/index.js';
 
@@ -249,6 +249,25 @@ export class PermissionRegistrationService {
         if (upserted.length > 0) {
           permissionIdMap.set(key, upserted[0].id);
         }
+      }
+
+      // 1b. Upsert the super_admin wildcard sentinel '*:*' as a real DB row.
+      //     Without this row, permissionIdMap.get('*:*') resolves to undefined
+      //     and super_admin ends up with zero permissions after seeding (X-001).
+      const wildcardUpserted = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `INSERT INTO "${schemaName}".permissions
+           (id, tenant_id, key, name, description, plugin_id, created_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, NULL, NOW())
+         ON CONFLICT (tenant_id, key) DO UPDATE
+           SET name = EXCLUDED.name, description = EXCLUDED.description
+         RETURNING id`,
+        tenantId,
+        SUPER_ADMIN_WILDCARD,
+        'Super Admin Wildcard',
+        'Sentinel permission granting all access to the super_admin role (FR-016)'
+      );
+      if (wildcardUpserted.length > 0) {
+        permissionIdMap.set(SUPER_ADMIN_WILDCARD, wildcardUpserted[0].id);
       }
 
       // 2. Seed system role → permission mappings

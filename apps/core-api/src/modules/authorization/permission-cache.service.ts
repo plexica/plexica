@@ -16,7 +16,6 @@ import {
   permsKeyPattern,
   CACHE_BASE_TTL,
   CACHE_JITTER,
-  CACHE_SAFETY_TTL,
   CACHE_INVALIDATION_DEBOUNCE_MS,
 } from './constants.js';
 
@@ -90,15 +89,7 @@ export class PermissionCacheService {
       const ttl = jitteredTtl();
 
       // Store permissions JSON with jittered TTL
-      const setResult = await redis.set(key, JSON.stringify(permissions), 'EX', ttl);
-
-      // Safety fallback: if SET somehow didn't set an expiry, enforce safety TTL
-      if (setResult === 'OK') {
-        const currentTtl = await redis.ttl(key);
-        if (currentTtl < 0) {
-          await redis.expire(key, CACHE_SAFETY_TTL);
-        }
-      }
+      await redis.set(key, JSON.stringify(permissions), 'EX', ttl);
 
       // Update reverse role→users index for each role
       await Promise.all(

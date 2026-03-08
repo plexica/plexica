@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { WorkspaceRole } from '@plexica/database';
 import { buildTestApp } from '../../../test-app';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper';
+import { testDb } from '../../../../../../test-infrastructure/helpers/test-database.helper.js';
 import { db } from '../../../lib/db';
 import { resetAllCaches } from '../../../lib/advanced-rate-limit';
 
@@ -61,26 +62,19 @@ describe('Workspace Concurrent Operations E2E', () => {
 
     resetAllCaches();
 
-    // Get super admin token to create tenant
-    const superResp = await testContext.auth.getRealSuperAdminToken();
-    const superAdminToken = superResp.access_token;
-
-    // Create a dynamic tenant via API (seed data is wiped by e2e-setup)
+    // Create a dynamic tenant directly via DB (avoids Keycloak ROPC dependency)
     tenantSlug = `ws-concurrent-${suffix}`;
     tenantHeaders = { 'x-tenant-slug': tenantSlug };
     schemaName = `tenant_${tenantSlug.replace(/-/g, '_')}`;
 
-    const createTenantResp = await app.inject({
-      method: 'POST',
-      url: '/api/tenants',
-      headers: { authorization: `Bearer ${superAdminToken}` },
-      payload: { slug: tenantSlug, name: 'WS Concurrent Test Tenant' },
+    await db.tenant.create({
+      data: {
+        slug: tenantSlug,
+        name: 'WS Concurrent Test Tenant',
+        status: 'ACTIVE',
+      },
     });
-    if (createTenantResp.statusCode !== 201) {
-      throw new Error(
-        `Failed to create tenant: ${createTenantResp.statusCode} ${createTenantResp.body}`
-      );
-    }
+    await testDb.createTenantSchema(tenantSlug);
 
     // Create mock tenant admin token (HS256, accepted by jwt.ts in test env)
     // Must use dynamic tenant slug so JWT tenantSlug matches the tenant being accessed

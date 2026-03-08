@@ -22,9 +22,12 @@ export const TranslationKeySchema = z
   .string()
   .max(128, 'Translation key must be 128 characters or less')
   .regex(
-    /^[a-zA-Z0-9._]+$/,
-    'Translation key must contain only alphanumeric characters, dots, and underscores'
+    /^[a-zA-Z0-9_][a-zA-Z0-9._]*[a-zA-Z0-9_]$|^[a-zA-Z0-9_]$/,
+    'Translation key must contain only alphanumeric characters, dots, and underscores; cannot start or end with a dot'
   )
+  .refine((key) => !key.includes('..'), {
+    message: 'Translation key cannot contain consecutive dots',
+  })
   .refine((key) => !key.startsWith('_system.'), {
     message: 'Translation key cannot start with reserved prefix "_system."',
   })
@@ -90,9 +93,15 @@ export const TranslationOverridePayloadSchema = z.object({
  * Get Translations Query Schema (GET /api/v1/translations/:locale/:namespace)
  *
  * Query parameters for translation retrieval with optional tenant context.
+ * W2: tenant slug is validated with a strict regex to prevent path traversal
+ * and injection attacks (Constitution Art. 5.3 — all external input via Zod).
  */
 export const GetTranslationsQuerySchema = z.object({
-  tenant: z.string().optional(),
+  tenant: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'Tenant slug must contain only lowercase letters, numbers, and hyphens')
+    .max(63, 'Tenant slug must be 63 characters or less')
+    .optional(),
 });
 
 /**
@@ -103,6 +112,27 @@ export const GetTranslationsQuerySchema = z.object({
 export const GetTranslationsParamsSchema = z.object({
   locale: LocaleCodeSchema,
   namespace: NamespaceSchema,
+});
+
+/**
+ * Content Hash Schema (TD-013 / NFR-005)
+ *
+ * 8-character lowercase hex string produced by generateContentHash().
+ */
+export const ContentHashSchema = z
+  .string()
+  .regex(/^[a-f0-9]{8}$/, 'Content hash must be an 8-character lowercase hex string');
+
+/**
+ * Get Translations By Hash Params Schema
+ * (GET /api/v1/translations/:locale/:namespace/:hash)
+ *
+ * Path parameters for content-addressed translation retrieval (NFR-005).
+ */
+export const GetTranslationsByHashParamsSchema = z.object({
+  locale: LocaleCodeSchema,
+  namespace: NamespaceSchema,
+  hash: ContentHashSchema,
 });
 
 /**
@@ -150,10 +180,12 @@ export const TenantOverridesResponseSchema = z.object({
 export type TranslationKey = z.infer<typeof TranslationKeySchema>;
 export type LocaleCode = z.infer<typeof LocaleCodeSchema>;
 export type Namespace = z.infer<typeof NamespaceSchema>;
+export type ContentHash = z.infer<typeof ContentHashSchema>;
 export type TenantOverride = z.infer<typeof TenantOverrideSchema>;
 export type TranslationOverridePayload = z.infer<typeof TranslationOverridePayloadSchema>;
 export type GetTranslationsQuery = z.infer<typeof GetTranslationsQuerySchema>;
 export type GetTranslationsParams = z.infer<typeof GetTranslationsParamsSchema>;
+export type GetTranslationsByHashParams = z.infer<typeof GetTranslationsByHashParamsSchema>;
 export type TranslationBundleResponse = z.infer<typeof TranslationBundleResponseSchema>;
 export type AvailableLocalesResponse = z.infer<typeof AvailableLocalesResponseSchema>;
 export type TenantOverridesResponse = z.infer<typeof TenantOverridesResponseSchema>;

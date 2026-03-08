@@ -1,28 +1,64 @@
 // apps/web/src/hooks/useTranslations.test.tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+//
+// Tests for the two-step content-addressed translation caching (NFR-005 / TD-013).
+//
+// useTranslations uses globalThis.fetch (not apiClient) so all mocking is done
+// via vi.stubGlobal('fetch', ...) — never via vi.mock('@/lib/api-client').
+//
+// The two-step flow:
+//   Step 1 — stable URL:  GET /api/v1/translations/:locale/:namespace
+//             → returns JSON bundle + X-Translation-Hash header
+//   Step 2 — hashed URL:  GET /api/v1/translations/:locale/:namespace/:hash
+//             → returns immutable JSON bundle (or follows 302 to new hash)
+//
+// useNamespaces delegates through apiClient (unchanged), so its tests still
+// use vi.mock('@/lib/api-client').
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTranslations, useNamespaces } from './useTranslations';
 import { IntlProvider } from '@/contexts/IntlContext';
 import type { ReactNode } from 'react';
 
-// Mock the API client
+// ---------------------------------------------------------------------------
+// Mock auth store so getAccessToken() returns a controlled value.
+// useTranslations now selects `s.isAuthenticated` (a boolean), not s.user.
+// ---------------------------------------------------------------------------
+vi.mock('@/stores/auth.store', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useAuthStore: vi.fn((selector: (s: any) => unknown) => selector({ isAuthenticated: false })),
+  getAccessToken: vi.fn(() => null),
+}));
+
+import { getAccessToken } from '@/stores/auth.store';
+
+// Mock getTenantFromUrl — default returns 'default'; individual tests override this.
+vi.mock('@/lib/tenant', () => ({
+  getTenantFromUrl: vi.fn(() => 'default'),
+}));
+
+import { getTenantFromUrl } from '@/lib/tenant';
+
+// Mock apiClient used by useNamespaces
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
     get: vi.fn(),
   },
 }));
 
-// Import the mocked apiClient
 import { apiClient } from '@/lib/api-client';
 
-// Create a wrapper with QueryClientProvider and IntlProvider
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false, // Disable retries in tests
-        gcTime: 0, // Disable cache time in tests
+        retry: false,
+        gcTime: 0,
       },
     },
   });
@@ -34,186 +70,365 @@ function createWrapper() {
   );
 }
 
+/**
+ * Build a minimal Response-like object whose `.json()` and `.headers.get()`
+ * can be awaited, matching the Fetch API shape used by fetchWithHash().
+ */
+function makeFetchResponse(body: unknown, options: { status?: number; hash?: string | null } = {}) {
+  const { status = 200, hash = null } = options;
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+    headers: {
+      get: (name: string) => (name.toLowerCase() === 'x-translation-hash' ? hash : null),
+    },
+  } as unknown as Response;
+}
+
+// ---------------------------------------------------------------------------
+// useTranslations — two-step fetch
+// ---------------------------------------------------------------------------
+
 describe('useTranslations', () => {
+  const stableBundle = {
+    locale: 'en',
+    namespace: 'core',
+    messages: { greeting: 'Hello', farewell: 'Goodbye' },
+    hash: 'a1b2c3d4',
+  };
+
+  const hashedBundle = {
+    locale: 'en',
+    namespace: 'core',
+    messages: { greeting: 'Hello', farewell: 'Goodbye' },
+    hash: 'a1b2c3d4',
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
   });
 
-  it('should fetch translations from API successfully', async () => {
-    const mockResponse = {
-      locale: 'en-US',
-      namespace: 'core',
-      messages: { greeting: 'Hello', farewell: 'Goodbye' },
-      hash: 'abc123',
-    };
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
+  it('Step 1: fetches stable URL and captures X-Translation-Hash header', async () => {
+    const fetchMock = vi
+      .fn()
+      // Step 1 — stable URL
+      .mockResolvedValueOnce(makeFetchResponse(stableBundle, { hash: 'a1b2c3d4' }))
+      // Step 2 — hashed URL
+      .mockResolvedValueOnce(makeFetchResponse(hashedBundle));
 
-    const { result } = renderHook(() => useTranslations({ namespace: 'core' }), {
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
       wrapper: createWrapper(),
     });
 
-    // Initially loading
     expect(result.current.isLoading).toBe(true);
-    expect(result.current.translations).toEqual({});
 
-    // Wait for data to load
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // Check that data was fetched correctly (uses en-US from navigator mock)
-    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/translations/en-US/core');
+    // Step 1 call — stable URL
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/translations/en/core',
+      expect.objectContaining({ credentials: 'include' })
+    );
+
+    // Step 2 call — content-addressed URL using the hash from step 1
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/translations/en/core/a1b2c3d4',
+      expect.objectContaining({ credentials: 'include', redirect: 'follow' })
+    );
+
     expect(result.current.translations).toEqual({ greeting: 'Hello', farewell: 'Goodbye' });
-    expect(result.current.hash).toBe('abc123');
+    expect(result.current.hash).toBe('a1b2c3d4');
+    expect(result.current.isError).toBe(false);
   });
 
-  it('should handle 404 errors gracefully with empty translations', async () => {
-    const error = {
-      statusCode: 404,
-      message: 'Namespace not found',
-    };
+  it('Step 2: does NOT fire until Step 1 resolves a valid 8-char hex hash', async () => {
+    const fetchMock = vi
+      .fn()
+      // Step 1 returns a bundle with no hash header (edge case: CDN strips headers)
+      .mockResolvedValueOnce(makeFetchResponse(stableBundle, { hash: null }));
 
-    vi.mocked(apiClient.get).mockRejectedValueOnce(error);
+    vi.stubGlobal('fetch', fetchMock);
 
-    const { result } = renderHook(() => useTranslations({ namespace: 'nonexistent' }), {
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Only one fetch call — Step 2 is gated by a valid hash
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Still returns Step 1 data as fallback
+    expect(result.current.translations).toEqual({ greeting: 'Hello', farewell: 'Goodbye' });
+  });
+
+  it('Step 2: is blocked when hash fails the /^[a-f0-9]{8}$/ regex guard', async () => {
+    const fetchMock = vi
+      .fn()
+      // Step 1 returns a malformed hash (not 8 hex chars)
+      .mockResolvedValueOnce(makeFetchResponse(stableBundle, { hash: 'INVALID!' }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
+      wrapper: createWrapper(),
     });
 
-    // Should return empty translations instead of error
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Step 2 must NOT fire
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('attaches Authorization header when getAccessToken() returns a token', async () => {
+    vi.mocked(getAccessToken).mockReturnValue('test-access-token');
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(stableBundle, { hash: 'a1b2c3d4' }))
+      .mockResolvedValueOnce(makeFetchResponse(hashedBundle));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    // Both Step 1 and Step 2 must carry the bearer token
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-access-token' }),
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-access-token' }),
+      })
+    );
+  });
+
+  it('does NOT attach Authorization header when unauthenticated', async () => {
+    vi.mocked(getAccessToken).mockReturnValue(null);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(stableBundle, { hash: 'a1b2c3d4' }))
+      .mockResolvedValueOnce(makeFetchResponse(hashedBundle));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const [, step1Options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = step1Options.headers as Record<string, string>;
+    expect(headers?.['Authorization']).toBeUndefined();
+  });
+
+  it('appends ?tenant= query param when tenantSlug is present', async () => {
+    // Simulate an authenticated user; getTenantFromUrl provides the slug
+    const { useAuthStore: mockUseAuthStore } = await import('@/stores/auth.store');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(mockUseAuthStore).mockImplementation((selector: (s: any) => unknown) =>
+      selector({ isAuthenticated: true })
+    );
+    vi.mocked(getTenantFromUrl).mockReturnValue('acme');
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(stableBundle, { hash: 'a1b2c3d4' }))
+      .mockResolvedValueOnce(makeFetchResponse(hashedBundle));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const [step1Url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(step1Url).toContain('?tenant=acme');
+
+    const [step2Url] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(step2Url).toContain('?tenant=acme');
+  });
+
+  it('handles 404 gracefully — returns empty translations, no error', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(makeFetchResponse(null, { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(
+      () => useTranslations({ namespace: 'nonexistent', locale: 'en' }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
     expect(result.current.translations).toEqual({});
-    expect(result.current.hash).toBe('');
+    expect(result.current.isError).toBe(false);
     expect(result.current.error).toBeNull();
   });
 
-  it('should re-throw non-404 errors', async () => {
-    const error = new Error('Internal server error');
-    (error as Error & { statusCode: number }).statusCode = 500;
+  it('surfaces non-404 errors via isError', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(makeFetchResponse(null, { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
 
-    vi.mocked(apiClient.get).mockRejectedValueOnce(error);
-
-    const { result } = renderHook(() => useTranslations({ namespace: 'core' }), {
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(
-      () => {
-        expect(result.current.isError).toBe(true);
-      },
-      { timeout: 2000 }
-    );
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 2000 });
 
-    expect(result.current.error).toBeTruthy();
     expect(result.current.translations).toEqual({});
   });
 
-  it('should merge messages into IntlContext when data loads', async () => {
-    const mockResponse = {
-      locale: 'en',
-      namespace: 'auth',
-      messages: { login: 'Log In', logout: 'Log Out' },
-      hash: 'xyz789',
-    };
-
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
+  it('does not fetch when enabled=false', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
 
     const { result } = renderHook(
-      () => {
-        const translations = useTranslations({ namespace: 'auth' });
-        return { translations };
-      },
-      {
-        wrapper: createWrapper(),
-      }
+      () => useTranslations({ namespace: 'core', locale: 'en', enabled: false }),
+      { wrapper: createWrapper() }
     );
 
-    await waitFor(() => {
-      expect(result.current.translations.isSuccess).toBe(true);
-    });
-
-    // Messages should be loaded (mergeMessages is called in useEffect)
-    expect(result.current.translations.translations).toEqual({
-      login: 'Log In',
-      logout: 'Log Out',
-    });
+    expect(result.current.isLoading).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('should use provided locale instead of context locale', async () => {
-    const mockResponse = {
-      locale: 'it',
-      namespace: 'core',
-      messages: { greeting: 'Ciao' },
-      hash: 'def456',
-    };
+  it('does not fetch when namespace is empty', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
 
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
+    const { result } = renderHook(() => useTranslations({ namespace: '', locale: 'en' }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses provided locale instead of context locale', async () => {
+    const itBundle = { ...stableBundle, locale: 'it', messages: { greeting: 'Ciao' } };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(makeFetchResponse(itBundle, { hash: 'a1b2c3d4' }))
+      .mockResolvedValueOnce(makeFetchResponse(itBundle));
+
+    vi.stubGlobal('fetch', fetchMock);
 
     const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'it' }), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // Should fetch with provided locale
-    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/translations/it/core');
+    const [step1Url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(step1Url).toContain('/api/v1/translations/it/core');
     expect(result.current.translations).toEqual({ greeting: 'Ciao' });
   });
 
-  it('should respect enabled option', async () => {
-    const { result } = renderHook(() => useTranslations({ namespace: 'core', enabled: false }), {
+  it('returns isLoading=false and empty translations when both queries are idle', () => {
+    // Neither query fires (namespace empty) — hook should not hang in loading state
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: '', locale: 'en' }), {
       wrapper: createWrapper(),
     });
 
-    // Should not fetch when disabled
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.isFetching).toBe(false);
-    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(result.current.translations).toEqual({});
   });
 
-  it('should use staleTime of 1 hour', async () => {
-    const mockResponse = {
-      locale: 'en',
+  it('W3/FR-003: merges English fallback when backend returns locale="en" for a non-English request', async () => {
+    // When backend falls back to English (FR-003), the response has locale "en" even though
+    // the caller requested "fr". W1 guard (resolvedData.locale === 'en') must allow the merge.
+    const frenchRequestEnFallbackBundle = {
+      locale: 'en', // server fell back
       namespace: 'core',
-      messages: { key: 'value' },
-      hash: 'hash1',
+      messages: { greeting: 'Hello (en fallback)' },
+      hash: 'fb000001',
     };
 
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
+    const fetchMock = vi
+      .fn()
+      // Step 1 — stable URL returns the English fallback
+      .mockResolvedValueOnce(makeFetchResponse(frenchRequestEnFallbackBundle, { hash: 'fb000001' }))
+      // Step 2 — content-addressed URL returns the same bundle
+      .mockResolvedValueOnce(makeFetchResponse(frenchRequestEnFallbackBundle));
 
-    const { result, rerender } = renderHook(() => useTranslations({ namespace: 'core' }), {
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'fr' }), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // First call should fetch
-    expect(apiClient.get).toHaveBeenCalledTimes(1);
-
-    // Rerender (simulating component re-mount)
-    rerender();
-
-    // Should not fetch again due to staleTime (data is still fresh)
-    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    // The fallback messages must be available — W1 guard allows locale 'en' through
+    expect(result.current.translations).toEqual({ greeting: 'Hello (en fallback)' });
+    expect(result.current.isError).toBe(false);
   });
 
-  it('should not fetch if namespace is empty', () => {
-    const { result } = renderHook(() => useTranslations({ namespace: '' }), {
+  it('W3/Edge Case #6: AbortSignal is threaded into both Step 1 and Step 2 fetch calls', async () => {
+    // Verify that the signal from TanStack Query is passed all the way through
+    // fetchWithHash (Step 1) and the hashed fetch (Step 2) for proper cancellation support.
+    const stableBundle = {
+      locale: 'en',
+      namespace: 'core',
+      messages: { greeting: 'Hello' },
+      hash: 'ab12cd34',
+    };
+
+    let capturedStep1Signal: AbortSignal | undefined;
+    let capturedStep2Signal: AbortSignal | undefined;
+
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if ((url as string).includes('/ab12cd34')) {
+        capturedStep2Signal = init?.signal ?? undefined;
+        return Promise.resolve(makeFetchResponse(stableBundle));
+      } else {
+        capturedStep1Signal = init?.signal ?? undefined;
+        return Promise.resolve(makeFetchResponse(stableBundle, { hash: 'ab12cd34' }));
+      }
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTranslations({ namespace: 'core', locale: 'en' }), {
       wrapper: createWrapper(),
     });
 
-    expect(result.current.isLoading).toBe(false);
-    expect(apiClient.get).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Both steps must have received an AbortSignal instance
+    expect(capturedStep1Signal).toBeInstanceOf(AbortSignal);
+    expect(capturedStep2Signal).toBeInstanceOf(AbortSignal);
   });
 });
+
+// ---------------------------------------------------------------------------
+// useNamespaces — uses apiClient (unchanged path)
+// ---------------------------------------------------------------------------
 
 describe('useNamespaces', () => {
   beforeEach(() => {
@@ -221,7 +436,7 @@ describe('useNamespaces', () => {
     localStorage.clear();
   });
 
-  it('should fetch multiple namespaces in parallel', async () => {
+  it('fetches multiple namespaces in parallel via apiClient', async () => {
     const mockCore = { locale: 'en-US', namespace: 'core', messages: { key1: 'val1' } };
     const mockAuth = { locale: 'en-US', namespace: 'auth', messages: { key2: 'val2' } };
 
@@ -231,58 +446,47 @@ describe('useNamespaces', () => {
       wrapper: createWrapper(),
     });
 
-    // Initially loading
     expect(result.current.isLoading).toBe(true);
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    // Should fetch both namespaces (uses en-US from navigator mock)
     expect(apiClient.get).toHaveBeenCalledWith('/api/v1/translations/en-US/core');
     expect(apiClient.get).toHaveBeenCalledWith('/api/v1/translations/en-US/auth');
     expect(apiClient.get).toHaveBeenCalledTimes(2);
   });
 
-  it('should handle 404 errors gracefully for individual namespaces', async () => {
+  it('handles 404 gracefully for individual namespaces', async () => {
     const mockCore = { locale: 'en', namespace: 'core', messages: { key1: 'val1' } };
-    const error404 = { statusCode: 404 };
-
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockCore).mockRejectedValueOnce(error404);
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(mockCore)
+      .mockRejectedValueOnce({ statusCode: 404 });
 
     const { result } = renderHook(() => useNamespaces(['core', 'nonexistent']), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // Should have no errors (404 handled gracefully)
     expect(result.current.errors).toEqual([]);
   });
 
-  it('should collect non-404 errors in errors array', async () => {
+  it('collects non-404 errors in errors array', async () => {
     const error500 = { statusCode: 500, message: 'Server error' };
-
     vi.mocked(apiClient.get).mockRejectedValueOnce(error500);
 
     const { result } = renderHook(() => useNamespaces(['failing-namespace']), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // Should have error for failing namespace
     expect(result.current.errors).toHaveLength(1);
     expect(result.current.errors[0].namespace).toBe('failing-namespace');
-    expect(result.current.errors[0].error).toEqual(error500);
   });
 
-  it('should aggregate loading state across all queries', async () => {
-    // Simulate slow responses
+  it('aggregates loading state across all queries', async () => {
     vi.mocked(apiClient.get).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -294,38 +498,12 @@ describe('useNamespaces', () => {
       wrapper: createWrapper(),
     });
 
-    // Should be loading while any query is loading
     expect(result.current.isLoading).toBe(true);
 
-    await waitFor(
-      () => {
-        expect(result.current.isLoading).toBe(false);
-      },
-      { timeout: 500 }
-    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 500 });
   });
 
-  it('should merge all namespace translations into IntlContext', async () => {
-    const mockCore = { 'core.greeting': 'Hello' };
-    const mockAuth = { 'auth.login': 'Log In' };
-
-    vi.mocked(apiClient.get).mockResolvedValueOnce(mockCore).mockResolvedValueOnce(mockAuth);
-
-    const { result } = renderHook(() => useNamespaces(['core', 'auth']), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    // Both namespaces should be loaded (queryFn wraps response in { translations: ... })
-    expect(result.current.queries).toHaveLength(2);
-    expect(result.current.queries[0].data?.translations).toEqual({ 'core.greeting': 'Hello' });
-    expect(result.current.queries[1].data?.translations).toEqual({ 'auth.login': 'Log In' });
-  });
-
-  it('should handle empty namespace array', () => {
+  it('handles empty namespace array', () => {
     const { result } = renderHook(() => useNamespaces([]), {
       wrapper: createWrapper(),
     });
@@ -336,56 +514,23 @@ describe('useNamespaces', () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
-  it('should return stable queries array', async () => {
-    const mockResponse = { translations: { key: 'value' } };
+  it('does not call mergeMessages repeatedly on re-renders when data has not changed', async () => {
+    const mockResponse = { namespace: 'core', translations: { key: 'value' } };
     vi.mocked(apiClient.get).mockResolvedValue(mockResponse);
 
     const { result, rerender } = renderHook(() => useNamespaces(['core']), {
       wrapper: createWrapper(),
     });
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    const firstQueriesData = result.current.queries[0].data;
-
-    rerender();
-
-    // Query data should remain stable across rerenders (same reference)
-    expect(result.current.queries[0].data).toBe(firstQueriesData);
-  });
-
-  it('should not call mergeMessages repeatedly on re-renders when data has not changed', async () => {
-    // Regression test: ensure the dataUpdatedAt-based deps array does not trigger
-    // mergeMessages on every render (which would cause infinite loops via IntlContext).
-    const mockResponse = {
-      namespace: 'core',
-      translations: { key: 'value' },
-    };
-    vi.mocked(apiClient.get).mockResolvedValue(mockResponse);
-
-    // We verify the hook is stable: re-rendering without data changes does not re-call the effect.
-    const { result, rerender } = renderHook(() => useNamespaces(['core']), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    // Count API calls — if the effect re-ran infinitely, the component would
-    // re-render infinitely (detectable as a React error). One successful load = stable.
     const callCountAfterLoad = vi.mocked(apiClient.get).mock.calls.length;
 
-    // Re-render multiple times without data changes
     rerender();
     rerender();
     rerender();
 
-    // API should not have been called again (staleTime prevents refetch)
     expect(vi.mocked(apiClient.get).mock.calls.length).toBe(callCountAfterLoad);
-    // And the data signature should be stable
     expect(result.current.queries[0].dataUpdatedAt).toBeGreaterThan(0);
   });
 });

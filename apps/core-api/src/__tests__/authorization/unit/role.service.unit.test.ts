@@ -283,6 +283,131 @@ describe('RoleService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // listRoles
+  // -------------------------------------------------------------------------
+
+  describe('listRoles', () => {
+    /**
+     * Helpers: build mock rows that mimic the CTE+LEFT JOIN shape
+     * returned by the listRoles query.
+     */
+    function makeJoinRow(
+      roleId: string,
+      roleName: string,
+      isSystem: boolean,
+      permKey: string | null = null,
+      permId: string | null = null
+    ) {
+      return {
+        role_id: roleId,
+        role_tenant_id: TENANT_ID,
+        role_name: roleName,
+        role_description: null,
+        role_is_system: isSystem,
+        role_created_at: new Date('2025-01-01'),
+        role_updated_at: new Date('2025-01-01'),
+        perm_id: permId,
+        perm_tenant_id: permKey ? TENANT_ID : null,
+        perm_key: permKey,
+        perm_name: permKey,
+        perm_description: null,
+        perm_plugin_id: null,
+        perm_created_at: permKey ? new Date('2025-01-01') : null,
+      };
+    }
+
+    it('should return a role with no permissions when LEFT JOIN yields NULL perm columns', async () => {
+      // Arrange
+      // count query → 1, JOIN query → 1 row with NULL perm, custom count → 0
+      mockDb.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: '1' }]) // total count
+        .mockResolvedValueOnce([makeJoinRow('role-1', 'Viewer', false, null, null)]) // CTE+JOIN
+        .mockResolvedValueOnce([{ count: '1' }]); // custom role count
+
+      // Act
+      const result = await service.listRoles(TENANT_ID, VALID_SCHEMA);
+
+      // Assert
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('role-1');
+      expect(result.data[0].permissions).toEqual([]);
+    });
+
+    it('should group multiple JOIN rows for the same role into one role with N permissions', async () => {
+      // Arrange — two rows for the same role, each with a different permission
+      mockDb.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: '1' }])
+        .mockResolvedValueOnce([
+          makeJoinRow('role-1', 'Editor', false, 'users:read', 'p-1'),
+          makeJoinRow('role-1', 'Editor', false, 'users:write', 'p-2'),
+        ])
+        .mockResolvedValueOnce([{ count: '1' }]);
+
+      // Act
+      const result = await service.listRoles(TENANT_ID, VALID_SCHEMA);
+
+      // Assert
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].permissions).toHaveLength(2);
+      expect(result.data[0].permissions.map((p) => p.key)).toEqual(['users:read', 'users:write']);
+    });
+
+    it('should return correct pagination meta', async () => {
+      // Arrange — 5 total roles, page 2, limit 2
+      mockDb.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: '5' }])
+        .mockResolvedValueOnce([
+          makeJoinRow('role-3', 'C', false, null, null),
+          makeJoinRow('role-4', 'D', false, null, null),
+        ])
+        .mockResolvedValueOnce([{ count: '5' }]);
+
+      // Act
+      const result = await service.listRoles(TENANT_ID, VALID_SCHEMA, { page: 2, limit: 2 });
+
+      // Assert
+      expect(result.meta.total).toBe(5);
+      expect(result.meta.page).toBe(2);
+      expect(result.meta.limit).toBe(2);
+      expect(result.data).toHaveLength(2);
+    });
+
+    it('should scope all queries to the correct tenantId (tenant isolation)', async () => {
+      // Arrange
+      mockDb.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: '0' }]);
+
+      // Act
+      await service.listRoles(TENANT_ID, VALID_SCHEMA);
+
+      // Assert — every call to $queryRawUnsafe must pass TENANT_ID as a parameter
+      for (const call of mockDb.$queryRawUnsafe.mock.calls) {
+        // call[0] is the SQL string, call[1..n] are params
+        const params = call.slice(1);
+        expect(params).toContain(TENANT_ID);
+      }
+    });
+
+    it('should return empty page when no roles exist', async () => {
+      // Arrange
+      mockDb.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: '0' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: '0' }]);
+
+      // Act
+      const result = await service.listRoles(TENANT_ID, VALID_SCHEMA);
+
+      // Assert
+      expect(result.data).toHaveLength(0);
+      expect(result.meta.total).toBe(0);
+      expect(result.meta.customRoleCount).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // assignRoleToUser
   // -------------------------------------------------------------------------
 

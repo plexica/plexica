@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useCallback, useMemo } from 'react
 import type { ReactNode } from 'react';
 import { IntlProvider as ReactIntlProvider } from 'react-intl';
 import { resolveLocale, isValidLocale } from '@plexica/i18n';
+import { useAuthStore } from '../stores/auth-store';
 
 interface IntlContextValue {
   locale: string;
@@ -30,10 +31,15 @@ interface IntlProviderProps {
  * - Wraps app with react-intl IntlProvider
  */
 export function IntlProvider({ children }: IntlProviderProps) {
+  // Read tenant's default locale from auth store (set after user authentication)
+  const tenant = useAuthStore((state) => state.tenant);
+  const tenantDefaultLocale = tenant?.defaultLocale ?? undefined;
+
   // Resolve initial locale from fallback chain:
   // 1. localStorage (user preference)
   // 2. Browser language
-  // 3. Default 'en'
+  // 3. Tenant default locale (from auth store)
+  // 4. Default 'en'
   const getInitialLocale = (): string => {
     try {
       const storedLocale = localStorage?.getItem('plexica_locale');
@@ -42,7 +48,7 @@ export function IntlProvider({ children }: IntlProviderProps) {
       return resolveLocale({
         userLocale: storedLocale || undefined,
         browserLocale,
-        tenantDefaultLocale: undefined, // Will be set after user authentication
+        tenantDefaultLocale,
       });
     } catch {
       // Fallback for SSR, tests, or environments without localStorage/navigator

@@ -15,14 +15,6 @@
  * Spec 009 Task 3: Cross-Workspace Resource Sharing
  * Constitution Art. 4.1 (Test Coverage ≥80%)
  * Constitution Art. 6.2 (Error Format)
- *
- * NOTE on response format:
- * The service returns snake_case columns (workspace_id, resource_type, etc.)
- * but the Fastify response schema declares camelCase (workspaceId, resourceType).
- * Fastify's fast-json-stringify serializes against the schema, so snake_case keys
- * are stripped from the 201 body. Only `id` is reliably present in the 201 response.
- * The GET list items have the same serialization behaviour.
- * Tests assert only what is actually returned over the wire.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -38,8 +30,11 @@ describe('Workspace Resource Sharing Integration Tests', () => {
   let adminToken: string;
   let adminUserId: string;
   let testTenantSlug: string;
+  let testTenantId: string;
   let schemaName: string;
   let testWorkspaceId: string;
+  /** A plugin seeded into core.plugins + core.tenant_plugins so the plugin guard passes */
+  let seededPluginId: string;
 
   beforeAll(async () => {
     // ── Build full app ──────────────────────────────────────────────
@@ -70,6 +65,34 @@ describe('Workspace Resource Sharing Integration Tests', () => {
     if (tenantResp.statusCode !== 201) {
       throw new Error(`Failed to create test tenant: ${tenantResp.body}`);
     }
+
+    testTenantId = tenantResp.json().id;
+
+    // ── Seed a plugin in core.plugins + core.tenant_plugins ─────────
+    // The workspace-resource service's plugin guard queries tenant_plugins
+    // (Spec 004 table). Without a seeded row, sharing resourceType='plugin'
+    // returns PLUGIN_NOT_FOUND (404). We insert minimal rows here so the
+    // integration tests can exercise the happy-path for plugin shares.
+    seededPluginId = uuidv4();
+    await db.$executeRaw`
+      INSERT INTO plugins (id, name, version, manifest, status, lifecycle_status, created_at, updated_at)
+      VALUES (
+        ${seededPluginId},
+        ${'test-plugin-' + seededPluginId.substring(0, 8)},
+        '1.0.0',
+        '{"name":"test-plugin","version":"1.0.0"}'::jsonb,
+        'PUBLISHED',
+        'ACTIVE',
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
+    await db.$executeRaw`
+      INSERT INTO tenant_plugins ("tenantId", "pluginId", enabled, configuration, installed_at)
+      VALUES (${testTenantId}, ${seededPluginId}, true, '{}'::jsonb, NOW())
+      ON CONFLICT ("tenantId", "pluginId") DO NOTHING
+    `;
 
     // ── Create mock admin token ─────────────────────────────────────
     // Use a deterministic UUID so the FK in workspace_members can be satisfied
@@ -129,8 +152,8 @@ describe('Workspace Resource Sharing Integration Tests', () => {
 
   describe('POST /api/workspaces/:workspaceId/resources/share', () => {
     it('should share a resource with workspace (201)', async () => {
-      // Arrange
-      const resourceId = uuidv4();
+      // Arrange — use the seeded plugin ID so the plugin guard passes
+      const resourceId = seededPluginId;
 
       // Act
       const response = await app.inject({
@@ -150,9 +173,13 @@ describe('Workspace Resource Sharing Integration Tests', () => {
       // Assert
       expect(response.statusCode).toBe(201);
       const body = response.json();
-      // Only 'id' is reliably serialized (service returns snake_case, schema declares camelCase)
+      // Service now maps to camelCase — all schema fields must be present
       expect(body).toHaveProperty('id');
       expect(typeof body.id).toBe('string');
+      expect(body.workspaceId).toBe(testWorkspaceId);
+      expect(body.resourceType).toBe('plugin');
+      expect(body.resourceId).toBe(resourceId);
+      expect(typeof body.createdAt).toBe('string');
     });
 
     it('should return 403 when cross-workspace sharing is disabled', async () => {
@@ -262,9 +289,11 @@ describe('Workspace Resource Sharing Integration Tests', () => {
     let sharedResourceIds: string[];
 
     beforeAll(async () => {
-      // Pre-share 3 resources for the list tests
+      // Pre-share 3 resources for the list tests.
+      // Use distinct resource types with fresh UUIDs (seededPluginId already
+      // shared in the POST test above, so we avoid duplicate-share errors here).
       sharedResourceIds = [uuidv4(), uuidv4(), uuidv4()];
-      const types = ['plugin', 'template', 'dataset'];
+      const types = ['template', 'dataset', 'dataset'];
 
       for (let i = 0; i < 3; i++) {
         const r = await app.inject({
@@ -324,10 +353,22 @@ describe('Workspace Resource Sharing Integration Tests', () => {
       const body = response.json();
       expect(Array.isArray(body.data)).toBe(true);
       expect(body.data.length).toBeGreaterThanOrEqual(1);
-      // All returned items must have id (camelCase fields are stripped by serializer)
-      body.data.forEach((item: { id: string }) => {
-        expect(typeof item.id).toBe('string');
-      });
+      // All returned items must have camelCase fields per response schema
+      body.data.forEach(
+        (item: {
+          id: string;
+          workspaceId: string;
+          resourceType: string;
+          resourceId: string;
+          createdAt: string;
+        }) => {
+          expect(typeof item.id).toBe('string');
+          expect(item.workspaceId).toBe(testWorkspaceId);
+          expect(typeof item.resourceType).toBe('string');
+          expect(typeof item.resourceId).toBe('string');
+          expect(typeof item.createdAt).toBe('string');
+        }
+      );
     });
 
     it('should support pagination with limit and offset (200)', async () => {
@@ -357,7 +398,8 @@ describe('Workspace Resource Sharing Integration Tests', () => {
 
   describe('DELETE /api/workspaces/:workspaceId/resources/:resourceId', () => {
     it('should unshare a resource from workspace (204)', async () => {
-      // Arrange: share a resource to delete
+      // Arrange: share a fresh dataset resource then unshare it
+      // (seededPluginId is already shared from the POST test above)
       const resourceId = uuidv4();
       const shareResp = await app.inject({
         method: 'POST',
@@ -367,7 +409,7 @@ describe('Workspace Resource Sharing Integration Tests', () => {
           'x-tenant-slug': testTenantSlug,
           'content-type': 'application/json',
         },
-        payload: { resourceType: 'plugin', resourceId },
+        payload: { resourceType: 'dataset', resourceId },
       });
       expect(shareResp.statusCode).toBe(201);
       const resourceLinkId = shareResp.json().id;

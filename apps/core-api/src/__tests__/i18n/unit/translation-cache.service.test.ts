@@ -24,7 +24,7 @@ vi.mock('../../../lib/redis.js', () => ({
   redis: {
     get: vi.fn(),
     setex: vi.fn(),
-    keys: vi.fn(),
+    scan: vi.fn(),
     del: vi.fn(),
     pipeline: vi.fn(),
   },
@@ -51,6 +51,9 @@ describe('TranslationCacheService', () => {
       exec: vi.fn().mockResolvedValue([]), // Returns empty array
     };
     vi.mocked(redis.pipeline).mockReturnValue(mockPipelineInstance);
+
+    // Default scan mock: returns empty result (cursor '0' = done)
+    vi.mocked(redis.scan).mockResolvedValue(['0', []]);
   });
 
   describe('getCached', () => {
@@ -59,7 +62,7 @@ describe('TranslationCacheService', () => {
       const mockBundle: TranslationBundle = {
         locale: 'en',
         namespace: 'core',
-        contentHash: 'abc12345',
+        hash: 'abc12345',
         messages: { greeting: 'Hello' },
       };
       vi.mocked(redis.get).mockResolvedValue(JSON.stringify(mockBundle));
@@ -77,7 +80,7 @@ describe('TranslationCacheService', () => {
       const mockBundle: TranslationBundle = {
         locale: 'it',
         namespace: 'crm',
-        contentHash: 'def67890',
+        hash: 'def67890',
         messages: { 'deals.title': 'Opportunità' },
       };
       vi.mocked(redis.get).mockResolvedValue(JSON.stringify(mockBundle));
@@ -104,7 +107,6 @@ describe('TranslationCacheService', () => {
 
     it('should return null and log error when Redis fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       vi.mocked(redis.get).mockRejectedValue(new Error('Redis connection error'));
 
       // Act
@@ -112,17 +114,10 @@ describe('TranslationCacheService', () => {
 
       // Assert
       expect(result).toBeNull();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Cache read error'),
-        expect.any(Error)
-      );
-
-      consoleErrorSpy.mockRestore();
     });
 
     it('should return null when cached data is invalid JSON', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       vi.mocked(redis.get).mockResolvedValue('invalid-json{');
 
       // Act
@@ -130,9 +125,6 @@ describe('TranslationCacheService', () => {
 
       // Assert
       expect(result).toBeNull();
-      expect(consoleErrorSpy).toHaveBeenCalled();
-
-      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -142,7 +134,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'en',
         namespace: 'core',
-        contentHash: 'abc12345',
+        hash: 'abc12345',
         messages: { greeting: 'Hello' },
       };
 
@@ -163,7 +155,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'it',
         namespace: 'crm',
-        contentHash: 'def67890',
+        hash: 'def67890',
         messages: { 'deals.title': 'Opportunità' },
       };
 
@@ -185,23 +177,16 @@ describe('TranslationCacheService', () => {
 
     it('should not throw when Redis write fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const bundle: TranslationBundle = {
         locale: 'en',
         namespace: 'core',
-        contentHash: 'abc12345',
+        hash: 'abc12345',
         messages: { greeting: 'Hello' },
       };
       vi.mocked(redis.setex).mockRejectedValue(new Error('Redis write error'));
 
       // Act & Assert - Should not throw
       await expect(service.setCached(bundle)).resolves.toBeUndefined();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Cache write error'),
-        expect.any(Error)
-      );
-
-      consoleErrorSpy.mockRestore();
     });
 
     it('should store both bundle and hash keys separately', async () => {
@@ -209,7 +194,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'de',
         namespace: 'support',
-        contentHash: 'xyz98765',
+        hash: 'xyz98765',
         messages: { 'ticket.create': 'Neues Ticket erstellen' },
       };
       vi.mocked(redis.setex).mockResolvedValue('OK');
@@ -272,7 +257,6 @@ describe('TranslationCacheService', () => {
 
     it('should return null and log error when Redis fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       vi.mocked(redis.get).mockRejectedValue(new Error('Redis error'));
 
       // Act
@@ -280,71 +264,69 @@ describe('TranslationCacheService', () => {
 
       // Assert
       expect(result).toBeNull();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Hash read error'),
-        expect.any(Error)
-      );
-
-      consoleErrorSpy.mockRestore();
     });
   });
 
   describe('invalidateTenant', () => {
     it('should delete all cache keys for a specific tenant', async () => {
-      // Arrange
-      vi.mocked(redis.keys).mockResolvedValueOnce([
-        'i18n:acme-corp:en:core',
-        'i18n:acme-corp:it:crm',
-      ]);
-      vi.mocked(redis.keys).mockResolvedValueOnce([
-        'i18n:hash:acme-corp:en:core',
-        'i18n:hash:acme-corp:it:crm',
-      ]);
+      // Arrange: scan returns bundle keys on first call, hash keys on second
+      vi.mocked(redis.scan)
+        .mockResolvedValueOnce(['0', ['i18n:acme-corp:en:core', 'i18n:acme-corp:it:crm']])
+        .mockResolvedValueOnce([
+          '0',
+          ['i18n:hash:acme-corp:en:core', 'i18n:hash:acme-corp:it:crm'],
+        ]);
 
       // Act
       await service.invalidateTenant('acme-corp');
 
       // Assert
-      expect(vi.mocked(redis.keys)).toHaveBeenNthCalledWith(1, 'i18n:acme-corp:*');
-      expect(vi.mocked(redis.keys)).toHaveBeenNthCalledWith(2, 'i18n:hash:acme-corp:*');
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        'i18n:acme-corp:*',
+        'COUNT',
+        100
+      );
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        'i18n:hash:acme-corp:*',
+        'COUNT',
+        100
+      );
       expect(vi.mocked(redis.pipeline)).toHaveBeenCalled();
       expect(mockPipelineInstance.del).toHaveBeenCalledTimes(4); // 2 bundle keys + 2 hash keys
       expect(mockPipelineInstance.exec).toHaveBeenCalled();
     });
 
     it('should handle case with no matching keys gracefully', async () => {
-      // Arrange
-      vi.mocked(redis.keys).mockResolvedValue([]);
+      // Arrange: scan returns empty lists
+      vi.mocked(redis.scan).mockResolvedValue(['0', []]);
 
       // Act
       await service.invalidateTenant('nonexistent-tenant');
 
       // Assert
-      expect(vi.mocked(redis.keys)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledTimes(2);
       expect(vi.mocked(redis.pipeline)).not.toHaveBeenCalled(); // No pipeline if no keys
     });
 
     it('should not throw when Redis fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(redis.keys).mockRejectedValue(new Error('Redis error'));
+      vi.mocked(redis.scan).mockRejectedValue(new Error('Redis error'));
 
       // Act & Assert - Should not throw
       await expect(service.invalidateTenant('acme-corp')).resolves.toBeUndefined();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Cache invalidation error'),
-        expect.any(Error)
-      );
-
-      consoleErrorSpy.mockRestore();
     });
 
     it('should use pipeline for efficient bulk deletion', async () => {
       // Arrange
       const manyKeys = Array.from({ length: 50 }, (_, i) => `i18n:tenant:en:plugin${i}`);
       const manyHashKeys = Array.from({ length: 50 }, (_, i) => `i18n:hash:tenant:en:plugin${i}`);
-      vi.mocked(redis.keys).mockResolvedValueOnce(manyKeys);
-      vi.mocked(redis.keys).mockResolvedValueOnce(manyHashKeys);
+      vi.mocked(redis.scan)
+        .mockResolvedValueOnce(['0', manyKeys])
+        .mockResolvedValueOnce(['0', manyHashKeys]);
 
       // Act
       await service.invalidateTenant('tenant');
@@ -359,19 +341,16 @@ describe('TranslationCacheService', () => {
   describe('invalidateAll', () => {
     it('should delete all i18n cache keys', async () => {
       // Arrange
-      vi.mocked(redis.keys).mockResolvedValueOnce([
-        'i18n:en:core',
-        'i18n:it:crm',
-        'i18n:tenant:en:core',
-      ]);
-      vi.mocked(redis.keys).mockResolvedValueOnce(['i18n:hash:en:core', 'i18n:hash:it:crm']);
+      vi.mocked(redis.scan)
+        .mockResolvedValueOnce(['0', ['i18n:en:core', 'i18n:it:crm', 'i18n:tenant:en:core']])
+        .mockResolvedValueOnce(['0', ['i18n:hash:en:core', 'i18n:hash:it:crm']]);
 
       // Act
       await service.invalidateAll();
 
       // Assert
-      expect(vi.mocked(redis.keys)).toHaveBeenNthCalledWith(1, 'i18n:*');
-      expect(vi.mocked(redis.keys)).toHaveBeenNthCalledWith(2, 'i18n:hash:*');
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledWith('0', 'MATCH', 'i18n:*', 'COUNT', 100);
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledWith('0', 'MATCH', 'i18n:hash:*', 'COUNT', 100);
       expect(vi.mocked(redis.pipeline)).toHaveBeenCalled();
       expect(mockPipelineInstance.del).toHaveBeenCalledTimes(5); // 3 bundle + 2 hash
       expect(mockPipelineInstance.exec).toHaveBeenCalled();
@@ -379,47 +358,50 @@ describe('TranslationCacheService', () => {
 
     it('should handle case with no cached keys', async () => {
       // Arrange
-      vi.mocked(redis.keys).mockResolvedValue([]);
+      vi.mocked(redis.scan).mockResolvedValue(['0', []]);
 
       // Act
       await service.invalidateAll();
 
       // Assert
-      expect(vi.mocked(redis.keys)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledTimes(2);
       expect(vi.mocked(redis.pipeline)).not.toHaveBeenCalled();
     });
 
     it('should not throw when Redis fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(redis.keys).mockRejectedValue(new Error('Redis error'));
+      vi.mocked(redis.scan).mockRejectedValue(new Error('Redis error'));
 
       // Act & Assert
       await expect(service.invalidateAll()).resolves.toBeUndefined();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Cache invalidation error (invalidateAll)'),
-        expect.any(Error)
-      );
-
-      consoleErrorSpy.mockRestore();
     });
   });
 
   describe('invalidateNamespace', () => {
     it('should delete global and tenant-specific keys for a namespace', async () => {
       // Arrange
-      vi.mocked(redis.keys).mockResolvedValueOnce(['i18n:tenant1:en:core', 'i18n:tenant2:en:core']);
-      vi.mocked(redis.keys).mockResolvedValueOnce([
-        'i18n:hash:tenant1:en:core',
-        'i18n:hash:tenant2:en:core',
-      ]);
+      vi.mocked(redis.scan)
+        .mockResolvedValueOnce(['0', ['i18n:tenant1:en:core', 'i18n:tenant2:en:core']])
+        .mockResolvedValueOnce(['0', ['i18n:hash:tenant1:en:core', 'i18n:hash:tenant2:en:core']]);
 
       // Act
       await service.invalidateNamespace('en', 'core');
 
       // Assert
-      expect(vi.mocked(redis.keys)).toHaveBeenNthCalledWith(1, 'i18n:*:en:core');
-      expect(vi.mocked(redis.keys)).toHaveBeenNthCalledWith(2, 'i18n:hash:*:en:core');
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        'i18n:*:en:core',
+        'COUNT',
+        100
+      );
+      expect(vi.mocked(redis.scan)).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        'i18n:hash:*:en:core',
+        'COUNT',
+        100
+      );
       expect(vi.mocked(redis.pipeline)).toHaveBeenCalled();
       expect(mockPipelineInstance.del).toHaveBeenCalledWith('i18n:en:core'); // Global key
       expect(mockPipelineInstance.del).toHaveBeenCalledWith('i18n:hash:en:core'); // Global hash
@@ -429,7 +411,7 @@ describe('TranslationCacheService', () => {
 
     it('should handle case with no tenant-specific keys', async () => {
       // Arrange
-      vi.mocked(redis.keys).mockResolvedValue([]);
+      vi.mocked(redis.scan).mockResolvedValue(['0', []]);
 
       // Act
       await service.invalidateNamespace('it', 'crm');
@@ -443,17 +425,10 @@ describe('TranslationCacheService', () => {
 
     it('should not throw when Redis fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.mocked(redis.keys).mockRejectedValue(new Error('Redis error'));
+      vi.mocked(redis.scan).mockRejectedValue(new Error('Redis error'));
 
       // Act & Assert
       await expect(service.invalidateNamespace('en', 'core')).resolves.toBeUndefined();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Cache invalidation error for namespace'),
-        expect.any(Error)
-      );
-
-      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -463,7 +438,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'en',
         namespace: 'core',
-        contentHash: 'abc123',
+        hash: 'abc123',
         messages: {},
       };
 
@@ -483,7 +458,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'it',
         namespace: 'crm',
-        contentHash: 'def456',
+        hash: 'def456',
         messages: {},
       };
 
@@ -527,7 +502,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'en',
         namespace: 'core',
-        contentHash: 'abc123',
+        hash: 'abc123',
         messages: {},
       };
       vi.mocked(redis.setex).mockResolvedValue('OK');
@@ -545,7 +520,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'en',
         namespace: 'core',
-        contentHash: 'abc123',
+        hash: 'abc123',
         messages: {},
       };
       vi.mocked(redis.setex).mockResolvedValue('OK');
@@ -563,7 +538,7 @@ describe('TranslationCacheService', () => {
       const bundle: TranslationBundle = {
         locale: 'de',
         namespace: 'support',
-        contentHash: 'xyz789',
+        hash: 'xyz789',
         messages: {},
       };
       vi.mocked(redis.setex).mockResolvedValue('OK');

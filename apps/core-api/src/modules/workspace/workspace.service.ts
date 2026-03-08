@@ -116,6 +116,27 @@ const CACHE_TTL_SECONDS = 300; // 5 minutes
 const CACHE_KEY_PREFIX = 'workspace';
 
 /**
+ * Reusable SELECT column list for workspace member + user profile queries.
+ *
+ * Extracted to avoid the 9-column block being copy-pasted verbatim across
+ * getMemberWithUser() and getMembers() (TD-017).  Any column added here is
+ * automatically reflected in all three call-sites.
+ *
+ * Caller must still provide the FROM / JOIN / WHERE clauses with the correct
+ * Prisma.raw table references.
+ */
+const MEMBER_SELECT_COLUMNS = Prisma.sql`
+  wm.workspace_id,
+  wm.user_id,
+  wm.role,
+  wm.invited_by,
+  wm.joined_at,
+  u.id  AS user_id,
+  u.email       AS user_email,
+  u.first_name  AS user_first_name,
+  u.last_name   AS user_last_name`;
+
+/**
  * Workspace Service
  *
  * Handles all workspace-related operations including:
@@ -1413,8 +1434,6 @@ export class WorkspaceService {
       throw new Error(`User ${dto.userId} not found`);
     }
 
-    const role = dto.role || WorkspaceRole.MEMBER;
-
     const addedMember = await this.db.$transaction(async (tx) => {
       // Set LOCAL search path within transaction
       // Note: schemaName is validated with regex above
@@ -1446,7 +1465,7 @@ export class WorkspaceService {
         throw new Error('User is already a member of this workspace');
       }
 
-      // Enforce maxMembers setting if configured (0 = unlimited)
+      // Fetch workspace settings to enforce maxMembers and resolve defaultMemberRole
       const wsSettingsRows = await tx.$queryRaw<Array<{ settings: unknown }>>(
         Prisma.sql`SELECT settings FROM ${workspacesTable}
           WHERE id = ${workspaceId} AND tenant_id = ${tenantId}`
@@ -1457,6 +1476,16 @@ export class WorkspaceService {
           ? WorkspaceSettingsSchema.safeParse(rawSettings)
           : { success: false as const, data: undefined };
       const maxMembers = parsedSettings.success ? (parsedSettings.data.maxMembers ?? 0) : 0;
+
+      // Resolve member role: explicit dto.role wins; fall back to workspace defaultMemberRole
+      // setting (Art. 3.2 — workspace settings drive default behaviour); then global default MEMBER.
+      const defaultRoleFromSettings = parsedSettings.success
+        ? parsedSettings.data.defaultMemberRole
+        : WorkspaceRole.MEMBER;
+      const role: WorkspaceRole =
+        (dto.role as WorkspaceRole | undefined) ||
+        (defaultRoleFromSettings as WorkspaceRole) ||
+        WorkspaceRole.MEMBER;
 
       if (maxMembers > 0) {
         const memberCounts = await tx.$queryRaw<CountRow[]>(
@@ -1928,16 +1957,7 @@ export class WorkspaceService {
 
       // Get the member with user info
       const members = await tx.$queryRaw<MemberWithUserRow[]>`
-        SELECT 
-          wm.workspace_id,
-          wm.user_id,
-          wm.role,
-          wm.invited_by,
-          wm.joined_at,
-          u.id as user_id,
-          u.email as user_email,
-          u.first_name as user_first_name,
-          u.last_name as user_last_name
+        SELECT ${MEMBER_SELECT_COLUMNS}
         FROM ${membersTable} wm
         LEFT JOIN ${usersTable} u ON u.id = wm.user_id
         WHERE wm.workspace_id = ${workspaceId} AND wm.user_id = ${userId}
@@ -2025,16 +2045,7 @@ export class WorkspaceService {
       let members: MemberWithUserRow[];
       if (role) {
         members = await tx.$queryRaw<MemberWithUserRow[]>`
-          SELECT 
-            wm.workspace_id,
-            wm.user_id,
-            wm.role,
-            wm.invited_by,
-            wm.joined_at,
-            u.id as user_id,
-            u.email as user_email,
-            u.first_name as user_first_name,
-            u.last_name as user_last_name
+          SELECT ${MEMBER_SELECT_COLUMNS}
           FROM ${membersTable} wm
           LEFT JOIN ${usersTable} u ON u.id = wm.user_id
           WHERE wm.workspace_id = ${workspaceId} AND wm.role = ${role}
@@ -2044,16 +2055,7 @@ export class WorkspaceService {
         `;
       } else {
         members = await tx.$queryRaw<MemberWithUserRow[]>`
-          SELECT 
-            wm.workspace_id,
-            wm.user_id,
-            wm.role,
-            wm.invited_by,
-            wm.joined_at,
-            u.id as user_id,
-            u.email as user_email,
-            u.first_name as user_first_name,
-            u.last_name as user_last_name
+          SELECT ${MEMBER_SELECT_COLUMNS}
           FROM ${membersTable} wm
           LEFT JOIN ${usersTable} u ON u.id = wm.user_id
           WHERE wm.workspace_id = ${workspaceId}
@@ -2100,28 +2102,60 @@ export class WorkspaceService {
 
       const teamsTable = Prisma.raw(`"${schemaName}"."teams"`);
       const usersTable = Prisma.raw(`"${schemaName}"."users"`);
-      // Note: team_members table is optional and may not exist in all tenant schemas.
-      // member_count is therefore hardcoded to 0 until the table is provisioned.
+      const teamMembersTable = Prisma.raw(`"${schemaName}"."team_members"`);
 
-      const teams = await tx.$queryRaw<TeamRow[]>`
-        SELECT 
-          t.id,
-          t.workspace_id,
-          t.name,
-          t.description,
-          t.owner_id,
-          t.created_at,
-          t.updated_at,
-          u.id AS owner_user_id,
-          u.email AS owner_email,
-          u.first_name AS owner_first_name,
-          u.last_name AS owner_last_name,
-          0 AS member_count
-        FROM ${teamsTable} t
-        LEFT JOIN ${usersTable} u ON t.owner_id = u.id
-        WHERE t.workspace_id = ${workspaceId}
-        ORDER BY t.created_at DESC
-      `;
+      // Try to count real team members via a correlated subquery.
+      // The team_members table is optional (provisioned separately); use a SAVEPOINT
+      // so a missing-table error does not abort the outer transaction (PG error 25P02).
+      // If the table doesn't exist we fall back to 0 AS member_count.
+      let teams: TeamRow[];
+
+      await tx.$executeRaw(Prisma.raw('SAVEPOINT before_team_member_count'));
+      try {
+        teams = await tx.$queryRaw<TeamRow[]>`
+          SELECT 
+            t.id,
+            t.workspace_id,
+            t.name,
+            t.description,
+            t.owner_id,
+            t.created_at,
+            t.updated_at,
+            u.id AS owner_user_id,
+            u.email AS owner_email,
+            u.first_name AS owner_first_name,
+            u.last_name AS owner_last_name,
+            (SELECT COUNT(*)::int FROM ${teamMembersTable} tm WHERE tm.team_id = t.id) AS member_count
+          FROM ${teamsTable} t
+          LEFT JOIN ${usersTable} u ON t.owner_id = u.id
+          WHERE t.workspace_id = ${workspaceId}
+          ORDER BY t.created_at DESC
+        `;
+        await tx.$executeRaw(Prisma.raw('RELEASE SAVEPOINT before_team_member_count'));
+      } catch {
+        // team_members table does not exist — roll back to the savepoint to clear
+        // the aborted-transaction state and fall back to hardcoded 0.
+        await tx.$executeRaw(Prisma.raw('ROLLBACK TO SAVEPOINT before_team_member_count'));
+        teams = await tx.$queryRaw<TeamRow[]>`
+          SELECT 
+            t.id,
+            t.workspace_id,
+            t.name,
+            t.description,
+            t.owner_id,
+            t.created_at,
+            t.updated_at,
+            u.id AS owner_user_id,
+            u.email AS owner_email,
+            u.first_name AS owner_first_name,
+            u.last_name AS owner_last_name,
+            0 AS member_count
+          FROM ${teamsTable} t
+          LEFT JOIN ${usersTable} u ON t.owner_id = u.id
+          WHERE t.workspace_id = ${workspaceId}
+          ORDER BY t.created_at DESC
+        `;
+      }
 
       return teams.map((t: TeamRow) => ({
         id: t.id,
@@ -2294,7 +2328,7 @@ export class WorkspaceService {
     workspaceId: string,
     update: WorkspaceSettingsUpdate,
     tenantCtx?: TenantContext
-  ): Promise<WorkspaceSettings> {
+  ): Promise<WorkspaceSettings & { updatedAt: Date }> {
     const tenantContext = tenantCtx || getTenantContext();
     if (!tenantContext) {
       throw new Error('No tenant context available');
@@ -2326,12 +2360,14 @@ export class WorkspaceService {
     //
     // After the DB merge we run the returned JSONB through mergeSettings() to
     // apply Zod defaults for fields that are missing from the stored blob.
-    const updateRows = await this.db.$queryRawUnsafe<Array<{ settings: unknown }>>(
+    const updateRows = await this.db.$queryRawUnsafe<
+      Array<{ settings: unknown; updated_at: Date }>
+    >(
       `UPDATE "${schemaName}"."workspaces"
        SET settings    = settings || $1::jsonb,
            updated_at  = NOW()
        WHERE id = $2 AND tenant_id = $3
-       RETURNING settings`,
+       RETURNING settings, updated_at`,
       JSON.stringify(update),
       workspaceId,
       tenantId
@@ -2352,7 +2388,7 @@ export class WorkspaceService {
 
     this.log.debug({ workspaceId }, 'Workspace settings updated');
 
-    return mergedSettings;
+    return { ...mergedSettings, updatedAt: updateRows[0].updated_at };
   }
 }
 

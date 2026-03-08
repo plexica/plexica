@@ -10,6 +10,19 @@
 
 import { TenantApiClient, AdminApiClient } from '@plexica/api-client';
 
+// ---------------------------------------------------------------------------
+// Typed HTTP interface
+// ---------------------------------------------------------------------------
+// TenantApiClient exposes `get` and `patch` as public methods at runtime but
+// they are not declared in the public TypeScript surface.  Rather than
+// sprinkling `as unknown as` double-casts across the codebase, we declare the
+// interface once here and re-export it alongside the singleton.
+
+export interface ApiClient {
+  get<T>(url: string): Promise<T>;
+  patch<T>(url: string, body: unknown): Promise<T>;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 class WebApiClient extends TenantApiClient {
@@ -46,7 +59,11 @@ class WebApiClient extends TenantApiClient {
   }
 }
 
-export const apiClient = new WebApiClient();
+// Cast once here so all consumers can call `apiClient.get()` / `apiClient.patch()`
+// directly without repeating the double-cast at every call site (TD-012).
+// TenantApiClient exposes these methods at runtime; the cast makes them visible
+// to TypeScript via the ApiClient interface declared above.
+export const apiClient: WebApiClient & ApiClient = new WebApiClient() as WebApiClient & ApiClient;
 export default apiClient;
 
 // ---------------------------------------------------------------------------
@@ -82,4 +99,9 @@ class WebAdminApiClient extends AdminApiClient {
   }
 }
 
-export const adminApiClient = new WebAdminApiClient();
+// Cast once here so consumers can call `adminApiClient.get<T>()` directly
+// without repeating `as unknown as ApiClient` at every call site (M-02, TD-012).
+// AdminApiClient extends HttpClient which exposes `get<T>` at runtime; the cast
+// makes it visible to TypeScript via the ApiClient interface declared above.
+export const adminApiClient: WebAdminApiClient & ApiClient =
+  new WebAdminApiClient() as WebAdminApiClient & ApiClient;

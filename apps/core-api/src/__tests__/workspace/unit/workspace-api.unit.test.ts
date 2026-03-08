@@ -736,7 +736,9 @@ describe('Workspace Integration Tests', () => {
   });
 
   describe('Team Management', () => {
-    it('should get teams in workspace', async () => {
+    it('should get teams in workspace with correct member_count', async () => {
+      // Happy path: team_members table exists; member_count must propagate from the
+      // correlated subquery result into the returned _count.members field.
       const mockDb = createMockDb({
         $transaction: vi.fn(async (callback: any) => {
           const mockTx = {
@@ -752,6 +754,7 @@ describe('Workspace Integration Tests', () => {
                 updated_at: new Date(),
                 owner_user_id: 'user-1',
                 owner_email: 'owner@test.com',
+                member_count: 3,
               },
             ]),
           };
@@ -765,6 +768,68 @@ describe('Workspace Integration Tests', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('Engineering');
+      // Verify member_count from the correlated subquery is mapped to _count.members
+      expect(result[0]._count.members).toBe(3);
+    });
+
+    it('should fall back to member_count=0 when team_members table does not exist', async () => {
+      // Fallback path: first $queryRaw throws (simulating missing team_members table),
+      // the SAVEPOINT is rolled back, and a second query without the correlated subquery
+      // returns member_count=0. Verifies the SAVEPOINT/ROLLBACK/fallback sequence.
+      const mockExecuteRaw = vi.fn().mockResolvedValue(undefined);
+      const fallbackTeam = {
+        id: 'team-1',
+        workspace_id: 'workspace-1',
+        name: 'Design',
+        description: 'Design team',
+        owner_id: 'user-2',
+        created_at: new Date(),
+        updated_at: new Date(),
+        owner_user_id: 'user-2',
+        owner_email: 'design@test.com',
+        member_count: 0,
+      };
+      const mockQueryRaw = vi
+        .fn()
+        // First call (with team_members correlated subquery) throws — simulates missing table
+        .mockRejectedValueOnce(new Error('relation "tenant_abc.team_members" does not exist'))
+        // Second call (fallback without subquery) returns data with hardcoded member_count=0
+        .mockResolvedValueOnce([fallbackTeam]);
+
+      const mockDb = createMockDb({
+        $transaction: vi.fn(async (callback: any) => {
+          const mockTx = {
+            $executeRaw: mockExecuteRaw,
+            $queryRaw: mockQueryRaw,
+          };
+          return await callback(mockTx);
+        }),
+      });
+
+      vi.spyOn(workspaceService as any, 'db', 'get').mockReturnValue(mockDb);
+
+      const result = await workspaceService.getTeams('workspace-1');
+
+      // Result must still be returned (no throw)
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('Design');
+      // member_count must be 0 from the fallback query
+      expect(result[0]._count.members).toBe(0);
+
+      // SAVEPOINT was set before the first query attempt
+      expect(mockExecuteRaw).toHaveBeenCalledWith(
+        expect.objectContaining({
+          strings: expect.arrayContaining([expect.stringContaining('SAVEPOINT')]),
+        })
+      );
+      // ROLLBACK TO SAVEPOINT was called after the error
+      expect(mockExecuteRaw).toHaveBeenCalledWith(
+        expect.objectContaining({
+          strings: expect.arrayContaining([expect.stringContaining('ROLLBACK TO SAVEPOINT')]),
+        })
+      );
+      // Fallback query was called (second $queryRaw invocation)
+      expect(mockQueryRaw).toHaveBeenCalledTimes(2);
     });
 
     it('should create team in workspace', async () => {

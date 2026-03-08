@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 import { AdminSidebarNav } from '@/components/AdminSidebarNav';
 import { useRequireSuperAdmin } from '@/hooks/useAdminAuth';
+import { useActiveAlertsCount } from '@/hooks/useObservability';
 
 // ---------------------------------------------------------------------------
 // Route registration
@@ -35,9 +36,11 @@ export const Route = createFileRoute('/_layout' as never)({
 });
 
 // ---------------------------------------------------------------------------
-// Nav items for the Super Admin portal
+// Static nav items (no badge)
+// The Observability item is built dynamically inside the component so it can
+// carry the live active-alerts badge count from useActiveAlertsCount().
 // ---------------------------------------------------------------------------
-const SUPER_ADMIN_NAV_ITEMS = [
+const STATIC_NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Tenants', icon: Building2, path: '/tenants' },
   { label: 'Plugins', icon: Puzzle, path: '/plugins' },
@@ -73,6 +76,27 @@ function AdminSkeleton() {
 function SuperAdminLayout() {
   const user = useRequireSuperAdmin();
   const navigate = useNavigate();
+
+  // Live alert count for the Observability sidebar badge
+  const activeAlertsCount = useActiveAlertsCount();
+
+  // Build nav items with the live badge on the Observability entry.
+  // Observability item is hidden when feature flag is disabled (T012-47).
+  const observabilityEnabled = import.meta.env.VITE_ENABLE_OBSERVABILITY_DASHBOARD !== 'false';
+
+  const navItems = [
+    ...STATIC_NAV_ITEMS,
+    ...(observabilityEnabled
+      ? [
+          {
+            label: 'Observability',
+            icon: Activity,
+            path: '/observability',
+            badge: activeAlertsCount > 0 ? activeAlertsCount : undefined,
+          },
+        ]
+      : []),
+  ];
 
   // Restore sidebar collapsed state from localStorage
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -152,7 +176,7 @@ function SuperAdminLayout() {
       <div className="flex flex-1 overflow-hidden">
         <div id="super-admin-sidebar">
           <AdminSidebarNav
-            navItems={SUPER_ADMIN_NAV_ITEMS}
+            navItems={navItems}
             collapsed={sidebarCollapsed}
             onToggle={handleToggleSidebar}
             portalLabel="Super Admin navigation"

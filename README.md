@@ -9,26 +9,29 @@
 
 Cloud-native multi-tenant SaaS platform with extensible plugin architecture.
 
-**Version**: 0.9.0  
-**Status**: Phase 2 — Plugin Ecosystem + Workspace Management + Auth OAuth 2.0 ✅  
-**Last Updated**: February 19, 2026
+**Version**: 0.11.0  
+**Status**: Phase 3 — Plugin Observability (Spec 012 in progress) 🟡  
+**Last Updated**: March 7, 2026
 
 ---
 
 ## 📊 Project Status
 
-| Area                         | Status                                                              |
-| ---------------------------- | ------------------------------------------------------------------- |
-| **Backend MVP**              | ✅ **100% Complete** — Core, Auth OAuth 2.0, Multi-tenancy, Plugins |
-| **i18n System**              | ✅ **100% Complete** — Backend + Frontend + 263 tests, 95% coverage |
-| **Spec 002 Authentication**  | ✅ **100% Complete** — 50 tasks, 7 phases (Feb 17)                  |
-| **Workspace Management**     | 🟡 **71% Complete** — Spec 009, Sprint 3 done (24/24 pts)           |
-| **Frontend MVP**             | 🟡 **60% Complete** — Tenant App + Super-Admin functional           |
-| **Frontend Production**      | 🔴 **0%** — Spec 010 planned (error boundaries, theming, widgets)   |
-| **Plugin Ecosystem**         | 🟡 **67% Complete** — M2.1–M2.3 done, M2.4 in progress              |
-| **Total Tests**              | 🟢 **2,200+** across all packages                                   |
-| **Core-API Coverage**        | 🟡 **~77%** (target: 80%)                                           |
-| **Security Vulnerabilities** | ✅ **0 known** (9 resolved Feb 17)                                  |
+| Area                         | Status                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| **Backend MVP**              | ✅ **100% Complete** — Core, Auth OAuth 2.0, Multi-tenancy, Plugins, Admin       |
+| **Frontend MVP**             | ✅ **100% Complete** — Tenant App + Super Admin + Error Boundaries + Theming     |
+| **Plugin System**            | ✅ **100% Complete** — Lifecycle, Container, Hooks, EventBus (Spec 004)          |
+| **Admin Interfaces**         | ✅ **100% Complete** — Super Admin + Tenant Admin, all screens + a11y (Spec 008) |
+| **Workspace Management**     | ✅ **100% Complete** — Hierarchy, Templates, Plugin Hooks (Spec 009 + 011)       |
+| **i18n System**              | ✅ **100% Complete** — Backend + Frontend + content-hashed URLs (Spec 006)       |
+| **Core Services**            | ✅ **100% Complete** — Jobs, Search, Notifications/SSE (Spec 007)                |
+| **Plugin Observability**     | 🟡 **Planned** — OTel + Prometheus + Loki + Grafana dashboards (Spec 012)        |
+| **Total Tests**              | 🟢 **2,400+** across all packages                                                |
+| **Core-API Coverage**        | 🟡 **~76.5%** (target: 80%)                                                      |
+| **Frontend Coverage**        | ✅ **~80%** (Spec 010 Phase 4 complete)                                          |
+| **Security Vulnerabilities** | ✅ **0 known**                                                                   |
+| **Active Sprint**            | Sprint 007 — Spec 012 Phase 1+2 (61 pts, Mar 8–21)                               |
 
 👉 **Full progress tracking**: [planning/PROJECT_STATUS.md](./planning/PROJECT_STATUS.md)
 
@@ -92,37 +95,39 @@ cd apps/super-admin && pnpm dev
 ## 🏗️ Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                   PLEXICA PLATFORM                      │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌──────────────┐  ┌───────────────┐  ┌─────────────┐  │
-│  │  API Gateway │  │   Keycloak    │  │  Frontend   │  │
-│  │  (Traefik)   │  │  (Auth/IdP)   │  │   (React)   │  │
-│  └──────┬───────┘  └───────┬───────┘  └─────────────┘  │
-│         │                  │                            │
-│  ┌──────┴──────────────────┴──────────────────────────┐ │
-│  │           Core API Service (Fastify 5)             │ │
-│  │  ✅ Tenant Management    ✅ Plugin Orchestration   │ │
-│  │  ✅ OAuth 2.0 / PKCE     ✅ Permission Engine      │ │
-│  │  ✅ RBAC                 ✅ Event Hooks             │ │
-│  │  ✅ i18n / Translations  🟡 Workspace Management   │ │
-│  └───────────────────┬────────────────────────────────┘ │
-│                      │                                  │
-│  ┌───────────────────┴────────────────────────────────┐ │
-│  │              Plugin Ecosystem                      │ │
-│  │  ┌──────────┐  ┌─────────┐  ┌──────────────────┐  │ │
-│  │  │ Analytics│  │ Future  │  │  Future          │  │ │
-│  │  │ (sample) │  │ CRM     │  │  Billing ...     │  │ │
-│  │  └──────────┘  └─────────┘  └──────────────────┘  │ │
-│  └────────────────────────────────────────────────────┘ │
-│                      │                                  │
-│  ┌───────────────────┴────────────────────────────────┐ │
-│  │              Infrastructure Layer                  │ │
-│  │  PostgreSQL 15  │  Redis 7  │  Kafka (KafkaJS)     │ │
-│  │  MinIO (S3)     │  Keycloak 26+                    │ │
-│  └────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                      PLEXICA PLATFORM                        │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐  │
+│  │  API Gateway │  │   Keycloak    │  │    Frontend      │  │
+│  │  (Traefik)   │  │  (Auth/IdP)   │  │  apps/web        │  │
+│  └──────┬───────┘  └───────┬───────┘  │  apps/super-admin│  │
+│         │                  │          └──────────────────┘  │
+│  ┌──────┴──────────────────┴───────────────────────────────┐ │
+│  │              Core API Service (Fastify 5)               │ │
+│  │  ✅ Tenant Management     ✅ Plugin Orchestration        │ │
+│  │  ✅ OAuth 2.0 / PKCE      ✅ Admin Interfaces (SA + TA) │ │
+│  │  ✅ RBAC + Keycloak       ✅ Event Hooks + Job Queue     │ │
+│  │  ✅ i18n / Translations   ✅ Workspace Hierarchy         │ │
+│  │  ✅ Notifications (SSE)   🟡 Plugin Observability (S012)│ │
+│  └────────────────────┬────────────────────────────────────┘ │
+│                       │                                      │
+│  ┌────────────────────┴────────────────────────────────────┐ │
+│  │                  Plugin Ecosystem                       │ │
+│  │  ┌──────────┐  ┌────────────┐  ┌───────────────────┐   │ │
+│  │  │ Lifecycle│  │ Module Fed │  │   Plugin Hooks    │   │ │
+│  │  │ Manager  │  │ (Frontend) │  │   + EventBus      │   │ │
+│  │  └──────────┘  └────────────┘  └───────────────────┘   │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│                       │                                      │
+│  ┌────────────────────┴────────────────────────────────────┐ │
+│  │                 Infrastructure Layer                    │ │
+│  │  PostgreSQL 15 (schema-per-tenant)  │  Redis 7          │ │
+│  │  Redpanda (KafkaJS)  │  MinIO (S3)  │  Keycloak 26+     │ │
+│  │  Prometheus + Grafana + Tempo + Loki  ← Spec 012 🟡     │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -148,32 +153,54 @@ cd apps/super-admin && pnpm dev
 - Full i18n backend API with translation override management
 - React frontend integration (`IntlContext`, `useTranslations`, `LanguageSelector`)
 - Admin UI for managing per-tenant translation overrides
+- Content-hashed translation URLs with immutable caching
 - Redis-cached translations for performance
-- 263 tests, 95% average coverage across i18n packages
 
 ### ✅ Plugin System
 
 - Lifecycle management: install → activate → deactivate → uninstall
+- Container-based plugin isolation via Docker (`ContainerAdapter` pattern)
 - Plugin registry (global catalog) with configuration validation
-- Dependency checking and event hook system
+- Dependency checking, event hook system, plugin-to-plugin communication
 - Module Federation for frontend plugin loading
-- Sample analytics plugin included
+- Workspace-scoped plugin configuration and cascade management
 
-### 🟡 Workspace Management (71% Complete)
+### ✅ Workspace Hierarchy & Templates
 
-- Organizational layer within tenants (Tenant → Workspace → Team)
-- Role-based access control (ADMIN, MEMBER, VIEWER)
-- Event publishing, Redis caching, cross-workspace resource sharing
-- Rate limiting and error standardization
-- _Remaining_: Settings configuration API, test coverage improvement
+- Unlimited-depth workspace hierarchy via materialised path (ADR-013)
+- Template system for rapid workspace provisioning (transactional apply)
+- Plugin hooks: `before_create` (sequential, can-reject) and `created`/`deleted` (parallel fire-and-forget)
+- Aggregated member/plugin counts with Redis caching
 
-### 🟡 Frontend (60% Complete)
+### ✅ Admin Interfaces
 
-**Tenant Web App** (`apps/web`, port 3001) — React 19 + Vite 7 + TanStack Router, Tailwind CSS, shadcn/ui, Module Federation, responsive design.
+- **Super Admin Panel** — tenant management, platform users, plugin registry, system config, audit logs, health dashboard
+- **Tenant Admin Panel** — user management, teams, roles, workspace plugins, settings, audit log export
+- Full RBAC enforcement (`TeamAuthGuard`, Keycloak realm roles)
+- Async CSV/JSON audit log export via job queue + MinIO signed URLs
+- WCAG 2.1 AA compliant (axe-core verified)
 
-**Super-Admin Panel** (`apps/super-admin`, port 3002) — Platform management, tenant/plugin/user administration, analytics dashboard.
+### ✅ Core Services
 
-_Planned (Spec 010)_: Error boundaries, tenant theming API, widget system, test coverage (2.4% → 80%), WCAG 2.1 AA accessibility.
+- **Job Queue** — async background tasks with MinIO signed URL delivery
+- **Full-Text Search** — cross-workspace search with tenant isolation
+- **Notifications** — real-time badge updates and job status via SSE (ADR-023)
+
+### ✅ Frontend Production Readiness
+
+- `PluginErrorBoundary` — plugin crashes isolated, shell never crashes
+- `ThemeContext` — per-tenant branding (logo, colors, fonts via self-hosted WOFF2)
+- Widget system — plugins expose reusable UI components via Module Federation
+- Frontend test coverage ≥80%, WCAG 2.1 AA across all screens
+
+### 🟡 Plugin Observability (Spec 012 — In Progress)
+
+- OpenTelemetry distributed tracing → Grafana Tempo (ADR-026)
+- Platform metrics via `prom-client` → Prometheus (ADR-027)
+- Structured log aggregation via Promtail → Loki (ADR-028)
+- Per-plugin Prometheus metrics at `GET /api/v1/plugins/:id/metrics` (ADR-030)
+- Observability dashboards in Super Admin (recharts, ADR-029)
+- Alert engine with in-app SSE delivery
 
 ---
 
@@ -183,14 +210,14 @@ _Planned (Spec 010)_: Error boundaries, tenant theming API, widget system, test 
 plexica/
 ├── apps/
 │   ├── core-api/          # ✅ Core API Service (Fastify 5)
-│   ├── web/               # 🟡 Tenant Web App (React 19 + Vite 7)
-│   └── super-admin/       # 🟡 Super Admin Panel
+│   ├── web/               # ✅ Tenant Web App (React 19 + Vite)
+│   └── super-admin/       # ✅ Super Admin Panel
 │
 ├── packages/
 │   ├── database/          # ✅ Prisma schema & migrations (PostgreSQL 15)
-│   ├── i18n/              # ✅ Internationalization package (263 tests)
+│   ├── i18n/              # ✅ Internationalization package
 │   ├── ui/                # ✅ Shared UI components (@plexica/ui)
-│   ├── event-bus/         # ✅ Plugin event system (KafkaJS)
+│   ├── event-bus/         # ✅ Plugin event system (KafkaJS / Redpanda)
 │   ├── sdk/               # ✅ Plugin SDK
 │   ├── api-client/        # ✅ Frontend API client
 │   ├── types/             # ✅ Shared TypeScript types
@@ -199,7 +226,10 @@ plexica/
 ├── plugins/
 │   └── sample-analytics/  # ✅ Example plugin
 │
-├── .forge/                # FORGE methodology (specs, sprints, ADRs)
+├── .forge/                # FORGE methodology (specs, sprints, ADRs, constitution)
+│   ├── specs/             # 12 specs (001–012)
+│   ├── sprints/           # Sprint 001–007 (active)
+│   └── knowledge/         # ADR-001..030, decision log
 ├── docs/                  # Developer guides
 ├── specs/                 # Functional & technical specifications
 └── planning/              # Roadmap, milestones, PROJECT_STATUS.md
@@ -211,18 +241,23 @@ plexica/
 
 ## 🛠️ Technology Stack
 
-| Layer          | Technology                                         |
-| -------------- | -------------------------------------------------- |
-| **Backend**    | Node.js 20, TypeScript 5.9, Fastify 5.7, Prisma 6+ |
-| **Database**   | PostgreSQL 15 (multi-schema), Redis 7              |
-| **Auth**       | Keycloak 26+ (realm-per-tenant, OAuth 2.0 / PKCE)  |
-| **Events**     | KafkaJS 2.2 (internal workspace event bus)         |
-| **Storage**    | MinIO 8+ (S3-compatible)                           |
-| **Frontend**   | React 19, Vite 7, TanStack Router, TailwindCSS v4  |
-| **i18n**       | react-intl, custom @plexica/i18n package           |
-| **Testing**    | Vitest 4, Playwright — 2,200+ tests                |
-| **Monorepo**   | pnpm workspaces + Turborepo                        |
-| **Deployment** | Docker Compose (dev), Kubernetes (planned)         |
+| Layer          | Technology                                          |
+| -------------- | --------------------------------------------------- |
+| **Backend**    | Node.js 20, TypeScript 5.9, Fastify 5.7, Prisma 6.8 |
+| **Database**   | PostgreSQL 15 (schema-per-tenant), Redis 7          |
+| **Auth**       | Keycloak 26+ (realm-per-tenant, OAuth 2.0 / PKCE)   |
+| **Events**     | Redpanda + KafkaJS 2.2                              |
+| **Storage**    | MinIO 8+ (S3-compatible)                            |
+| **Frontend**   | React 19, Vite, TanStack Router, TailwindCSS        |
+| **i18n**       | react-intl + custom `@plexica/i18n` package         |
+| **Testing**    | Vitest 4, Playwright — 2,400+ tests                 |
+| **Logging**    | Pino (backend + browser, ADR-021)                   |
+| **A11y**       | vitest-axe + @axe-core/playwright (ADR-022)         |
+| **Tracing**    | OpenTelemetry SDK + Grafana Tempo (ADR-026) 🟡      |
+| **Metrics**    | prom-client + Prometheus (ADR-027) 🟡               |
+| **Logs**       | Promtail + Grafana Loki (ADR-028) 🟡                |
+| **Monorepo**   | pnpm workspaces + Turborepo                         |
+| **Deployment** | Docker Compose (dev), Kubernetes (planned)          |
 
 Full rationale and version constraints: [`.forge/constitution.md`](./.forge/constitution.md#article-2-technology-stack)
 
@@ -297,9 +332,14 @@ GET    /api/tenants/:id/plugins                       # List tenant plugins
 ### Specifications (FORGE)
 
 - **[Spec 002 — Authentication](./.forge/specs/002-authentication/)** ✅ OAuth 2.0
-- **[Spec 006 — i18n System](./.forge/specs/006-i18n/)** ✅ Complete
-- **[Spec 009 — Workspace Management](./.forge/specs/009-workspace-management/)** 🟡 71%
-- **[Spec 010 — Frontend Production Readiness](./.forge/specs/010-frontend-production-readiness/)** 🔴 Planned
+- **[Spec 004 — Plugin System](./.forge/specs/004-plugin-system/)** ✅ Lifecycle + Container
+- **[Spec 006 — i18n System](./.forge/specs/006-i18n/)** ✅ Backend + Frontend
+- **[Spec 007 — Core Services](./.forge/specs/007-core-services/)** ✅ Jobs + Search + Notifications
+- **[Spec 008 — Admin Interfaces](./.forge/specs/008-admin-interfaces/)** ✅ Super Admin + Tenant Admin
+- **[Spec 009 — Workspace Management](./.forge/specs/009-workspace-management/)** ✅ Complete
+- **[Spec 010 — Frontend Production Readiness](./.forge/specs/010-frontend-production-readiness/)** ✅ Complete
+- **[Spec 011 — Workspace Hierarchy & Templates](./.forge/specs/011-workspace-hierarchy-templates/)** ✅ Complete
+- **[Spec 012 — Plugin Observability](./.forge/specs/012-plugin-observability/)** 🟡 In progress
 
 ### Planning
 
@@ -327,16 +367,18 @@ GET    /api/tenants/:id/plugins                       # List tenant plugins
 
 ## 🧪 Testing
 
-**2,200+ tests** across all packages:
+**2,400+ tests** across all packages:
 
 | Package                 | Tests  | Coverage     |
 | ----------------------- | ------ | ------------ |
-| `apps/core-api`         | 1,855+ | ~77% lines   |
+| `apps/core-api`         | 1,900+ | ~76.5% lines |
 | `packages/i18n`         | 263    | ~95% average |
-| `apps/web` (Playwright) | 64 E2E | ~2.4% (⚠️)   |
+| `apps/web` (Vitest)     | 941+   | ~80%         |
+| `apps/web` (Playwright) | 64 E2E | —            |
+| `apps/super-admin`      | 267+   | ~85%         |
 | Other packages          | ~220+  | Varies       |
 
-Coverage targets: 80% overall, 85% for auth/tenant/workspace modules.
+Coverage targets: 80% overall, 85% for auth/tenant/workspace modules (Constitution Art. 4.1).
 
 ### Test Infrastructure
 
@@ -353,7 +395,7 @@ cd test-infrastructure
 
 ## 🚀 Deployment
 
-### Development
+### Deployment
 
 ```bash
 docker-compose up -d
@@ -364,7 +406,7 @@ pnpm dev
 
 - Container orchestration: Kubernetes (Helm charts)
 - CI/CD: GitHub Actions
-- Monitoring: Prometheus + Grafana
+- Monitoring: Prometheus + Grafana + Tempo + Loki (Spec 012 🟡)
 
 See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** for detailed instructions.
 
@@ -424,5 +466,5 @@ Built with:
 
 ---
 
-**Plexica v0.1.0** | Built with ❤️ by Plexica Engineering Team  
-_Last updated: February 19, 2026_
+**Plexica v0.11.0** | Built with ❤️ by Plexica Engineering Team  
+_Last updated: March 7, 2026_

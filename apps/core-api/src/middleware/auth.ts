@@ -508,7 +508,6 @@ export async function requireTenantAccess(
         message: 'Failed to verify tenant access',
         details: {
           tenantSlug: request.user.tenantSlug,
-          reason: err.message,
         },
       },
     });

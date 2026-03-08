@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { KeycloakService, KeycloakSanitizedError } from '../../../services/keycloak.service.js';
+import { config } from '../../../config/index.js';
 
 // ─── Module mocks ──────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ vi.mock('../../../lib/logger.js', () => ({
 
 vi.mock('../../../config/index.js', () => ({
   config: {
+    nodeEnv: 'test',
     keycloakUrl: 'http://localhost:8080',
     keycloakRealm: 'master',
     keycloakClientId: 'admin-cli',
@@ -287,6 +289,43 @@ describe('KeycloakService', () => {
         bruteForceProtected: true,
         accessTokenLifespan: 900,
       });
+    });
+
+    it('should set sslRequired to "none" in non-production environments', async () => {
+      // Arrange — nodeEnv is 'test' (set in the vi.mock factory above)
+      vi.mocked(svc.kcClient.realms.findOne).mockResolvedValue(undefined);
+      vi.mocked(svc.kcClient.realms.create).mockResolvedValue({ realmName: 'acme' } as never);
+
+      // Act
+      await svc.createRealm('acme', 'Acme Corp');
+
+      // Assert — sslRequired must be 'none' so the test Keycloak (HTTP) accepts code exchange
+      expect(vi.mocked(svc.kcClient.realms.create).mock.calls[0]![0]).toMatchObject({
+        sslRequired: 'none',
+      });
+    });
+
+    it('should set sslRequired to "external" in production', async () => {
+      // Arrange — temporarily switch nodeEnv to 'production'
+      const mutableConfig = config as { nodeEnv: string };
+      const originalNodeEnv = mutableConfig.nodeEnv;
+      mutableConfig.nodeEnv = 'production';
+
+      vi.mocked(svc.kcClient.realms.findOne).mockResolvedValue(undefined);
+      vi.mocked(svc.kcClient.realms.create).mockResolvedValue({ realmName: 'acme' } as never);
+
+      try {
+        // Act
+        await svc.createRealm('acme', 'Acme Corp');
+
+        // Assert — production realms must require HTTPS for external connections
+        expect(vi.mocked(svc.kcClient.realms.create).mock.calls[0]![0]).toMatchObject({
+          sslRequired: 'external',
+        });
+      } finally {
+        // Restore — always clean up so other tests are not affected
+        mutableConfig.nodeEnv = originalNodeEnv;
+      }
     });
   });
 

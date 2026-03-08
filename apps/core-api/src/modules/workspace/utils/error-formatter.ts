@@ -67,6 +67,8 @@ export enum WorkspaceErrorCode {
   HOOK_REJECTED_CREATION = 'HOOK_REJECTED_CREATION',
   /** 400 — Adding member would exceed workspace maxMembers setting */
   WORKSPACE_MEMBER_LIMIT_EXCEEDED = 'WORKSPACE_MEMBER_LIMIT_EXCEEDED',
+  /** 404 — Plugin not found in tenant_plugins (Spec 004 guard) */
+  PLUGIN_NOT_FOUND = 'PLUGIN_NOT_FOUND',
 }
 
 /**
@@ -96,6 +98,7 @@ const ERROR_STATUS_MAP: Record<WorkspaceErrorCode, number> = {
   [WorkspaceErrorCode.PLUGIN_NOT_TENANT_ENABLED]: 400,
   [WorkspaceErrorCode.HOOK_REJECTED_CREATION]: 400,
   [WorkspaceErrorCode.WORKSPACE_MEMBER_LIMIT_EXCEEDED]: 400,
+  [WorkspaceErrorCode.PLUGIN_NOT_FOUND]: 404,
 };
 
 /**
@@ -206,6 +209,7 @@ const ERROR_CODE_MAP: Record<string, WorkspaceErrorCode> = {
   SHARING_DISABLED: WorkspaceErrorCode.SHARING_DISABLED,
   RESOURCE_ALREADY_SHARED: WorkspaceErrorCode.RESOURCE_ALREADY_SHARED,
   RESOURCE_NOT_FOUND: WorkspaceErrorCode.WORKSPACE_NOT_FOUND,
+  PLUGIN_NOT_FOUND: WorkspaceErrorCode.PLUGIN_NOT_FOUND,
 };
 
 export function mapServiceError(error: unknown): WorkspaceError | null {

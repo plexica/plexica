@@ -7,14 +7,14 @@ services:
       POSTGRES_USER: plexica
       POSTGRES_PASSWORD: plexica_password
       POSTGRES_DB: plexica
-      POSTGRES_INITDB_ARGS: "-E UTF8"
+      POSTGRES_INITDB_ARGS: '-E UTF8'
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plexica"]
+      test: ['CMD-SHELL', 'pg_isready -U plexica']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,11 +27,11 @@ services:
     container_name: plexica-redis
     command: redis-server --appendonly yes --requirepass ""
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,20 +51,17 @@ services:
       KC_DB_SCHEMA: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HEALTH_ENABLED: "true"
-      KC_METRICS_ENABLED: "true"
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
     ports:
-      - "8080:8080"
-      - "9000:9000"
+      - '8080:8080'
+      - '9000:9000'
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          'sh -c "exec 3<>/dev/tcp/127.0.0.1/9000; echo -n" && echo OK || echo FAIL',
-        ]
+        ['CMD-SHELL', 'sh -c "exec 3<>/dev/tcp/127.0.0.1/9000; echo -n" && echo OK || echo FAIL']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -80,14 +77,14 @@ services:
       - redpanda
       - start
       - --smp
-      - "1"
+      - '1'
       - --memory
-      - "1G"
+      - '1G'
       - --reserve-memory
-      - "0M"
+      - '0M'
       - --overprovisioned
       - --node-id
-      - "0"
+      - '0'
       - --kafka-addr
       - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
       - --advertise-kafka-addr
@@ -103,14 +100,13 @@ services:
       - --seeds
       - redpanda-1:33145,redpanda-2:33146,redpanda-3:33147
     ports:
-      - "9092:9092"
-      - "8083:8083"
-      - "9644:9644"
+      - '9092:9092'
+      - '8083:8083'
+      - '9644:9644'
     volumes:
       - redpanda_1_data:/var/lib/redpanda/data
     healthcheck:
-      test:
-        ["CMD-SHELL", "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
+      test: ['CMD-SHELL', "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -125,14 +121,14 @@ services:
       - redpanda
       - start
       - --smp
-      - "1"
+      - '1'
       - --memory
-      - "1G"
+      - '1G'
       - --reserve-memory
-      - "0M"
+      - '0M'
       - --overprovisioned
       - --node-id
-      - "1"
+      - '1'
       - --kafka-addr
       - PLAINTEXT://0.0.0.0:29093,OUTSIDE://0.0.0.0:9093
       - --advertise-kafka-addr
@@ -148,14 +144,13 @@ services:
       - --seeds
       - redpanda-1:33145,redpanda-2:33146,redpanda-3:33147
     ports:
-      - "9093:9093"
-      - "8085:8085"
-      - "9645:9644"
+      - '9093:9093'
+      - '8085:8085'
+      - '9645:9644'
     volumes:
       - redpanda_2_data:/var/lib/redpanda/data
     healthcheck:
-      test:
-        ["CMD-SHELL", "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
+      test: ['CMD-SHELL', "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -172,14 +167,14 @@ services:
       - redpanda
       - start
       - --smp
-      - "1"
+      - '1'
       - --memory
-      - "1G"
+      - '1G'
       - --reserve-memory
-      - "0M"
+      - '0M'
       - --overprovisioned
       - --node-id
-      - "2"
+      - '2'
       - --kafka-addr
       - PLAINTEXT://0.0.0.0:29094,OUTSIDE://0.0.0.0:9094
       - --advertise-kafka-addr
@@ -195,14 +190,13 @@ services:
       - --seeds
       - redpanda-1:33145,redpanda-2:33146,redpanda-3:33147
     ports:
-      - "9094:9094"
-      - "8087:8087"
-      - "9646:9644"
+      - '9094:9094'
+      - '8087:8087'
+      - '9646:9644'
     volumes:
       - redpanda_3_data:/var/lib/redpanda/data
     healthcheck:
-      test:
-        ["CMD-SHELL", "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
+      test: ['CMD-SHELL', "rpk cluster health | grep 'Healthy:.*true' || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -218,10 +212,10 @@ services:
     container_name: plexica-redpanda-console
     environment:
       KAFKA_BROKERS: redpanda-1:29092,redpanda-2:29093,redpanda-3:29094
-      KAFKA_SCHEMAREGISTRY_ENABLED: "false"
-      CONNECT_ENABLED: "false"
+      KAFKA_SCHEMAREGISTRY_ENABLED: 'false'
+      CONNECT_ENABLED: 'false'
     ports:
-      - "8090:8080"
+      - '8090:8080'
     depends_on:
       - redpanda-1
       - redpanda-2
@@ -238,12 +232,12 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -265,6 +259,100 @@ services:
   #   networks:
   #     - plexica-network
 
+  prometheus:
+    image: prom/prometheus:v3.3.0
+    container_name: plexica-prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./infrastructure/observability/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    mem_limit: 512m
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:9090/-/healthy']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - plexica-network
+
+  tempo:
+    image: grafana/tempo:2.7.0
+    container_name: plexica-tempo
+    ports:
+      - '4317:4317' # OTLP gRPC
+      - '4318:4318' # OTLP HTTP
+      - '3200:3200' # Tempo HTTP
+    volumes:
+      - ./infrastructure/observability/tempo:/etc/tempo
+      - tempo_data:/var/tempo
+    command: ['-config.file=/etc/tempo/tempo.yml']
+    mem_limit: 256m
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3200/ready']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - plexica-network
+
+  loki:
+    image: grafana/loki:3.4.0
+    container_name: plexica-loki
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./infrastructure/observability/loki:/etc/loki
+      - loki_data:/loki
+    command: ['-config.file=/etc/loki/loki.yml']
+    mem_limit: 256m
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3100/ready']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - plexica-network
+
+  promtail:
+    image: grafana/promtail:3.4.0
+    container_name: plexica-promtail
+    volumes:
+      - ./infrastructure/observability/promtail:/etc/promtail
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ['-config.file=/etc/promtail/promtail.yml']
+    mem_limit: 128m
+    depends_on:
+      - loki
+    networks:
+      - plexica-network
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: plexica-grafana
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - ./infrastructure/observability/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    mem_limit: 256m
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - plexica-network
+
 volumes:
   postgres_data:
     driver: local
@@ -277,6 +365,14 @@ volumes:
   redpanda_3_data:
     driver: local
   minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  tempo_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
     driver: local
   # elasticsearch_data:
   #   driver: local

@@ -1,0 +1,73 @@
+groups:
+  - name: plugin_alerts
+    interval: 30s
+    rules:
+      # Plugin container is unreachable (health endpoint failing)
+      - alert: PluginDown
+        expr: up{job="plugins"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Plugin {{ $labels.instance }} is down'
+          description: 'Plugin container {{ $labels.instance }} has been unreachable for more than 1 minute.'
+
+      # Plugin HTTP error rate > 5%
+      - alert: PluginHighErrorRate
+        expr: |
+          sum by (plugin_id) (
+            rate(http_requests_total{job="plugins", status=~"5.."}[5m])
+          )
+          /
+          sum by (plugin_id) (
+            rate(http_requests_total{job="plugins"}[5m])
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'High error rate for plugin {{ $labels.plugin_id }}'
+          description: 'Plugin {{ $labels.plugin_id }} HTTP 5xx rate is {{ $value | humanizePercentage }} over the last 5 minutes.'
+
+      # Plugin P95 latency > 500ms (Constitution Art. 9.2 alert threshold)
+      - alert: PluginHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (plugin_id, le) (
+              rate(http_request_duration_seconds_bucket{job="plugins"}[5m])
+            )
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'High latency for plugin {{ $labels.plugin_id }}'
+          description: 'Plugin {{ $labels.plugin_id }} P95 latency is {{ $value | humanizeDuration }} (threshold: 500ms).'
+
+      # Core API P95 latency > 500ms
+      - alert: CoreApiHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (
+              rate(http_request_duration_seconds_bucket{job="core-api"}[5m])
+            )
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Core API P95 latency exceeds 500ms'
+          description: 'Core API P95 response time is {{ $value | humanizeDuration }} (threshold: 500ms).'
+
+      # Core API error rate > 1% (Constitution Art. 9.2)
+      - alert: CoreApiHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="core-api", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="core-api"}[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Core API error rate exceeds 1%'
+          description: 'Core API HTTP 5xx rate is {{ $value | humanizePercentage }} — immediate investigation required.'

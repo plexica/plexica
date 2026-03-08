@@ -57,21 +57,28 @@ export type SystemRoleName = (typeof SYSTEM_ROLES)[keyof typeof SYSTEM_ROLES];
 // System role → permission mappings (used when seeding a new tenant schema)
 // ---------------------------------------------------------------------------
 
-export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleName, CorePermissionKey[]> = {
-  [SYSTEM_ROLES.SUPER_ADMIN]: [
-    CORE_PERMISSIONS.USERS_READ,
-    CORE_PERMISSIONS.USERS_WRITE,
-    CORE_PERMISSIONS.ROLES_READ,
-    CORE_PERMISSIONS.ROLES_WRITE,
-    CORE_PERMISSIONS.POLICIES_READ,
-    CORE_PERMISSIONS.POLICIES_WRITE,
-    CORE_PERMISSIONS.WORKSPACES_READ,
-    CORE_PERMISSIONS.WORKSPACES_WRITE,
-    CORE_PERMISSIONS.SETTINGS_READ,
-    CORE_PERMISSIONS.SETTINGS_WRITE,
-    CORE_PERMISSIONS.PLUGINS_READ,
-    CORE_PERMISSIONS.PLUGINS_WRITE,
-  ],
+/**
+ * Sentinel value stored in the DB / cache for super_admin permissions.
+ * The permission evaluation engine treats this as "allow all" (FR-016).
+ */
+export const SUPER_ADMIN_WILDCARD = '*:*' as const;
+
+/**
+ * SYSTEM_ROLE_PERMISSIONS maps each system role to its seeded permission list.
+ *
+ * `super_admin` uses the wildcard sentinel `'*:*'` (FR-016) so the evaluator
+ * grants access to every permission without enumerating them.  All other roles
+ * use explicit `CorePermissionKey[]` values.
+ *
+ * The union type `CorePermissionKey[] | [typeof SUPER_ADMIN_WILDCARD]` preserves
+ * compile-time validation: non-super_admin roles must use known permission keys,
+ * and the super_admin entry is constrained to exactly the wildcard tuple (C-004).
+ */
+export const SYSTEM_ROLE_PERMISSIONS: Record<
+  SystemRoleName,
+  CorePermissionKey[] | [typeof SUPER_ADMIN_WILDCARD]
+> = {
+  [SYSTEM_ROLES.SUPER_ADMIN]: [SUPER_ADMIN_WILDCARD],
   [SYSTEM_ROLES.TENANT_ADMIN]: [
     CORE_PERMISSIONS.USERS_READ,
     CORE_PERMISSIONS.USERS_WRITE,
@@ -99,7 +106,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<SystemRoleName, CorePermissionKey[]
     CORE_PERMISSIONS.WORKSPACES_READ,
     CORE_PERMISSIONS.PLUGINS_READ,
   ],
-} as const;
+};
 
 // ---------------------------------------------------------------------------
 // Redis cache key templates (Appendix B)
@@ -146,9 +153,6 @@ export const CACHE_BASE_TTL = 300 as const;
 
 /** Maximum jitter added/subtracted from base TTL to avoid stampede (seconds) */
 export const CACHE_JITTER = 30 as const;
-
-/** Safety fallback TTL if EXPIRE fails — ensures no stale data persists forever */
-export const CACHE_SAFETY_TTL = 900 as const;
 
 /** Debounce window for role-level cache invalidation (milliseconds, NFR-010) */
 export const CACHE_INVALIDATION_DEBOUNCE_MS = 500 as const;

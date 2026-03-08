@@ -14,7 +14,7 @@
 // Pattern: buildTestApp() + app.inject() + mock tokens (workspace-crud pattern)
 // Constitution Art. 6.2: error responses are { error: { code, message } }
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp } from '../../../test-app.js';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper.js';
@@ -26,8 +26,6 @@ describe('Jobs Routes Integration', () => {
   let memberToken: string;
   let testTenantSlug: string;
   let tenantId: string;
-  /** Track job IDs created so we can assert state transitions */
-  const createdJobIds: string[] = [];
 
   beforeAll(async () => {
     await testContext.resetAll();
@@ -71,6 +69,12 @@ describe('Jobs Routes Integration', () => {
     _resetJobQueueSingletonForTests();
   });
 
+  // TD-010: Reset singleton after each test to prevent stale singleton state from
+  // bleeding between tests within this file (defense-in-depth alongside the afterAll reset).
+  afterEach(() => {
+    _resetJobQueueSingletonForTests();
+  });
+
   // -------------------------------------------------------------------------
   // POST /api/v1/jobs — enqueue one-time job
   // -------------------------------------------------------------------------
@@ -94,7 +98,6 @@ describe('Jobs Routes Integration', () => {
       const json = res.json();
       expect(json).toHaveProperty('jobId');
       expect(typeof json.jobId).toBe('string');
-      createdJobIds.push(json.jobId);
     });
 
     it('should return 403 when called by a member', async () => {
@@ -192,7 +195,6 @@ describe('Jobs Routes Integration', () => {
       expect(res.statusCode).toBe(201);
       const json = res.json();
       expect(json).toHaveProperty('jobId');
-      createdJobIds.push(json.jobId);
     });
 
     it('should return 400 when cronExpression is missing', async () => {
@@ -234,7 +236,6 @@ describe('Jobs Routes Integration', () => {
       });
       expect(enqRes.statusCode).toBe(201);
       const { jobId } = enqRes.json();
-      createdJobIds.push(jobId);
 
       const res = await app.inject({
         method: 'GET',

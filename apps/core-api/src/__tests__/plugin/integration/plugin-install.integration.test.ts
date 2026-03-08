@@ -212,7 +212,7 @@ describe('Plugin Installation Integration Tests', () => {
 
       expect(response.statusCode).toBe(400);
       const error = response.json();
-      expect(error.error).toContain('already installed');
+      expect(error.error.message).toContain('already installed');
     });
 
     it('should install plugin with default configuration', async () => {

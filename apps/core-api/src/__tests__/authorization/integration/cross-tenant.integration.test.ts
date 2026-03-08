@@ -263,8 +263,8 @@ describe('Authorization — Cross-Tenant Isolation Integration', () => {
         },
       });
 
-      // Must be rejected — not 200
-      expect([401, 403]).toContain(res.statusCode);
+      // Must be rejected — cross-tenant guard returns 403 (auth.ts line 63)
+      expect(res.statusCode).toBe(403);
     });
 
     it('token issued for tenant B is rejected when using tenant A slug header', async () => {
@@ -277,7 +277,7 @@ describe('Authorization — Cross-Tenant Isolation Integration', () => {
         },
       });
 
-      expect([401, 403]).toContain(res.statusCode);
+      expect(res.statusCode).toBe(403);
     });
   });
 

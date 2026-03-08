@@ -1,0 +1,124 @@
+# Sprint 008 — Closed
+# Created: 2026-03-07
+# Closed: 2026-03-28
+# Managed by forge-scrum
+# Covers: Spec 012 Plugin Observability — Phase 3 completion (T012-21..T012-26 + T012-46)
+
+version: 1
+sprint_number: 8
+status: closed
+sprint_goal: >
+  Complete the backend observability API layer: implement the remaining five
+  ObservabilityService methods (queryPluginMetrics, getActiveAlerts,
+  getAlertHistory, searchTraces, getTrace, getPluginLogs), register all
+  seven observability endpoints under /api/v1/observability, and add
+  OpenAPI documentation for all eight new endpoints — leaving the backend
+  fully ready for frontend integration in Sprint 009.
+start_date: '2026-03-10'
+end_date: '2026-03-28'
+closed_date: '2026-03-28'
+velocity_target: 24
+
+spec: '.forge/specs/012-plugin-observability/spec.md'
+tasks: '.forge/specs/012-plugin-observability/tasks.md'
+plan: '.forge/specs/012-plugin-observability/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-026-otel-direct-tempo-export.md'
+  - '.forge/knowledge/adr/adr-027-prom-client-core-metrics.md'
+  - '.forge/knowledge/adr/adr-028-log-ingestion-promtail-loki.md'
+  - '.forge/knowledge/adr/adr-029-chart-library-recharts.md'
+  - '.forge/knowledge/adr/adr-030-plugin-metrics-prometheus-format.md'
+
+stories:
+  - id: 'T012-21'
+    title: 'Implement ObservabilityService.queryPluginMetrics() — PromQL range query with plugin label injection, allowlist validation, 30-day range cap'
+    phase: 3
+    week: 1
+    points: 5
+    status: done
+    parallel: true
+    dependencies: ['T012-02']
+    tags: ['[FR-028]', 'service', 'observability', 'prometheus', 'promql', 'security']
+
+  - id: 'T012-22'
+    title: 'Implement ObservabilityService.getActiveAlerts() and getAlertHistory() — Prometheus alerts API, severity filter, 7-day history, pagination'
+    phase: 3
+    week: 1
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T012-11']
+    tags: ['[FR-022]', '[FR-023]', 'service', 'observability', 'prometheus', 'alerting']
+
+  - id: 'T012-23'
+    title: 'Implement ObservabilityService.searchTraces() and getTrace() — Tempo HTTP search/detail API, nested span tree transformation'
+    phase: 3
+    week: 1
+    points: 5
+    status: done
+    parallel: true
+    dependencies: ['T012-03']
+    tags: ['[FR-030]', '[FR-031]', 'service', 'observability', 'tempo', 'tracing']
+
+  - id: 'T012-24'
+    title: 'Implement ObservabilityService.getPluginLogs() — Loki range query, LogQL allowlist validation, 24-hour range cap, log entry mapping'
+    phase: 3
+    week: 1
+    points: 3
+    status: done
+    parallel: true
+    dependencies: ['T012-04']
+    tags: ['[FR-018]', 'service', 'observability', 'loki', 'logs']
+
+  - id: 'T012-25'
+    title: 'Create observability-v1.ts — register all 7 observability endpoints under /api/v1/observability with super_admin auth, Zod validation, error mapping'
+    phase: 3
+    week: 2
+    points: 5
+    status: done
+    parallel: false
+    dependencies: ['T012-19', 'T012-20', 'T012-21', 'T012-22', 'T012-23', 'T012-24']
+    tags: ['[FR-024]', '[FR-036]', '[FR-037]', 'api', 'routes', 'fastify', 'auth']
+
+  - id: 'T012-26'
+    title: 'Register observabilityRoutes in index.ts — wire /api/v1/observability prefix into Fastify app after auth middleware'
+    phase: 3
+    week: 2
+    points: 1
+    status: done
+    parallel: true
+    dependencies: ['T012-25']
+    tags: ['[FR-024]', 'wiring', 'index', 'fastify']
+
+  - id: 'T012-46'
+    title: 'Add OpenAPI/Swagger schema definitions for all 8 new endpoints (GET /metrics + 7 /api/v1/observability/* routes) — Constitution Art. 3.4.5'
+    phase: 3
+    week: 2
+    points: 2
+    status: done
+    parallel: true
+    dependencies: ['T012-25']
+    tags: ['[Art.3.4.5]', 'openapi', 'swagger', 'documentation', 'schemas']
+
+totals:
+  phase_3_completion_points: 24
+  total_tasks: 7
+  total_points: 24
+  done_points: 24
+  remaining_points: 0
+
+velocity:
+  previous_sprints:
+    - sprint: 7
+      completed_points: 61
+      total_points: 61
+      completion_rate: '100%'
+      notes: 'Spec 012 Phase 1+2 + T012-18/19/20'
+    - sprint: 6
+      completed_points: 92
+      total_points: 92
+      completion_rate: '100%'
+      notes: 'Spec 004 Plugin System — all 37 tasks done'
+  average_velocity_5sprint: 33
+
+carried_over: []

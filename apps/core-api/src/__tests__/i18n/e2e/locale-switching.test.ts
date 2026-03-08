@@ -290,8 +290,8 @@ describe('Locale Switching E2E', () => {
       // Verify structure of locale info objects
       const enLocale = body.locales.find((l: any) => l.code === 'en');
       expect(enLocale).toBeDefined();
-      expect(enLocale.displayName).toBe('English');
-      expect(enLocale.isRTL).toBe(false);
+      expect(enLocale.name).toBe('English');
+      expect(typeof enLocale.nativeName).toBe('string');
     });
 
     it('should use available locales for fallback logic', async () => {

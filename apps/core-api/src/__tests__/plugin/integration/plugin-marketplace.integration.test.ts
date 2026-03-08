@@ -15,6 +15,7 @@ describe('Plugin Marketplace Integration Tests', () => {
   let app: FastifyInstance;
   let superAdminToken: string;
   let regularUserToken: string;
+  let demoUserToken: string;
 
   beforeAll(async () => {
     // Reset test environment
@@ -27,6 +28,7 @@ describe('Plugin Marketplace Integration Tests', () => {
     // Use mock tokens for integration tests (faster and more reliable than real Keycloak tokens)
     superAdminToken = testContext.auth.createMockSuperAdminToken();
     regularUserToken = testContext.auth.createMockTenantAdminToken('acme');
+    demoUserToken = testContext.auth.createMockTenantAdminToken('demo');
 
     // Create test tenants (tenant provisioning includes Keycloak realm + DB schema)
     const acmeResp = await app.inject({
@@ -196,7 +198,7 @@ describe('Plugin Marketplace Integration Tests', () => {
         payload: pluginManifest,
       });
       expect(secondResp.statusCode).toBe(400);
-      expect(secondResp.json().error).toContain('already registered');
+      expect(secondResp.json().error.message).toContain('already registered');
     });
 
     it('should reject invalid plugin manifest', async () => {
@@ -621,7 +623,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       });
 
       expect(response.statusCode).toBe(400);
-      expect(response.json().error).toContain('Cannot delete plugin');
+      expect(response.json().error.message).toContain('Cannot delete plugin');
     });
   });
 
@@ -667,7 +669,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       await app.inject({
         method: 'POST',
         url: `/api/tenants/${demoTenant!.id}/plugins/${statsPluginId}/install`,
-        headers: { authorization: `Bearer ${regularUserToken}` },
+        headers: { authorization: `Bearer ${demoUserToken}` },
         payload: { configuration: {} },
       });
 
@@ -675,16 +677,16 @@ describe('Plugin Marketplace Integration Tests', () => {
       await app.inject({
         method: 'POST',
         url: `/api/tenants/${demoTenant!.id}/plugins/${statsPluginId}/activate`,
-        headers: { authorization: `Bearer ${regularUserToken}` },
+        headers: { authorization: `Bearer ${demoUserToken}` },
       });
     });
 
-    it.skip('should return plugin installation statistics', async () => {
+    it('should return plugin installation statistics', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/plugins/${statsPluginId}/stats`,
         headers: {
-          authorization: `Bearer ${regularUserToken}`,
+          authorization: `Bearer ${superAdminToken}`,
         },
       });
 

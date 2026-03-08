@@ -30,9 +30,9 @@ import {
 import type { CreateWorkspaceDto } from '../modules/workspace/dto/create-workspace.dto.js';
 import type { UpdateWorkspaceDto } from '../modules/workspace/dto/update-workspace.dto.js';
 import {
-  validateWorkspaceSettingsUpdate,
+  validatePatchWorkspaceSettings,
   updateSettingsBodyJsonSchema,
-  type WorkspaceSettingsUpdate,
+  type PatchWorkspaceSettings,
 } from '../modules/workspace/schemas/workspace-settings.schema.js';
 import type { AddMemberDto } from '../modules/workspace/dto/add-member.dto.js';
 import type { UpdateMemberRoleDto } from '../modules/workspace/dto/update-member-role.dto.js';
@@ -291,8 +291,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
-      preHandler: [authMiddleware, tenantContextMiddleware],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE),
+      ],
     },
     async (request, reply) => {
       // Check for Fastify schema validation errors
@@ -415,8 +418,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+      ],
     },
     async (request, reply) => {
       const userId = request.user?.id;
@@ -481,8 +487,11 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware],
+      preHandler: [
+        authMiddleware,
+        tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+      ],
     },
     async (request, reply) => {
       const userId = request.user?.id;
@@ -558,8 +567,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       try {
@@ -609,10 +622,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -676,10 +689,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -747,8 +760,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       const { workspaceId } = request.params;
@@ -833,8 +850,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           'Returns all members of a workspace with their roles, supporting filtering and pagination',
         response: {},
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       try {
@@ -887,8 +908,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       try {
@@ -944,10 +969,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1019,10 +1044,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         description: 'Changes the role of a workspace member. Requires ADMIN role.',
         response: {},
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1089,10 +1114,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1156,10 +1181,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1214,8 +1239,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         description: 'Returns all teams in the workspace',
         response: {},
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       try {
@@ -1278,8 +1307,8 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         authMiddleware,
         tenantContextMiddleware,
         workspaceGuard,
@@ -1340,12 +1369,9 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           properties: {
             resourceType: {
               type: 'string',
-              minLength: 1,
-              maxLength: 100,
-              pattern: '^[a-z0-9][a-z0-9\\-_]*[a-z0-9]$',
-              description:
-                'Type of resource to share (e.g., "plugin", "template", "dataset"). Lowercase alphanumeric with hyphens/underscores.',
-              examples: ['plugin', 'template', 'dataset', 'custom-resource'],
+              enum: ['plugin', 'template', 'dataset'],
+              description: 'Type of resource to share (plugin, template, or dataset).',
+              examples: ['plugin'],
             },
             resourceId: {
               type: 'string',
@@ -1374,10 +1400,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1503,8 +1529,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       try {
@@ -1547,10 +1577,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.RESOURCE_SHARING),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1624,10 +1654,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1711,8 +1741,12 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ)],
-      preHandler: [authMiddleware, tenantContextMiddleware, workspaceGuard],
+      preHandler: [
+        rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_READ),
+        authMiddleware,
+        tenantContextMiddleware,
+        workspaceGuard,
+      ],
     },
     async (request, reply) => {
       const { workspaceId } = request.params;
@@ -1786,10 +1820,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1867,10 +1901,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
           204: { description: 'Plugin disabled successfully', type: 'null' },
         },
       },
-      onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       preHandler: [
         authMiddleware,
         tenantContextMiddleware,
+        rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT),
         workspaceGuard,
         workspaceRoleGuard(['ADMIN']),
       ],
@@ -1894,7 +1928,7 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
   // ────────────────────────────────────────────────────────────────
   fastify.patch<{
     Params: { workspaceId: string };
-    Body: WorkspaceSettingsUpdate;
+    Body: PatchWorkspaceSettings;
   }>(
     '/workspaces/:workspaceId/settings',
     {
@@ -1935,8 +1969,10 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { workspaceId } = request.params;
 
-      // Zod layer validation (strict — rejects unknown keys, enforces types)
-      const validation = validateWorkspaceSettingsUpdate(request.body);
+      // Zod layer validation via PatchWorkspaceSettingsSchema — only keys
+      // explicitly sent by the caller are present in the parsed result.
+      // No defaults are injected for omitted fields (TD-015 fix).
+      const validation = validatePatchWorkspaceSettings(request.body);
       if (!validation.valid) {
         return reply.status(400).send({
           error: {
@@ -1947,23 +1983,13 @@ export async function workspaceRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Only write keys the user explicitly sent — not Zod-injected defaults.
-      // WorkspaceSettingsUpdateSchema.partial() applies defaults for every field
-      // even when the caller omits them, so we intersect the validated result with
-      // the raw request body keys to get a true partial update.
-      const sentKeys = Object.keys(request.body) as Array<keyof WorkspaceSettingsUpdate>;
-      const partialUpdate = sentKeys.reduce<WorkspaceSettingsUpdate>((acc, key) => {
-        (acc as Record<string, unknown>)[key] = validation.settings![key];
-        return acc;
-      }, {});
-
       try {
         const settings = await workspaceService.updateSettings(
           workspaceId,
-          partialUpdate,
+          validation.settings!,
           request.tenant!
         );
-        return reply.send({ ...settings, updatedAt: new Date().toISOString() });
+        return reply.send({ ...settings, updatedAt: settings.updatedAt.toISOString() });
       } catch (error) {
         handleServiceError(error, reply);
       }

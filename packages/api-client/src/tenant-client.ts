@@ -268,16 +268,18 @@ export class TenantApiClient extends HttpClient {
   async patchWorkspaceSettings(
     workspaceId: string,
     settings: {
-      defaultTeamRole?: 'ADMIN' | 'MEMBER';
+      defaultMemberRole?: 'ADMIN' | 'MEMBER' | 'VIEWER';
       allowCrossWorkspaceSharing?: boolean;
       maxMembers?: number;
-      isDiscoverable?: boolean;
+      isPublic?: boolean;
+      notificationsEnabled?: boolean;
     }
   ): Promise<{
-    defaultTeamRole: 'ADMIN' | 'MEMBER';
+    defaultMemberRole: 'ADMIN' | 'MEMBER' | 'VIEWER';
     allowCrossWorkspaceSharing: boolean;
     maxMembers: number;
-    isDiscoverable: boolean;
+    isPublic: boolean;
+    notificationsEnabled: boolean;
   }> {
     return this.patch(`/api/v1/workspaces/${workspaceId}/settings`, settings);
   }

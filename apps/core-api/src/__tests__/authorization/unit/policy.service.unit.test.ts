@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockDb = vi.hoisted(() => ({
+  $queryRaw: vi.fn(),
   $queryRawUnsafe: vi.fn(),
   $executeRawUnsafe: vi.fn(),
 }));
@@ -164,7 +165,7 @@ describe('PolicyService', () => {
 
   describe('listPolicies', () => {
     it('should return empty page with featureEnabled=false when ABAC is disabled', async () => {
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: null }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: null }]);
 
       const result = await service.listPolicies(TENANT_ID, SCHEMA_NAME);
 
@@ -176,8 +177,8 @@ describe('PolicyService', () => {
     it('should return policies when ABAC is enabled', async () => {
       const row = makePolicy();
       // First call: abac feature flag check
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
       mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
         // COUNT query
         .mockResolvedValueOnce([{ total: '1' }])
         // SELECT query
@@ -197,7 +198,7 @@ describe('PolicyService', () => {
     });
 
     it('should return featureEnabled=false when isAbacEnabled throws', async () => {
-      mockDb.$queryRawUnsafe.mockRejectedValueOnce(new Error('DB down'));
+      mockDb.$queryRaw.mockRejectedValueOnce(new Error('DB down'));
 
       const result = await service.listPolicies(TENANT_ID, SCHEMA_NAME);
       expect(result.meta.featureEnabled).toBe(false);
@@ -247,7 +248,7 @@ describe('PolicyService', () => {
     };
 
     it('should throw FeatureNotAvailableError when ABAC is disabled', async () => {
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: null }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: null }]);
 
       await expect(service.createPolicy(TENANT_ID, SCHEMA_NAME, dto)).rejects.toThrow(
         FeatureNotAvailableError
@@ -255,7 +256,7 @@ describe('PolicyService', () => {
     });
 
     it('should throw ConditionTreeInvalidError for an oversized condition tree', async () => {
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
       const hugeDto = {
         ...dto,
         conditions: { attribute: 'a', operator: 'equals' as const, value: 'x'.repeat(70_000) },
@@ -268,7 +269,7 @@ describe('PolicyService', () => {
 
     it('should throw PolicyNameConflictError when name already exists', async () => {
       // abac enabled
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
       // name check: conflict found
       mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ id: 'existing-id' }]);
 
@@ -280,7 +281,7 @@ describe('PolicyService', () => {
     it('should create and return the policy on success', async () => {
       const row = makePolicy();
       // abac enabled
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
       // name check: no conflict
       mockDb.$queryRawUnsafe.mockResolvedValueOnce([]);
       // insert returning
@@ -303,7 +304,7 @@ describe('PolicyService', () => {
 
   describe('updatePolicy', () => {
     it('should throw FeatureNotAvailableError when ABAC is disabled', async () => {
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: null }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: null }]);
 
       await expect(
         service.updatePolicy(TENANT_ID, SCHEMA_NAME, POLICY_ID, { name: 'x' })
@@ -311,9 +312,8 @@ describe('PolicyService', () => {
     });
 
     it('should throw PolicySourceImmutableError for core-source policy', async () => {
-      mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
-        .mockResolvedValueOnce([makePolicy({ source: 'core' })]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRawUnsafe.mockResolvedValueOnce([makePolicy({ source: 'core' })]);
 
       await expect(
         service.updatePolicy(TENANT_ID, SCHEMA_NAME, POLICY_ID, { name: 'x' })
@@ -321,9 +321,8 @@ describe('PolicyService', () => {
     });
 
     it('should throw PolicySourceImmutableError for plugin-source policy', async () => {
-      mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
-        .mockResolvedValueOnce([makePolicy({ source: 'plugin' })]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRawUnsafe.mockResolvedValueOnce([makePolicy({ source: 'plugin' })]);
 
       await expect(
         service.updatePolicy(TENANT_ID, SCHEMA_NAME, POLICY_ID, { name: 'new' })
@@ -331,8 +330,8 @@ describe('PolicyService', () => {
     });
 
     it('should throw PolicyNameConflictError when new name conflicts', async () => {
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
       mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
         // getPolicy (existing)
         .mockResolvedValueOnce([makePolicy({ name: 'old-name' })])
         // name conflict check
@@ -344,9 +343,8 @@ describe('PolicyService', () => {
     });
 
     it('should throw ConditionTreeInvalidError when new conditions are invalid', async () => {
-      mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
-        .mockResolvedValueOnce([makePolicy()]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRawUnsafe.mockResolvedValueOnce([makePolicy()]);
 
       const badConditions = {
         attribute: 'a',
@@ -360,8 +358,8 @@ describe('PolicyService', () => {
 
     it('should update and return the policy on success', async () => {
       const updated = makePolicy({ name: 'Updated' });
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
       mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
         // getPolicy (existing)
         .mockResolvedValueOnce([makePolicy()])
         // no name check (name unchanged)
@@ -385,7 +383,7 @@ describe('PolicyService', () => {
 
   describe('deletePolicy', () => {
     it('should throw FeatureNotAvailableError when ABAC is disabled', async () => {
-      mockDb.$queryRawUnsafe.mockResolvedValueOnce([{ abac_enabled: null }]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: null }]);
 
       await expect(service.deletePolicy(TENANT_ID, SCHEMA_NAME, POLICY_ID)).rejects.toThrow(
         FeatureNotAvailableError
@@ -393,9 +391,8 @@ describe('PolicyService', () => {
     });
 
     it('should throw PolicySourceImmutableError for core-source policy', async () => {
-      mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
-        .mockResolvedValueOnce([makePolicy({ source: 'core' })]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRawUnsafe.mockResolvedValueOnce([makePolicy({ source: 'core' })]);
 
       await expect(service.deletePolicy(TENANT_ID, SCHEMA_NAME, POLICY_ID)).rejects.toThrow(
         PolicySourceImmutableError
@@ -403,9 +400,8 @@ describe('PolicyService', () => {
     });
 
     it('should delete the policy on success', async () => {
-      mockDb.$queryRawUnsafe
-        .mockResolvedValueOnce([{ abac_enabled: 'true' }])
-        .mockResolvedValueOnce([makePolicy()]);
+      mockDb.$queryRaw.mockResolvedValueOnce([{ abac_enabled: 'true' }]);
+      mockDb.$queryRawUnsafe.mockResolvedValueOnce([makePolicy()]);
       mockDb.$executeRawUnsafe.mockResolvedValueOnce(1);
 
       await expect(

@@ -243,7 +243,7 @@ export class KeycloakService {
         realm: tenantSlug,
         displayName: tenantName,
         enabled: true,
-        sslRequired: 'external',
+        sslRequired: config.nodeEnv === 'production' ? 'external' : 'none',
         registrationAllowed: false,
         loginWithEmailAllowed: true,
         duplicateEmailsAllowed: false,

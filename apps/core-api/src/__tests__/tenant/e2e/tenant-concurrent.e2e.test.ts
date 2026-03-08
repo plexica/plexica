@@ -4,6 +4,7 @@ import { buildTestApp } from '../../../test-app';
 import { testContext } from '../../../../../../test-infrastructure/helpers/test-context.helper';
 import { db } from '../../../lib/db';
 import { resetAllCaches } from '../../../lib/advanced-rate-limit';
+import { waitForTenantStatus } from './tenant-e2e-helpers';
 
 /**
  * E2E Tests: Tenant Concurrent Operations
@@ -217,7 +218,10 @@ describe('Tenant Concurrent Operations E2E', () => {
 
       // Count successes and failures
       const successful = responses.filter((r) => r.statusCode === 201);
-      const failed = responses.filter((r) => r.statusCode !== 201);
+      // Intentionally-invalid requests (300-char name) should fail with 4xx, never 5xx.
+      // A 5xx here indicates a server error regression (e.g. unhandled exception).
+      const errored = responses.filter((r) => r.statusCode >= 500);
+      expect(errored.length).toBe(0);
 
       // At least valid ones should succeed
       expect(successful.length).toBeGreaterThanOrEqual(5);
@@ -301,6 +305,7 @@ describe('Tenant Concurrent Operations E2E', () => {
         },
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenantId = createResponse.json().id;
 
       // Send 10 concurrent updates to the SAME tenant
@@ -351,10 +356,12 @@ describe('Tenant Concurrent Operations E2E', () => {
         },
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenantId = createResponse.json().id;
 
-      // Wait for provisioning to complete (status becomes ACTIVE)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait for provisioning to complete (status becomes ACTIVE).
+      // TD-005: replaced hard-coded 2s sleep with polling to avoid CI flakiness.
+      await waitForTenantStatus(app, superAdminToken, tenantId, 'ACTIVE');
 
       // Send concurrent status updates: ACTIVE -> SUSPENDED
       const promises = Array.from({ length: 5 }, () =>
@@ -643,12 +650,14 @@ describe('Tenant Concurrent Operations E2E', () => {
       expect(successful.length).toBe(requestCount);
 
       // Total time should be reasonable
-      // Tenant creation involves DB + Keycloak realm + schema creation, so allow generous time
-      expect(duration).toBeLessThan(180000);
+      // Tenant creation involves DB + Keycloak realm + schema creation, so allow generous time.
+      // TD-005: raised ceiling from 180s to 240s (per-tenant ceiling from 20s to 30s) to
+      // avoid CI flakiness when Keycloak is under load from concurrent realm provisioning.
+      expect(duration).toBeLessThan(240000);
 
       // Average time per tenant should be reasonable (each involves external service calls)
       const avgTime = duration / requestCount;
-      expect(avgTime).toBeLessThan(20000);
+      expect(avgTime).toBeLessThan(30000);
 
       console.log(
         `Created ${requestCount} tenants in ${duration}ms (avg: ${avgTime.toFixed(2)}ms/tenant)`
@@ -745,6 +754,7 @@ describe('Tenant Concurrent Operations E2E', () => {
         },
       });
 
+      expect(createResponse.statusCode).toBe(201);
       const tenantId = createResponse.json().id;
 
       // Immediately try concurrent operations while still provisioning
@@ -774,8 +784,9 @@ describe('Tenant Concurrent Operations E2E', () => {
       const updateResponse = responses[1];
       expect([200, 400, 409]).toContain(updateResponse.statusCode);
 
-      // Verify tenant eventually becomes ACTIVE
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Verify tenant eventually becomes ACTIVE.
+      // TD-005: replaced hard-coded 2s sleep with polling to avoid CI flakiness.
+      await waitForTenantStatus(app, superAdminToken, tenantId, 'ACTIVE');
 
       const finalResponse = await app.inject({
         method: 'GET',

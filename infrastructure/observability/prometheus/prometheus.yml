@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - 'rules/*.yml'
+
+scrape_configs:
+  - job_name: 'core-api'
+    static_configs:
+      - targets: ['core-api:3001']
+    metrics_path: '/metrics'
+    authorization:
+      credentials: '${PROMETHEUS_BEARER_TOKEN}'
+
+  - job_name: 'plugins'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/plugins.json'
+        refresh_interval: 30s
+    sample_limit: 5000

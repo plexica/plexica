@@ -256,7 +256,7 @@ describe('Plugin Installation E2E Tests', () => {
         payload: { configuration: {} },
       });
       expect(installResp.statusCode).toBe(400);
-      expect(installResp.json().error).toContain('configuration');
+      expect(installResp.json().error.message).toContain('configuration');
     });
   });
 

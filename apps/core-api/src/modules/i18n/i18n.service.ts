@@ -33,6 +33,7 @@ import { Prisma } from '@plexica/database';
 const TRANSLATIONS_DIR = path.join(process.cwd(), 'translations');
 const MAX_FILE_SIZE = 200 * 1024; // 200KB per FR-012
 const DEFAULT_LOCALE = 'en';
+const CORE_NAMESPACES = new Set(['core', 'admin']); // Namespaces always accessible without plugin check
 
 // Error codes
 const ERROR_CODES = {
@@ -88,6 +89,32 @@ export class TranslationService {
       throw new Error(`${ERROR_CODES.NAMESPACE_NOT_FOUND}: Invalid namespace format`);
     }
 
+    // W5: Hoist a single tenant query that selects both id and translationOverrides
+    // so the two previously-separate db.tenant.findUnique() calls (one for the
+    // plugin-namespace check and one for override merging) are replaced by one.
+    // This halves the number of DB round-trips for any tenant-scoped request.
+    let tenantRecord: {
+      id: string;
+      translationOverrides: import('@plexica/database').Prisma.JsonValue;
+    } | null = null;
+
+    if (tenantSlug) {
+      tenantRecord = await db.tenant.findUnique({
+        where: { slug: tenantSlug },
+        select: { id: true, translationOverrides: true },
+      });
+    }
+
+    // H-004: If namespace is not a core/admin namespace, verify it belongs to an enabled plugin
+    if (!CORE_NAMESPACES.has(namespace) && tenantRecord) {
+      const enabledNamespaces = await this.getEnabledNamespaces(tenantRecord.id);
+      if (!enabledNamespaces.includes(namespace)) {
+        throw new Error(
+          `${ERROR_CODES.NAMESPACE_NOT_FOUND}: Namespace '${namespace}' is not available (plugin may be disabled)`
+        );
+      }
+    }
+
     // Load base translations from file
     let messages: Record<string, string>;
     try {
@@ -124,13 +151,13 @@ export class TranslationService {
     }
 
     // Generate content hash for cache-busting (FR-010)
-    const contentHash = generateContentHash(messages);
+    const hash = generateContentHash(messages);
 
     return {
       locale,
       namespace,
       messages,
-      contentHash,
+      hash,
     };
   }
 
@@ -187,6 +214,8 @@ export class TranslationService {
     const namespaces: string[] = ['core']; // Core namespace always available
 
     for (const installation of enabledPlugins) {
+      // manifest is stored as Prisma.JsonValue; Zod-validated at plugin registration so the shape is
+      // guaranteed. Double-cast is required to cross the opaque Prisma.JsonValue boundary.
       const manifest = installation.plugin.manifest as unknown as PluginManifest;
       if (manifest.translations?.namespaces) {
         namespaces.push(...manifest.translations.namespaces);
@@ -308,7 +337,7 @@ export class TranslationService {
    */
   async getContentHash(locale: string, namespace: string, tenantSlug?: string): Promise<string> {
     const bundle = await this.getTranslations(locale, namespace, tenantSlug);
-    return bundle.contentHash;
+    return bundle.hash;
   }
 
   /**
@@ -334,11 +363,22 @@ export class TranslationService {
             continue; // Skip invalid locale directories
           }
 
-          // Get locale display names (basic implementation - could be enhanced with Intl.DisplayNames)
+          // Count namespaces (JSON files) in this locale directory
+          let namespaceCount = 0;
+          try {
+            const nsEntries = await fs.readdir(path.join(TRANSLATIONS_DIR, localeCode), {
+              withFileTypes: true,
+            });
+            namespaceCount = nsEntries.filter((e) => e.isFile() && e.name.endsWith('.json')).length;
+          } catch {
+            // Directory read failed — count stays 0
+          }
+
           locales.push({
             code: localeCode,
-            displayName: this.getLocaleDisplayName(localeCode),
-            isRTL: this.isRTLLocale(localeCode),
+            name: this.getLocaleDisplayName(localeCode),
+            nativeName: this.getLocaleNativeName(localeCode),
+            namespaceCount,
           });
         }
       }
@@ -398,17 +438,5 @@ export class TranslationService {
     };
 
     return nativeNames[localeCode] || localeCode.toUpperCase();
-  }
-
-  /**
-   * Check if a locale uses right-to-left text direction
-   *
-   * @param localeCode - BCP 47 locale code
-   * @returns True if RTL, false otherwise
-   */
-  private isRTLLocale(localeCode: string): boolean {
-    const rtlLocales = ['ar', 'he', 'fa', 'ur', 'yi'];
-    const baseLang = localeCode.split('-')[0];
-    return rtlLocales.includes(baseLang || '');
   }
 }

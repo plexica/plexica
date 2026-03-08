@@ -45,7 +45,7 @@ export interface LocaleResolutionOptions {
  *     'dashboard.title': 'Dashboard',
  *     'dashboard.welcome': 'Welcome, {name}!'
  *   },
- *   contentHash: 'a1b2c3d4'
+ *   hash: 'a1b2c3d4'
  * };
  * ```
  */
@@ -60,7 +60,7 @@ export interface TranslationBundle {
   messages: Record<string, string>;
 
   /** 8-character SHA-256 content hash for cache busting */
-  contentHash: string;
+  hash: string;
 }
 
 /**
@@ -102,8 +102,9 @@ export interface TenantOverrides {
  * ```typescript
  * const localeInfo: LocaleInfo = {
  *   code: 'it-IT',
- *   displayName: 'Italian (Italy)',
- *   isRTL: false
+ *   name: 'Italian (Italy)',
+ *   nativeName: 'Italiano (Italia)',
+ *   namespaceCount: 3
  * };
  * ```
  */
@@ -111,11 +112,14 @@ export interface LocaleInfo {
   /** BCP 47 locale code */
   code: string;
 
-  /** Human-readable locale name (e.g., "Italian (Italy)") */
-  displayName: string;
+  /** English display name (e.g., "Italian (Italy)") */
+  name: string;
 
-  /** Whether this locale uses right-to-left text direction */
-  isRTL: boolean;
+  /** Native display name (e.g., "Italiano (Italia)") */
+  nativeName: string;
+
+  /** Number of available translation namespaces for this locale */
+  namespaceCount: number;
 }
 
 /**

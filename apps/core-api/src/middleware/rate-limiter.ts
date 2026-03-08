@@ -1,6 +1,6 @@
 // apps/core-api/src/middleware/rate-limiter.ts
 //
-// Workspace-specific rate limiter factory using Redis sliding window.
+// Workspace-specific rate limiter factory using Redis fixed-window counters.
 // Complements the global LRU-based rate limiter (advanced-rate-limit.ts)
 // with per-endpoint tier configuration for workspace routes.
 //
@@ -8,11 +8,17 @@
 // Spec 009 Section 3: Rate limit tiers per endpoint
 //
 // Design:
-//   - Uses Redis INCR + EXPIRE for distributed rate limiting
+//   - Uses Redis pipeline (INCR + EXPIRE atomic) for distributed rate limiting
+//   - EXPIRE is called on every request (idempotent) to ensure the key always
+//     has a TTL, preventing immortal keys if a prior EXPIRE call was lost
 //   - Fail-open: if Redis is unavailable, requests are allowed
 //   - Returns standard headers (X-RateLimit-Limit, X-RateLimit-Remaining)
 //   - Returns 429 with Retry-After header when exceeded
 //   - Error responses use Constitution Art. 6.2 format
+//
+// Note: This is a fixed-window counter. Bursts of up to ~2× the limit are
+// possible at window boundaries. A sliding-window implementation is tracked
+// as a future improvement if stricter burst control is required.
 
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
 import redis from '../lib/redis.js';
@@ -89,9 +95,12 @@ export const WORKSPACE_RATE_LIMITS = {
 /**
  * Factory function that creates a Fastify preHandler hook for rate limiting.
  *
- * Uses Redis sliding window counters (INCR + EXPIRE). Fail-open: if Redis
+ * Uses Redis pipeline (INCR + EXPIRE atomic, fixed-window). Fail-open: if Redis
  * is unavailable, requests are allowed through to avoid blocking legitimate
  * traffic when infrastructure is degraded.
+ *
+ * Place in the `preHandler` array **after** `authMiddleware` so that
+ * `req.user` is populated before `keyExtractor` runs.
  *
  * @param config - Rate limit configuration
  * @returns Fastify preHandler hook function
@@ -99,15 +108,16 @@ export const WORKSPACE_RATE_LIMITS = {
  * @example
  * ```typescript
  * fastify.post('/workspaces', {
- *   preHandler: [authMiddleware, tenantContextMiddleware],
- *   onRequest: [rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
+ *   preHandler: [authMiddleware, tenantContextMiddleware, rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
  * }, handler);
  * ```
  */
 export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
   return async function rateLimitHook(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    // Skip rate limiting entirely in test environment to allow high-volume test execution
-    if (process.env.NODE_ENV === 'test') {
+    // Allow test suites to bypass rate limiting via env var so integration tests
+    // that make many legitimate requests don't fight artificial counters.
+    // Rate-limiting behaviour is covered by its own dedicated unit/integration tests.
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
       return;
     }
 
@@ -115,13 +125,26 @@ export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
       const scopeKey = config.keyExtractor(request);
       const redisKey = `ratelimit:${config.scope}:${scopeKey}`;
 
-      // Atomic increment
-      const current = await redis.incr(redisKey);
+      // Atomically increment and refresh TTL in a single pipeline.
+      // Calling EXPIRE on every request (not just when current === 1) ensures
+      // the key always has a TTL — even if a prior EXPIRE call was lost due to
+      // a Redis hiccup — preventing immortal keys that permanently block tenants.
+      const pipeline = redis.pipeline();
+      pipeline.incr(redisKey);
+      pipeline.expire(redisKey, config.windowSeconds);
+      const results = await pipeline.exec();
 
-      // Set expiry only on first request in the window
-      if (current === 1) {
-        await redis.expire(redisKey, config.windowSeconds);
+      // pipeline.exec() returns [error, result][] — extract the INCR result
+      const incrResult = results?.[0];
+      if (!incrResult || incrResult[0]) {
+        // Pipeline error — fail open
+        logger.warn(
+          { scope: config.scope, error: incrResult?.[0] },
+          'Rate limiter Redis pipeline error — failing open'
+        );
+        return;
       }
+      const current = incrResult[1] as number;
 
       const remaining = Math.max(0, config.limit - current);
 
@@ -130,8 +153,17 @@ export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
       reply.header('X-RateLimit-Remaining', String(remaining));
 
       if (current > config.limit) {
-        const ttl = await redis.ttl(redisKey);
-        const retryAfter = Math.max(1, ttl);
+        let retryAfter = 1;
+        try {
+          const ttl = await redis.ttl(redisKey);
+          retryAfter = Math.max(1, ttl);
+        } catch (ttlError) {
+          // TTL call failed — use safe minimum so 429 is still returned correctly
+          logger.warn(
+            { scope: config.scope, error: ttlError },
+            'Rate limiter TTL error — using retryAfter=1'
+          );
+        }
 
         reply.header('Retry-After', String(retryAfter));
 

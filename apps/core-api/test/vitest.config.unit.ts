@@ -36,6 +36,12 @@ export default defineConfig({
         functions: 80,
         branches: 75,
         statements: 80,
+        // Workspace module requires higher coverage per spec-009 T5.4
+        'src/modules/workspace/**': {
+          lines: 85,
+          branches: 80,
+          functions: 85,
+        },
       },
     },
 

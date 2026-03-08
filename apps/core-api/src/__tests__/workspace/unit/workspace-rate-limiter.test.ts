@@ -10,20 +10,39 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 // vi.mock factories are hoisted — must not reference external variables.
 // Use vi.hoisted() to create mock functions that can be referenced in both
 // the factory and test code.
-const { mockIncr, mockExpire, mockTtl, mockLoggerWarn } = vi.hoisted(() => ({
-  mockIncr: vi.fn(),
-  mockExpire: vi.fn(),
-  mockTtl: vi.fn(),
-  mockLoggerWarn: vi.fn(),
-}));
+const { mockPipelineExec, mockPipelineIncr, mockPipelineExpire, mockTtl, mockLoggerWarn } =
+  vi.hoisted(() => {
+    const mockPipelineExec = vi.fn();
+    const mockPipelineIncr = vi.fn().mockReturnThis();
+    const mockPipelineExpire = vi.fn().mockReturnThis();
+    const pipeline = {
+      incr: mockPipelineIncr,
+      expire: mockPipelineExpire,
+      exec: mockPipelineExec,
+    };
+    return {
+      mockPipelineExec,
+      mockPipelineIncr,
+      mockPipelineExpire,
+      mockTtl: vi.fn(),
+      mockLoggerWarn: vi.fn(),
+      pipeline,
+    };
+  });
 
-vi.mock('../../../lib/redis.js', () => ({
-  default: {
-    incr: mockIncr,
-    expire: mockExpire,
-    ttl: mockTtl,
-  },
-}));
+vi.mock('../../../lib/redis.js', () => {
+  const pipeline = {
+    incr: mockPipelineIncr,
+    expire: mockPipelineExpire,
+    exec: mockPipelineExec,
+  };
+  return {
+    default: {
+      pipeline: vi.fn(() => pipeline),
+      ttl: mockTtl,
+    },
+  };
+});
 
 vi.mock('../../../lib/logger.js', () => ({
   logger: {
@@ -100,6 +119,17 @@ function createMockReply(): FastifyReply & {
     _statusCode: number;
     _body: unknown;
   };
+}
+
+/**
+ * Helper to set up a successful pipeline response returning a given INCR value.
+ * pipeline.exec() returns [[error, incrResult], [error, expireResult]].
+ */
+function mockPipelineSuccess(incrValue: number): void {
+  mockPipelineExec.mockResolvedValue([
+    [null, incrValue], // INCR result
+    [null, 1], // EXPIRE result
+  ]);
 }
 
 describe('WORKSPACE_RATE_LIMITS', () => {
@@ -181,13 +211,17 @@ describe('rateLimiter', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Override NODE_ENV so the rate limiter logic actually executes
-    // (rate-limiter.ts line 111 skips when NODE_ENV === 'test')
-    process.env.NODE_ENV = 'development';
+    // Default pipeline mock methods to be chainable
+    mockPipelineIncr.mockReturnThis();
+    mockPipelineExpire.mockReturnThis();
+    // Override the global DISABLE_RATE_LIMIT=true set in .env.test so that
+    // these unit tests exercise the actual Redis logic path.
+    process.env.DISABLE_RATE_LIMIT = 'false';
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = 'test';
+    // Restore so other test files that rely on the bypass are unaffected.
+    process.env.DISABLE_RATE_LIMIT = 'true';
   });
 
   it('should return a function (Fastify hook)', () => {
@@ -196,8 +230,7 @@ describe('rateLimiter', () => {
   });
 
   it('should allow request when under the limit', async () => {
-    mockIncr.mockResolvedValue(1);
-    mockExpire.mockResolvedValue(1);
+    mockPipelineSuccess(1);
 
     const hook = rateLimiter(testConfig);
     const request = createMockRequest();
@@ -205,11 +238,9 @@ describe('rateLimiter', () => {
 
     await invokeHook(hook, request, reply);
 
-    // Should have called Redis INCR with the correct key
-    expect(mockIncr).toHaveBeenCalledWith('ratelimit:test-scope:user-123');
-
-    // Should set EXPIRE on first request (current === 1)
-    expect(mockExpire).toHaveBeenCalledWith('ratelimit:test-scope:user-123', 60);
+    // Should have called pipeline INCR and EXPIRE with the correct key
+    expect(mockPipelineIncr).toHaveBeenCalledWith('ratelimit:test-scope:user-123');
+    expect(mockPipelineExpire).toHaveBeenCalledWith('ratelimit:test-scope:user-123', 60);
 
     // Should set rate limit headers
     expect(reply.header).toHaveBeenCalledWith('X-RateLimit-Limit', '5');
@@ -221,7 +252,7 @@ describe('rateLimiter', () => {
   });
 
   it('should set remaining to 0 when at the limit', async () => {
-    mockIncr.mockResolvedValue(5); // exactly at limit
+    mockPipelineSuccess(5); // exactly at limit
 
     const hook = rateLimiter(testConfig);
     const request = createMockRequest();
@@ -234,8 +265,9 @@ describe('rateLimiter', () => {
     expect(reply.code).not.toHaveBeenCalled();
   });
 
-  it('should NOT set EXPIRE on subsequent requests (current > 1)', async () => {
-    mockIncr.mockResolvedValue(3); // not the first request
+  it('should call EXPIRE on every request (not just the first) to prevent immortal keys', async () => {
+    // current=3 means this is not the first request in the window
+    mockPipelineSuccess(3);
 
     const hook = rateLimiter(testConfig);
     const request = createMockRequest();
@@ -243,12 +275,12 @@ describe('rateLimiter', () => {
 
     await invokeHook(hook, request, reply);
 
-    // EXPIRE should NOT be called for non-first requests
-    expect(mockExpire).not.toHaveBeenCalled();
+    // EXPIRE must be called on every request (idempotent) to ensure TTL is always set
+    expect(mockPipelineExpire).toHaveBeenCalledWith('ratelimit:test-scope:user-123', 60);
   });
 
   it('should return 429 with Art. 6.2 error format when over the limit', async () => {
-    mockIncr.mockResolvedValue(6); // over the limit of 5
+    mockPipelineSuccess(6); // over the limit of 5
     mockTtl.mockResolvedValue(42);
 
     const hook = rateLimiter(testConfig);
@@ -283,7 +315,7 @@ describe('rateLimiter', () => {
   });
 
   it('should set Retry-After to at least 1 second when TTL is 0 or negative', async () => {
-    mockIncr.mockResolvedValue(10);
+    mockPipelineSuccess(10);
     mockTtl.mockResolvedValue(-1); // TTL expired or missing
 
     const hook = rateLimiter(testConfig);
@@ -295,8 +327,8 @@ describe('rateLimiter', () => {
     expect(reply.header).toHaveBeenCalledWith('Retry-After', '1');
   });
 
-  it('should fail-open when Redis throws an error', async () => {
-    mockIncr.mockRejectedValue(new Error('Redis connection refused'));
+  it('should fail-open when Redis pipeline throws an error', async () => {
+    mockPipelineExec.mockRejectedValue(new Error('Redis connection refused'));
 
     const hook = rateLimiter(testConfig);
     const request = createMockRequest();
@@ -311,7 +343,7 @@ describe('rateLimiter', () => {
   });
 
   it('should log a warning when Redis errors occur', async () => {
-    mockIncr.mockRejectedValue(new Error('ECONNREFUSED'));
+    mockPipelineExec.mockRejectedValue(new Error('ECONNREFUSED'));
 
     const hook = rateLimiter(testConfig);
     const request = createMockRequest();
@@ -333,8 +365,7 @@ describe('rateLimiter', () => {
       keyExtractor: () => 'custom-key-42',
     };
 
-    mockIncr.mockResolvedValue(1);
-    mockExpire.mockResolvedValue(1);
+    mockPipelineSuccess(1);
 
     const hook = rateLimiter(customConfig);
     const request = createMockRequest();
@@ -342,6 +373,64 @@ describe('rateLimiter', () => {
 
     await invokeHook(hook, request, reply);
 
-    expect(mockIncr).toHaveBeenCalledWith('ratelimit:custom:custom-key-42');
+    expect(mockPipelineIncr).toHaveBeenCalledWith('ratelimit:custom:custom-key-42');
+  });
+
+  it('should fail-open when pipeline returns an error result for INCR', async () => {
+    // Simulates: pipeline.exec() resolves but the INCR command itself errored
+    // (e.g. Redis returned an error mid-pipeline). The request must still be allowed through.
+    mockPipelineExec.mockResolvedValue([
+      [new Error('WRONGTYPE'), null], // INCR errored
+      [null, 1],
+    ]);
+
+    const hook = rateLimiter(testConfig);
+    const request = createMockRequest();
+    const reply = createMockReply();
+
+    // Should NOT throw — fail-open
+    await expect(invokeHook(hook, request, reply)).resolves.toBeUndefined();
+
+    // Should NOT have sent any 429 response
+    expect(reply.code).not.toHaveBeenCalled();
+    expect(reply.send).not.toHaveBeenCalled();
+
+    // Should have logged the warning
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'test-scope' }),
+      expect.stringContaining('Rate limiter Redis pipeline error')
+    );
+  });
+
+  it('should return 429 with retryAfter=1 when TTL throws while over the limit', async () => {
+    // Simulates: pipeline INCR succeeds (over limit) but the separate TTL call throws.
+    // Unlike the old implementation where TTL was inside the outer try/catch, the new
+    // implementation wraps TTL in its own try/catch — so 429 is ALWAYS returned when
+    // the counter is over the limit, even if TTL is unavailable. retryAfter defaults to 1.
+    mockPipelineSuccess(6); // over limit of 5
+    mockTtl.mockRejectedValue(new Error('Redis TTL failed'));
+
+    const hook = rateLimiter(testConfig);
+    const request = createMockRequest();
+    const reply = createMockReply();
+
+    await invokeHook(hook, request, reply);
+
+    // Must still return 429 — being over the limit takes priority over TTL availability
+    expect(reply.code).toHaveBeenCalledWith(429);
+    expect(reply.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'RATE_LIMIT_EXCEEDED',
+          details: expect.objectContaining({ retryAfter: 1 }),
+        }),
+      })
+    );
+
+    // The TTL warn is logged
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'test-scope' }),
+      expect.stringContaining('Rate limiter TTL error')
+    );
   });
 });

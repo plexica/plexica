@@ -14,7 +14,7 @@ import {
 } from '../../../modules/workspace/utils/error-formatter.js';
 
 describe('WorkspaceErrorCode', () => {
-  it('should define all 23 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, Spec 011 Phase 2 template/plugin codes, and Spec 011 Phase 3 hook codes', () => {
+  it('should define all 24 error codes from Spec 009 Section 6.5, Spec 011 hierarchy codes, Spec 011 Phase 2 template/plugin codes, and Spec 011 Phase 3 hook codes', () => {
     const expectedCodes = [
       // Spec 009 core codes
       'WORKSPACE_NOT_FOUND',
@@ -41,12 +41,14 @@ describe('WorkspaceErrorCode', () => {
       'WORKSPACE_PLUGIN_EXISTS',
       'WORKSPACE_PLUGIN_NOT_FOUND',
       'PLUGIN_NOT_TENANT_ENABLED',
+      // Spec 009 resource sharing codes
+      'PLUGIN_NOT_FOUND',
       // Spec 011 Phase 3 hook codes
       'HOOK_REJECTED_CREATION',
     ];
 
     const actualCodes = Object.values(WorkspaceErrorCode);
-    expect(actualCodes).toHaveLength(23);
+    expect(actualCodes).toHaveLength(24);
 
     for (const code of expectedCodes) {
       expect(actualCodes).toContain(code);
@@ -119,6 +121,8 @@ describe('getStatusForCode', () => {
       [WorkspaceErrorCode.WORKSPACE_PLUGIN_EXISTS, 409],
       [WorkspaceErrorCode.WORKSPACE_PLUGIN_NOT_FOUND, 404],
       [WorkspaceErrorCode.PLUGIN_NOT_TENANT_ENABLED, 400],
+      // Spec 009 resource sharing codes
+      [WorkspaceErrorCode.PLUGIN_NOT_FOUND, 404],
     ];
 
     for (const [code, expectedStatus] of expectations) {

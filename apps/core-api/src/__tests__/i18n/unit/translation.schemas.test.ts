@@ -141,22 +141,21 @@ describe('TranslationKeySchema (FR-011)', () => {
       expect(result.success).toBe(false);
     });
 
-    // Note: The regex ^[a-zA-Z0-9._]+$ allows dots at start/end and consecutive dots
-    // This is acceptable for our use case - plugin developers are responsible for
-    // providing valid key paths. The nesting level check provides the main constraint.
-    it('should accept key starting with dot (though unconventional)', () => {
+    // The schema uses a strict regex that requires keys to start and end with
+    // alphanumeric or underscore characters, and explicitly rejects consecutive dots.
+    it('should reject key starting with dot', () => {
       const result = TranslationKeySchema.safeParse('.contacts');
-      expect(result.success).toBe(true); // Regex allows this
+      expect(result.success).toBe(false);
     });
 
-    it('should accept key ending with dot (though unconventional)', () => {
+    it('should reject key ending with dot', () => {
       const result = TranslationKeySchema.safeParse('contacts.');
-      expect(result.success).toBe(true); // Regex allows this
+      expect(result.success).toBe(false);
     });
 
-    it('should accept key with consecutive dots (though unconventional)', () => {
+    it('should reject key with consecutive dots', () => {
       const result = TranslationKeySchema.safeParse('contacts..title');
-      expect(result.success).toBe(true); // Regex allows this
+      expect(result.success).toBe(false);
     });
   });
 });

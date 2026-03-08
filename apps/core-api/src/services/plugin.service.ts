@@ -35,6 +35,7 @@ import { TenantMigrationService } from './tenant-migration.service.js';
 import { TopicManager } from '@plexica/event-bus';
 import type { TranslationService } from '../modules/i18n/i18n.service.js';
 import { moduleFederationRegistryService } from './module-federation-registry.service.js';
+import { pluginTargetsService } from './plugin-targets.service.js';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -249,30 +250,36 @@ export class PluginRegistryService {
 
   /**
    * Delete a plugin from the registry
+   *
+   * CRITICAL-3 fix: findUnique → count → delete wrapped in a single $transaction
+   * to prevent a TOCTOU race where a concurrent installation could slip in between
+   * the count check and the delete, causing deletion of an in-use plugin.
    */
   async deletePlugin(pluginId: string): Promise<void> {
-    // Check if plugin exists
-    const plugin = await db.plugin.findUnique({
-      where: { id: pluginId },
-    });
+    await db.$transaction(async (tx) => {
+      // Check if plugin exists (inside transaction for consistent read)
+      const plugin = await tx.plugin.findUnique({
+        where: { id: pluginId },
+      });
 
-    if (!plugin) {
-      throw new Error(`Plugin '${pluginId}' not found`);
-    }
+      if (!plugin) {
+        throw new Error(`Plugin '${pluginId}' not found`);
+      }
 
-    // Check if plugin is installed in any tenant
-    const installations = await db.tenantPlugin.count({
-      where: { pluginId },
-    });
+      // Check if plugin is installed in any tenant (TOCTOU-safe inside transaction)
+      const installations = await tx.tenantPlugin.count({
+        where: { pluginId },
+      });
 
-    if (installations > 0) {
-      throw new Error(
-        `Cannot delete plugin '${pluginId}': it is installed in ${installations} tenant(s)`
-      );
-    }
+      if (installations > 0) {
+        throw new Error(
+          `Cannot delete plugin '${pluginId}': it is installed in ${installations} tenant(s)`
+        );
+      }
 
-    await db.plugin.delete({
-      where: { id: pluginId },
+      await tx.plugin.delete({
+        where: { id: pluginId },
+      });
     });
   }
 
@@ -994,6 +1001,14 @@ export class PluginLifecycleService {
       },
     });
 
+    // T012-10: Update Prometheus file-SD targets (fire-and-forget — non-blocking)
+    pluginTargetsService.addTarget(pluginId).catch((err: unknown) => {
+      this.logger.warn(
+        { pluginId, error: err instanceof Error ? err.message : String(err) },
+        'Failed to update Prometheus targets after plugin activation (non-blocking)'
+      );
+    });
+
     return updated;
   }
 
@@ -1099,6 +1114,14 @@ export class PluginLifecycleService {
       include: {
         plugin: true,
       },
+    });
+
+    // T012-10: Update Prometheus file-SD targets (fire-and-forget — non-blocking)
+    pluginTargetsService.removeTarget(pluginId).catch((err: unknown) => {
+      this.logger.warn(
+        { pluginId, error: err instanceof Error ? err.message : String(err) },
+        'Failed to update Prometheus targets after plugin deactivation (non-blocking)'
+      );
     });
 
     return updated;

@@ -29,6 +29,8 @@ export interface Tenant {
   updatedAt: string;
   /** ISO timestamp when deletion is scheduled (set on soft-delete). Null otherwise. */
   deletionScheduledAt: string | null;
+  /** BCP 47 locale code for the tenant's default language (e.g. 'en', 'it'). */
+  defaultLocale?: string;
 }
 
 /**

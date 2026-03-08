@@ -382,6 +382,10 @@ describe('PluginRegistryService', () => {
   });
 
   describe('deletePlugin', () => {
+    beforeEach(() => {
+      vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+    });
+
     it('should delete plugin if not installed anywhere', async () => {
       const mockPlugin = {
         id: 'plugin-1',

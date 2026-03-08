@@ -256,13 +256,19 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                   />
                   {error && <p className="text-xs text-destructive">{error}</p>}
                   <div className="flex gap-2">
-                    <Button type="submit" size="sm" className="flex-1">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="flex-1"
+                      aria-label="Create workspace"
+                    >
                       Create
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      aria-label="Cancel creating workspace"
                       onClick={() => {
                         setIsCreating(false);
                         setNewWorkspaceName('');
