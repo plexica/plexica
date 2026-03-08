@@ -15,7 +15,7 @@
 | Spec ID       | 014-frontend-layout-engine                                                |
 | Platform      | Web SPA (React 19 + Vite + TanStack Router)                               |
 | Viewports     | Desktop (1440px), Tablet (768px), Mobile (375px)                          |
-| Design system | TailwindCSS v4 + CSS custom properties + `@plexica/ui` v1.7               |
+| Design system | TailwindCSS v4 + CSS custom properties + `@plexica/ui` v1.8               |
 | FRs covered   | FR-001 through FR-026                                                     |
 | Approach      | Desktop-first (admin panel is primarily desktop; forms/tables responsive) |
 | Personas      | Carla (Tenant Admin), Dev (Sales Rep / MEMBER), Monica (Manager / ADMIN)  |
@@ -1033,7 +1033,7 @@ Icon: aria-hidden="true"
 
 ## 5. Design Tokens
 
-> Reference: `.forge/ux/design-system.md` v1.7
+> Reference: `.forge/ux/design-system.md` v1.8
 
 ### Existing Tokens Used
 
@@ -1266,7 +1266,7 @@ PUT /api/v1/layout-configs/:formId
 | Feature Spec         | `.forge/specs/014-frontend-layout-engine/spec.md`               |
 | User Journeys        | `.forge/specs/014-frontend-layout-engine/user-journey.md`       |
 | Constitution         | `.forge/constitution.md`                                        |
-| Design System        | `.forge/ux/design-system.md` (v1.7)                             |
+| Design System        | `.forge/ux/design-system.md` (v1.8)                             |
 | Spec 010 Design      | `.forge/specs/010-frontend-production-readiness/design-spec.md` |
 | ADR-024 (Team Roles) | `.forge/knowledge/adr/adr-024-team-member-role-vs-keycloak.md`  |
 | ADR-025 (Audit Logs) | `.forge/knowledge/adr/adr-025-audit-logs-core-schema.md`        |

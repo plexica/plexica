@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: March 8, 2026 (ADR-031 added; Spec 013 plan completed)
+**Last Updated**: March 8, 2026 (Spec 014 plan completed; ADR-031 added; Spec 013 plan completed)
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
@@ -85,6 +85,50 @@
 **Blocking Risks**: R-002 (Module Federation load failures in production), R-005 (cache invalidation race conditions)
 
 **Specification**: `.forge/specs/013-extension-points/`
+
+---
+
+### Spec 014: Frontend Layout Engine — PLAN COMPLETE (March 8, 2026)
+
+**Date**: March 8, 2026
+**Context**: Tenant-configurable form and view layout system with per-role field visibility, ordering, and read-only controls
+
+**Status**: ✅ spec done, ✅ plan done — implementation **NOT STARTED**
+
+**No new ADRs required.** All patterns follow existing ADRs:
+
+- **ADR-002**: `layout_configs` table in tenant schema (standard tenant-scoped data)
+- **ADR-004/011**: `<LayoutAwareForm>` and `<LayoutAwareTable>` exposed as shell-level Module Federation components
+- **ADR-014**: Cross-schema `form_id` reference via string-based lookup (same as workspace plugin scoping pattern)
+- **ADR-017/024**: Role resolution via existing ABAC engine + team-member roles; most-permissive-wins merge
+- **ADR-025**: Audit log entries to `core.audit_logs`
+
+**Key Design Decisions**:
+
+- **Fail-open**: If layout config missing or Redis unavailable, fall back to plugin manifest defaults silently
+- **Redis cache**: Key `layout:{tenantId}:{formId}:{scope}`, TTL 300s ± 30s jitter; pre-role-resolution blob cached, per-user role resolution in-process
+- **Frontend cache**: React Query `staleTime: 60_000`
+- **Feature flag**: `layout_engine_enabled` per tenant
+- **Cross-schema**: `layout_configs.plugin_id` stored as UUID, validated at application layer (not FK — cross-schema FKs not supported per ADR-002)
+- **Partial unique indexes**: Separate partial unique indexes for tenant-scope and workspace-scope rows (PostgreSQL NULL ≠ NULL)
+
+**Plan Summary**:
+
+- **Total tasks**: 32 (T014-01 through T014-32)
+- **Total story points**: 119 pts
+- **Phase 1 — Data Model & Migration**: T014-01..04, 16 pts
+- **Phase 2 — Backend Services**: T014-05..10, 26 pts
+- **Phase 3 — API Routes & Middleware**: T014-11..15, 18 pts
+- **Phase 4 — Frontend Components**: T014-16..22, 27 pts
+- **Phase 5 — Role Resolution & Permissions**: T014-23..25, 13 pts
+- **Phase 6 — Testing**: T014-26..30, 16 pts
+- **Phase 7 — Documentation & Feature Flag**: T014-31..32, 3 pts
+
+**Key Dependencies**: ADR-004/011 Module Federation (shell-level component exposure), ADR-017 ABAC engine (role resolution)
+
+**Blocking Risks**: R-001 (JSONB schema evolution without breaking consumers), R-003 (Redis unavailability — mitigated by fail-open), R-005 (role merge complexity with nested workspace roles)
+
+**Specification**: `.forge/specs/014-frontend-layout-engine/`
 
 ---
 
