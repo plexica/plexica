@@ -55,6 +55,12 @@ export interface ExtensionContributionProps {
   slotType?: ExtensionSlotType;
   /** Slot identifier (for logging). */
   slotId?: string;
+  /**
+   * Fix-10: Called once the contribution's lazy module has successfully mounted.
+   * The parent <ExtensionSlot> uses this to track when ALL children have resolved
+   * so that aria-busy can be set to "false" only after all contributions render.
+   */
+  onLoad?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,9 +83,11 @@ interface InnerProps {
   context: Record<string, unknown>;
   slotType?: ExtensionSlotType;
   onTimeout: () => void;
+  /** Fix-10: callback invoked once the lazy component has mounted successfully. */
+  onLoad?: () => void;
 }
 
-function ContributionInner({ contribution, context, slotType, onTimeout }: InnerProps) {
+function ContributionInner({ contribution, context, slotType, onTimeout, onLoad }: InnerProps) {
   const { contributingPluginId, componentName } = contribution;
 
   // 5-second load timeout — if the component hasn't finished loading within
@@ -88,6 +96,12 @@ function ContributionInner({ contribution, context, slotType, onTimeout }: Inner
     const timer = setTimeout(onTimeout, 5000);
     return () => clearTimeout(timer);
   }, [onTimeout]);
+
+  // Fix-10: signal successful mount to the parent slot so aria-busy can advance.
+  useEffect(() => {
+    onLoad?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — fire once on mount
 
   // Prop isolation: only pass context — no host-internal state (NFR-007).
   // React.createElement is used instead of JSX <Component> to avoid the
@@ -113,6 +127,7 @@ export const ExtensionContribution: React.FC<ExtensionContributionProps> = ({
   context,
   slotType,
   slotId,
+  onLoad,
 }) => {
   const { id, contributingPluginId, contributingPluginName, componentName } = contribution;
   const [timedOut, setTimedOut] = useState(false);
@@ -215,6 +230,7 @@ export const ExtensionContribution: React.FC<ExtensionContributionProps> = ({
           context={context}
           slotType={slotType}
           onTimeout={handleTimeout}
+          onLoad={onLoad}
         />
       </PluginErrorBoundary>
     </div>

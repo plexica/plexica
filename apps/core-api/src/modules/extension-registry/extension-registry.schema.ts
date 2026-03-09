@@ -58,15 +58,28 @@ export type GetSlotsByPluginParams = z.infer<typeof GetSlotsByPluginParamsSchema
 /**
  * GET /api/v1/extension-registry/contributions
  * Filters for listing contributions.
+ *
+ * Prefer targetPluginId + targetSlotId together for the <ExtensionSlot> read path.
+ * The legacy slotId param (bare slot ID without plugin scope) is kept for backwards
+ * compatibility with admin tooling but MUST NOT be used from the frontend component.
  */
 export const GetContributionsQuerySchema = z
   .object({
+    /** Bare slot ID (admin use only — prefer targetPluginId + targetSlotId). */
     slotId: safeOptionalString,
+    /** Target plugin ID (identifies the plugin that owns the slot). */
+    targetPluginId: safeString.min(1).max(255).optional(),
+    /** Target slot ID scoped to targetPluginId. */
+    targetSlotId: safeString.min(1).max(255).optional(),
     workspaceId: optionalUuid,
     pluginId: safeString.min(1).max(255).optional(),
     type: slotTypeSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => !(d.targetSlotId && !d.targetPluginId), {
+    message: 'targetPluginId is required when targetSlotId is provided',
+    path: ['targetPluginId'],
+  });
 
 export type GetContributionsQuery = z.infer<typeof GetContributionsQuerySchema>;
 

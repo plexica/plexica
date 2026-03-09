@@ -268,9 +268,10 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
 
       await service.setVisibility(TENANT_A, ENABLED_SETTINGS, WORKSPACE_A, CONTRIBUTION_ID, false);
 
-      // Ensure setVisibility is called with WORKSPACE_A, not WORKSPACE_B
-      expect(mockSetVisibility).toHaveBeenCalledWith(WORKSPACE_A, CONTRIBUTION_ID, false);
+      // Ensure setVisibility is called with TENANT_A + WORKSPACE_A, not WORKSPACE_B
+      expect(mockSetVisibility).toHaveBeenCalledWith(TENANT_A, WORKSPACE_A, CONTRIBUTION_ID, false);
       expect(mockSetVisibility).not.toHaveBeenCalledWith(
+        expect.anything(),
         WORKSPACE_B,
         expect.anything(),
         expect.anything()
@@ -324,52 +325,57 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
   });
 
   // ── [S5] deactivateByPlugin marks all records is_active=false ─────────────
+  // ADR-031 Safeguard 5: tenantId + pluginId are both required to prevent
+  // cross-tenant cascade on deactivation. All call sites MUST pass both.
 
   describe('[S5] cascade-deactivate on plugin deactivation', () => {
-    it('onPluginDeactivated calls deactivateByPlugin with correct pluginId', async () => {
+    it('onPluginDeactivated calls deactivateByPlugin with correct tenantId AND pluginId', async () => {
       mockDeactivateByPlugin.mockResolvedValue(undefined);
 
-      await service.onPluginDeactivated(PLUGIN_ID);
+      await service.onPluginDeactivated(TENANT_A, PLUGIN_ID);
 
-      // Must be called exactly once with the correct pluginId
+      // Must be called exactly once with BOTH tenantId and pluginId
       expect(mockDeactivateByPlugin).toHaveBeenCalledOnce();
-      expect(mockDeactivateByPlugin).toHaveBeenCalledWith(PLUGIN_ID);
+      expect(mockDeactivateByPlugin).toHaveBeenCalledWith(TENANT_A, PLUGIN_ID);
     });
 
-    it('onPluginDeactivated does not call deactivateByPlugin with a different pluginId', async () => {
+    it('onPluginDeactivated does not leak into a different tenantId', async () => {
       mockDeactivateByPlugin.mockResolvedValue(undefined);
 
-      await service.onPluginDeactivated(PLUGIN_ID);
+      await service.onPluginDeactivated(TENANT_A, PLUGIN_ID);
 
-      const calls = mockDeactivateByPlugin.mock.calls;
-      expect(calls.every(([id]) => id === PLUGIN_ID)).toBe(true);
+      // All repository calls must carry TENANT_A as the first argument
+      const calls = mockDeactivateByPlugin.mock.calls as [string, string][];
+      expect(calls.every(([tid]) => tid === TENANT_A)).toBe(true);
+      // And the plugin arg must be PLUGIN_ID
+      expect(calls.every(([, pid]) => pid === PLUGIN_ID)).toBe(true);
     });
 
-    it('onPluginReactivated calls reactivateByPlugin with correct pluginId', async () => {
+    it('onPluginReactivated calls reactivateByPlugin with correct tenantId AND pluginId', async () => {
       mockReactivateByPlugin.mockResolvedValue(undefined);
 
-      await service.onPluginReactivated(PLUGIN_ID);
+      await service.onPluginReactivated(TENANT_A, PLUGIN_ID);
 
       expect(mockReactivateByPlugin).toHaveBeenCalledOnce();
-      expect(mockReactivateByPlugin).toHaveBeenCalledWith(PLUGIN_ID);
+      expect(mockReactivateByPlugin).toHaveBeenCalledWith(TENANT_A, PLUGIN_ID);
     });
 
-    it('deactivation of plugin A does not affect plugin B records', async () => {
+    it('deactivation of tenant A + plugin A does not affect tenant B or plugin B records', async () => {
       const PLUGIN_B = 'plugin-gamma';
-      mockDeactivateByPlugin.mockImplementation(async (pluginId: string) => {
-        // Simulate: only plugin-widget records are deactivated
-        if (pluginId !== PLUGIN_ID) {
-          throw new Error(`Unexpected call with pluginId=${pluginId}`);
+      mockDeactivateByPlugin.mockImplementation(async (tenantId: string, pluginId: string) => {
+        // Simulate: only (TENANT_A, PLUGIN_ID) is valid in this test
+        if (tenantId !== TENANT_A || pluginId !== PLUGIN_ID) {
+          throw new Error(`Unexpected call with tenantId=${tenantId}, pluginId=${pluginId}`);
         }
       });
 
-      // Should not throw — only PLUGIN_ID is passed
-      await expect(service.onPluginDeactivated(PLUGIN_ID)).resolves.toBeUndefined();
+      // Should not throw — only (TENANT_A, PLUGIN_ID) is passed
+      await expect(service.onPluginDeactivated(TENANT_A, PLUGIN_ID)).resolves.toBeUndefined();
 
-      // Calling deactivation for PLUGIN_B should also be scoped (test isolation)
+      // Tenant B deactivation for PLUGIN_B must use TENANT_B scope, not TENANT_A
       mockDeactivateByPlugin.mockResolvedValue(undefined);
-      await service.onPluginDeactivated(PLUGIN_B);
-      expect(mockDeactivateByPlugin).toHaveBeenCalledWith(PLUGIN_B);
+      await service.onPluginDeactivated(TENANT_B, PLUGIN_B);
+      expect(mockDeactivateByPlugin).toHaveBeenCalledWith(TENANT_B, PLUGIN_B);
     });
   });
 

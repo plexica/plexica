@@ -158,10 +158,10 @@ export interface AggregatedExtensionData {
   fields: Record<string, unknown>;
   /** Plugins that responded successfully */
   contributors: string[];
-  /** Plugins that timed out or errored — excluded from fields */
+  /** Plugins that timed out, errored, or caused field collisions */
   warnings: Array<{
     pluginId: string;
-    reason: 'timeout' | 'error' | 'schema_mismatch';
+    reason: 'timeout' | 'error' | 'schema_mismatch' | 'field_collision';
     message?: string;
   }>;
 }
@@ -202,7 +202,12 @@ export interface ExtensionSlotFilters {
  * Filters for listing contributions.
  */
 export interface ExtensionContributionFilters {
+  /** Bare slot ID — admin/legacy use only. Prefer targetPluginId + targetSlotId. */
   slotId?: string;
+  /** Target plugin ID owning the slot (use with targetSlotId for the primary read path). */
+  targetPluginId?: string;
+  /** Target slot ID scoped to targetPluginId. */
+  targetSlotId?: string;
   workspaceId?: string;
   pluginId?: string;
   type?: ExtensionSlotType;

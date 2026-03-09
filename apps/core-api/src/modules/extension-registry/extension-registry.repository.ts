@@ -206,29 +206,48 @@ export class ExtensionRegistryRepository {
   /**
    * List contributions, optionally filtered.
    * ADR-031 Safeguard 2: tenantId required.
+   *
+   * `type` filter: contributions do not store a type field directly — type belongs
+   * to the target slot. We resolve this by including the target slot and filtering
+   * post-fetch. For large datasets prefer the slot-specific endpoint instead.
    */
   async getContributions(tenantId: string, filters?: ExtensionContributionFilters) {
-    return this.db.extensionContribution.findMany({
+    const rows = await this.db.extensionContribution.findMany({
       where: {
         tenantId,
         isActive: true,
-        ...(filters?.slotId ? { targetSlotId: filters.slotId } : {}),
+        // Prefer explicit targetPluginId + targetSlotId (primary read path from <ExtensionSlot>)
+        ...(filters?.targetPluginId ? { targetPluginId: filters.targetPluginId } : {}),
+        ...(filters?.targetSlotId ? { targetSlotId: filters.targetSlotId } : {}),
+        // Legacy bare slotId param (admin tooling only)
+        ...(filters?.slotId && !filters.targetSlotId ? { targetSlotId: filters.slotId } : {}),
         ...(filters?.pluginId ? { contributingPluginId: filters.pluginId } : {}),
-        ...(filters?.type
-          ? {
-              // Join via slot table — use raw query for cross-table filter would be complex;
-              // instead filter client-side if needed, or use a raw subquery.
-              // For now, type filter is applied after fetch.
-            }
-          : {}),
       },
       include: {
         visibilityOverrides: filters?.workspaceId
           ? { where: { workspaceId: filters.workspaceId } }
           : false,
+        // Include target slot only when type filter is requested (avoids join overhead otherwise)
+        ...(filters?.type
+          ? {
+              targetSlot: {
+                select: { type: true, pluginId: true, slotId: true },
+              },
+            }
+          : {}),
       },
       orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
     });
+
+    // Post-fetch type filter: keep only contributions whose target slot type matches
+    if (filters?.type) {
+      return rows.filter((r: unknown) => {
+        const row = r as { targetSlot?: { type: string } | null };
+        return row.targetSlot?.type === filters.type;
+      });
+    }
+
+    return rows;
   }
 
   /**
@@ -250,20 +269,33 @@ export class ExtensionRegistryRepository {
       orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
     });
 
-    return rows.map((row) => {
-      const overrides = Array.isArray(row.visibilityOverrides) ? row.visibilityOverrides : [];
+    return (rows as unknown[]).map((row) => {
+      const r = row as {
+        id: string;
+        contributingPluginId: string;
+        targetPluginId: string;
+        targetSlotId: string;
+        componentName: string;
+        priority: number;
+        validationStatus: string;
+        previewUrl: string | null;
+        description: string | null;
+        isActive: boolean;
+        visibilityOverrides: Array<{ isVisible: boolean }> | false;
+      };
+      const overrides = Array.isArray(r.visibilityOverrides) ? r.visibilityOverrides : [];
       const override = overrides[0] as { isVisible: boolean } | undefined;
       return {
-        id: row.id,
-        contributingPluginId: row.contributingPluginId,
-        targetPluginId: row.targetPluginId,
-        targetSlotId: row.targetSlotId,
-        componentName: row.componentName,
-        priority: row.priority,
-        validationStatus: row.validationStatus as ContributionValidationStatus,
-        previewUrl: row.previewUrl,
-        description: row.description,
-        isActive: row.isActive,
+        id: r.id,
+        contributingPluginId: r.contributingPluginId,
+        targetPluginId: r.targetPluginId,
+        targetSlotId: r.targetSlotId,
+        componentName: r.componentName,
+        priority: r.priority,
+        validationStatus: r.validationStatus as ContributionValidationStatus,
+        previewUrl: r.previewUrl,
+        description: r.description,
+        isActive: r.isActive,
         isVisible: override !== undefined ? override.isVisible : true,
       };
     });
@@ -273,21 +305,27 @@ export class ExtensionRegistryRepository {
 
   /**
    * Toggle visibility for a contribution in a workspace.
-   * No tenantId required — workspaceId is sufficient scope.
+   * ADR-031 Safeguard 2: tenantId required — prevents cross-tenant visibility toggle.
+   * Verifies the contribution belongs to the tenant before writing.
    */
   async setVisibility(
+    tenantId: string,
     workspaceId: string,
     contributionId: string,
     isVisible: boolean
   ): Promise<{ workspaceId: string; contributionId: string; isVisible: boolean; updatedAt: Date }> {
-    // Verify contribution exists
+    // Verify contribution exists AND belongs to this tenant
     const contribution = await this.db.extensionContribution.findUnique({
       where: { id: contributionId },
+      select: { id: true, tenantId: true },
     });
-    if (!contribution) {
-      throw Object.assign(new Error('CONTRIBUTION_NOT_FOUND: Contribution does not exist'), {
-        code: 'CONTRIBUTION_NOT_FOUND',
-      });
+    if (!contribution || contribution.tenantId !== tenantId) {
+      throw Object.assign(
+        new Error(
+          'CONTRIBUTION_NOT_FOUND: Contribution does not exist or does not belong to this tenant'
+        ),
+        { code: 'CONTRIBUTION_NOT_FOUND' }
+      );
     }
 
     const result = await this.db.workspaceExtensionVisibility.upsert({

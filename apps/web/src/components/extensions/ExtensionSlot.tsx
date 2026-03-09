@@ -12,11 +12,13 @@
 //   - SSE cache invalidation removes stale contributions from cache (FR-010)
 //
 // A11y: role="region" on outer container, aria-label="Extensions: {label}",
-//       aria-busy="true" while loading (NFR-011)
+//       aria-busy="true" while loading AND while any ExtensionContribution child
+//       is still resolving its lazy module (NFR-011). aria-busy is only set to
+//       "false" once ALL contributions have signalled onLoad (Fix-10).
 //
 // FR-007, FR-008, FR-009, FR-010, NFR-008, NFR-011, NFR-014
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useFeatureFlag } from '@/lib/feature-flags';
@@ -75,14 +77,16 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
   const { currentWorkspace } = useWorkspace();
   const workspaceId = currentWorkspace?.id ?? '';
 
-  const slotKey = `${pluginId}:${slotId}`;
   const queryKey = ['extension-contributions', slotId, pluginId, workspaceId];
 
   // Fetch contributions. staleTime ≥ 60s (NFR-014) — no refetch on every mount.
+  // Fix-6: send targetPluginId and targetSlotId as separate query params rather than
+  // the composite "pluginId:slotId" string, so the backend where-clause can filter
+  // on individual indexed columns (extension-registry.repository.ts fix).
   const { data, isLoading, error, refetch } = useQuery<ResolvedContribution[]>({
     queryKey,
     queryFn: async () => {
-      const params = new URLSearchParams({ slotId: slotKey });
+      const params = new URLSearchParams({ targetPluginId: pluginId, targetSlotId: slotId });
       if (workspaceId) params.set('workspaceId', workspaceId);
       const result = await (apiClient as unknown as { get: <T>(url: string) => Promise<T> }).get<{
         contributions: ResolvedContribution[];
@@ -93,6 +97,28 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
     gcTime: 300_000,
     enabled: extensionPointsEnabled && !!slotId && !!pluginId,
   });
+
+  // Fix-10: track how many ExtensionContribution children have signalled onLoad.
+  // aria-busy must remain "true" until ALL contributions have resolved their lazy
+  // module (NFR-011). Reset to 0 whenever the contribution list changes so that a
+  // fresh SSE-driven refetch re-arms the counter.
+  const [loadedCount, setLoadedCount] = useState(0);
+  const totalCount = (data ?? []).length;
+
+  const handleContributionLoad = useCallback(() => {
+    setLoadedCount((n) => n + 1);
+  }, []);
+
+  // Reset counter when the data changes (e.g. after SSE cache invalidation).
+  const prevDataRef = React.useRef(data);
+  if (prevDataRef.current !== data) {
+    prevDataRef.current = data;
+    // Intentional synchronous state reset during render — safe because we only
+    // do this when `data` identity changes, which React handles correctly.
+    setLoadedCount(0);
+  }
+
+  const allChildrenLoaded = !isLoading && totalCount > 0 && loadedCount >= totalCount;
 
   // Sorted contribution list — memoised to avoid re-sorting on every render
   const sorted = useMemo(() => sortContributions(data ?? []), [data]);
@@ -106,8 +132,7 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
   if (!extensionPointsEnabled) return null;
 
   const slotLabel = label ?? slotId;
-  // Infer slot type from slotId suffix (e.g. "my-plugin:toolbar-actions" → toolbar).
-  // Falls back to 'panel' when no recognized keyword is present.
+  // Infer slot type from slotId suffix (e.g. "toolbar-actions" → toolbar).
   const inferredSlotType: ExtensionSlotType = (() => {
     const id = slotId.toLowerCase();
     if (id.includes('toolbar')) return 'toolbar';
@@ -164,6 +189,7 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
       context={context}
       slotType={inferredSlotType}
       slotId={slotId}
+      onLoad={handleContributionLoad}
     />
   ));
 
@@ -171,7 +197,7 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
     <div
       role="region"
       aria-label={`Extensions: ${slotLabel}`}
-      aria-busy="false"
+      aria-busy={allChildrenLoaded ? 'false' : 'true'}
       className={className}
       data-testid={`extension-slot-${slotId}`}
       data-slot-id={slotId}

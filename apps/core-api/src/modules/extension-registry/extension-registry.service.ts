@@ -39,6 +39,52 @@ const CACHE_BASE_TTL_S = 120;
 const CACHE_TTL_JITTER_MAX_S = 30;
 const SIDECAR_FETCH_TIMEOUT_MS = 3_000; // fail-fast on slow plugin containers
 
+// SSRF blocklist: cloud IMDS endpoints, loopback, and link-local addresses.
+// Applied at both registration-time (upsertDataExtensions) and fetch-time.
+const SSRF_BLOCKED_HOSTNAMES = new Set([
+  'metadata.google.internal',
+  'metadata.internal',
+  'instance-data', // GCP alias
+]);
+const SSRF_BLOCKED_HOST_PATTERN =
+  /^(169\.254\.\d+\.\d+|127\.\d+\.\d+\.\d+|::1|fc00:|fd[0-9a-f]{2}:)/i;
+
+/**
+ * Validates a sidecarUrl string against SSRF risks.
+ * Throws an error (code: SSRF_BLOCKED) if the URL is unsafe.
+ *
+ * Rules:
+ *  1. Must be http or https scheme only.
+ *  2. Must not target IMDS hostnames (169.254.x.x, metadata.google.internal …).
+ *  3. Must not target loopback / link-local / ULA addresses.
+ */
+function assertSafeUrl(rawUrl: string, fieldName = 'sidecarUrl'): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw Object.assign(new Error(`SSRF_BLOCKED: ${fieldName} is not a valid URL`), {
+      code: 'SSRF_BLOCKED',
+    });
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw Object.assign(new Error(`SSRF_BLOCKED: ${fieldName} must use http or https scheme`), {
+      code: 'SSRF_BLOCKED',
+    });
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (SSRF_BLOCKED_HOSTNAMES.has(host) || SSRF_BLOCKED_HOST_PATTERN.test(host)) {
+    throw Object.assign(
+      new Error(`SSRF_BLOCKED: ${fieldName} targets a blocked address (IMDS/loopback/link-local)`),
+      { code: 'SSRF_BLOCKED' }
+    );
+  }
+
+  return parsed;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -227,6 +273,11 @@ export class ExtensionRegistryService {
    * Get contributions for a specific slot resolved with workspace visibility.
    * This is the primary read path for the <ExtensionSlot> React component.
    * Results are Redis-cached per (tenantId, targetPluginId, targetSlotId).
+   *
+   * Filtering (CODEX finding — US-003, FR-010, FR-026):
+   *   - isActive === false  → excluded (plugin deactivated)
+   *   - isVisible === false → excluded (workspace toggled off)
+   *   - validationStatus !== 'valid' → excluded (unresolved slot / type mismatch)
    */
   async getContributionsForSlot(
     tenantId: string,
@@ -236,6 +287,11 @@ export class ExtensionRegistryService {
     workspaceId?: string
   ): Promise<ResolvedContribution[]> {
     this.assertEnabled(tenantSettings);
+
+    const filterContributions = (rows: ContributionWithVisibility[]): ResolvedContribution[] =>
+      rows
+        .filter((r) => r.isActive && r.isVisible && r.validationStatus === 'valid')
+        .map(toResolvedContribution);
 
     // Cache only the non-workspace-scoped query (workspace adds per-user state)
     if (!workspaceId) {
@@ -250,7 +306,7 @@ export class ExtensionRegistryService {
       }
 
       const rows = await this.repo.getContributionsForSlot(tenantId, targetPluginId, targetSlotId);
-      const resolved = rows.map(toResolvedContribution);
+      const resolved = filterContributions(rows);
       await this.redis.set(cacheKey, JSON.stringify(resolved), 'EX', cacheTtl());
       return resolved;
     }
@@ -261,7 +317,7 @@ export class ExtensionRegistryService {
       targetSlotId,
       workspaceId
     );
-    return rows.map(toResolvedContribution);
+    return filterContributions(rows);
   }
 
   // ── Visibility ────────────────────────────────────────────────────────────
@@ -278,7 +334,7 @@ export class ExtensionRegistryService {
   ) {
     this.assertEnabled(tenantSettings);
 
-    const result = await this.repo.setVisibility(workspaceId, contributionId, isVisible);
+    const result = await this.repo.setVisibility(tenantId, workspaceId, contributionId, isVisible);
 
     // Invalidate slot cache entries that might reference this contribution
     await this.invalidateSlotCache(tenantId);
@@ -330,13 +386,26 @@ export class ExtensionRegistryService {
 
     // Fetch from each sidecar URL; allSettled never throws
     const results = await Promise.allSettled(
-      dataExtensions.map(async (ext) => {
-        const url = `${ext.sidecarUrl}?entityId=${encodeURIComponent(entityId)}`;
+      dataExtensions.map(async (ext: { sidecarUrl: string; contributingPluginId: string }) => {
+        // SSRF guard: validate URL at fetch-time as defence-in-depth
+        // (also validated at upsert-time in the schema layer)
+        const safeBase = assertSafeUrl(ext.sidecarUrl);
+        safeBase.searchParams.set('entityId', entityId);
+        const url = safeBase.toString();
+
         const controller = new AbortController();
         const timeoutHandle = setTimeout(() => controller.abort(), SIDECAR_FETCH_TIMEOUT_MS);
 
         try {
-          const res = await fetch(url, { signal: controller.signal });
+          const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+              // Inject tenant context so sidecar plugins can enforce isolation
+              'X-Tenant-ID': tenantId,
+              'X-Plugin-ID': ext.contributingPluginId,
+              'X-Entity-ID': entityId,
+            },
+          });
           if (!res.ok) {
             throw new Error(`HTTP ${res.status}`);
           }
@@ -352,10 +421,26 @@ export class ExtensionRegistryService {
     const contributors: string[] = [];
     const warnings: AggregatedExtensionData['warnings'] = [];
 
-    results.forEach((result, i) => {
-      const ext = dataExtensions[i];
+    (
+      results as PromiseSettledResult<{ pluginId: string; data: Record<string, unknown> }>[]
+    ).forEach((result, i) => {
+      const ext = dataExtensions[i] as { contributingPluginId: string };
       if (result.status === 'fulfilled') {
-        Object.assign(fields, result.value.data);
+        // Field collision detection (OPUS F-006): warn when two plugins define the same key
+        const incoming = result.value.data;
+        const colliding = Object.keys(incoming).filter((k) => k in fields);
+        if (colliding.length > 0) {
+          warnings.push({
+            pluginId: ext.contributingPluginId,
+            reason: 'field_collision',
+            message: `Fields already contributed by another plugin: ${colliding.join(', ')}`,
+          });
+          this.log.warn(
+            { tenantId, pluginId: ext.contributingPluginId, colliding },
+            'sidecar field collision detected'
+          );
+        }
+        Object.assign(fields, incoming);
         contributors.push(ext.contributingPluginId);
       } else {
         const err = result.reason as Error;
