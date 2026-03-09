@@ -42,8 +42,8 @@ import type {
   FormSchema,
   RoleKey,
   ConfigurableFormSummary,
-  SaveLayoutConfigInput,
 } from '@plexica/types';
+import type { SaveLayoutConfigInput } from '../schemas/layout-config.schema.js';
 import {
   layoutConfigValidationService,
   type SaveLayoutConfigOverrides,
@@ -541,7 +541,7 @@ export class LayoutConfigService {
           AND deleted_at IS NULL
       `
     );
-    const configuredFormIds = new Set(existingConfigs.map((r) => r.form_id));
+    const configuredFormIds = new Set(existingConfigs.map((r: { form_id: string }) => r.form_id));
 
     const allSummaries: ConfigurableFormSummary[] = [];
 
@@ -1040,9 +1040,9 @@ export class LayoutConfigService {
         sectionId: s.sectionId,
         order: s.order,
       })),
-      fields: fields.map((f) => ({
+      fields: fields.map((f, i) => ({
         fieldId: f.fieldId,
-        order: f.order,
+        order: f.order ?? i,
         visibility: 'visible',
         readonly: false,
         required: f.required,

@@ -1197,7 +1197,6 @@ describe('LayoutConfigService', () => {
 
   describe('resolveEffectiveRoles — cross-workspace isolation (P2-C)', () => {
     it('should NOT apply OWNER role from workspace-A when resolving for workspace-B', async () => {
-      const WS_A = 'ws-uuid-aaa';
       const WS_B = 'ws-uuid-bbb';
       const formSchema = makeFormSchema();
       // Budget field: OWNER sees 'visible', global is 'hidden'

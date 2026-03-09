@@ -19,16 +19,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // ---------------------------------------------------------------------------
-// Hoist mock factories
-// ---------------------------------------------------------------------------
-
-const { mockOnVisibilityChange, mockOnGlobalChange, mockOnOrderChange } = vi.hoisted(() => ({
-  mockOnVisibilityChange: vi.fn(),
-  mockOnGlobalChange: vi.fn(),
-  mockOnOrderChange: vi.fn(),
-}));
-
-// ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 

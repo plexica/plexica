@@ -34,6 +34,7 @@
     "@plexica/database": "workspace:*",
     "@plexica/event-bus": "workspace:*",
     "@plexica/i18n": "workspace:*",
+    "@plexica/types": "workspace:*",
     "axios": "^1.13.5",
     "bullmq": "^5.70.1",
     "cron-parser": "^5.5.0",

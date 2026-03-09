@@ -808,20 +808,12 @@ async function checkWorkspaceAdminRole(
   });
   if (!workspace) return false;
 
-  // Check team memberships for the workspace
-  // WorkspaceTeam → Team → TeamMember (userId + role)
-  const members = await db.teamMember.findMany({
-    where: {
-      userId,
-      team: {
-        workspaceTeams: {
-          some: { workspaceId },
-        },
-      },
-    },
+  // Check workspace membership directly (ADR-024)
+  const members = await db.workspaceMember.findMany({
+    where: { userId, workspaceId },
     select: { role: true },
   });
 
   if (members.length === 0) return false;
-  return members.some((m) => WS_ADMIN_ROLES.has(m.role));
+  return members.some((m: { role: string }) => WS_ADMIN_ROLES.has(m.role));
 }

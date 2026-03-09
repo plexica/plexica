@@ -155,17 +155,30 @@ export class LayoutConfigValidationService {
         continue;
       }
 
-      // Determine the effective visibility: if globalVisibility hides the field
-      // for any role, or if every role-specific override hides it, emit a warning.
-      // Note: 'readonly' is NOT treated as hidden — a readonly required field is
-      // still visible and can be pre-filled by the system (FR-010). Only 'hidden'
-      // triggers the warning (TD-030 fix).
-      const isGloballyHidden = override.globalVisibility === 'hidden';
-
+      // Determine the effective visibility: warn when the field is inaccessible
+      // (neither editable nor visible) for all effective roles.
+      //
+      // A required field that is `hidden` OR `readonly` for ALL roles cannot be
+      // filled in by the user (FR-011). The only exception is if the field has
+      // a `defaultValue` (handled above — auto-inject via FR-010).
+      //
+      // Logic:
+      //   1. If any role-specific override makes the field `visible` → NO warn.
+      //   2. Otherwise, if globalVisibility is `hidden` or `readonly` → warn.
+      //   3. If role-specific overrides exist and ALL of them are `hidden`/`readonly` → warn.
       const roleValues = Object.values(override.visibility ?? {});
-      const hasRoleHidingAll = roleValues.length > 0 && roleValues.every((v) => v === 'hidden');
+      const atLeastOneRoleVisible = roleValues.some((v) => v === 'visible');
 
-      if (isGloballyHidden || hasRoleHidingAll) {
+      if (atLeastOneRoleVisible) {
+        continue; // at least one role can see and edit the field
+      }
+
+      const isGloballyInaccessible =
+        override.globalVisibility === 'hidden' || override.globalVisibility === 'readonly';
+      const allRolesInaccessible =
+        roleValues.length > 0 && roleValues.every((v) => v === 'hidden' || v === 'readonly');
+
+      if (isGloballyInaccessible || allRolesInaccessible) {
         warnings.push({ fieldId: override.fieldId, label: manifestField.label });
       }
     }

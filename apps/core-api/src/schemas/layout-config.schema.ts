@@ -34,9 +34,16 @@ const fieldVisibilitySchema = z.enum(['visible', 'hidden', 'readonly']);
 /** Column visibility states. */
 const columnVisibilitySchema = z.enum(['visible', 'hidden']);
 
-/** Per-role visibility map — all keys optional, only recognised roles allowed. */
-const fieldVisibilityMapSchema = z.record(roleKeySchema, fieldVisibilitySchema).default({});
-const columnVisibilityMapSchema = z.record(roleKeySchema, columnVisibilitySchema).default({});
+/**
+ * Per-role visibility map — all keys optional, only recognised roles allowed.
+ * Uses z.partialRecord (Zod v4) so that .default({}) is type-safe: {} is a
+ * valid partial record but not a full Record<RoleKey, ...> that z.record would
+ * require for its default value.
+ */
+const fieldVisibilityMapSchema = z.partialRecord(roleKeySchema, fieldVisibilitySchema).default({});
+const columnVisibilityMapSchema = z
+  .partialRecord(roleKeySchema, columnVisibilitySchema)
+  .default({});
 
 /** Validated field ID — kebab-case or snake_case. */
 const fieldIdSchema = z.string().min(1).max(255).regex(ID_PATTERN, {

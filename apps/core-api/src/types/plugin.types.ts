@@ -251,6 +251,10 @@ export interface PluginManifest {
       memory?: string;
     };
   };
+
+  // Layout engine form schemas (T014-13 — Spec 014 FR-001)
+  // Backward-compatible extension: manifests without formSchemas are accepted unchanged.
+  formSchemas?: unknown[];
 }
 
 /**

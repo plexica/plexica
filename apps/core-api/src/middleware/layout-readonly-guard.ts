@@ -36,6 +36,7 @@
  */
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { ResolvedField } from '@plexica/types';
 import { layoutConfigService } from '../services/layout-config.service.js';
 import { tenantService } from '../services/tenant.service.js';
 import { logger } from '../lib/logger.js';
@@ -130,10 +131,14 @@ export function layoutReadonlyGuard(
 
       // 4. Collect readonly and hidden field IDs
       const readonlyFieldIds = new Set<string>(
-        resolved.fields.filter((f) => f.visibility === 'readonly').map((f) => f.fieldId)
+        resolved.fields
+          .filter((f: ResolvedField) => f.visibility === 'readonly')
+          .map((f: ResolvedField) => f.fieldId)
       );
       const hiddenFieldIds = new Set<string>(
-        resolved.fields.filter((f) => f.visibility === 'hidden').map((f) => f.fieldId)
+        resolved.fields
+          .filter((f: ResolvedField) => f.visibility === 'hidden')
+          .map((f: ResolvedField) => f.fieldId)
       );
 
       // 5. Only proceed with body mutation when body is a plain object
