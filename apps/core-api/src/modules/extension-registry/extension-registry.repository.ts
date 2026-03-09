@@ -28,6 +28,39 @@ import type { Logger } from 'pino';
 const logger: Logger = rootLogger.child({ module: 'ExtensionRegistryRepository' });
 
 // ---------------------------------------------------------------------------
+// Concurrency helper (W-05 fix)
+// ---------------------------------------------------------------------------
+
+/**
+ * Executes an array of async tasks with a maximum concurrency of `limit`.
+ * Prevents Prisma connection-pool exhaustion when syncing large manifests
+ * (NFR-010 permits ≥500 contributions per plugin; Promise.all with 500
+ * concurrent upserts would saturate the ~5-connection default pool).
+ *
+ * No external dependency needed (Constitution Art. 2.2).
+ */
+async function concurrentMap<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const i = nextIndex++;
+      results[i] = await fn(items[i]!);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+const UPSERT_CONCURRENCY = 10; // safe under Prisma's default pool of 5–10 connections
+
+// ---------------------------------------------------------------------------
 // Local shape types (internal — not exported from index.ts)
 // ---------------------------------------------------------------------------
 
@@ -79,41 +112,40 @@ export class ExtensionRegistryRepository {
   ): Promise<void> {
     logger.debug({ tenantId, pluginId, count: slots.length }, 'upserting extension slots');
 
-    // F-007 fix: run all upserts concurrently with Promise.all instead of a
-    // sequential `for` loop. Each slot upsert is independent, so parallelism is safe.
-    await Promise.all(
-      slots.map((slot) =>
-        this.db.extensionSlot.upsert({
-          where: {
-            // C-01 fix: unique key is now (tenantId, pluginId, slotId) — tenant-scoped
-            tenantId_pluginId_slotId: {
-              tenantId,
-              pluginId,
-              slotId: slot.slotId,
-            },
-          },
-          update: {
-            label: slot.label,
-            type: slot.type,
-            maxContributions: slot.maxContributions ?? 0,
-            contextSchema: (slot.contextSchema ?? {}) as Prisma.InputJsonValue,
-            description: slot.description ?? null,
-            isActive: true,
-            updatedAt: new Date(),
-          },
-          create: {
+    // W-05 fix: bounded concurrency via concurrentMap (limit=10) instead of
+    // unbounded Promise.all, which could exhaust Prisma's ~5-connection pool
+    // when syncing large manifests (NFR-010 allows ≥500 contributions per plugin).
+    await concurrentMap(slots, UPSERT_CONCURRENCY, (slot) =>
+      this.db.extensionSlot.upsert({
+        where: {
+          // C-01 fix: unique key is now (tenantId, pluginId, slotId) — tenant-scoped
+          tenantId_pluginId_slotId: {
             tenantId,
             pluginId,
             slotId: slot.slotId,
-            label: slot.label,
-            type: slot.type,
-            maxContributions: slot.maxContributions ?? 0,
-            contextSchema: (slot.contextSchema ?? {}) as Prisma.InputJsonValue,
-            description: slot.description ?? null,
-            isActive: true,
           },
-        })
-      )
+        },
+        update: {
+          label: slot.label,
+          type: slot.type,
+          maxContributions: slot.maxContributions ?? 0,
+          contextSchema: (slot.contextSchema ?? {}) as Prisma.InputJsonValue,
+          description: slot.description ?? null,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          pluginId,
+          slotId: slot.slotId,
+          label: slot.label,
+          type: slot.type,
+          maxContributions: slot.maxContributions ?? 0,
+          contextSchema: (slot.contextSchema ?? {}) as Prisma.InputJsonValue,
+          description: slot.description ?? null,
+          isActive: true,
+        },
+      })
     );
   }
 
@@ -160,51 +192,49 @@ export class ExtensionRegistryRepository {
       'upserting extension contributions'
     );
 
-    // F-007 fix: run all upserts concurrently with Promise.all instead of a
-    // sequential `for` loop. Each contribution upsert is independent.
-    await Promise.all(
-      contributions.map((contribution) =>
-        this.db.extensionContribution.upsert({
-          where: {
-            // C-01 fix: unique key is now (tenantId, contributingPluginId, targetPluginId, targetSlotId)
-            tenantId_contributingPluginId_targetPluginId_targetSlotId: {
-              tenantId,
-              contributingPluginId: pluginId,
-              targetPluginId: contribution.targetPluginId,
-              targetSlotId: contribution.targetSlotId,
-            },
-          },
-          update: {
-            componentName: contribution.componentName,
-            priority: contribution.priority ?? 100,
-            outputSchema:
-              contribution.outputSchema != null
-                ? (contribution.outputSchema as Prisma.InputJsonValue)
-                : Prisma.JsonNull,
-            previewUrl: contribution.previewUrl ?? null,
-            description: contribution.description ?? null,
-            isActive: true,
-            validationStatus: 'pending',
-            updatedAt: new Date(),
-          },
-          create: {
+    // W-05 fix: bounded concurrency via concurrentMap (limit=10) instead of
+    // unbounded Promise.all (NFR-010 allows ≥500 contributions per plugin).
+    await concurrentMap(contributions, UPSERT_CONCURRENCY, (contribution) =>
+      this.db.extensionContribution.upsert({
+        where: {
+          // C-01 fix: unique key is now (tenantId, contributingPluginId, targetPluginId, targetSlotId)
+          tenantId_contributingPluginId_targetPluginId_targetSlotId: {
             tenantId,
             contributingPluginId: pluginId,
             targetPluginId: contribution.targetPluginId,
             targetSlotId: contribution.targetSlotId,
-            componentName: contribution.componentName,
-            priority: contribution.priority ?? 100,
-            outputSchema:
-              contribution.outputSchema != null
-                ? (contribution.outputSchema as Prisma.InputJsonValue)
-                : Prisma.JsonNull,
-            previewUrl: contribution.previewUrl ?? null,
-            description: contribution.description ?? null,
-            isActive: true,
-            validationStatus: 'pending',
           },
-        })
-      )
+        },
+        update: {
+          componentName: contribution.componentName,
+          priority: contribution.priority ?? 100,
+          outputSchema:
+            contribution.outputSchema != null
+              ? (contribution.outputSchema as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          previewUrl: contribution.previewUrl ?? null,
+          description: contribution.description ?? null,
+          isActive: true,
+          validationStatus: 'pending',
+          updatedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          contributingPluginId: pluginId,
+          targetPluginId: contribution.targetPluginId,
+          targetSlotId: contribution.targetSlotId,
+          componentName: contribution.componentName,
+          priority: contribution.priority ?? 100,
+          outputSchema:
+            contribution.outputSchema != null
+              ? (contribution.outputSchema as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          previewUrl: contribution.previewUrl ?? null,
+          description: contribution.description ?? null,
+          isActive: true,
+          validationStatus: 'pending',
+        },
+      })
     );
   }
 
@@ -367,33 +397,31 @@ export class ExtensionRegistryRepository {
   ): Promise<void> {
     logger.debug({ tenantId, pluginId, count: entities.length }, 'upserting extensible entities');
 
-    // M-01 fix: run all upserts concurrently with Promise.all instead of a
-    // sequential `for` loop. Each entity upsert is independent.
-    await Promise.all(
-      entities.map((entity) =>
-        this.db.extensibleEntity.upsert({
-          where: {
-            // C-01 fix: unique key is now (tenantId, pluginId, entityType) — tenant-scoped
-            tenantId_pluginId_entityType: { tenantId, pluginId, entityType: entity.entityType },
-          },
-          update: {
-            label: entity.label,
-            fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
-            description: entity.description ?? null,
-            isActive: true,
-            updatedAt: new Date(),
-          },
-          create: {
-            tenantId,
-            pluginId,
-            entityType: entity.entityType,
-            label: entity.label,
-            fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
-            description: entity.description ?? null,
-            isActive: true,
-          },
-        })
-      )
+    // W-05 fix: bounded concurrency via concurrentMap (limit=10) instead of
+    // unbounded Promise.all (NFR-010 allows ≥500 contributions per plugin).
+    await concurrentMap(entities, UPSERT_CONCURRENCY, (entity) =>
+      this.db.extensibleEntity.upsert({
+        where: {
+          // C-01 fix: unique key is now (tenantId, pluginId, entityType) — tenant-scoped
+          tenantId_pluginId_entityType: { tenantId, pluginId, entityType: entity.entityType },
+        },
+        update: {
+          label: entity.label,
+          fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
+          description: entity.description ?? null,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          pluginId,
+          entityType: entity.entityType,
+          label: entity.label,
+          fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
+          description: entity.description ?? null,
+          isActive: true,
+        },
+      })
     );
   }
 
@@ -431,39 +459,37 @@ export class ExtensionRegistryRepository {
   ): Promise<void> {
     logger.debug({ tenantId, pluginId, count: extensions.length }, 'upserting data extensions');
 
-    // M-01 fix: run all upserts concurrently with Promise.all instead of a
-    // sequential `for` loop. Each data extension upsert is independent.
-    await Promise.all(
-      extensions.map((ext) =>
-        this.db.dataExtension.upsert({
-          where: {
-            // C-01 fix: unique key is now (tenantId, contributingPluginId, targetPluginId, targetEntityType)
-            tenantId_contributingPluginId_targetPluginId_targetEntityType: {
-              tenantId,
-              contributingPluginId: pluginId,
-              targetPluginId: ext.targetPluginId,
-              targetEntityType: ext.targetEntityType,
-            },
-          },
-          update: {
-            sidecarUrl: ext.sidecarUrl,
-            fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
-            description: ext.description ?? null,
-            isActive: true,
-            updatedAt: new Date(),
-          },
-          create: {
+    // W-05 fix: bounded concurrency via concurrentMap (limit=10) instead of
+    // unbounded Promise.all (NFR-010 allows ≥500 contributions per plugin).
+    await concurrentMap(extensions, UPSERT_CONCURRENCY, (ext) =>
+      this.db.dataExtension.upsert({
+        where: {
+          // C-01 fix: unique key is now (tenantId, contributingPluginId, targetPluginId, targetEntityType)
+          tenantId_contributingPluginId_targetPluginId_targetEntityType: {
             tenantId,
             contributingPluginId: pluginId,
             targetPluginId: ext.targetPluginId,
             targetEntityType: ext.targetEntityType,
-            sidecarUrl: ext.sidecarUrl,
-            fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
-            description: ext.description ?? null,
-            isActive: true,
           },
-        })
-      )
+        },
+        update: {
+          sidecarUrl: ext.sidecarUrl,
+          fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
+          description: ext.description ?? null,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          contributingPluginId: pluginId,
+          targetPluginId: ext.targetPluginId,
+          targetEntityType: ext.targetEntityType,
+          sidecarUrl: ext.sidecarUrl,
+          fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
+          description: ext.description ?? null,
+          isActive: true,
+        },
+      })
     );
   }
 

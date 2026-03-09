@@ -160,13 +160,20 @@ const DB_CONTRIBUTION = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeService() {
-  const fakeRedis = {
+function makeRedis(overrides?: Partial<Record<string, ReturnType<typeof vi.fn>>>) {
+  return {
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue('OK'),
     del: vi.fn().mockResolvedValue(1),
     keys: vi.fn().mockResolvedValue([]),
+    // C2 fix: scan() is required by invalidateSlotCache() (F-005 SCAN migration).
+    // Default returns a terminal cursor '0' with no matching keys.
+    scan: vi.fn().mockResolvedValue(['0', []]),
+    ...overrides,
   };
+}
+
+function makeService() {
   const fakeLogger = {
     child: vi.fn().mockReturnThis(),
     info: vi.fn(),
@@ -174,14 +181,14 @@ function makeService() {
     debug: vi.fn(),
     error: vi.fn(),
   };
-  return new ExtensionRegistryService(undefined, fakeRedis as never, fakeLogger as never);
+  return new ExtensionRegistryService(undefined, makeRedis() as never, fakeLogger as never);
 }
 
 // ---------------------------------------------------------------------------
 // Scenarios
 // ---------------------------------------------------------------------------
 
-describe('Extension Registry — E2E Workflow Scenarios', () => {
+describe('Extension Registry — Integration Workflow Scenarios', () => {
   let service: ExtensionRegistryService;
 
   beforeEach(() => {
@@ -270,17 +277,26 @@ describe('Extension Registry — E2E Workflow Scenarios', () => {
         false
       );
 
-      expect(mockSetVisibility).toHaveBeenCalledWith(WORKSPACE_ID, CONTRIBUTION_ID, false);
+      expect(mockSetVisibility).toHaveBeenCalledWith(
+        TENANT_ID,
+        WORKSPACE_ID,
+        CONTRIBUTION_ID,
+        false
+      );
       expect(result).toMatchObject({ isVisible: false });
     });
 
     it('2b — setVisibility invalidates cache (del called)', async () => {
-      const fakeRedis = {
-        get: vi.fn().mockResolvedValue(null),
-        set: vi.fn().mockResolvedValue('OK'),
+      const matchingKey = `ext:contributions:${TENANT_ID}:${PLUGIN_HOST}:slot-x`;
+      const fakeRedis = makeRedis({
+        keys: vi.fn().mockResolvedValue([matchingKey]),
+        // scan: first call returns matching keys, second call returns terminal cursor
+        scan: vi
+          .fn()
+          .mockResolvedValueOnce(['42', [matchingKey]])
+          .mockResolvedValueOnce(['0', []]),
         del: vi.fn().mockResolvedValue(1),
-        keys: vi.fn().mockResolvedValue([`ext:contributions:${TENANT_ID}:${PLUGIN_HOST}:slot-x`]),
-      };
+      });
       const fakeLogger = {
         child: vi.fn().mockReturnThis(),
         info: vi.fn(),
@@ -293,8 +309,12 @@ describe('Extension Registry — E2E Workflow Scenarios', () => {
 
       await svc.setVisibility(TENANT_ID, ENABLED_SETTINGS, WORKSPACE_ID, CONTRIBUTION_ID, true);
 
-      // Slot cache key deleted
-      expect(fakeRedis.del).toHaveBeenCalled();
+      // del must be called at least twice: once for the slots key, once for the matched contribution key
+      expect(fakeRedis.del).toHaveBeenCalledTimes(2);
+      // scan was called iteratively until cursor reached '0'
+      expect(fakeRedis.scan).toHaveBeenCalledTimes(2);
+      // The matched contribution key was deleted
+      expect(fakeRedis.del).toHaveBeenCalledWith(matchingKey);
     });
 
     it('2c — re-toggle visibility back to true succeeds', async () => {

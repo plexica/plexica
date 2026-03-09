@@ -43,6 +43,51 @@ function getCachedContributionComponent(
 }
 
 // ---------------------------------------------------------------------------
+// Safe context sanitizer (W-06 fix)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively sanitizes a context value to contain only JSON-serialisable
+ * plain data: null, primitives (string/number/boolean), plain objects (no
+ * class prototype chain), and arrays of the above.
+ *
+ * Functions, class instances, symbols, and any other host-internal types are
+ * stripped to prevent accidental leakage into plugin components (NFR-007).
+ *
+ * Max depth is capped at 5 to prevent prototype-chain attacks.
+ */
+function sanitizeContextValue(val: unknown, depth = 0): unknown {
+  if (depth > 5) return undefined;
+  if (val === null) return null;
+  const t = typeof val;
+  if (t === 'string' || t === 'number' || t === 'boolean') return val;
+  if (Array.isArray(val)) {
+    const sanitized = val
+      .map((item) => sanitizeContextValue(item, depth + 1))
+      .filter((v) => v !== undefined);
+    return sanitized;
+  }
+  if (t === 'object' && Object.getPrototypeOf(val) === Object.prototype) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      const cleaned = sanitizeContextValue(v, depth + 1);
+      if (cleaned !== undefined) result[k] = cleaned;
+    }
+    return result;
+  }
+  return undefined; // functions, class instances, symbols, etc.
+}
+
+function sanitizeContext(context: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(context)) {
+    const cleaned = sanitizeContextValue(v);
+    if (cleaned !== undefined) result[k] = cleaned;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
@@ -103,21 +148,11 @@ function ContributionInner({ contribution, context, slotType, onTimeout, onLoad 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — fire once on mount
 
-  // Prop isolation: only pass safe plain-value context keys — no functions,
-  // no objects with prototypes, no host-internal state (NFR-007, H-04).
-  // `contextSchema` is not available here at runtime, so we filter defensively:
-  // only string, number, boolean, null, and plain-object/array values pass.
-  // Functions and class instances are stripped to prevent accidental leakage of
-  // host callbacks into plugin components.
-  const safeContext = Object.fromEntries(
-    Object.entries(context).filter(([, v]) => {
-      if (v === null) return true;
-      const t = typeof v;
-      if (t === 'string' || t === 'number' || t === 'boolean') return true;
-      if (t === 'object') return Object.getPrototypeOf(v) === Object.prototype || Array.isArray(v);
-      return false; // strips functions, symbols, class instances
-    })
-  );
+  // Prop isolation: recursively sanitize context to contain only plain data —
+  // no functions, no class instances, no symbols (NFR-007, W-06 fix).
+  // sanitizeContext traverses the full object tree (depth ≤ 5) so nested
+  // functions inside plain objects are also stripped.
+  const safeContext = sanitizeContext(context);
 
   // React.createElement is used instead of JSX <Component> to avoid the
   // react-hooks/static-components rule, which fires on uppercase local
@@ -221,15 +256,19 @@ export const ExtensionContribution: React.FC<ExtensionContributionProps> = ({
       data-testid={`extension-contribution-${id}`}
       data-contribution-id={id}
       data-plugin-id={contributingPluginId}
+      // W-10 fix: make the wrapper focusable so VirtualizedSlotContainer's
+      // arrow-key navigation can call .focus() on [data-contribution-id] elements.
+      // WCAG 2.1 SC 2.1.1 (Keyboard).
+      tabIndex={0}
     >
-      {/* Plugin attribution badge — visible on hover only (not announced to screen readers) */}
+      {/* Plugin attribution badge — visible on hover, accessible to screen readers (W-04 a11y fix) */}
       <div
         className="absolute top-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-        aria-hidden="true"
+        aria-label={`Contributed by ${contributingPluginName}`}
       >
         <span className="inline-flex items-center gap-1 rounded-bl bg-muted/80 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-          <Puzzle className="h-2 w-2" />
-          {contributingPluginName}
+          <Puzzle className="h-2 w-2" aria-hidden="true" />
+          <span>{contributingPluginName}</span>
         </span>
       </div>
 

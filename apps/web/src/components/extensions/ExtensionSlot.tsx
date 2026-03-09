@@ -18,7 +18,7 @@
 //
 // FR-007, FR-008, FR-009, FR-010, NFR-008, NFR-011, NFR-014
 
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useFeatureFlag } from '@/lib/feature-flags';
@@ -118,14 +118,12 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
     setLoadedCount((n) => n + 1);
   }, []);
 
-  // Reset counter when the data changes (e.g. after SSE cache invalidation).
-  const prevDataRef = React.useRef(data);
-  if (prevDataRef.current !== data) {
-    prevDataRef.current = data;
-    // Intentional synchronous state reset during render — safe because we only
-    // do this when `data` identity changes, which React handles correctly.
+  // W-09 fix: reset counter in useEffect (not synchronously during render) to
+  // avoid the React concurrent-mode anti-pattern where state is updated during
+  // the render pass, potentially causing extra renders or scheduling issues.
+  useEffect(() => {
     setLoadedCount(0);
-  }
+  }, [data]);
 
   const allChildrenLoaded = !isLoading && totalCount > 0 && loadedCount >= totalCount;
 

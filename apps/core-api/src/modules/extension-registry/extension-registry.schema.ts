@@ -164,6 +164,48 @@ export const ContributionDeclarationSchema = z
 
 export type ValidatedContributionDeclaration = z.infer<typeof ContributionDeclarationSchema>;
 
+/**
+ * Zod schema for ExtensibleEntityDeclaration from plugin manifests.
+ * C-04 fix: entities were previously upserted without Zod validation.
+ * Art. 5.3: All external input validated with Zod schemas.
+ */
+export const ExtensibleEntityDeclarationSchema = z
+  .object({
+    entityType: safeString.min(1).max(255),
+    label: safeString.min(1).max(255),
+    fieldSchema: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+export type ValidatedExtensibleEntityDeclaration = z.infer<
+  typeof ExtensibleEntityDeclarationSchema
+>;
+
+/**
+ * Zod schema for DataExtensionDeclaration from plugin manifests.
+ * C-04 fix: dataExtensions were previously upserted without Zod validation,
+ * meaning sidecarUrl values could bypass SSRF pre-validation entirely.
+ * Art. 5.3: All external input validated with Zod schemas.
+ */
+export const DataExtensionDeclarationSchema = z
+  .object({
+    targetPluginId: safeString.min(1).max(255),
+    targetEntityType: safeString.min(1).max(255),
+    /** Must be a valid URL — validated here before storage (SSRF pre-validation layer). */
+    sidecarUrl: z
+      .string()
+      .url({ message: 'sidecarUrl must be a valid URL' })
+      .refine((s) => !s.includes('\u0000'), { message: 'String must not contain null bytes' })
+      .refine((s) => /^https?:\/\//i.test(s), {
+        message: 'sidecarUrl must use http or https scheme',
+      }),
+    fieldSchema: z.record(z.string(), z.unknown()),
+    description: safeOptionalString,
+  })
+  .strict();
+
+export type ValidatedDataExtensionDeclaration = z.infer<typeof DataExtensionDeclarationSchema>;
+
 // ---------------------------------------------------------------------------
 // Feature-flag helper
 // ---------------------------------------------------------------------------
