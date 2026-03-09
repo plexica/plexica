@@ -26,6 +26,8 @@ import {
   GetSlotsQuerySchema,
   GetSlotsByPluginParamsSchema,
   GetContributionsQuerySchema,
+  GetEntitiesQuerySchema,
+  GetAdminSlotsQuerySchema,
   SlotDependentsParamsSchema,
   EntityExtensionParamsSchema,
   VisibilityPatchParamsSchema,
@@ -34,6 +36,8 @@ import {
   type GetSlotsQuery,
   type GetSlotsByPluginParams,
   type GetContributionsQuery,
+  type GetEntitiesQuery,
+  type GetAdminSlotsQuery,
   type SlotDependentsParams,
   type EntityExtensionParams,
   type VisibilityPatchParams,
@@ -101,6 +105,18 @@ async function resolveTenant(request: {
 /**
  * Centralised error handler. Maps typed error codes from service layer to
  * HTTP status codes per Constitution Art. 6.1 + Art. 6.2.
+ *
+ * forge-review fixes applied:
+ *  - [CONSENSUS] Added TENANT_ISOLATION_VIOLATION branch → HTTP 403 so tenant
+ *    isolation violations are correctly surfaced to monitoring (Art. 5.2, 6.1.4).
+ *  - [CONSENSUS] Dispatch on `.code` property (set on all thrown errors in the
+ *    service/repo layer) instead of fragile string-includes matching, which could
+ *    crash on non-Error values and misclassify errors whose messages contain
+ *    multiple error codes.
+ *  - [LOW] EXTENSION_POINTS_DISABLED now returns HTTP 403 (feature unavailable)
+ *    instead of 404 (not found) — Constitution Art. 6.1 operational error semantics.
+ *    Returning 404 caused API consumers to treat a disabled feature as non-existent,
+ *    leading to incorrect retry / error-handling logic.
  */
 function handleExtensionError(
   error: unknown,
@@ -108,55 +124,99 @@ function handleExtensionError(
   fastify: FastifyInstance,
   logLabel: string
 ): ReturnType<FastifyReply['status']> {
-  const msg = error instanceof Error ? error.message : 'Unknown error';
+  // Guard: coerce non-Error throws to a consistent shape before dispatching.
+  // This prevents the catch block itself from throwing when a non-Error value
+  // is rejected (CODEX finding: crash on non-Error objects).
+  const code =
+    error != null && typeof error === 'object' && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : undefined;
+  const msg =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error';
 
-  if (msg.includes('EXTENSION_POINTS_DISABLED')) {
-    return reply.status(404).send({
-      error: {
-        code: 'EXTENSION_POINTS_DISABLED',
-        message: 'Extension points are not enabled for this tenant',
-      },
-    });
-  }
-  if (msg.includes('SLOT_NOT_FOUND')) {
-    return reply.status(404).send({
-      error: { code: 'SLOT_NOT_FOUND', message: msg.replace('SLOT_NOT_FOUND: ', '') },
-    });
-  }
-  if (msg.includes('CONTRIBUTION_NOT_FOUND')) {
-    return reply.status(404).send({
-      error: {
-        code: 'CONTRIBUTION_NOT_FOUND',
-        message: msg.replace('CONTRIBUTION_NOT_FOUND: ', ''),
-      },
-    });
-  }
-  if (msg.includes('ENTITY_TYPE_NOT_FOUND')) {
-    return reply.status(404).send({
-      error: { code: 'ENTITY_TYPE_NOT_FOUND', message: msg.replace('ENTITY_TYPE_NOT_FOUND: ', '') },
-    });
-  }
-  if (msg.includes('WORKSPACE_VISIBILITY_DENIED')) {
-    return reply.status(403).send({
-      error: {
-        code: 'WORKSPACE_VISIBILITY_DENIED',
-        message: msg.replace('WORKSPACE_VISIBILITY_DENIED: ', ''),
-      },
-    });
-  }
-  if (msg.includes('EXTENSION_PERMISSION_DENIED')) {
-    return reply.status(403).send({
-      error: {
-        code: 'EXTENSION_PERMISSION_DENIED',
-        message: msg.replace('EXTENSION_PERMISSION_DENIED: ', ''),
-      },
-    });
-  }
+  // Dispatch on the stable `.code` property; fall back to message substring
+  // matching only for legacy throws that predate the .code pattern.
+  const effectiveCode = code ?? (typeof msg === 'string' ? extractCodeFromMessage(msg) : undefined);
 
-  fastify.log.error({ error }, logLabel);
-  return reply.status(500).send({
-    error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
-  });
+  switch (effectiveCode) {
+    case 'EXTENSION_POINTS_DISABLED':
+      // HTTP 403: feature exists but is disabled for this tenant (not "not found").
+      return reply.status(403).send({
+        error: {
+          code: 'EXTENSION_POINTS_DISABLED',
+          message: 'Extension points are not enabled for this tenant',
+        },
+      });
+    case 'SLOT_NOT_FOUND':
+      return reply
+        .status(404)
+        .send({ error: { code: 'SLOT_NOT_FOUND', message: stripPrefix(msg, 'SLOT_NOT_FOUND') } });
+    case 'CONTRIBUTION_NOT_FOUND':
+      return reply.status(404).send({
+        error: {
+          code: 'CONTRIBUTION_NOT_FOUND',
+          message: stripPrefix(msg, 'CONTRIBUTION_NOT_FOUND'),
+        },
+      });
+    case 'ENTITY_TYPE_NOT_FOUND':
+      return reply.status(404).send({
+        error: {
+          code: 'ENTITY_TYPE_NOT_FOUND',
+          message: stripPrefix(msg, 'ENTITY_TYPE_NOT_FOUND'),
+        },
+      });
+    case 'WORKSPACE_VISIBILITY_DENIED':
+      return reply.status(403).send({
+        error: {
+          code: 'WORKSPACE_VISIBILITY_DENIED',
+          message: stripPrefix(msg, 'WORKSPACE_VISIBILITY_DENIED'),
+        },
+      });
+    case 'EXTENSION_PERMISSION_DENIED':
+      return reply.status(403).send({
+        error: {
+          code: 'EXTENSION_PERMISSION_DENIED',
+          message: stripPrefix(msg, 'EXTENSION_PERMISSION_DENIED'),
+        },
+      });
+    case 'TENANT_ISOLATION_VIOLATION':
+      // HTTP 403: cross-tenant access attempt — must NOT be a 500 (Art. 5.2, 6.1.4).
+      // Returning 500 here would mask this security event from monitoring alerts
+      // keyed on 403s and obscure tenant isolation violations in audit logs.
+      return reply.status(403).send({
+        error: {
+          code: 'TENANT_ISOLATION_VIOLATION',
+          message: stripPrefix(msg, 'TENANT_ISOLATION_VIOLATION'),
+        },
+      });
+    case 'SSRF_BLOCKED':
+      return reply.status(400).send({
+        error: { code: 'SSRF_BLOCKED', message: stripPrefix(msg, 'SSRF_BLOCKED') },
+      });
+    default:
+      fastify.log.error({ error }, logLabel);
+      return reply
+        .status(500)
+        .send({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } });
+  }
+}
+
+/**
+ * Extracts a known error code from a message string of the form "CODE: details".
+ * Used as a fallback when the thrown value has no `.code` property.
+ */
+function extractCodeFromMessage(msg: string): string | undefined {
+  const colonIdx = msg.indexOf(':');
+  if (colonIdx === -1) return undefined;
+  const candidate = msg.slice(0, colonIdx).trim();
+  // Only return uppercase_underscore patterns (i.e. our typed error codes).
+  return /^[A-Z][A-Z0-9_]+$/.test(candidate) ? candidate : undefined;
+}
+
+/** Strips "CODE: " prefix from a message for cleaner display. */
+function stripPrefix(msg: string, code: string): string {
+  const prefix = `${code}: `;
+  return msg.startsWith(prefix) ? msg.slice(prefix.length) : msg;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +238,8 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           properties: {
             pluginId: { type: 'string' },
             type: { type: 'string' },
+            page: { type: 'integer', minimum: 1, default: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
           },
         },
       },
@@ -202,12 +264,15 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           });
         }
 
+        const { page, pageSize, ...filters } = query.data;
         const slots = await extensionRegistryService.getSlots(
           ctx.tenantId,
           ctx.settings,
-          query.data
+          filters,
+          page,
+          pageSize
         );
-        return reply.send({ slots });
+        return reply.send({ slots, page, pageSize });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({
@@ -225,7 +290,10 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
 
   // ── GET /extension-registry/slots/:pluginId ────────────────────────────────
   // FR-019: List slots for a specific plugin.
-  fastify.get<{ Params: GetSlotsByPluginParams }>(
+  fastify.get<{
+    Params: GetSlotsByPluginParams;
+    Querystring: { page?: number; pageSize?: number };
+  }>(
     '/extension-registry/slots/:pluginId',
     {
       preHandler: authMiddleware,
@@ -236,6 +304,13 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           type: 'object',
           required: ['pluginId'],
           properties: { pluginId: { type: 'string' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: {
+            page: { type: 'integer', minimum: 1, default: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+          },
         },
       },
     },
@@ -259,12 +334,17 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           });
         }
 
+        const page = Math.max(1, Number(request.query.page) || 1);
+        const pageSize = Math.min(100, Math.max(1, Number(request.query.pageSize) || 50));
+
         const slots = await extensionRegistryService.getSlotsByPlugin(
           ctx.tenantId,
           ctx.settings,
-          params.data.pluginId
+          params.data.pluginId,
+          page,
+          pageSize
         );
-        return reply.send({ slots });
+        return reply.send({ slots, page, pageSize });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({
@@ -301,6 +381,8 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
             workspaceId: { type: 'string' },
             pluginId: { type: 'string' },
             type: { type: 'string' },
+            page: { type: 'integer', minimum: 1, default: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
           },
         },
       },
@@ -325,12 +407,15 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           });
         }
 
+        const { page, pageSize, ...filters } = query.data;
         const contributions = await extensionRegistryService.getContributions(
           ctx.tenantId,
           ctx.settings,
-          query.data
+          filters,
+          page,
+          pageSize
         );
-        return reply.send({ contributions });
+        return reply.send({ contributions, page, pageSize });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({
@@ -419,13 +504,20 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
 
   // ── GET /extension-registry/entities ──────────────────────────────────────
   // FR-020: List extensible entity types registered for the tenant.
-  fastify.get(
+  fastify.get<{ Querystring: GetEntitiesQuery }>(
     '/extension-registry/entities',
     {
       preHandler: authMiddleware,
       schema: {
         description: 'List extensible entity types for the tenant (FR-020)',
         tags: ['extension-registry'],
+        querystring: {
+          type: 'object',
+          properties: {
+            page: { type: 'integer', minimum: 1, default: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+          },
+        },
       },
     },
     async (request, reply) => {
@@ -437,9 +529,35 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
             .send({ error: { code: 'FORBIDDEN', message: 'No tenant context available' } });
         }
 
-        const entities = await extensionRegistryService.getEntities(ctx.tenantId, ctx.settings);
-        return reply.send({ entities });
+        const query = GetEntitiesQuerySchema.safeParse(request.query);
+        if (!query.success) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_QUERY',
+              message: 'Invalid query parameters',
+              details: query.error.issues,
+            },
+          });
+        }
+
+        const { page, pageSize } = query.data;
+        const entities = await extensionRegistryService.getEntities(
+          ctx.tenantId,
+          ctx.settings,
+          page,
+          pageSize
+        );
+        return reply.send({ entities, page, pageSize });
       } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_QUERY',
+              message: 'Invalid query parameters',
+              details: error.issues,
+            },
+          });
+        }
         return handleExtensionError(
           error,
           reply,
@@ -625,7 +743,7 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
   // ADR-031 Safeguard 3: Cross-tenant admin endpoint — SUPER_ADMIN only.
   // W-12 fix: Role is derived from verified JWT (realm_access.roles), never from
   // a caller-supplied boolean. authorizationService.isSuperAdmin() is the gate.
-  fastify.get(
+  fastify.get<{ Querystring: GetAdminSlotsQuery }>(
     '/extension-registry/admin/slots',
     {
       preHandler: authMiddleware,
@@ -633,6 +751,13 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
         description:
           'SUPER_ADMIN ONLY: List all extension slots across all tenants (ADR-031 Safeguard 3)',
         tags: ['extension-registry', 'admin'],
+        querystring: {
+          type: 'object',
+          properties: {
+            page: { type: 'integer', minimum: 1, default: 1 },
+            pageSize: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+          },
+        },
       },
     },
     async (request, reply) => {
@@ -653,8 +778,20 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const slots = await extensionRegistryService.superAdminListAllSlots();
-        return reply.send({ slots });
+        const query = GetAdminSlotsQuerySchema.safeParse(request.query);
+        if (!query.success) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_QUERY',
+              message: 'Invalid query parameters',
+              details: query.error.issues,
+            },
+          });
+        }
+
+        const { page, pageSize } = query.data;
+        const slots = await extensionRegistryService.superAdminListAllSlots(page, pageSize);
+        return reply.send({ slots, page, pageSize });
       } catch (error) {
         return handleExtensionError(
           error,

@@ -27,6 +27,25 @@ const optionalUuid = uuidSchema.optional();
 const slotTypeSchema = z.enum(EXTENSION_SLOT_TYPES);
 
 // ---------------------------------------------------------------------------
+// Pagination
+// ---------------------------------------------------------------------------
+
+/** Maximum number of results per page (Constitution Art. 3.4.3). */
+export const MAX_PAGE_SIZE = 100;
+
+/**
+ * Shared pagination query params — used by all list endpoints.
+ * page: 1-based page number (default 1).
+ * pageSize: items per page (default 50, max 100).
+ */
+export const PaginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
+});
+
+export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+// ---------------------------------------------------------------------------
 // Query schemas
 // ---------------------------------------------------------------------------
 
@@ -38,10 +57,25 @@ export const GetSlotsQuerySchema = z
   .object({
     pluginId: safeString.min(1).max(255).optional(),
     type: slotTypeSchema.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
   })
   .strict();
 
 export type GetSlotsQuery = z.infer<typeof GetSlotsQuerySchema>;
+
+/**
+ * GET /api/v1/extension-registry/entities
+ * Pagination-only query for listing extensible entities.
+ */
+export const GetEntitiesQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
+  })
+  .strict();
+
+export type GetEntitiesQuery = z.infer<typeof GetEntitiesQuerySchema>;
 
 /**
  * GET /api/v1/extension-registry/slots/:pluginId
@@ -74,6 +108,8 @@ export const GetContributionsQuerySchema = z
     workspaceId: optionalUuid,
     pluginId: safeString.min(1).max(255).optional(),
     type: slotTypeSchema.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
   })
   .strict()
   .refine((d) => !(d.targetSlotId && !d.targetPluginId), {
@@ -168,12 +204,15 @@ export type ValidatedContributionDeclaration = z.infer<typeof ContributionDeclar
  * Zod schema for ExtensibleEntityDeclaration from plugin manifests.
  * C-04 fix: entities were previously upserted without Zod validation.
  * Art. 5.3: All external input validated with Zod schemas.
+ * forge-review fix: added `description` to match ContributionDeclarationSchema and
+ * the TypeScript ExtensibleEntityDeclaration interface (Zod schema drift).
  */
 export const ExtensibleEntityDeclarationSchema = z
   .object({
     entityType: safeString.min(1).max(255),
     label: safeString.min(1).max(255),
     fieldSchema: z.record(z.string(), z.unknown()),
+    description: safeOptionalString,
   })
   .strict();
 
@@ -205,6 +244,19 @@ export const DataExtensionDeclarationSchema = z
   .strict();
 
 export type ValidatedDataExtensionDeclaration = z.infer<typeof DataExtensionDeclarationSchema>;
+
+/**
+ * GET /api/v1/extension-registry/admin/slots
+ * Pagination query for the super-admin cross-tenant slot listing.
+ */
+export const GetAdminSlotsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
+  })
+  .strict();
+
+export type GetAdminSlotsQuery = z.infer<typeof GetAdminSlotsQuerySchema>;
 
 // ---------------------------------------------------------------------------
 // Admin / operator route schemas (W-12, W-8)

@@ -151,6 +151,7 @@ model TenantPlugin {
   plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
 
   @@id([tenantId, pluginId])
+  @@index([pluginId])
   @@map("tenant_plugins")
   @@schema("core")
 }

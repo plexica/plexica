@@ -152,8 +152,9 @@ export class ExtensionRegistryRepository {
   /**
    * List active extension slots, optionally filtered.
    * ADR-031 Safeguard 2: tenantId required.
+   * Constitution Art. 3.4.3: page/pageSize enforces max 100 items per page.
    */
-  async getSlots(tenantId: string, filters?: ExtensionSlotFilters) {
+  async getSlots(tenantId: string, filters?: ExtensionSlotFilters, page = 1, pageSize = 50) {
     return this.db.extensionSlot.findMany({
       where: {
         tenantId,
@@ -162,17 +163,22 @@ export class ExtensionRegistryRepository {
         ...(filters?.type ? { type: filters.type } : {}),
       },
       orderBy: [{ pluginId: 'asc' }, { slotId: 'asc' }],
+      take: pageSize,
+      skip: (page - 1) * pageSize,
     });
   }
 
   /**
    * List active slots for a specific plugin.
    * ADR-031 Safeguard 2: tenantId required.
+   * Constitution Art. 3.4.3: page/pageSize enforces max 100 items per page.
    */
-  async getSlotsByPlugin(tenantId: string, pluginId: string) {
+  async getSlotsByPlugin(tenantId: string, pluginId: string, page = 1, pageSize = 50) {
     return this.db.extensionSlot.findMany({
       where: { tenantId, pluginId, isActive: true },
       orderBy: { slotId: 'asc' },
+      take: pageSize,
+      skip: (page - 1) * pageSize,
     });
   }
 
@@ -241,12 +247,18 @@ export class ExtensionRegistryRepository {
   /**
    * List contributions, optionally filtered.
    * ADR-031 Safeguard 2: tenantId required.
+   * Constitution Art. 3.4.3: page/pageSize enforces max 100 items per page.
    *
    * `type` filter: contributions do not store a type field directly — type belongs
    * to the target slot. We resolve this by including the target slot and filtering
    * post-fetch. For large datasets prefer the slot-specific endpoint instead.
    */
-  async getContributions(tenantId: string, filters?: ExtensionContributionFilters) {
+  async getContributions(
+    tenantId: string,
+    filters?: ExtensionContributionFilters,
+    page = 1,
+    pageSize = 50
+  ) {
     const rows = await this.db.extensionContribution.findMany({
       where: {
         tenantId,
@@ -272,6 +284,8 @@ export class ExtensionRegistryRepository {
           : {}),
       },
       orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
+      take: pageSize,
+      skip: (page - 1) * pageSize,
     });
 
     // Post-fetch type filter: keep only contributions whose target slot type matches
@@ -289,6 +303,12 @@ export class ExtensionRegistryRepository {
    * Get contributions for a specific slot with workspace visibility state resolved.
    * ADR-031 Safeguard 2: tenantId required.
    * Returns only active contributions; isVisible defaults to true when no override row exists.
+   *
+   * maxContributions enforcement (forge-review fix):
+   *   When the slot declares maxContributions > 0, the result set is capped to that
+   *   limit (ordered by priority asc then contributingPluginId asc, which matches the
+   *   fetch order). A value of 0 means "unlimited". The slot is fetched in parallel
+   *   with the contributions to avoid adding a serial round-trip.
    */
   async getContributionsForSlot(
     tenantId: string,
@@ -296,17 +316,24 @@ export class ExtensionRegistryRepository {
     targetSlotId: string,
     workspaceId?: string
   ): Promise<ContributionWithVisibility[]> {
-    const rows = await this.db.extensionContribution.findMany({
-      where: { tenantId, targetPluginId, targetSlotId, isActive: true },
-      include: {
-        visibilityOverrides: workspaceId ? { where: { workspaceId } } : false,
-        // W-04 fix: join contributing plugin so we can surface its display name
-        contributingPlugin: { select: { id: true, name: true } },
-      },
-      orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
-    });
+    // Fetch contributions and slot metadata in parallel (one round-trip each).
+    const [rows, slot] = await Promise.all([
+      this.db.extensionContribution.findMany({
+        where: { tenantId, targetPluginId, targetSlotId, isActive: true },
+        include: {
+          visibilityOverrides: workspaceId ? { where: { workspaceId } } : false,
+          // W-04 fix: join contributing plugin so we can surface its display name
+          contributingPlugin: { select: { id: true, name: true } },
+        },
+        orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
+      }),
+      this.db.extensionSlot.findFirst({
+        where: { tenantId, pluginId: targetPluginId, slotId: targetSlotId },
+        select: { maxContributions: true },
+      }),
+    ]);
 
-    return (rows as unknown[]).map((row) => {
+    const mapped = (rows as unknown[]).map((row) => {
       const r = row as {
         id: string;
         contributingPluginId: string;
@@ -339,6 +366,10 @@ export class ExtensionRegistryRepository {
         isVisible: override !== undefined ? override.isVisible : true,
       };
     });
+
+    // Enforce the slot's maxContributions cap (0 = unlimited).
+    const max = (slot as { maxContributions?: number } | null)?.maxContributions ?? 0;
+    return max > 0 ? mapped.slice(0, max) : mapped;
   }
 
   // ── Workspace Visibility ───────────────────────────────────────────────────
@@ -428,11 +459,14 @@ export class ExtensionRegistryRepository {
   /**
    * List active extensible entities for a tenant.
    * ADR-031 Safeguard 2: tenantId required.
+   * Constitution Art. 3.4.3: page/pageSize enforces max 100 items per page.
    */
-  async getEntities(tenantId: string) {
+  async getEntities(tenantId: string, page = 1, pageSize = 50) {
     return this.db.extensibleEntity.findMany({
       where: { tenantId, isActive: true },
       orderBy: [{ pluginId: 'asc' }, { entityType: 'asc' }],
+      take: pageSize,
+      skip: (page - 1) * pageSize,
     });
   }
 
@@ -510,6 +544,12 @@ export class ExtensionRegistryRepository {
    * Soft-delete all extension records for a plugin within a tenant.
    * Called on plugin deactivation (FR-024).
    * ADR-031 Safeguard 2: tenantId required to prevent cross-tenant mutation (F-002 fix).
+   *
+   * Promise.all safety: exactly 4 updateMany calls are issued in parallel — one per
+   * extension table (slots, contributions, entities, dataExtensions). This is safe
+   * because the number of concurrent queries is bounded and constant (not per-row),
+   * so it cannot exhaust the Prisma connection pool regardless of data volume.
+   * concurrentMap is only needed for per-row upserts (see upsertSlots, etc.).
    */
   async deactivateByPlugin(tenantId: string, pluginId: string): Promise<void> {
     logger.info({ tenantId, pluginId }, 'deactivating all extension records for plugin');
@@ -538,6 +578,9 @@ export class ExtensionRegistryRepository {
    * Restore all extension records for a plugin on re-activation within a tenant.
    * Called on plugin re-activation (FR-024).
    * ADR-031 Safeguard 2: tenantId required to prevent cross-tenant mutation (F-002 fix).
+   *
+   * Promise.all safety: see deactivateByPlugin — same pattern, same rationale.
+   * Exactly 4 updateMany calls, bounded concurrency, no pool exhaustion risk.
    */
   async reactivateByPlugin(tenantId: string, pluginId: string): Promise<void> {
     logger.info({ tenantId, pluginId }, 're-activating all extension records for plugin');
@@ -684,14 +727,13 @@ export class ExtensionRegistryRepository {
       });
     }
 
-    // Batch-update all statuses concurrently (one query per contribution, but in parallel)
-    await Promise.all(
-      statusUpdates.map(({ id, status }) =>
-        this.db.extensionContribution.update({
-          where: { id },
-          data: { validationStatus: status, updatedAt: new Date() },
-        })
-      )
+    // Batch-update all statuses with bounded concurrency (W-05 pattern: concurrentMap
+    // instead of Promise.all to avoid pool exhaustion on large contribution sets).
+    await concurrentMap(statusUpdates, UPSERT_CONCURRENCY, ({ id, status }) =>
+      this.db.extensionContribution.update({
+        where: { id },
+        data: { validationStatus: status, updatedAt: new Date() },
+      })
     );
 
     return results;
@@ -710,10 +752,13 @@ export class ExtensionRegistryRepository {
    * super-admin status from the verified Keycloak JWT (realm_access.roles) via
    * authorizationService.isSuperAdmin(). The repo's defense-in-depth is its
    * explicit "superAdmin" naming convention (ADR-031 Safeguard 3).
+   * Constitution Art. 3.4.3: page/pageSize enforces max 100 items per page.
    */
-  async superAdminListAllSlots() {
+  async superAdminListAllSlots(page = 1, pageSize = 50) {
     return this.db.extensionSlot.findMany({
       orderBy: [{ tenantId: 'asc' }, { pluginId: 'asc' }],
+      take: pageSize,
+      skip: (page - 1) * pageSize,
     });
   }
 }

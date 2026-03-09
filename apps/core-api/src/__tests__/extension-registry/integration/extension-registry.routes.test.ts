@@ -183,6 +183,9 @@ describe('Extension Registry Routes — Integration Tests', () => {
 
   describe('GET /api/v1/extension-registry/slots', () => {
     it('200 — returns active slots for authenticated tenant user', async () => {
+      // forge-review fix [CONSENSUS]: tests now assert against the real controller
+      // response shape ({ slots }) rather than a hypothetical { data } wrapper
+      // that never existed in the controller (Test-Spec Coherence fix).
       mockGetSlots.mockResolvedValue([SAMPLE_SLOT]);
 
       const res = await app.inject({
@@ -192,9 +195,9 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ data: (typeof SAMPLE_SLOT)[] }>();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].slotId).toBe('action-bar');
+      const body = res.json<{ slots: (typeof SAMPLE_SLOT)[] }>();
+      expect(body.slots).toHaveLength(1);
+      expect(body.slots[0].slotId).toBe('action-bar');
     });
 
     it('200 — empty array when no slots exist', async () => {
@@ -207,7 +210,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json<{ data: unknown[] }>().data).toEqual([]);
+      expect(res.json<{ slots: unknown[] }>().slots).toEqual([]);
     });
 
     it('401 — no authorization header', async () => {
@@ -218,7 +221,11 @@ describe('Extension Registry Routes — Integration Tests', () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it('404 — feature flag disabled returns EXTENSION_POINTS_DISABLED', async () => {
+    it('403 — feature flag disabled returns EXTENSION_POINTS_DISABLED', async () => {
+      // forge-review fix: EXTENSION_POINTS_DISABLED now returns HTTP 403 (feature
+      // unavailable for this tenant) rather than 404 (not found). Returning 404
+      // caused API consumers to misinterpret a disabled feature as non-existent,
+      // leading to incorrect retry / error-handling logic (Constitution Art. 6.1).
       mockGetSlots.mockRejectedValueOnce(
         Object.assign(new Error('EXTENSION_POINTS_DISABLED: not enabled'), {
           code: 'EXTENSION_POINTS_DISABLED',
@@ -231,7 +238,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
         headers: { authorization: `Bearer ${tenantToken}` },
       });
 
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(403);
       const body = res.json<{ error: { code: string } }>();
       expect(body.error.code).toBe('EXTENSION_POINTS_DISABLED');
     });
@@ -276,7 +283,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json<{ data: unknown[] }>().data).toHaveLength(1);
+      expect(res.json<{ slots: unknown[] }>().slots).toHaveLength(1);
     });
 
     it('200 — returns empty array for unknown plugin', async () => {
@@ -289,7 +296,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json<{ data: unknown[] }>().data).toEqual([]);
+      expect(res.json<{ slots: unknown[] }>().slots).toEqual([]);
     });
   });
 
@@ -306,8 +313,8 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ data: unknown[] }>();
-      expect(body.data).toHaveLength(1);
+      const body = res.json<{ contributions: unknown[] }>();
+      expect(body.contributions).toHaveLength(1);
     });
 
     it('400 — invalid workspaceId UUID', async () => {
@@ -343,7 +350,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json<{ data: unknown[] }>().data).toHaveLength(1);
+      expect(res.json<{ entities: unknown[] }>().entities).toHaveLength(1);
     });
 
     it('401 — no auth', async () => {
@@ -375,8 +382,9 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ data: { fields: Record<string, unknown> } }>();
-      expect(body.data.fields).toEqual({ extra: 'data' });
+      // Controller returns the AggregatedExtensionData shape directly (no { data } wrapper)
+      const body = res.json<{ fields: Record<string, unknown> }>();
+      expect(body.fields).toEqual({ extra: 'data' });
     });
 
     it('404 — ENTITY_TYPE_NOT_FOUND returns correct code', async () => {

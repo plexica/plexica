@@ -9,6 +9,7 @@
 // Sidecar aggregation: Promise.allSettled — never throws on partial failure.
 
 import * as dns from 'node:dns/promises';
+import { Agent as UndiciAgent } from 'undici';
 import type { PrismaClient } from '@plexica/database';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
@@ -378,17 +379,19 @@ export class ExtensionRegistryService {
 
   /**
    * List extension slots for a tenant, with optional filters.
-   * Results are cached with TTL jitter.
+   * Results are cached with TTL jitter (only for un-filtered, first-page queries).
    */
   async getSlots(
     tenantId: string,
     tenantSettings: Record<string, unknown>,
-    filters?: ExtensionSlotFilters
+    filters?: ExtensionSlotFilters,
+    page = 1,
+    pageSize = 50
   ) {
     this.assertEnabled(tenantSettings);
 
-    // Only cache the un-filtered listing
-    if (!filters?.pluginId && !filters?.type) {
+    // Only cache the un-filtered first-page listing
+    if (!filters?.pluginId && !filters?.type && page === 1 && pageSize === 50) {
       const cacheKey = slotsCacheKey(tenantId);
       const cached = await this.redis.get(cacheKey);
       if (cached) {
@@ -399,12 +402,12 @@ export class ExtensionRegistryService {
         }
       }
 
-      const slots = await this.repo.getSlots(tenantId, filters);
+      const slots = await this.repo.getSlots(tenantId, filters, page, pageSize);
       await this.redis.set(cacheKey, JSON.stringify(slots), 'EX', cacheTtl());
       return slots;
     }
 
-    return this.repo.getSlots(tenantId, filters);
+    return this.repo.getSlots(tenantId, filters, page, pageSize);
   }
 
   /**
@@ -413,10 +416,12 @@ export class ExtensionRegistryService {
   async getSlotsByPlugin(
     tenantId: string,
     tenantSettings: Record<string, unknown>,
-    pluginId: string
+    pluginId: string,
+    page = 1,
+    pageSize = 50
   ) {
     this.assertEnabled(tenantSettings);
-    return this.repo.getSlotsByPlugin(tenantId, pluginId);
+    return this.repo.getSlotsByPlugin(tenantId, pluginId, page, pageSize);
   }
 
   // ── Contribution Queries ──────────────────────────────────────────────────
@@ -427,10 +432,12 @@ export class ExtensionRegistryService {
   async getContributions(
     tenantId: string,
     tenantSettings: Record<string, unknown>,
-    filters?: ExtensionContributionFilters
+    filters?: ExtensionContributionFilters,
+    page = 1,
+    pageSize = 50
   ) {
     this.assertEnabled(tenantSettings);
-    return this.repo.getContributions(tenantId, filters);
+    return this.repo.getContributions(tenantId, filters, page, pageSize);
   }
 
   /**
@@ -508,9 +515,14 @@ export class ExtensionRegistryService {
 
   // ── Entity Queries ────────────────────────────────────────────────────────
 
-  async getEntities(tenantId: string, tenantSettings: Record<string, unknown>) {
+  async getEntities(
+    tenantId: string,
+    tenantSettings: Record<string, unknown>,
+    page = 1,
+    pageSize = 50
+  ) {
     this.assertEnabled(tenantSettings);
-    return this.repo.getEntities(tenantId);
+    return this.repo.getEntities(tenantId, page, pageSize);
   }
 
   // ── Data Extension Aggregation ────────────────────────────────────────────
@@ -552,27 +564,50 @@ export class ExtensionRegistryService {
     const results = await Promise.allSettled(
       dataExtensions.map(async (ext: { sidecarUrl: string; contributingPluginId: string }) => {
         // SSRF guard: resolve hostname and validate the returned IP (C-03 fix).
-        // assertSafeUrl is now async — it resolves the hostname via dns.lookup and
-        // pins the resolved IP so DNS rebinding is impossible between check and fetch.
+        // assertSafeUrl resolves the hostname via dns.lookup and returns the
+        // validated resolvedIp.  We MUST pin the actual TCP connection to that
+        // IP — otherwise Node's fetch() would re-resolve DNS independently and
+        // an attacker could exploit the TOCTOU window (DNS rebinding attack):
+        //
+        //   1. During assertSafeUrl() → DNS returns 203.0.113.1 (public IP) → passes
+        //   2. TTL expires
+        //   3. During fetch() → DNS returns 169.254.169.254 (IMDS) → bypass!
+        //
+        // Fix: use undici Agent with a custom connect hook that overrides the
+        // hostname passed to the TCP layer, forcing the connection to resolvedIp
+        // regardless of what DNS might return at connection time.
+        // undici is bundled with Node.js 18+ — no new npm dependency needed
+        // (Constitution Art. 2.2).
         const { safeUrl, resolvedIp } = await assertSafeUrl(ext.sidecarUrl);
         safeUrl.searchParams.set('entityId', entityId);
         const url = safeUrl.toString();
+
+        // Create a one-shot undici Agent that pins the TCP destination to the
+        // already-validated resolvedIp.  The Host header remains the original
+        // hostname for SNI/virtual-hosting compatibility.
+        const pinnedAgent = new UndiciAgent({
+          connect: {
+            // Override the hostname that undici passes to net.createConnection /
+            // tls.connect — this is the actual IP that the socket will dial.
+            lookup: (_hostname, _options, callback) => {
+              callback(null, resolvedIp, resolvedIp.includes(':') ? 6 : 4);
+            },
+          },
+        });
 
         const controller = new AbortController();
         const timeoutHandle = setTimeout(() => controller.abort(), SIDECAR_FETCH_TIMEOUT_MS);
 
         try {
           const res = await fetch(url, {
+            // @ts-expect-error — Node 18+ fetch accepts dispatcher for undici Agent
+            dispatcher: pinnedAgent,
             signal: controller.signal,
             headers: {
               // Inject tenant context so sidecar plugins can enforce isolation
               'X-Tenant-ID': tenantId,
               'X-Plugin-ID': ext.contributingPluginId,
               'X-Entity-ID': entityId,
-              // C-03 fix: pass the pinned resolved IP so the network layer can
-              // verify the destination matches what we validated (DNS rebinding
-              // prevention). The sidecar can also use this for self-validation.
-              'X-Resolved-IP': resolvedIp,
             },
           });
           if (!res.ok) {
@@ -582,6 +617,7 @@ export class ExtensionRegistryService {
           return { pluginId: ext.contributingPluginId, data };
         } finally {
           clearTimeout(timeoutHandle);
+          await pinnedAgent.close().catch(() => {});
         }
       })
     );
@@ -673,8 +709,8 @@ export class ExtensionRegistryService {
    * The explicit "superAdmin" method name is the defense-in-depth guard here
    * (ADR-031 Safeguard 3), making cross-tenant access visible at the call site.
    */
-  async superAdminListAllSlots() {
-    return this.repo.superAdminListAllSlots();
+  async superAdminListAllSlots(page = 1, pageSize = 50) {
+    return this.repo.superAdminListAllSlots(page, pageSize);
   }
 
   // ── Sync Status (W-8: operator observability) ────────────────────────────
