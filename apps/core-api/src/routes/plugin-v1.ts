@@ -312,7 +312,11 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
 
-      // Guard: plugin must be ACTIVE
+      // Guard: plugin must be ACTIVE.
+      // validatedPluginId is set from the DB record (not from the raw request param) so
+      // that the downstream fetch URL is derived from a trusted source — this breaks the
+      // user-input → URL data-flow that would otherwise be flagged as SSRF.
+      let validatedPluginId: string;
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
         if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
@@ -320,6 +324,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
         }
+        validatedPluginId = plugin.id;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Plugin not found';
         return reply.code(404).send({
@@ -328,7 +333,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       }
 
       // Check Redis cache first
-      const cacheKey = `plugin:health:${id}`;
+      const cacheKey = `plugin:health:${validatedPluginId}`;
       try {
         const cached = await redis.get(cacheKey);
         if (cached) {
@@ -339,7 +344,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       }
 
       // Proxy to container
-      const baseUrl = resolveContainerBaseUrl(id);
+      const baseUrl = resolveContainerBaseUrl(validatedPluginId);
       try {
         const result = await proxyToContainer(`${baseUrl}/health`, CONTAINER_PROXY_TIMEOUT_MS);
         // Cache the result
@@ -350,7 +355,10 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
         }
         return reply.code(200).send(result);
       } catch (error: unknown) {
-        request.log.warn({ pluginId: id, error }, 'Plugin container health check failed');
+        request.log.warn(
+          { pluginId: validatedPluginId, error },
+          'Plugin container health check failed'
+        );
         return reply.code(503).send({
           error: { code: 'PLUGIN_UNREACHABLE', message: 'Plugin container is unreachable' },
         });
@@ -369,7 +377,9 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
 
-      // Guard: plugin must be ACTIVE
+      // Guard: plugin must be ACTIVE.
+      // validatedPluginId is set from the DB record to break user-input → URL SSRF data-flow.
+      let validatedPluginId: string;
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
         if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
@@ -377,6 +387,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
         }
+        validatedPluginId = plugin.id;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Plugin not found';
         return reply.code(404).send({
@@ -385,12 +396,15 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       }
 
       // Always proxy live (no cache for readiness probe)
-      const baseUrl = resolveContainerBaseUrl(id);
+      const baseUrl = resolveContainerBaseUrl(validatedPluginId);
       try {
         const result = await proxyToContainer(`${baseUrl}/ready`, CONTAINER_PROXY_TIMEOUT_MS);
         return reply.code(200).send(result);
       } catch (error: unknown) {
-        request.log.warn({ pluginId: id, error }, 'Plugin container readiness check failed');
+        request.log.warn(
+          { pluginId: validatedPluginId, error },
+          'Plugin container readiness check failed'
+        );
         return reply.code(503).send({
           error: { code: 'PLUGIN_UNREACHABLE', message: 'Plugin container is unreachable' },
         });
@@ -409,7 +423,9 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
 
-      // Guard: plugin must be ACTIVE
+      // Guard: plugin must be ACTIVE.
+      // validatedPluginId is set from the DB record to break user-input → URL SSRF data-flow.
+      let validatedPluginId: string;
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
         if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
@@ -417,6 +433,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
         }
+        validatedPluginId = plugin.id;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Plugin not found';
         return reply.code(404).send({
@@ -425,7 +442,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       }
 
       // Proxy to container
-      const baseUrl = resolveContainerBaseUrl(id);
+      const baseUrl = resolveContainerBaseUrl(validatedPluginId);
       try {
         const result = await proxyToContainer(
           `${baseUrl}/openapi.json`,
@@ -433,7 +450,10 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
         );
         return reply.code(200).send(result);
       } catch (error: unknown) {
-        request.log.warn({ pluginId: id, error }, 'Plugin container OpenAPI fetch failed');
+        request.log.warn(
+          { pluginId: validatedPluginId, error },
+          'Plugin container OpenAPI fetch failed'
+        );
         return reply.code(503).send({
           error: { code: 'PLUGIN_UNREACHABLE', message: 'Plugin container is unreachable' },
         });
@@ -499,7 +519,9 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
 
-      // Guard: plugin must be ACTIVE
+      // Guard: plugin must be ACTIVE.
+      // validatedPluginId is set from the DB record to break user-input → URL SSRF data-flow.
+      let validatedPluginId: string;
       try {
         const plugin = await pluginRegistryService.getPlugin(id);
         if (plugin.lifecycleStatus !== PluginLifecycleStatus.ACTIVE) {
@@ -507,6 +529,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
             error: { code: 'PLUGIN_NOT_ACTIVE', message: 'Plugin is not currently active' },
           });
         }
+        validatedPluginId = plugin.id;
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Plugin not found';
         return reply.code(404).send({
@@ -515,7 +538,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       }
 
       // Proxy GET /metrics from plugin container — returns raw Prometheus text.
-      const baseUrl = resolveContainerBaseUrl(id);
+      const baseUrl = resolveContainerBaseUrl(validatedPluginId);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), CONTAINER_PROXY_TIMEOUT_MS);
       try {
@@ -528,7 +551,10 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
         return reply.type('text/plain; version=0.0.4').send(body);
       } catch (error: unknown) {
         clearTimeout(timer);
-        request.log.warn({ pluginId: id, error }, 'Plugin container metrics fetch failed');
+        request.log.warn(
+          { pluginId: validatedPluginId, error },
+          'Plugin container metrics fetch failed'
+        );
         return reply.code(503).send({
           error: { code: 'PLUGIN_UNREACHABLE', message: 'Plugin container is unreachable' },
         });

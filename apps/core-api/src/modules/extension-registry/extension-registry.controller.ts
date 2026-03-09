@@ -48,6 +48,7 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { getTenantContext } from '../../middleware/tenant-context.js';
 import { tenantService } from '../../services/tenant.service.js';
 import { authorizationService } from '../authorization/authorization.service.js';
+import { rateLimiter, WORKSPACE_RATE_LIMITS } from '../../middleware/rate-limiter.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -639,10 +640,11 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
   // ── PATCH /workspaces/:workspaceId/extension-visibility/:contributionId ────
   // FR-022: Set workspace-level visibility for a contribution.
   // Requires workspace_admin or tenant_admin role (Constitution Art. 5.1).
+  // Rate-limited: 50 req/min per workspaceId (MEMBER_MANAGEMENT tier, Constitution Art. 9.2).
   fastify.patch<{ Params: VisibilityPatchParams; Body: VisibilityPatch }>(
     '/workspaces/:workspaceId/extension-visibility/:contributionId',
     {
-      preHandler: authMiddleware,
+      preHandler: [authMiddleware, rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT)],
       schema: {
         description: 'Set workspace-level visibility for an extension contribution (FR-022)',
         tags: ['extension-registry', 'workspaces'],
