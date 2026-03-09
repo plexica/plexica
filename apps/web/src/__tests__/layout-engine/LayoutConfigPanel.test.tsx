@@ -214,6 +214,10 @@ const FORM_1: ConfigurableFormSummary = {
   label: 'Contact Form',
   pluginId: 'plugin-crm',
   pluginName: 'CRM Plugin',
+  fieldCount: 1,
+  sectionCount: 0,
+  columnCount: 0,
+  hasConfig: false,
   schema: {
     formId: 'crm-contact-form',
     label: 'Contact Form',
@@ -238,6 +242,10 @@ const FORM_2: ConfigurableFormSummary = {
   label: 'Deals Form',
   pluginId: 'plugin-crm',
   pluginName: 'CRM Plugin',
+  fieldCount: 0,
+  sectionCount: 0,
+  columnCount: 0,
+  hasConfig: false,
   schema: { formId: 'crm-deals-form', label: 'Deals Form', fields: [], sections: [], columns: [] },
 };
 

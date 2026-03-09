@@ -99,6 +99,7 @@ const DATA: Row[] = [
 function makeLayout(overrides: Partial<ResolvedLayout> = {}): ResolvedLayout {
   return {
     formId: 'contacts-table',
+    source: 'tenant',
     fields: [],
     columns: [
       { columnId: 'name', visibility: 'visible' },

@@ -65,6 +65,7 @@ import { LayoutAwareForm } from '@/components/layout-engine/LayoutAwareForm';
 function makeLayout(overrides: Partial<ResolvedLayout> = {}): ResolvedLayout {
   return {
     formId: 'test-form',
+    source: 'tenant',
     fields: [
       {
         fieldId: 'first-name',
