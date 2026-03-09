@@ -69,11 +69,19 @@ function makeLayout(overrides: Partial<ResolvedLayout> = {}): ResolvedLayout {
       {
         fieldId: 'first-name',
         visibility: 'visible',
+        readonly: false,
         order: 0,
         required: false,
         defaultValue: null,
       },
-      { fieldId: 'email', visibility: 'visible', order: 1, required: true, defaultValue: null },
+      {
+        fieldId: 'email',
+        visibility: 'visible',
+        readonly: false,
+        order: 1,
+        required: true,
+        defaultValue: null,
+      },
     ],
     columns: [],
     sections: [],
@@ -160,6 +168,7 @@ describe('LayoutAwareForm — normal render with element children', () => {
           {
             fieldId: 'first-name',
             visibility: 'visible',
+            readonly: false,
             order: 0,
             required: false,
             defaultValue: null,
@@ -167,6 +176,7 @@ describe('LayoutAwareForm — normal render with element children', () => {
           {
             fieldId: 'secret',
             visibility: 'hidden',
+            readonly: false,
             order: 1,
             required: false,
             defaultValue: null,
@@ -199,11 +209,19 @@ describe('LayoutAwareForm — all fields hidden', () => {
           {
             fieldId: 'first-name',
             visibility: 'hidden',
+            readonly: false,
             order: 0,
             required: false,
             defaultValue: null,
           },
-          { fieldId: 'email', visibility: 'hidden', order: 1, required: false, defaultValue: null },
+          {
+            fieldId: 'email',
+            visibility: 'hidden',
+            readonly: false,
+            order: 1,
+            required: false,
+            defaultValue: null,
+          },
         ],
       }),
       isLoading: false,
@@ -225,6 +243,7 @@ describe('LayoutAwareForm — all fields hidden', () => {
           {
             fieldId: 'first-name',
             visibility: 'hidden',
+            readonly: false,
             order: 0,
             required: false,
             defaultValue: null,
@@ -285,6 +304,7 @@ describe('LayoutAwareForm — readonly field', () => {
           {
             fieldId: 'budget',
             visibility: 'readonly',
+            readonly: true,
             order: 0,
             required: false,
             defaultValue: null,
@@ -317,6 +337,7 @@ describe('LayoutAwareForm — hidden field default value injection (FR-010)', ()
           {
             fieldId: 'tenant-id',
             visibility: 'hidden',
+            readonly: false,
             order: 0,
             required: true,
             defaultValue: 'acme-corp',
@@ -324,6 +345,7 @@ describe('LayoutAwareForm — hidden field default value injection (FR-010)', ()
           {
             fieldId: 'first-name',
             visibility: 'visible',
+            readonly: false,
             order: 1,
             required: false,
             defaultValue: null,
@@ -354,6 +376,7 @@ describe('LayoutAwareForm — hidden field default value injection (FR-010)', ()
           {
             fieldId: 'tenant-id',
             visibility: 'hidden',
+            readonly: false,
             order: 0,
             required: true,
             defaultValue: null,
@@ -424,6 +447,7 @@ describe('LayoutAwareForm — render prop mode', () => {
           {
             fieldId: 'first-name',
             visibility: 'hidden',
+            readonly: false,
             order: 0,
             required: false,
             defaultValue: null,

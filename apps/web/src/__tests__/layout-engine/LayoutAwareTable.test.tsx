@@ -101,9 +101,9 @@ function makeLayout(overrides: Partial<ResolvedLayout> = {}): ResolvedLayout {
     formId: 'contacts-table',
     fields: [],
     columns: [
-      { columnId: 'name', visibility: 'visible', order: 0 },
-      { columnId: 'email', visibility: 'visible', order: 1 },
-      { columnId: 'createdAt', visibility: 'visible', order: 2 },
+      { columnId: 'name', visibility: 'visible' },
+      { columnId: 'email', visibility: 'visible' },
+      { columnId: 'createdAt', visibility: 'visible' },
     ],
     sections: [],
     ...overrides,
@@ -162,9 +162,9 @@ describe('LayoutAwareTable — normal render', () => {
     mockUseResolvedLayout.mockReturnValue({
       data: makeLayout({
         columns: [
-          { columnId: 'name', visibility: 'visible', order: 0 },
-          { columnId: 'email', visibility: 'hidden', order: 1 },
-          { columnId: 'createdAt', visibility: 'visible', order: 2 },
+          { columnId: 'name', visibility: 'visible' },
+          { columnId: 'email', visibility: 'hidden' },
+          { columnId: 'createdAt', visibility: 'visible' },
         ],
       }),
       isLoading: false,
@@ -190,9 +190,9 @@ describe('LayoutAwareTable — all columns hidden', () => {
     mockUseResolvedLayout.mockReturnValue({
       data: makeLayout({
         columns: [
-          { columnId: 'name', visibility: 'hidden', order: 0 },
-          { columnId: 'email', visibility: 'hidden', order: 1 },
-          { columnId: 'createdAt', visibility: 'hidden', order: 2 },
+          { columnId: 'name', visibility: 'hidden' },
+          { columnId: 'email', visibility: 'hidden' },
+          { columnId: 'createdAt', visibility: 'hidden' },
         ],
       }),
       isLoading: false,
@@ -205,7 +205,7 @@ describe('LayoutAwareTable — all columns hidden', () => {
   it('shows "No Columns Visible" message in empty state', () => {
     mockUseResolvedLayout.mockReturnValue({
       data: makeLayout({
-        columns: [{ columnId: 'name', visibility: 'hidden', order: 0 }],
+        columns: [{ columnId: 'name', visibility: 'hidden' }],
       }),
       isLoading: false,
       isError: false,
@@ -251,9 +251,9 @@ describe('LayoutAwareTable — column reordering', () => {
     mockUseResolvedLayout.mockReturnValue({
       data: makeLayout({
         columns: [
-          { columnId: 'createdAt', visibility: 'visible', order: 0 },
-          { columnId: 'name', visibility: 'visible', order: 1 },
-          { columnId: 'email', visibility: 'visible', order: 2 },
+          { columnId: 'createdAt', visibility: 'visible' },
+          { columnId: 'name', visibility: 'visible' },
+          { columnId: 'email', visibility: 'visible' },
         ],
       }),
       isLoading: false,
@@ -284,8 +284,8 @@ describe('LayoutAwareTable — unknown column (fail-open)', () => {
     mockUseResolvedLayout.mockReturnValue({
       data: makeLayout({
         columns: [
-          { columnId: 'name', visibility: 'visible', order: 0 },
-          { columnId: 'email', visibility: 'visible', order: 1 },
+          { columnId: 'name', visibility: 'visible' },
+          { columnId: 'email', visibility: 'visible' },
           // 'createdAt' not in layout config
         ],
       }),
@@ -309,7 +309,7 @@ describe('LayoutAwareTable — unknown column (fail-open)', () => {
     ];
     mockUseResolvedLayout.mockReturnValue({
       data: makeLayout({
-        columns: [{ columnId: 'name', visibility: 'visible', order: 0 }],
+        columns: [{ columnId: 'name', visibility: 'visible' }],
       }),
       isLoading: false,
       isError: false,

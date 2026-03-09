@@ -215,6 +215,8 @@ const FORM_1: ConfigurableFormSummary = {
   pluginId: 'plugin-crm',
   pluginName: 'CRM Plugin',
   schema: {
+    formId: 'crm-contact-form',
+    label: 'Contact Form',
     fields: [
       {
         fieldId: 'name',
@@ -236,28 +238,29 @@ const FORM_2: ConfigurableFormSummary = {
   label: 'Deals Form',
   pluginId: 'plugin-crm',
   pluginName: 'CRM Plugin',
-  schema: { fields: [], sections: [], columns: [] },
+  schema: { formId: 'crm-deals-form', label: 'Deals Form', fields: [], sections: [], columns: [] },
 };
 
 const SAVED_CONFIG: LayoutConfig = {
   id: 'lc-1',
   formId: 'crm-contact-form',
   pluginId: 'plugin-crm',
-  tenantId: 't-1',
-  workspaceId: null,
-  scope: 'tenant',
+  scopeType: 'tenant',
+  scopeId: null,
   fields: [{ fieldId: 'name', order: 0, globalVisibility: 'visible', visibility: {} }],
   sections: [],
   columns: [],
   previousVersion: null,
+  createdBy: 'admin@example.com',
   updatedBy: 'admin@example.com',
-  updatedAt: '2026-03-08T12:00:00.000Z',
-  createdAt: '2026-03-08T11:00:00.000Z',
+  deletedAt: null,
+  updatedAt: new Date('2026-03-08T12:00:00.000Z'),
+  createdAt: new Date('2026-03-08T11:00:00.000Z'),
 };
 
 const SAVED_CONFIG_WITH_PREV: LayoutConfig = {
   ...SAVED_CONFIG,
-  previousVersion: 'prev-version-id',
+  previousVersion: { fields: [], sections: [], columns: [] },
 };
 
 // ---------------------------------------------------------------------------
@@ -270,7 +273,9 @@ function renderPanel(props: Partial<React.ComponentProps<typeof LayoutConfigPane
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <LayoutConfigPanel scope="tenant" {...props} />
+      <LayoutConfigPanel
+        {...({ scope: 'tenant', ...props } as React.ComponentProps<typeof LayoutConfigPanel>)}
+      />
     </QueryClientProvider>
   );
 }

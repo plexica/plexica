@@ -48,7 +48,7 @@ vi.mock('@plexica/ui', () => ({
 
 vi.mock('@/components/layout-engine/VisibilityToggle', () => ({
   VisibilityToggle: ({
-    mode,
+    mode: _mode,
     value,
     onChange,
     columnLabel,

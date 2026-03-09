@@ -1028,18 +1028,16 @@ export class LayoutConfigService {
     formId: string,
     schemaOrFields: FormSchema | FormSchema['fields']
   ): ResolvedLayout {
-    const isFullSchema = !Array.isArray(schemaOrFields);
-    const fields = isFullSchema ? schemaOrFields.fields : schemaOrFields;
-    const sections = isFullSchema ? (schemaOrFields.sections ?? []) : [];
-    const columns = isFullSchema ? (schemaOrFields.columns ?? []) : [];
+    const fields = Array.isArray(schemaOrFields) ? schemaOrFields : schemaOrFields.fields;
 
     return {
       formId,
       source: 'manifest',
-      sections: sections.map((s) => ({
-        sectionId: s.sectionId,
-        order: s.order,
-      })),
+      // Manifest defaults represent the "unconfigured" state — no section or
+      // column layout has been saved yet.  Always return empty arrays so that
+      // the frontend renders in its natural / plugin-defined order without
+      // any admin-imposed structure.
+      sections: [],
       fields: fields.map((f, i) => ({
         fieldId: f.fieldId,
         order: f.order ?? i,
@@ -1048,11 +1046,7 @@ export class LayoutConfigService {
         required: f.required,
         defaultValue: f.defaultValue,
       })),
-      // NEW-M03: ResolvedColumn requires { columnId, visibility: ColumnVisibility } — use correct shape
-      columns: columns.map((c) => ({
-        columnId: c.columnId,
-        visibility: 'visible' as const,
-      })),
+      columns: [],
     };
   }
 
