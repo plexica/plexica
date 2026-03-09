@@ -49,6 +49,14 @@ const SAFE_PLUGIN_ID_SCHEMA = z
     'Plugin ID must contain only alphanumeric characters, hyphens, or underscores'
   );
 
+// Trace IDs from Tempo are 32-character lowercase hex strings (128-bit).
+// We accept 1–128 hex characters to be forward-compatible with any format.
+const SAFE_TRACE_ID_SCHEMA = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[a-fA-F0-9]+$/, 'Trace ID must be a hexadecimal string');
+
 // ---------------------------------------------------------------------------
 // Query parameter schemas (Art. 5.3 — Zod validation on all external input)
 // ---------------------------------------------------------------------------
@@ -70,6 +78,7 @@ const AlertsQuerySchema = z.object({
 const AlertHistoryQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   per_page: z.coerce.number().int().min(1).max(100).default(20),
+  severity: z.enum(['critical', 'warning', 'info']).optional(),
 });
 
 const TracesQuerySchema = z.object({
@@ -472,13 +481,22 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
     {
       preHandler: [authMiddleware, requireSuperAdmin],
       schema: {
-        description: 'Return resolved alerts from the last 7 days, paginated (max 100 per page).',
+        description:
+          'Return resolved alerts from the last 7 days, paginated (max 100 per page). ' +
+          'NOTE: resolvedAt and duration fields are always null — Prometheus does not store ' +
+          'resolution event history. A full alert history requires Alertmanager with an ' +
+          'external history store (future work, post-v1.0).',
         tags: ['observability'],
         querystring: {
           type: 'object',
           properties: {
             page: { type: 'number', description: 'Page number (default 1)' },
             per_page: { type: 'number', description: 'Items per page (default 20, max 100)' },
+            severity: {
+              type: 'string',
+              enum: ['critical', 'warning', 'info'],
+              description: 'Filter by severity level',
+            },
           },
         },
         response: {
@@ -525,7 +543,8 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const result = await observabilityService.getAlertHistory(
           parsed.data.page,
-          parsed.data.per_page
+          parsed.data.per_page,
+          parsed.data.severity
         );
         return reply.code(200).send(result);
       } catch (err) {
@@ -699,6 +718,16 @@ export const observabilityRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request: FastifyRequest<{ Params: { traceId: string } }>, reply: FastifyReply) => {
       const { traceId } = request.params;
+      // F-005: Validate traceId to prevent injection into Tempo queries (Art. 5.3)
+      const traceIdValidation = SAFE_TRACE_ID_SCHEMA.safeParse(traceId);
+      if (!traceIdValidation.success) {
+        return reply.code(400).send({
+          error: {
+            code: 'INVALID_TRACE_ID',
+            message: traceIdValidation.error.issues[0]?.message ?? 'Invalid trace ID',
+          },
+        });
+      }
       try {
         const detail = await observabilityService.getTrace(traceId);
         return reply.code(200).send({ data: detail });

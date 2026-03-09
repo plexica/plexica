@@ -50,15 +50,19 @@ const TEST_MANIFEST = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Ensure the global sentinel tenant row exists after a DB reset. */
+/** Ensure the platform tenant row exists after a DB reset.
+ *
+ * Migration 20260309000001_seed_platform_tenant seeds this row in production.
+ * Integration tests reset the DB so we re-create it here.
+ */
 async function ensureGlobalTenant() {
   await db.tenant.upsert({
-    where: { id: '__global__' },
+    where: { id: '00000000-0000-0000-0000-000000000001' },
     update: {},
     create: {
-      id: '__global__',
-      slug: '__global__',
-      name: 'Global Platform Tenant',
+      id: '00000000-0000-0000-0000-000000000001',
+      slug: '__platform__',
+      name: 'Platform (System)',
       status: 'ACTIVE',
     },
   });

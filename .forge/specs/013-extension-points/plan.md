@@ -1179,17 +1179,17 @@ as Risk R-004 in §10.
 
 ## 12. Constitution Compliance
 
-| Article | Status | Notes                                                                                                                                         |
-| ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Art. 1  | ✅ ⚠️  | Security: permission-gated, Error Boundaries. Multi-tenancy: ADR-031 bounded exception with 5 safeguards. UX: WCAG 2.1 AA via ARIA landmarks. |
-| Art. 2  | ✅     | No new dependencies. All technology from approved stack (React, Prisma, Redis, Fastify, TanStack Query).                                      |
-| Art. 3  | ✅     | Feature module (`extension-registry`). Layered: Controller → Service → Repository. All DB via Prisma.                                         |
-| Art. 4  | ✅     | ≥85% coverage target for extension-registry. ~172 tests planned. `/forge-review` required before merge.                                       |
-| Art. 5  | ✅ ⚠️  | RBAC via ABAC engine. Zod validation on all inputs. Tenant isolation via ADR-031 safeguards + RLS (⚠️ qualified).                             |
-| Art. 6  | ✅     | Standard error codes (SLOT_NOT_FOUND, etc.). Structured Pino logging with all required fields.                                                |
-| Art. 7  | ✅     | Files: kebab-case. DB: snake_case. API: `/api/v1/extension-registry/slots` (plural, kebab-case).                                              |
-| Art. 8  | ✅     | Unit + Integration + E2E tests. Deterministic (mocked adapters). AAA pattern. Descriptive names.                                              |
-| Art. 9  | ✅     | Feature flag `extension_points_enabled`. Additive migrations only. Health check integration.                                                  |
+| Article | Status     | Notes                                                                                                                                         |
+| ------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Art. 1  | ✅ ⚠️      | Security: permission-gated, Error Boundaries. Multi-tenancy: ADR-031 bounded exception with 5 safeguards. UX: WCAG 2.1 AA via ARIA landmarks. |
+| Art. 2  | ✅         | No new dependencies. All technology from approved stack (React, Prisma, Redis, Fastify, TanStack Query).                                      |
+| Art. 3  | ✅         | Feature module (`extension-registry`). Layered: Controller → Service → Repository. All DB via Prisma.                                         |
+| Art. 4  | ✅         | ≥85% coverage target for extension-registry. ~172 tests planned. `/forge-review` required before merge.                                       |
+| Art. 5  | ✅ ⚠️      | RBAC via ABAC engine. Zod validation on all inputs. Tenant isolation via ADR-031 safeguards + RLS (⚠️ qualified).                             |
+| Art. 6  | ✅         | Standard error codes (SLOT_NOT_FOUND, etc.). Structured Pino logging with all required fields.                                                |
+| Art. 7  | ✅         | Files: kebab-case. DB: snake_case. API: `/api/v1/extension-registry/slots` (plural, kebab-case).                                              |
+| Art. 8  | ⚠️ PARTIAL | Unit + Integration tests complete. E2E tests deferred — see TD-021 in decision-log.md. AAA pattern. Descriptive names.                        |
+| Art. 9  | ✅         | Feature flag `extension_points_enabled`. Additive migrations only. Health check integration.                                                  |
 
 ---
 

@@ -10,6 +10,7 @@
 import type { EventBusService } from '@plexica/event-bus';
 import { ApiClient } from './api-client.js';
 import type { ApiClientConfig } from './api-client.js';
+import { DataExtensionClient } from './data-extension-client.js';
 import { EventClient } from './event-client.js';
 import { ServiceClient } from './service-client.js';
 import { SharedDataClient } from './shared-data.js';
@@ -54,6 +55,14 @@ export abstract class PlexicaPlugin {
   /** Cross-plugin shared data store */
   readonly sharedData: SharedDataClient;
 
+  /**
+   * Data extension client for serving sidecar data to extensible entities.
+   * Register handlers via `this.dataExtensions.registerHandler(entityType, handler)`.
+   *
+   * Spec reference: Plan §4.15, T013-10, FR-029
+   */
+  readonly dataExtensions: DataExtensionClient;
+
   /** Plugin configuration */
   readonly config: PluginConfig;
 
@@ -87,6 +96,9 @@ export abstract class PlexicaPlugin {
 
     // Create shared data client
     this.sharedData = new SharedDataClient(this.api, this.context);
+
+    // Create data extension client (Spec 013, T013-10, FR-029)
+    this.dataExtensions = new DataExtensionClient(config.pluginId);
 
     // Create event client (optional — requires EventBusService)
     if (eventBus) {
@@ -197,6 +209,9 @@ export abstract class PlexicaPlugin {
     if (this.events) {
       await this.events.unsubscribeAll();
     }
+
+    // Unregister all data extension handlers (Spec 013, T013-10)
+    this.dataExtensions.unregisterAll();
 
     // Deregister services
     if (this.registeredServiceNames.length > 0) {

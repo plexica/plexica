@@ -236,8 +236,8 @@ export class ObservabilityService {
       const logQuery = `{plugin_id="${pluginId}"}`;
       const params = new URLSearchParams({
         query: logQuery,
-        start: new Date(from).getTime().toString() + '000000', // nanoseconds
-        end: new Date(to).getTime().toString() + '000000',
+        start: msToLokiNanoseconds(new Date(from).getTime()), // nanoseconds (CRITICAL-2: string concat avoids overflow)
+        end: msToLokiNanoseconds(new Date(to).getTime()),
         limit: String(limit),
         direction: 'backward',
       });
@@ -407,9 +407,23 @@ export class ObservabilityService {
    * range query on the `ALERTS_FOR_STATE` metric.
    * FR-023: GET /api/v1/observability/alerts/history
    *
+   * **Semantic limitation**: Prometheus `/api/v1/alerts` only exposes the
+   * *current* alert state snapshot; it does not store resolution events or
+   * historical timestamps. As a result:
+   *   - `resolvedAt` is always `null` — Prometheus has no resolution event log.
+   *   - `duration` is always `null` — cannot be computed without resolvedAt.
+   *
+   * A full alert history with resolution timestamps requires Alertmanager
+   * configured with an external history store (e.g. Alertmanager + Cortex or
+   * Thanos Ruler). This is tracked as future work (deferred, post-v1.0).
+   *
    * @throws {ObservabilityBackendError} if Prometheus is unreachable
    */
-  async getAlertHistory(page: number = 1, perPage: number = 20): Promise<PaginatedAlerts> {
+  async getAlertHistory(
+    page: number = 1,
+    perPage: number = 20,
+    severity?: AlertSeverityFilter
+  ): Promise<PaginatedAlerts> {
     const safePage = Math.max(1, page);
     const safePerPage = Math.min(Math.max(1, perPage), 100);
 
@@ -434,7 +448,10 @@ export class ObservabilityService {
         .filter((a) => {
           if (!a.activeAt) return true;
           return new Date(a.activeAt) >= sevenDaysAgo;
-        });
+        })
+        // Server-side severity filter (FR-023): applied before pagination so
+        // that page/total counts are accurate for the filtered result set.
+        .filter((a) => !severity || (a.labels?.severity ?? 'info') === severity);
 
       const total = resolved.length;
       const totalPages = Math.ceil(total / safePerPage);
@@ -514,24 +531,30 @@ export class ObservabilityService {
       if (!res.ok) throw new Error(`Tempo responded ${res.status}`);
       const body = (await res.json()) as TempoSearchResponse;
 
-      const traces: TraceResult[] = (body?.traces ?? []).map((t) => ({
-        traceId: t.traceID ?? '',
-        rootService: t.rootServiceName ?? 'unknown',
-        durationMs: t.durationMs ?? 0,
-        spanCount: t.spanSet?.spans?.length ?? 0,
-        status: 'ok',
-        startTime: t.startTimeUnixNano
-          ? new Date(Math.floor(Number(t.startTimeUnixNano) / 1_000_000)).toISOString()
-          : null,
-      }));
+      const traces: TraceResult[] = (body?.traces ?? []).map((t) => {
+        // Derive OTel status: inspect root span's statusCode field.
+        // OTel status code 2 = STATUS_CODE_ERROR; anything else is treated as ok.
+        const spans = (t.spanSet?.spans ?? []) as TempoSpanRaw[];
+        const rootSpanStatus = spans[0]?.statusCode ?? 0;
+        const status: 'ok' | 'error' = rootSpanStatus === 2 ? 'error' : 'ok';
+        return {
+          traceId: t.traceID ?? '',
+          rootService: t.rootServiceName ?? 'unknown',
+          durationMs: t.durationMs ?? 0,
+          spanCount: spans.length,
+          status,
+          startTime: t.startTimeUnixNano
+            ? new Date(Math.floor(Number(t.startTimeUnixNano) / 1_000_000)).toISOString()
+            : null,
+        };
+      });
 
       return {
         data: traces,
         pagination: {
-          page: 1,
-          per_page: safeLimit,
           total: traces.length,
-          total_pages: 1,
+          limit: safeLimit,
+          hasMore: false,
         },
       };
     } catch (err) {
@@ -570,8 +593,27 @@ export class ObservabilityService {
       const rootSpans = _buildSpanTree(flatSpans);
 
       const rootSpan = rootSpans[0] ?? null;
-      const allDurations = flatSpans.map((s) => s.durationMs);
-      const totalDuration = allDurations.length > 0 ? Math.max(...allDurations) : 0;
+
+      // F-006: Wall-clock trace duration = max(spanStart + spanDuration) - min(spanStart).
+      // Using Math.max(...allDurations) was wrong — that returns the longest individual span
+      // duration, not the end-to-end elapsed time of the trace.
+      let totalDuration = 0;
+      if (flatSpans.length > 0) {
+        let minStartMs = Infinity;
+        let maxEndMs = -Infinity;
+        for (const span of flatSpans) {
+          if (span.startTime) {
+            const spanStartMs = new Date(span.startTime).getTime();
+            const spanEndMs = spanStartMs + span.durationMs;
+            if (spanStartMs < minStartMs) minStartMs = spanStartMs;
+            if (spanEndMs > maxEndMs) maxEndMs = spanEndMs;
+          }
+        }
+        totalDuration =
+          isFinite(minStartMs) && isFinite(maxEndMs) && maxEndMs > minStartMs
+            ? maxEndMs - minStartMs
+            : Math.max(...flatSpans.map((s) => s.durationMs)); // fallback: no startTime data
+      }
 
       return {
         traceId,
@@ -682,10 +724,9 @@ export class ObservabilityService {
       return {
         data: entries,
         pagination: {
-          page: 1,
-          per_page: perPage,
           total,
-          total_pages: 1,
+          limit: perPage,
+          hasMore: false,
         },
       };
     } catch (err) {
@@ -857,12 +898,14 @@ function _extractMetricName(query: string): string | null {
  */
 function _injectPluginLabel(query: string, pluginId: string): string {
   const label = `plugin_id="${pluginId}"`;
-  // If a selector already exists, inject inside it
-  if (query.includes('{')) {
-    return query
-      .replace(/\{/, `{${label},`)
-      .replace(/,\s*\}/, '}')
-      .replace(/\{,/, '{');
+  // If a selector already exists, inject label inside the first selector.
+  // Use indexOf + slice instead of replace(/\{/, ...) so that only the first
+  // brace is targeted explicitly — a string replace without the `g` flag would
+  // be flagged as incomplete sanitisation by static analysers.
+  const braceIdx = query.indexOf('{');
+  if (braceIdx !== -1) {
+    const withLabel = query.slice(0, braceIdx + 1) + label + ',' + query.slice(braceIdx + 1);
+    return withLabel.replace(/,\s*\}/g, '}').replace(/\{,/g, '{');
   }
   // Append label selector after the metric name
   return query.replace(
@@ -967,10 +1010,9 @@ export interface TraceDetail {
 export interface PaginatedTraces {
   data: TraceResult[];
   pagination: {
-    page: number;
-    per_page: number;
     total: number;
-    total_pages: number;
+    limit: number;
+    hasMore: boolean;
   };
 }
 
@@ -1077,10 +1119,9 @@ export interface LogEntry {
 export interface PaginatedLogs {
   data: LogEntry[];
   pagination: {
-    page: number;
-    per_page: number;
     total: number;
-    total_pages: number;
+    limit: number;
+    hasMore: boolean;
   };
 }
 

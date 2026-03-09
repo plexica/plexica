@@ -18,6 +18,7 @@
  * | ENABLE_PLUGIN_WIDGETS       | false   | Allow plugins to embed cross-plugin widgets      |
  * | ENABLE_ADMIN_INTERFACES     | false   | Show Tenant Admin portal routes (Spec 008)       |
  * | ENABLE_WORKSPACE_HIERARCHY | false   | Show workspace hierarchy tree & template picker (Spec 011) |
+ * | ENABLE_EXTENSION_POINTS    | false   | Enable plugin extension slots and contribution rendering (Spec 013) |
  */
 export type FeatureFlagName =
   | 'ENABLE_NEW_SIDEBAR'
@@ -26,7 +27,8 @@ export type FeatureFlagName =
   | 'ENABLE_DARK_MODE'
   | 'ENABLE_PLUGIN_WIDGETS'
   | 'ENABLE_ADMIN_INTERFACES'
-  | 'ENABLE_WORKSPACE_HIERARCHY';
+  | 'ENABLE_WORKSPACE_HIERARCHY'
+  | 'ENABLE_EXTENSION_POINTS';
 
 /**
  * Returns `true` when the given feature flag is enabled.

@@ -18,7 +18,7 @@
 // Spec 012 — T012-27
 
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { Activity } from 'lucide-react';
 import { Skeleton } from '@plexica/ui';
@@ -33,6 +33,14 @@ const ObservabilitySearchSchema = z.object({
 
 export const Route = createFileRoute('/_layout/observability/' as never)({
   validateSearch: (search) => ObservabilitySearchSchema.parse(search),
+  // Feature flag: VITE_ENABLE_OBSERVABILITY_DASHBOARD (default: true).
+  // Short-circuit before rendering so no dashboard content is ever mounted
+  // when the flag is disabled (Constitution Art. 9.1 — gradual rollout via flags).
+  beforeLoad: () => {
+    if (import.meta.env.VITE_ENABLE_OBSERVABILITY_DASHBOARD === 'false') {
+      throw redirect({ to: '/dashboard' as never });
+    }
+  },
   component: ObservabilityPage,
 });
 
@@ -79,13 +87,6 @@ function TabPanelSkeleton() {
 function ObservabilityPage() {
   const { tab: activeTab } = Route.useSearch();
   const navigate = useNavigate();
-
-  // Redirect if feature flag is disabled
-  useEffect(() => {
-    if (import.meta.env.VITE_ENABLE_OBSERVABILITY_DASHBOARD === 'false') {
-      void navigate({ to: '/dashboard' as never });
-    }
-  }, [navigate]);
 
   // Refs for tab buttons — used to move DOM focus on keyboard navigation
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);

@@ -571,7 +571,7 @@ describe('Observability V1 Routes — Integration Tests', () => {
 
       const res = await app.inject({
         method: 'GET',
-        url: '/api/v1/observability/traces/nonexistent',
+        url: '/api/v1/observability/traces/000000000000000000000000deadbeef',
         headers: { authorization: `Bearer ${superAdminToken}` },
       });
 

@@ -714,3 +714,106 @@ Please submit a PR or contact the security team.
 **Remember: Security is not optional. It's a fundamental requirement.**
 
 🔒 **When in doubt, ask the security team before deploying!**
+
+---
+
+## Extension Points Security (Spec 013 / ADR-031)
+
+**Date Added**: March 2026
+
+The Extension Points system introduces a bounded exception to the schema-per-tenant rule (ADR-002). Five tables live in the `core` shared schema. The following security safeguards are **mandatory** and enforced by code review.
+
+### ADR-031 Mandatory Safeguards
+
+#### 1. Single Repository Access Path
+
+All reads and writes to `extension_slots`, `extension_contributions`, `workspace_extension_visibility`, `extensible_entities`, and `data_extensions` must go through `ExtensionRegistryRepository`. Direct Prisma calls on these models from any other service are **prohibited**.
+
+```typescript
+// ✅ ALWAYS: Use repository
+const repo = new ExtensionRegistryRepository(db);
+await repo.getSlots(tenantId, pluginId);
+
+// ❌ NEVER: Direct model access from a service
+await db.extensionSlot.findMany({ where: { tenantId } });
+```
+
+#### 2. Required tenantId on All Tenant-Scoped Methods
+
+Every repository method that reads or writes tenant-scoped data **must** accept `tenantId` as a required first parameter. Methods without `tenantId` are reserved exclusively for super-admin cross-tenant operations and must be named accordingly (see §4).
+
+```typescript
+// ✅ Correct — tenantId required
+async getSlots(tenantId: string, pluginId?: string): Promise<ExtensionSlot[]>
+
+// ❌ Wrong — omitting tenantId allows cross-tenant leakage
+async getSlots(pluginId?: string): Promise<ExtensionSlot[]>
+```
+
+#### 3. Explicitly-Named Super-Admin Cross-Tenant Methods
+
+Any method that reads across tenants must be explicitly named to signal its elevated privilege level:
+
+```typescript
+// ✅ Correct naming — intent is clear
+async getAllSlotsForSuperAdmin(): Promise<ExtensionSlot[]>
+async getPermissionsForSuperAdmin(): Promise<ContributionPermission[]>
+
+// ❌ Wrong — ambiguous naming hides cross-tenant access
+async getAllSlots(): Promise<ExtensionSlot[]>
+```
+
+Super-admin methods must also verify the caller holds the `SUPER_ADMIN` role via `requireSuperAdmin` middleware before being invoked.
+
+#### 4. PostgreSQL RLS Defense-in-Depth
+
+The `extension_rls` migration adds Row-Level Security policies on all five tables, restricting reads to rows where `tenant_id` matches `current_setting('app.current_tenant_id')`. This is a defense-in-depth layer; it does not replace application-level `tenantId` enforcement.
+
+```sql
+-- Applied by migration 20260308000002_extension_tables_rls
+CREATE POLICY ext_tenant_isolation ON core.extension_slots
+  USING (tenant_id = current_setting('app.current_tenant_id', TRUE));
+```
+
+#### 5. Code Review Gate
+
+Any pull request that modifies `extension-registry.repository.ts` requires:
+
+- At least one reviewer with senior backend access
+- Explicit verification that all five safeguards above are maintained
+- Reference to ADR-031 in the PR description
+
+### Extension Permission Model
+
+Contributions are subject to a three-layer visibility model:
+
+| Layer                   | Controlled By                          | Granularity                    |
+| ----------------------- | -------------------------------------- | ------------------------------ |
+| `is_active`             | Plugin lifecycle (activate/deactivate) | Plugin-wide                    |
+| `validationStatus`      | Registry auto-validation               | Per-contribution               |
+| `isVisible` (workspace) | Workspace admin toggle                 | Per-workspace per-contribution |
+| Super-admin override    | Super-admin UI                         | Cross-tenant                   |
+
+A contribution is rendered only when all layers are satisfied: `is_active = true`, `validationStatus IN ('valid', 'pending')`, and `isVisible = true` for the current workspace.
+
+### Input Validation
+
+All extension registry endpoints validate inputs with Zod schemas defined in `extension-registry.schema.ts`. Key constraints:
+
+- `pluginId`: string, 1–255 characters (not UUID — plugins use string IDs)
+- `slotId`: string, 1–128 characters, alphanumeric + hyphens/underscores only
+- `tenantId`: UUID v4
+- `workspaceId`: UUID v4
+- `contributionId`: UUID v4
+- `maxContributions`: integer 0–100 (0 = unlimited)
+- `priority`: integer 0–999
+
+### Tenant Isolation Checklist
+
+Before merging any change to the extension registry:
+
+- ✅ Does every `getXxx()` method pass `tenantId` to the repository?
+- ✅ Does every `upsertXxx()` method validate `tenantId` before write?
+- ✅ Are cross-tenant admin methods named with `ForSuperAdmin` suffix?
+- ✅ Is the feature flag checked before any DB access?
+- ✅ Does cache invalidation scope keys by `tenantId`?

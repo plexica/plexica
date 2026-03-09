@@ -126,6 +126,18 @@ export interface PluginManifest {
   /** Optional widgets exposed via Module Federation for use by the host shell */
   widgets?: PluginWidget[];
   permissions?: string[];
+  // ---------------------------------------------------------------------------
+  // Spec 013 — Extension Points (T013-01)
+  // All extension arrays are optional for backward compatibility.
+  // ---------------------------------------------------------------------------
+  /** Extension slots this plugin declares (insertion points for other plugins) */
+  extensionSlots?: import('./extension.js').ExtensionSlotDeclaration[];
+  /** Contributions this plugin makes to other plugins' slots */
+  contributions?: import('./extension.js').ContributionDeclaration[];
+  /** Entity types this plugin exposes for sidecar data extension */
+  extensibleEntities?: import('./extension.js').ExtensibleEntityDeclaration[];
+  /** Sidecar data extensions this plugin contributes to other plugins' entities */
+  dataExtensions?: import('./extension.js').DataExtensionDeclaration[];
 }
 
 // ---------------------------------------------------------------------------

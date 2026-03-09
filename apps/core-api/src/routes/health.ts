@@ -132,6 +132,16 @@ const healthRoutes: FastifyPluginAsync = async (server) => {
         checks.notifications = 'error';
       }
 
+      // Extension registry check: verify extension_slots table accessible (T013-28 — Spec 013)
+      try {
+        const prisma = getPrismaClient();
+        await prisma.$queryRaw`SELECT 1 FROM core.extension_slots LIMIT 1`;
+        checks.extension_registry = 'ok';
+      } catch {
+        // Table may not exist in older deployments (pre-migration) — degrade gracefully
+        checks.extension_registry = 'degraded';
+      }
+
       const allOk = Object.values(checks).every((s) => s === 'ok' || s === 'degraded');
       const anyDown = Object.values(checks).some((s) => s === 'error');
 
