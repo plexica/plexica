@@ -96,7 +96,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           const existingManifest = (plugin.manifest ?? {}) as Record<string, unknown>;
           await db.plugin.update({
             where: { id: plugin.id },
-            data: { manifest: { ...existingManifest, formSchemas } },
+            data: { manifest: { ...existingManifest, formSchemas } as unknown as object },
           });
         }
 
@@ -299,7 +299,7 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           const existingManifest = (plugin.manifest ?? {}) as Record<string, unknown>;
           await db.plugin.update({
             where: { id: plugin.id },
-            data: { manifest: { ...existingManifest, formSchemas } },
+            data: { manifest: { ...existingManifest, formSchemas } as unknown as object },
           });
         }
 
