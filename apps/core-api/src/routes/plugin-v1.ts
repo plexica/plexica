@@ -27,8 +27,17 @@ import { PluginLifecycleStatus, type Plugin } from '@plexica/database';
 import { validatePluginManifest } from '../schemas/plugin-manifest.schema.js';
 import { db } from '../lib/db.js';
 
-// Global sentinel tenantId used for platform-level (non-tenant-scoped) operations.
-const GLOBAL_TENANT_ID = '__global__';
+// Platform tenant ID used for platform-level (non-tenant-scoped) plugin operations.
+//
+// This corresponds to the "Platform (System)" tenant row seeded by migration
+// 20260309000001_seed_platform_tenant with id = '00000000-0000-0000-0000-000000000001'.
+// The platform tenant has slug '__platform__' and status ACTIVE.
+//
+// Using a real tenant row (rather than the '__global__' sentinel string) ensures the
+// FK constraint on `core.tenant_plugins.tenant_id → core.tenants.id` is satisfied.
+// Without this, install/activate/deactivate/uninstall routes would throw FK violations
+// in production (CRITICAL finding from forge-review, 2026-03-09).
+const PLATFORM_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // Health cache TTL in seconds (plan.md §9).
 const HEALTH_CACHE_TTL_S = 10;
@@ -175,7 +184,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
       const { id } = request.params;
       try {
         const result = await pluginLifecycleService.installPlugin(
-          GLOBAL_TENANT_ID,
+          PLATFORM_TENANT_ID,
           id,
           request.body ?? {}
         );
@@ -203,7 +212,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
       try {
-        const result = await pluginLifecycleService.activatePlugin(GLOBAL_TENANT_ID, id);
+        const result = await pluginLifecycleService.activatePlugin(PLATFORM_TENANT_ID, id);
         return reply.code(200).send(result);
       } catch (error: unknown) {
         request.log.error({ pluginId: id, error }, 'activatePlugin failed');
@@ -226,7 +235,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
       try {
-        const result = await pluginLifecycleService.deactivatePlugin(GLOBAL_TENANT_ID, id);
+        const result = await pluginLifecycleService.deactivatePlugin(PLATFORM_TENANT_ID, id);
         return reply.code(200).send(result);
       } catch (error: unknown) {
         request.log.error({ pluginId: id, error }, 'deactivatePlugin failed');
@@ -275,7 +284,7 @@ export async function pluginV1Routes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const { id } = request.params;
       try {
-        await pluginLifecycleService.uninstallPlugin(GLOBAL_TENANT_ID, id);
+        await pluginLifecycleService.uninstallPlugin(PLATFORM_TENANT_ID, id);
         return reply.code(200).send({ success: true });
       } catch (error: unknown) {
         request.log.error({ pluginId: id, error }, 'uninstallPlugin failed');

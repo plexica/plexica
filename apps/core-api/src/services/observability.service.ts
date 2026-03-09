@@ -531,24 +531,30 @@ export class ObservabilityService {
       if (!res.ok) throw new Error(`Tempo responded ${res.status}`);
       const body = (await res.json()) as TempoSearchResponse;
 
-      const traces: TraceResult[] = (body?.traces ?? []).map((t) => ({
-        traceId: t.traceID ?? '',
-        rootService: t.rootServiceName ?? 'unknown',
-        durationMs: t.durationMs ?? 0,
-        spanCount: t.spanSet?.spans?.length ?? 0,
-        status: 'ok',
-        startTime: t.startTimeUnixNano
-          ? new Date(Math.floor(Number(t.startTimeUnixNano) / 1_000_000)).toISOString()
-          : null,
-      }));
+      const traces: TraceResult[] = (body?.traces ?? []).map((t) => {
+        // Derive OTel status: inspect root span's statusCode field.
+        // OTel status code 2 = STATUS_CODE_ERROR; anything else is treated as ok.
+        const spans = (t.spanSet?.spans ?? []) as TempoSpanRaw[];
+        const rootSpanStatus = spans[0]?.statusCode ?? 0;
+        const status: 'ok' | 'error' = rootSpanStatus === 2 ? 'error' : 'ok';
+        return {
+          traceId: t.traceID ?? '',
+          rootService: t.rootServiceName ?? 'unknown',
+          durationMs: t.durationMs ?? 0,
+          spanCount: spans.length,
+          status,
+          startTime: t.startTimeUnixNano
+            ? new Date(Math.floor(Number(t.startTimeUnixNano) / 1_000_000)).toISOString()
+            : null,
+        };
+      });
 
       return {
         data: traces,
         pagination: {
-          page: 1,
-          per_page: safeLimit,
           total: traces.length,
-          total_pages: 1,
+          limit: safeLimit,
+          hasMore: false,
         },
       };
     } catch (err) {
@@ -718,10 +724,9 @@ export class ObservabilityService {
       return {
         data: entries,
         pagination: {
-          page: 1,
-          per_page: perPage,
           total,
-          total_pages: 1,
+          limit: perPage,
+          hasMore: false,
         },
       };
     } catch (err) {
@@ -1003,10 +1008,9 @@ export interface TraceDetail {
 export interface PaginatedTraces {
   data: TraceResult[];
   pagination: {
-    page: number;
-    per_page: number;
     total: number;
-    total_pages: number;
+    limit: number;
+    hasMore: boolean;
   };
 }
 
@@ -1113,10 +1117,9 @@ export interface LogEntry {
 export interface PaginatedLogs {
   data: LogEntry[];
   pagination: {
-    page: number;
-    per_page: number;
     total: number;
-    total_pages: number;
+    limit: number;
+    hasMore: boolean;
   };
 }
 

@@ -183,6 +183,15 @@ export class PluginRegistryService {
       throw new Error(`Invalid plugin manifest: ${errorMessages}`);
     }
 
+    // ✅ SECURITY: Guard against manifest ID / route param mismatch.
+    // Without this check, a caller could POST a manifest for plugin "evil" to
+    // PUT /plugins/trusted and silently overwrite the "trusted" plugin's record
+    // with "evil"'s metadata. This would corrupt the registry without any visible
+    // error (CRITICAL finding from forge-review 2026-03-09, Hotfix 4).
+    if (manifest.id !== pluginId) {
+      throw new Error(`Manifest id '${manifest.id}' does not match route parameter '${pluginId}'`);
+    }
+
     // Additional custom validation (translation files, version format, etc.)
     await this.validateManifest(manifest);
 

@@ -140,7 +140,7 @@ function wireActivatePluginMocks(tenantId: string, pluginId: string, manifest: o
 // ---------------------------------------------------------------------------
 
 describe('T004-12: PluginLifecycleService — Redpanda topic wiring', () => {
-  const tenantId = '__global__';
+  const tenantId = '00000000-0000-0000-0000-000000000001'; // platform tenant ID
   const pluginId = 'crm';
 
   let topicManager: TopicManager;
@@ -297,7 +297,7 @@ describe('T004-12: PluginLifecycleService — Redpanda topic wiring', () => {
 // ---------------------------------------------------------------------------
 
 describe('T004-14: PluginLifecycleService — translation namespace loading', () => {
-  const tenantId = '__global__';
+  const tenantId = '00000000-0000-0000-0000-000000000001'; // platform tenant ID
   const pluginId = 'crm';
 
   let translationService: TranslationService;
