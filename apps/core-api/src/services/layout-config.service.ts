@@ -527,7 +527,7 @@ export class LayoutConfigService {
         SELECT p.id, p.name, p.manifest
         FROM core.plugins p
         INNER JOIN core.tenant_plugins tp ON tp."pluginId" = p.id
-        WHERE tp."tenantId" = ${tenantId}::uuid
+        WHERE tp."tenantId" = ${tenantId}::text
           AND tp.enabled = true
       `
     );
@@ -781,7 +781,7 @@ export class LayoutConfigService {
         SELECT p.id, p.name, p.manifest
         FROM core.plugins p
         INNER JOIN core.tenant_plugins tp ON tp."pluginId" = p.id
-        WHERE tp."tenantId" = ${tenantId}::uuid
+        WHERE tp."tenantId" = ${tenantId}::text
           AND tp.enabled = true
       `
     );
@@ -840,13 +840,13 @@ export class LayoutConfigService {
               SELECT DISTINCT tm.role
               FROM ${schema}."team_members" tm
               INNER JOIN ${schema}."teams" t ON t.id = tm.team_id
-              WHERE tm.user_id = ${userId}
-                AND t.workspace_id = ${workspaceId}
+              WHERE tm.user_id = ${userId}::text
+                AND t.workspace_id = ${workspaceId}::text
             `
           : Prisma.sql`
               SELECT DISTINCT tm.role
               FROM ${schema}."team_members" tm
-              WHERE tm.user_id = ${userId}
+              WHERE tm.user_id = ${userId}::text
             `
       );
 
