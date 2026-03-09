@@ -207,6 +207,22 @@ export const DataExtensionDeclarationSchema = z
 export type ValidatedDataExtensionDeclaration = z.infer<typeof DataExtensionDeclarationSchema>;
 
 // ---------------------------------------------------------------------------
+// Admin / operator route schemas (W-12, W-8)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/extension-registry/sync-status/:pluginId
+ * Route params for sync status query (W-8: operator observability endpoint).
+ */
+export const SyncStatusParamsSchema = z
+  .object({
+    pluginId: safeString.min(1).max(255),
+  })
+  .strict();
+
+export type SyncStatusParams = z.infer<typeof SyncStatusParamsSchema>;
+
+// ---------------------------------------------------------------------------
 // Feature-flag helper
 // ---------------------------------------------------------------------------
 

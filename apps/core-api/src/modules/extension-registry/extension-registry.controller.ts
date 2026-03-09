@@ -11,6 +11,8 @@
 //   GET  /extension-registry/entities                                      (FR-020)
 //   GET  /extension-registry/entities/:pluginId/:entityType/:entityId/extensions  (FR-015)
 //   PATCH /workspaces/:workspaceId/extension-visibility/:contributionId    (FR-022)
+//   GET  /extension-registry/admin/slots                                   (ADR-031 Safeguard 3, W-12)
+//   GET  /extension-registry/sync-status/:pluginId                        (W-8 operator observability)
 //
 // Constitution Art. 5.1: All routes require authentication.
 // Constitution Art. 5.3: All external input validated with Zod.
@@ -28,6 +30,7 @@ import {
   EntityExtensionParamsSchema,
   VisibilityPatchParamsSchema,
   VisibilityPatchSchema,
+  SyncStatusParamsSchema,
   type GetSlotsQuery,
   type GetSlotsByPluginParams,
   type GetContributionsQuery,
@@ -35,6 +38,7 @@ import {
   type EntityExtensionParams,
   type VisibilityPatchParams,
   type VisibilityPatch,
+  type SyncStatusParams,
 } from './extension-registry.schema.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { getTenantContext } from '../../middleware/tenant-context.js';
@@ -612,6 +616,110 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
           reply,
           fastify,
           'PATCH /workspaces/:workspaceId/extension-visibility/:contributionId error'
+        );
+      }
+    }
+  );
+
+  // ── GET /extension-registry/admin/slots ───────────────────────────────────
+  // ADR-031 Safeguard 3: Cross-tenant admin endpoint — SUPER_ADMIN only.
+  // W-12 fix: Role is derived from verified JWT (realm_access.roles), never from
+  // a caller-supplied boolean. authorizationService.isSuperAdmin() is the gate.
+  fastify.get(
+    '/extension-registry/admin/slots',
+    {
+      preHandler: authMiddleware,
+      schema: {
+        description:
+          'SUPER_ADMIN ONLY: List all extension slots across all tenants (ADR-031 Safeguard 3)',
+        tags: ['extension-registry', 'admin'],
+      },
+    },
+    async (request, reply) => {
+      try {
+        // Derive super-admin status from the verified Keycloak JWT.
+        // request.token is populated by authMiddleware (KeycloakJwtPayload).
+        const roles =
+          (request.token as { realm_access?: { roles?: string[] } } | undefined)?.realm_access
+            ?.roles ?? [];
+        const isSuperAdmin = authorizationService.isSuperAdmin(roles);
+
+        if (!isSuperAdmin) {
+          return reply.status(403).send({
+            error: {
+              code: 'SUPER_ADMIN_REQUIRED',
+              message: 'This endpoint requires super-admin privileges',
+            },
+          });
+        }
+
+        const slots = await extensionRegistryService.superAdminListAllSlots();
+        return reply.send({ slots });
+      } catch (error) {
+        return handleExtensionError(
+          error,
+          reply,
+          fastify,
+          'GET /extension-registry/admin/slots error'
+        );
+      }
+    }
+  );
+
+  // ── GET /extension-registry/sync-status/:pluginId ─────────────────────────
+  // W-8 fix: Operator observability — read Redis-based sync status for a plugin.
+  // Requires tenant context (same as other tenant-scoped routes).
+  fastify.get<{ Params: SyncStatusParams }>(
+    '/extension-registry/sync-status/:pluginId',
+    {
+      preHandler: authMiddleware,
+      schema: {
+        description:
+          'Get extension manifest sync status for a plugin (operator observability, W-8)',
+        tags: ['extension-registry'],
+        params: {
+          type: 'object',
+          required: ['pluginId'],
+          properties: { pluginId: { type: 'string' } },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const ctx = await resolveTenant(request);
+        if (!ctx) {
+          return reply
+            .status(403)
+            .send({ error: { code: 'FORBIDDEN', message: 'No tenant context available' } });
+        }
+
+        const params = SyncStatusParamsSchema.safeParse(request.params);
+        if (!params.success) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_PARAMS',
+              message: 'Invalid route parameters',
+              details: params.error.issues,
+            },
+          });
+        }
+
+        const syncStatus = await extensionRegistryService.getSyncStatus(
+          ctx.tenantId,
+          params.data.pluginId
+        );
+
+        if (!syncStatus) {
+          return reply.send({ pluginId: params.data.pluginId, status: 'not_started' });
+        }
+
+        return reply.send({ pluginId: params.data.pluginId, ...syncStatus });
+      } catch (error) {
+        return handleExtensionError(
+          error,
+          reply,
+          fastify,
+          'GET /extension-registry/sync-status/:pluginId error'
         );
       }
     }

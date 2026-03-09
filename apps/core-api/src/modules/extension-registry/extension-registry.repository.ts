@@ -699,20 +699,19 @@ export class ExtensionRegistryRepository {
 
   // ── Super Admin Cross-Tenant Methods (ADR-031 Safeguard 3) ─────────────────
   // These methods are explicitly named to make cross-tenant access visible.
-  // Callers MUST pass isSuperAdmin=true — this method throws if the flag is false.
+  // The route layer MUST verify the Keycloak super-admin role before calling
+  // these methods. The repo provides a defense-in-depth guard via its explicit
+  // naming convention — no caller-supplied boolean needed here (W-12 fix).
 
   /**
    * SUPER_ADMIN ONLY: List all slots across all tenants.
-   * W-02 fix: Enforces super-admin role at runtime rather than relying solely on
-   * caller documentation. Pass `isSuperAdmin: true` to unlock this method.
+   * W-12 fix: The boolean anti-pattern (isSuperAdmin parameter) has been removed.
+   * Role enforcement now lives exclusively in the route layer, which derives the
+   * super-admin status from the verified Keycloak JWT (realm_access.roles) via
+   * authorizationService.isSuperAdmin(). The repo's defense-in-depth is its
+   * explicit "superAdmin" naming convention (ADR-031 Safeguard 3).
    */
-  async superAdminListAllSlots(isSuperAdmin: boolean) {
-    if (!isSuperAdmin) {
-      throw Object.assign(
-        new Error('FORBIDDEN: superAdminListAllSlots requires super-admin privileges'),
-        { code: 'FORBIDDEN' }
-      );
-    }
+  async superAdminListAllSlots() {
     return this.db.extensionSlot.findMany({
       orderBy: [{ tenantId: 'asc' }, { pluginId: 'asc' }],
     });

@@ -1046,11 +1046,17 @@ export class PluginLifecycleService {
 
     // T013-09: Sync extension manifest into extension registry (fire-and-forget — non-blocking)
     // Reads tenant settings to check feature flag; silently skips when disabled.
+    // W-8 fix: Write Redis-based sync status (syncing → ok/error) so operators
+    // can observe the outcome via GET /extension-registry/sync-status/:pluginId.
     void (async () => {
       try {
         const tenant = await tenantService.getTenant(tenantId);
         const tenantSettings = (tenant.settings as Record<string, unknown>) ?? {};
         const manifestAsUnknown = manifest as unknown as Record<string, unknown>;
+
+        // Signal that sync has started
+        await extensionRegistryService.writeSyncStatus(tenantId, pluginId, 'syncing');
+
         await extensionRegistryService.syncManifest(tenantId, tenantSettings, pluginId, {
           extensionSlots: manifestAsUnknown['extensionSlots'] as never,
           contributions: manifestAsUnknown['contributions'] as never,
@@ -1060,11 +1066,17 @@ export class PluginLifecycleService {
         // H-03 fix: call onPluginReactivated so that any previously-deactivated
         // extension records are restored and the slot cache is invalidated.
         await extensionRegistryService.onPluginReactivated(tenantId, pluginId);
+
+        // Signal successful completion
+        await extensionRegistryService.writeSyncStatus(tenantId, pluginId, 'ok');
       } catch (extErr: unknown) {
+        const errMsg = extErr instanceof Error ? extErr.message : String(extErr);
         this.logger.warn(
-          { tenantId, pluginId, error: extErr instanceof Error ? extErr.message : String(extErr) },
+          { tenantId, pluginId, error: errMsg },
           'T013-09: Failed to sync extension manifest (non-blocking)'
         );
+        // Record the error so operators can see it via the sync-status endpoint
+        await extensionRegistryService.writeSyncStatus(tenantId, pluginId, 'error', errMsg);
       }
     })();
 

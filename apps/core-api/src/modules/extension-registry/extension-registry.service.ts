@@ -663,18 +663,79 @@ export class ExtensionRegistryService {
 
   /**
    * SUPER_ADMIN ONLY: List all slots across all tenants.
-   * W-02 fix: Runtime super-admin check here (service layer) + the repo also
-   * enforces it. The calling route must set isSuperAdmin=true only after
-   * verifying the Keycloak role claim.
+   * W-12 fix: The boolean anti-pattern (isSuperAdmin parameter) has been removed.
+   * Role verification now happens exclusively in the route layer, which reads
+   * realm_access.roles from the verified Keycloak JWT and calls
+   * authorizationService.isSuperAdmin() — returning 403 before this method is
+   * ever called. The service no longer duplicates that check; callers are
+   * trusted to have already enforced authorization at the route boundary.
+   *
+   * The explicit "superAdmin" method name is the defense-in-depth guard here
+   * (ADR-031 Safeguard 3), making cross-tenant access visible at the call site.
    */
-  async superAdminListAllSlots(isSuperAdmin: boolean) {
-    if (!isSuperAdmin) {
-      throw Object.assign(
-        new Error('FORBIDDEN: superAdminListAllSlots requires super-admin privileges'),
-        { code: 'FORBIDDEN' }
+  async superAdminListAllSlots() {
+    return this.repo.superAdminListAllSlots();
+  }
+
+  // ── Sync Status (W-8: operator observability) ────────────────────────────
+
+  /** Redis key for sync status: `ext:sync:{tenantId}:{pluginId}` */
+  private syncStatusKey(tenantId: string, pluginId: string): string {
+    return `ext:sync:${tenantId}:${pluginId}`;
+  }
+
+  /**
+   * Write sync status to Redis (TTL 3600s = 1 hour).
+   * Called by the fire-and-forget block in plugin.service.ts before/after syncManifest.
+   * Non-fatal: any Redis error is logged as a warning and swallowed.
+   */
+  async writeSyncStatus(
+    tenantId: string,
+    pluginId: string,
+    status: 'syncing' | 'ok' | 'error',
+    errorMessage?: string
+  ): Promise<void> {
+    try {
+      const payload = JSON.stringify({
+        status,
+        ...(errorMessage !== undefined ? { error: errorMessage } : {}),
+        ...(status === 'syncing' ? { startedAt: new Date().toISOString() } : {}),
+        ...(status !== 'syncing' ? { completedAt: new Date().toISOString() } : {}),
+      });
+      await this.redis.set(this.syncStatusKey(tenantId, pluginId), payload, 'EX', 3600);
+    } catch (err) {
+      this.log.warn(
+        { tenantId, pluginId, err },
+        'extension-registry: failed to write sync status (non-fatal)'
       );
     }
-    return this.repo.superAdminListAllSlots(true);
+  }
+
+  /**
+   * Read sync status from Redis for operator observability.
+   * Returns null when no sync has been recorded yet.
+   */
+  async getSyncStatus(
+    tenantId: string,
+    pluginId: string
+  ): Promise<{
+    status: 'syncing' | 'ok' | 'error';
+    error?: string;
+    startedAt?: string;
+    completedAt?: string;
+  } | null> {
+    try {
+      const raw = await this.redis.get(this.syncStatusKey(tenantId, pluginId));
+      if (!raw) return null;
+      return JSON.parse(raw) as {
+        status: 'syncing' | 'ok' | 'error';
+        error?: string;
+        startedAt?: string;
+        completedAt?: string;
+      };
+    } catch {
+      return null;
+    }
   }
 
   // ── Cache Helpers ──────────────────────────────────────────────────────────
