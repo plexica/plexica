@@ -113,11 +113,11 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
 
     // Create tenant admin and member JWT tokens (mock HS256 — accepted in test env)
     adminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug, {
-      sub: 'e2e-admin-0001-4000-a000-000000000001',
+      sub: 'e2e00001-0000-4000-a000-000000000001',
       email: `admin@${testTenantSlug}.test`,
     });
     memberToken = testContext.auth.createMockTenantMemberToken(testTenantSlug, {
-      sub: 'e2e-member-0002-4000-b000-000000000002',
+      sub: 'e2e00002-0000-4000-b000-000000000002',
       email: `member@${testTenantSlug}.test`,
     });
 
@@ -572,7 +572,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
       });
 
       const otherAdminToken = testContext.auth.createMockTenantAdminToken(otherSlug, {
-        sub: 'other-admin-0003-4000-c000-000000000003',
+        sub: 'e2e00003-0000-4000-c000-000000000003',
       });
 
       // First ensure this tenant has a config

@@ -218,7 +218,7 @@ export class LayoutConfigService {
           FROM ${schema}."layout_configs"
           WHERE form_id = ${formId}
             AND scope_type = 'workspace'
-            AND scope_id = ${scopeId}::uuid
+            AND scope_id = ${scopeId}::text
             AND deleted_at IS NULL
           LIMIT 1
         `
@@ -309,10 +309,10 @@ export class LayoutConfigService {
                 (form_id, plugin_id, scope_type, scope_id, fields, sections, columns,
                  previous_version, created_by, updated_by, created_at, updated_at)
               VALUES (
-                ${formId}, ${data.pluginId}::uuid, 'workspace', ${scopeId}::uuid,
+                ${formId}, ${data.pluginId}::text, 'workspace', ${scopeId}::text,
                 ${fieldsJson}::jsonb, ${sectionsJson}::jsonb, ${columnsJson}::jsonb,
                 ${previousVersionJson}::jsonb,
-                ${userId}::uuid, ${userId}::uuid,
+                ${userId}::text, ${userId}::text,
                 NOW(), NOW()
               )
               RETURNING id, form_id, plugin_id, scope_type, scope_id, fields, sections, columns,
@@ -323,10 +323,10 @@ export class LayoutConfigService {
                 (form_id, plugin_id, scope_type, scope_id, fields, sections, columns,
                  previous_version, created_by, updated_by, created_at, updated_at)
               VALUES (
-                ${formId}, ${data.pluginId}::uuid, 'tenant', NULL,
+                ${formId}, ${data.pluginId}::text, 'tenant', NULL,
                 ${fieldsJson}::jsonb, ${sectionsJson}::jsonb, ${columnsJson}::jsonb,
                 ${previousVersionJson}::jsonb,
-                ${userId}::uuid, ${userId}::uuid,
+                ${userId}::text, ${userId}::text,
                 NOW(), NOW()
               )
               RETURNING id, form_id, plugin_id, scope_type, scope_id, fields, sections, columns,
@@ -344,7 +344,7 @@ export class LayoutConfigService {
             sections = ${sectionsJson}::jsonb,
             columns = ${columnsJson}::jsonb,
             previous_version = ${previousVersionJson}::jsonb,
-            updated_by = ${userId}::uuid,
+            updated_by = ${userId}::text,
             updated_at = NOW()
           WHERE id = ${existing.id}::uuid
           RETURNING id, form_id, plugin_id, scope_type, scope_id, fields, sections, columns,
@@ -425,7 +425,7 @@ export class LayoutConfigService {
           sections = ${newSectionsJson}::jsonb,
           columns = ${newColumnsJson}::jsonb,
           previous_version = ${newPreviousVersionJson}::jsonb,
-          updated_by = ${userId}::uuid,
+          updated_by = ${userId}::text,
           updated_at = NOW()
         WHERE id = ${existing.id}::uuid
         RETURNING id, form_id, plugin_id, scope_type, scope_id, fields, sections, columns,
@@ -599,7 +599,7 @@ export class LayoutConfigService {
             WITH updated AS (
               UPDATE ${schema}."layout_configs"
               SET deleted_at = NOW()
-              WHERE plugin_id = ${pluginId}::uuid
+              WHERE plugin_id = ${pluginId}::text
                 AND deleted_at IS NULL
               RETURNING form_id, scope_type, scope_id
             )
@@ -655,7 +655,7 @@ export class LayoutConfigService {
             WITH updated AS (
               UPDATE ${schema}."layout_configs"
               SET deleted_at = NULL
-              WHERE plugin_id = ${pluginId}::uuid
+              WHERE plugin_id = ${pluginId}::text
                 AND deleted_at IS NOT NULL
               RETURNING id
             )

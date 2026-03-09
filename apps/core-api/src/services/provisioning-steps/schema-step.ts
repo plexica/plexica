@@ -317,7 +317,9 @@ export class SchemaStep implements ProvisioningStep {
     // layout_configs (T014-01 — Spec 014 Frontend Layout Engine)
     // -------------------------------------------------------------------------
     // ADR-002: tenant-schema table — NOT a core Prisma migration.
-    // plugin_id is stored as UUID but NOT a FK (cross-schema FKs unsupported).
+    // plugin_id is TEXT (matches core.plugins.id string registration IDs, e.g. "plugin-crm").
+    // scope_id is TEXT (matches workspaces.id which is TEXT DEFAULT gen_random_uuid()).
+    // created_by/updated_by are TEXT (Keycloak user IDs may not be standard UUIDs).
     // Two partial unique indexes handle NULL scope_id for tenant-scope rows
     // (PostgreSQL treats NULL ≠ NULL in unique indexes).
     // deleted_at IS NULL in unique index predicates allows soft-deleted rows
@@ -326,15 +328,15 @@ export class SchemaStep implements ProvisioningStep {
       CREATE TABLE IF NOT EXISTS "${schemaName}"."layout_configs" (
         "id"               UUID           NOT NULL DEFAULT gen_random_uuid(),
         "form_id"          VARCHAR(255)   NOT NULL,
-        "plugin_id"        UUID           NOT NULL,
+        "plugin_id"        TEXT           NOT NULL,
         "scope_type"       VARCHAR(20)    NOT NULL CHECK ("scope_type" IN ('tenant', 'workspace')),
-        "scope_id"         UUID,
+        "scope_id"         TEXT,
         "fields"           JSONB          NOT NULL DEFAULT '[]',
         "sections"         JSONB          NOT NULL DEFAULT '[]',
         "columns"          JSONB          NOT NULL DEFAULT '[]',
         "previous_version" JSONB,
-        "created_by"       UUID           NOT NULL,
-        "updated_by"       UUID           NOT NULL,
+        "created_by"       TEXT           NOT NULL,
+        "updated_by"       TEXT           NOT NULL,
         "deleted_at"       TIMESTAMPTZ,
         "created_at"       TIMESTAMPTZ    NOT NULL DEFAULT now(),
         "updated_at"       TIMESTAMPTZ    NOT NULL DEFAULT now(),
