@@ -32,6 +32,8 @@ const {
   mockGetTenantBySlug,
   mockGetTenantContext,
   mockAuthorize,
+  mockIsSuperAdmin,
+  mockSuperAdminListAllSlots,
 } = vi.hoisted(() => ({
   mockGetSlots: vi.fn(),
   mockGetSlotsByPlugin: vi.fn(),
@@ -45,6 +47,8 @@ const {
   mockGetTenantBySlug: vi.fn(),
   mockGetTenantContext: vi.fn(),
   mockAuthorize: vi.fn(),
+  mockIsSuperAdmin: vi.fn(),
+  mockSuperAdminListAllSlots: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -69,6 +73,7 @@ vi.mock(
         aggregateEntityExtensions: mockAggregateEntityExtensions,
         setVisibility: mockSetVisibility,
         getSlotDependents: mockGetSlotDependents,
+        superAdminListAllSlots: mockSuperAdminListAllSlots,
       },
     };
   }
@@ -143,6 +148,7 @@ vi.mock('../../../modules/authorization/authorization.service.js', async (import
     ...original,
     authorizationService: {
       authorize: mockAuthorize,
+      isSuperAdmin: mockIsSuperAdmin,
     },
   };
 });
@@ -721,6 +727,76 @@ describe('Extension Registry Routes — Integration Tests', () => {
 
       expect(res.statusCode).toBe(403);
       expect(res.json<{ error: { code: string } }>().error.code).toBe('TENANT_ISOLATION_VIOLATION');
+    });
+  });
+
+  // ── GET /api/v1/extension-registry/admin/slots ───────────────────────────
+  // ADR-031 Safeguard 3: SUPER_ADMIN only cross-tenant admin endpoint.
+  // W-12 fix: isSuperAdmin is derived from verified JWT realm_access.roles.
+
+  describe('GET /api/v1/extension-registry/admin/slots', () => {
+    it('200 — super-admin can list all slots across all tenants', async () => {
+      // isSuperAdmin returns true → handler proceeds to call service
+      mockIsSuperAdmin.mockReturnValueOnce(true);
+      mockSuperAdminListAllSlots.mockResolvedValueOnce([
+        { id: 'slot-1', tenantId: 'tenant-a', pluginId: 'plugin-x', slotId: 'action-bar' },
+        { id: 'slot-2', tenantId: 'tenant-b', pluginId: 'plugin-y', slotId: 'toolbar-main' },
+      ]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/extension-registry/admin/slots',
+        headers: { authorization: `Bearer ${tenantToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ slots: unknown[]; page: number; pageSize: number }>();
+      expect(body.slots).toHaveLength(2);
+      expect(body.page).toBe(1);
+      expect(body.pageSize).toBe(50);
+      expect(mockSuperAdminListAllSlots).toHaveBeenCalledTimes(1);
+    });
+
+    it('403 — non-super-admin receives SUPER_ADMIN_REQUIRED error', async () => {
+      // isSuperAdmin returns false → handler short-circuits with 403
+      mockIsSuperAdmin.mockReturnValueOnce(false);
+      mockSuperAdminListAllSlots.mockClear(); // reset call count from prior tests in this describe
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/extension-registry/admin/slots',
+        headers: { authorization: `Bearer ${tenantToken}` },
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json<{ error: { code: string; message: string } }>();
+      expect(body.error.code).toBe('SUPER_ADMIN_REQUIRED');
+      // Service must NOT be called when role check fails (W-12 fix)
+      expect(mockSuperAdminListAllSlots).not.toHaveBeenCalled();
+    });
+
+    it('401 — no auth header is rejected', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/extension-registry/admin/slots',
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('200 — custom pagination params are forwarded in response', async () => {
+      mockIsSuperAdmin.mockReturnValueOnce(true);
+      mockSuperAdminListAllSlots.mockResolvedValueOnce([]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/extension-registry/admin/slots?page=2&pageSize=25',
+        headers: { authorization: `Bearer ${tenantToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ slots: unknown[]; page: number; pageSize: number }>();
+      expect(body.page).toBe(2);
+      expect(body.pageSize).toBe(25);
     });
   });
 });
