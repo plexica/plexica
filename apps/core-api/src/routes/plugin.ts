@@ -13,6 +13,7 @@ import {
   registerWorkspaceErrorHandler,
 } from '../modules/workspace/utils/error-formatter.js';
 import { manifestFormSchemasSchema } from '../schemas/layout-config.schema.js';
+import { db } from '../lib/db.js';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
   // Register local error handler — required because Fastify v5 child plugin
@@ -63,8 +64,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       try {
         // T014-13: Validate optional formSchemas extension in manifest (Spec 014, FR-001)
         // Backward-compatible: manifests without formSchemas are accepted unchanged.
-        if (request.body.formSchemas !== undefined) {
-          const fsResult = manifestFormSchemasSchema.safeParse(request.body.formSchemas);
+        const { formSchemas, ...manifestWithoutFormSchemas } = request.body as PluginManifest & {
+          formSchemas?: unknown[];
+        };
+        if (formSchemas !== undefined) {
+          const fsResult = manifestFormSchemasSchema.safeParse(formSchemas);
           if (!fsResult.success) {
             const details = fsResult.error.issues.map((i) => ({
               path: i.path.join('.'),
@@ -80,7 +84,22 @@ export async function pluginRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const plugin = await pluginRegistryService.registerPlugin(request.body);
+        // Pass manifest WITHOUT formSchemas to registerPlugin so that
+        // PluginManifestSchema.strict() does not reject the unknown key.
+        const plugin = await pluginRegistryService.registerPlugin(
+          manifestWithoutFormSchemas as PluginManifest
+        );
+
+        // If formSchemas was provided, patch the stored manifest to include it
+        // so that LayoutConfigService.getFormSchema() can find it.
+        if (formSchemas !== undefined) {
+          const existingManifest = (plugin.manifest ?? {}) as Record<string, unknown>;
+          await db.plugin.update({
+            where: { id: plugin.id },
+            data: { manifest: { ...existingManifest, formSchemas } },
+          });
+        }
+
         return reply.code(201).send(plugin);
       } catch (error: unknown) {
         request.log.error(error);
@@ -250,8 +269,11 @@ export async function pluginRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         // T014-13: Validate optional formSchemas extension in manifest (Spec 014, FR-001)
-        if (request.body.formSchemas !== undefined) {
-          const fsResult = manifestFormSchemasSchema.safeParse(request.body.formSchemas);
+        const { formSchemas, ...manifestWithoutFormSchemas } = request.body as PluginManifest & {
+          formSchemas?: unknown[];
+        };
+        if (formSchemas !== undefined) {
+          const fsResult = manifestFormSchemasSchema.safeParse(formSchemas);
           if (!fsResult.success) {
             const details = fsResult.error.issues.map((i) => ({
               path: i.path.join('.'),
@@ -269,8 +291,18 @@ export async function pluginRoutes(fastify: FastifyInstance) {
 
         const plugin = await pluginRegistryService.updatePlugin(
           request.params.pluginId,
-          request.body
+          manifestWithoutFormSchemas as PluginManifest
         );
+
+        // If formSchemas was provided, patch the stored manifest to include it.
+        if (formSchemas !== undefined) {
+          const existingManifest = (plugin.manifest ?? {}) as Record<string, unknown>;
+          await db.plugin.update({
+            where: { id: plugin.id },
+            data: { manifest: { ...existingManifest, formSchemas } },
+          });
+        }
+
         return reply.send(plugin);
       } catch (error: unknown) {
         request.log.error(error);

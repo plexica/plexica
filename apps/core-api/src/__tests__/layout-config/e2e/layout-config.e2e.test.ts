@@ -28,8 +28,16 @@ const FORM_ID = 'crm-contact-edit';
 /**
  * Stable UUID for the CRM plugin registered in beforeAll.
  * Must be a valid UUID because layout_configs.plugin_id is a UUID column.
+ * This UUID is used only in layout_configs; the plugin's own ID (in core.plugins)
+ * uses the required plugin-{name} format (see PLUGIN_REGISTRATION_ID below).
  */
 const CRM_PLUGIN_ID = 'a0a0a0a0-0000-4000-a000-000000000001';
+
+/**
+ * Plugin registration ID must follow pattern: plugin-{name} (PluginManifestSchema constraint).
+ * This is the id used when registering the plugin in core.plugins.
+ */
+const PLUGIN_REGISTRATION_ID = 'plugin-crm-layout-e2e';
 
 /**
  * Build a valid tenant-scope SaveLayoutConfigInput body.
@@ -126,7 +134,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
         'content-type': 'application/json',
       },
       payload: {
-        id: CRM_PLUGIN_ID,
+        id: PLUGIN_REGISTRATION_ID,
         name: 'CRM Plugin (Layout E2E)',
         version: '1.0.0',
         description: 'CRM plugin used by layout-config E2E tests',
@@ -209,7 +217,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
     // Install plugin to the test tenant
     const installResp = await app.inject({
       method: 'POST',
-      url: `/api/tenants/${tenantId}/plugins/${CRM_PLUGIN_ID}/install`,
+      url: `/api/tenants/${tenantId}/plugins/${PLUGIN_REGISTRATION_ID}/install`,
       headers: {
         authorization: `Bearer ${adminToken}`,
         'content-type': 'application/json',
@@ -224,7 +232,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
     // Activate the plugin so it's returned by getFormSchema() (tp.enabled = true)
     const activateResp = await app.inject({
       method: 'POST',
-      url: `/api/tenants/${tenantId}/plugins/${CRM_PLUGIN_ID}/activate`,
+      url: `/api/tenants/${tenantId}/plugins/${PLUGIN_REGISTRATION_ID}/activate`,
       headers: { authorization: `Bearer ${adminToken}` },
     });
 
