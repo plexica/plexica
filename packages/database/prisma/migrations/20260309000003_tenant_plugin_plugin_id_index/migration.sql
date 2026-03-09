@@ -13,4 +13,4 @@
 -- current data volume).
 
 CREATE INDEX IF NOT EXISTS "tenant_plugins_plugin_id_idx"
-  ON "core"."tenant_plugins" ("plugin_id");
+  ON "core"."tenant_plugins" ("pluginId");
