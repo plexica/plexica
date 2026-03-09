@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "targets": [
+      "plugin-plugin-tenant-test:8080"
+    ],
+    "labels": {
+      "plugin_id": "plugin-tenant-test",
+      "plugin_name": "Tenant Integration Test Plugin",
+      "job": "plugins"
+    }
+  }
+]

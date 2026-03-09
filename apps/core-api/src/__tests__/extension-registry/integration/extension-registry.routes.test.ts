@@ -28,6 +28,10 @@ const {
   mockAggregateEntityExtensions,
   mockSetVisibility,
   mockGetSlotDependents,
+  mockGetTenant,
+  mockGetTenantBySlug,
+  mockGetTenantContext,
+  mockAuthorize,
 } = vi.hoisted(() => ({
   mockGetSlots: vi.fn(),
   mockGetSlotsByPlugin: vi.fn(),
@@ -37,6 +41,10 @@ const {
   mockAggregateEntityExtensions: vi.fn(),
   mockSetVisibility: vi.fn(),
   mockGetSlotDependents: vi.fn(),
+  mockGetTenant: vi.fn(),
+  mockGetTenantBySlug: vi.fn(),
+  mockGetTenantContext: vi.fn(),
+  mockAuthorize: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -67,9 +75,6 @@ vi.mock(
 );
 
 // Mock tenantService to avoid real DB calls
-const mockGetTenant = vi.fn();
-const mockGetTenantBySlug = vi.fn();
-
 vi.mock('../../../services/tenant.service.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../services/tenant.service.js')>();
   return {
@@ -77,19 +82,58 @@ vi.mock('../../../services/tenant.service.js', async (importOriginal) => {
     tenantService: {
       getTenant: mockGetTenant,
       getTenantBySlug: mockGetTenantBySlug,
+      // resolveTenant() calls getSchemaName(tenant.slug) — must be mocked or it
+      // throws TypeError (undefined is not a function) → handleExtensionError default 500.
+      getSchemaName: (slug: string) => `tenant_${slug.replace(/-/g, '_')}`,
     },
   };
 });
 
-// Mock getTenantContext to return a consistent tenant context
-const mockGetTenantContext = vi.fn();
+// Mock tenant-context middleware — export every function the middleware module
+// exposes so that the route plugin can import and register them without error.
 vi.mock('../../../middleware/tenant-context.js', () => ({
   getTenantContext: mockGetTenantContext,
   setTenantContext: vi.fn(),
+  // tenantContextMiddleware is registered as a Fastify preHandler; make it a
+  // no-op so requests pass through in tests without triggering real DB lookups.
+  tenantContextMiddleware: vi.fn(async (_req: unknown, _reply: unknown) => {
+    /* no-op passthrough */
+  }),
+  tenantContextStorage: { getStore: vi.fn(), enterWith: vi.fn() },
+  getCurrentTenantSchema: vi.fn(),
+  getWorkspaceIdOrThrow: vi.fn(),
+  getWorkspaceId: vi.fn(),
+  getUserId: vi.fn(),
+  setWorkspaceId: vi.fn(),
+  setUserId: vi.fn(),
+  executeInTenantSchema: vi.fn(),
 }));
 
+// Mock authMiddleware — bypass JWT verification in tests.
+// Uses importOriginal to spread all real exports (requireSuperAdmin, requireRole, etc.)
+// and overrides only authMiddleware to avoid real Keycloak JWT validation.
+vi.mock('../../../middleware/auth.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../middleware/auth.js')>();
+  return {
+    ...original,
+    authMiddleware: vi.fn(
+      (
+        req: { headers: { authorization?: string }; user?: unknown },
+        reply: { code: (n: number) => { send: (b: unknown) => void } },
+        done: () => void
+      ) => {
+        if (!req.headers.authorization) {
+          reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'No token provided' } });
+          return;
+        }
+        req.user = { id: 'test-user-id', tenantSlug: 'acme', roles: ['tenant_admin'] };
+        done();
+      }
+    ),
+  };
+});
+
 // Mock authorizationService (ABAC engine) — F-006
-const mockAuthorize = vi.fn();
 vi.mock('../../../modules/authorization/authorization.service.js', async (importOriginal) => {
   const original =
     await importOriginal<
@@ -265,7 +309,9 @@ describe('Extension Registry Routes — Integration Tests', () => {
       expect(mockGetSlots).toHaveBeenCalledWith(
         TENANT_ID,
         expect.any(Object),
-        expect.objectContaining({ pluginId: PLUGIN_ID })
+        expect.objectContaining({ pluginId: PLUGIN_ID }),
+        expect.any(Number),
+        expect.any(Number)
       );
     });
   });
@@ -422,7 +468,10 @@ describe('Extension Registry Routes — Integration Tests', () => {
       expect(res.statusCode).toBe(200);
     });
 
-    it('400 — invalid body (string instead of boolean)', async () => {
+    it('400 — invalid body (missing required isVisible field)', async () => {
+      // Fastify AJV coerces strings to booleans (coerceTypes: true), so sending
+      // `isVisible: "true"` passes validation. Instead, test a body that is
+      // genuinely invalid: the required `isVisible` field is missing entirely.
       const res = await app.inject({
         method: 'PATCH',
         url: `/api/v1/workspaces/${WORKSPACE_ID}/extension-visibility/${CONTRIBUTION_ID}`,
@@ -430,7 +479,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
           authorization: `Bearer ${tenantToken}`,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ isVisible: 'true' }),
+        body: JSON.stringify({ wrongField: true }),
       });
 
       expect(res.statusCode).toBe(400);
@@ -454,6 +503,7 @@ describe('Extension Registry Routes — Integration Tests', () => {
       const res = await app.inject({
         method: 'PATCH',
         url: `/api/v1/workspaces/${WORKSPACE_ID}/extension-visibility/${CONTRIBUTION_ID}`,
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ isVisible: false }),
       });
       expect(res.statusCode).toBe(401);
@@ -559,9 +609,10 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ data: { count: number; plugins: string[] } }>();
-      expect(body.data.count).toBe(2);
-      expect(body.data.plugins).toEqual(['plugin-beta', 'plugin-gamma']);
+      // Controller does reply.send(result) directly — no { data } wrapper.
+      const body = res.json<{ count: number; plugins: string[] }>();
+      expect(body.count).toBe(2);
+      expect(body.plugins).toEqual(['plugin-beta', 'plugin-gamma']);
     });
 
     it('404 — SLOT_NOT_FOUND returns correct error code', async () => {
@@ -608,12 +659,14 @@ describe('Extension Registry Routes — Integration Tests', () => {
 
       expect(res.statusCode).toBe(200);
       // Service already filtered invalid contributions — API must NOT re-inject them.
-      expect(res.json<{ data: unknown[] }>().data).toEqual([]);
+      expect(res.json<{ contributions: unknown[] }>().contributions).toEqual([]);
       // Verify the service was called with the tenant context so filtering is tenant-scoped.
       expect(mockGetContributions).toHaveBeenCalledWith(
         TENANT_ID,
         expect.any(Object), // tenant settings
-        expect.any(Object) // filters
+        expect.any(Object), // filters
+        expect.any(Number), // page
+        expect.any(Number) // pageSize
       );
     });
 
@@ -632,14 +685,16 @@ describe('Extension Registry Routes — Integration Tests', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ data: (typeof SAMPLE_CONTRIBUTION)[] }>();
+      const body = res.json<{ contributions: (typeof SAMPLE_CONTRIBUTION)[] }>();
       // Only visible contributions should be present
-      expect(body.data.every((c) => c.isVisible === true)).toBe(true);
+      expect(body.contributions.every((c) => c.isVisible === true)).toBe(true);
       // Workspace filter was forwarded to the service
       expect(mockGetContributions).toHaveBeenCalledWith(
         TENANT_ID,
         expect.any(Object),
-        expect.objectContaining({ workspaceId: WORKSPACE_ID })
+        expect.objectContaining({ workspaceId: WORKSPACE_ID }),
+        expect.any(Number),
+        expect.any(Number)
       );
     });
 

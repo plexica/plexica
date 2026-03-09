@@ -61,23 +61,24 @@ const {
 }));
 
 vi.mock('../../../modules/extension-registry/extension-registry.repository.js', () => ({
-  ExtensionRegistryRepository: vi.fn().mockImplementation(() => ({
-    getSlots: mockGetSlots,
-    getContributionsForSlot: mockGetContributionsForSlot,
-    setVisibility: mockSetVisibility,
-    deactivateByPlugin: mockDeactivateByPlugin,
-    getEntities: mockGetEntities,
-    getDataExtensions: mockGetDataExtensions,
-    getSlotsByPlugin: mockGetSlotsByPlugin,
-    getContributions: mockGetContributions,
-    getSlotDependents: mockGetSlotDependents,
-    upsertSlots: mockUpsertSlots,
-    upsertContributions: mockUpsertContributions,
-    upsertEntities: mockUpsertEntities,
-    upsertDataExtensions: mockUpsertDataExtensions,
-    reactivateByPlugin: mockReactivateByPlugin,
-    validateContributions: mockValidateContributions,
-  })),
+  ExtensionRegistryRepository: class MockExtensionRegistryRepository {
+    getSlots = mockGetSlots;
+    getContributionsForSlot = mockGetContributionsForSlot;
+    setVisibility = mockSetVisibility;
+    deactivateByPlugin = mockDeactivateByPlugin;
+    getEntities = mockGetEntities;
+    getDataExtensions = mockGetDataExtensions;
+    getSlotsByPlugin = mockGetSlotsByPlugin;
+    getContributions = mockGetContributions;
+    getSlotDependents = mockGetSlotDependents;
+    upsertSlots = mockUpsertSlots;
+    upsertContributions = mockUpsertContributions;
+    upsertEntities = mockUpsertEntities;
+    upsertDataExtensions = mockUpsertDataExtensions;
+    reactivateByPlugin = mockReactivateByPlugin;
+    validateContributions = mockValidateContributions;
+    superAdminListAllSlots = vi.fn();
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -183,9 +184,10 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
       // Tenant B gets zero results (isolation guaranteed)
       expect(resultB).toHaveLength(0);
 
-      // Repository was called with the correct tenantId each time
-      expect(mockGetSlots).toHaveBeenNthCalledWith(1, TENANT_A, undefined);
-      expect(mockGetSlots).toHaveBeenNthCalledWith(2, TENANT_B, undefined);
+      // Repository was called with the correct tenantId each time.
+      // Service passes (tenantId, filters, page, pageSize) — default page=1, pageSize=50.
+      expect(mockGetSlots).toHaveBeenNthCalledWith(1, TENANT_A, undefined, 1, 50);
+      expect(mockGetSlots).toHaveBeenNthCalledWith(2, TENANT_B, undefined, 1, 50);
     });
 
     it('getSlots never mixes data between tenants regardless of cache state', async () => {
@@ -206,7 +208,13 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
 
   describe('[S3] workspace visibility scoping — getContributionsForSlot', () => {
     it('workspace A visibility does not affect workspace B query result', async () => {
-      // Workspace A: one contribution is hidden
+      // Workspace A: the contribution is workspace-hidden (isVisible: false).
+      // The service's filterContributions() strips isVisible=false rows, so the
+      // result for workspace A must be empty — the hidden contribution is not served.
+      // Workspace B: the same contribution is visible (isVisible: true) and IS served.
+      //
+      // This test verifies workspace isolation: disabling a contribution in workspace A
+      // has no effect on workspace B (the repo mock returns different rows per workspaceId).
       mockGetContributionsForSlot.mockImplementation(
         (
           _tenantId: string,
@@ -215,10 +223,10 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
           workspaceId?: string
         ) => {
           if (workspaceId === WORKSPACE_A) {
-            return Promise.resolve([CONTRIBUTION_HIDDEN]);
+            return Promise.resolve([CONTRIBUTION_HIDDEN]); // isVisible: false → filtered out
           }
           if (workspaceId === WORKSPACE_B) {
-            return Promise.resolve([CONTRIBUTION_VISIBLE]);
+            return Promise.resolve([CONTRIBUTION_VISIBLE]); // isVisible: true → included
           }
           return Promise.resolve([CONTRIBUTION_VISIBLE]);
         }
@@ -240,11 +248,10 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
         WORKSPACE_B
       );
 
-      // Workspace A: contribution is hidden (isVisible: false)
-      expect(resultWsA).toHaveLength(1);
-      expect(resultWsA[0].isVisible).toBe(false);
+      // Workspace A: contribution is hidden → service filters it out → empty result
+      expect(resultWsA).toHaveLength(0);
 
-      // Workspace B: contribution is visible (isVisible: true)
+      // Workspace B: contribution is visible → service includes it → 1 result
       expect(resultWsB).toHaveLength(1);
       expect(resultWsB[0].isVisible).toBe(true);
 
@@ -398,7 +405,8 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
 
       await service.getEntities(TENANT_A, ENABLED_SETTINGS);
 
-      expect(mockGetEntities).toHaveBeenCalledWith(TENANT_A);
+      // Service forwards default pagination (page=1, pageSize=50) to the repo.
+      expect(mockGetEntities).toHaveBeenCalledWith(TENANT_A, 1, 50);
     });
 
     it('getSlotsByPlugin passes both tenantId and pluginId to repository', async () => {
@@ -406,7 +414,8 @@ describe('Extension Registry — ADR-031 Tenant Isolation', () => {
 
       await service.getSlotsByPlugin(TENANT_A, ENABLED_SETTINGS, PLUGIN_ID);
 
-      expect(mockGetSlotsByPlugin).toHaveBeenCalledWith(TENANT_A, PLUGIN_ID);
+      // Service forwards default pagination (page=1, pageSize=50) to the repo.
+      expect(mockGetSlotsByPlugin).toHaveBeenCalledWith(TENANT_A, PLUGIN_ID, 1, 50);
     });
   });
 });

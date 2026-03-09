@@ -113,6 +113,29 @@ vi.mock('../../../lib/logger.js', () => ({
   logger: mockLogger,
 }));
 
+// Mock node:dns/promises so assertSafeUrl() doesn't do real DNS lookups in unit tests.
+// Returns a safe public IP for any hostname — tests that stub global `fetch` can then
+// proceed past the SSRF guard and into the actual fetch call.
+// Note: must NOT use 203.0.113.x (TEST-NET-3) — that range is explicitly blocked.
+// Using 8.8.8.8 (Google public DNS) as a stand-in safe routable IP.
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn().mockResolvedValue({ address: '8.8.8.8', family: 4 }),
+}));
+
+// Mock undici Agent so the pinned-IP TCP override is a no-op in unit tests.
+// The tests stub globalThis.fetch directly, so we just need the Agent to be
+// an inert object with a close() method.
+// NOTE: must use a real class (not vi.fn().mockImplementation) because the
+// service calls `new UndiciAgent(...)` — arrow functions / vi.fn wrappers are
+// not constructable in Vitest's SSR/ESM transform.
+vi.mock('undici', () => ({
+  Agent: class MockUndiciAgent {
+    close() {
+      return Promise.resolve();
+    }
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // Import under test (AFTER mocks)
 // ---------------------------------------------------------------------------
@@ -147,6 +170,7 @@ const makeContribution = (overrides = {}) => ({
 const makeContributionRow = (overrides = {}) => ({
   id: 'contrib-uuid-1',
   contributingPluginId: 'plugin-beta',
+  contributingPluginName: 'plugin-beta',
   targetPluginId: PLUGIN_ID,
   targetSlotId: 'slot-1',
   componentName: 'MyWidget',
@@ -307,7 +331,7 @@ describe('ExtensionRegistryService', () => {
 
       const result = await service.getSlots(TENANT_ID, ENABLED_SETTINGS);
 
-      expect(mockGetSlots).toHaveBeenCalledWith(TENANT_ID, undefined);
+      expect(mockGetSlots).toHaveBeenCalledWith(TENANT_ID, undefined, 1, 50);
       expect(mockRedisSet).toHaveBeenCalledWith(
         `ext:slots:${TENANT_ID}`,
         JSON.stringify(slots),
@@ -330,7 +354,7 @@ describe('ExtensionRegistryService', () => {
       mockGetSlots.mockResolvedValue([]);
       await service.getSlots(TENANT_ID, ENABLED_SETTINGS, { pluginId: PLUGIN_ID });
 
-      expect(mockGetSlots).toHaveBeenCalledWith(TENANT_ID, { pluginId: PLUGIN_ID });
+      expect(mockGetSlots).toHaveBeenCalledWith(TENANT_ID, { pluginId: PLUGIN_ID }, 1, 50);
       expect(mockRedisGet).not.toHaveBeenCalled();
       expect(mockRedisSet).not.toHaveBeenCalled();
     });
@@ -339,7 +363,7 @@ describe('ExtensionRegistryService', () => {
       mockGetSlots.mockResolvedValue([]);
       await service.getSlots(TENANT_ID, ENABLED_SETTINGS, { type: 'panel' });
 
-      expect(mockGetSlots).toHaveBeenCalledWith(TENANT_ID, { type: 'panel' });
+      expect(mockGetSlots).toHaveBeenCalledWith(TENANT_ID, { type: 'panel' }, 1, 50);
       expect(mockRedisSet).not.toHaveBeenCalled();
     });
 
@@ -455,7 +479,7 @@ describe('ExtensionRegistryService', () => {
     it('should call repo.setVisibility and invalidate cache', async () => {
       await service.setVisibility(TENANT_ID, ENABLED_SETTINGS, 'ws-1', 'contrib-1', false);
 
-      expect(mockSetVisibility).toHaveBeenCalledWith('ws-1', 'contrib-1', false);
+      expect(mockSetVisibility).toHaveBeenCalledWith(TENANT_ID, 'ws-1', 'contrib-1', false);
       expect(mockRedisDel).toHaveBeenCalledWith(`ext:slots:${TENANT_ID}`);
     });
 

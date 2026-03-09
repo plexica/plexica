@@ -409,15 +409,15 @@ describe('PluginRegistryService.updatePlugin()', () => {
     // Hotfix 4 (forge-review 2026-03-09): guard against registry corruption where a
     // caller posts manifest for "evil-plugin" to PUT /plugins/trusted-plugin, silently
     // overwriting the trusted plugin's record without any visible error.
-    const manifest = buildManifest({ id: 'different-plugin-id' });
+    const manifest = buildManifest({ id: 'plugin-different' });
 
     await expect(service.updatePlugin('plugin-test', manifest as any)).rejects.toThrow(
-      "Manifest id 'different-plugin-id' does not match route parameter 'plugin-test'"
+      "Manifest id 'plugin-different' does not match route parameter 'plugin-test'"
     );
   });
 
   it('should throw "not found" when plugin to update does not exist', async () => {
-    const manifest = buildManifest();
+    const manifest = buildManifest({ id: 'plugin-ghost' });
     vi.mocked(db.plugin.findUnique).mockResolvedValue(null);
 
     await expect(service.updatePlugin('plugin-ghost', manifest as any)).rejects.toThrow(

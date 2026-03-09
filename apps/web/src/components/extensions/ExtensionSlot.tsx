@@ -18,7 +18,7 @@
 //
 // FR-007, FR-008, FR-009, FR-010, NFR-008, NFR-011, NFR-014
 
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useFeatureFlag } from '@/lib/feature-flags';
@@ -109,20 +109,23 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
 
   // Fix-10: track how many ExtensionContribution children have signalled onLoad.
   // aria-busy must remain "true" until ALL contributions have resolved their lazy
-  // module (NFR-011). Reset to 0 whenever the contribution list changes so that a
-  // fresh SSE-driven refetch re-arms the counter.
-  const [loadedCount, setLoadedCount] = useState(0);
+  // module (NFR-011). The count is co-located with the data snapshot it belongs to
+  // so it resets automatically when the contribution list identity changes (e.g. after
+  // an SSE-driven refetch) — no useEffect or render-phase ref write needed.
+  const [loadState, setLoadState] = useState<{
+    dataSnapshot: typeof data;
+    count: number;
+  }>({ dataSnapshot: undefined, count: 0 });
+
+  // If data identity has changed since the last increment, treat the count as 0.
+  const loadedCount = loadState.dataSnapshot === data ? loadState.count : 0;
   const totalCount = (data ?? []).length;
 
   const handleContributionLoad = useCallback(() => {
-    setLoadedCount((n) => n + 1);
-  }, []);
-
-  // W-09 fix: reset counter in useEffect (not synchronously during render) to
-  // avoid the React concurrent-mode anti-pattern where state is updated during
-  // the render pass, potentially causing extra renders or scheduling issues.
-  useEffect(() => {
-    setLoadedCount(0);
+    setLoadState((prev) => ({
+      dataSnapshot: data,
+      count: prev.dataSnapshot === data ? prev.count + 1 : 1,
+    }));
   }, [data]);
 
   const allChildrenLoaded = !isLoading && totalCount > 0 && loadedCount >= totalCount;

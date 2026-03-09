@@ -709,8 +709,8 @@ export class ExtensionRegistryService {
    * The explicit "superAdmin" method name is the defense-in-depth guard here
    * (ADR-031 Safeguard 3), making cross-tenant access visible at the call site.
    */
-  async superAdminListAllSlots(page = 1, pageSize = 50) {
-    return this.repo.superAdminListAllSlots(page, pageSize);
+  async superAdminListAllSlots() {
+    return this.repo.superAdminListAllSlots();
   }
 
   // ── Sync Status (W-8: operator observability) ────────────────────────────
