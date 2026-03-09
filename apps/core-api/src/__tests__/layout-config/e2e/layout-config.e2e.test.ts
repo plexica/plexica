@@ -409,13 +409,17 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
       expect(resolved.formId).toBe(FORM_ID);
     });
 
-    it('after revert, GET :formId returns 404 (config removed)', async () => {
+    it('after revert, GET :formId returns 200 (config reverted to previous version)', async () => {
+      // Per FR-019, revert is a swap: current ↔ previous_version.
+      // The config row still exists in the DB — GET returns 200 with the reverted data.
       const resp = await app.inject({
         method: 'GET',
         url: `/api/v1/layout-configs/${FORM_ID}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
-      expect(resp.statusCode).toBe(404);
+      expect(resp.statusCode).toBe(200);
+      const config = resp.json() as { formId: string };
+      expect(config.formId).toBe(FORM_ID);
     });
   });
 
