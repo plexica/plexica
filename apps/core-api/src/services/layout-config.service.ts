@@ -526,8 +526,8 @@ export class LayoutConfigService {
       Prisma.sql`
         SELECT p.id, p.name, p.manifest
         FROM core.plugins p
-        INNER JOIN core.tenant_plugins tp ON tp.plugin_id = p.id
-        WHERE tp.tenant_id = ${tenantId}::uuid
+        INNER JOIN core.tenant_plugins tp ON tp."pluginId" = p.id
+        WHERE tp."tenantId" = ${tenantId}::uuid
           AND tp.enabled = true
       `
     );
@@ -780,8 +780,8 @@ export class LayoutConfigService {
       Prisma.sql`
         SELECT p.id, p.name, p.manifest
         FROM core.plugins p
-        INNER JOIN core.tenant_plugins tp ON tp.plugin_id = p.id
-        WHERE tp.tenant_id = ${tenantId}::uuid
+        INNER JOIN core.tenant_plugins tp ON tp."pluginId" = p.id
+        WHERE tp."tenantId" = ${tenantId}::uuid
           AND tp.enabled = true
       `
     );

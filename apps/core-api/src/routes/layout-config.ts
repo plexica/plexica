@@ -713,6 +713,15 @@ export async function layoutConfigRoutes(fastify: FastifyInstance): Promise<void
 
       const { workspaceId, formId } = request.params;
 
+      // Validate workspaceId is a well-formed UUID before any DB query.
+      // Non-UUID values can never match a real workspace → return 404 immediately.
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!UUID_RE.test(workspaceId)) {
+        return reply.code(404).send({
+          error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' },
+        });
+      }
+
       const hasAccess = await checkWorkspaceAdminRole(
         ctx.tenantId,
         ctx.tenantSlug,
