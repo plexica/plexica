@@ -23,7 +23,7 @@ import { testContext } from '../../../../../../test-infrastructure/helpers/test-
 // Helpers
 // ---------------------------------------------------------------------------
 
-const FORM_ID = 'crm.contact-edit';
+const FORM_ID = 'crm-contact-edit';
 
 /**
  * Stable UUID for the CRM plugin registered in beforeAll.
@@ -140,7 +140,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
         config: [],
         formSchemas: [
           {
-            formId: 'crm.contact-edit',
+            formId: 'crm-contact-edit',
             label: 'Contact Edit Form',
             sections: [{ sectionId: 'basic', label: 'Basic Info', order: 0 }],
             fields: [
@@ -172,7 +172,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
             columns: [],
           },
           {
-            formId: 'crm.contacts-table',
+            formId: 'crm-contacts-table',
             label: 'Contacts Table',
             sections: [{ sectionId: 'main', label: 'Main', order: 0 }],
             fields: [
@@ -489,7 +489,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
   // =========================================================================
 
   describe('Journey 5 — workspace-scope layout overrides tenant config', () => {
-    const FORM_ID_WS = 'crm.contacts-table';
+    const FORM_ID_WS = 'crm-contacts-table';
 
     it('workspace admin can save a workspace-scope layout config', async () => {
       // Skip if workspace creation failed in setup
