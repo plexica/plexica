@@ -36,6 +36,7 @@ import { TopicManager } from '@plexica/event-bus';
 import type { TranslationService } from '../modules/i18n/i18n.service.js';
 import { moduleFederationRegistryService } from './module-federation-registry.service.js';
 import { pluginTargetsService } from './plugin-targets.service.js';
+import { layoutConfigService } from './layout-config.service.js';
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -891,6 +892,27 @@ export class PluginLifecycleService {
       }
     }
 
+    // T014-09: Restore any soft-deleted layout configs for this plugin/tenant
+    // on reinstall. Fail-open — layout restoration failure must not block install.
+    try {
+      const tenantForRestore = await db.tenant.findFirst({
+        where: { id: tenantId },
+        select: { slug: true },
+      });
+      if (tenantForRestore) {
+        await layoutConfigService.restoreByPlugin(pluginId, [tenantForRestore.slug]);
+      }
+    } catch (restoreErr: unknown) {
+      this.logger.warn(
+        {
+          pluginId,
+          tenantId,
+          error: restoreErr instanceof Error ? restoreErr.message : String(restoreErr),
+        },
+        'T014-09: Failed to restore layout configs on plugin install (non-blocking)'
+      );
+    }
+
     return installation;
   }
 
@@ -1184,6 +1206,27 @@ export class PluginLifecycleService {
         tenantId_pluginId: { tenantId, pluginId },
       },
     });
+
+    // T014-09: Soft-delete layout configs for this plugin/tenant on uninstall.
+    // Fail-open — layout cleanup failure must not block uninstall.
+    try {
+      const tenantForDelete = await db.tenant.findFirst({
+        where: { id: tenantId },
+        select: { slug: true },
+      });
+      if (tenantForDelete) {
+        await layoutConfigService.softDeleteByPlugin(pluginId, [tenantForDelete.slug]);
+      }
+    } catch (softDeleteErr: unknown) {
+      this.logger.warn(
+        {
+          pluginId,
+          tenantId,
+          error: softDeleteErr instanceof Error ? softDeleteErr.message : String(softDeleteErr),
+        },
+        'T014-09: Failed to soft-delete layout configs on plugin uninstall (non-blocking)'
+      );
+    }
 
     // Check if any other tenants still have this plugin installed.
     // The lifecycleStatus column lives on the global Plugin record, so we must

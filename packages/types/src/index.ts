@@ -66,6 +66,30 @@ export type {
 
 // Fonts (ADR-020)
 export type { FontDefinition, FontManifest } from './fonts.js';
+
+// Layout Engine (Spec 014)
+export { LAYOUT_ROLE_KEYS } from './layout-config.js';
+export type {
+  RoleKey,
+  FieldVisibility,
+  ColumnVisibility,
+  LayoutScopeType,
+  FieldOverride,
+  SectionOverride,
+  ColumnOverride,
+  LayoutConfig,
+  LayoutConfigSnapshot,
+  ManifestField,
+  ManifestSection,
+  ManifestColumn,
+  FormSchema,
+  ResolvedField,
+  ResolvedColumn,
+  ResolvedSection,
+  ResolvedLayout,
+  ConfigurableFormSummary,
+  SaveLayoutConfigInput,
+} from './layout-config.js';
 export {
   FONT_CATALOG,
   DEFAULT_HEADING_FONT,

@@ -19,6 +19,7 @@ This document provides security best practices and guidelines for developing sec
 - [SQL Injection Prevention](#sql-injection-prevention)
 - [Authentication & Authorization](#authentication--authorization)
 - [Input Validation](#input-validation)
+- [Layout Engine Read-Only Enforcement](#layout-engine-read-only-enforcement)
 - [Multi-Tenant Security](#multi-tenant-security)
 - [Secure Coding Practices](#secure-coding-practices)
 - [Security Testing](#security-testing)
@@ -276,6 +277,93 @@ import DOMPurify from 'isomorphic-dompurify';
 
 const sanitizedDescription = DOMPurify.sanitize(workspace.description);
 ```
+
+---
+
+## Layout Engine Read-Only Enforcement
+
+> **Spec Reference**: FR-021, NFR-006  
+> **Implementation**: `apps/core-api/src/middleware/layout-readonly-guard.ts`
+
+### Overview
+
+The Frontend Layout Engine allows tenant admins to mark certain form fields as `readonly` for specific roles. This means a field is visible but its value cannot be changed by users with that role.
+
+**Critical principle**: Client-side read-only rendering is cosmetic only and must never be trusted as a security boundary. A malicious or misconfigured client can always submit a PATCH/PUT request with values for fields that should be read-only. The server must enforce read-only constraints independently.
+
+### Server-Side Enforcement
+
+The `layoutReadonlyGuard` middleware performs server-side read-only enforcement by stripping field values from incoming request bodies before the route handler runs.
+
+**How it works**:
+
+1. The guard calls `LayoutConfigService.resolveForUser()` to determine the effective layout for the authenticated user.
+2. For each field with `visibility: 'readonly'` in the resolved layout, the guard removes that field's key from `request.body`.
+3. The route handler then processes the body without those fields — their current DB values are preserved.
+4. On any error (Redis unavailable, DB failure, resolution error), the guard **fails open**: the request proceeds unmodified. This prevents layout engine failures from cascading into application downtime.
+
+### Fail-Closed by Default (Write Path)
+
+The `layoutReadonlyGuard` middleware enforces **fail-closed** behaviour on the write path by default. If layout resolution fails (Redis unavailable, DB unreachable, tenant not resolvable), the request is **rejected with `503 LAYOUT_RESOLUTION_UNAVAILABLE`**. This ensures readonly field enforcement cannot be bypassed during infrastructure degradation (NFR-006, Constitution Art. 5.1).
+
+Fail-closed rejection scenarios and log messages:
+
+- `"no user on request — rejecting"` — no authenticated user reached the guard → **401 UNAUTHORIZED**
+- `"tenant not found — rejecting (fail-closed)"` — tenant slug not resolvable → **503 LAYOUT_RESOLUTION_UNAVAILABLE**
+- `"resolution error — rejecting request (fail-closed)"` — Redis/DB/resolution failure → **503 LAYOUT_RESOLUTION_UNAVAILABLE**
+
+**Advisory fields only** — use `{ failOpen: true }` to opt into fail-open behaviour for routes where layout enforcement is advisory (not a security boundary). This bypasses the 503 and allows the request through on failure, logging a `warn`:
+
+- `"resolution error — skipping enforcement (fail-open by option)"` — resolution failure with opt-in failOpen
+
+> **Important**: Only use `failOpen: true` for routes where a field is presented as read-only for UX guidance but is NOT a security-critical constraint. Never use it for fields that must be immutable for security or compliance reasons.
+
+### Registering the Guard
+
+Register the guard as a `preHandler` on any Fastify route where layout-configured fields can be mutated:
+
+```typescript
+// File: apps/core-api/src/routes/my-plugin-route.ts
+import { layoutReadonlyGuard } from '../middleware/layout-readonly-guard.js';
+
+fastify.put(
+  '/workspaces/:workspaceId/my-entity/:entityId',
+  {
+    preHandler: [authenticate, layoutReadonlyGuard({ formId: 'my-plugin.myEntityForm' })],
+  },
+  async (request, reply) => {
+    // request.body has already had read-only fields stripped
+    // by the time this handler runs
+  }
+);
+```
+
+The `formId` must match the `formSchema.id` declared in the plugin manifest:
+
+```typescript
+// File: my-plugin/manifest.ts
+export const manifest = {
+  id: 'my-plugin',
+  formSchemas: [
+    {
+      id: 'my-plugin.myEntityForm',
+      displayName: 'My Entity Form',
+      fields: [
+        /* ... */
+      ],
+    },
+  ],
+};
+```
+
+### Security Checklist for Layout-Aware Routes
+
+- ✅ Register `layoutReadonlyGuard` on every `PUT`/`PATCH` route that accepts layout-configured form data
+- ✅ Do **not** rely on frontend disabling of inputs as the sole enforcement mechanism
+- ✅ Ensure the `formId` matches the plugin manifest `formSchema.id` exactly (case-sensitive)
+- ✅ Test that read-only fields are stripped even when the client sends them
+- ✅ Verify fail-closed behaviour: guard must return 503 on Redis/DB failure (default) — do NOT use `failOpen: true` for security-critical fields
+- ✅ Use `failOpen: true` only for purely advisory display hints where availability > enforcement
 
 ---
 

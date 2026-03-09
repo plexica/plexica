@@ -12,6 +12,7 @@ import {
   handleServiceError,
   registerWorkspaceErrorHandler,
 } from '../modules/workspace/utils/error-formatter.js';
+import { manifestFormSchemasSchema } from '../schemas/layout-config.schema.js';
 
 export async function pluginRoutes(fastify: FastifyInstance) {
   // Register local error handler — required because Fastify v5 child plugin
@@ -60,6 +61,25 @@ export async function pluginRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest<{ Body: PluginManifest }>, reply: FastifyReply) => {
       try {
+        // T014-13: Validate optional formSchemas extension in manifest (Spec 014, FR-001)
+        // Backward-compatible: manifests without formSchemas are accepted unchanged.
+        if (request.body.formSchemas !== undefined) {
+          const fsResult = manifestFormSchemasSchema.safeParse(request.body.formSchemas);
+          if (!fsResult.success) {
+            const details = fsResult.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            }));
+            return reply.code(400).send({
+              error: {
+                code: 'INVALID_FORM_SCHEMAS',
+                message: 'Plugin manifest formSchemas validation failed',
+                details,
+              },
+            });
+          }
+        }
+
         const plugin = await pluginRegistryService.registerPlugin(request.body);
         return reply.code(201).send(plugin);
       } catch (error: unknown) {
@@ -229,6 +249,24 @@ export async function pluginRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
+        // T014-13: Validate optional formSchemas extension in manifest (Spec 014, FR-001)
+        if (request.body.formSchemas !== undefined) {
+          const fsResult = manifestFormSchemasSchema.safeParse(request.body.formSchemas);
+          if (!fsResult.success) {
+            const details = fsResult.error.issues.map((i) => ({
+              path: i.path.join('.'),
+              message: i.message,
+            }));
+            return reply.code(400).send({
+              error: {
+                code: 'INVALID_FORM_SCHEMAS',
+                message: 'Plugin manifest formSchemas validation failed',
+                details,
+              },
+            });
+          }
+        }
+
         const plugin = await pluginRegistryService.updatePlugin(
           request.params.pluginId,
           request.body
