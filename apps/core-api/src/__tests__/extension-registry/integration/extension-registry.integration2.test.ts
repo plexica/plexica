@@ -1,9 +1,14 @@
 /**
- * E2E Tests: Extension Registry — Full Workflow Scenarios
+ * Integration Tests: Extension Registry — Full Workflow Scenarios
  *
  * Spec 013 — Extension Points, T013-25 (Plan §8.5, Art. 4.1, Art. 8.1).
  *
- * Tests full end-to-end workflows using mocked service layers (Vitest-based,
+ * NOTE (M-04): This file was previously located in the e2e/ folder but was
+ * mislabelled — it uses Vitest mocked service layers, NOT a real running
+ * process or Playwright. Renamed and moved to integration/ to correctly
+ * reflect its nature (mocked unit-integration tests).
+ *
+ * Tests full workflow scenarios using mocked service layers (Vitest-based,
  * not Playwright) to keep execution within the < 5s per test budget.
  *
  * Scenarios:

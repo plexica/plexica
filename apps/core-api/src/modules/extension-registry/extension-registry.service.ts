@@ -27,7 +27,10 @@ import {
   type ValidationResult,
   type ContributionWithVisibility,
 } from './extension-registry.repository.js';
-import { isExtensionPointsEnabled } from './extension-registry.schema.js';
+import {
+  isExtensionPointsEnabled,
+  ContributionDeclarationSchema,
+} from './extension-registry.schema.js';
 import { logger as rootLogger } from '../../lib/logger.js';
 import { redis as defaultRedis } from '../../lib/redis.js';
 
@@ -39,15 +42,19 @@ const CACHE_BASE_TTL_S = 120;
 const CACHE_TTL_JITTER_MAX_S = 30;
 const SIDECAR_FETCH_TIMEOUT_MS = 3_000; // fail-fast on slow plugin containers
 
-// SSRF blocklist: cloud IMDS endpoints, loopback, and link-local addresses.
-// Applied at both registration-time (upsertDataExtensions) and fetch-time.
+// SSRF blocklist: cloud IMDS endpoints, loopback, link-local, RFC-1918, and
+// other well-known internal address ranges that must never be targets of
+// sidecar URL fetches.
+// C-02 fix: expanded to cover 0.0.0.0, RFC-1918 (10/8, 172.16/12, 192.168/16),
+// localhost, IPv4-mapped IPv6 (::ffff:…), bracket notation [::1], CGNAT (100.64/10).
 const SSRF_BLOCKED_HOSTNAMES = new Set([
+  'localhost',
   'metadata.google.internal',
   'metadata.internal',
   'instance-data', // GCP alias
 ]);
 const SSRF_BLOCKED_HOST_PATTERN =
-  /^(169\.254\.\d+\.\d+|127\.\d+\.\d+\.\d+|::1|fc00:|fd[0-9a-f]{2}:)/i;
+  /^(0\.0\.0\.0|169\.254\.\d+\.\d+|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|100\.(6[4-9]|[7-9]\d|1([01]\d|2[0-7]))\.\d+\.\d+|::1$|::ffff:|fc00:|fd[0-9a-f]{2}:|^\[::1\])/i;
 
 /**
  * Validates a sidecarUrl string against SSRF risks.
@@ -173,8 +180,25 @@ export class ExtensionRegistryService {
     ];
 
     if (slots.length) await this.repo.upsertSlots(tenantId, pluginId, slots);
-    if (contributions.length)
-      await this.repo.upsertContributions(tenantId, pluginId, contributions);
+    if (contributions.length) {
+      // M-03: validate previewUrl (and other fields) before writing to DB.
+      // Invalid contributions are skipped with a warning rather than hard-failing
+      // the entire manifest sync, to avoid breaking plugin activation for one bad field.
+      const validatedContributions = contributions.flatMap((c) => {
+        const result = ContributionDeclarationSchema.safeParse(c);
+        if (!result.success) {
+          this.log.warn(
+            { tenantId, pluginId, componentName: c.componentName, errors: result.error.issues },
+            '[syncManifest] contribution validation failed — skipping'
+          );
+          return [];
+        }
+        return [result.data];
+      });
+      if (validatedContributions.length) {
+        await this.repo.upsertContributions(tenantId, pluginId, validatedContributions);
+      }
+    }
     if (entities.length) await this.repo.upsertEntities(tenantId, pluginId, entities);
     if (dataExtensions.length)
       await this.repo.upsertDataExtensions(tenantId, pluginId, dataExtensions);
@@ -195,19 +219,25 @@ export class ExtensionRegistryService {
    * Called when a plugin is deactivated — soft-deletes all extension records.
    * Not feature-flag gated (deactivation should always clean up).
    * tenantId required to scope the operation (ADR-031 Safeguard 2, F-002 fix).
+   * H-02 fix: invalidate slot cache after deactivation so stale contributions
+   * are not served to <ExtensionSlot> components.
    */
   async onPluginDeactivated(tenantId: string, pluginId: string): Promise<void> {
     this.log.info({ tenantId, pluginId }, 'extension-registry: plugin deactivated');
     await this.repo.deactivateByPlugin(tenantId, pluginId);
+    await this.invalidateSlotCache(tenantId);
   }
 
   /**
    * Called when a plugin is re-activated — restores all extension records.
    * tenantId required to scope the operation (ADR-031 Safeguard 2, F-002 fix).
+   * H-02 fix: invalidate slot cache after reactivation so restored contributions
+   * are visible immediately.
    */
   async onPluginReactivated(tenantId: string, pluginId: string): Promise<void> {
     this.log.info({ tenantId, pluginId }, 'extension-registry: plugin reactivated');
     await this.repo.reactivateByPlugin(tenantId, pluginId);
+    await this.invalidateSlotCache(tenantId);
   }
 
   // ── Slot Queries ──────────────────────────────────────────────────────────
@@ -490,6 +520,24 @@ export class ExtensionRegistryService {
     return this.repo.validateContributions(tenantId, pluginId);
   }
 
+  // ── Super Admin ────────────────────────────────────────────────────────────
+
+  /**
+   * SUPER_ADMIN ONLY: List all slots across all tenants.
+   * W-02 fix: Runtime super-admin check here (service layer) + the repo also
+   * enforces it. The calling route must set isSuperAdmin=true only after
+   * verifying the Keycloak role claim.
+   */
+  async superAdminListAllSlots(isSuperAdmin: boolean) {
+    if (!isSuperAdmin) {
+      throw Object.assign(
+        new Error('FORBIDDEN: superAdminListAllSlots requires super-admin privileges'),
+        { code: 'FORBIDDEN' }
+      );
+    }
+    return this.repo.superAdminListAllSlots(true);
+  }
+
   // ── Cache Helpers ──────────────────────────────────────────────────────────
 
   private async invalidateSlotCache(tenantId: string): Promise<void> {
@@ -521,7 +569,8 @@ function toResolvedContribution(row: ContributionWithVisibility): ResolvedContri
   return {
     id: row.id,
     contributingPluginId: row.contributingPluginId,
-    contributingPluginName: row.contributingPluginId, // Name resolved separately if needed
+    // W-04 fix: use the name resolved by the repo's plugin join instead of falling back to ID
+    contributingPluginName: row.contributingPluginName,
     targetPluginId: row.targetPluginId,
     targetSlotId: row.targetSlotId,
     componentName: row.componentName,

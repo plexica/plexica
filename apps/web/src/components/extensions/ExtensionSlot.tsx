@@ -46,6 +46,12 @@ export interface ExtensionSlotProps {
   virtualizationThreshold?: number;
   /** Optional CSS class for the outer container. */
   className?: string;
+  /**
+   * W-03: Explicit slot type override.
+   * When provided, used directly instead of inferring from slotId string.
+   * Prevents surprises when slotId doesn't follow the naming convention.
+   */
+  slotType?: ExtensionSlotType;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +78,7 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
   label,
   virtualizationThreshold = 20,
   className,
+  slotType: slotTypeProp,
 }) => {
   const extensionPointsEnabled = useFeatureFlag('ENABLE_EXTENSION_POINTS');
   const { currentWorkspace } = useWorkspace();
@@ -88,7 +95,9 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
     queryFn: async () => {
       const params = new URLSearchParams({ targetPluginId: pluginId, targetSlotId: slotId });
       if (workspaceId) params.set('workspaceId', workspaceId);
-      const result = await (apiClient as unknown as { get: <T>(url: string) => Promise<T> }).get<{
+      // W-01: apiClient is typed as WebApiClient & ApiClient (api-client.ts line 66),
+      // so .get<T>() is directly available — no double-cast needed.
+      const result = await apiClient.get<{
         contributions: ResolvedContribution[];
       }>(`/api/v1/extension-registry/contributions?${params.toString()}`);
       return result.contributions ?? [];
@@ -132,14 +141,17 @@ export const ExtensionSlot: React.FC<ExtensionSlotProps> = ({
   if (!extensionPointsEnabled) return null;
 
   const slotLabel = label ?? slotId;
-  // Infer slot type from slotId suffix (e.g. "toolbar-actions" → toolbar).
-  const inferredSlotType: ExtensionSlotType = (() => {
-    const id = slotId.toLowerCase();
-    if (id.includes('toolbar')) return 'toolbar';
-    if (id.includes('action')) return 'action';
-    if (id.includes('form')) return 'form';
-    return 'panel';
-  })();
+  // W-03: Use the explicit slotType prop when provided; otherwise infer from slotId suffix.
+  // Inference is kept as a convenience fallback for callers that follow naming conventions.
+  const inferredSlotType: ExtensionSlotType =
+    slotTypeProp ??
+    (() => {
+      const id = slotId.toLowerCase();
+      if (id.includes('toolbar')) return 'toolbar';
+      if (id.includes('action')) return 'action';
+      if (id.includes('form')) return 'form';
+      return 'panel';
+    })();
 
   // Loading state
   if (isLoading) {

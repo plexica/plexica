@@ -34,6 +34,7 @@ const logger: Logger = rootLogger.child({ module: 'ExtensionRegistryRepository' 
 export interface ContributionWithVisibility {
   id: string;
   contributingPluginId: string;
+  contributingPluginName: string; // W-04 fix: resolved from contributingPlugin.name join
   targetPluginId: string;
   targetSlotId: string;
   componentName: string;
@@ -84,7 +85,9 @@ export class ExtensionRegistryRepository {
       slots.map((slot) =>
         this.db.extensionSlot.upsert({
           where: {
-            pluginId_slotId: {
+            // C-01 fix: unique key is now (tenantId, pluginId, slotId) — tenant-scoped
+            tenantId_pluginId_slotId: {
+              tenantId,
               pluginId,
               slotId: slot.slotId,
             },
@@ -163,7 +166,9 @@ export class ExtensionRegistryRepository {
       contributions.map((contribution) =>
         this.db.extensionContribution.upsert({
           where: {
-            contributingPluginId_targetPluginId_targetSlotId: {
+            // C-01 fix: unique key is now (tenantId, contributingPluginId, targetPluginId, targetSlotId)
+            tenantId_contributingPluginId_targetPluginId_targetSlotId: {
+              tenantId,
               contributingPluginId: pluginId,
               targetPluginId: contribution.targetPluginId,
               targetSlotId: contribution.targetSlotId,
@@ -265,6 +270,8 @@ export class ExtensionRegistryRepository {
       where: { tenantId, targetPluginId, targetSlotId, isActive: true },
       include: {
         visibilityOverrides: workspaceId ? { where: { workspaceId } } : false,
+        // W-04 fix: join contributing plugin so we can surface its display name
+        contributingPlugin: { select: { id: true, name: true } },
       },
       orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
     });
@@ -282,12 +289,15 @@ export class ExtensionRegistryRepository {
         description: string | null;
         isActive: boolean;
         visibilityOverrides: Array<{ isVisible: boolean }> | false;
+        contributingPlugin: { id: string; name: string } | null;
       };
       const overrides = Array.isArray(r.visibilityOverrides) ? r.visibilityOverrides : [];
       const override = overrides[0] as { isVisible: boolean } | undefined;
       return {
         id: r.id,
         contributingPluginId: r.contributingPluginId,
+        // W-04 fix: use the joined plugin name instead of falling back to plugin ID
+        contributingPluginName: r.contributingPlugin?.name ?? r.contributingPluginId,
         targetPluginId: r.targetPluginId,
         targetSlotId: r.targetSlotId,
         componentName: r.componentName,
@@ -357,29 +367,34 @@ export class ExtensionRegistryRepository {
   ): Promise<void> {
     logger.debug({ tenantId, pluginId, count: entities.length }, 'upserting extensible entities');
 
-    for (const entity of entities) {
-      await this.db.extensibleEntity.upsert({
-        where: {
-          pluginId_entityType: { pluginId, entityType: entity.entityType },
-        },
-        update: {
-          label: entity.label,
-          fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
-          description: entity.description ?? null,
-          isActive: true,
-          updatedAt: new Date(),
-        },
-        create: {
-          tenantId,
-          pluginId,
-          entityType: entity.entityType,
-          label: entity.label,
-          fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
-          description: entity.description ?? null,
-          isActive: true,
-        },
-      });
-    }
+    // M-01 fix: run all upserts concurrently with Promise.all instead of a
+    // sequential `for` loop. Each entity upsert is independent.
+    await Promise.all(
+      entities.map((entity) =>
+        this.db.extensibleEntity.upsert({
+          where: {
+            // C-01 fix: unique key is now (tenantId, pluginId, entityType) — tenant-scoped
+            tenantId_pluginId_entityType: { tenantId, pluginId, entityType: entity.entityType },
+          },
+          update: {
+            label: entity.label,
+            fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
+            description: entity.description ?? null,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+          create: {
+            tenantId,
+            pluginId,
+            entityType: entity.entityType,
+            label: entity.label,
+            fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
+            description: entity.description ?? null,
+            isActive: true,
+          },
+        })
+      )
+    );
   }
 
   /**
@@ -416,34 +431,40 @@ export class ExtensionRegistryRepository {
   ): Promise<void> {
     logger.debug({ tenantId, pluginId, count: extensions.length }, 'upserting data extensions');
 
-    for (const ext of extensions) {
-      await this.db.dataExtension.upsert({
-        where: {
-          contributingPluginId_targetPluginId_targetEntityType: {
+    // M-01 fix: run all upserts concurrently with Promise.all instead of a
+    // sequential `for` loop. Each data extension upsert is independent.
+    await Promise.all(
+      extensions.map((ext) =>
+        this.db.dataExtension.upsert({
+          where: {
+            // C-01 fix: unique key is now (tenantId, contributingPluginId, targetPluginId, targetEntityType)
+            tenantId_contributingPluginId_targetPluginId_targetEntityType: {
+              tenantId,
+              contributingPluginId: pluginId,
+              targetPluginId: ext.targetPluginId,
+              targetEntityType: ext.targetEntityType,
+            },
+          },
+          update: {
+            sidecarUrl: ext.sidecarUrl,
+            fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
+            description: ext.description ?? null,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+          create: {
+            tenantId,
             contributingPluginId: pluginId,
             targetPluginId: ext.targetPluginId,
             targetEntityType: ext.targetEntityType,
+            sidecarUrl: ext.sidecarUrl,
+            fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
+            description: ext.description ?? null,
+            isActive: true,
           },
-        },
-        update: {
-          sidecarUrl: ext.sidecarUrl,
-          fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
-          description: ext.description ?? null,
-          isActive: true,
-          updatedAt: new Date(),
-        },
-        create: {
-          tenantId,
-          contributingPluginId: pluginId,
-          targetPluginId: ext.targetPluginId,
-          targetEntityType: ext.targetEntityType,
-          sidecarUrl: ext.sidecarUrl,
-          fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
-          description: ext.description ?? null,
-          isActive: true,
-        },
-      });
-    }
+        })
+      )
+    );
   }
 
   /**
@@ -566,23 +587,46 @@ export class ExtensionRegistryRepository {
   /**
    * Validate contributions for a plugin: check that target slots exist and types match.
    * ADR-031 Safeguard 2: tenantId required. (FR-026)
+   *
+   * H-05 fix: Batch-read all referenced slots in a single findMany query, then
+   * match contributions in-memory. Batch-update statuses with Promise.all.
+   * Previous implementation issued 2 DB queries per contribution (N+1).
    */
   async validateContributions(tenantId: string, pluginId: string): Promise<ValidationResult[]> {
     const contributions = await this.db.extensionContribution.findMany({
       where: { tenantId, contributingPluginId: pluginId, isActive: true },
     });
 
+    if (contributions.length === 0) return [];
+
+    // Collect all (targetPluginId, targetSlotId) pairs and batch-read them once
+    const targetPairs = contributions.map((c) => ({
+      tenantId,
+      pluginId: c.targetPluginId,
+      slotId: c.targetSlotId,
+    }));
+
+    const targetSlots = await this.db.extensionSlot.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        OR: targetPairs.map((p) => ({ pluginId: p.pluginId, slotId: p.slotId })),
+      },
+    });
+
+    // Build lookup map: `${targetPluginId}:${targetSlotId}` → slot row
+    type SlotRow = { pluginId: string; slotId: string; type: string };
+    const slotMap = new Map<string, SlotRow>();
+    for (const slot of targetSlots as SlotRow[]) {
+      slotMap.set(`${slot.pluginId}:${slot.slotId}`, slot);
+    }
+
+    const statusUpdates: Array<{ id: string; status: ContributionValidationStatus }> = [];
     const results: ValidationResult[] = [];
 
     for (const contribution of contributions) {
-      const targetSlot = await this.db.extensionSlot.findFirst({
-        where: {
-          tenantId,
-          pluginId: contribution.targetPluginId,
-          slotId: contribution.targetSlotId,
-          isActive: true,
-        },
-      });
+      const key = `${contribution.targetPluginId}:${contribution.targetSlotId}`;
+      const targetSlot = slotMap.get(key);
 
       let status: ContributionValidationStatus;
       let reason: string | undefined;
@@ -603,12 +647,7 @@ export class ExtensionRegistryRepository {
         status = 'valid';
       }
 
-      // Persist validation status
-      await this.db.extensionContribution.update({
-        where: { id: contribution.id },
-        data: { validationStatus: status, updatedAt: new Date() },
-      });
-
+      statusUpdates.push({ id: contribution.id, status });
       results.push({
         contributionId: contribution.id,
         contributingPluginId: contribution.contributingPluginId,
@@ -619,18 +658,35 @@ export class ExtensionRegistryRepository {
       });
     }
 
+    // Batch-update all statuses concurrently (one query per contribution, but in parallel)
+    await Promise.all(
+      statusUpdates.map(({ id, status }) =>
+        this.db.extensionContribution.update({
+          where: { id },
+          data: { validationStatus: status, updatedAt: new Date() },
+        })
+      )
+    );
+
     return results;
   }
 
   // ── Super Admin Cross-Tenant Methods (ADR-031 Safeguard 3) ─────────────────
   // These methods are explicitly named to make cross-tenant access visible.
-  // Callers MUST verify super-admin role before invoking.
+  // Callers MUST pass isSuperAdmin=true — this method throws if the flag is false.
 
   /**
    * SUPER_ADMIN ONLY: List all slots across all tenants.
-   * Caller must verify super-admin role.
+   * W-02 fix: Enforces super-admin role at runtime rather than relying solely on
+   * caller documentation. Pass `isSuperAdmin: true` to unlock this method.
    */
-  async superAdminListAllSlots() {
+  async superAdminListAllSlots(isSuperAdmin: boolean) {
+    if (!isSuperAdmin) {
+      throw Object.assign(
+        new Error('FORBIDDEN: superAdminListAllSlots requires super-admin privileges'),
+        { code: 'FORBIDDEN' }
+      );
+    }
     return this.db.extensionSlot.findMany({
       orderBy: [{ tenantId: 'asc' }, { pluginId: 'asc' }],
     });

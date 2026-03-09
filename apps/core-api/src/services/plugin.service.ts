@@ -1057,6 +1057,9 @@ export class PluginLifecycleService {
           extensibleEntities: manifestAsUnknown['extensibleEntities'] as never,
           dataExtensions: manifestAsUnknown['dataExtensions'] as never,
         });
+        // H-03 fix: call onPluginReactivated so that any previously-deactivated
+        // extension records are restored and the slot cache is invalidated.
+        await extensionRegistryService.onPluginReactivated(tenantId, pluginId);
       } catch (extErr: unknown) {
         this.logger.warn(
           { tenantId, pluginId, error: extErr instanceof Error ? extErr.message : String(extErr) },

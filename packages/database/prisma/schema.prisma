@@ -711,7 +711,7 @@ model ExtensionSlot {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plugin Plugin @relation("PluginExtensionSlots", fields: [pluginId], references: [id], onDelete: Cascade)
 
-  @@unique([pluginId, slotId], map: "uq_extension_slots_plugin_slot")
+  @@unique([tenantId, pluginId, slotId], map: "uq_extension_slots_plugin_slot")
   @@index([tenantId], map: "idx_extension_slots_tenant_id")
   @@index([pluginId], map: "idx_extension_slots_plugin_id")
   @@index([tenantId, type], map: "idx_extension_slots_tenant_type")
@@ -742,7 +742,7 @@ model ExtensionContribution {
   targetPlugin        Plugin  @relation("PluginTargetContributions", fields: [targetPluginId], references: [id], onDelete: Cascade)
   visibilityOverrides WorkspaceExtensionVisibility[]
 
-  @@unique([contributingPluginId, targetPluginId, targetSlotId], map: "uq_extension_contributions_unique")
+  @@unique([tenantId, contributingPluginId, targetPluginId, targetSlotId], map: "uq_extension_contributions_unique")
   @@index([tenantId], map: "idx_extension_contributions_tenant_id")
   @@index([tenantId, contributingPluginId], map: "idx_extension_contributions_contributing")
   @@index([tenantId, targetPluginId, targetSlotId], map: "idx_extension_contributions_target")
@@ -785,7 +785,7 @@ model ExtensibleEntity {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   plugin Plugin @relation("PluginExtensibleEntities", fields: [pluginId], references: [id], onDelete: Cascade)
 
-  @@unique([pluginId, entityType], map: "uq_extensible_entities_plugin_type")
+  @@unique([tenantId, pluginId, entityType], map: "uq_extensible_entities_plugin_type")
   @@index([tenantId], map: "idx_extensible_entities_tenant_id")
   @@index([pluginId], map: "idx_extensible_entities_plugin_id")
   @@index([tenantId, entityType], map: "idx_extensible_entities_entity_type")
@@ -811,7 +811,7 @@ model DataExtension {
   contributingPlugin Plugin @relation("PluginDataExtensions", fields: [contributingPluginId], references: [id], onDelete: Cascade)
   targetPlugin       Plugin @relation("PluginTargetDataExtensions", fields: [targetPluginId], references: [id], onDelete: Cascade)
 
-  @@unique([contributingPluginId, targetPluginId, targetEntityType], map: "uq_data_extensions_unique")
+  @@unique([tenantId, contributingPluginId, targetPluginId, targetEntityType], map: "uq_data_extensions_unique")
   @@index([tenantId], map: "idx_data_extensions_tenant_id")
   @@index([tenantId, contributingPluginId], map: "idx_data_extensions_contributing")
   @@index([tenantId, targetPluginId, targetEntityType], map: "idx_data_extensions_target")

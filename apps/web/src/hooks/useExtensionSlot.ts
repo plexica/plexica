@@ -69,11 +69,13 @@ export function useExtensionSlot(
   const { data, isLoading, error } = useQuery<ResolvedContribution[]>({
     queryKey: ['extension-contributions', slotId, pluginId, workspaceId],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        slotId: `${pluginId}:${slotId}`,
-        ...(workspaceId ? { workspaceId } : {}),
-      });
-      const result = await (apiClient as unknown as { get: <T>(url: string) => Promise<T> }).get<{
+      // Fix-H01: send targetPluginId + targetSlotId as separate params (not composite)
+      // so the backend where-clause can filter on individual indexed columns.
+      // Fix-W01: apiClient is typed as WebApiClient & ApiClient so .get<T>() is available
+      // directly — no double-cast needed.
+      const params = new URLSearchParams({ targetPluginId: pluginId, targetSlotId: slotId });
+      if (workspaceId) params.set('workspaceId', workspaceId);
+      const result = await apiClient.get<{
         contributions: ResolvedContribution[];
       }>(`/api/v1/extension-registry/contributions?${params.toString()}`);
       return result.contributions ?? [];

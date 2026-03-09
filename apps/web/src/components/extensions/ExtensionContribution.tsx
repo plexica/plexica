@@ -103,7 +103,22 @@ function ContributionInner({ contribution, context, slotType, onTimeout, onLoad 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — fire once on mount
 
-  // Prop isolation: only pass context — no host-internal state (NFR-007).
+  // Prop isolation: only pass safe plain-value context keys — no functions,
+  // no objects with prototypes, no host-internal state (NFR-007, H-04).
+  // `contextSchema` is not available here at runtime, so we filter defensively:
+  // only string, number, boolean, null, and plain-object/array values pass.
+  // Functions and class instances are stripped to prevent accidental leakage of
+  // host callbacks into plugin components.
+  const safeContext = Object.fromEntries(
+    Object.entries(context).filter(([, v]) => {
+      if (v === null) return true;
+      const t = typeof v;
+      if (t === 'string' || t === 'number' || t === 'boolean') return true;
+      if (t === 'object') return Object.getPrototypeOf(v) === Object.prototype || Array.isArray(v);
+      return false; // strips functions, symbols, class instances
+    })
+  );
+
   // React.createElement is used instead of JSX <Component> to avoid the
   // react-hooks/static-components rule, which fires on uppercase local
   // variables used as JSX tags. The component reference comes from a
@@ -112,7 +127,7 @@ function ContributionInner({ contribution, context, slotType, onTimeout, onLoad 
     <Suspense fallback={<ExtensionSlotSkeleton slotType={slotType ?? 'panel'} />}>
       {React.createElement(
         getCachedContributionComponent(contributingPluginId, componentName),
-        context
+        safeContext
       )}
     </Suspense>
   );
@@ -165,6 +180,8 @@ export const ExtensionContribution: React.FC<ExtensionContributionProps> = ({
   // Fallback component for the error boundary — defined at module-stable reference
   // using useMemo so it doesn't re-create on every render. Must NOT use useCallback
   // to define React components (hooks rules + React component identity rules).
+  // M-05: include handleRetry in deps so the fallback always captures the current
+  // handleRetry closure (avoids stale-ref bug when retryKey increments).
   const ErrorFallback = useMemo(
     (): React.ComponentType<{
       pluginName: string;
@@ -184,9 +201,7 @@ export const ExtensionContribution: React.FC<ExtensionContributionProps> = ({
           />
         );
       },
-    // handleRetry and slotType are stable enough — only recreate when slotType changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [slotType]
+    [slotType, handleRetry]
   );
 
   if (timedOut) {

@@ -79,7 +79,9 @@ export const VirtualizedSlotContainer: React.FC<VirtualizedSlotContainerProps> =
         aria-label={`${slotLabel} extensions`}
       >
         {visibleChildren.map((child, i) => (
-          <li key={i} role="listitem">
+          // M-02: prefer the React element's own key (set by the parent ExtensionSlot)
+          // over the list index, so React can reconcile correctly when items reorder.
+          <li key={(child as React.ReactElement).key ?? i} role="listitem">
             {child}
           </li>
         ))}

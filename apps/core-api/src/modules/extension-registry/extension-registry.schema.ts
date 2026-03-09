@@ -136,6 +136,35 @@ export const VisibilityPatchSchema = z
 export type VisibilityPatch = z.infer<typeof VisibilityPatchSchema>;
 
 // ---------------------------------------------------------------------------
+// Manifest declaration schemas
+// ---------------------------------------------------------------------------
+
+/**
+ * Zod schema for ContributionDeclaration from plugin manifests.
+ * Adds .url() validation to previewUrl (M-03) so malformed preview URLs are
+ * rejected at the validation boundary before they reach the database.
+ * Art. 5.3: All external input validated with Zod schemas.
+ */
+export const ContributionDeclarationSchema = z
+  .object({
+    targetPluginId: safeString.min(1).max(255),
+    targetSlotId: safeString.min(1).max(255),
+    componentName: safeString.min(1).max(255),
+    priority: z.number().int().min(0).max(999).optional(),
+    outputSchema: z.record(z.string(), z.unknown()).optional(),
+    /** M-03: URL validation added — rejects non-URL strings for preview thumbnails. */
+    previewUrl: z
+      .string()
+      .url({ message: 'previewUrl must be a valid URL' })
+      .refine((s) => !s.includes('\u0000'), { message: 'String must not contain null bytes' })
+      .optional(),
+    description: safeOptionalString,
+  })
+  .strict();
+
+export type ValidatedContributionDeclaration = z.infer<typeof ContributionDeclarationSchema>;
+
+// ---------------------------------------------------------------------------
 // Feature-flag helper
 // ---------------------------------------------------------------------------
 
