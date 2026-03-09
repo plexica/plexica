@@ -11,7 +11,7 @@
 // Esc closes the dialog (same as Cancel).
 // Initial focus: [Cancel] (safer default action per design spec §630).
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Dialog, Button } from '@plexica/ui';
 

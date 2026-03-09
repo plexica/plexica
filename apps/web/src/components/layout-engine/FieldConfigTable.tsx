@@ -12,9 +12,8 @@
 //
 // ARIA: role="grid" on table, role="row" per row, role="rowheader" for field name.
 
-import React from 'react';
 import { ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
-import { Select, Tooltip } from '@plexica/ui';
+import { Select, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@plexica/ui';
 import { VisibilityToggle } from './VisibilityToggle';
 import type { ManifestField, FieldOverride, RoleKey, FieldVisibility } from '@plexica/types';
 import { LAYOUT_ROLE_KEYS } from '@plexica/types';
@@ -169,15 +168,20 @@ export function FieldConfigTable({
                   <span className="flex items-center gap-1.5">
                     {field.label}
                     {field.required && (
-                      <Tooltip content="Required field">
-                        <span aria-label="Required field">
-                          <AlertTriangle
-                            size={14}
-                            className="text-yellow-600 flex-shrink-0"
-                            aria-hidden="true"
-                          />
-                        </span>
-                      </Tooltip>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span aria-label="Required field">
+                              <AlertTriangle
+                                size={14}
+                                className="text-yellow-600 flex-shrink-0"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>Required field</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </span>
                 </td>
@@ -259,14 +263,21 @@ export function FieldConfigTable({
                   <span className="line-through text-muted-foreground">
                     {staleOverride.fieldId}
                   </span>
-                  <Tooltip content="Stale: this field no longer exists in the plugin manifest">
-                    <span
-                      aria-label={`Stale: field ${staleOverride.fieldId} no longer in plugin manifest`}
-                      className="text-xs px-1 py-0.5 bg-yellow-200 text-yellow-800 rounded font-mono"
-                    >
-                      !
-                    </span>
-                  </Tooltip>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          aria-label={`Stale: field ${staleOverride.fieldId} no longer in plugin manifest`}
+                          className="text-xs px-1 py-0.5 bg-yellow-200 text-yellow-800 rounded font-mono"
+                        >
+                          !
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Stale: this field no longer exists in the plugin manifest
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </span>
               </td>
               <td

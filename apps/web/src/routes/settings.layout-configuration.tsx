@@ -10,7 +10,6 @@
 //
 // Used in settings.tsx as <LayoutConfigurationTab />.
 
-import React from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { LayoutConfigPanel } from '@/components/layout-engine/LayoutConfigPanel.js';

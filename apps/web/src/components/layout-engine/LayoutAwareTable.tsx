@@ -16,7 +16,6 @@
 // layout columns by the `accessorKey` or `id` field of the ColumnDef.
 // The layout engine uses `columnId` which should match one of these.
 
-import React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { EyeOff } from 'lucide-react';
 import { DataTable, EmptyState, Skeleton } from '@plexica/ui';

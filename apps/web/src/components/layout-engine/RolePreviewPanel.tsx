@@ -14,7 +14,6 @@
 //   - All inputs have tabIndex={-1} — not in tab order (non-interactive preview)
 //   - aria-live="polite" so screen readers announce role change updates
 
-import React from 'react';
 import type {
   ManifestField,
   ManifestSection,

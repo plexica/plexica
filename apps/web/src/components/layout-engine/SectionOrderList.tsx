@@ -12,7 +12,6 @@
 //   Up/Down buttons: aria-label="Move {section} up/down"
 //   aria-disabled="true" at boundaries
 
-import React from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import type { ManifestSection, SectionOverride } from '@plexica/types';
 

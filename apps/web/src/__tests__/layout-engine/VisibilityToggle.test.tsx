@@ -18,13 +18,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 // ---------------------------------------------------------------------------
 
 vi.mock('lucide-react', () => ({
-  Eye: ({ 'aria-hidden': ariaHidden }: { 'aria-hidden'?: string }) => (
+  Eye: ({ 'aria-hidden': ariaHidden }: { 'aria-hidden'?: boolean }) => (
     <span data-testid="icon-eye" aria-hidden={ariaHidden} />
   ),
-  EyeOff: ({ 'aria-hidden': ariaHidden }: { 'aria-hidden'?: string }) => (
+  EyeOff: ({ 'aria-hidden': ariaHidden }: { 'aria-hidden'?: boolean }) => (
     <span data-testid="icon-eye-off" aria-hidden={ariaHidden} />
   ),
-  Lock: ({ 'aria-hidden': ariaHidden }: { 'aria-hidden'?: string }) => (
+  Lock: ({ 'aria-hidden': ariaHidden }: { 'aria-hidden'?: boolean }) => (
     <span data-testid="icon-lock" aria-hidden={ariaHidden} />
   ),
 }));

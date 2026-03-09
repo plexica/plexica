@@ -9,7 +9,6 @@
 //
 // ARIA: role="grid" on table, role="row" per row, role="rowheader" for column name.
 
-import React from 'react';
 import { Select } from '@plexica/ui';
 import { VisibilityToggle } from './VisibilityToggle';
 import type { ManifestColumn, ColumnOverride, RoleKey, ColumnVisibility } from '@plexica/types';

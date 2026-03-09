@@ -65,6 +65,7 @@ function wrapper(queryClient: QueryClient) {
 
 const MOCK_LAYOUT: ResolvedLayout = {
   formId: 'crm-contact-form',
+  source: 'tenant',
   fields: [
     {
       fieldId: 'first-name',

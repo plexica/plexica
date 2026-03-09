@@ -54,6 +54,12 @@ vi.mock('@plexica/ui', () => ({
     </select>
   ),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) =>
+    asChild ? <>{children}</> : <span>{children}</span>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => (
+    <span role="tooltip">{children}</span>
+  ),
 }));
 
 // Stub VisibilityToggle to track calls

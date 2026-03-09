@@ -25,7 +25,7 @@
 //   - Art. 6.2: Error responses parsed for structured `error.code`
 //   - Art. 1.3: WCAG 2.1 AA — all interactive elements labelled, live regions used
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Puzzle, EyeOff } from 'lucide-react';
 import {
@@ -773,7 +773,7 @@ export function LayoutConfigPanel({ scope, scopeId }: LayoutConfigPanelProps) {
                   <FieldConfigTable
                     fields={manifestFields}
                     overrides={draftFields}
-                    roles={LAYOUT_ROLE_KEYS}
+                    roles={[...LAYOUT_ROLE_KEYS]}
                     onOrderChange={handleFieldOrderChange}
                     onVisibilityChange={handleFieldVisibilityChange}
                     onGlobalChange={handleFieldGlobalChange}
@@ -798,7 +798,7 @@ export function LayoutConfigPanel({ scope, scopeId }: LayoutConfigPanelProps) {
                   <ColumnConfigTable
                     columns={manifestColumns}
                     overrides={draftColumns}
-                    roles={LAYOUT_ROLE_KEYS}
+                    roles={[...LAYOUT_ROLE_KEYS]}
                     onVisibilityChange={handleColumnVisibilityChange}
                     onGlobalChange={handleColumnGlobalChange}
                     disabled={isSaving}
