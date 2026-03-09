@@ -26,8 +26,14 @@ import { testContext } from '../../../../../../test-infrastructure/helpers/test-
 const FORM_ID = 'crm.contact-edit';
 
 /**
+ * Stable UUID for the CRM plugin registered in beforeAll.
+ * Must be a valid UUID because layout_configs.plugin_id is a UUID column.
+ */
+const CRM_PLUGIN_ID = 'a0a0a0a0-0000-4000-a000-000000000001';
+
+/**
  * Build a valid tenant-scope SaveLayoutConfigInput body.
- * pluginId is validated at application layer only (no FK in DB per ADR-002).
+ * pluginId must be a valid UUID matching the registered plugin (plugin_id UUID column).
  */
 function buildConfigBody(
   overrides: {
@@ -38,7 +44,7 @@ function buildConfigBody(
   const { hiddenFields = [], fieldOrder = ['first-name', 'email', 'phone'] } = overrides;
 
   return {
-    pluginId: 'crm-plugin-e2e-test-uuid',
+    pluginId: CRM_PLUGIN_ID,
     fields: fieldOrder.map((fieldId, idx) => ({
       fieldId,
       order: idx,
@@ -95,6 +101,8 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
       throw new Error(`Failed to create test tenant: ${tenantResp.body}`);
     }
 
+    const tenantId: string = tenantResp.json().id;
+
     // Create tenant admin and member JWT tokens (mock HS256 — accepted in test env)
     adminToken = testContext.auth.createMockTenantAdminToken(testTenantSlug, {
       sub: 'e2e-admin-0001-4000-a000-000000000001',
@@ -104,6 +112,125 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
       sub: 'e2e-member-0002-4000-b000-000000000002',
       email: `member@${testTenantSlug}.test`,
     });
+
+    // -------------------------------------------------------------------------
+    // Register a CRM plugin with formSchemas so getFormSchema() returns a valid
+    // schema. Without this the PUT /layout-configs/:formId route returns 404
+    // (PLUGIN_NOT_INSTALLED) because no installed plugin declares the form.
+    // -------------------------------------------------------------------------
+    const registerResp = await app.inject({
+      method: 'POST',
+      url: '/api/plugins',
+      headers: {
+        authorization: `Bearer ${superAdminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: {
+        id: CRM_PLUGIN_ID,
+        name: 'CRM Plugin (Layout E2E)',
+        version: '1.0.0',
+        description: 'CRM plugin used by layout-config E2E tests',
+        category: 'crm',
+        metadata: {
+          author: { name: 'E2E Test Suite', email: 'test@example.com' },
+          license: 'MIT',
+          homepage: 'https://example.com',
+        },
+        permissions: [],
+        config: [],
+        formSchemas: [
+          {
+            formId: 'crm.contact-edit',
+            label: 'Contact Edit Form',
+            sections: [{ sectionId: 'basic', label: 'Basic Info', order: 0 }],
+            fields: [
+              {
+                fieldId: 'first-name',
+                label: 'First Name',
+                type: 'text',
+                required: true,
+                sectionId: 'basic',
+                order: 0,
+              },
+              {
+                fieldId: 'email',
+                label: 'Email',
+                type: 'email',
+                required: true,
+                sectionId: 'basic',
+                order: 1,
+              },
+              {
+                fieldId: 'phone',
+                label: 'Phone',
+                type: 'text',
+                required: false,
+                sectionId: 'basic',
+                order: 2,
+              },
+            ],
+            columns: [],
+          },
+          {
+            formId: 'crm.contacts-table',
+            label: 'Contacts Table',
+            sections: [{ sectionId: 'main', label: 'Main', order: 0 }],
+            fields: [
+              {
+                fieldId: 'name',
+                label: 'Name',
+                type: 'text',
+                required: true,
+                sectionId: 'main',
+                order: 0,
+              },
+              {
+                fieldId: 'status',
+                label: 'Status',
+                type: 'text',
+                required: false,
+                sectionId: 'main',
+                order: 1,
+              },
+            ],
+            columns: [
+              { columnId: 'name', label: 'Name', order: 0 },
+              { columnId: 'status', label: 'Status', order: 1 },
+            ],
+          },
+        ],
+      },
+    });
+
+    if (registerResp.statusCode !== 201) {
+      throw new Error(`Failed to register CRM plugin: ${registerResp.body}`);
+    }
+
+    // Install plugin to the test tenant
+    const installResp = await app.inject({
+      method: 'POST',
+      url: `/api/tenants/${tenantId}/plugins/${CRM_PLUGIN_ID}/install`,
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        'content-type': 'application/json',
+      },
+      payload: { configuration: {} },
+    });
+
+    if (installResp.statusCode !== 201) {
+      throw new Error(`Failed to install CRM plugin: ${installResp.body}`);
+    }
+
+    // Activate the plugin so it's returned by getFormSchema() (tp.enabled = true)
+    const activateResp = await app.inject({
+      method: 'POST',
+      url: `/api/tenants/${tenantId}/plugins/${CRM_PLUGIN_ID}/activate`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    if (activateResp.statusCode !== 200) {
+      throw new Error(`Failed to activate CRM plugin: ${activateResp.body}`);
+    }
 
     // Create a workspace for workspace-scope journey
     const wsResp = await app.inject({
@@ -120,7 +247,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
     });
     // Workspace creation may not be available in all test environments — degrade gracefully
     workspaceId = wsResp.statusCode === 201 ? wsResp.json().id : 'ws-placeholder-not-available';
-  }, 30_000);
+  }, 60_000);
 
   afterAll(async () => {
     if (app) await app.close();
@@ -379,7 +506,7 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
           'content-type': 'application/json',
         },
         payload: {
-          pluginId: 'crm-plugin-e2e-test-uuid',
+          pluginId: CRM_PLUGIN_ID,
           fields: [
             { fieldId: 'name', order: 0, globalVisibility: 'visible', visibility: {} },
             { fieldId: 'status', order: 1, globalVisibility: 'hidden', visibility: {} },
