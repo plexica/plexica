@@ -156,12 +156,12 @@ function AlertHistoryTable() {
   const [severityFilter, setSeverityFilter] = useState<AlertSeverity | 'all'>('all');
   const perPage = 10;
 
-  const { data, isLoading, isError, error } = useAlertHistory(page, perPage);
+  // Pass severity to the hook so filtering happens server-side before pagination.
+  // This ensures totalPages and total counts are accurate for the filtered set (FR-023).
+  const serverSeverity = severityFilter === 'all' ? undefined : severityFilter;
+  const { data, isLoading, isError, error } = useAlertHistory(page, perPage, serverSeverity);
 
-  const filteredAlerts: AlertHistoryEntry[] =
-    severityFilter === 'all'
-      ? (data?.alerts ?? [])
-      : (data?.alerts ?? []).filter((a) => a.severity === severityFilter);
+  const filteredAlerts: AlertHistoryEntry[] = data?.alerts ?? [];
 
   const totalPages = data?.pagination.totalPages ?? 1;
 

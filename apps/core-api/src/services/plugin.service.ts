@@ -36,6 +36,34 @@ import { TopicManager } from '@plexica/event-bus';
 import type { TranslationService } from '../modules/i18n/i18n.service.js';
 import { moduleFederationRegistryService } from './module-federation-registry.service.js';
 import { pluginTargetsService } from './plugin-targets.service.js';
+// T013-09: Extension registry lifecycle integration (Spec 013, FR-002, FR-024, FR-025)
+import { extensionRegistryService } from '../modules/extension-registry/index.js';
+
+// ---------------------------------------------------------------------------
+// Typed domain error classes (Constitution Art. 6.1)
+//
+// Route handlers use `instanceof` checks against these classes to produce
+// stable, code-based HTTP status mappings rather than brittle message-string
+// matching (see forge-review F-004 / CONSENSUS WARNING).
+// ---------------------------------------------------------------------------
+
+/** Thrown when a plugin ID does not exist in the registry. */
+export class PluginNotFoundError extends Error {
+  readonly code = 'PLUGIN_NOT_FOUND' as const;
+  constructor(pluginId: string) {
+    super(`Plugin '${pluginId}' not found`);
+    this.name = 'PluginNotFoundError';
+  }
+}
+
+/** Thrown when a plugin cannot be deleted because it has active installations. */
+export class PluginHasInstallationsError extends Error {
+  readonly code = 'PLUGIN_DELETE_CONFLICT' as const;
+  constructor(pluginId: string, count: number) {
+    super(`Cannot delete plugin '${pluginId}': it is installed in ${count} tenant(s)`);
+    this.name = 'PluginHasInstallationsError';
+  }
+}
 
 // Type for TenantPlugin with related Plugin record
 type TenantPluginWithPlugin = TenantPlugin & { plugin: Plugin };
@@ -263,7 +291,7 @@ export class PluginRegistryService {
       });
 
       if (!plugin) {
-        throw new Error(`Plugin '${pluginId}' not found`);
+        throw new PluginNotFoundError(pluginId);
       }
 
       // Check if plugin is installed in any tenant (TOCTOU-safe inside transaction)
@@ -272,9 +300,7 @@ export class PluginRegistryService {
       });
 
       if (installations > 0) {
-        throw new Error(
-          `Cannot delete plugin '${pluginId}': it is installed in ${installations} tenant(s)`
-        );
+        throw new PluginHasInstallationsError(pluginId, installations);
       }
 
       await tx.plugin.delete({
@@ -322,7 +348,7 @@ export class PluginRegistryService {
         db.tenantPlugin.count({
           where: { pluginId },
         }),
-        // Count enabled installations
+        // Count enabled installations (regardless of tenant status)
         db.tenantPlugin.count({
           where: { pluginId, enabled: true },
         }),
@@ -339,7 +365,7 @@ export class PluginRegistryService {
       ]);
 
     if (!plugin) {
-      throw new Error(`Plugin '${pluginId}' not found`);
+      throw new PluginNotFoundError(pluginId);
     }
 
     return {
@@ -1009,6 +1035,27 @@ export class PluginLifecycleService {
       );
     });
 
+    // T013-09: Sync extension manifest into extension registry (fire-and-forget — non-blocking)
+    // Reads tenant settings to check feature flag; silently skips when disabled.
+    void (async () => {
+      try {
+        const tenant = await tenantService.getTenant(tenantId);
+        const tenantSettings = (tenant.settings as Record<string, unknown>) ?? {};
+        const manifestAsUnknown = manifest as unknown as Record<string, unknown>;
+        await extensionRegistryService.syncManifest(tenantId, tenantSettings, pluginId, {
+          extensionSlots: manifestAsUnknown['extensionSlots'] as never,
+          contributions: manifestAsUnknown['contributions'] as never,
+          extensibleEntities: manifestAsUnknown['extensibleEntities'] as never,
+          dataExtensions: manifestAsUnknown['dataExtensions'] as never,
+        });
+      } catch (extErr: unknown) {
+        this.logger.warn(
+          { tenantId, pluginId, error: extErr instanceof Error ? extErr.message : String(extErr) },
+          'T013-09: Failed to sync extension manifest (non-blocking)'
+        );
+      }
+    })();
+
     return updated;
   }
 
@@ -1121,6 +1168,14 @@ export class PluginLifecycleService {
       this.logger.warn(
         { pluginId, error: err instanceof Error ? err.message : String(err) },
         'Failed to update Prometheus targets after plugin deactivation (non-blocking)'
+      );
+    });
+
+    // T013-09: Deactivate extension registry records (fire-and-forget — non-blocking)
+    extensionRegistryService.onPluginDeactivated(tenantId, pluginId).catch((extErr: unknown) => {
+      this.logger.warn(
+        { pluginId, error: extErr instanceof Error ? extErr.message : String(extErr) },
+        'T013-09: Failed to deactivate extension records (non-blocking)'
       );
     });
 

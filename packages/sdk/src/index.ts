@@ -22,6 +22,15 @@ export { SharedDataClient } from './shared-data.js';
 
 export { PlexicaPlugin, WorkspaceAwarePlugin } from './plugin-base.js';
 
+// Extension Points — DataExtensionClient (Spec 013, T013-10, FR-029)
+export { DataExtensionClient } from './data-extension-client.js';
+export type {
+  DataExtensionHandler,
+  DataExtensionRequest,
+  DataExtensionResponse,
+  DataExtensionError,
+} from './data-extension-client.js';
+
 // ---------------------------------------------------------------------------
 // SDK types
 // ---------------------------------------------------------------------------
@@ -64,6 +73,18 @@ export type {
   Workspace,
   WorkspaceMember,
   WorkspaceRole,
+  // Extension Points (Spec 013)
+  ExtensionSlotType,
+  ExtensionSlotDeclaration,
+  ContributionDeclaration,
+  ExtensibleEntityDeclaration,
+  DataExtensionDeclaration,
+  ResolvedContribution,
+  AggregatedExtensionData,
+  DependentsResult,
+  ContributionValidationStatus,
+  ExtensionSlotFilters,
+  ExtensionContributionFilters,
 } from './types.js';
 
 // ---------------------------------------------------------------------------

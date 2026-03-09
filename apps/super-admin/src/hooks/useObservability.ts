@@ -109,10 +109,14 @@ export function useActiveAlertsCount(): number {
 // Paginated alert history.
 // ---------------------------------------------------------------------------
 
-export function useAlertHistory(page = 1, perPage = 20) {
+export function useAlertHistory(
+  page = 1,
+  perPage = 20,
+  severity?: 'critical' | 'warning' | 'info'
+) {
   return useQuery<AlertHistoryResponse, Error>({
-    queryKey: ['observability', 'alert-history', page, perPage],
-    queryFn: () => getAlertHistory(page, perPage),
+    queryKey: ['observability', 'alert-history', page, perPage, severity],
+    queryFn: () => getAlertHistory(page, perPage, severity),
     staleTime: 60_000,
   });
 }

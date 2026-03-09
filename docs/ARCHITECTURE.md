@@ -1310,6 +1310,123 @@ Plexica is a production-ready platform with:
 
 ---
 
+## Extension Points System (Spec 013)
+
+**Date Added**: March 2026  
+**ADR Reference**: ADR-031
+
+The Extension Points system enables plugins to declare named **extension slots** that other plugins can contribute UI components and sidecar data to. This makes the plugin system composable without requiring plugins to have direct compile-time dependencies on each other.
+
+### Architecture Overview
+
+```
+Plugin A (Host)                     Plugin B (Contributor)
+  declares:                           declares:
+    extensionSlots:                     contributions:
+      - slotId: "contact-actions"         - targetPluginId: "plugin-a"
+        type: "toolbar"                     targetSlotId: "contact-actions"
+        label: "Contact Actions"            componentName: "AddNoteButton"
+        maxContributions: 5                 priority: 10
+```
+
+At runtime, the shell renders `<ExtensionSlot pluginId="plugin-a" slotId="contact-actions" />` which queries the `ExtensionRegistryService` for all active contributions, then dynamically loads each component via Module Federation.
+
+### Data Model
+
+Five tables in the `core` shared schema (per ADR-031):
+
+| Table                            | Purpose                                      |
+| -------------------------------- | -------------------------------------------- |
+| `extension_slots`                | Slot declarations from plugin manifests      |
+| `extension_contributions`        | Contribution declarations, validation status |
+| `workspace_extension_visibility` | Per-workspace on/off toggle per contribution |
+| `extensible_entities`            | Entity types that accept sidecar data        |
+| `data_extensions`                | Sidecar data endpoint registrations          |
+
+> **ADR-031 Bounded Exception**: These tables live in the `core` shared schema (not tenant schema) because cross-plugin slot resolution requires core visibility. Five mandatory safeguards are enforced: single `ExtensionRegistryRepository` access path, required `tenantId` on all tenant-scoped methods, explicitly-named Super Admin cross-tenant methods with role check, PostgreSQL RLS defense-in-depth, and a code review gate on repository changes.
+
+### Backend Services
+
+```
+apps/core-api/src/modules/extension-registry/
+├── extension-registry.repository.ts   # ADR-031: sole DB access path
+├── extension-registry.service.ts      # Business logic + Redis cache
+├── extension-registry.controller.ts   # Fastify routes
+├── extension-registry.schema.ts       # Zod v4 validation
+└── index.ts                           # Barrel export
+```
+
+**API Routes** (all under `/api/v1/extensions`, tenant-auth required):
+
+| Method | Path                                                  | Description                          |
+| ------ | ----------------------------------------------------- | ------------------------------------ |
+| `GET`  | `/extensions/slots`                                   | List all active slots for tenant     |
+| `GET`  | `/extensions/slots/:pluginId`                         | Slots by plugin                      |
+| `POST` | `/extensions/slots/:pluginId`                         | Upsert slots from manifest           |
+| `GET`  | `/extensions/contributions`                           | List contributions                   |
+| `GET`  | `/extensions/contributions/slot/:pluginId/:slotId`    | Resolved contributions for a slot    |
+| `POST` | `/extensions/contributions/:pluginId`                 | Upsert contributions from manifest   |
+| `PUT`  | `/extensions/visibility/:workspaceId/:contributionId` | Toggle workspace visibility          |
+| `GET`  | `/extensions/entities`                                | List extensible entities             |
+| `POST` | `/extensions/entities/:pluginId`                      | Upsert entity declarations           |
+| `GET`  | `/extensions/data-extensions`                         | List data extension registrations    |
+| `POST` | `/extensions/data-extensions/:pluginId`               | Upsert data extension declarations   |
+| `GET`  | `/extensions/dependents/:pluginId/:slotId`            | Contribution dependents for a slot   |
+| `POST` | `/extensions/validate/:pluginId`                      | Re-validate a plugin's contributions |
+
+**Super-Admin Routes** (under `/api/v1/admin/extensions`):
+
+| Method | Path                                            | Description                               |
+| ------ | ----------------------------------------------- | ----------------------------------------- |
+| `GET`  | `/admin/extensions/permissions`                 | List all cross-tenant slots/contributions |
+| `PUT`  | `/admin/extensions/permissions/:contributionId` | Override contribution visibility          |
+
+### Feature Flag
+
+The extension points system is disabled by default per tenant. Enable it by setting:
+
+```json
+// Tenant.settings JSON field
+{ "extension_points_enabled": true }
+```
+
+Or via the environment variable `ENABLE_EXTENSION_POINTS=true` to enable globally (development only).
+
+When `extension_points_enabled` is `false`, the `ExtensionRegistryService` returns early from all queries (no DB call), and `syncManifest` is a no-op. UI components render `null` when the slot query returns the disabled sentinel.
+
+### Frontend Components
+
+```
+apps/web/src/components/extensions/
+├── ExtensionSlot.tsx            # Main slot renderer (Module Federation loader)
+├── ExtensionContribution.tsx    # Individual contribution wrapper
+├── ExtensionSlotSkeleton.tsx    # Loading placeholder
+├── ExtensionErrorFallback.tsx   # Error boundary fallback
+├── VirtualizedSlotContainer.tsx # Performance: virtualizes large slot lists
+├── ContributionRow.tsx          # Admin toggle row (settings page)
+├── SlotInspectorOverlay.tsx     # Dev-mode overlay (press Ctrl+Shift+E)
+└── index.ts                     # Barrel export
+```
+
+The `useExtensionSlot` hook fetches resolved contributions from the API, handles the loading/error/disabled states, and provides the slot context for child components.
+
+### Caching Strategy
+
+- Redis key: `ext:contributions:{tenantId}:{pluginId}:{slotId}`
+- TTL: 120 seconds ± 0-30 seconds jitter (avoids thundering herd)
+- Invalidated on: `setVisibility`, `deactivateByPlugin`, `reactivateByPlugin`
+- Cache bypass: `?nocache=1` query param (dev mode only)
+
+### Plugin Lifecycle Integration
+
+When a plugin is activated/deactivated, the `plugin.service.ts` fires lifecycle hooks (fire-and-forget, non-blocking):
+
+- **Activated**: `syncManifest()` → upserts slot/contribution/entity declarations from manifest
+- **Deactivated**: `onPluginDeactivated()` → marks all extension records `is_active = false`
+- **Re-activated**: `onPluginReactivated()` → marks all extension records `is_active = true`, then re-syncs manifest
+
+---
+
 _Plexica Architecture v2.0_  
 _Last Updated: February 2026_  
 _Author: Plexica Engineering Team_

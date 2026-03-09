@@ -3,7 +3,7 @@
 > This document tracks architectural decisions, technical debt, deferred
 > decisions, and implementation notes that don't warrant a full ADR.
 
-**Last Updated**: March 8, 2026 (Spec 014 plan completed; ADR-031 added; Spec 013 plan completed)
+**Last Updated**: March 8, 2026 (Spec 013 COMPLETE — Sprint 010, 85 pts; Spec 014 plan completed; ADR-031 added; DD-003 added)
 
 > **Archive Notice**: Completed decisions from February 2026 have been moved to
 > [archives/2026-02/decisions-2026-02.md](./archives/2026-02/decisions-2026-02.md).
@@ -27,10 +27,11 @@
 
 ### Deferred Decisions
 
-| ID     | Decision                             | Reason Deferred                          | Revisit Date | Context               |
-| ------ | ------------------------------------ | ---------------------------------------- | ------------ | --------------------- |
-| DD-001 | GraphQL API layer                    | Focus on REST first; evaluate after v1.0 | Q2 2026      | Plugin API evolution  |
-| DD-002 | Real-time collaboration (WebSockets) | Core platform stability priority         | Q2 2026      | Future plugin feature |
+| ID     | Decision                                                 | Reason Deferred                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Revisit Date | Context                                                     |
+| ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------- |
+| DD-001 | GraphQL API layer                                        | Focus on REST first; evaluate after v1.0                                                                                                                                                                                                                                                                                                                                                                                                                                | Q2 2026      | Plugin API evolution                                        |
+| DD-002 | Real-time collaboration (WebSockets)                     | Core platform stability priority                                                                                                                                                                                                                                                                                                                                                                                                                                        | Q2 2026      | Future plugin feature                                       |
+| DD-003 | Full AJV JSON Schema validation in `DataExtensionClient` | Adding `ajv` as a new dependency requires an ADR (Constitution Art. 2.2). The current `validateFields()` helper covers `type: "object"`, `required` presence checks, and per-property type-checking — sufficient for the plugin data-extension contract. Plugins needing strict validation (formats, `$ref`, `if/then/else`, etc.) must implement handler-level checks themselves. Revisit when a plugin use-case demonstrates that partial validation is insufficient. | Q3 2026      | `packages/sdk/src/data-extension-client.ts` §validateFields |
 
 ---
 
@@ -61,12 +62,12 @@
 
 ---
 
-### Spec 013: Extension Points — PLAN COMPLETE (March 8, 2026)
+### Spec 013: Extension Points — COMPLETE (March 8, 2026)
 
 **Date**: March 8, 2026
 **Context**: Plugin extension points system — UI extension slots, data model extensions, and extension registry
 
-**Status**: ✅ spec done, ✅ plan done — implementation **NOT STARTED**
+**Status**: ✅ spec done, ✅ plan done, ✅ implementation COMPLETE (Sprint 010)
 
 **ADR-031**: Extension Tables Core Shared Schema — bounded exception to ADR-002 (schema-per-tenant), following ADR-025 pattern. 5 extension tables (`extension_slots`, `extension_contributions`, `workspace_extension_visibility`, `extensible_entities`, `data_extensions`) placed in core shared schema because cross-plugin slot resolution requires core visibility. 5 mandatory safeguards: single `ExtensionRegistryRepository` access path, required `tenantId` parameter, explicitly-named Super Admin cross-tenant methods with role check, PostgreSQL RLS defense-in-depth, code review gate on repository changes.
 

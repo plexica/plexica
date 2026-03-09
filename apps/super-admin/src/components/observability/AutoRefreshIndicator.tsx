@@ -25,6 +25,15 @@ export function AutoRefreshIndicator({
 }: AutoRefreshIndicatorProps) {
   const [remaining, setRemaining] = useState(intervalSeconds);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Keep a stable ref to the latest onRefresh callback so the setInterval
+  // closure never captures a stale copy. This avoids adding onRefresh to the
+  // useEffect dep array (which would restart the timer on every render where
+  // the caller passes an inline function) while still calling the most-recent
+  // version on each tick.
+  const onRefreshRef = useRef(onRefresh);
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
 
   // Reset countdown whenever intervalSeconds changes or a refresh fires
   const resetTimer = () => setRemaining(intervalSeconds);
@@ -33,7 +42,7 @@ export function AutoRefreshIndicator({
     timerRef.current = setInterval(() => {
       setRemaining((prev) => {
         if (prev <= 1) {
-          onRefresh();
+          onRefreshRef.current();
           return intervalSeconds;
         }
         return prev - 1;
@@ -42,7 +51,6 @@ export function AutoRefreshIndicator({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalSeconds]);
 
   const handleManualRefresh = () => {

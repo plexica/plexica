@@ -73,3 +73,19 @@ export {
   FONT_IDS,
   isFontId,
 } from './fonts.js';
+
+// Extension Points (Spec 013 — T013-01)
+export type {
+  ExtensionSlotType,
+  ContributionValidationStatus,
+  ExtensionSlotDeclaration,
+  ContributionDeclaration,
+  ExtensibleEntityDeclaration,
+  DataExtensionDeclaration,
+  ResolvedContribution,
+  AggregatedExtensionData,
+  DependentsResult,
+  ExtensionSlotFilters,
+  ExtensionContributionFilters,
+} from './extension.js';
+export { EXTENSION_SLOT_TYPES, CONTRIBUTION_VALIDATION_STATUSES } from './extension.js';

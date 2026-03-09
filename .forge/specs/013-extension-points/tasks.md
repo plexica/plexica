@@ -5,7 +5,7 @@
 
 | Field  | Value                                       |
 | ------ | ------------------------------------------- |
-| Status | Pending                                     |
+| Status | Complete                                    |
 | Author | forge-scrum                                 |
 | Date   | 2026-03-08                                  |
 | Spec   | `.forge/specs/013-extension-points/spec.md` |
@@ -81,7 +81,7 @@
 
 ---
 
-- [ ] **T013-01** `[L]` `[FR-027]` `[FR-030]` Extension Type Definitions
+- [x] **T013-01** `[L]` `[FR-027]` `[FR-030]` Extension Type Definitions
   - **Files to create**:
     - `packages/types/src/extension.ts`
   - **Files to modify**:
@@ -95,7 +95,7 @@
 
 ---
 
-- [ ] **T013-02** `[L]` `[FR-023]` `[ADR-031]` Database Migration — Create Extension Tables
+- [x] **T013-02** `[L]` `[FR-023]` `[ADR-031]` Database Migration — Create Extension Tables
   - **Files to create**:
     - `packages/database/prisma/migrations/YYYYMMDDHHMMSS_create_extension_tables/migration.sql` — 5 tables + all indexes + CHECK constraints + FK constraints
     - `packages/database/prisma/migrations/YYYYMMDDHHMMSS_extension_tables_rls/migration.sql` — RLS policies (ADR-031 Safeguard 4)
@@ -110,7 +110,7 @@
 
 ---
 
-- [ ] **T013-03** `[M]` `[P]` `[Art.9.1]` Extension Feature Flag
+- [x] **T013-03** `[M]` `[P]` `[Art.9.1]` Extension Feature Flag
   - **Files to modify**:
     - Tenant settings / feature flags table (or feature flag service) — add `extension_points_enabled` boolean, default `false`
     - `apps/core-api/src/modules/extension-registry/extension-registry.controller.ts` — feature flag gate on all routes (when disabled, return 404)
@@ -122,7 +122,7 @@
 
 ---
 
-- [ ] **T013-04** `[M]` `[P]` `[FR-019]` `[FR-020]` `[FR-021]` `[FR-022]` `[FR-031]` Zod Validation Schemas
+- [x] **T013-04** `[M]` `[P]` `[FR-019]` `[FR-020]` `[FR-021]` `[FR-022]` `[FR-031]` Zod Validation Schemas
   - **File to create**:
     - `apps/core-api/src/modules/extension-registry/extension-registry.schema.ts`
   - **Description**: Define all Zod input validation schemas for the 8 API endpoints (Art. 5.3). Strict type validation for slot types (must be `action | panel | form | toolbar`), priority ranges (0–999), UUID formats, and boolean toggles.
@@ -139,7 +139,7 @@
 
 ---
 
-- [ ] **T013-05** `[XL]` `[FR-002]` `[FR-004]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-022]` `[FR-024]` `[ADR-031]` Extension Registry Repository
+- [x] **T013-05** `[XL]` `[FR-002]` `[FR-004]` `[FR-011]` `[FR-012]` `[FR-013]` `[FR-022]` `[FR-024]` `[ADR-031]` Extension Registry Repository
   - **File to create**:
     - `apps/core-api/src/modules/extension-registry/extension-registry.repository.ts`
   - **Description**: Single access path for all 5 extension tables (ADR-031 Safeguard 1). This class MUST include a header comment referencing ADR-031. All tenant-scoped methods MUST have a required `tenantId` parameter (ADR-031 Safeguard 2). Cross-tenant admin methods MUST have explicitly descriptive names with a role check (Safeguard 3).
@@ -163,7 +163,7 @@
 
 ---
 
-- [ ] **T013-06** `[XL]` `[FR-002]` `[FR-006]` `[FR-015]` `[FR-018]` `[FR-024]` `[FR-026]` `[NFR-004]` Extension Registry Service
+- [x] **T013-06** `[XL]` `[FR-002]` `[FR-006]` `[FR-015]` `[FR-018]` `[FR-024]` `[FR-026]` `[NFR-004]` Extension Registry Service
   - **File to create**:
     - `apps/core-api/src/modules/extension-registry/extension-registry.service.ts`
   - **Description**: Business logic layer orchestrating manifest sync, contribution resolution, data extension aggregation, and Redis cache management. This is the most complex file in the spec.
@@ -190,7 +190,7 @@
 
 ---
 
-- [ ] **T013-07** `[L]` `[P]` `[FR-019]` `[FR-021]` `[FR-031]` Controller — Slot & Contribution Routes
+- [x] **T013-07** `[L]` `[P]` `[FR-019]` `[FR-021]` `[FR-031]` Controller — Slot & Contribution Routes
   - **Files to create**:
     - `apps/core-api/src/modules/extension-registry/extension-registry.controller.ts`
     - `apps/core-api/src/modules/extension-registry/index.ts` — module barrel (`export * from './extension-registry.controller.js'`, etc.)
@@ -207,7 +207,7 @@
 
 ---
 
-- [ ] **T013-08** `[L]` `[P]` `[FR-015]` `[FR-020]` `[FR-022]` Controller — Entity & Visibility Routes
+- [x] **T013-08** `[L]` `[P]` `[FR-015]` `[FR-020]` `[FR-022]` Controller — Entity & Visibility Routes
   - **File to modify**:
     - `apps/core-api/src/modules/extension-registry/extension-registry.controller.ts` — add remaining routes
   - **Description**: Add the entity discovery and visibility toggle endpoints to the controller. The `PATCH` visibility endpoint requires Workspace Admin role validation (403 if not workspace admin).
@@ -222,7 +222,7 @@
 
 ---
 
-- [ ] **T013-09** `[M]` `[FR-002]` `[FR-024]` `[FR-025]` Plugin Lifecycle Integration — Manifest Sync
+- [x] **T013-09** `[M]` `[FR-002]` `[FR-024]` `[FR-025]` Plugin Lifecycle Integration — Manifest Sync
   - **Files to modify**:
     - `apps/core-api/src/modules/plugin/plugin.service.ts` — call `extensionRegistryService.onPluginActivated()` / `onPluginDeactivated()` in lifecycle hooks
     - `apps/core-api/src/index.ts` — register extension-registry module routes
@@ -234,7 +234,7 @@
 
 ---
 
-- [ ] **T013-10** `[M]` `[P]` `[FR-029]` SDK DataExtensionClient
+- [x] **T013-10** `[M]` `[P]` `[FR-029]` SDK DataExtensionClient
   - **Files to create**:
     - `packages/sdk/src/data-extension-client.ts`
   - **Files to modify**:
@@ -256,7 +256,7 @@
 
 ---
 
-- [ ] **T013-11** `[XL]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[NFR-008]` `[NFR-011]` `[NFR-014]` ExtensionSlot Component
+- [x] **T013-11** `[XL]` `[FR-007]` `[FR-008]` `[FR-009]` `[FR-010]` `[NFR-008]` `[NFR-011]` `[NFR-014]` ExtensionSlot Component
   - **File to create**:
     - `apps/web/src/components/extensions/ExtensionSlot.tsx`
   - **Description**: The core host component for rendering contributions inside a plugin's UI. Queries TanStack Query cache with `staleTime ≥ 60s` (NFR-014) for stale-while-revalidate semantics — registry queries must NOT fire on every mount. Loads each contribution via `React.lazy` + Module Federation (ADR-004/011). Renders in ascending priority order, ties broken alphabetically by plugin ID (FR-005). Wraps each in `<ExtensionContribution>`. Delegates to `<VirtualizedSlotContainer>` when count > `virtualizationThreshold` (default 20).
@@ -269,7 +269,7 @@
 
 ---
 
-- [ ] **T013-12** `[L]` `[FR-009]` `[US-007]` `[NFR-007]` `[NFR-008]` `[NFR-009]` `[NFR-012]` ExtensionContribution Component
+- [x] **T013-12** `[L]` `[FR-009]` `[US-007]` `[NFR-007]` `[NFR-008]` `[NFR-009]` `[NFR-012]` ExtensionContribution Component
   - **File to create**:
     - `apps/web/src/components/extensions/ExtensionContribution.tsx`
   - **Description**: Individual contribution wrapper with React Error Boundary, 5-second load timeout (NFR-009), and structured Pino logging on failure (NFR-012). Uses `React.lazy` + `Suspense` for Module Federation component loading. Shows a hover badge (8px `Puzzle` icon, `aria-hidden`) with tooltip "[PluginName] extension". Prop isolation: MUST NOT pass any host-internal state beyond the declared `contextSchema` + `PluginProps` (NFR-007).
@@ -281,7 +281,7 @@
 
 ---
 
-- [ ] **T013-13** `[M]` `[P]` `[FR-008]` `[US-007]` `[NFR-011]` Skeleton & Error Fallback Components
+- [x] **T013-13** `[M]` `[P]` `[FR-008]` `[US-007]` `[NFR-011]` Skeleton & Error Fallback Components
   - **Files to create**:
     - `apps/web/src/components/extensions/ExtensionSlotSkeleton.tsx` — 4 variants: `action-skeleton` (2 pill-shaped, 80×36px), `panel-skeleton` (full-width × 120px card), `form-skeleton` (tab bar + content area), `toolbar-skeleton` (3 icon circles, 32×32px). Uses `Skeleton` from `@plexica/ui`. `aria-busy="true"`, `aria-label="Loading extension"`.
     - `apps/web/src/components/extensions/ExtensionErrorFallback.tsx` — `compact` variant (inline "Extension unavailable" with `AlertTriangle`) for action/toolbar slots; `card` variant (card with dismiss button) for panel/form slots. `role="alert"`, `aria-live="assertive"`. Dismiss button: `aria-label="Dismiss failed extension from {pluginName}"`.
@@ -292,7 +292,7 @@
 
 ---
 
-- [ ] **T013-14** `[S]` `[P]` `[FR-028]` `[NFR-014]` useExtensionSlot Hook
+- [x] **T013-14** `[S]` `[P]` `[FR-028]` `[NFR-014]` useExtensionSlot Hook
   - **File to create**:
     - `apps/web/src/hooks/useExtensionSlot.ts`
   - **Description**: Minimal-boilerplate hook for slot-declaring plugins. Wraps TanStack Query with `staleTime ≥ 60s` for contribution resolution. Returns `{ contributions, isLoading, error, slotProps }` where `slotProps` is ready to spread onto `<ExtensionSlot>`. Handles the `extension_points_enabled` feature flag check — returns empty state when disabled to avoid unnecessary API calls.
@@ -303,7 +303,7 @@
 
 ---
 
-- [ ] **T013-15** `[M]` `[P]` `[Edge Case #12]` VirtualizedSlotContainer
+- [x] **T013-15** `[M]` `[P]` `[Edge Case #12]` VirtualizedSlotContainer
   - **File to create**:
     - `apps/web/src/components/extensions/VirtualizedSlotContainer.tsx`
   - **Description**: Virtualized list container for slots with more than `virtualizationThreshold` (default: 20) contributions. Uses custom `IntersectionObserver` + `overflow-y: auto` virtualization (no new npm dependency per plan §6.1). Shows first 20 contributions, then a "Show N more extensions" button. On click: expand to full virtual scroll list.
@@ -315,7 +315,7 @@
 
 ---
 
-- [ ] **T013-16** `[L]` `[FR-022]` `[FR-025]` `[FR-033]` `[US-003]` Workspace Extension Settings Page
+- [x] **T013-16** `[L]` `[FR-022]` `[FR-025]` `[FR-033]` `[US-003]` Workspace Extension Settings Page
   - **Files to create**:
     - `apps/web/src/routes/settings/extensions.tsx` — `ExtensionSettingsPanel` page per design-spec §3.5: accordion groups by host plugin → slot → `<ContributionRow>` rows with toggles. Optimistic UI on toggle with TanStack Query mutation; revert on failure with Toast error. Empty state: "No extensions available."
     - `apps/web/src/components/extensions/ContributionRow.tsx` — 4 variants: `enabled`, `disabled-tenant` (grayed, tooltip "Disabled by tenant admin"), `disabled-workspace` (toggle off), `warning` (`AlertTriangle` badge for `type_mismatch` / `target_not_found`). Shows `previewUrl` thumbnail (80×60px) when present (FR-033).
@@ -328,7 +328,7 @@
 
 ---
 
-- [ ] **T013-17** `[L]` `[P]` `[FR-006]` `[US-006]` Tenant Admin Extension Permissions Page
+- [x] **T013-17** `[L]` `[P]` `[FR-006]` `[US-006]` Tenant Admin Extension Permissions Page
   - **File to create**:
     - `apps/super-admin/src/routes/plugins/extension-permissions.tsx` — `ExtensionPermissionsPage` component per design-spec §3.7. Data table: Contributing Plugin | Target Slot | Required Permission | Status | Action. Grant/Revoke with confirmation dialog. New plugin row animated with yellow flash (`@keyframes highlight`). Disabled plugin rows grayed out.
   - **Description**: Tenant admin view for managing which plugins can contribute to which extension slots. Confirmation dialogs explain blast radius before grant/revoke. All dialogs: `role="dialog"`, focus-trapped, Esc to dismiss.
@@ -339,7 +339,7 @@
 
 ---
 
-- [ ] **T013-18** `[S]` `[P]` `[FR-028]` `[FR-031]` SlotInspectorOverlay (dev-only)
+- [x] **T013-18** `[S]` `[P]` `[FR-028]` `[FR-031]` SlotInspectorOverlay (dev-only)
   - **File to create**:
     - `apps/web/src/components/extensions/SlotInspectorOverlay.tsx`
   - **Description**: Developer tool overlay activated by `Ctrl+Shift+E` in development mode only (`import.meta.env.DEV` guard — tree-shaken in production builds). Highlights all `<ExtensionSlot>` components with a dashed `--primary` border and floating label (`slotId`, `type`, contribution count, host plugin). Clicking a highlighted slot opens a detail panel showing slot metadata and contributions list (via FR-031 dependents query).
@@ -350,7 +350,7 @@
 
 ---
 
-- [ ] **T013-19** `[S]` `[P]` Component Barrel Export
+- [x] **T013-19** `[S]` `[P]` Component Barrel Export
   - **File to create**:
     - `apps/web/src/components/extensions/index.ts`
   - **Description**: Export all extension components from a single barrel for clean imports: `ExtensionSlot`, `ExtensionContribution`, `ExtensionSlotSkeleton`, `ExtensionErrorFallback`, `VirtualizedSlotContainer`, `ContributionRow`, `SlotInspectorOverlay`.
@@ -368,7 +368,7 @@
 
 ---
 
-- [ ] **T013-20** `[L]` `[P]` `[Art.4.1]` `[Art.8.1]` `[NFR-013]` Service Unit Tests
+- [x] **T013-20** `[L]` `[P]` `[Art.4.1]` `[Art.8.1]` `[NFR-013]` Service Unit Tests
   - **File to create**:
     - `apps/core-api/src/__tests__/extension-registry/unit/extension-registry.service.test.ts`
   - **Description**: Unit tests for `ExtensionRegistryService`. All dependencies mocked (in-memory mocks for repository, Redis, ABAC — NFR-013). Tests must run without Docker/Module Federation.
@@ -386,7 +386,7 @@
 
 ---
 
-- [ ] **T013-21** `[M]` `[P]` `[Art.5.3]` `[Art.8.1]` Schema Validation Unit Tests
+- [x] **T013-21** `[M]` `[P]` `[Art.5.3]` `[Art.8.1]` Schema Validation Unit Tests
   - **File to create**:
     - `apps/core-api/src/__tests__/extension-registry/unit/extension-registry.schema.test.ts`
   - **Description**: Unit tests for all Zod schemas in `extension-registry.schema.ts`. Each schema tested with valid inputs, invalid inputs, and boundary values. (~20 tests)
@@ -403,7 +403,7 @@
 
 ---
 
-- [ ] **T013-22** `[XL]` `[FR-019]` `[FR-020]` `[FR-021]` `[FR-022]` `[FR-031]` `[Art.4.1]` API Integration Tests
+- [x] **T013-22** `[XL]` `[FR-019]` `[FR-020]` `[FR-021]` `[FR-022]` `[FR-031]` `[Art.4.1]` API Integration Tests
   - **File to create**:
     - `apps/core-api/src/__tests__/extension-registry/integration/extension-registry.routes.test.ts`
   - **Description**: Integration tests for all 8 API endpoints using `buildTestApp()` + `testContext.auth.createMockToken()`. Tests require real database (test infrastructure). (~30 tests)
@@ -422,7 +422,7 @@
 
 ---
 
-- [ ] **T013-23** `[L]` `[P]` `[ADR-031]` `[Art.5.2]` Tenant Isolation Integration Tests
+- [x] **T013-23** `[L]` `[P]` `[ADR-031]` `[Art.5.2]` Tenant Isolation Integration Tests
   - **File to create**:
     - `apps/core-api/src/__tests__/extension-registry/integration/extension-registry.isolation.test.ts`
   - **Description**: **Mandatory ADR-031 follow-up tests.** These 5 scenarios directly verify the bounded exception safeguards. Require real database with RLS enabled.
@@ -438,7 +438,7 @@
 
 ---
 
-- [ ] **T013-24** `[L]` `[P]` `[Art.8.1]` `[NFR-011]` Frontend Component Tests
+- [x] **T013-24** `[L]` `[P]` `[Art.8.1]` `[NFR-011]` Frontend Component Tests
   - **Description**: Unit tests for all 7 React components and the `useExtensionSlot` hook. Use Vitest + React Testing Library. All user-facing components scanned with `vitest-axe` (ADR-022).
   - **Test locations**: Co-located test files (`*.test.tsx`) or dedicated `__tests__/extension/` directory.
   - **Test scenarios** (~25 tests):
@@ -455,7 +455,7 @@
 
 ---
 
-- [ ] **T013-25** `[L]` `[Art.8.1]` E2E Tests
+- [x] **T013-25** `[L]` `[Art.8.1]` E2E Tests
   - **File to create**:
     - `apps/core-api/src/__tests__/extension-registry/e2e/extension-registry.e2e.test.ts`
   - **Description**: End-to-end tests covering the full request lifecycle through the real app stack. (~10 tests)
@@ -479,7 +479,7 @@
 
 ---
 
-- [ ] **T013-26** `[M]` `[P]` Architecture Documentation
+- [x] **T013-26** `[M]` `[P]` Architecture Documentation
   - **Files to modify**:
     - `docs/ARCHITECTURE.md` — add Extension Points section: slot/contribution model, registry architecture, ADR-031 bounded exception rationale, data flow diagram
     - `docs/SECURITY.md` — add section on extension permission model (two-tier: slot permission + workspace visibility), sidecar data tenant isolation guarantees
@@ -490,7 +490,7 @@
 
 ---
 
-- [ ] **T013-27** `[S]` `[P]` Decision Log & Cross-References
+- [x] **T013-27** `[S]` `[P]` Decision Log & Cross-References
   - **Files to modify**:
     - `.forge/knowledge/decision-log.md` — add Spec 013 completion entry, cross-reference ADR-031, close in-progress note
     - `.forge/specs/013-extension-points/spec.md` — update `Status: Draft` → `Status: Complete`, add plan link
@@ -501,7 +501,7 @@
 
 ---
 
-- [ ] **T013-28** `[S]` `[P]` `[Art.9.2]` Health Check Integration
+- [x] **T013-28** `[S]` `[P]` `[Art.9.2]` Health Check Integration
   - **File to modify**:
     - `apps/core-api/src/index.ts` (or health check module) — add Extension Registry to `/health` dependency checks
   - **Description**: Add a simple health check for the Extension Registry: `SELECT 1 FROM core.extension_slots LIMIT 1`. Report as `extension_registry: "healthy"` or `"degraded"` in the `/health` response. Follows the pattern of existing health checks (Redis, Keycloak, database).
@@ -511,7 +511,7 @@
 
 ---
 
-- [ ] **T013-29** `[S]` `[P]` `[Art.9.1]` Feature Flag Rollout Documentation
+- [x] **T013-29** `[S]` `[P]` `[Art.9.1]` Feature Flag Rollout Documentation
   - **File to create or modify**:
     - `docs/FEATURE_FLAGS.md` — document `extension_points_enabled` flag: purpose, how to enable per-tenant (API call or DB update), how to verify (check `/health` + query `/slots`), how to disable in an emergency, graduated rollout plan (start with 1 internal tenant, observe metrics, expand)
   - **Spec reference**: Plan §T013-29, Art. 9.1
@@ -524,16 +524,16 @@
 
 Before marking this spec complete, verify:
 
-- [ ] All 29 tasks have `[x]` status
-- [ ] `pnpm test` passes in `apps/core-api` (≥85% coverage on `extension-registry`)
-- [ ] `pnpm test` passes in `apps/web` (≥80% coverage on extension components)
-- [ ] `pnpm lint` passes across all modified packages
-- [ ] `pnpm build` succeeds (TypeScript compilation clean)
-- [ ] `/forge-review` run and all HIGH-severity findings resolved
-- [ ] ADR-031 isolation tests (T013-23) all green
-- [ ] Feature flag `extension_points_enabled` defaults to `false` in production
-- [ ] `planning/PROJECT_STATUS.md` updated to reflect Spec 013 completion
-- [ ] `.forge/knowledge/decision-log.md` entry added (T013-27)
+- [x] All 29 tasks have `[x]` status
+- [x] `pnpm test` passes in `apps/core-api` (≥85% coverage on `extension-registry`)
+- [x] `pnpm test` passes in `apps/web` (≥80% coverage on extension components)
+- [x] `pnpm lint` passes across all modified packages
+- [x] `pnpm build` succeeds (TypeScript compilation clean)
+- [x] `/forge-review` run and all HIGH-severity findings resolved
+- [x] ADR-031 isolation tests (T013-23) all green
+- [x] Feature flag `extension_points_enabled` defaults to `false` in production
+- [x] `planning/PROJECT_STATUS.md` updated to reflect Spec 013 completion
+- [x] `.forge/knowledge/decision-log.md` entry added (T013-27)
 
 ---
 

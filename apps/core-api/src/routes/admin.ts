@@ -1589,24 +1589,30 @@ export async function adminRoutes(fastify: FastifyInstance) {
         request.log.info({ pluginId: request.params.id }, 'Plugin deleted by admin');
         return reply.send({ message: 'Plugin deleted successfully' });
       } catch (error: unknown) {
-        const err = error as Error & { code?: string };
         request.log.error({ error, pluginId: request.params.id }, 'Failed to delete plugin');
 
-        if (err.message.includes('not found')) {
+        if (
+          error instanceof Error &&
+          (error.name === 'PluginNotFoundError' || error.message === 'Plugin not found')
+        ) {
           return reply.code(404).send({
             error: {
               code: 'PLUGIN_NOT_FOUND',
-              message: err.message,
+              message: 'Plugin not found',
               details: { pluginId: request.params.id },
             },
           });
         }
 
-        if (err.message.includes('Cannot delete')) {
+        if (
+          error instanceof Error &&
+          (error.name === 'PluginHasInstallationsError' ||
+            error.message === 'Cannot delete plugin with active installations')
+        ) {
           return reply.code(409).send({
             error: {
               code: 'PLUGIN_DELETE_CONFLICT',
-              message: err.message,
+              message: error.message,
               details: { pluginId: request.params.id },
             },
           });

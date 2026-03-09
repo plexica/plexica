@@ -3,7 +3,8 @@
  *
  * Spec 012, Task T012-09 (ADR-027, ADR-030).
  *
- * Maintains a JSON file at `infrastructure/observability/prometheus/targets/plugins.json`
+ * Maintains a JSON file (path configured via PROMETHEUS_TARGETS_PATH env var,
+ * defaulting to `infrastructure/observability/prometheus/targets/plugins.json`)
  * that Prometheus reads via `file_sd_configs` to discover active plugin scrape targets.
  *
  * The Plugin model has no `containerHost` or `metricsPort` columns (confirmed by
@@ -26,10 +27,11 @@ import { logger } from '../lib/logger.js';
 const PLUGIN_METRICS_PORT = 8080;
 
 // Absolute path to the file-SD JSON written for Prometheus.
-const TARGETS_FILE_PATH = pathLib.resolve(
-  process.cwd(),
-  'infrastructure/observability/prometheus/targets/plugins.json'
-);
+// Defaults to the dev path; override with PROMETHEUS_TARGETS_PATH in production
+// (e.g. /etc/prometheus/targets/plugins.json in Docker/K8s deployments).
+const TARGETS_FILE_PATH = process.env.PROMETHEUS_TARGETS_PATH
+  ? pathLib.resolve(process.env.PROMETHEUS_TARGETS_PATH)
+  : pathLib.resolve(process.cwd(), 'infrastructure/observability/prometheus/targets/plugins.json');
 
 interface FileSDTarget {
   targets: string[];

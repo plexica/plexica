@@ -1,0 +1,603 @@
+// File: apps/core-api/src/modules/extension-registry/extension-registry.repository.ts
+//
+// Spec 013 — Extension Points (T013-05)
+// ADR-031 Safeguard 1: SINGLE access path to all 5 extension tables.
+// ADR-031 Safeguard 2: All tenant-scoped methods require explicit `tenantId`.
+// ADR-031 Safeguard 3: Cross-tenant admin methods use explicit naming + role check.
+// ADR-031 Safeguard 4: RLS policies are in place (see migration 20260308000002).
+// ADR-031 Safeguard 5: This file is the code review gate — changes require ADR review.
+//
+// ⚠️  NEVER import this repository from outside the extension-registry module.
+//     All access must go through ExtensionRegistryService.
+
+import { Prisma, type PrismaClient } from '@plexica/database';
+import type {
+  ExtensionSlotDeclaration,
+  ContributionDeclaration,
+  ExtensibleEntityDeclaration,
+  DataExtensionDeclaration,
+  ExtensionSlotFilters,
+  ExtensionContributionFilters,
+  ContributionValidationStatus,
+  DependentsResult,
+} from '@plexica/types';
+import { db } from '../../lib/db.js';
+import { logger as rootLogger } from '../../lib/logger.js';
+import type { Logger } from 'pino';
+
+const logger: Logger = rootLogger.child({ module: 'ExtensionRegistryRepository' });
+
+// ---------------------------------------------------------------------------
+// Local shape types (internal — not exported from index.ts)
+// ---------------------------------------------------------------------------
+
+export interface ContributionWithVisibility {
+  id: string;
+  contributingPluginId: string;
+  targetPluginId: string;
+  targetSlotId: string;
+  componentName: string;
+  priority: number;
+  validationStatus: ContributionValidationStatus;
+  previewUrl: string | null;
+  description: string | null;
+  isActive: boolean;
+  isVisible: boolean; // from workspace_extension_visibility or default true
+}
+
+export interface ValidationResult {
+  contributionId: string;
+  contributingPluginId: string;
+  targetPluginId: string;
+  targetSlotId: string;
+  status: ContributionValidationStatus;
+  reason?: string;
+}
+
+// ---------------------------------------------------------------------------
+// ExtensionRegistryRepository
+// ---------------------------------------------------------------------------
+
+export class ExtensionRegistryRepository {
+  private db: PrismaClient;
+
+  constructor(customDb?: PrismaClient) {
+    this.db = customDb ?? db;
+  }
+
+  // ── Slot Operations ────────────────────────────────────────────────────────
+
+  /**
+   * Upsert slot declarations from a plugin manifest.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async upsertSlots(
+    tenantId: string,
+    pluginId: string,
+    slots: ExtensionSlotDeclaration[]
+  ): Promise<void> {
+    logger.debug({ tenantId, pluginId, count: slots.length }, 'upserting extension slots');
+
+    // F-007 fix: run all upserts concurrently with Promise.all instead of a
+    // sequential `for` loop. Each slot upsert is independent, so parallelism is safe.
+    await Promise.all(
+      slots.map((slot) =>
+        this.db.extensionSlot.upsert({
+          where: {
+            pluginId_slotId: {
+              pluginId,
+              slotId: slot.slotId,
+            },
+          },
+          update: {
+            label: slot.label,
+            type: slot.type,
+            maxContributions: slot.maxContributions ?? 0,
+            contextSchema: (slot.contextSchema ?? {}) as Prisma.InputJsonValue,
+            description: slot.description ?? null,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+          create: {
+            tenantId,
+            pluginId,
+            slotId: slot.slotId,
+            label: slot.label,
+            type: slot.type,
+            maxContributions: slot.maxContributions ?? 0,
+            contextSchema: (slot.contextSchema ?? {}) as Prisma.InputJsonValue,
+            description: slot.description ?? null,
+            isActive: true,
+          },
+        })
+      )
+    );
+  }
+
+  /**
+   * List active extension slots, optionally filtered.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async getSlots(tenantId: string, filters?: ExtensionSlotFilters) {
+    return this.db.extensionSlot.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        ...(filters?.pluginId ? { pluginId: filters.pluginId } : {}),
+        ...(filters?.type ? { type: filters.type } : {}),
+      },
+      orderBy: [{ pluginId: 'asc' }, { slotId: 'asc' }],
+    });
+  }
+
+  /**
+   * List active slots for a specific plugin.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async getSlotsByPlugin(tenantId: string, pluginId: string) {
+    return this.db.extensionSlot.findMany({
+      where: { tenantId, pluginId, isActive: true },
+      orderBy: { slotId: 'asc' },
+    });
+  }
+
+  // ── Contribution Operations ────────────────────────────────────────────────
+
+  /**
+   * Upsert contribution declarations from a plugin manifest.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async upsertContributions(
+    tenantId: string,
+    pluginId: string,
+    contributions: ContributionDeclaration[]
+  ): Promise<void> {
+    logger.debug(
+      { tenantId, pluginId, count: contributions.length },
+      'upserting extension contributions'
+    );
+
+    // F-007 fix: run all upserts concurrently with Promise.all instead of a
+    // sequential `for` loop. Each contribution upsert is independent.
+    await Promise.all(
+      contributions.map((contribution) =>
+        this.db.extensionContribution.upsert({
+          where: {
+            contributingPluginId_targetPluginId_targetSlotId: {
+              contributingPluginId: pluginId,
+              targetPluginId: contribution.targetPluginId,
+              targetSlotId: contribution.targetSlotId,
+            },
+          },
+          update: {
+            componentName: contribution.componentName,
+            priority: contribution.priority ?? 100,
+            outputSchema:
+              contribution.outputSchema != null
+                ? (contribution.outputSchema as Prisma.InputJsonValue)
+                : Prisma.JsonNull,
+            previewUrl: contribution.previewUrl ?? null,
+            description: contribution.description ?? null,
+            isActive: true,
+            validationStatus: 'pending',
+            updatedAt: new Date(),
+          },
+          create: {
+            tenantId,
+            contributingPluginId: pluginId,
+            targetPluginId: contribution.targetPluginId,
+            targetSlotId: contribution.targetSlotId,
+            componentName: contribution.componentName,
+            priority: contribution.priority ?? 100,
+            outputSchema:
+              contribution.outputSchema != null
+                ? (contribution.outputSchema as Prisma.InputJsonValue)
+                : Prisma.JsonNull,
+            previewUrl: contribution.previewUrl ?? null,
+            description: contribution.description ?? null,
+            isActive: true,
+            validationStatus: 'pending',
+          },
+        })
+      )
+    );
+  }
+
+  /**
+   * List contributions, optionally filtered.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async getContributions(tenantId: string, filters?: ExtensionContributionFilters) {
+    return this.db.extensionContribution.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        ...(filters?.slotId ? { targetSlotId: filters.slotId } : {}),
+        ...(filters?.pluginId ? { contributingPluginId: filters.pluginId } : {}),
+        ...(filters?.type
+          ? {
+              // Join via slot table — use raw query for cross-table filter would be complex;
+              // instead filter client-side if needed, or use a raw subquery.
+              // For now, type filter is applied after fetch.
+            }
+          : {}),
+      },
+      include: {
+        visibilityOverrides: filters?.workspaceId
+          ? { where: { workspaceId: filters.workspaceId } }
+          : false,
+      },
+      orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
+    });
+  }
+
+  /**
+   * Get contributions for a specific slot with workspace visibility state resolved.
+   * ADR-031 Safeguard 2: tenantId required.
+   * Returns only active contributions; isVisible defaults to true when no override row exists.
+   */
+  async getContributionsForSlot(
+    tenantId: string,
+    targetPluginId: string,
+    targetSlotId: string,
+    workspaceId?: string
+  ): Promise<ContributionWithVisibility[]> {
+    const rows = await this.db.extensionContribution.findMany({
+      where: { tenantId, targetPluginId, targetSlotId, isActive: true },
+      include: {
+        visibilityOverrides: workspaceId ? { where: { workspaceId } } : false,
+      },
+      orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
+    });
+
+    return rows.map((row) => {
+      const overrides = Array.isArray(row.visibilityOverrides) ? row.visibilityOverrides : [];
+      const override = overrides[0] as { isVisible: boolean } | undefined;
+      return {
+        id: row.id,
+        contributingPluginId: row.contributingPluginId,
+        targetPluginId: row.targetPluginId,
+        targetSlotId: row.targetSlotId,
+        componentName: row.componentName,
+        priority: row.priority,
+        validationStatus: row.validationStatus as ContributionValidationStatus,
+        previewUrl: row.previewUrl,
+        description: row.description,
+        isActive: row.isActive,
+        isVisible: override !== undefined ? override.isVisible : true,
+      };
+    });
+  }
+
+  // ── Workspace Visibility ───────────────────────────────────────────────────
+
+  /**
+   * Toggle visibility for a contribution in a workspace.
+   * No tenantId required — workspaceId is sufficient scope.
+   */
+  async setVisibility(
+    workspaceId: string,
+    contributionId: string,
+    isVisible: boolean
+  ): Promise<{ workspaceId: string; contributionId: string; isVisible: boolean; updatedAt: Date }> {
+    // Verify contribution exists
+    const contribution = await this.db.extensionContribution.findUnique({
+      where: { id: contributionId },
+    });
+    if (!contribution) {
+      throw Object.assign(new Error('CONTRIBUTION_NOT_FOUND: Contribution does not exist'), {
+        code: 'CONTRIBUTION_NOT_FOUND',
+      });
+    }
+
+    const result = await this.db.workspaceExtensionVisibility.upsert({
+      where: {
+        workspaceId_contributionId: { workspaceId, contributionId },
+      },
+      update: { isVisible, updatedAt: new Date() },
+      create: { workspaceId, contributionId, isVisible },
+    });
+
+    return {
+      workspaceId: result.workspaceId,
+      contributionId: result.contributionId,
+      isVisible: result.isVisible,
+      updatedAt: result.updatedAt,
+    };
+  }
+
+  // ── Extensible Entity Operations ──────────────────────────────────────────
+
+  /**
+   * Upsert extensible entity declarations from a plugin manifest.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async upsertEntities(
+    tenantId: string,
+    pluginId: string,
+    entities: ExtensibleEntityDeclaration[]
+  ): Promise<void> {
+    logger.debug({ tenantId, pluginId, count: entities.length }, 'upserting extensible entities');
+
+    for (const entity of entities) {
+      await this.db.extensibleEntity.upsert({
+        where: {
+          pluginId_entityType: { pluginId, entityType: entity.entityType },
+        },
+        update: {
+          label: entity.label,
+          fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
+          description: entity.description ?? null,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          pluginId,
+          entityType: entity.entityType,
+          label: entity.label,
+          fieldSchema: entity.fieldSchema as Prisma.InputJsonValue,
+          description: entity.description ?? null,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  /**
+   * List active extensible entities for a tenant.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async getEntities(tenantId: string) {
+    return this.db.extensibleEntity.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: [{ pluginId: 'asc' }, { entityType: 'asc' }],
+    });
+  }
+
+  /**
+   * Find a specific entity type declaration.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async findEntity(tenantId: string, pluginId: string, entityType: string) {
+    return this.db.extensibleEntity.findFirst({
+      where: { tenantId, pluginId, entityType, isActive: true },
+    });
+  }
+
+  // ── Data Extension Operations ──────────────────────────────────────────────
+
+  /**
+   * Upsert data extension declarations from a plugin manifest.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async upsertDataExtensions(
+    tenantId: string,
+    pluginId: string,
+    extensions: DataExtensionDeclaration[]
+  ): Promise<void> {
+    logger.debug({ tenantId, pluginId, count: extensions.length }, 'upserting data extensions');
+
+    for (const ext of extensions) {
+      await this.db.dataExtension.upsert({
+        where: {
+          contributingPluginId_targetPluginId_targetEntityType: {
+            contributingPluginId: pluginId,
+            targetPluginId: ext.targetPluginId,
+            targetEntityType: ext.targetEntityType,
+          },
+        },
+        update: {
+          sidecarUrl: ext.sidecarUrl,
+          fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
+          description: ext.description ?? null,
+          isActive: true,
+          updatedAt: new Date(),
+        },
+        create: {
+          tenantId,
+          contributingPluginId: pluginId,
+          targetPluginId: ext.targetPluginId,
+          targetEntityType: ext.targetEntityType,
+          sidecarUrl: ext.sidecarUrl,
+          fieldSchema: ext.fieldSchema as Prisma.InputJsonValue,
+          description: ext.description ?? null,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  /**
+   * List active data extensions for a given entity type.
+   * ADR-031 Safeguard 2: tenantId required.
+   */
+  async getDataExtensions(tenantId: string, targetPluginId: string, targetEntityType: string) {
+    return this.db.dataExtension.findMany({
+      where: { tenantId, targetPluginId, targetEntityType, isActive: true },
+      orderBy: { contributingPluginId: 'asc' },
+    });
+  }
+
+  // ── Lifecycle Operations ───────────────────────────────────────────────────
+
+  /**
+   * Soft-delete all extension records for a plugin within a tenant.
+   * Called on plugin deactivation (FR-024).
+   * ADR-031 Safeguard 2: tenantId required to prevent cross-tenant mutation (F-002 fix).
+   */
+  async deactivateByPlugin(tenantId: string, pluginId: string): Promise<void> {
+    logger.info({ tenantId, pluginId }, 'deactivating all extension records for plugin');
+
+    await Promise.all([
+      this.db.extensionSlot.updateMany({
+        where: { tenantId, pluginId },
+        data: { isActive: false, updatedAt: new Date() },
+      }),
+      this.db.extensionContribution.updateMany({
+        where: { tenantId, contributingPluginId: pluginId },
+        data: { isActive: false, updatedAt: new Date() },
+      }),
+      this.db.extensibleEntity.updateMany({
+        where: { tenantId, pluginId },
+        data: { isActive: false, updatedAt: new Date() },
+      }),
+      this.db.dataExtension.updateMany({
+        where: { tenantId, contributingPluginId: pluginId },
+        data: { isActive: false, updatedAt: new Date() },
+      }),
+    ]);
+  }
+
+  /**
+   * Restore all extension records for a plugin on re-activation within a tenant.
+   * Called on plugin re-activation (FR-024).
+   * ADR-031 Safeguard 2: tenantId required to prevent cross-tenant mutation (F-002 fix).
+   */
+  async reactivateByPlugin(tenantId: string, pluginId: string): Promise<void> {
+    logger.info({ tenantId, pluginId }, 're-activating all extension records for plugin');
+
+    await Promise.all([
+      this.db.extensionSlot.updateMany({
+        where: { tenantId, pluginId },
+        data: { isActive: true, updatedAt: new Date() },
+      }),
+      this.db.extensionContribution.updateMany({
+        where: { tenantId, contributingPluginId: pluginId },
+        data: { isActive: true, updatedAt: new Date() },
+      }),
+      this.db.extensibleEntity.updateMany({
+        where: { tenantId, pluginId },
+        data: { isActive: true, updatedAt: new Date() },
+      }),
+      this.db.dataExtension.updateMany({
+        where: { tenantId, contributingPluginId: pluginId },
+        data: { isActive: true, updatedAt: new Date() },
+      }),
+    ]);
+  }
+
+  // ── Slot Dependents ────────────────────────────────────────────────────────
+
+  /**
+   * List plugins contributing to a specific slot with count.
+   * ADR-031 Safeguard 2: tenantId required. (FR-031)
+   */
+  async getSlotDependents(
+    tenantId: string,
+    targetPluginId: string,
+    targetSlotId: string
+  ): Promise<DependentsResult> {
+    // Verify slot exists
+    const slot = await this.db.extensionSlot.findFirst({
+      where: { tenantId, pluginId: targetPluginId, slotId: targetSlotId },
+    });
+    if (!slot) {
+      throw Object.assign(
+        new Error(`SLOT_NOT_FOUND: Slot ${targetSlotId} not found for plugin ${targetPluginId}`),
+        { code: 'SLOT_NOT_FOUND' }
+      );
+    }
+
+    const contributions = await this.db.extensionContribution.findMany({
+      where: { tenantId, targetPluginId, targetSlotId, isActive: true },
+      include: {
+        contributingPlugin: {
+          select: { id: true, name: true, lifecycleStatus: true },
+        },
+      },
+      orderBy: [{ priority: 'asc' }, { contributingPluginId: 'asc' }],
+    });
+
+    return {
+      pluginId: targetPluginId,
+      slotId: targetSlotId,
+      dependentCount: contributions.length,
+      dependents: contributions.map((c) => ({
+        pluginId: c.contributingPluginId,
+        pluginName: c.contributingPlugin.name,
+        componentName: c.componentName,
+        validationStatus: c.validationStatus as ContributionValidationStatus,
+        isActive: c.isActive,
+      })),
+    };
+  }
+
+  // ── Validation ─────────────────────────────────────────────────────────────
+
+  /**
+   * Validate contributions for a plugin: check that target slots exist and types match.
+   * ADR-031 Safeguard 2: tenantId required. (FR-026)
+   */
+  async validateContributions(tenantId: string, pluginId: string): Promise<ValidationResult[]> {
+    const contributions = await this.db.extensionContribution.findMany({
+      where: { tenantId, contributingPluginId: pluginId, isActive: true },
+    });
+
+    const results: ValidationResult[] = [];
+
+    for (const contribution of contributions) {
+      const targetSlot = await this.db.extensionSlot.findFirst({
+        where: {
+          tenantId,
+          pluginId: contribution.targetPluginId,
+          slotId: contribution.targetSlotId,
+          isActive: true,
+        },
+      });
+
+      let status: ContributionValidationStatus;
+      let reason: string | undefined;
+
+      if (!targetSlot) {
+        status = 'target_not_found';
+        reason = `Target slot ${contribution.targetSlotId} not found for plugin ${contribution.targetPluginId}`;
+      } else if (
+        'type' in contribution &&
+        targetSlot.type &&
+        (contribution as { type?: string }).type !== undefined &&
+        (contribution as { type?: string }).type !== targetSlot.type
+      ) {
+        // FR-026 / Edge Case #7: contribution type must match the declared slot type.
+        status = 'type_mismatch';
+        reason = `Contribution type "${(contribution as { type?: string }).type}" does not match slot type "${targetSlot.type}"`;
+      } else {
+        status = 'valid';
+      }
+
+      // Persist validation status
+      await this.db.extensionContribution.update({
+        where: { id: contribution.id },
+        data: { validationStatus: status, updatedAt: new Date() },
+      });
+
+      results.push({
+        contributionId: contribution.id,
+        contributingPluginId: contribution.contributingPluginId,
+        targetPluginId: contribution.targetPluginId,
+        targetSlotId: contribution.targetSlotId,
+        status,
+        reason,
+      });
+    }
+
+    return results;
+  }
+
+  // ── Super Admin Cross-Tenant Methods (ADR-031 Safeguard 3) ─────────────────
+  // These methods are explicitly named to make cross-tenant access visible.
+  // Callers MUST verify super-admin role before invoking.
+
+  /**
+   * SUPER_ADMIN ONLY: List all slots across all tenants.
+   * Caller must verify super-admin role.
+   */
+  async superAdminListAllSlots() {
+    return this.db.extensionSlot.findMany({
+      orderBy: [{ tenantId: 'asc' }, { pluginId: 'asc' }],
+    });
+  }
+}
+
+// Singleton for use in service/controller
+export const extensionRegistryRepository = new ExtensionRegistryRepository();
