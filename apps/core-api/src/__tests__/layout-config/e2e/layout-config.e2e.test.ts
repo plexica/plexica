@@ -4,7 +4,7 @@
 // Spec 014 Frontend Layout Engine — US-001, US-002, US-007, US-008, US-009, US-010.
 //
 // Journey 1: Admin → configure layout (hide field, reorder) → member resolves → sees change
-// Journey 2: Admin → revert layout → member resolves → sees manifest defaults
+// Journey 2: Admin → revert layout (FR-019 swap) → member resolves → sees previous version
 // Journey 4: Required field warning — admin saves config hiding a required field,
 //            layout still resolves (warning is advisory, not blocking on read)
 // Journey 5: Workspace override — workspace admin overrides tenant config → member
@@ -369,12 +369,26 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
   });
 
   // =========================================================================
-  // Journey 2: Admin reverts → end user sees manifest defaults
+  // Journey 2: Admin reverts → end user sees previous version (FR-019 swap)
   // =========================================================================
 
-  describe('Journey 2 — admin reverts layout, member sees manifest defaults', () => {
+  describe('Journey 2 — admin reverts layout, member sees previous version', () => {
     it('admin can revert layout config (POST /revert 200)', async () => {
-      // Ensure there is a config to revert
+      // Art. 8.2 §2: this test must be self-contained — two PUTs ensure previous_version
+      // is populated regardless of Journey 1 execution order.
+      //
+      // PUT #1: creates the row (previous_version = null)
+      await app.inject({
+        method: 'PUT',
+        url: `/api/v1/layout-configs/${FORM_ID}`,
+        headers: {
+          authorization: `Bearer ${adminToken}`,
+          'content-type': 'application/json',
+        },
+        payload: buildConfigBody({ hiddenFields: ['phone'] }),
+      });
+
+      // PUT #2: updates the row, stores PUT #1 as previous_version
       await app.inject({
         method: 'PUT',
         url: `/api/v1/layout-configs/${FORM_ID}`,
@@ -395,8 +409,10 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
     });
 
     it('after revert, resolved layout no longer shows the hidden field', async () => {
-      // After revert the config is removed; resolution falls back to manifest defaults.
-      // Manifest defaults set all fields visible — the previously-hidden 'email' is restored.
+      // Per FR-019, revert is a swap: current ↔ previous_version. The config row
+      // still exists in the DB with the previous version now current. The 'email'
+      // field was hidden in the version just before the revert; after the swap it
+      // is restored to the earlier visible state.
       const resolveResp = await app.inject({
         method: 'GET',
         url: `/api/v1/layout-configs/${FORM_ID}/resolved`,
@@ -404,9 +420,18 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
       });
       expect(resolveResp.statusCode).toBe(200);
 
-      // Resolved layout should still work (fail-open — even with no DB config)
-      const resolved = resolveResp.json() as { formId: string };
+      // Resolved layout should reflect the reverted config (previous version now current)
+      const resolved = resolveResp.json<{
+        formId: string;
+        fields: Array<{ fieldId: string; visibility: string }>;
+      }>();
       expect(resolved.formId).toBe(FORM_ID);
+
+      // 'email' was hidden in the version we just reverted from — it should be visible again
+      const emailField = resolved.fields?.find((f) => f.fieldId === 'email');
+      if (emailField) {
+        expect(emailField.visibility).not.toBe('hidden');
+      }
     });
 
     it('after revert, GET :formId returns 200 (config reverted to previous version)', async () => {
@@ -418,8 +443,17 @@ describe('Layout Config E2E — admin configures, end user sees changes', () => 
         headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(resp.statusCode).toBe(200);
-      const config = resp.json() as { formId: string };
+      const config = resp.json<{
+        formId: string;
+        fields: Array<{ fieldId: string; globalVisibility: string }>;
+      }>();
       expect(config.formId).toBe(FORM_ID);
+
+      // 'email' was hidden in the version we reverted from — after swap it should be visible
+      const emailField = config.fields?.find((f) => f.fieldId === 'email');
+      if (emailField) {
+        expect(emailField.globalVisibility).not.toBe('hidden');
+      }
     });
   });
 
