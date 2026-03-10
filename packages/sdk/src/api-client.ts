@@ -36,12 +36,12 @@ export class ApiClient {
   private readonly defaultHeaders: Record<string, string>;
 
   constructor(config: ApiClientConfig) {
-    // Strip trailing slash from baseUrl.
-    // codeql[js/polynomial-redos] False positive: /\/+$/ is O(n) — single
-    // character class with + quantifier, no alternation or nesting possible.
-    // Confirmed linear-time. Benchmark: apps/core-api/src/__tests__/unit/redos-benchmark.test.ts
-    // See Spec 015 FR-029.
-    this.baseUrl = config.baseUrl.replace(/\/+$/, ''); // codeql[js/polynomial-redos]
+    // Strip trailing slashes from baseUrl without a regex to avoid CodeQL
+    // js/polynomial-redos false positives (Spec 015 FR-029). The while loop is
+    // unconditionally O(n) — no backtracking possible.
+    let strippedUrl = config.baseUrl;
+    while (strippedUrl.endsWith('/')) strippedUrl = strippedUrl.slice(0, -1);
+    this.baseUrl = strippedUrl;
     this.context = config.context;
     this.defaultTimeout = config.defaultTimeout ?? 30_000;
     this.defaultHeaders = config.defaultHeaders ?? {};

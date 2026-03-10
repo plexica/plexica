@@ -7,7 +7,10 @@ import * as React from 'react';
 import type { ImgHTMLAttributes } from 'react';
 import { validateImageUrl } from '../../utils/validate-image-url.js';
 
-export interface SafeImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+export interface SafeImageProps extends Omit<
+  ImgHTMLAttributes<HTMLImageElement>,
+  'src' | 'dangerouslySetInnerHTML'
+> {
   /** The image source URL. Will be validated before use. */
   src: string;
   /**
@@ -20,8 +23,12 @@ export interface SafeImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>
 
 /**
  * A secure replacement for `<img>` that validates the `src` URL scheme
- * before rendering. Rejects `javascript:`, `data:text/html`, and
- * `data:application/` URIs. Allows `https://`, `http://`, and `data:image/`.
+ * before rendering. Rejects `javascript:`, `vbscript:`, all `data:image/svg`
+ * URIs, and any non-allowlisted scheme. Allows `https://`, `http://`, and
+ * specific `data:image/` base64 formats (png, jpeg, gif, webp, avif, bmp).
+ *
+ * `dangerouslySetInnerHTML` is excluded from props at the TypeScript level
+ * (via `Omit`) so callers cannot accidentally pass it through to the <img>.
  *
  * @example
  * // Renders the image normally
@@ -43,10 +50,5 @@ export function SafeImage({ src, fallback = null, ...props }: SafeImageProps) {
   if (!safeSrc) {
     return <>{fallback}</>;
   }
-  // Destructure dangerouslySetInnerHTML out of props so it cannot be passed
-  // through the spread to the <img> element (CodeQL js/xss-through-dom guard).
-  const { dangerouslySetInnerHTML: _ignored, ...safeProps } = props as typeof props & {
-    dangerouslySetInnerHTML?: unknown;
-  };
-  return <img src={safeSrc} {...safeProps} />;
+  return <img src={safeSrc} {...props} />;
 }

@@ -58,6 +58,19 @@ export function ThemePreview({
   const scopeId = useStableId();
   const [logoError, setLogoError] = React.useState(false);
 
+  // Inject scoped custom CSS via textContent — NOT dangerouslySetInnerHTML.
+  // textContent on a <style> element is interpreted as CSS (not HTML) by the
+  // browser, so HTML injection is architecturally impossible. sanitizeCss()
+  // strips CSS-level vectors (expression(), url(javascript:), @import).
+  // This eliminates the CodeQL js/xss-through-dom alert (FR-023).
+  const styleRef = React.useRef<HTMLStyleElement>(null);
+  const scopedCss = customCss ? `#${scopeId} { ${customCss} }` : '';
+  React.useEffect(() => {
+    if (styleRef.current) {
+      styleRef.current.textContent = scopedCss ? sanitizeCss(scopedCss) : '';
+    }
+  }, [scopedCss]);
+
   // Reset logo error when URL changes
   React.useEffect(() => {
     setLogoError(false);
@@ -73,9 +86,6 @@ export function ThemePreview({
     '--tp-font': fontFamily,
   } as React.CSSProperties;
 
-  // Scoped custom CSS injection (sanitized via DOMPurify — FR-023)
-  const scopedCss = customCss ? `#${scopeId} { ${customCss} }` : '';
-
   return (
     <div
       id={scopeId}
@@ -88,11 +98,11 @@ export function ThemePreview({
         className
       )}
     >
-      {/* Scoped style injection — sanitized via DOMPurify (FR-023) */}
-      {/* codeql[js/xss-through-dom] Content passes through sanitizeCss() which
-          applies DOMPurify + explicit strip passes before injection. See
-          packages/ui/src/utils/sanitize-css.ts and Spec 015 FR-023. */}
-      {scopedCss && <style dangerouslySetInnerHTML={{ __html: sanitizeCss(scopedCss) }} />}
+      {/* Scoped style injection via textContent ref (FR-023).
+          textContent on a <style> element is interpreted as CSS — not HTML —
+          so HTML injection is architecturally impossible regardless of content.
+          sanitizeCss() additionally strips CSS-level vectors. */}
+      {scopedCss && <style ref={styleRef} />}
 
       {/* Header */}
       <div
@@ -102,9 +112,6 @@ export function ThemePreview({
         {/* Logo — URL validated before rendering (FR-024) */}
         {safeLogo && !logoError ? (
           <img
-            // codeql[js/xss-through-dom] src derives from validateImageUrl() which
-            // rejects javascript:, vbscript:, data:text/html, data:application/
-            // and allowlists only https://, http://, data:image/. See FR-024.
             src={safeLogo}
             alt="Logo"
             onError={() => setLogoError(true)}
