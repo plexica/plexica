@@ -45,10 +45,8 @@ export function SafeImage({ src, fallback = null, ...props }: SafeImageProps) {
   }
   // Destructure dangerouslySetInnerHTML out of props so it cannot be passed
   // through the spread to the <img> element (CodeQL js/xss-through-dom guard).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { dangerouslySetInnerHTML: _ignored, ...safeProps } = props as typeof props & {
     dangerouslySetInnerHTML?: unknown;
   };
-  // eslint-disable-next-line jsx-a11y/alt-text
   return <img src={safeSrc} {...safeProps} />;
 }
