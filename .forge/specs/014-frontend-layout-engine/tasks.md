@@ -42,7 +42,7 @@
 
 **Objective**: Establish the data layer and shared types that all other phases depend on.
 
-- [ ] **T014-01** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[M]` Create shared TypeScript types for layout config
+- [x] **T014-01** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[M]` Create shared TypeScript types for layout config
   - **File**: `packages/types/src/layout-config.ts`, `packages/sdk/src/types/form-schema.ts`
   - **Type**: Create new files
   - **Description**: Define all shared types: `RoleKey` (7 roles per ADR-024), `FieldOverride`, `SectionOverride`, `ColumnOverride`, `LayoutConfig`, `LayoutConfigSnapshot`, `ResolvedLayout`, `FormSchema`, `ManifestField`, `ManifestSection`, `ManifestColumn`. Export from package index.
@@ -54,7 +54,7 @@
     - Types importable from `@plexica/types`
     - `RoleKey` includes all 7 roles per ADR-024
 
-- [ ] **T014-02** `[FR-001]` `[P]` `[S]` Extend plugin manifest type with `formSchemas`
+- [x] **T014-02** `[FR-001]` `[P]` `[S]` Extend plugin manifest type with `formSchemas`
   - **File**: `packages/sdk/src/types/manifest.ts`
   - **Type**: Modify existing
   - **Location**: Plugin manifest interface — add optional property
@@ -67,7 +67,7 @@
     - `formSchemas` is optional (no breaking change)
     - Type matches plan §3.5 JSON structure
 
-- [ ] **T014-03** `[FR-002]` `[NFR-005]` `[NFR-009]` `[P]` `[L]` Create Prisma migration for `layout_configs` table
+- [x] **T014-03** `[FR-002]` `[NFR-005]` `[NFR-009]` `[P]` `[L]` Create Prisma migration for `layout_configs` table
   - **File**: `packages/database/prisma/migrations/YYYYMMDD_layout_configs/migration.sql`, `packages/database/prisma/schema.prisma`
   - **Type**: Create migration file + modify schema
   - **Description**: Create `layout_configs` table in the tenant schema template with all columns from plan §3.1. Add four indexes: `uq_layout_tenant` (partial unique), `uq_layout_workspace` (partial unique), `idx_layout_configs_plugin` (B-tree), `idx_layout_configs_scope_workspace` (partial B-tree). Migration must be additive-only and applied to all existing tenant schemas.
@@ -80,7 +80,7 @@
     - Soft-deleted rows don't conflict with active configs
     - `pnpm db:migrate` succeeds
 
-- [ ] **T014-04** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[NFR-005]` `[P]` `[M]` Create Zod validation schemas for layout config
+- [x] **T014-04** `[FR-003]` `[FR-004]` `[FR-005]` `[FR-006]` `[NFR-005]` `[P]` `[M]` Create Zod validation schemas for layout config
   - **File**: `apps/core-api/src/schemas/layout-config.schema.ts`
   - **Type**: Create new file
   - **Description**: Define Zod schemas: `fieldOverrideSchema`, `sectionOverrideSchema`, `columnOverrideSchema`, `saveLayoutConfigSchema` (PUT body with `acknowledgeWarnings` boolean), `formSchemaManifestSchema`, `roleKeySchema`. Include 256 KB JSONB size limit validation.
@@ -102,7 +102,7 @@
 
 **Objective**: Implement the core layout config service with CRUD, validation, caching, and resolution logic.
 
-- [ ] **T014-05** `[FR-002]` `[FR-015]` `[FR-016]` `[FR-018]` `[FR-019]` `[FR-022]` `[FR-023]` `[L]` Implement LayoutConfigService CRUD operations
+- [x] **T014-05** `[FR-002]` `[FR-015]` `[FR-016]` `[FR-018]` `[FR-019]` `[FR-022]` `[FR-023]` `[L]` Implement LayoutConfigService CRUD operations
   - **File**: `apps/core-api/src/services/layout-config.service.ts`
   - **Type**: Create new file
   - **Description**: Implement `getConfig()`, `saveConfig()`, `revertConfig()`, `deleteConfig()`, `listConfigurableForms()`, `softDeleteByPlugin()`, `restoreByPlugin()`, `invalidateCache()`. `saveConfig()` must store current config as `previous_version` before overwrite (FR-018), support optimistic concurrency via `updated_at` ETag, and call audit log service (FR-022). `revertConfig()` swaps current and `previous_version` (FR-019).
@@ -116,7 +116,7 @@
     - Audit log entries created for save, revert, delete
     - `NO_PREVIOUS_VERSION` error when reverting without previous version
 
-- [ ] **T014-06** `[FR-010]` `[FR-011]` `[FR-020]` `[NFR-012]` `[M]` Implement LayoutConfigValidationService
+- [x] **T014-06** `[FR-010]` `[FR-011]` `[FR-020]` `[NFR-012]` `[M]` Implement LayoutConfigValidationService
   - **File**: `apps/core-api/src/services/layout-config-validation.service.ts`
   - **Type**: Create new file
   - **Description**: Implement `validateAgainstManifest()` (verify all field/section/column IDs exist in plugin manifest), `detectRequiredFieldWarnings()` (identify required fields hidden with no default — FR-011), `detectStaleReferences()` (Edge Case #1), `validateSize()` (256 KB limit).
@@ -130,7 +130,7 @@
     - Stale references detected (warning only, not rejection)
     - Configs > 256 KB rejected with `LAYOUT_CONFIG_TOO_LARGE`
 
-- [ ] **T014-07** `[FR-007]` `[FR-008]` `[FR-009]` `[FR-025]` `[FR-026]` `[NFR-001]` `[NFR-008]` `[XL]` Implement layout config resolution engine
+- [x] **T014-07** `[FR-007]` `[FR-008]` `[FR-009]` `[FR-025]` `[FR-026]` `[NFR-001]` `[NFR-008]` `[XL]` Implement layout config resolution engine
   - **File**: `apps/core-api/src/services/layout-config.service.ts` (add `resolveForUser` method)
   - **Type**: Modify existing
   - **Location**: `LayoutConfigService` class — new method `resolveForUser()`
@@ -146,7 +146,7 @@
     - Resolution completes in < 50ms P95 (NFR-001)
     - Fail-open returns manifest defaults on any error
 
-- [ ] **T014-08** `[NFR-011]` `[NFR-008]` `[P]` `[M]` Implement Redis caching layer for layout configs
+- [x] **T014-08** `[NFR-011]` `[NFR-008]` `[P]` `[M]` Implement Redis caching layer for layout configs
   - **File**: `apps/core-api/src/services/layout-config.service.ts` (add caching to existing methods)
   - **Type**: Modify existing
   - **Location**: `LayoutConfigService` — cache integration in `resolveForUser()`, `saveConfig()`, `revertConfig()`, `deleteConfig()`
@@ -160,7 +160,7 @@
     - Redis unavailability does not break resolution (fail-open)
     - Cache key uses correct `layout:{tenantId}:{formId}:{scope}` format
 
-- [ ] **T014-09** `[FR-024]` `[P]` `[S]` Implement plugin uninstall hook for layout config cleanup
+- [x] **T014-09** `[FR-024]` `[P]` `[S]` Implement plugin uninstall hook for layout config cleanup
   - **File**: `apps/core-api/src/services/plugin.service.ts`, `apps/core-api/src/services/layout-config.service.ts`
   - **Type**: Modify existing
   - **Location**: `PluginService` — uninstall and reinstall lifecycle methods
@@ -182,7 +182,7 @@
 
 **Objective**: Expose all 10 REST endpoints with auth, validation, caching, and error handling.
 
-- [ ] **T014-10** `[FR-015]` `[FR-016]` `[FR-019]` `[FR-023]` `[NFR-007]` `[L]` Implement tenant-scope layout config routes
+- [x] **T014-10** `[FR-015]` `[FR-016]` `[FR-019]` `[FR-023]` `[NFR-007]` `[L]` Implement tenant-scope layout config routes
   - **File**: `apps/core-api/src/routes/layout-config.ts`
   - **Type**: Create new file
   - **Description**: Implement 6 tenant-scope routes: `GET /api/v1/layout-configs/forms`, `GET /api/v1/layout-configs/:formId`, `PUT /api/v1/layout-configs/:formId`, `POST /api/v1/layout-configs/:formId/revert`, `DELETE /api/v1/layout-configs/:formId`, `GET /api/v1/layout-configs/:formId/resolved`. Apply `TENANT_ADMIN` auth guard on admin routes. Apply Bearer auth on read routes. Wire Zod validation. Return standard error format (Art. 6.2). Set `Cache-Control: private, no-store` on resolved endpoint. Handle ETag/If-Match for concurrent edit detection.
@@ -196,7 +196,7 @@
     - Error responses follow `{ error: { code, message, details } }` format
     - ETag/If-Match conflict handling works
 
-- [ ] **T014-11** `[FR-009]` `[FR-015]` `[FR-016]` `[NFR-007]` `[M]` Implement workspace-scope layout config routes
+- [x] **T014-11** `[FR-009]` `[FR-015]` `[FR-016]` `[NFR-007]` `[M]` Implement workspace-scope layout config routes
   - **File**: `apps/core-api/src/routes/layout-config.ts` (add workspace routes)
   - **Type**: Modify existing
   - **Location**: After tenant-scope route registrations
@@ -210,7 +210,7 @@
     - `403 INSUFFICIENT_WORKSPACE_ROLE` returned for unauthorized access
     - Workspace routes share service layer with tenant routes (DRY)
 
-- [ ] **T014-12** `[FR-021]` `[NFR-006]` `[M]` Implement read-only field enforcement middleware
+- [x] **T014-12** `[FR-021]` `[NFR-006]` `[M]` Implement read-only field enforcement middleware
   - **File**: `apps/core-api/src/middleware/layout-readonly-guard.ts`, `apps/core-api/src/middleware/auth.ts`
   - **Type**: Create new file + modify existing
   - **Description**: Create middleware that, on plugin form submission endpoints, resolves the layout for the current user and strips values of fields marked `readonly` for their effective role before the handler runs. Modify auth middleware to expose effective team roles in Fastify request context as `request.effectiveRoles`. Middleware is opt-in (registered on plugin form submission routes).
@@ -224,7 +224,7 @@
     - Effective team roles available in `request.effectiveRoles`
     - 100% server-side enforcement (NFR-006)
 
-- [ ] **T014-13** `[FR-001]` `[NFR-004]` `[P]` `[S]` Implement formSchemas validation on plugin register
+- [x] **T014-13** `[FR-001]` `[NFR-004]` `[P]` `[S]` Implement formSchemas validation on plugin register
   - **File**: `apps/core-api/src/routes/plugin.ts`
   - **Type**: Modify existing
   - **Location**: Plugin registration and update request handling
@@ -246,7 +246,7 @@
 
 **Objective**: Implement the end-user facing components that consume resolved layouts.
 
-- [ ] **T014-14** `[FR-017]` `[NFR-002]` `[NFR-008]` `[M]` Implement `useResolvedLayout` React Query hook
+- [x] **T014-14** `[FR-017]` `[NFR-002]` `[NFR-008]` `[M]` Implement `useResolvedLayout` React Query hook
   - **File**: `apps/web/src/hooks/useResolvedLayout.ts`
   - **Type**: Create new file
   - **Description**: Create React Query hook calling `GET /api/v1/layout-configs/:formId/resolved?workspaceId=...`. Configure `staleTime: 60_000` (FR-017). Return `{ data: ResolvedLayout | null, isLoading, isError }`. On error, return `null` silently (fail-open per NFR-008) — consuming components fall back to manifest defaults.
@@ -260,7 +260,7 @@
     - Loading state returns `isLoading: true`
     - Workspace ID passed as query param when provided
 
-- [ ] **T014-15** `[FR-025]` `[FR-007]` `[FR-008]` `[FR-010]` `[NFR-008]` `[NFR-010]` `[XL]` Implement `<LayoutAwareForm>` component
+- [x] **T014-15** `[FR-025]` `[FR-007]` `[FR-008]` `[FR-010]` `[NFR-008]` `[NFR-010]` `[XL]` Implement `<LayoutAwareForm>` component
   - **File**: `apps/web/src/components/layout-engine/LayoutAwareForm.tsx`
   - **Type**: Create new file
   - **Description**: Create wrapper component that: (1) fetches resolved layout via `useResolvedLayout`, (2) reorders fields per config, (3) removes hidden fields from DOM, (4) applies read-only treatment (disabled + visual styling + tooltip), (5) auto-injects default values for hidden required fields (FR-010), (6) shows skeleton during loading, (7) shows empty state when all fields hidden (Edge Case #3), (8) falls back to manifest defaults on error (NFR-008). Supports render prop pattern for flexible composition. Sections rendered in configured order with collapsible headers.
@@ -276,7 +276,7 @@
     - Manifest defaults used on error (fail-open)
     - WCAG 2.1 AA: tab order follows field order, ARIA attributes correct
 
-- [ ] **T014-16** `[FR-026]` `[FR-005]` `[FR-008]` `[NFR-008]` `[P]` `[M]` Implement `<LayoutAwareTable>` component
+- [x] **T014-16** `[FR-026]` `[FR-005]` `[FR-008]` `[NFR-008]` `[P]` `[M]` Implement `<LayoutAwareTable>` component
   - **File**: `apps/web/src/components/layout-engine/LayoutAwareTable.tsx`
   - **Type**: Create new file
   - **Description**: Create wrapper component that: (1) fetches resolved layout via `useResolvedLayout`, (2) filters column definitions based on visibility, (3) reorders columns per config, (4) passes filtered columns + data to existing `DataTable` from `@plexica/ui`, (5) shows skeleton during loading, (6) shows empty state when all columns hidden, (7) falls back to all columns on error (fail-open).
@@ -290,7 +290,7 @@
     - Skeleton table during loading; empty state when all columns hidden for role
     - All columns shown on error (fail-open)
 
-- [ ] **T014-17** `[FR-003]` `[FR-005]` `[NFR-010]` `[P]` `[S]` Implement `VisibilityToggle` component
+- [x] **T014-17** `[FR-003]` `[FR-005]` `[NFR-010]` `[P]` `[S]` Implement `VisibilityToggle` component
   - **File**: `apps/web/src/components/layout-engine/VisibilityToggle.tsx`
   - **Type**: Create new file
   - **Description**: Create cycling icon button with two modes: field mode (3 states: editable → read-only → hidden) and column mode (2 states: visible → hidden). Visual states: ✓ₑ green, ✓ᵣ blue, ✗ red. ARIA label updates on each cycle. Focus ring visible on keyboard focus. 44×44px minimum touch target. Keyboard: Enter/Space to cycle.
@@ -312,7 +312,7 @@
 
 **Objective**: Implement the admin configuration interface.
 
-- [ ] **T014-18** `[FR-012]` `[FR-014]` `[FR-015]` `[FR-023]` `[L]` Implement `LayoutConfigPanel` orchestrator
+- [x] **T014-18** `[FR-012]` `[FR-014]` `[FR-015]` `[FR-023]` `[L]` Implement `LayoutConfigPanel` orchestrator
   - **File**: `apps/web/src/components/layout-engine/LayoutConfigPanel.tsx`
   - **Type**: Create new file
   - **Description**: Create the admin panel page component orchestrating all sub-components. Manages state: form selection (populated from `GET /forms`), scope switching (tenant ↔ workspace), unsaved changes tracking, save flow (required field warning dialog, conflict dialog). Includes loading skeleton, empty state when no forms available, and `beforeunload` warning for unsaved changes.
@@ -327,7 +327,7 @@
     - Save flow handles 200, 400 (required field warning), 409 (conflict)
     - Loading skeleton + empty state when no configurable forms
 
-- [ ] **T014-19** `[FR-003]` `[FR-012]` `[FR-013]` `[NFR-010]` `[NFR-012]` `[L]` Implement `FieldConfigTable` grid component
+- [x] **T014-19** `[FR-003]` `[FR-012]` `[FR-013]` `[NFR-010]` `[NFR-012]` `[L]` Implement `FieldConfigTable` grid component
   - **File**: `apps/web/src/components/layout-engine/FieldConfigTable.tsx`
   - **Type**: Create new file
   - **Description**: Create WAI-ARIA grid table with columns: Field Name (shows ⚠ for required, ! for stale), Order ([▲][▼] icon buttons — boundary arrows disabled), role-specific visibility columns (using `VisibilityToggle`), Global (using `<Select>`). ARIA: `role="grid"`, `role="row"`, `role="rowheader"`. Screen reader announces position changes.
@@ -341,7 +341,7 @@
     - Global select updates `globalVisibility`
     - WAI-ARIA grid pattern; keyboard navigation via Tab and Enter/Space
 
-- [ ] **T014-20** `[FR-005]` `[FR-012]` `[P]` `[M]` Implement `ColumnConfigTable` grid component
+- [x] **T014-20** `[FR-005]` `[FR-012]` `[P]` `[M]` Implement `ColumnConfigTable` grid component
   - **File**: `apps/web/src/components/layout-engine/ColumnConfigTable.tsx`
   - **Type**: Create new file
   - **Description**: Similar to `FieldConfigTable` but for columns. No ordering controls. No read-only state (columns are only visible/hidden). Uses bi-state `VisibilityToggle`. ARIA grid pattern.
@@ -354,7 +354,7 @@
     - Global column visibility select works
     - ARIA grid pattern implemented
 
-- [ ] **T014-21** `[FR-004]` `[FR-012]` `[P]` `[S]` Implement `SectionOrderList` component
+- [x] **T014-21** `[FR-004]` `[FR-012]` `[P]` `[S]` Implement `SectionOrderList` component
   - **File**: `apps/web/src/components/layout-engine/SectionOrderList.tsx`
   - **Type**: Create new file
   - **Description**: Reorderable list of sections with [▲][▼] arrow controls. Simpler than field reordering (no visibility toggles). Screen reader announces position changes on each move.
@@ -366,7 +366,7 @@
     - Up/down arrows reorder sections; boundary arrows disabled
     - Screen reader announces position changes
 
-- [ ] **T014-22** `[FR-014]` `[M]` Implement `RolePreviewPanel` component
+- [x] **T014-22** `[FR-014]` `[M]` Implement `RolePreviewPanel` component
   - **File**: `apps/web/src/components/layout-engine/RolePreviewPanel.tsx`
   - **Type**: Create new file
   - **Description**: Read-only form preview for a selected role. Computes visible fields client-side from current (possibly unsaved) config state — no API call. Renders preview with placeholder data. Read-only fields shown with greyed background. Hidden fields omitted with annotation at bottom. `aria-live="polite"` on role change. All inputs `tabindex="-1"`. Updates reactively as config changes (live preview).
@@ -379,7 +379,7 @@
     - Read-only fields visually greyed; hidden fields annotated at bottom
     - `aria-live` announces role change; preview non-interactive (tabindex="-1")
 
-- [ ] **T014-23** `[FR-011]` `[M]` Implement `RequiredFieldWarningDialog` and settings route
+- [x] **T014-23** `[FR-011]` `[M]` Implement `RequiredFieldWarningDialog` and settings route
   - **File**: `apps/web/src/components/layout-engine/RequiredFieldWarningDialog.tsx`, `apps/web/src/routes/settings/layout-configuration.tsx`, `apps/web/src/routes/settings/index.tsx`
   - **Type**: Create new files + modify existing
   - **Description**: Create modal dialog shown when save returns `400 REQUIRED_FIELD_NO_DEFAULT`. Lists affected fields. [Cancel] reverts toggles and closes. [Proceed Anyway] resends PUT with `acknowledgeWarnings: true`. Focus trap, Esc = Cancel, initial focus on [Cancel]. Also create the TanStack Router route for the admin panel and add "Layout Configuration" entry to the settings sidebar navigation.
@@ -401,7 +401,7 @@
 
 **Objective**: Unit test coverage for service layer and validation logic.
 
-- [ ] **T014-24** `[FR-007]` `[FR-008]` `[FR-009]` `[NFR-001]` `[NFR-008]` `[P]` `[L]` Unit tests — LayoutConfigService resolution engine
+- [x] **T014-24** `[FR-007]` `[FR-008]` `[FR-009]` `[NFR-001]` `[NFR-008]` `[P]` `[L]` Unit tests — LayoutConfigService resolution engine
   - **File**: `apps/core-api/src/__tests__/layout-config/unit/layout-config.service.test.ts`
   - **Type**: Create new file
   - **Description**: Unit tests for `resolveForUser()` covering: workspace override > tenant config > manifest defaults, most permissive wins across team memberships, role-specific > globalVisibility fallback, Keycloak-only users (Edge Case #2), all fields hidden, stale fields silently skipped, new fields appended, fail-open on error. Target: 100% branch coverage on resolution logic. ≥ 20 test cases.
@@ -415,7 +415,7 @@
     - NFR-008 (fail-open) tested with simulated errors
     - All tests pass in < 100ms each
 
-- [ ] **T014-25** `[FR-010]` `[FR-011]` `[FR-020]` `[NFR-004]` `[NFR-012]` `[P]` `[M]` Unit tests — LayoutConfigValidationService
+- [x] **T014-25** `[FR-010]` `[FR-011]` `[FR-020]` `[NFR-004]` `[NFR-012]` `[P]` `[M]` Unit tests — LayoutConfigValidationService
   - **File**: `apps/core-api/src/__tests__/layout-config/unit/layout-config-validation.service.test.ts`
   - **Type**: Create new file
   - **Description**: Unit tests for manifest validation: invalid field references, required field warnings, stale references, size limits. Test with manifests containing 200 fields to verify NFR-004 performance (< 10ms processing).
@@ -437,7 +437,7 @@
 
 **Objective**: Integration and E2E test coverage for API, middleware, frontend, and full user flows.
 
-- [ ] **T014-26** `[NFR-005]` `[NFR-007]` `[L]` Integration tests — layout config API endpoints
+- [x] **T014-26** `[NFR-005]` `[NFR-007]` `[L]` Integration tests — layout config API endpoints
   - **File**: `apps/core-api/src/__tests__/layout-config/integration/layout-config.routes.test.ts`
   - **Type**: Create new file
   - **Description**: Integration tests for all 10 API endpoints with real database. Test RBAC enforcement (TENANT_ADMIN, workspace ADMIN+). Test tenant isolation (tenant A cannot access tenant B's configs — NFR-005). Test optimistic concurrency (409 on ETag mismatch). Test Redis cache invalidation on write. Test `formSchemas` validation on plugin register.
@@ -452,7 +452,7 @@
     - Redis cache invalidated on write operations
     - Standard error format verified (Art. 6.2)
 
-- [ ] **T014-27** `[FR-021]` `[NFR-006]` `[P]` `[M]` Integration tests — read-only field enforcement
+- [x] **T014-27** `[FR-021]` `[NFR-006]` `[P]` `[M]` Integration tests — read-only field enforcement
   - **File**: `apps/core-api/src/__tests__/layout-config/integration/readonly-guard.test.ts`
   - **Type**: Create new file
   - **Description**: Integration tests verifying server-side read-only enforcement: (1) read-only field value stripped from form submission, (2) existing value preserved after strip, (3) non-readonly fields pass through, (4) middleware works with both tenant and workspace configs.
@@ -465,7 +465,7 @@
     - Non-readonly fields pass through unchanged
     - 100% server-side enforcement verified
 
-- [ ] **T014-28** `[FR-025]` `[FR-026]` `[NFR-008]` `[NFR-010]` `[P]` `[L]` Unit tests — frontend components
+- [x] **T014-28** `[FR-025]` `[FR-026]` `[NFR-008]` `[NFR-010]` `[P]` `[L]` Unit tests — frontend components
   - **File**: `apps/web/src/__tests__/layout-engine/` (multiple test files)
   - **Type**: Create new files
   - **Description**: React Testing Library unit tests for: `<LayoutAwareForm>` (field ordering, hidden fields, read-only treatment, empty state, skeleton, fail-open), `<LayoutAwareTable>` (column filtering, empty state, fail-open), `VisibilityToggle` (cycling, ARIA labels, keyboard), `useResolvedLayout` (cache behavior, error handling, staleTime). Target ≥ 80% coverage per component.
@@ -478,7 +478,7 @@
     - Fail-open behavior verified for each component
     - ≥ 80% coverage for all frontend components
 
-- [ ] **T014-29** `[US-001]` `[US-002]` `[US-007]` `[US-008]` `[US-009]` `[US-010]` `[L]` E2E test — admin configures layout, end user sees changes
+- [x] **T014-29** `[US-001]` `[US-002]` `[US-007]` `[US-008]` `[US-009]` `[US-010]` `[L]` E2E test — admin configures layout, end user sees changes
   - **File**: `apps/core-api/src/__tests__/layout-config/e2e/layout-config.e2e.test.ts`
   - **Type**: Create new file
   - **Description**: Full E2E test covering Journey 1 + Journey 2: (1) Admin navigates to Layout Config panel, (2) selects a form, (3) reorders a field, (4) hides a field for VIEWER role, (5) previews as VIEWER in preview panel, (6) saves config, (7) end user (VIEWER) opens form and sees configured layout, (8) admin reverts, (9) end user sees previous layout. Also tests Journey 4: required field warning flow with acknowledge.
@@ -501,7 +501,7 @@
 
 **Objective**: Update documentation and enable feature flag for zero-downtime rollout.
 
-- [ ] **T014-30** `[FR-001]` `[P]` `[S]` Update plugin development documentation
+- [x] **T014-30** `[FR-001]` `[P]` `[S]` Update plugin development documentation
   - **File**: `docs/PLUGIN_DEVELOPMENT.md`, `packages/sdk/README.md`
   - **Type**: Modify existing
   - **Description**: Document the `formSchemas` manifest extension: structure, field types, sections, columns. Provide working TypeScript examples. Document how layout configs interact with plugin forms. Update SDK README with `formSchemas` types and usage examples.
@@ -513,7 +513,7 @@
     - Field types enumerated; section and column patterns documented
     - SDK README updated with TypeScript types and usage
 
-- [ ] **T014-31** `[FR-021]` `[NFR-006]` `[P]` `[S]` Update security documentation
+- [x] **T014-31** `[FR-021]` `[NFR-006]` `[P]` `[S]` Update security documentation
   - **File**: `docs/SECURITY.md`
   - **Type**: Modify existing
   - **Location**: Server-side enforcement / input validation section

@@ -1,5 +1,7 @@
 // File: packages/types/src/plugin.ts
 
+import type { FormSchema } from './layout-config.js';
+
 // ---------------------------------------------------------------------------
 // Plugin status
 // ---------------------------------------------------------------------------
@@ -126,6 +128,13 @@ export interface PluginManifest {
   /** Optional widgets exposed via Module Federation for use by the host shell */
   widgets?: PluginWidget[];
   permissions?: string[];
+  /**
+   * Optional form schemas contributed by this plugin.
+   * Enables the Frontend Layout Engine (Spec 014) to allow tenant admins to
+   * configure field order, per-role visibility, and section ordering.
+   * Backward-compatible: existing plugins without this field compile unchanged.
+   */
+  formSchemas?: FormSchema[];
   // ---------------------------------------------------------------------------
   // Spec 013 — Extension Points (T013-01)
   // All extension arrays are optional for backward compatibility.

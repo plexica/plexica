@@ -40,6 +40,7 @@ import { pluginV1Routes } from './routes/plugin-v1.js';
 import { tenantPluginsV1Routes } from './routes/tenant-plugins-v1.js';
 import { tenantAdminRoutes } from './routes/tenant-admin.js';
 import { observabilityRoutes } from './routes/observability-v1.js'; // Spec 012 T012-26 — Plugin Observability API
+import { layoutConfigRoutes } from './routes/layout-config.js'; // Spec 014 T014-14 — Layout Engine API
 import { minioClient } from './services/minio-client';
 import { db } from './lib/db';
 import { redis } from './lib/redis';
@@ -253,6 +254,7 @@ async function registerRoutes() {
   await server.register(notificationStreamRoutes, { prefix: '/api/v1' });
   await server.register(tenantAdminRoutes, { prefix: '/api/v1' }); // Spec 008 T008-18/64/65 — Tenant Admin Interface
   await server.register(observabilityRoutes, { prefix: '/api/v1/observability' }); // Spec 012 T012-26 — Plugin Observability API
+  await server.register(layoutConfigRoutes, { prefix: '/api/v1' }); // Spec 014 T014-14 — Layout Engine API
   await server.register(extensionRegistryRoutes, { prefix: '/api/v1' }); // Spec 013 T013-09 — Extension Registry API
 }
 

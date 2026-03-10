@@ -15,6 +15,15 @@ declare module 'fastify' {
   interface FastifyRequest {
     user?: UserInfo & { tenantSlug: string };
     token?: KeycloakJwtPayload;
+    /**
+     * Effective workspace roles for the current user, resolved by
+     * `layoutReadonlyGuard` and other middleware that perform team-member
+     * lookups.  Key: workspaceId → effective role string (e.g. "ADMIN").
+     *
+     * Set lazily by middleware — undefined until populated.
+     * Spec 014 T014-12 (FR-021, NFR-006)
+     */
+    effectiveRoles?: Record<string, string>;
   }
 }
 

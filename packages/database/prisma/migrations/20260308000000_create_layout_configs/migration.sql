@@ -1,0 +1,11 @@
+-- Migration: 20260308000000_create_layout_configs
+-- NO-OP: layout_configs is provisioned via schema-step.ts (ADR-002 tenant schema pattern).
+--
+-- The layout_configs table lives in each tenant's private schema (ADR-002), not in
+-- the shared core schema that Prisma migrations manage. Each tenant schema is
+-- provisioned at creation time by TenantProvisioningService via schema-step.ts,
+-- which calls $executeRawUnsafe to CREATE TABLE IF NOT EXISTS "${schemaName}"."layout_configs".
+--
+-- This migration file exists to satisfy Prisma's migration history tracking
+-- (prisma migrate deploy must see a contiguous migration history) but contains
+-- no DDL — the actual table creation happens in the provisioning step.

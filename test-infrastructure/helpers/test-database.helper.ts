@@ -125,20 +125,34 @@ export class TestDatabaseHelper {
   }
 
   /**
-   * Drop all tenant schemas
+   * Drop all tenant schemas.
+   *
+   * Implementation note: schemas are dropped one-at-a-time from Node.js rather
+   * than inside a single PL/pgSQL LOOP block.  Dropping many schemas in one
+   * server-side block acquires all their object-locks simultaneously, which
+   * exhausts PostgreSQL's `max_locks_per_transaction` budget (error 53200
+   * "out of shared memory") when dozens of tenant schemas exist after a long
+   * test run.  Issuing individual `DROP SCHEMA` statements releases each
+   * batch of locks before the next schema is processed.
    */
   async dropTenantSchemas(): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
-      DO $$
-      DECLARE
-          r RECORD;
-      BEGIN
-          FOR r IN (SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%')
-          LOOP
-              EXECUTE 'DROP SCHEMA IF EXISTS ' || quote_ident(r.schema_name) || ' CASCADE';
-          END LOOP;
-      END $$;
-    `);
+    // Step 1: fetch schema names (read-only query — no lock pressure)
+    const rows = await this.prisma.$queryRaw<{ schema_name: string }[]>`
+      SELECT schema_name
+      FROM information_schema.schemata
+      WHERE schema_name LIKE 'tenant_%'
+    `;
+
+    // Step 2: drop each schema individually so PostgreSQL can release locks
+    // between statements and stay within max_locks_per_transaction.
+    for (const { schema_name } of rows) {
+      // schema_name comes from information_schema — safe to embed after
+      // sanitising (only alphanumeric + underscore expected for tenant slugs).
+      const safe = schema_name.replace(/[^a-z0-9_]/gi, '');
+      if (safe.length > 0) {
+        await this.prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${safe}" CASCADE`);
+      }
+    }
   }
 
   /**

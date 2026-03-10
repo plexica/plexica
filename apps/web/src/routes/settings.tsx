@@ -28,6 +28,7 @@ import { useForm } from '@/hooks/useForm';
 import { toast } from '@/components/ToastProvider';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { BrandingTab } from './settings.branding';
+import { LayoutConfigurationTab } from './settings.layout-configuration';
 import { ExtensionSettingsPanel } from './settings.extensions';
 import { z } from 'zod';
 import type { WorkspaceMember, Team, Workspace } from '../types';
@@ -137,6 +138,10 @@ function SettingsPage() {
           <TabsContent value="branding" className="mt-6">
             <BrandingTab />
           </TabsContent>
+          {/* Layout Configuration tab — only rendered when ENABLE_LAYOUT_ENGINE is on */}
+          <TabsContent value="layout" className="mt-6">
+            <LayoutConfigurationTab />
+          </TabsContent>
           {/* Extensions tab — only rendered when ENABLE_EXTENSION_POINTS is on */}
           <TabsContent value="extensions" className="mt-6">
             <ExtensionSettingsPanel />
@@ -155,10 +160,12 @@ function SettingsPage() {
  */
 function SettingsTabsList() {
   const brandingEnabled = useFeatureFlag('ENABLE_TENANT_BRANDING');
+  const layoutEngineEnabled = useFeatureFlag('ENABLE_LAYOUT_ENGINE');
   const extensionPointsEnabled = useFeatureFlag('ENABLE_EXTENSION_POINTS');
 
-  // Base 7 tabs + optional branding + optional extensions
-  const extraCols = (brandingEnabled ? 1 : 0) + (extensionPointsEnabled ? 1 : 0);
+  // Base 7 tabs + optional branding + optional layout engine + optional extensions
+  const extraCols =
+    (brandingEnabled ? 1 : 0) + (layoutEngineEnabled ? 1 : 0) + (extensionPointsEnabled ? 1 : 0);
   const gridCols = `grid-cols-${7 + extraCols}`;
 
   return (
@@ -171,6 +178,7 @@ function SettingsTabsList() {
       <TabsTrigger value="integrations">Integrations</TabsTrigger>
       <TabsTrigger value="advanced">Advanced</TabsTrigger>
       {brandingEnabled && <TabsTrigger value="branding">Branding</TabsTrigger>}
+      {layoutEngineEnabled && <TabsTrigger value="layout">Layout</TabsTrigger>}
       {extensionPointsEnabled && <TabsTrigger value="extensions">Extensions</TabsTrigger>}
     </TabsList>
   );

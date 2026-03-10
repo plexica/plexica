@@ -94,6 +94,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Resolve @plexica/ui from source (no dist build required in test env)
+      '@plexica/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
     },
   },
 });

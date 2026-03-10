@@ -1,6 +1,6 @@
 # Plugin Development Guide
 
-**Last Updated**: February 10, 2026
+**Last Updated**: March 8, 2026
 **Status**: Active
 **Owner**: Engineering Team
 **Document Type**: Index / Landing Page
@@ -224,6 +224,226 @@ const suggestions = await searchService.autocomplete({
 
 ---
 
+## Frontend Layout Engine
+
+Plexica's **Frontend Layout Engine** (Spec 014) lets tenant admins configure how forms and tables appear for each role — without any code changes. Plugins declare their forms via `formSchemas` in the plugin manifest; admins customize visibility, ordering, and read-only rules per role; end users see their personalized layout automatically.
+
+### Declaring Form Schemas in the Manifest
+
+Add an optional `formSchemas` array to your plugin's TypeScript manifest:
+
+```typescript
+// apps/plugin-crm/src/manifest.ts
+import type { PluginManifest } from '@plexica/types';
+
+export const manifest: PluginManifest = {
+  id: 'plugin-crm',
+  name: 'CRM',
+  version: '1.0.0',
+  // ... routes, menus, etc.
+
+  formSchemas: [
+    {
+      formId: 'crm.contact-edit',
+      label: 'Contact Edit Form',
+      sections: [
+        { sectionId: 'basic', label: 'Basic Info', order: 0 },
+        { sectionId: 'address', label: 'Address', order: 1 },
+      ],
+      fields: [
+        {
+          fieldId: 'first-name',
+          label: 'First Name',
+          type: 'text',
+          required: true,
+          defaultValue: '',
+          sectionId: 'basic',
+          order: 0,
+        },
+        {
+          fieldId: 'email',
+          label: 'Email',
+          type: 'email',
+          required: true,
+          defaultValue: '',
+          sectionId: 'basic',
+          order: 1,
+        },
+        {
+          fieldId: 'phone',
+          label: 'Phone',
+          type: 'text',
+          required: false,
+          defaultValue: null,
+          sectionId: 'basic',
+          order: 2,
+        },
+      ],
+      columns: [
+        { columnId: 'name', label: 'Name', order: 0 },
+        { columnId: 'email', label: 'Email', order: 1 },
+        { columnId: 'status', label: 'Status', order: 2 },
+      ],
+    },
+  ],
+};
+```
+
+**Field types**: `text`, `email`, `tel`, `date`, `datetime`, `number`, `select`, `multiselect`, `checkbox`, `textarea`, `url`
+
+**`formId` convention**: Use `<plugin-id>.<form-slug>` (e.g., `crm.contact-edit`, `crm.contacts-table`). Must be unique across all plugins.
+
+### Layout-Aware UI Components
+
+Use the shell-level components from `@plexica/ui` (via Module Federation) to automatically apply the resolved layout. No direct API calls needed.
+
+#### `<LayoutAwareForm>`
+
+Wraps a form and applies field ordering, visibility, and read-only rules for the current user:
+
+```tsx
+// apps/plugin-crm/src/pages/ContactEdit.tsx
+import { LayoutAwareForm } from '@plexica/ui';
+
+export function ContactEditPage({ contactId }: { contactId: string }) {
+  return (
+    <LayoutAwareForm formId="crm.contact-edit">
+      {({ isFieldVisible, isFieldReadonly, fieldOrder }) => (
+        <form>
+          {fieldOrder.map((fieldId) => {
+            if (!isFieldVisible(fieldId)) return null;
+            return <input key={fieldId} name={fieldId} readOnly={isFieldReadonly(fieldId)} />;
+          })}
+        </form>
+      )}
+    </LayoutAwareForm>
+  );
+}
+```
+
+Or use element-matching mode (matches `data-field-id` props automatically):
+
+```tsx
+<LayoutAwareForm formId="crm.contact-edit">
+  <input data-field-id="first-name" name="first-name" />
+  <input data-field-id="email" name="email" />
+  <input data-field-id="phone" name="phone" />
+  {/* Fields hidden by layout config are automatically omitted */}
+</LayoutAwareForm>
+```
+
+#### `<LayoutAwareTable>`
+
+Wraps a `<DataTable>` and filters/reorders columns according to the resolved layout:
+
+```tsx
+// apps/plugin-crm/src/pages/ContactList.tsx
+import { LayoutAwareTable } from '@plexica/ui';
+import type { ColumnDef } from '@tanstack/react-table';
+
+const columns: ColumnDef<Contact>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'status', header: 'Status' },
+];
+
+export function ContactListPage({ contacts }: { contacts: Contact[] }) {
+  return (
+    <LayoutAwareTable
+      formId="crm.contacts-table"
+      columns={columns}
+      data={contacts}
+      aria-label="Contacts list"
+    />
+  );
+}
+```
+
+Hidden columns are filtered out and column order follows the admin configuration. If no layout config is saved, all columns are shown in manifest-default order (fail-open).
+
+#### `useResolvedLayout` hook
+
+For full control, use the hook directly:
+
+```tsx
+import { useResolvedLayout } from '@/hooks/useResolvedLayout';
+import type { ResolvedLayout } from '@plexica/types';
+
+function MyComponent() {
+  const { data: layout, isLoading } = useResolvedLayout('crm.contact-edit');
+
+  if (isLoading) return <Skeleton />;
+  if (!layout) return <MyFormWithDefaults />; // fail-open
+
+  return (
+    <MyForm
+      visibleFields={layout.fields.filter((f) => f.visibility !== 'hidden')}
+      readonlyFields={layout.fields.filter((f) => f.visibility === 'readonly')}
+    />
+  );
+}
+```
+
+**Cache behavior**: resolved layouts are cached by React Query with `staleTime: 60_000` (1 minute). The backend caches in Redis with a 300s TTL. Cache is invalidated automatically when the tenant admin saves a new config.
+
+### Server-Side Read-Only Enforcement
+
+> **Security note**: Client-side read-only rendering is cosmetic only. The server enforces
+> read-only rules on form submissions via the `layout-readonly-guard.ts` middleware.
+> See [SECURITY.md — Layout Engine Read-Only Enforcement](./SECURITY.md#layout-engine-read-only-enforcement).
+
+When a user submits a form where a field is marked `readonly` in their resolved layout, the `layoutReadonlyGuard` middleware strips that field's value from the request body **before** the route handler runs. The existing database value is preserved.
+
+Register the guard on your plugin route:
+
+```typescript
+// In your plugin backend route registration
+import { layoutReadonlyGuard } from '@plexica/sdk';
+
+fastify.put(
+  '/api/v1/crm/contacts/:id',
+  { preHandler: [authMiddleware, layoutReadonlyGuard({ formId: 'crm.contact-edit' })] },
+  async (request, reply) => {
+    // request.body will NOT contain values for readonly fields
+    await contactService.update(request.params.id, request.body);
+    return reply.send({ ok: true });
+  }
+);
+```
+
+The guard **fails closed by default** on Redis/DB errors — it returns `503 LAYOUT_RESOLUTION_UNAVAILABLE` to prevent write operations from silently bypassing read-only enforcement. To opt out for advisory-only fields, pass `{ failOpen: true }` when registering the guard:
+
+```typescript
+fastify.put(
+  '/api/v1/crm/contacts/:id/advisory-note',
+  {
+    preHandler: [
+      authMiddleware,
+      layoutReadonlyGuard({ formId: 'crm.contact-edit', failOpen: true }),
+    ],
+  },
+  async (request, reply) => {
+    // If Redis/DB are unavailable, request proceeds (advisory mode)
+    await contactService.updateAdvisory(request.params.id, request.body);
+    return reply.send({ ok: true });
+  }
+);
+```
+
+If validation fails because a `PUT` body references field or column IDs not present in the plugin manifest, the API returns `400 INVALID_FIELD_REFERENCE` with details of the invalid references.
+
+### Feature Flag
+
+The layout engine is gated by the `layout_engine_enabled` per-tenant feature flag. When disabled:
+
+- The admin configuration panel is hidden
+- The resolved endpoint returns manifest defaults
+- `<LayoutAwareForm>` and `<LayoutAwareTable>` use manifest defaults
+
+No error is shown to end users when the flag is off.
+
+---
+
 ## Key Concepts
 
 ### Plugin Manifest
@@ -381,4 +601,4 @@ No error is surfaced to the user beyond these placeholders; errors are logged vi
 
 ---
 
-_Last updated: March 2026_
+_Last updated: March 8, 2026_

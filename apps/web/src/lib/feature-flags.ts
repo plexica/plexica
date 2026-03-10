@@ -18,6 +18,7 @@
  * | ENABLE_PLUGIN_WIDGETS       | false   | Allow plugins to embed cross-plugin widgets      |
  * | ENABLE_ADMIN_INTERFACES     | false   | Show Tenant Admin portal routes (Spec 008)       |
  * | ENABLE_WORKSPACE_HIERARCHY | false   | Show workspace hierarchy tree & template picker (Spec 011) |
+ * | ENABLE_LAYOUT_ENGINE       | false   | Tenant layout config panel — field order, role visibility (Spec 014) |
  * | ENABLE_EXTENSION_POINTS    | false   | Enable plugin extension slots and contribution rendering (Spec 013) |
  */
 export type FeatureFlagName =
@@ -28,6 +29,7 @@ export type FeatureFlagName =
   | 'ENABLE_PLUGIN_WIDGETS'
   | 'ENABLE_ADMIN_INTERFACES'
   | 'ENABLE_WORKSPACE_HIERARCHY'
+  | 'ENABLE_LAYOUT_ENGINE'
   | 'ENABLE_EXTENSION_POINTS';
 
 /**

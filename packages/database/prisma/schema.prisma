@@ -688,6 +688,46 @@ model WorkspacePage {
 }
 
 // ============================================================================
+// LAYOUT ENGINE - Spec 014 Frontend Layout Engine
+// ADR-002: layout_configs in tenant schema (template here in core for Prisma)
+// ============================================================================
+
+/// Layout configuration for a plugin form — tenant or workspace scoped.
+/// ADR-002: Each tenant gets its own copy in their tenant schema.
+/// plugin_id is stored as UUID without FK (cross-schema FK unsupported — ADR-002).
+/// updated_at is used as ETag for optimistic concurrency control.
+model LayoutConfig {
+  id              String    @id @default(uuid())
+  formId          String    @map("form_id") @db.VarChar(255)
+  /// UUID of the plugin that owns this form (no FK — cross-schema ref, ADR-002).
+  pluginId        String    @map("plugin_id") @db.Uuid
+  /// 'tenant' | 'workspace'
+  scopeType       String    @map("scope_type") @db.VarChar(20)
+  /// NULL for tenant scope; workspace UUID for workspace scope.
+  scopeId         String?   @map("scope_id") @db.Uuid
+  /// FieldOverride[] — field order and per-role visibility
+  fields          Json      @default("[]")
+  /// SectionOverride[] — section order
+  sections        Json      @default("[]")
+  /// ColumnOverride[] — column visibility per role
+  columns         Json      @default("[]")
+  /// Snapshot of prior config for single-step undo (FR-018, FR-019)
+  previousVersion Json?     @map("previous_version")
+  createdBy       String    @map("created_by") @db.Uuid
+  updatedBy       String    @map("updated_by") @db.Uuid
+  /// Soft-delete timestamp set on plugin uninstall (FR-024)
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  /// Used as ETag for optimistic concurrency control
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Indexes are defined in migration SQL (partial unique indexes not expressible in Prisma DSL)
+  @@index([pluginId], map: "idx_layout_configs_plugin")
+  @@map("layout_configs")
+  @@schema("core")
+}
+
+// ============================================================================
 // EXTENSION POINTS — Spec 013 (ADR-031)
 // All 5 tables placed in core shared schema (bounded exception to ADR-002).
 // Tenant isolation enforced via tenant_id + RLS policies (migration 20260308000002).
