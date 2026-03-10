@@ -10,6 +10,7 @@
 
 import { Kafka, Producer, Consumer, Admin, IHeaders } from 'kafkajs';
 import { sanitizeTimeoutMs } from '../../packages/lib/safe-timeout.helper';
+import { randomUUID } from 'node:crypto';
 
 // Workaround: kafkajs RequestQueue may schedule a setTimeout with a negative
 // delay when throttledUntil is far in the past. That causes Node to emit
@@ -425,7 +426,7 @@ export class TestRedpandaHelper {
     options: ConsumeMessagesOptions
   ): Promise<ConsumedMessage[]> {
     // Create a truly unique consumer for this operation
-    const uniqueGroupId = `test-${topic.replace(/[^a-z0-9]/gi, '-')}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const uniqueGroupId = `test-${topic.replace(/[^a-z0-9]/gi, '-')}-${randomUUID()}`;
     const consumer = this.kafka.consumer({
       groupId: uniqueGroupId,
       sessionTimeout: 30000,

@@ -12,6 +12,30 @@ import type { AxiosRequestConfig } from 'axios';
 // ---------------------------------------------------------------------------
 
 /**
+ * Configuration for 429 auto-retry behaviour.
+ */
+export interface RetryConfig {
+  /** Maximum number of automatic retries for 429 responses (default: 2) */
+  maxRetries?: number;
+  /** Whether 429 auto-retry is enabled (default: true) */
+  enabled?: boolean;
+  /**
+   * HTTP methods eligible for automatic retry on 429 responses.
+   * Defaults to ['GET', 'HEAD', 'OPTIONS'] to prevent duplicate mutations on
+   * non-idempotent requests (POST, PUT, PATCH, DELETE).
+   *
+   * NOTE: Plexica's @fastify/rate-limit is a pre-handler guard — it rejects
+   * requests before any state change occurs, so all methods are effectively safe
+   * on Plexica's core-api. The conservative default protects against non-Plexica
+   * backends where a 429 may be emitted after partial execution.
+   *
+   * Override to include POST/PUT/PATCH/DELETE only when you have confirmed that
+   * the target backend is idempotent or uses a pre-handler rate-limit guard.
+   */
+  retryMethods?: string[];
+}
+
+/**
  * Configuration for the base HTTP client.
  */
 export interface HttpClientConfig {
@@ -21,6 +45,13 @@ export interface HttpClientConfig {
   timeout?: number;
   /** Additional default headers */
   headers?: Record<string, string>;
+  /**
+   * Called when a 429 response is received after all retries are exhausted.
+   * Use this to show a user-facing toast/banner with the retry wait time.
+   */
+  onRateLimited?: (retryAfter: number) => void;
+  /** Configuration for automatic 429 retry with exponential back-off */
+  retryConfig?: RetryConfig;
 }
 
 /**
@@ -69,6 +100,13 @@ export interface AuthTokenProvider {
 
 /**
  * Structured API error returned by core-api.
+ *
+ * core-api always uses the Constitution Art. 6.2 nested envelope:
+ *   { error: { code, message, details } }
+ *
+ * The top-level `statusCode`, `error` (string), `message`, and `details`
+ * fields below model the normalised view after the client unwraps the
+ * envelope. `NestedApiErrorResponse` models the raw wire format.
  */
 export interface ApiErrorResponse {
   statusCode: number;
@@ -76,6 +114,28 @@ export interface ApiErrorResponse {
   message: string;
   /** Additional validation details */
   details?: Record<string, unknown>;
+  /**
+   * Seconds until the client should retry (populated on 429 responses).
+   * Null when not a rate-limit error.
+   */
+  retryAfter?: number | null;
+}
+
+/**
+ * Raw wire format for Constitution Art. 6.2 nested error envelope.
+ *
+ * ```json
+ * { "error": { "code": "RATE_LIMIT_EXCEEDED", "message": "...", "details": {} } }
+ * ```
+ *
+ * The client normalises this into `ApiErrorResponse` before constructing `ApiError`.
+ */
+export interface NestedApiErrorResponse {
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
 }
 
 /**
@@ -86,6 +146,8 @@ export class ApiError extends Error {
   public readonly errorCode: string;
   public readonly details?: Record<string, unknown>;
   public readonly isApiError = true as const;
+  /** Seconds until the client should retry (populated on 429 responses, null otherwise) */
+  public readonly retryAfter: number | null;
 
   constructor(response: ApiErrorResponse) {
     super(response.message);
@@ -93,6 +155,7 @@ export class ApiError extends Error {
     this.statusCode = response.statusCode;
     this.errorCode = response.error;
     this.details = response.details;
+    this.retryAfter = response.retryAfter ?? null;
   }
 
   /** True when the error represents a network failure (no response from server) */
@@ -118,6 +181,11 @@ export class ApiError extends Error {
   /** True when the server returned 422 Unprocessable Entity (validation) */
   get isValidationError(): boolean {
     return this.statusCode === 422;
+  }
+
+  /** True when the server returned 429 Too Many Requests */
+  get isRateLimited(): boolean {
+    return this.statusCode === 429;
   }
 }
 

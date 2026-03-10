@@ -9,6 +9,7 @@
 // plugin lifecycle operations (install, cancel, get registry plugin).
 
 import { TenantApiClient, AdminApiClient } from '@plexica/api-client';
+import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------
 // Typed HTTP interface
@@ -29,7 +30,19 @@ class WebApiClient extends TenantApiClient {
   private _token: string | null = null;
 
   constructor() {
-    super({ baseUrl: API_URL });
+    super({
+      baseUrl: API_URL,
+      onRateLimited: (retryAfter) => {
+        const seconds = Math.max(retryAfter, 1);
+        toast.warning(
+          `You're making requests too quickly. Please wait ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`,
+          {
+            id: 'rate-limit-toast',
+            duration: Math.min(seconds * 1000, 10_000),
+          }
+        );
+      },
+    });
 
     // Wire up a simple token provider that uses the stored token.
     // The auth store calls `setToken()` whenever the token changes.
@@ -78,7 +91,19 @@ class WebAdminApiClient extends AdminApiClient {
   private _token: string | null = null;
 
   constructor() {
-    super({ baseUrl: API_URL });
+    super({
+      baseUrl: API_URL,
+      onRateLimited: (retryAfter) => {
+        const seconds = Math.max(retryAfter, 1);
+        toast.warning(
+          `You're making requests too quickly. Please wait ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`,
+          {
+            id: 'rate-limit-toast',
+            duration: Math.min(seconds * 1000, 10_000),
+          }
+        );
+      },
+    });
 
     this.setAuthProvider({
       getToken: () => this._token,

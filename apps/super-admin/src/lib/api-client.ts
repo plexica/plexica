@@ -14,13 +14,27 @@
  */
 
 import type { InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import { AdminApiClient } from '@plexica/api-client';
+import { toast } from 'sonner';
 import { getToken, updateToken } from './keycloak';
 import { getApiUrl } from './config';
 
 class SuperAdminApiClient extends AdminApiClient {
   constructor() {
-    super({ baseUrl: getApiUrl() });
+    super({
+      baseUrl: getApiUrl(),
+      onRateLimited: (retryAfter) => {
+        const seconds = Math.max(retryAfter, 1);
+        toast.warning(
+          `Rate limit reached. Please wait ${seconds} ${seconds === 1 ? 'second' : 'seconds'} before retrying.`,
+          {
+            id: 'rate-limit-toast',
+            duration: Math.min(seconds * 1000, 10_000),
+          }
+        );
+      },
+    });
 
     // Wire up Keycloak auth provider
     this.setAuthProvider({
@@ -57,7 +71,7 @@ class SuperAdminApiClient extends AdminApiClient {
     this.axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 403) {
+        if (axios.isAxiosError(error) && error.response?.status === 403) {
           console.error('[API Client] Forbidden (403), insufficient permissions');
         }
         return Promise.reject(error);

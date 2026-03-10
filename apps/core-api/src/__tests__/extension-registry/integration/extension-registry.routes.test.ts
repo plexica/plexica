@@ -755,6 +755,8 @@ describe('Extension Registry Routes — Integration Tests', () => {
       expect(body.page).toBe(1);
       expect(body.pageSize).toBe(50);
       expect(mockSuperAdminListAllSlots).toHaveBeenCalledTimes(1);
+      // TD-028: verify default pagination params are forwarded to the service
+      expect(mockSuperAdminListAllSlots).toHaveBeenCalledWith(1, 50);
     });
 
     it('403 — non-super-admin receives SUPER_ADMIN_REQUIRED error', async () => {
@@ -797,6 +799,8 @@ describe('Extension Registry Routes — Integration Tests', () => {
       const body = res.json<{ slots: unknown[]; page: number; pageSize: number }>();
       expect(body.page).toBe(2);
       expect(body.pageSize).toBe(25);
+      // TD-028: verify custom pagination params are actually forwarded to the service
+      expect(mockSuperAdminListAllSlots).toHaveBeenCalledWith(2, 25);
     });
   });
 });

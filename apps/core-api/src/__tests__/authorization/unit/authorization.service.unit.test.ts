@@ -109,6 +109,14 @@ describe('AuthorizationService', () => {
     it('should return false for empty roles array', () => {
       expect(service.isSuperAdmin([])).toBe(false);
     });
+
+    it('should return true for kebab-case super-admin role (TD-026 — Keycloak realm variant)', () => {
+      expect(service.isSuperAdmin(['super-admin'])).toBe(true);
+    });
+
+    it('should return true when kebab-case super-admin is among multiple roles', () => {
+      expect(service.isSuperAdmin(['user', 'super-admin', 'tenant_admin'])).toBe(true);
+    });
   });
 
   // -------------------------------------------------------------------------

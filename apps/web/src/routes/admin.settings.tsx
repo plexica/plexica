@@ -17,6 +17,7 @@ import {
   CardTitle,
   Input,
   Label,
+  SafeImage,
   Skeleton,
   Select,
   SelectContent,
@@ -27,6 +28,16 @@ import {
 } from '@plexica/ui';
 import { getTenantSettings, updateTenantSettings } from '@/api/admin';
 import type { TenantSettings } from '@/api/admin';
+
+// Check whether a URL is a valid image URL (must start with https://, http://, or data:image/)
+// Used for client-side form validation feedback (FR-025).
+function isValidLogoUrl(url: string): boolean {
+  if (!url) return true; // empty is fine (no logo)
+  const lower = url.trim().toLowerCase();
+  return (
+    lower.startsWith('https://') || lower.startsWith('http://') || lower.startsWith('data:image/')
+  );
+}
 
 export const Route = createFileRoute('/admin/settings' as never)({
   component: TenantAdminSettingsPage,
@@ -237,12 +248,19 @@ function TenantAdminSettingsPage() {
               placeholder="https://cdn.example.com/logo.png"
               onChange={(e) => setLogoUrl(e.target.value)}
             />
+            {/* Client-side URL scheme validation feedback (FR-025) */}
+            {logoUrl && !isValidLogoUrl(logoUrl) && (
+              <p role="alert" className="text-sm text-destructive mt-1">
+                Logo URL must use HTTPS.
+              </p>
+            )}
+            {/* SafeImage validates src before rendering — prevents XSS (FR-025) */}
             {logoUrl && (
-              <img
+              <SafeImage
                 src={logoUrl}
                 alt="Logo preview"
                 className="mt-2 h-12 w-auto rounded border border-border object-contain"
-                onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
+                fallback={null}
               />
             )}
           </div>

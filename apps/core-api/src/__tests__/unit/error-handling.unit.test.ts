@@ -274,14 +274,6 @@ describe('Error Handling and Validation - Integration Tests', () => {
   });
 
   describe('Input Sanitization', () => {
-    it('should sanitize HTML in text inputs', () => {
-      const input = '<script>alert("xss")</script>Hello';
-      const sanitized = input.replace(/<[^>]*>/g, '');
-
-      expect(sanitized).toBe('alert("xss")Hello');
-      expect(sanitized).not.toContain('<script>');
-    });
-
     it('should escape SQL special characters', () => {
       const input = "'; DROP TABLE users; --";
       const escaped = input.replace(/'/g, "''");

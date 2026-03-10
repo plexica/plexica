@@ -15,6 +15,8 @@ import { JobRepository } from './job.repository.js';
 import { getJobQueueServiceInstance } from './job-queue.singleton.js';
 import { JobSchema, JobStatus, JobErrorCode, type Job } from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
+import { rateLimiter } from '../../middleware/rate-limiter.js';
+import { ADMIN_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
 // ============================================================================
 // Module-level service singletons (via shared singleton — HIGH #5)
@@ -51,6 +53,9 @@ function getTenantId(request: FastifyRequest): string {
 
 export const jobsRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
+  // SECURITY (Spec 015 T015-15): Apply ADMIN-tier rate limiting to all job management routes.
+  // Covers CodeQL js/missing-rate-limiting alert on line 53.
+  server.addHook('preHandler', rateLimiter(ADMIN_RATE_LIMIT));
 
   // All job management endpoints are admin-only (HIGH #3)
   const adminOnly = requireRole(

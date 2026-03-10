@@ -771,7 +771,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/auth/me',
     {
-      preHandler: [authMiddleware],
+      preHandler: [authRateLimitHook, authMiddleware],
       schema: {
         description: 'Get current authenticated user information',
         tags: ['auth'],

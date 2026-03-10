@@ -1,12 +1,7 @@
 # 🔒 Security Guidelines for Plexica Development
 
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
-**Owner**: Engineering Team  
-**Document Type**: Developer Guide
-
-**Last Updated**: 2025-02-03  
-**Status**: Complete  
+**Last Updated**: March 2026  
+**Status**: Active  
 **Owner**: Engineering Team  
 **Document Type**: Security Guidelines
 
@@ -24,6 +19,13 @@ This document provides security best practices and guidelines for developing sec
 - [Security Testing](#security-testing)
 - [Code Review Checklist](#code-review-checklist)
 - [Incident Response](#incident-response)
+- [Extension Points Security (Spec 013 / ADR-031)](#extension-points-security-spec-013--adr-031)
+- [SSRF Prevention (Spec 015)](#ssrf-prevention-spec-015)
+- [Path Traversal Prevention (Spec 015)](#path-traversal-prevention-spec-015)
+- [Rate Limiting (Spec 015)](#rate-limiting-spec-015)
+- [XSS / CSS Sanitization (Spec 015 / ADR-032)](#xss--css-sanitization-spec-015--adr-032)
+- [Log Injection Prevention (Spec 015)](#log-injection-prevention-spec-015)
+- [ReDoS False Positive Analysis (Spec 015)](#redos-false-positive-analysis-spec-015)
 
 ---
 
@@ -690,15 +692,6 @@ Use this checklist when reviewing code:
 
 ---
 
-## 📝 Version History
-
-| Version | Date       | Changes                     | Author         |
-| ------- | ---------- | --------------------------- | -------------- |
-| 1.0.0   | 2024-01-XX | Initial security guidelines | Security Team  |
-| 1.1.0   | 2024-01-XX | Added SQL injection fixes   | Security Audit |
-
----
-
 ## 🤝 Contributing to This Document
 
 Security is everyone's responsibility. If you:
@@ -817,3 +810,455 @@ Before merging any change to the extension registry:
 - ✅ Are cross-tenant admin methods named with `ForSuperAdmin` suffix?
 - ✅ Is the feature flag checked before any DB access?
 - ✅ Does cache invalidation scope keys by `tenantId`?
+
+---
+
+## SSRF Prevention (Spec 015)
+
+**Date Added**: March 2026  
+**CodeQL alerts resolved**: #1–#3 (`js/request-forgery`)  
+**FR**: FR-001, FR-002, FR-003, FR-004
+
+### The Problem
+
+Server-Side Request Forgery (SSRF) occurs when user-supplied or externally-derived URLs are passed directly to `fetch()` or similar HTTP clients. An attacker can construct a URL targeting internal services (e.g., `http://169.254.169.254/metadata` on AWS) and exfiltrate sensitive data or pivot to internal systems.
+
+In Plexica, the three `fetch()` calls in `keycloak.service.ts` (token exchange, token refresh, token revocation) were flagged because the `tokenEndpoint` URLs are constructed from Keycloak realm names, which could theoretically be influenced by user input.
+
+### The Fix: `assertKeycloakUrl()`
+
+All Keycloak `fetch()` calls are guarded by `assertKeycloakUrl()` from `apps/core-api/src/services/keycloak-url-validator.ts`:
+
+```typescript
+import { assertKeycloakUrl } from './keycloak-url-validator.js';
+
+// ✅ ALWAYS call assertKeycloakUrl() immediately before fetch()
+assertKeycloakUrl(tokenEndpoint);
+const response = await fetch(tokenEndpoint, { method: 'POST', ... });
+```
+
+The validator confirms the constructed URL's **hostname** and **protocol** match the `KEYCLOAK_URL` environment variable. Any mismatch throws `SSRF_BLOCKED: constructed URL does not match configured KEYCLOAK_URL`.
+
+### How to Extend for New Keycloak Integrations
+
+When adding a new `fetch()` call to a Keycloak endpoint:
+
+1. Import `assertKeycloakUrl` from `'./keycloak-url-validator.js'`
+2. Call it synchronously **before** the `fetch()` call — it must run before any network I/O
+3. Add a unit test asserting that a mismatched hostname throws
+
+```typescript
+// ✅ Correct pattern for any new Keycloak fetch
+import { assertKeycloakUrl } from './keycloak-url-validator.js';
+
+const endpointUrl = `${keycloakBaseUrl}/realms/${realm}/protocol/openid-connect/userinfo`;
+assertKeycloakUrl(endpointUrl); // throws if hostname doesn't match KEYCLOAK_URL
+const response = await fetch(endpointUrl, { headers: { Authorization: `Bearer ${token}` } });
+```
+
+### `validateRealmName()` Defense-in-Depth
+
+In addition to URL validation, `validateRealmName()` in `keycloak.service.ts` rejects:
+
+- URL-encoded path separators: `%2f`, `%2F`, `%5c`, `%5C`
+- Double-dot path traversal: `..`
+- Any character outside `^[a-z0-9-]{1,50}$`
+
+---
+
+## Path Traversal Prevention (Spec 015)
+
+**Date Added**: March 2026  
+**CodeQL alerts resolved**: #4–#5 (`js/path-injection`)  
+**FR**: FR-005, FR-006, FR-007, FR-008
+
+### The Problem
+
+Path traversal occurs when user-supplied strings (locale, namespace) are used to construct file paths without canonicalization. An attacker passing `../../etc/passwd` as a locale can escape the intended directory.
+
+In Plexica, `i18n.service.ts`'s `loadNamespaceFile()` was flagged because `locale` and `namespace` query parameters were used in `path.join()` without a canonical path check.
+
+### The Fix: Zod Validation + `path.resolve()` Prefix Check
+
+The fix applies at two layers in `loadNamespaceFile()`:
+
+**Layer 1 — Zod schema validation (fail fast)**
+
+```typescript
+import { z } from 'zod';
+import path from 'node:path';
+
+const LocaleSchema = z
+  .string()
+  .regex(/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/, 'Locale must be a valid BCP 47 language tag');
+
+const NamespaceSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9-]{1,64}$/, 'Namespace must be lowercase alphanumeric with hyphens');
+
+// ✅ Validate BEFORE any filesystem access
+LocaleSchema.parse(locale); // rejects '../../etc/passwd', 'en/evil', etc.
+NamespaceSchema.parse(namespace); // rejects '../package', 'Core', 65-char strings
+```
+
+**Layer 2 — Canonical path prefix check**
+
+```typescript
+const filePath = path.join(TRANSLATIONS_DIR, locale, `${namespace}.json`);
+const resolvedPath = path.resolve(filePath);
+const resolvedBase = path.resolve(TRANSLATIONS_DIR);
+
+if (!resolvedPath.startsWith(resolvedBase + path.sep)) {
+  throw new Error('PATH_TRAVERSAL_BLOCKED: resolved path escapes translations directory');
+}
+```
+
+### Accepted and Rejected Inputs
+
+| Input              | Type      | Result             |
+| ------------------ | --------- | ------------------ |
+| `en`               | locale    | ✅ Accepted        |
+| `en-US`            | locale    | ✅ Accepted        |
+| `zh-Hans-CN`       | locale    | ✅ Accepted        |
+| `../../etc/passwd` | locale    | ❌ Rejected by Zod |
+| `en/evil`          | locale    | ❌ Rejected by Zod |
+| `core`             | namespace | ✅ Accepted        |
+| `plugin-crm`       | namespace | ✅ Accepted        |
+| `../package`       | namespace | ❌ Rejected by Zod |
+| `Core` (uppercase) | namespace | ❌ Rejected by Zod |
+
+---
+
+## Rate Limiting (Spec 015)
+
+**Date Added**: March 2026  
+**CodeQL alerts resolved**: #6–#16 (`js/missing-rate-limiting`)  
+**FR**: FR-009 – FR-014
+
+### Three-Tier Rate Limiting System
+
+Plexica uses `@fastify/rate-limit` with three configurable tiers, all backed by Redis:
+
+| Environment Variable | Default     | Routes                                                                                                               |
+| -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `RATE_LIMIT_AUTH`    | 20 req/min  | `auth.ts` (authentication endpoints)                                                                                 |
+| `RATE_LIMIT_ADMIN`   | 60 req/min  | `tenant-admin.ts`, `jobs.routes.ts`, `storage.routes.ts` (uploads)                                                   |
+| `RATE_LIMIT_GENERAL` | 120 req/min | `search.routes.ts`, `notification.routes.ts`, `storage.routes.ts` (reads), `notification-stream.routes.ts` (non-SSE) |
+
+Override defaults per environment in `.env`:
+
+```bash
+RATE_LIMIT_AUTH=20
+RATE_LIMIT_ADMIN=60
+RATE_LIMIT_GENERAL=120
+```
+
+In test environments, set low limits to make tests fast: `RATE_LIMIT_ADMIN=3`.
+
+### Redis Key Format
+
+Rate limit counters are stored in Redis with the key format:
+
+```
+rl:{tier}:{tenantId}:{userId}
+```
+
+Examples:
+
+- `rl:auth:tenant-abc:user-xyz` — auth tier for a specific user
+- `rl:admin:tenant-abc:anonymous` — admin tier for unauthenticated requests
+- `rl:general:tenant-abc:user-xyz` — general tier
+
+### 429 Response Format
+
+When a rate limit is exceeded, the API returns HTTP 429 with the Constitution Art. 6.2 compliant body:
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Too many requests. Please retry after 45s",
+    "details": {
+      "retryAfter": 45
+    }
+  }
+}
+```
+
+The `Retry-After` header is also set to the number of seconds remaining in the current window.
+
+> **TD-023**: Frontend apps (`apps/web`, `apps/super-admin`, `packages/api-client`) do not yet handle 429 responses automatically. Until a `Retry-After` interceptor is added, users will see a generic error. Tracked as TD-023 for Sprint 011.
+
+### Applying Rate Limiting to New Routes
+
+Import the shared config and use one of the three tiers:
+
+```typescript
+import {
+  RATE_LIMIT_TIERS,
+  rateLimitErrorResponse,
+  rateLimitKeyGenerator,
+} from '../../lib/rate-limit-config.js';
+
+// ✅ Plugin-scope registration (covers all handlers in the plugin)
+fastify.register(import('@fastify/rate-limit'), {
+  ...RATE_LIMIT_TIERS.general,
+  keyGenerator: (req) => rateLimitKeyGenerator('general', req),
+  errorResponseBuilder: rateLimitErrorResponse,
+});
+```
+
+### SSE Streams: Per-Request Rate Limiting Disabled Intentionally
+
+Long-lived SSE streams have `config: { rateLimit: false }`. Connection establishment is rate-limited globally by `@fastify/rate-limit`. Per-request limiting is not applicable to a persistent stream (there is no per-message HTTP request to count).
+
+### Testing with Rate Limits
+
+Unit tests in `.env.test` set `DISABLE_RATE_LIMIT=true` to prevent test interference. Rate-limiting-specific unit tests must disable this override:
+
+```typescript
+beforeEach(() => {
+  delete process.env['DISABLE_RATE_LIMIT'];
+});
+afterEach(() => {
+  process.env['DISABLE_RATE_LIMIT'] = 'true';
+});
+```
+
+Integration tests must flush Redis between tests:
+
+```typescript
+beforeEach(async () => {
+  await redis.flushdb(); // reset rate-limit counters
+});
+```
+
+---
+
+## XSS / CSS Sanitization (Spec 015 / ADR-032)
+
+**Date Added**: March 2026  
+**CodeQL alerts resolved**: #27–#29 (`js/xss-through-dom`)  
+**FR**: FR-023, FR-024, FR-025, FR-026, FR-027, FR-028  
+**ADR**: [ADR-032](../.forge/knowledge/adr/adr-032-dompurify-xss-sanitization.md)
+
+### The Problem
+
+XSS through the DOM occurs when attacker-controlled strings are passed directly to `dangerouslySetInnerHTML` (CSS injection) or rendered as `<img src=...>` (URL injection via `javascript:` or `data:text/html` schemes).
+
+In Plexica, the `ThemePreview` component rendered tenant-supplied CSS and logo URLs without sanitization, and `admin.settings.tsx` rendered the logo URL without scheme validation.
+
+### CSS Sanitization: `sanitizeCss()`
+
+Use `sanitizeCss()` from `@plexica/ui` whenever a CSS string from an untrusted source is injected into the DOM:
+
+```typescript
+import { sanitizeCss } from '@plexica/ui/utils/sanitize-css.js';
+
+// ✅ ALWAYS sanitize CSS before dangerouslySetInnerHTML
+<style dangerouslySetInnerHTML={{ __html: sanitizeCss(tenantCss) }} />
+
+// ❌ NEVER inject CSS directly
+<style dangerouslySetInnerHTML={{ __html: tenantCss }} />
+```
+
+`sanitizeCss()` applies two layers of protection:
+
+1. **DOMPurify** — wraps CSS in `<style>` tags and sanitizes via DOMPurify (strips injected HTML, script tags, etc.)
+2. **String-level strip** (defense-in-depth) — removes `</style>` break-outs, `expression(...)` IE XSS vectors, `url('javascript:...')` values, and `@import` rules
+
+The function has a 10 KB size guard — inputs over 10,240 bytes are rejected with an error.
+
+### Image URL Validation: `validateImageUrl()` and `<SafeImage>`
+
+For rendering user-supplied image URLs, use the `<SafeImage>` component instead of a bare `<img>`:
+
+```tsx
+import { SafeImage } from '@plexica/ui';
+
+// ✅ ALWAYS use SafeImage for user-supplied image URLs
+<SafeImage
+  src={tenantSettings.logoUrl ?? ''}
+  alt="Tenant logo"
+  fallback={<span className="logo-placeholder">No logo</span>}
+/>
+
+// ❌ NEVER render user URLs directly in img src
+<img src={tenantSettings.logoUrl} alt="Tenant logo" />
+```
+
+`<SafeImage>` internally calls `validateImageUrl()`, which:
+
+- **Allows**: `https://`, `http://`, `data:image/` (safe image data URIs)
+- **Rejects**: `javascript:`, `data:text/html`, `data:application/`, empty strings
+
+When a URL is rejected, `<SafeImage>` renders the `fallback` prop (default: `null`).
+
+For form fields, display a validation error when the URL is rejected:
+
+```tsx
+const logoError = logoUrl && !validateImageUrl(logoUrl) ? 'Logo URL must use HTTPS.' : undefined;
+```
+
+### DOMPurify and SSR
+
+DOMPurify requires a DOM environment. `sanitizeCss()` is safe to import in SSR contexts — it will fall back to string-level stripping if DOMPurify is unavailable. If SSR sanitization with full DOMPurify support is needed, switch to `isomorphic-dompurify` (tracked as DD-003 evolution).
+
+---
+
+## Log Injection Prevention (Spec 015)
+
+**Date Added**: March 2026  
+**CodeQL alerts resolved**: #17–#20 (`js/tainted-format-string`)  
+**FR**: FR-015, FR-016, FR-017, FR-018
+
+### The Problem
+
+Log injection occurs when attacker-controlled values are interpolated directly into log message strings. A payload containing `\n` or `\r` can inject fake log lines; a payload containing JSON metacharacters can corrupt structured log output. Even with Pino's JSON serialization (which escapes `\n` within string values), CodeQL flags format-string interpolation as a tainted format string.
+
+### The Pattern: Context Object, Not String Interpolation
+
+Plexica uses structured Pino logging. User-controlled values **must** appear in the **context object** (first argument), never in the message string (second argument):
+
+```typescript
+// ❌ BAD: user-controlled value in message string (CodeQL tainted-format-string)
+logger.info(`Topic created: ${topicName}`);
+logger.error(`Failed to process event ${eventId} for tenant ${tenantId}`);
+
+// ✅ GOOD: user-controlled values in context object
+logger.info({ topicName }, 'Topic created');
+logger.error({ eventId, tenantId, error }, 'Failed to process event');
+```
+
+The message string should be a static, human-readable description. All dynamic context goes into the first object argument.
+
+### Constructor Injection Pattern
+
+Services that need logging should receive a Pino logger via constructor injection, with a no-op fallback:
+
+```typescript
+import type { Logger } from 'pino';
+
+export class TopicManager {
+  private readonly logger: Logger;
+
+  constructor(opts?: { logger?: Logger }) {
+    // No-op stub when no logger is provided (e.g., in tests without a logger)
+    this.logger =
+      opts?.logger ??
+      ({
+        info: () => {},
+        error: () => {},
+        warn: () => {},
+      } as unknown as Logger);
+  }
+
+  async createTopic(name: string): Promise<void> {
+    // ✅ name in context object, not message string
+    this.logger.info({ topicName: name }, 'Creating topic');
+    // ...
+  }
+}
+```
+
+### Fastify Route Handlers
+
+In Fastify route handlers, use `request.log` (the per-request logger with built-in `requestId`):
+
+```typescript
+fastify.post('/api/reports/:id/run', async (request, reply) => {
+  const { id } = request.params;
+  try {
+    // ...
+  } catch (error: unknown) {
+    // ✅ reportId in context object
+    request.log.error(
+      { reportId: id, error: error instanceof Error ? error.message : String(error) },
+      'Failed to run analytics report'
+    );
+    reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Report run failed' } });
+  }
+});
+```
+
+### Required Log Fields
+
+Per Constitution Art. 6.3, every log entry must include (automatically added by Pino + Fastify):
+
+| Field       | Source            | Description                      |
+| ----------- | ----------------- | -------------------------------- |
+| `timestamp` | Pino              | ISO 8601 timestamp               |
+| `level`     | Pino              | `error`, `warn`, `info`, `debug` |
+| `message`   | Your code         | Static description               |
+| `requestId` | Fastify           | Per-request correlation ID       |
+| `userId`    | Auth middleware   | Authenticated user ID            |
+| `tenantId`  | Tenant middleware | Current tenant context           |
+
+---
+
+## ReDoS False Positive Analysis (Spec 015)
+
+**Date Added**: March 2026  
+**CodeQL alerts resolved**: #30–#31 (`js/polynomial-redos`)  
+**FR**: FR-029, FR-030
+
+### Background
+
+CodeQL's `js/polynomial-redos` detector flags regex patterns that could exhibit catastrophic exponential or polynomial backtracking under adversarial input. Some patterns are false positives — they are O(n) linear time with no backtracking risk. In these cases, the correct response is to add a suppression comment with an explanation and a benchmark regression test.
+
+### When to Suppress vs. When to Fix
+
+| Situation                                                        | Action                                       |
+| ---------------------------------------------------------------- | -------------------------------------------- | -------------------------------- |
+| Single character class with `+`/`*` (e.g., `/\/+$/`)             | **Suppress** — O(n), no alternation          |
+| `.*` with a unique literal suffix (e.g., `/member.*not found/i`) | **Suppress** — O(n), engine does linear scan |
+| Nested quantifiers (e.g., `/(a+)+$/`)                            | **Fix** — genuine ReDoS risk                 |
+| Alternation with overlap (e.g., `/a.\*b                          | a.\*c/`)                                     | **Fix** — may cause backtracking |
+
+### Suppression Comment Format
+
+Use **both** an inline comment and a multi-line explanation:
+
+```typescript
+// lgtm[js/polynomial-redos] Safe: /\/+$/ is O(n) — single character class
+// with + quantifier, no alternation or nesting. Confirmed linear-time.
+// Benchmark test in redos-benchmark.test.ts. See Spec 015 FR-029.
+const normalizedUrl = url.replace(/\/+$/, ''); // lgtm[js/polynomial-redos]
+```
+
+### Benchmark Test Pattern
+
+For every suppressed ReDoS alert, add a benchmark test in `apps/core-api/src/__tests__/unit/redos-benchmark.test.ts`:
+
+```typescript
+it('/\\/+$/ completes in < 2ms on adversarial 100K-slash input', () => {
+  if (process.env['CI_SKIP_BENCHMARKS'] === '1') return; // avoid flaky CI
+  const input = '/'.repeat(100_000);
+  const start = performance.now();
+  input.replace(/\/+$/, '');
+  const elapsed = performance.now() - start;
+  expect(elapsed).toBeLessThan(2); // 2ms with 2× CI margin
+});
+```
+
+Use `performance.now()` (not `Date.now()` — too coarse). Set `CI_SKIP_BENCHMARKS=1` in slow CI environments to prevent flaky failures.
+
+### Confirmed False Positives in This Codebase
+
+| File                                                           | Line | Pattern                | Reason Safe                                            |
+| -------------------------------------------------------------- | ---- | ---------------------- | ------------------------------------------------------ |
+| `packages/sdk/src/api-client.ts`                               | 40   | `/\/+$/`               | Single char class + quantifier, O(n)                   |
+| `apps/core-api/src/modules/workspace/utils/error-formatter.ts` | 227  | `/member.*not found/i` | `.*` with literal suffix, no catastrophic backtracking |
+
+---
+
+## 📝 Version History
+
+| Version | Date       | Changes                                                                                  | Author         |
+| ------- | ---------- | ---------------------------------------------------------------------------------------- | -------------- |
+| 1.0.0   | 2024-01-XX | Initial security guidelines                                                              | Security Team  |
+| 1.1.0   | 2024-01-XX | Added SQL injection fixes                                                                | Security Audit |
+| 1.2.0   | March 2026 | Added Extension Points security (Spec 013 / ADR-031)                                     | FORGE          |
+| 1.3.0   | March 2026 | Added SSRF, path traversal, rate limiting, XSS, log injection, ReDoS sections (Spec 015) | FORGE          |

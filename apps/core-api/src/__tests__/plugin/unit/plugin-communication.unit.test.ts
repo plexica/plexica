@@ -9,6 +9,7 @@ import { ServiceRegistryService } from '../../../services/service-registry.servi
 import { DependencyResolutionService } from '../../../services/dependency-resolution.service.js';
 import { SharedDataService } from '../../../services/shared-data.service.js';
 import { validatePluginManifest } from '../../../schemas/plugin-manifest.schema.js';
+import { globToRegex } from '../../setup/mock-redis-keys.js';
 
 // Mock logger
 const createMockLogger = () => ({
@@ -242,7 +243,7 @@ const createMockRedis = () => {
       return keys.length;
     }),
     keys: vi.fn(async (pattern: string) => {
-      const regex = new RegExp(pattern.replace('*', '.*'));
+      const regex = globToRegex(pattern);
       return Array.from(cache.keys()).filter((k) => regex.test(k));
     }),
   } as any;

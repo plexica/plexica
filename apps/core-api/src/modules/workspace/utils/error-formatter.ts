@@ -224,7 +224,12 @@ export function mapServiceError(error: unknown): WorkspaceError | null {
   }
 
   // ── 2. Check member-specific patterns first (more specific before general) ──
+  // codeql[js/polynomial-redos] False positive: /member.*not found/i is O(n) —
+  // single .* with literal suffix 'not found', no nested quantifiers or
+  // alternation. Confirmed linear-time via benchmark test.
+  // See Spec 015 FR-030 and redos-benchmark.test.ts.
   if (/member.*not found/i.test(message)) {
+    // codeql[js/polynomial-redos]
     return new WorkspaceError(WorkspaceErrorCode.MEMBER_NOT_FOUND, message);
   }
 

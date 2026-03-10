@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Minimal read-only permissions by default. No job in this workflow requires
+# write access — artifact upload uses GITHUB_TOKEN implicitly with read scope.
+# Spec 015 T015-08, FR-019, FR-020.
+permissions:
+  contents: read
+
 # Cancel in-progress runs when a new workflow with the same group name is triggered
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

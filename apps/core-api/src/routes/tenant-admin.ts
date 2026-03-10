@@ -24,6 +24,8 @@ import { authMiddleware, requireTenantAdmin } from '../middleware/auth.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { getJobQueueServiceInstance } from '../modules/jobs/job-queue.singleton.js';
 import { auditLogService } from '../services/audit-log.service.js';
+import { rateLimiter } from '../middleware/rate-limiter.js';
+import { ADMIN_RATE_LIMIT } from '../lib/rate-limit-config.js';
 
 // ============================================================================
 // Zod Schemas
@@ -260,6 +262,9 @@ export async function tenantAdminRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
   fastify.addHook('preHandler', tenantContextMiddleware);
   fastify.addHook('preHandler', requireTenantAdmin);
+  // SECURITY (Spec 015 T015-12): Apply ADMIN-tier rate limiting to all tenant-admin routes.
+  // Covers CodeQL js/missing-rate-limiting alerts on lines 260, 518, 546, 582.
+  fastify.addHook('preHandler', rateLimiter(ADMIN_RATE_LIMIT));
 
   // --------------------------------------------------------------------------
   // Dashboard
