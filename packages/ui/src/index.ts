@@ -63,5 +63,8 @@ export * from './components/Sidebar/Sidebar';
 export * from './components/Footer/Footer';
 export * from './components/Separator/Separator';
 
+// Security Components (Spec 015)
+export * from './components/SafeImage/SafeImage';
+
 // Utilities
 export * from './lib/utils';

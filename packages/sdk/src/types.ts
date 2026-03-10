@@ -282,4 +282,16 @@ export type {
   ResolvedLayout,
   ConfigurableFormSummary,
   SaveLayoutConfigInput,
+  // Extension Points (Spec 013)
+  ExtensionSlotType,
+  ExtensionSlotDeclaration,
+  ContributionDeclaration,
+  ExtensibleEntityDeclaration,
+  DataExtensionDeclaration,
+  ResolvedContribution,
+  AggregatedExtensionData,
+  DependentsResult,
+  ContributionValidationStatus,
+  ExtensionSlotFilters,
+  ExtensionContributionFilters,
 } from '@plexica/types';

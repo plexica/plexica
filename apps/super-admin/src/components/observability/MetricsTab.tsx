@@ -30,26 +30,30 @@ interface QueryConfig {
   unit: string;
 }
 
-function buildQueries(pluginId: string): QueryConfig[] {
+// NOTE: Do NOT include plugin_id in these query templates.
+// The backend's _injectPluginLabel() injects plugin_id={pluginId} automatically
+// before forwarding to Prometheus, preventing duplicate label selectors that
+// produce invalid PromQL. See observability.service.ts _injectPluginLabel().
+function buildQueries(): QueryConfig[] {
   return [
     {
       label: 'Request Rate',
-      query: `rate(http_requests_total{plugin_id="${pluginId}"}[5m])`,
+      query: `rate(http_requests_total[5m])`,
       unit: ' req/s',
     },
     {
       label: 'Latency',
-      query: `histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{plugin_id="${pluginId}"}[5m]))) * 1000`,
+      query: `histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) * 1000`,
       unit: 'ms',
     },
     {
       label: 'Error Rate',
-      query: `rate(http_requests_total{plugin_id="${pluginId}",status=~"5.."}[5m]) / rate(http_requests_total{plugin_id="${pluginId}"}[5m])`,
+      query: `rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])`,
       unit: '',
     },
     {
       label: 'CPU Usage',
-      query: `process_cpu_seconds_total{plugin_id="${pluginId}"}`,
+      query: `process_cpu_seconds_total`,
       unit: '%',
     },
   ];
@@ -144,7 +148,7 @@ export default function MetricsTab() {
     );
   }
 
-  const queries = buildQueries(pluginId);
+  const queries = buildQueries();
 
   return (
     <div className="space-y-4" key={refreshKey}>

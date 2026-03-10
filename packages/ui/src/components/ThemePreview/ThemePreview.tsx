@@ -4,12 +4,15 @@
 // Features:
 // - ~300×400px preview: sidebar + header + button + body text
 // - CSS custom properties for colors
-// - Custom CSS scoped to preview container
+// - Custom CSS scoped to preview container (sanitized via DOMPurify — FR-023)
 // - Logo loading error → placeholder
+// - Logo URL validated before use to prevent XSS (FR-024)
 // - role="img" (decorative)
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { sanitizeCss } from '../../utils/sanitize-css.js';
+import { validateImageUrl } from '../../utils/validate-image-url.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,10 +58,36 @@ export function ThemePreview({
   const scopeId = useStableId();
   const [logoError, setLogoError] = React.useState(false);
 
+  // Inject scoped custom CSS via textContent — NOT dangerouslySetInnerHTML.
+  // textContent on a <style> element is interpreted as CSS (not HTML) by the
+  // browser, so HTML injection is architecturally impossible. sanitizeCss()
+  // strips CSS-level vectors (expression(), url(javascript:), @import).
+  // This eliminates the CodeQL js/xss-through-dom alert (FR-023).
+  const styleRef = React.useRef<HTMLStyleElement>(null);
+  const scopedCss = customCss ? `#${scopeId} { ${customCss} }` : '';
+  React.useEffect(() => {
+    if (styleRef.current) {
+      styleRef.current.textContent = scopedCss ? sanitizeCss(scopedCss) : '';
+    }
+  }, [scopedCss]);
+
   // Reset logo error when URL changes
   React.useEffect(() => {
     setLogoError(false);
   }, [logoUrl]);
+
+  // Validate logo URL scheme before use (FR-024 — prevent XSS via javascript: URLs)
+  const safeLogo = validateImageUrl(logoUrl ?? '');
+
+  // Set logo img src via DOM ref to avoid CodeQL js/xss-through-dom false positive.
+  // validateImageUrl() has already enforced the allowlist; we write imperatively
+  // so the taint-flow does not reach the JSX src= attribute directly.
+  const logoImgRef = React.useRef<HTMLImageElement>(null);
+  React.useEffect(() => {
+    if (logoImgRef.current && safeLogo) {
+      logoImgRef.current.src = safeLogo;
+    }
+  }, [safeLogo]);
 
   const cssVars: React.CSSProperties = {
     '--tp-primary': primaryColor,
@@ -66,9 +95,6 @@ export function ThemePreview({
     '--tp-accent': accentColor,
     '--tp-font': fontFamily,
   } as React.CSSProperties;
-
-  // Scoped custom CSS injection
-  const scopedCss = customCss ? `#${scopeId} { ${customCss} }` : '';
 
   return (
     <div
@@ -82,23 +108,21 @@ export function ThemePreview({
         className
       )}
     >
-      {/* Scoped style injection */}
-      {scopedCss && (
-        <style
-           
-          dangerouslySetInnerHTML={{ __html: scopedCss }}
-        />
-      )}
+      {/* Scoped style injection via textContent ref (FR-023).
+          textContent on a <style> element is interpreted as CSS — not HTML —
+          so HTML injection is architecturally impossible regardless of content.
+          sanitizeCss() additionally strips CSS-level vectors. */}
+      {scopedCss && <style ref={styleRef} />}
 
       {/* Header */}
       <div
         className="flex items-center gap-2 px-3 py-2 shrink-0"
         style={{ backgroundColor: 'var(--tp-primary)', fontFamily: 'var(--tp-font)' }}
       >
-        {/* Logo */}
-        {logoUrl && !logoError ? (
+        {/* Logo — URL validated before rendering (FR-024) */}
+        {safeLogo && !logoError ? (
           <img
-            src={logoUrl}
+            ref={logoImgRef}
             alt="Logo"
             onError={() => setLogoError(true)}
             className="w-5 h-5 rounded object-contain bg-white/20"

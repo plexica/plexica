@@ -27,6 +27,8 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { CompositePropagator, W3CBaggagePropagator } from '@opentelemetry/core';
 import { Resource } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import { FastifyInstrumentation } from '@opentelemetry/instrumentation-fastify';
 
 const SERVICE_NAME = process.env.OTEL_SERVICE_NAME ?? 'plexica-core-api';
 const OTLP_ENDPOINT = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://tempo:4317';
@@ -66,6 +68,11 @@ export function initTelemetry(): void {
     textMapPropagator: new CompositePropagator({
       propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
     }),
+    // Instrument Node.js HTTP and Fastify so that incoming requests and
+    // outbound HTTP calls automatically produce spans. These packages are
+    // already listed in package.json; they are registered here rather than
+    // via auto-instrumentation to keep the setup explicit (ADR-026).
+    instrumentations: [new HttpInstrumentation(), new FastifyInstrumentation()],
   });
 
   try {

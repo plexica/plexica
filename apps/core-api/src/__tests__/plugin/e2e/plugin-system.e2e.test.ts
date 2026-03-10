@@ -53,15 +53,19 @@ const TEST_MANIFEST = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Ensure the global sentinel tenant row exists after a DB reset. */
-async function ensureGlobalTenant() {
+/**
+ * Ensure the platform tenant row exists after a DB reset.
+ * Must match PLATFORM_TENANT_ID in plugin-v1.ts and migration
+ * 20260309000001_seed_platform_tenant.
+ */
+async function ensurePlatformTenant() {
   await db.tenant.upsert({
-    where: { id: '__global__' },
+    where: { id: '00000000-0000-0000-0000-000000000001' },
     update: {},
     create: {
-      id: '__global__',
-      slug: '__global__',
-      name: 'Global Platform Tenant',
+      id: '00000000-0000-0000-0000-000000000001',
+      slug: '__platform__',
+      name: 'Platform (System)',
       status: 'ACTIVE',
     },
   });
@@ -124,8 +128,8 @@ describe('Plugin System E2E (T004-26)', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // Ensure __global__ sentinel tenant (FK constraint for platform-level installs)
-    await ensureGlobalTenant();
+    // Ensure platform tenant row exists (FK constraint for platform-level installs)
+    await ensurePlatformTenant();
 
     // Create a real tenant for tenant-admin operations
     tenantId = await createTenant(TENANT_SLUG);

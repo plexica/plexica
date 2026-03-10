@@ -272,7 +272,7 @@ describe('PluginRegistryService', () => {
 
     it('should throw error if plugin not found', async () => {
       const manifest = {
-        id: 'plugin-test',
+        id: 'plugin-non-existent',
         name: 'Test Plugin',
         version: '1.0.0',
         description: 'A test plugin for testing purposes',
@@ -285,9 +285,9 @@ describe('PluginRegistryService', () => {
 
       vi.mocked(db.plugin.findUnique).mockResolvedValue(null);
 
-      await expect(registryService.updatePlugin('non-existent', manifest as any)).rejects.toThrow(
-        'not found'
-      );
+      await expect(
+        registryService.updatePlugin('plugin-non-existent', manifest as any)
+      ).rejects.toThrow('not found');
     });
   });
 

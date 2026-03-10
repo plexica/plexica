@@ -808,13 +808,205 @@ async onActivate(context: PluginContext) {
 
 ---
 
-## See Also
+## Extension Points SDK (Spec 013)
+
+**Date Added**: March 2026
+
+The Extension Points SDK lets plugins participate in the composable UI layer — either by **declaring slots** that other plugins can fill, or by **contributing components** to another plugin's slots.
+
+### Declaring Extension Slots in Your Manifest
+
+A slot is a named insertion point in your plugin's UI. Declare it in your plugin manifest:
+
+```typescript
+// File: src/plugin.ts
+import { PluginBase } from '@plexica/sdk';
+import type { ExtensionSlotDeclaration } from '@plexica/types';
+
+const contactActionsSlot: ExtensionSlotDeclaration = {
+  slotId: 'contact-actions',
+  label: 'Contact Actions',
+  type: 'toolbar', // 'action' | 'panel' | 'form' | 'toolbar'
+  maxContributions: 5, // 0 = unlimited
+  contextSchema: {
+    // Optional: JSON Schema for context passed to contributions
+    type: 'object',
+    properties: {
+      contactId: { type: 'string' },
+    },
+    required: ['contactId'],
+  },
+  description: 'Actions toolbar shown on the contact detail page',
+};
+
+export class MyCrmPlugin extends PluginBase {
+  readonly manifest = {
+    id: 'plugin-crm',
+    name: 'CRM Plugin',
+    extensionSlots: [contactActionsSlot],
+    // ...
+  };
+}
+```
+
+### Rendering a Slot in Your UI
+
+Use the `<ExtensionSlot>` component from the shell:
+
+```tsx
+// File: src/components/ContactDetail.tsx
+import { ExtensionSlot } from '@plexica/ui/extensions'; // Re-exported from shell via Module Federation
+
+export function ContactDetail({ contact }) {
+  return (
+    <div>
+      <h1>{contact.name}</h1>
+
+      {/* Renders all active contributions from other plugins */}
+      <ExtensionSlot
+        pluginId="plugin-crm"
+        slotId="contact-actions"
+        context={{ contactId: contact.id }}
+      />
+    </div>
+  );
+}
+```
+
+### Contributing to Another Plugin's Slot
+
+To contribute a component to another plugin's slot, declare a contribution in your manifest:
+
+```typescript
+// File: src/plugin.ts
+import type { ContributionDeclaration } from '@plexica/types';
+
+const addNoteContribution: ContributionDeclaration = {
+  targetPluginId: 'plugin-crm', // Plugin that owns the slot
+  targetSlotId: 'contact-actions', // Slot ID within that plugin
+  componentName: 'AddNoteButton', // Module Federation exposed component name
+  priority: 10, // Lower = rendered first
+  previewUrl: '/previews/add-note.png', // Optional thumbnail for admin UI
+  description: 'Add a note to the contact from the actions toolbar',
+};
+
+export class MyNotesPlugin extends PluginBase {
+  readonly manifest = {
+    id: 'plugin-notes',
+    name: 'Notes Plugin',
+    contributions: [addNoteContribution],
+    // ...
+  };
+}
+```
+
+The component `AddNoteButton` must be exposed via Module Federation in your plugin's `vite.config.ts` (or `webpack.config.js`):
+
+```typescript
+// vite.config.ts
+federation({
+  name: 'plugin-notes',
+  exposes: {
+    './AddNoteButton': './src/components/AddNoteButton',
+  },
+});
+```
+
+### Using DataExtensionClient
+
+If your plugin contributes sidecar data to another plugin's extensible entity (e.g., adding custom fields to a CRM contact), use `DataExtensionClient`:
+
+```typescript
+// File: src/services/contact-data-extension.ts
+import { DataExtensionClient } from '@plexica/sdk';
+
+const client = new DataExtensionClient({
+  targetPluginId: 'plugin-crm',
+  targetEntityType: 'contact',
+  sidecarBaseUrl: process.env.PLUGIN_BASE_URL!, // Validated against manifest's declared base URL
+});
+
+// Fetch sidecar data for a specific entity
+const extensionData = await client.fetchSidecarData({
+  entityId: 'contact-uuid-here',
+  tenantId: 'tenant-uuid-here',
+});
+
+// extensionData.fields contains the merged field data
+console.log(extensionData.fields.lastEmailDate);
+```
+
+Declare the data extension in your manifest:
+
+```typescript
+import type { DataExtensionDeclaration } from '@plexica/types';
+
+const contactDataExtension: DataExtensionDeclaration = {
+  targetPluginId: 'plugin-crm',
+  targetEntityType: 'contact',
+  sidecarUrl: '/api/extension/contact-data', // Relative to plugin base URL
+  fieldSchema: {
+    type: 'object',
+    properties: {
+      lastEmailDate: { type: 'string', format: 'date-time' },
+      emailCount: { type: 'integer' },
+    },
+  },
+  description: 'Email engagement data for CRM contacts',
+};
+```
+
+### Declaring Extensible Entities
+
+If your plugin owns entities that other plugins should be able to extend with sidecar data:
+
+```typescript
+import type { ExtensibleEntityDeclaration } from '@plexica/types';
+
+const contactEntity: ExtensibleEntityDeclaration = {
+  entityType: 'contact',
+  label: 'Contact',
+  fieldSchema: {
+    type: 'object',
+    properties: {
+      contactId: { type: 'string', format: 'uuid' },
+    },
+    required: ['contactId'],
+  },
+  description: 'A CRM contact that accepts sidecar data from other plugins',
+};
+```
+
+### Workspace Visibility
+
+Workspace admins can toggle individual contributions on/off for their workspace via the **Settings → Extensions** page. This does not affect other workspaces. Visibility state is resolved at query time and included in the `ResolvedContribution.isVisible` field.
+
+### Common Mistakes
+
+❌ **Registering a contribution without exposing the component via Module Federation**
+
+- Why it fails: `<ExtensionContribution>` will throw `MODULE_NOT_FOUND` at load time
+- ✅ Correct: Ensure `componentName` matches an exposed key in your `federation()` config
+
+❌ **Using a UUID for `pluginId`**
+
+- Why it fails: Plugin IDs are strings (e.g., `"plugin-crm"`), not UUIDs
+- ✅ Correct: Use the same string ID declared in your manifest's `id` field
+
+❌ **Calling the extension API without checking the feature flag**
+
+- Why it fails: Returns `EXTENSION_POINTS_DISABLED` error for tenants without the flag
+- ✅ Correct: Check `tenant.settings.extension_points_enabled` before making extension API calls, or handle the error gracefully
+
+---
 
 - [Security Guidelines](./SECURITY.md) — Authentication, authorization, SQL injection prevention
+- [Extension Points Architecture](./ARCHITECTURE.md#extension-points-system-spec-013) — Slot/contribution system overview
 - [Plugin System Architecture](../specs/TECHNICAL_SPECIFICATIONS.md) — Core API plugin endpoints
 - [Event Bus Documentation](../packages/event-bus/README.md) — Kafka/Redpanda event system
 - [ADR-018: Plugin Lifecycle Status](../.forge/knowledge/adr/adr-018-plugin-lifecycle-status.md) — Lifecycle state machine
 - [ADR-019: Pluggable Container Adapter](../.forge/knowledge/adr/adr-019-pluggable-container-adapter.md) — Container runtime
+- [ADR-031: Extension Tables Core Shared Schema](../.forge/knowledge/adr/adr-031-extension-tables-core-shared-schema.md) — ADR-031 safeguards
 
 ## Support
 

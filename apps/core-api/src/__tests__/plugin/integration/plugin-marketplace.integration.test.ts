@@ -585,7 +585,7 @@ describe('Plugin Marketplace Integration Tests', () => {
         headers: { authorization: `Bearer ${superAdminToken}` },
       });
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(404);
     });
 
     it('should prevent deletion of installed plugin', async () => {
@@ -622,7 +622,7 @@ describe('Plugin Marketplace Integration Tests', () => {
         headers: { authorization: `Bearer ${superAdminToken}` },
       });
 
-      expect(response.statusCode).toBe(400);
+      expect(response.statusCode).toBe(409);
       expect(response.json().error.message).toContain('Cannot delete plugin');
     });
   });
@@ -718,7 +718,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/plugins/${uninstalledPluginId}/stats`,
-        headers: { authorization: `Bearer ${regularUserToken}` },
+        headers: { authorization: `Bearer ${superAdminToken}` },
       });
 
       expect(response.statusCode).toBe(200);
@@ -731,7 +731,7 @@ describe('Plugin Marketplace Integration Tests', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/plugins/plugin-nonexistent/stats',
-        headers: { authorization: `Bearer ${regularUserToken}` },
+        headers: { authorization: `Bearer ${superAdminToken}` },
       });
 
       expect(response.statusCode).toBe(404);

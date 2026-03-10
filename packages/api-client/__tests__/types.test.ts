@@ -62,6 +62,61 @@ describe('ApiError', () => {
       });
       expect(error.isValidationError).toBe(true);
     });
+
+    it('isRateLimited should be true for 429', () => {
+      const error = new ApiError({
+        statusCode: 429,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests',
+      });
+      expect(error.isRateLimited).toBe(true);
+    });
+
+    it('isRateLimited should be false for 400', () => {
+      const error = new ApiError({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'bad request',
+      });
+      expect(error.isRateLimited).toBe(false);
+    });
+  });
+
+  describe('retryAfter field', () => {
+    it('should be null by default when not provided', () => {
+      const error = new ApiError({ statusCode: 400, error: 'Bad Request', message: 'bad' });
+      expect(error.retryAfter).toBeNull();
+    });
+
+    it('should be null when explicitly set to null', () => {
+      const error = new ApiError({
+        statusCode: 429,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'rate limited',
+        retryAfter: null,
+      });
+      expect(error.retryAfter).toBeNull();
+    });
+
+    it('should be set when a retryAfter value is provided', () => {
+      const error = new ApiError({
+        statusCode: 429,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'rate limited',
+        retryAfter: 30,
+      });
+      expect(error.retryAfter).toBe(30);
+    });
+
+    it('should be set to 0 when retryAfter is 0', () => {
+      const error = new ApiError({
+        statusCode: 429,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'rate limited',
+        retryAfter: 0,
+      });
+      expect(error.retryAfter).toBe(0);
+    });
   });
 
   it('should be instanceof Error', () => {

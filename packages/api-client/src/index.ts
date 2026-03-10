@@ -42,9 +42,17 @@ export type {
   AdminClientConfig,
   AuthTokenProvider,
   ApiErrorResponse,
+  NestedApiErrorResponse,
   PaginatedResponse,
   RequestOptions,
+  RetryConfig,
 } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+export { parseRetryAfter } from './retry-after.js';
 
 // ---------------------------------------------------------------------------
 // Schemas (runtime validation)

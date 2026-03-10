@@ -44,6 +44,11 @@ model Tenant {
   jobs          Job[]
   notifications Notification[]
   searchDocuments SearchDocument[]
+  // Spec 013 — Extension Points (ADR-031)
+  extensionSlots         ExtensionSlot[]
+  extensionContributions ExtensionContribution[]
+  extensibleEntities     ExtensibleEntity[]
+  dataExtensions         DataExtension[]
 
   @@index([status], map: "idx_tenants_status")
   @@index([deletionScheduledAt], map: "idx_tenants_deletion_scheduled_at")
@@ -119,6 +124,13 @@ model Plugin {
   installations PluginInstallation[]
   workspacePlugins WorkspacePlugin[]
   templates     WorkspaceTemplate[]
+  // Spec 013 — Extension Points (ADR-031)
+  extensionSlots           ExtensionSlot[]               @relation("PluginExtensionSlots")
+  extensionContributions   ExtensionContribution[]       @relation("PluginExtensionContributions")
+  targetContributions      ExtensionContribution[]       @relation("PluginTargetContributions")
+  extensibleEntities       ExtensibleEntity[]            @relation("PluginExtensibleEntities")
+  dataExtensions           DataExtension[]               @relation("PluginDataExtensions")
+  targetDataExtensions     DataExtension[]               @relation("PluginTargetDataExtensions")
 
   @@index([status])
   @@index([lifecycleStatus], map: "idx_plugins_lifecycle_status")
@@ -139,6 +151,7 @@ model TenantPlugin {
   plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
 
   @@id([tenantId, pluginId])
+  @@index([pluginId], map: "tenant_plugins_plugin_id_idx")
   @@map("tenant_plugins")
   @@schema("core")
 }
@@ -382,6 +395,8 @@ model Workspace {
   resources WorkspaceResource[]
   plugins   WorkspacePlugin[]
   pages     WorkspacePage[]
+  // Spec 013 — Extension Points (ADR-031)
+  extensionVisibility WorkspaceExtensionVisibility[]
 
   @@unique([parentId, slug])
   @@index([tenantId])
@@ -709,5 +724,138 @@ model LayoutConfig {
   // Indexes are defined in migration SQL (partial unique indexes not expressible in Prisma DSL)
   @@index([pluginId], map: "idx_layout_configs_plugin")
   @@map("layout_configs")
+  @@schema("core")
+}
+
+// ============================================================================
+// EXTENSION POINTS — Spec 013 (ADR-031)
+// All 5 tables placed in core shared schema (bounded exception to ADR-002).
+// Tenant isolation enforced via tenant_id + RLS policies (migration 20260308000002).
+// Access MUST go through ExtensionRegistryRepository only (ADR-031 Safeguard 1).
+// ============================================================================
+
+/// Extension slot declared by a plugin — a named insertion point for contributions.
+model ExtensionSlot {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  pluginId         String   @map("plugin_id")
+  slotId           String   @map("slot_id") @db.VarChar(255)
+  label            String   @db.VarChar(255)
+  type             String   @db.VarChar(50)
+  maxContributions Int      @default(0) @map("max_contributions")
+  contextSchema    Json?    @map("context_schema")
+  description      String?
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plugin Plugin @relation("PluginExtensionSlots", fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, pluginId, slotId], map: "uq_extension_slots_plugin_slot")
+  @@index([tenantId], map: "idx_extension_slots_tenant_id")
+  @@index([pluginId], map: "idx_extension_slots_plugin_id")
+  @@index([tenantId, type], map: "idx_extension_slots_tenant_type")
+  @@index([tenantId, isActive], map: "idx_extension_slots_active")
+  @@map("extension_slots")
+  @@schema("core")
+}
+
+/// Contribution declared by a plugin to render into another plugin's slot.
+model ExtensionContribution {
+  id                    String   @id @default(uuid())
+  tenantId              String   @map("tenant_id")
+  contributingPluginId  String   @map("contributing_plugin_id")
+  targetPluginId        String   @map("target_plugin_id")
+  targetSlotId          String   @map("target_slot_id") @db.VarChar(255)
+  componentName         String   @map("component_name") @db.VarChar(255)
+  priority              Int      @default(100)
+  outputSchema          Json?    @map("output_schema")
+  previewUrl            String?  @map("preview_url")
+  description           String?
+  validationStatus      String   @default("pending") @map("validation_status") @db.VarChar(50)
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  tenant              Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contributingPlugin  Plugin  @relation("PluginExtensionContributions", fields: [contributingPluginId], references: [id], onDelete: Cascade)
+  targetPlugin        Plugin  @relation("PluginTargetContributions", fields: [targetPluginId], references: [id], onDelete: Cascade)
+  visibilityOverrides WorkspaceExtensionVisibility[]
+
+  @@unique([tenantId, contributingPluginId, targetPluginId, targetSlotId], map: "uq_extension_contributions_unique")
+  @@index([tenantId], map: "idx_extension_contributions_tenant_id")
+  @@index([tenantId, contributingPluginId], map: "idx_extension_contributions_contributing")
+  @@index([tenantId, targetPluginId, targetSlotId], map: "idx_extension_contributions_target")
+  @@index([tenantId, isActive], map: "idx_extension_contributions_active")
+  @@index([tenantId, validationStatus], map: "idx_extension_contributions_validation")
+  @@map("extension_contributions")
+  @@schema("core")
+}
+
+/// Per-workspace visibility override for a contribution (default = visible when no row).
+model WorkspaceExtensionVisibility {
+  workspaceId     String   @map("workspace_id")
+  contributionId  String   @map("contribution_id")
+  isVisible       Boolean  @default(true) @map("is_visible")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  workspace    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contribution ExtensionContribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, contributionId])
+  @@index([workspaceId], map: "idx_workspace_ext_visibility_workspace")
+  @@index([contributionId], map: "idx_workspace_ext_visibility_contribution")
+  @@map("workspace_extension_visibility")
+  @@schema("core")
+}
+
+/// Entity type declared by a plugin as extensible via sidecar data.
+model ExtensibleEntity {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  pluginId    String   @map("plugin_id")
+  entityType  String   @map("entity_type") @db.VarChar(255)
+  label       String   @db.VarChar(255)
+  fieldSchema Json     @default("{}") @map("field_schema")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plugin Plugin @relation("PluginExtensibleEntities", fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, pluginId, entityType], map: "uq_extensible_entities_plugin_type")
+  @@index([tenantId], map: "idx_extensible_entities_tenant_id")
+  @@index([pluginId], map: "idx_extensible_entities_plugin_id")
+  @@index([tenantId, entityType], map: "idx_extensible_entities_entity_type")
+  @@map("extensible_entities")
+  @@schema("core")
+}
+
+/// Sidecar data extension — plugin B contributes fields to plugin A's entity.
+model DataExtension {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  contributingPluginId String   @map("contributing_plugin_id")
+  targetPluginId       String   @map("target_plugin_id")
+  targetEntityType     String   @map("target_entity_type") @db.VarChar(255)
+  sidecarUrl           String   @map("sidecar_url")
+  fieldSchema          Json     @default("{}") @map("field_schema")
+  description          String?
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  tenant             Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contributingPlugin Plugin @relation("PluginDataExtensions", fields: [contributingPluginId], references: [id], onDelete: Cascade)
+  targetPlugin       Plugin @relation("PluginTargetDataExtensions", fields: [targetPluginId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, contributingPluginId, targetPluginId, targetEntityType], map: "uq_data_extensions_unique")
+  @@index([tenantId], map: "idx_data_extensions_tenant_id")
+  @@index([tenantId, contributingPluginId], map: "idx_data_extensions_contributing")
+  @@index([tenantId, targetPluginId, targetEntityType], map: "idx_data_extensions_target")
+  @@map("data_extensions")
   @@schema("core")
 }

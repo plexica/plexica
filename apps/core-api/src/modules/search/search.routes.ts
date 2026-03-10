@@ -16,6 +16,8 @@ import {
   SearchErrorCode,
 } from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
+import { rateLimiter } from '../../middleware/rate-limiter.js';
+import { GENERAL_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
 // ============================================================================
 // Module-level singletons
@@ -54,6 +56,9 @@ function getTenantId(request: FastifyRequest): string {
 
 export const searchRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
+  // SECURITY (Spec 015 T015-15): Apply GENERAL-tier rate limiting to all search routes.
+  // Covers CodeQL js/missing-rate-limiting alert on line 56.
+  server.addHook('preHandler', rateLimiter(GENERAL_RATE_LIMIT));
 
   // Admin-only role check for write/management endpoints (HIGH #3)
   const adminOnly = requireRole(

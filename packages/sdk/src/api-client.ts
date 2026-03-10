@@ -36,8 +36,12 @@ export class ApiClient {
   private readonly defaultHeaders: Record<string, string>;
 
   constructor(config: ApiClientConfig) {
-    // Strip trailing slash from baseUrl
-    this.baseUrl = config.baseUrl.replace(/\/+$/, '');
+    // Strip trailing slashes from baseUrl without a regex to avoid CodeQL
+    // js/polynomial-redos false positives (Spec 015 FR-029). The while loop is
+    // unconditionally O(n) — no backtracking possible.
+    let strippedUrl = config.baseUrl;
+    while (strippedUrl.endsWith('/')) strippedUrl = strippedUrl.slice(0, -1);
+    this.baseUrl = strippedUrl;
     this.context = config.context;
     this.defaultTimeout = config.defaultTimeout ?? 30_000;
     this.defaultHeaders = config.defaultHeaders ?? {};

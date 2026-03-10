@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { SharedDataService } from '../../services/shared-data.service.js';
+import { globToRegex } from '../setup/mock-redis-keys.js';
 
 // Create mock Prisma
 const createMockPrisma = () => {
@@ -133,7 +134,7 @@ const createMockRedis = () => {
       return keys.length;
     }),
     keys: vi.fn(async (pattern: string) => {
-      const regex = new RegExp(pattern.replace('*', '.*'));
+      const regex = globToRegex(pattern);
       return Array.from(cache.keys()).filter((k) => regex.test(k));
     }),
     __clearAll: () => {

@@ -9,7 +9,7 @@
 
 | Field   | Value      |
 | ------- | ---------- |
-| Status  | Draft      |
+| Status  | Complete   |
 | Author  | forge-pm   |
 | Date    | 2026-03-08 |
 | Track   | Feature    |

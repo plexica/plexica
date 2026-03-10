@@ -185,6 +185,23 @@ async function seedMinimalData() {
     // 1. Create tenants in core schema
     console.log('📦 Creating tenants...');
 
+    // Seed the well-known platform tenant (matches migration 20260309000001).
+    // This row is required for super-admin plugin lifecycle routes that write
+    // TenantPlugin rows with tenantId = PLATFORM_TENANT_ID.
+    await prisma.tenant.upsert({
+      where: { id: '00000000-0000-0000-0000-000000000001' },
+      update: {},
+      create: {
+        id: '00000000-0000-0000-0000-000000000001',
+        slug: '__platform__',
+        name: 'Platform (System)',
+        status: TenantStatus.ACTIVE,
+        settings: {},
+        theme: {},
+      },
+    });
+    console.log('  ✅ Created platform tenant');
+
     const tenant1 = await prisma.tenant.upsert({
       where: { slug: 'acme' },
       update: {},

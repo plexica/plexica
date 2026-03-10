@@ -118,16 +118,18 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
     app = await buildTestApp();
     await app.ready();
 
-    // The plugin lifecycle service uses '__global__' as a sentinel tenantId for
-    // platform-level installs. The tenants table has a FK constraint, so we must
-    // ensure this row exists after every DB reset.
+    // The plugin lifecycle service uses the platform tenant ID for platform-level
+    // installs. The tenants table has a FK constraint, so we must ensure this row
+    // exists after every DB reset.
+    // Migration 20260309000001_seed_platform_tenant seeds this row in production,
+    // but integration tests reset the DB so we re-create it here.
     await db.tenant.upsert({
-      where: { id: '__global__' },
+      where: { id: '00000000-0000-0000-0000-000000000001' },
       update: {},
       create: {
-        id: '__global__',
-        slug: '__global__',
-        name: 'Global Platform Tenant',
+        id: '00000000-0000-0000-0000-000000000001',
+        slug: '__platform__',
+        name: 'Platform (System)',
         status: 'ACTIVE',
       },
     });
@@ -469,11 +471,10 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: {},
       });
-      // If install succeeds, plugin A is installed and has claimed the permission
-      // tenantId for global install is '__global__', which means no actual
-      // tenant schema exists — the permission registration will be skipped (tenant not found).
-      // That is expected and the install should return 200.
-      expect([200, 400]).toContain(installA.statusCode);
+      // tenantId for global install is the platform tenant (00000000-0000-0000-0000-000000000001).
+      // The platform tenant row exists, so permission registration will be attempted.
+      // That is expected and the install should return 201.
+      expect([201, 400]).toContain(installA.statusCode);
 
       // Register plugin B (same permission)
       await app.inject({
@@ -482,8 +483,7 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: CONFLICT_MANIFEST_B,
       });
-      // When permissions use __global__ tenant (which has no DB tenant row),
-      // the permission conflict path will be skipped (tenant lookup returns null).
+      // With the platform tenant row existing, permission registration will be attempted.
       // The important thing is the route handles the call without crashing.
       const installB = await app.inject({
         method: 'POST',
@@ -491,9 +491,9 @@ describe('Plugin Lifecycle Integration (T004-24)', () => {
         headers: { authorization: `Bearer ${superAdminToken}` },
         payload: {},
       });
-      // Either succeeds (global install skips permission registration when no tenant) or
-      // returns 400 with PERMISSION_KEY_CONFLICT. Both are acceptable.
-      expect([200, 400]).toContain(installB.statusCode);
+      // Either succeeds (platform install proceeds) or returns 400 with PERMISSION_KEY_CONFLICT.
+      // Both are acceptable.
+      expect([201, 400]).toContain(installB.statusCode);
     });
   });
 });

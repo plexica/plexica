@@ -170,7 +170,26 @@ export class TranslationService {
    * @throws Error if file not found or exceeds size limit
    */
   async loadNamespaceFile(locale: string, namespace: string): Promise<Record<string, string>> {
+    // T015-05: Validate locale and namespace with Zod schemas BEFORE any
+    // file system access (fail-fast, Constitution Art. 5.3). These schemas
+    // reject path traversal attempts such as '../../etc/passwd'.
+    // FR-006: locale validation, FR-007: namespace validation.
+    LocaleCodeSchema.parse(locale);
+    NamespaceSchema.parse(namespace);
+
     const filePath = path.join(TRANSLATIONS_DIR, locale, `${namespace}.json`);
+
+    // T015-04: Resolve both paths to canonical absolute paths and assert that
+    // filePath is strictly contained within TRANSLATIONS_DIR.
+    // This catches traversal attempts that survive the Zod check at path level
+    // (e.g., a locale that is syntactically valid BCP-47 but resolves outside
+    // the translations directory when joined).
+    // FR-005: path traversal prevention.
+    const resolvedPath = path.resolve(filePath);
+    const resolvedBase = path.resolve(TRANSLATIONS_DIR);
+    if (!resolvedPath.startsWith(resolvedBase + path.sep)) {
+      throw new Error('PATH_TRAVERSAL_BLOCKED: resolved path escapes translations directory');
+    }
 
     // Check if file exists and get stats
     let stats;

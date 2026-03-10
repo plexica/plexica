@@ -330,8 +330,8 @@ test.describe('Journey 1: Search', () => {
       .or(page.getByPlaceholder(/search/i))
       .first();
     if (!(await searchInput.isVisible({ timeout: 5000 }).catch(() => false))) {
-      // Search UI might not be implemented yet — skip gracefully
-      test.skip();
+      // Search UI not yet rendered — feature may be behind a flag or not yet implemented.
+      test.skip(true, 'Search input not visible: search UI may not be implemented yet');
       return;
     }
 
@@ -351,7 +351,7 @@ test.describe('Journey 1: Search', () => {
       .first();
 
     if (!(await searchTrigger.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip();
+      test.skip(true, 'Search trigger not visible: search UI may not be implemented yet');
       return;
     }
 
@@ -362,7 +362,7 @@ test.describe('Journey 1: Search', () => {
       .first();
 
     if (!(await searchInput.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip();
+      test.skip(true, 'Search input not visible: search UI may not be implemented yet');
       return;
     }
 

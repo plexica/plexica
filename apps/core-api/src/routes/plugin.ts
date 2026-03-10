@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { pluginRegistryService, pluginLifecycleService } from '../services/plugin.service.js';
+import {
+  pluginRegistryService,
+  pluginLifecycleService,
+  PluginNotFoundError,
+  PluginHasInstallationsError,
+} from '../services/plugin.service.js';
 import type { PluginManifest } from '../types/plugin.types.js';
 import { requireSuperAdmin, authMiddleware, requireTenantAccess } from '../middleware/auth.js';
 import { PluginStatus } from '@plexica/database';
@@ -349,10 +354,45 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         return reply.code(204).send();
       } catch (error: unknown) {
         request.log.error(error);
-        return reply.code(400).send({
+        const err = error as Error & { code?: string };
+        // Mirror admin.ts error classification — use typed codes where possible,
+        // fall back to message substring matching for backward compatibility.
+        if (
+          error instanceof PluginNotFoundError ||
+          err.message.includes('not found') ||
+          err.message.includes("' not found")
+        ) {
+          return reply.code(404).send({
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: err.message,
+            },
+          });
+        }
+        if (
+          error instanceof PluginHasInstallationsError ||
+          err.message.includes('Cannot delete') ||
+          err.message.includes('active installation')
+        ) {
+          return reply.code(409).send({
+            error: {
+              code: 'PLUGIN_DELETE_CONFLICT',
+              message: err.message,
+            },
+          });
+        }
+        if (err.message.includes('Cannot delete') || err.message.includes('active installation')) {
+          return reply.code(409).send({
+            error: {
+              code: 'PLUGIN_DELETE_CONFLICT',
+              message: err.message,
+            },
+          });
+        }
+        return reply.code(500).send({
           error: {
-            code: 'PLUGIN_DELETE_FAILED',
-            message: error instanceof Error ? error.message : String(error),
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to delete plugin',
           },
         });
       }
@@ -361,15 +401,21 @@ export async function pluginRoutes(fastify: FastifyInstance) {
 
   /**
    * Get plugin statistics
+   *
+   * SECURITY: Restricted to super_admin only — aggregate installation counts
+   * across all tenants are cross-tenant business intelligence (Constitution
+   * Art. 1.2 Multi-Tenancy Isolation). Tenant admins must not see how many
+   * other tenants have installed a plugin.
    */
   fastify.get<{
     Params: { pluginId: string };
   }>(
     '/plugins/:pluginId/stats',
     {
-      preHandler: [authMiddleware],
+      preHandler: [authMiddleware, requireSuperAdmin],
       schema: {
-        description: 'Get plugin installation statistics',
+        description:
+          'Get plugin installation statistics (super_admin only — returns cross-tenant aggregate counts)',
         tags: ['plugins'],
         params: {
           type: 'object',
@@ -396,11 +442,26 @@ export async function pluginRoutes(fastify: FastifyInstance) {
         const stats = await pluginRegistryService.getPluginStats(request.params.pluginId);
         return reply.send(stats);
       } catch (error: unknown) {
-        request.log.error(error);
-        return reply.code(404).send({
+        // Narrow: only map explicit "not found" errors to 404; all other
+        // failures (DB outage, Redis timeout, etc.) must surface as 500 so
+        // monitoring alerts fire correctly (Constitution Art. 6.1, Art. 9.2).
+        if (
+          error instanceof PluginNotFoundError ||
+          (error instanceof Error &&
+            (error.message.includes('not found') || error.message.includes("' not found")))
+        ) {
+          return reply.code(404).send({
+            error: {
+              code: 'PLUGIN_NOT_FOUND',
+              message: error instanceof Error ? error.message : String(error),
+            },
+          });
+        }
+        request.log.error(error, 'getPluginStats failed unexpectedly');
+        return reply.code(500).send({
           error: {
-            code: 'PLUGIN_NOT_FOUND',
-            message: error instanceof Error ? error.message : String(error),
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to retrieve plugin statistics',
           },
         });
       }

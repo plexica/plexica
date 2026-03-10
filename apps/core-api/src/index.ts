@@ -24,6 +24,7 @@ import { marketplaceRoutes } from './routes/marketplace';
 import metricsRoutes from './routes/metrics.js';
 import { pluginGatewayRoutes } from './routes/plugin-gateway';
 import { translationRoutes } from './modules/i18n/i18n.controller.js';
+import { extensionRegistryRoutes } from './modules/extension-registry/index.js'; // T013-09 (Spec 013)
 import { storageRoutes } from './modules/storage/storage.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
 import { notificationStreamRoutes } from './modules/notifications/notification-stream.routes.js';
@@ -254,6 +255,7 @@ async function registerRoutes() {
   await server.register(tenantAdminRoutes, { prefix: '/api/v1' }); // Spec 008 T008-18/64/65 — Tenant Admin Interface
   await server.register(observabilityRoutes, { prefix: '/api/v1/observability' }); // Spec 012 T012-26 — Plugin Observability API
   await server.register(layoutConfigRoutes, { prefix: '/api/v1' }); // Spec 014 T014-14 — Layout Engine API
+  await server.register(extensionRegistryRoutes, { prefix: '/api/v1' }); // Spec 013 T013-09 — Extension Registry API
 }
 
 // Error handler
