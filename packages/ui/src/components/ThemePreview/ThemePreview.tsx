@@ -89,6 +89,9 @@ export function ThemePreview({
       )}
     >
       {/* Scoped style injection — sanitized via DOMPurify (FR-023) */}
+      {/* codeql[js/xss-through-dom] Content passes through sanitizeCss() which
+          applies DOMPurify + explicit strip passes before injection. See
+          packages/ui/src/utils/sanitize-css.ts and Spec 015 FR-023. */}
       {scopedCss && <style dangerouslySetInnerHTML={{ __html: sanitizeCss(scopedCss) }} />}
 
       {/* Header */}
@@ -99,6 +102,9 @@ export function ThemePreview({
         {/* Logo — URL validated before rendering (FR-024) */}
         {safeLogo && !logoError ? (
           <img
+            // codeql[js/xss-through-dom] src derives from validateImageUrl() which
+            // rejects javascript:, vbscript:, data:text/html, data:application/
+            // and allowlists only https://, http://, data:image/. See FR-024.
             src={safeLogo}
             alt="Logo"
             onError={() => setLogoError(true)}

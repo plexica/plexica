@@ -12,6 +12,7 @@
  *
  * Explicitly rejected dangerous schemes (checked before allowlist):
  *  - `javascript:` — script execution
+ *  - `vbscript:` — VBScript execution (IE/legacy XSS vector)
  *  - `data:text/html` — HTML injection via data URI
  *  - `data:application/` — executable payloads via data URI
  *
@@ -22,6 +23,7 @@
  * @example
  * validateImageUrl('https://cdn.example.com/logo.png'); // => the URL
  * validateImageUrl('javascript:alert(1)');              // => null
+ * validateImageUrl('vbscript:MsgBox(1)');               // => null
  * validateImageUrl('data:image/png;base64,ABC==');      // => the URL
  * validateImageUrl('data:text/html,<h1>XSS</h1>');     // => null
  * validateImageUrl('');                                  // => null
@@ -36,6 +38,7 @@ export function validateImageUrl(url: string): string | null {
 
   // Explicit rejection of dangerous schemes (checked first for clarity)
   if (lower.startsWith('javascript:')) return null;
+  if (lower.startsWith('vbscript:')) return null;
   if (lower.startsWith('data:text/html')) return null;
   if (lower.startsWith('data:application/')) return null;
 

@@ -663,7 +663,7 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
         },
       },
     },
-    // lgtm[js/missing-rate-limiting] -- rate limiter is applied in preHandler above
+    // codeql[js/missing-rate-limiting] -- rate limiter is applied in preHandler above
     // (rateLimiter(WORKSPACE_RATE_LIMITS.MEMBER_MANAGEMENT) at line 647). CodeQL cannot
     // statically trace our custom Redis-based rateLimiter() wrapper as a rate-limiting
     // middleware because it uses a higher-order function pattern rather than a recognized

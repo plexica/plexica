@@ -29,15 +29,30 @@ vi.mock('../../lib/db.js', () => ({
   },
 }));
 
-vi.mock('../../lib/redis.js', () => ({
-  redis: {
+vi.mock('../../lib/redis.js', () => {
+  // rate-limiter.ts imports redis as the default export; the named `redis`
+  // export is used by other services. Both must be present in the mock.
+  const redisMock = {
     get: vi.fn(),
     set: vi.fn(),
     del: vi.fn(),
     ping: vi.fn().mockResolvedValue('PONG'),
     quit: vi.fn(),
-  },
-}));
+    pipeline: vi.fn(() => ({
+      incr: vi.fn().mockReturnThis(),
+      expire: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue([
+        [null, 1],
+        [null, 1],
+      ]),
+    })),
+    ttl: vi.fn().mockResolvedValue(60),
+  };
+  return {
+    redis: redisMock,
+    default: redisMock,
+  };
+});
 
 vi.mock('../../lib/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

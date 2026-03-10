@@ -681,7 +681,7 @@ describe('Extension Registry — Integration Workflow Scenarios', () => {
 
   // ── Scenario 10: Super-admin cross-tenant slot listing (W-12) (TD-021) ────
 
-  describe('Scenario 10: Super-admin cross-tenant slot listing — W-12 parameterless method (TD-021)', () => {
+  describe('Scenario 10: Super-admin cross-tenant slot listing — W-12 pagination params (TD-021, TD-025)', () => {
     it('10a — superAdminListAllSlots() returns slots from all tenants', async () => {
       const allSlots = [
         { ...DB_SLOT, tenantId: TENANT_ID },
@@ -692,8 +692,8 @@ describe('Extension Registry — Integration Workflow Scenarios', () => {
       const result = await service.superAdminListAllSlots();
 
       expect(mockSuperAdminListAllSlots).toHaveBeenCalledOnce();
-      // Verify that it received no arguments (W-12: boolean anti-pattern removed)
-      expect(mockSuperAdminListAllSlots).toHaveBeenCalledWith();
+      // TD-025: service now forwards default pagination args (page=1, pageSize=50) to repo
+      expect(mockSuperAdminListAllSlots).toHaveBeenCalledWith(1, 50);
       expect(result).toHaveLength(2);
       expect(result[0].tenantId).toBe(TENANT_ID);
       expect(result[1].tenantId).toBe(TENANT_ID_2);
@@ -707,15 +707,13 @@ describe('Extension Registry — Integration Workflow Scenarios', () => {
       expect(result).toHaveLength(0);
     });
 
-    it('10c — service.superAdminListAllSlots() calls repo.superAdminListAllSlots() with no args', async () => {
+    it('10c — service.superAdminListAllSlots() calls repo.superAdminListAllSlots() with default pagination args (1, 50)', async () => {
       mockSuperAdminListAllSlots.mockResolvedValue([]);
 
       await service.superAdminListAllSlots();
 
-      // Critical W-12 assertion: no boolean argument passed
-      expect(mockSuperAdminListAllSlots).not.toHaveBeenCalledWith(
-        expect.anything() // should have been called with no args
-      );
+      // TD-025: service forwards default pagination (page=1, pageSize=50) to repo
+      expect(mockSuperAdminListAllSlots).toHaveBeenCalledWith(1, 50);
     });
   });
 
