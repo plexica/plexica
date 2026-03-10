@@ -141,6 +141,10 @@ describe('KeycloakService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // assertKeycloakUrl() reads process.env.KEYCLOAK_URL directly (not config).
+    // Stub it to match the mocked config.keycloakUrl so SSRF checks pass in
+    // exchangeAuthorizationCode / refreshToken / revokeToken tests (Spec 015 FR-002).
+    vi.stubEnv('KEYCLOAK_URL', 'http://localhost:8080');
     svc = new TestKeycloakService();
     // Make initialize() a no-op so ensureAuth() never dials Keycloak
     vi.spyOn(svc as unknown as { initialize: () => Promise<void> }, 'initialize').mockResolvedValue(
@@ -150,6 +154,7 @@ describe('KeycloakService', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   // ── withRetry ─────────────────────────────────────────────────────────────

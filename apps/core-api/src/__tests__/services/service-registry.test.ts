@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ServiceRegistryService } from '../../services/service-registry.service.js';
 import type { Redis } from 'ioredis';
+import { globToRegex } from '../setup/mock-redis-keys.js';
 
 // ServiceStatus enum from Prisma
 enum ServiceStatus {
@@ -161,7 +162,7 @@ const createMockRedis = () => {
       return 1;
     }),
     keys: vi.fn(async (pattern: string) => {
-      return Array.from(cache.keys()).filter((k) => k.includes(pattern.replace('*', '')));
+      return Array.from(cache.keys()).filter((k) => globToRegex(pattern).test(k));
     }),
   } as unknown as Redis;
 };

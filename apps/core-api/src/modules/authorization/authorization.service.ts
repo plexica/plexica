@@ -156,7 +156,13 @@ export class AuthorizationService {
    * @param roleNames - Keycloak `realm_access.roles` or DB role names
    */
   isSuperAdmin(roleNames: string[]): boolean {
-    return roleNames.includes(SYSTEM_ROLES.SUPER_ADMIN);
+    // Accept both 'super_admin' (SYSTEM_ROLES constant, snake_case) and
+    // 'super-admin' (kebab-case) — some Keycloak realm configurations emit the
+    // hyphenated form.  Normalise hyphens → underscores before comparison so
+    // that any future casing variant is also handled (TD-026).
+    return roleNames.some(
+      (r) => r === SYSTEM_ROLES.SUPER_ADMIN || r.replace(/-/g, '_') === SYSTEM_ROLES.SUPER_ADMIN
+    );
   }
 
   /**

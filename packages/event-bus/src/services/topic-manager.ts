@@ -4,6 +4,27 @@ import type { TopicConfig, TopicMetadata, PartitionInfo } from '../types';
 import { TopicConfigSchema } from '../types';
 import { RedpandaClient } from './redpanda-client';
 
+// Optional pino import — peer dependency, may not be installed in all consumers
+let pino: typeof import('pino') | undefined;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  pino = require('pino');
+} catch {
+  // pino not available — fall back to no-op logger
+}
+
+type PinoLogger = {
+  info(obj: Record<string, unknown>, msg: string): void;
+  warn(obj: Record<string, unknown>, msg: string): void;
+  error(obj: Record<string, unknown>, msg: string): void;
+};
+
+const noopLogger: PinoLogger = {
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+};
+
 /**
  * Topic naming convention:
  * - Core events: core.{domain}.{event} (e.g., core.tenant.created)
@@ -11,6 +32,7 @@ import { RedpandaClient } from './redpanda-client';
  */
 export class TopicManager {
   private admin: Admin;
+  private log: PinoLogger;
   private defaultConfig: TopicConfig = {
     numPartitions: 3, // One partition per Redpanda node
     replicationFactor: 3, // Replicate across all nodes for HA
@@ -18,8 +40,12 @@ export class TopicManager {
     cleanupPolicy: 'delete',
   };
 
-  constructor(private client: RedpandaClient) {
+  constructor(
+    private client: RedpandaClient,
+    logger?: PinoLogger
+  ) {
     this.admin = client.getAdmin();
+    this.log = logger ?? (pino ? pino({ name: 'topic-manager' }) : noopLogger);
   }
 
   /**
@@ -37,7 +63,7 @@ export class TopicManager {
       // Check if topic already exists
       const exists = await this.topicExists(name);
       if (exists) {
-        console.log(`ℹ️  Topic already exists: ${name}`);
+        this.log.info({ topicName: name }, 'Topic already exists');
         return;
       }
 
@@ -68,9 +94,9 @@ export class TopicManager {
         timeout: 10000,
       });
 
-      console.log(`✅ Topic created: ${name}`);
+      this.log.info({ topicName: name }, 'Topic created');
     } catch (error) {
-      console.error(`❌ Failed to create topic ${name}:`, error);
+      this.log.error({ topicName: name, error }, 'Failed to create topic');
       throw error;
     }
   }
@@ -82,7 +108,7 @@ export class TopicManager {
     try {
       const exists = await this.topicExists(name);
       if (!exists) {
-        console.log(`ℹ️  Topic does not exist: ${name}`);
+        this.log.info({ topicName: name }, 'Topic does not exist, skipping delete');
         return;
       }
 
@@ -91,9 +117,9 @@ export class TopicManager {
         timeout: 10000,
       });
 
-      console.log(`✅ Topic deleted: ${name}`);
+      this.log.info({ topicName: name }, 'Topic deleted');
     } catch (error) {
-      console.error(`❌ Failed to delete topic ${name}:`, error);
+      this.log.error({ topicName: name, error }, 'Failed to delete topic');
       throw error;
     }
   }
@@ -106,7 +132,7 @@ export class TopicManager {
       const topics = await this.admin.listTopics();
       return topics.filter((topic) => !topic.startsWith('__')); // Filter out internal topics
     } catch (error) {
-      console.error('❌ Failed to list topics:', error);
+      this.log.error({ error }, 'Failed to list topics');
       throw error;
     }
   }
@@ -137,7 +163,7 @@ export class TopicManager {
         partitions,
       };
     } catch (error) {
-      console.error(`❌ Failed to get topic metadata for ${topicName}:`, error);
+      this.log.error({ topicName, error }, 'Failed to get topic metadata');
       throw error;
     }
   }
@@ -168,7 +194,7 @@ export class TopicManager {
 
       return config;
     } catch (error) {
-      console.error(`❌ Failed to get topic config for ${topicName}:`, error);
+      this.log.error({ topicName, error }, 'Failed to get topic config');
       throw error;
     }
   }
@@ -181,7 +207,7 @@ export class TopicManager {
       const topics = await this.admin.listTopics();
       return topics.includes(name);
     } catch (error) {
-      console.error(`❌ Failed to check if topic exists: ${name}`, error);
+      this.log.error({ topicName: name, error }, 'Failed to check if topic exists');
       return false;
     }
   }
@@ -244,19 +270,25 @@ export class TopicManager {
       const topicsToDelete = topics.filter((topic) => pattern.test(topic));
 
       if (topicsToDelete.length === 0) {
-        console.log('ℹ️  No topics found matching pattern');
+        this.log.info({ pattern: pattern.toString() }, 'No topics found matching pattern');
         return;
       }
 
-      console.log(`⚠️  Deleting ${topicsToDelete.length} topics matching pattern...`);
+      this.log.warn(
+        { pattern: pattern.toString(), count: topicsToDelete.length },
+        'Deleting topics matching pattern'
+      );
       await this.admin.deleteTopics({
         topics: topicsToDelete,
         timeout: 30000,
       });
 
-      console.log(`✅ Deleted ${topicsToDelete.length} topics`);
+      this.log.info(
+        { pattern: pattern.toString(), count: topicsToDelete.length },
+        'Deleted topics matching pattern'
+      );
     } catch (error) {
-      console.error('❌ Failed to delete topics by pattern:', error);
+      this.log.error({ error }, 'Failed to delete topics by pattern');
       throw error;
     }
   }

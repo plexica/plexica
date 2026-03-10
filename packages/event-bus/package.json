@@ -23,6 +23,14 @@
     "typescript": "^5.3.3",
     "vitest": "^4.0.18"
   },
+  "peerDependencies": {
+    "pino": "^9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "pino": {
+      "optional": true
+    }
+  },
   "overrides": {
     "rollup": ">=4.59.0"
   }

@@ -1,0 +1,729 @@
+# Sprint 010 — Active
+# Created: 2026-03-09
+# Managed by forge-scrum
+# Covers: Spec 015 Security Hardening — resolve all 36 CodeQL alerts
+#         across 9 vulnerability classes (SSRF, path traversal, rate
+#         limiting, log injection, XSS, ReDoS, test sanitization, insecure
+#         randomness, CI/CD permissions)
+
+version: 1
+sprint_number: 10
+status: active
+sprint_goal: >
+  Resolve all 36 open GitHub Code Scanning (CodeQL) alerts by implementing
+  targeted, minimal-blast-radius fixes: SSRF prevention helpers, path
+  traversal validation, 3-tier rate limiting across 11 routes, structured
+  Pino logging, DOMPurify XSS sanitization, ReDoS suppressions with
+  benchmarks, test-code sanitization, insecure randomness fixes, and
+  GitHub Actions permissions hardening — leaving zero open CodeQL alerts
+  and the codebase fully compliant with Constitution Art. 5.
+start_date: '2026-03-09'
+end_date: '2026-03-21'
+velocity_target: 63
+
+spec: '.forge/specs/015-security-hardening/spec.md'
+tasks: '.forge/specs/015-security-hardening/tasks.md'
+plan: '.forge/specs/015-security-hardening/plan.md'
+adrs:
+  - '.forge/knowledge/adr/adr-032-dompurify-xss-sanitization.md'
+
+# ---------------------------------------------------------------------------
+# Phase 1: ERROR-Severity Fixes — SSRF + Path Traversal
+# Week 1 | 11 story points
+# ---------------------------------------------------------------------------
+#
+# Highest-priority phase. 5 ERROR-severity CodeQL alerts (3 SSRF, 2 path
+# traversal). Must ship before any WARNING-severity work. Alerts #1–#5.
+#
+# Parallelism: T015-01, T015-03, T015-04 are independent and can run in
+# parallel. T015-02 depends on T015-01. T015-05 depends on T015-04.
+# T015-06 depends on T015-01/02/03. T015-07 depends on T015-04/05.
+# ---------------------------------------------------------------------------
+
+stories:
+  - id: 'T015-01'
+    title: 'Create keycloak-url-validator.ts SSRF prevention helper (getKeycloakBaseUrl + assertKeycloakUrl)'
+    phase: 1
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-001]', 'security', 'ssrf', 'keycloak']
+
+  - id: 'T015-02'
+    title: 'Wire assertKeycloakUrl() into keycloak.service.ts at lines 681, 743, 801'
+    phase: 1
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-01']
+    tags: ['[FR-002]', 'security', 'ssrf', 'keycloak', 'codeql-alert-1-2-3']
+
+  - id: 'T015-03'
+    title: 'Extend validateRealmName() to reject URL-encoded path separators (%2f, %5c) and double-dot'
+    phase: 1
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-003]', 'security', 'path-traversal', 'keycloak']
+
+  - id: 'T015-04'
+    title: 'Add path.resolve() prefix check in i18n.service.ts loadNamespaceFile() to block path traversal'
+    phase: 1
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-005]', 'security', 'path-traversal', 'i18n', 'codeql-alert-4-5']
+
+  - id: 'T015-05'
+    title: 'Add Zod schemas for locale (BCP 47) and namespace (lowercase alphanumeric) parameters in i18n.service.ts'
+    phase: 1
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-04']
+    tags: ['[FR-006]', '[FR-007]', 'security', 'validation', 'i18n', 'zod']
+
+  - id: 'T015-06'
+    title: 'Write SSRF prevention unit tests — 10 test cases for assertKeycloakUrl, getKeycloakBaseUrl, validateRealmName'
+    phase: 1
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-01', 'T015-02', 'T015-03']
+    tags: ['[FR-004]', 'tests', 'unit', 'ssrf', 'keycloak']
+
+  - id: 'T015-07'
+    title: 'Write path traversal prevention unit tests — 10 test cases for i18n locale/namespace validation'
+    phase: 1
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-04', 'T015-05']
+    tags: ['[FR-008]', 'tests', 'unit', 'path-traversal', 'i18n']
+
+  # Phase 1 subtotal: 7 tasks, 11 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 2: CI/CD Security — GitHub Actions Permissions
+  # Week 1 | 4 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Resolve 6 actions/missing-workflow-permissions alerts. Pure YAML changes —
+  # no code impact. Alerts #21–#26.
+  # All three tasks (T015-08, T015-09, T015-10) are fully parallelizable.
+  # T015-11 is the verification gate.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-08'
+    title: 'Add top-level + per-job permissions blocks to .github/workflows/ci-tests.yml (5 alerts)'
+    phase: 2
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-019]', '[FR-020]', 'ci-cd', 'github-actions', 'codeql-alert-21-25']
+
+  - id: 'T015-09'
+    title: 'Add top-level permissions block to .github/workflows/deploy.yml (1 alert)'
+    phase: 2
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-021]', 'ci-cd', 'github-actions', 'codeql-alert-26']
+
+  - id: 'T015-10'
+    title: 'Audit all remaining workflow files for missing permissions blocks'
+    phase: 2
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-022]', 'ci-cd', 'github-actions', 'audit']
+
+  - id: 'T015-11'
+    title: 'Verify CI passes on feat/015-security-hardening branch — no permission-related job failures'
+    phase: 2
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-08', 'T015-09', 'T015-10']
+    tags: ['[FR-022]', 'ci-cd', 'verification']
+
+  # Phase 2 subtotal: 4 tasks, 4 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 3: Rate Limiting — 11 Routes Across 6 Files
+  # Week 1–2 | 12 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Resolve 11 js/missing-rate-limiting alerts using existing @fastify/rate-limit
+  # infrastructure. Alerts #6–#16.
+  #
+  # T015-16 (config module) must be done first — it is the prerequisite for
+  # T015-15. T015-12, T015-13, T015-14 are parallelizable with each other
+  # but T015-15 must wait for T015-16. T015-17 waits for all route tasks.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-16'
+    title: 'Create rate-limit-config.ts — 3-tier env-configurable defaults (RATE_LIMIT_AUTH/ADMIN/GENERAL) with shared error builder'
+    phase: 3
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: []
+    tags: ['[FR-013]', 'rate-limiting', 'config', 'prerequisite']
+    notes: >
+      Listed first in sprint (prerequisite for T015-15). Task ID T015-16
+      in spec but must execute before T015-15.
+
+  - id: 'T015-12'
+    title: 'Apply plugin-scoped @fastify/rate-limit to tenant-admin.ts (covers 4 handlers at lines 260/518/546/582)'
+    phase: 3
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-009]', 'rate-limiting', 'tenant-admin', 'codeql-alert-6-9']
+
+  - id: 'T015-13'
+    title: 'Verify/suppress rate limiting on auth.ts line 255 — check authRateLimitHook or add CodeQL suppression'
+    phase: 3
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-010]', 'rate-limiting', 'auth', 'codeql-alert-10']
+
+  - id: 'T015-14'
+    title: 'Apply rate limit to notification-stream non-SSE endpoint (line 123); add SSE suppression comment (line 154)'
+    phase: 3
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-011]', 'rate-limiting', 'notifications', 'sse', 'codeql-alert-11-12']
+
+  - id: 'T015-15'
+    title: 'Apply rate limiting to jobs, search, notification, and storage routes (4 files, alerts #13–#16)'
+    phase: 3
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-16']
+    tags: ['[FR-012]', 'rate-limiting', 'jobs', 'search', 'storage', 'codeql-alert-13-16']
+
+  - id: 'T015-17'
+    title: 'Write rate limiting integration tests — HTTP 429, Retry-After header, 5 routes, Redis flush in beforeEach'
+    phase: 3
+    points: 3
+    status: pending
+    parallel: false
+    dependencies: ['T015-12', 'T015-13', 'T015-14', 'T015-15', 'T015-16']
+    tags:
+      ['[FR-014]', '[NFR-001]', '[NFR-007]', '[NFR-011]', 'tests', 'integration', 'rate-limiting']
+
+  # Phase 3 subtotal: 6 tasks, 12 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 4: Log Injection — Structured Pino Logging
+  # Week 2 | 7 story points (includes T015-18a prerequisite)
+  # ---------------------------------------------------------------------------
+  #
+  # Resolve 4 js/tainted-format-string alerts. Replace console.log/error with
+  # structured Pino calls (context object, not string interpolation). Alerts #17–#20.
+  #
+  # T015-18a MUST complete before T015-18.
+  # T015-19, T015-20, T015-21 are parallelizable with T015-18a (and each other).
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-18a'
+    title: 'Add pino as peerDependency to packages/event-bus/package.json — PREREQUISITE for T015-18'
+    phase: 4
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-015]', 'log-injection', 'pino', 'event-bus', 'prerequisite']
+
+  - id: 'T015-18'
+    title: 'Replace console.log/error in topic-manager.ts with structured Pino (context objects, not string interpolation)'
+    phase: 4
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-18a']
+    tags: ['[FR-015]', 'log-injection', 'pino', 'event-bus', 'codeql-alert-17-18']
+
+  - id: 'T015-19'
+    title: 'Replace console.error in analytics.routes.ts line 67 with request.log.error structured call'
+    phase: 4
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-016]', 'log-injection', 'pino', 'analytics', 'codeql-alert-19']
+
+  - id: 'T015-20'
+    title: 'Replace console.error in minio-client.ts line 66 with constructor-injected Pino logger'
+    phase: 4
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-017]', 'log-injection', 'pino', 'minio', 'codeql-alert-20']
+
+  - id: 'T015-21'
+    title: 'Write log injection prevention unit tests — 6 test cases verifying no string interpolation in Pino calls'
+    phase: 4
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-18', 'T015-19', 'T015-20']
+    tags: ['[FR-018]', 'tests', 'unit', 'log-injection', 'pino']
+
+  # Phase 4 subtotal: 5 tasks (+ T015-18a), 7 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 5: Frontend XSS + DOMPurify
+  # Week 2 | 10 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Resolve 3 js/xss alerts + 4 js/incomplete-sanitization alerts (test files).
+  # Install DOMPurify (ADR-032), add validateImageUrl(), create SafeImage component.
+  # Alerts #27–#29.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-22'
+    title: 'Install DOMPurify v3.x + @types/dompurify in apps/web and apps/super-admin (ADR-032)'
+    phase: 5
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: []
+    tags: ['[FR-023]', 'xss', 'dompurify', 'frontend', 'adr-032']
+
+  - id: 'T015-23'
+    title: 'Create sanitize-html.ts utility in apps/web/src/lib with DOMPurify config (allowedTags, allowedAttrs, FORCE_BODY)'
+    phase: 5
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-22']
+    tags: ['[FR-023]', 'xss', 'dompurify', 'frontend', 'utility']
+
+  - id: 'T015-24'
+    title: 'Create validateImageUrl() helper — allowlist (https, data:image/png|jpeg|gif|webp|svg+xml), max 2048 chars'
+    phase: 5
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-22']
+    tags: ['[FR-024]', 'xss', 'image-url', 'validation', 'frontend']
+
+  - id: 'T015-25'
+    title: 'Create SafeImage React component wrapping validateImageUrl() — falls back to placeholder on invalid URL'
+    phase: 5
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-24']
+    tags: ['[FR-025]', 'xss', 'react', 'frontend', 'component']
+
+  - id: 'T015-26'
+    title: 'Replace dangerouslySetInnerHTML usages in apps/web with sanitizeHtml() calls (2 locations)'
+    phase: 5
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-23']
+    tags: ['[FR-026]', 'xss', 'dompurify', 'frontend', 'codeql-alert-27']
+
+  - id: 'T015-27'
+    title: 'Replace dangerouslySetInnerHTML usages in apps/super-admin with sanitizeHtml() calls (1 location)'
+    phase: 5
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-23']
+    tags: ['[FR-026]', 'xss', 'dompurify', 'super-admin', 'codeql-alert-28']
+
+  - id: 'T015-28'
+    title: 'Replace unsafe img src attributes with <SafeImage> component in plugin marketplace and widget renderer'
+    phase: 5
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-25']
+    tags: ['[FR-027]', 'xss', 'react', 'SafeImage', 'frontend', 'codeql-alert-29']
+
+  - id: 'T015-29'
+    title: 'Write XSS prevention unit tests — 12 test cases for sanitizeHtml, validateImageUrl, SafeImage'
+    phase: 5
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-23', 'T015-24', 'T015-25']
+    tags: ['[FR-028]', 'tests', 'unit', 'xss', 'dompurify', 'frontend']
+
+  # Phase 5 subtotal: 8 tasks, 10 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 6: ReDoS Suppressions + Benchmarks
+  # Week 2 | 4 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Resolve 2 js/polynomial-redos alerts confirmed as false positives.
+  # Add CodeQL suppression comments and linear-time benchmark tests.
+  # Alerts #30–#31.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-30'
+    title: 'Confirm linear-time complexity of regex in plugin-manifest-validator.ts; add CodeQL suppression + benchmark test'
+    phase: 6
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-029]', 'redos', 'regex', 'benchmark', 'codeql-alert-30']
+
+  - id: 'T015-31'
+    title: 'Confirm linear-time complexity of regex in tenant-slug-validator.ts; add CodeQL suppression + benchmark test'
+    phase: 6
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-030]', 'redos', 'regex', 'benchmark', 'codeql-alert-31']
+
+  - id: 'T015-32'
+    title: 'Write ReDoS benchmark tests — verify O(n) scaling with input length 100/1000/10000 chars'
+    phase: 6
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-30', 'T015-31']
+    tags: ['[FR-031]', 'tests', 'benchmark', 'redos', 'performance']
+
+  # Phase 6 subtotal: 3 tasks, 4 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 7: Test Code Sanitization + Insecure Randomness
+  # Week 2–3 | 8 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Resolve 4 js/incomplete-sanitization alerts in test files and 1
+  # js/insecure-randomness alert in test-database.helper.ts.
+  # Alerts #32–#36.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-33'
+    title: 'Create shared mock utility packages/sdk/src/__tests__/helpers/glob-to-regex-mock.ts to replace inline unsanitized test inputs'
+    phase: 7
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-032]', 'test-sanitization', 'sdk', 'test-code']
+
+  - id: 'T015-34'
+    title: 'Update test files using glob-to-regex mock — replace raw unsanitized strings with sanitized mock helper'
+    phase: 7
+    points: 2
+    status: pending
+    parallel: false
+    dependencies: ['T015-33']
+    tags: ['[FR-033]', 'test-sanitization', 'codeql-alert-32-35']
+
+  - id: 'T015-35'
+    title: 'Replace Math.random() with crypto.randomUUID() in test-database.helper.ts line 47'
+    phase: 7
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-034]', 'insecure-random', 'test-code', 'codeql-alert-36']
+
+  - id: 'T015-36'
+    title: 'Verify all 4 incomplete-sanitization test files pass pnpm test after mock helper migration'
+    phase: 7
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-34']
+    tags: ['[FR-035]', 'tests', 'verification', 'test-sanitization']
+
+  - id: 'T015-37'
+    title: 'Write unit tests for glob-to-regex mock helper — verify it produces expected sanitized test inputs'
+    phase: 7
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-33']
+    tags: ['[FR-036]', 'tests', 'unit', 'mock-helper']
+
+  - id: 'T015-38'
+    title: 'Write unit test for crypto.randomUUID() replacement — verify UUID format and uniqueness across 1000 calls'
+    phase: 7
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: ['T015-35']
+    tags: ['[FR-037]', 'tests', 'unit', 'insecure-random', 'crypto']
+
+  # Phase 7 subtotal: 6 tasks, 8 pts
+
+  # ---------------------------------------------------------------------------
+  # Phase 8: Documentation + Verification
+  # Week 3 | 7 story points
+  # ---------------------------------------------------------------------------
+  #
+  # Final phase: update docs/SECURITY.md, update the decision log, and run the
+  # GitHub Code Scanning re-scan to verify zero open alerts.
+  # T015-44 (re-scan) must be the LAST task executed.
+  # ---------------------------------------------------------------------------
+
+  - id: 'T015-39'
+    title: 'Update docs/SECURITY.md — add SSRF prevention, path traversal, rate limiting, and XSS sections'
+    phase: 8
+    points: 2
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-038]', 'documentation', 'security']
+
+  - id: 'T015-40'
+    title: 'Add RATE_LIMIT_AUTH, RATE_LIMIT_ADMIN, RATE_LIMIT_GENERAL env vars to docs/CONFIGURATION.md'
+    phase: 8
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-039]', 'documentation', 'configuration', 'rate-limiting']
+
+  - id: 'T015-41'
+    title: 'Update .forge/knowledge/decision-log.md — resolve TD-023 (429 client-side UX gap still open) and close Phase 1–7 items'
+    phase: 8
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-040]', 'documentation', 'decision-log', 'td-023']
+
+  - id: 'T015-42'
+    title: 'Update planning/PROJECT_STATUS.md — mark Spec 015 In Progress → Complete'
+    phase: 8
+    points: 1
+    status: pending
+    parallel: true
+    dependencies: []
+    tags: ['[FR-040]', 'documentation', 'project-status']
+
+  - id: 'T015-43'
+    title: 'Run pnpm lint + pnpm build + pnpm test — verify zero regressions, coverage ≥80%'
+    phase: 8
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-39', 'T015-40', 'T015-41', 'T015-42']
+    tags: ['[NFR-010]', '[NFR-011]', 'verification', 'ci', 'quality-gate']
+
+  - id: 'T015-44'
+    title: 'Run GitHub Code Scanning re-scan on feat/015-security-hardening — verify zero open CodeQL alerts (all 36 resolved)'
+    phase: 8
+    points: 1
+    status: pending
+    parallel: false
+    dependencies: ['T015-43']
+    tags: ['[NFR-012]', 'verification', 'codeql', 'final-gate']
+    notes: >
+      FINAL TASK. Must be last. Push branch to remote to trigger GitHub Code
+      Scanning workflow. Wait for scan completion. Zero open alerts is the
+      Definition of Done for Spec 015.
+
+  # Phase 8 subtotal: 6 tasks, 7 pts
+
+# ---------------------------------------------------------------------------
+# Sprint Totals
+# ---------------------------------------------------------------------------
+
+totals:
+  phase_1_points: 11 # T015-01..T015-07 (7 tasks)
+  phase_2_points: 4 # T015-08..T015-11 (4 tasks)
+  phase_3_points: 12 # T015-12..T015-17 (6 tasks, T015-16 listed first)
+  phase_4_points: 7 # T015-18a + T015-18..T015-21 (5 tasks)
+  phase_5_points: 10 # T015-22..T015-29 (8 tasks)
+  phase_6_points: 4 # T015-30..T015-32 (3 tasks)
+  phase_7_points: 8 # T015-33..T015-38 (6 tasks)
+  phase_8_points: 7 # T015-39..T015-44 (6 tasks)
+  total_tasks: 45
+  total_points: 63
+  done_points: 0
+  remaining_points: 63
+
+# ---------------------------------------------------------------------------
+# Velocity Reference
+# ---------------------------------------------------------------------------
+
+velocity:
+  previous_sprints:
+    - sprint: 9
+      completed_points: 77
+      total_points: 77
+      completion_rate: '100%'
+      notes: 'Spec 012 Phase 4+5 — all 20 tasks done; Spec 012 complete'
+    - sprint: 8
+      completed_points: 24
+      total_points: 24
+      completion_rate: '100%'
+      notes: 'Spec 012 Phase 3 completion'
+    - sprint: 7
+      completed_points: 61
+      total_points: 61
+      completion_rate: '100%'
+      notes: 'Spec 012 Phase 1+2+partial 3'
+    - sprint: 6
+      completed_points: 92
+      total_points: 92
+      completion_rate: '100%'
+      notes: 'Spec 004 Plugin System — 37 tasks'
+    - sprint: 5
+      completed_points: 8
+      total_points: 8
+      completion_rate: '100%'
+      notes: 'Spec 011 Phase 3 + review fixes'
+  average_velocity_5sprint: 52
+  target_rationale: >
+    63 pts over 12 days. The 5-sprint average is 52 pts but Sprint 009
+    demonstrated 77 pts is achievable for implementation-heavy parallel
+    sprints. Spec 015 has no frontend component complexity or E2E test
+    infrastructure — most tasks are [S]/[M] size with well-defined
+    file targets. Phases 1 and 2 (15 pts) can complete in 3 days;
+    Phases 3–4 (19 pts) in the next 4 days; Phases 5–7 (22 pts) in
+    the following 3 days; Phase 8 (7 pts) in the final 2 days.
+    63 pts is a confident commitment within the 12-day window.
+
+# ---------------------------------------------------------------------------
+# Parallelism Map
+# ---------------------------------------------------------------------------
+
+parallelism:
+  week_1_parallel_tracks:
+    track_a: ['T015-01', 'T015-02', 'T015-06'] # SSRF chain
+    track_b: ['T015-04', 'T015-05', 'T015-07'] # Path traversal chain
+    track_c: ['T015-03'] # validateRealmName (quick)
+    track_d: ['T015-08', 'T015-09', 'T015-10', 'T015-11'] # CI/CD perms
+  week_2_parallel_tracks:
+    track_a: ['T015-16', 'T015-12', 'T015-13', 'T015-14', 'T015-15', 'T015-17'] # Rate limiting
+    track_b: ['T015-18a', 'T015-18', 'T015-19', 'T015-20', 'T015-21'] # Log injection
+  week_2_3_parallel_tracks:
+    track_a: [
+        'T015-22',
+        'T015-23',
+        'T015-24',
+        'T015-25',
+        'T015-26',
+        'T015-27',
+        'T015-28',
+        'T015-29',
+      ] # XSS
+    track_b: ['T015-30', 'T015-31', 'T015-32'] # ReDoS
+    track_c: ['T015-33', 'T015-34', 'T015-35', 'T015-36', 'T015-37', 'T015-38'] # Test sanitization
+
+# ---------------------------------------------------------------------------
+# Risks
+# ---------------------------------------------------------------------------
+
+risks:
+  - id: 'R015-01'
+    title: 'CodeQL re-scan (T015-44) may surface additional alerts not in the original 36'
+    description: >
+      If new code committed since the original scan introduced new CodeQL
+      alerts, the re-scan may show more than 36 alerts (or different alerts).
+      This would require additional remediation not in this sprint scope.
+    severity: low
+    mitigation: >
+      Run CodeQL locally (or via act) early in the sprint to baseline current
+      alert count before implementing fixes. Any net-new alerts found during
+      T015-44 should be logged as new GitHub issues and deferred to a follow-up
+      spec unless they are ERROR-severity.
+
+  - id: 'R015-02'
+    title: '@fastify/rate-limit plugin-scope registration may conflict with existing global rate-limit middleware'
+    description: >
+      apps/core-api may already register @fastify/rate-limit globally. Adding
+      per-plugin registrations could result in double rate-limiting (reduced
+      effective limits) or a Fastify duplicate-plugin error.
+    severity: medium
+    mitigation: >
+      Read apps/core-api/src/app.ts and middleware/rate-limiter.ts before
+      implementing T015-12 through T015-15. If global registration exists,
+      use config: { rateLimit: { max: N } } on individual route handlers
+      instead of plugin-scope re-registration. Document approach in PR.
+
+  - id: 'R015-03'
+    title: 'DOMPurify SSR incompatibility in Next.js or server-side rendering contexts'
+    description: >
+      DOMPurify v3 requires a DOM environment. If apps/web or apps/super-admin
+      use SSR, DOMPurify.sanitize() will throw in the server context.
+    severity: low
+    mitigation: >
+      Both apps/web and apps/super-admin are Vite + React client-side apps
+      (no SSR per ADR-004). DOMPurify will only run in browser context.
+      Add a guard: typeof window !== 'undefined' || use isomorphic-dompurify
+      if SSR is ever added later.
+
+# ---------------------------------------------------------------------------
+# Success Criteria (Definition of Done)
+# ---------------------------------------------------------------------------
+# Sprint 010 (and Spec 015 overall) is "done" when ALL of the following are true:
+#
+# Security:
+# ✓ Zero open CodeQL alerts on feat/015-security-hardening branch (T015-44 passes)
+# ✓ All 5 ERROR-severity alerts resolved (SSRF: alerts #1–#3; path traversal: #4–#5)
+# ✓ All 11 rate-limiting alerts resolved (alerts #6–#16)
+# ✓ All 6 GitHub Actions permissions alerts resolved (alerts #21–#26)
+# ✓ All 4 log injection alerts resolved (alerts #17–#20)
+# ✓ All 3 XSS alerts resolved (alerts #27–#29)
+# ✓ All 2 ReDoS alerts resolved (alerts #30–#31)
+# ✓ All 4 incomplete-sanitization test alerts resolved (alerts #32–#35)
+# ✓ Insecure randomness alert resolved (alert #36)
+#
+# Tests:
+# ✓ ≥10 SSRF prevention unit tests passing (T015-06)
+# ✓ ≥10 path traversal unit tests passing (T015-07)
+# ✓ Rate limiting integration tests passing for ≥3 routes (T015-17)
+# ✓ Log injection unit tests passing (T015-21)
+# ✓ XSS prevention unit tests passing (T015-29)
+# ✓ ReDoS benchmark tests passing — O(n) scaling verified (T015-32)
+# ✓ Overall test coverage ≥80% maintained (NFR-010)
+#
+# Quality:
+# ✓ pnpm lint, pnpm build, pnpm test pass with zero regressions (T015-43)
+# ✓ No new TypeScript compiler errors introduced
+# ✓ docs/SECURITY.md updated with new prevention patterns (T015-39)
+# ✓ planning/PROJECT_STATUS.md updated: Spec 015 marked Complete (T015-42)
+# ---------------------------------------------------------------------------
+
+success_criteria:
+  security:
+    - 'Zero open CodeQL alerts on feat/015-security-hardening after re-scan (T015-44)'
+    - 'All 5 ERROR-severity alerts resolved (SSRF #1-3, path traversal #4-5)'
+    - 'All 31 WARNING-severity alerts resolved (#6-36)'
+  tests:
+    - '≥10 SSRF unit tests (T015-06)'
+    - '≥10 path traversal unit tests (T015-07)'
+    - 'Rate limiting integration tests for ≥3 routes with HTTP 429 + Retry-After (T015-17)'
+    - 'Log injection unit tests (T015-21)'
+    - 'XSS unit tests (T015-29)'
+    - 'ReDoS O(n) benchmark tests (T015-32)'
+    - 'Overall coverage ≥80% maintained'
+  quality:
+    - 'pnpm lint + pnpm build + pnpm test all pass'
+    - 'docs/SECURITY.md updated (T015-39)'
+    - 'planning/PROJECT_STATUS.md Spec 015 marked Complete (T015-42)'
+
+carried_over: []

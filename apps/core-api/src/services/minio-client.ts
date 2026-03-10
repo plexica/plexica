@@ -2,6 +2,7 @@
 
 import { Client } from 'minio';
 import { config } from '../config/index.js';
+import { logger } from '../lib/logger.js';
 
 export interface MinIOConfig {
   endPoint: string;
@@ -47,7 +48,7 @@ export class MinIOClientService {
       // Set CORS policy for plugin bucket
       await this.setPluginBucketPolicy();
     } catch (error) {
-      console.error('MinIO initialization failed:', error);
+      logger.error({ error }, 'MinIO initialization failed');
       throw error;
     }
   }
@@ -63,7 +64,7 @@ export class MinIOClientService {
         await this.client.makeBucket(bucketName, 'us-east-1');
       }
     } catch (error) {
-      console.error(`MinIO error ensuring bucket ${bucketName}:`, error);
+      logger.error({ bucketName, error }, 'MinIO error ensuring bucket');
       throw error;
     }
   }
@@ -87,7 +88,7 @@ export class MinIOClientService {
     try {
       await this.client.setBucketPolicy(this.pluginBucket, JSON.stringify(policy));
     } catch (error) {
-      console.error('MinIO failed to set bucket policy:', error);
+      logger.error({ bucketName: this.pluginBucket, error }, 'MinIO failed to set bucket policy');
       // Don't throw - policy might already be set
     }
   }
@@ -112,7 +113,7 @@ export class MinIOClientService {
 
       return this.getPluginUrl(pluginId, version, fileName);
     } catch (error) {
-      console.error('MinIO upload failed:', error);
+      logger.error({ pluginId, version, fileName, error }, 'MinIO upload failed');
       throw error;
     }
   }
@@ -178,7 +179,7 @@ export class MinIOClientService {
 
       return versions.sort().reverse(); // Latest first
     } catch (error) {
-      console.error('[MinIO] Failed to list versions:', error);
+      logger.error({ pluginId, error }, 'MinIO failed to list plugin versions');
       throw error;
     }
   }
@@ -203,7 +204,7 @@ export class MinIOClientService {
         await this.client.removeObjects(this.pluginBucket, objectsList);
       }
     } catch (error) {
-      console.error('MinIO failed to delete version:', error);
+      logger.error({ pluginId, version, error }, 'MinIO failed to delete plugin version');
       throw error;
     }
   }
@@ -227,7 +228,7 @@ export class MinIOClientService {
 
       return objectName;
     } catch (error) {
-      console.error('MinIO tenant file upload failed:', error);
+      logger.error({ tenantId, filePath, error }, 'MinIO tenant file upload failed');
       throw error;
     }
   }
@@ -245,7 +246,7 @@ export class MinIOClientService {
     try {
       return await this.client.presignedGetObject(this.tenantBucket, objectName, expirySeconds);
     } catch (error) {
-      console.error('[MinIO] Failed to generate presigned URL:', error);
+      logger.error({ tenantId, filePath, error }, 'MinIO failed to generate presigned URL');
       throw error;
     }
   }
@@ -270,7 +271,7 @@ export class MinIOClientService {
         await this.client.removeBucket(bucketName);
       }
     } catch (error) {
-      console.error(`[MinIO] Failed to remove tenant bucket ${bucketName}:`, error);
+      logger.error({ bucketName, error }, 'MinIO failed to remove tenant bucket');
       throw error;
     }
   }
@@ -283,7 +284,7 @@ export class MinIOClientService {
       await this.client.listBuckets();
       return true;
     } catch (error) {
-      console.error('[MinIO] Health check failed:', error);
+      logger.error({ error }, 'MinIO health check failed');
       return false;
     }
   }

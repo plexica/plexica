@@ -63,11 +63,11 @@ export async function analyticsRoutes(
         success: true,
         data: result,
       });
-    } catch (error: any) {
-      console.error(`[Analytics API] Failed to run report ${id}:`, error);
+    } catch (error: unknown) {
+      request.log.error({ reportId: id, error }, 'Failed to run analytics report');
       return reply.status(500).send({
         success: false,
-        error: error.message || 'Failed to generate report',
+        error: error instanceof Error ? error.message : 'Failed to generate report',
       });
     }
   });

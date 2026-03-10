@@ -5,6 +5,7 @@ import type ClientRepresentation from '@keycloak/keycloak-admin-client/lib/defs/
 import type RoleRepresentation from '@keycloak/keycloak-admin-client/lib/defs/roleRepresentation';
 import { config } from '../config/index.js';
 import { logger } from '../lib/logger.js';
+import { assertKeycloakUrl } from './keycloak-url-validator.js';
 
 /**
  * Custom error class for sanitized Keycloak errors.
@@ -75,6 +76,19 @@ export class KeycloakService {
    * @throws Error if realm name format is invalid
    */
   private validateRealmName(realmName: string): void {
+    // Defense-in-depth: explicitly reject URL-encoded path separators and
+    // double-dot traversal sequences before the regex gate.
+    // These would survive the alphanumeric check if they somehow reached it.
+    // Resolves Spec 015 FR-003.
+    const lower = realmName.toLowerCase();
+    if (
+      lower.includes('%2f') || // URL-encoded '/'
+      lower.includes('%5c') || // URL-encoded '\'
+      realmName.includes('..') // double-dot path traversal
+    ) {
+      throw new Error('Invalid realm name: contains disallowed characters');
+    }
+
     const slugPattern = /^[a-z0-9-]{1,50}$/;
     if (!slugPattern.test(realmName)) {
       throw new Error(
@@ -678,6 +692,8 @@ export class KeycloakService {
     }
 
     try {
+      // SSRF prevention: assert tokenEndpoint matches configured KEYCLOAK_URL (Spec 015 FR-002)
+      assertKeycloakUrl(tokenEndpoint);
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
         headers: {
@@ -740,6 +756,8 @@ export class KeycloakService {
     });
 
     try {
+      // SSRF prevention: assert tokenEndpoint matches configured KEYCLOAK_URL (Spec 015 FR-002)
+      assertKeycloakUrl(tokenEndpoint);
       const response = await fetch(tokenEndpoint, {
         method: 'POST',
         headers: {
@@ -798,6 +816,8 @@ export class KeycloakService {
     }
 
     try {
+      // SSRF prevention: assert revocationEndpoint matches configured KEYCLOAK_URL (Spec 015 FR-002)
+      assertKeycloakUrl(revocationEndpoint);
       const response = await fetch(revocationEndpoint, {
         method: 'POST',
         headers: {

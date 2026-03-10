@@ -12,6 +12,8 @@ import { type UserInfo } from '../../lib/jwt.js';
 import { StorageService } from './storage.service.js';
 import { StorageErrorCode } from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
+import { rateLimiter } from '../../middleware/rate-limiter.js';
+import { GENERAL_RATE_LIMIT, ADMIN_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
 // ============================================================================
 // Helpers
@@ -42,6 +44,10 @@ function getStorageService(request: FastifyRequest): StorageService {
 export const storageRoutes: FastifyPluginAsync = async (server) => {
   // All routes require authentication
   server.addHook('preHandler', authMiddleware);
+  // SECURITY (Spec 015 T015-15): Apply GENERAL-tier rate limiting to all storage routes.
+  // Upload endpoint additionally enforces ADMIN-tier limits via per-route preHandler below.
+  // Covers CodeQL js/missing-rate-limiting alert on line 44.
+  server.addHook('preHandler', rateLimiter(GENERAL_RATE_LIMIT));
 
   // --------------------------------------------------------------------------
   // Path traversal detection — runs BEFORE Fastify's router normalizes the URL.
@@ -65,6 +71,9 @@ export const storageRoutes: FastifyPluginAsync = async (server) => {
   server.post(
     '/storage/upload',
     {
+      // SECURITY: Upload routes enforce stricter ADMIN-tier rate limiting (60/min)
+      // in addition to the GENERAL-tier plugin-scope limit (120/min).
+      preHandler: [rateLimiter(ADMIN_RATE_LIMIT)],
       schema: {
         tags: ['storage'],
         summary: 'Upload a file',

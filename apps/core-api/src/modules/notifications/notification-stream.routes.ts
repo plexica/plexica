@@ -8,6 +8,8 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { redis } from '../../lib/redis.js';
 import { logger } from '../../lib/logger.js';
 import Redis from 'ioredis';
+import { rateLimiter } from '../../middleware/rate-limiter.js';
+import { GENERAL_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
 // ============================================================================
 // Constants
@@ -121,6 +123,14 @@ export async function publishJobStatusEvent(
 
 export const notificationStreamRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
+  // SECURITY (Spec 015 T015-14): Rate-limit new SSE connection attempts to prevent
+  // resource exhaustion via rapid reconnects. This limits the number of times a
+  // user can open/reconnect to the stream per minute, not the data flowing over it.
+  // Note: config: { rateLimit: false } on the route below disables the global
+  // @fastify/rate-limit plugin (which would incorrectly terminate the long-lived
+  // HTTP connection); our custom rateLimiter() hook runs independently and correctly
+  // enforces limits only at connection establishment time.
+  server.addHook('preHandler', rateLimiter(GENERAL_RATE_LIMIT));
 
   /**
    * GET /notifications/stream

@@ -12,6 +12,7 @@ import { PrismaClient, TenantStatus } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { testMinio } from './test-minio.helper';
+import { randomUUID } from 'node:crypto';
 
 export class TestDatabaseHelper {
   private static instance: TestDatabaseHelper;
@@ -422,7 +423,7 @@ export class TestDatabaseHelper {
     }
   ) {
     const schemaName = `tenant_${tenantSlug.replace(/-/g, '_')}`;
-    const userId = data.id || `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const userId = data.id || `user-${randomUUID()}`;
 
     await this.prisma.$executeRawUnsafe(
       `
@@ -458,7 +459,7 @@ export class TestDatabaseHelper {
     }
   ) {
     const schemaName = `tenant_${tenantSlug.replace(/-/g, '_')}`;
-    const workspaceId = `workspace-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const workspaceId = `workspace-${randomUUID()}`;
 
     // Create workspace
     await this.prisma.$executeRawUnsafe(
@@ -556,8 +557,8 @@ export const testDb = TestDatabaseHelper.getInstance();
  * Uses timestamp + random suffix to ensure uniqueness across parallel test runs.
  *
  * @param prefix - Optional prefix for the slug (default: 'test')
- * @returns A unique slug like 'test-1707317234567-a3b4c5'
+ * @returns A unique slug like 'test-550e8400-e29b-41d4-a716-446655440000'
  */
 export function generateUniqueTenantSlug(prefix: string = 'test'): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  return `${prefix}-${randomUUID()}`;
 }

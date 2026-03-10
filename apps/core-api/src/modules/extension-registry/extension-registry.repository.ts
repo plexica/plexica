@@ -703,16 +703,10 @@ export class ExtensionRegistryRepository {
       if (!targetSlot) {
         status = 'target_not_found';
         reason = `Target slot ${contribution.targetSlotId} not found for plugin ${contribution.targetPluginId}`;
-      } else if (
-        'type' in contribution &&
-        targetSlot.type &&
-        (contribution as { type?: string }).type !== undefined &&
-        (contribution as { type?: string }).type !== targetSlot.type
-      ) {
-        // FR-026 / Edge Case #7: contribution type must match the declared slot type.
-        status = 'type_mismatch';
-        reason = `Contribution type "${(contribution as { type?: string }).type}" does not match slot type "${targetSlot.type}"`;
       } else {
+        // TD-027: the 'type_mismatch' branch that previously appeared here was
+        // dead code — ExtensionContribution has no 'type' field in the schema,
+        // so '\'type\' in contribution' was always false.  Removed.
         status = 'valid';
       }
 

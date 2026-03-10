@@ -5,6 +5,7 @@
 //
 // Spec 003: Authorization System RBAC + ABAC
 
+import { parseRetryAfter } from '@plexica/api-client';
 import { apiClient } from '@/lib/api-client';
 
 // ---------------------------------------------------------------------------
@@ -123,29 +124,11 @@ export interface UpdatePolicyDto {
 // 429 Rate Limit handling
 // ---------------------------------------------------------------------------
 
-interface RateLimitError extends Error {
-  retryAfter: number;
-}
-
-/** Parse Retry-After header value (seconds or HTTP-date) → seconds as integer */
-function parseRetryAfter(header: string | null): number {
-  if (!header) return 60;
-  const seconds = parseInt(header, 10);
-  if (!isNaN(seconds)) return seconds;
-  // HTTP-date fallback
-  const retryDate = new Date(header).getTime();
-  if (!isNaN(retryDate)) {
-    return Math.max(1, Math.ceil((retryDate - Date.now()) / 1000));
-  }
-  return 60;
-}
-
-function makeRateLimitError(retryAfterHeader: string | null): RateLimitError {
-  const retryAfter = parseRetryAfter(retryAfterHeader);
-  const err = new Error(`Rate limited. Retry after ${retryAfter}s`) as RateLimitError;
-  err.retryAfter = retryAfter;
-  return err;
-}
+/**
+ * @deprecated Use `parseRetryAfter` from `@plexica/api-client` instead.
+ * Re-exported here for backwards compatibility with existing consumers.
+ */
+export { parseRetryAfter };
 
 // ---------------------------------------------------------------------------
 // Roles
@@ -282,6 +265,3 @@ export async function updatePolicy(id: string, dto: UpdatePolicyDto): Promise<Po
 export async function deletePolicy(id: string): Promise<void> {
   return raw().delete<void>(`/api/v1/policies/${id}`);
 }
-
-// Re-export helpers for consumers that need them
-export { makeRateLimitError, parseRetryAfter };

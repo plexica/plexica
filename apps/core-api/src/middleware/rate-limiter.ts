@@ -21,6 +21,7 @@
 // as a future improvement if stricter burst control is required.
 
 import type { FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
+import type { Redis } from 'ioredis';
 import redis from '../lib/redis.js';
 import { logger } from '../lib/logger.js';
 
@@ -112,7 +113,31 @@ export const WORKSPACE_RATE_LIMITS = {
  * }, handler);
  * ```
  */
-export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
+/**
+ * Factory function that creates a Fastify preHandler hook for rate limiting.
+ *
+ * Uses Redis pipeline (INCR + EXPIRE atomic, fixed-window). Fail-open: if Redis
+ * is unavailable, requests are allowed through to avoid blocking legitimate
+ * traffic when infrastructure is degraded.
+ *
+ * Place in the `preHandler` array **after** `authMiddleware` so that
+ * `req.user` is populated before `keyExtractor` runs.
+ *
+ * @param config - Rate limit configuration
+ * @param redisClient - Redis client to use (defaults to the shared redis singleton). Pass a mock for testing.
+ * @returns Fastify preHandler hook function
+ *
+ * @example
+ * ```typescript
+ * fastify.post('/workspaces', {
+ *   preHandler: [authMiddleware, tenantContextMiddleware, rateLimiter(WORKSPACE_RATE_LIMITS.WORKSPACE_CREATE)],
+ * }, handler);
+ * ```
+ */
+export function rateLimiter(
+  config: RateLimitConfig,
+  redisClient: Redis = redis
+): preHandlerHookHandler {
   return async function rateLimitHook(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     // Allow test suites to bypass rate limiting via env var so integration tests
     // that make many legitimate requests don't fight artificial counters.
@@ -129,7 +154,7 @@ export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
       // Calling EXPIRE on every request (not just when current === 1) ensures
       // the key always has a TTL — even if a prior EXPIRE call was lost due to
       // a Redis hiccup — preventing immortal keys that permanently block tenants.
-      const pipeline = redis.pipeline();
+      const pipeline = redisClient.pipeline();
       pipeline.incr(redisKey);
       pipeline.expire(redisKey, config.windowSeconds);
       const results = await pipeline.exec();
@@ -155,7 +180,7 @@ export function rateLimiter(config: RateLimitConfig): preHandlerHookHandler {
       if (current > config.limit) {
         let retryAfter = 1;
         try {
-          const ttl = await redis.ttl(redisKey);
+          const ttl = await redisClient.ttl(redisKey);
           retryAfter = Math.max(1, ttl);
         } catch (ttlError) {
           // TTL call failed — use safe minimum so 429 is still returned correctly

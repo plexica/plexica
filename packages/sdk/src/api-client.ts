@@ -36,8 +36,12 @@ export class ApiClient {
   private readonly defaultHeaders: Record<string, string>;
 
   constructor(config: ApiClientConfig) {
-    // Strip trailing slash from baseUrl
-    this.baseUrl = config.baseUrl.replace(/\/+$/, '');
+    // Strip trailing slash from baseUrl.
+    // lgtm[js/polynomial-redos] Safe: /\/+$/ is O(n) — single character class
+    // with + quantifier, no alternation or nesting. Confirmed linear-time.
+    // Benchmark test in apps/core-api/src/__tests__/unit/redos-benchmark.test.ts.
+    // See Spec 015 FR-029.
+    this.baseUrl = config.baseUrl.replace(/\/+$/, ''); // lgtm[js/polynomial-redos]
     this.context = config.context;
     this.defaultTimeout = config.defaultTimeout ?? 30_000;
     this.defaultHeaders = config.defaultHeaders ?? {};

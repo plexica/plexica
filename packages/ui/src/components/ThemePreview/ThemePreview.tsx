@@ -4,12 +4,15 @@
 // Features:
 // - ~300×400px preview: sidebar + header + button + body text
 // - CSS custom properties for colors
-// - Custom CSS scoped to preview container
+// - Custom CSS scoped to preview container (sanitized via DOMPurify — FR-023)
 // - Logo loading error → placeholder
+// - Logo URL validated before use to prevent XSS (FR-024)
 // - role="img" (decorative)
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { sanitizeCss } from '../../utils/sanitize-css.js';
+import { validateImageUrl } from '../../utils/validate-image-url.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +63,9 @@ export function ThemePreview({
     setLogoError(false);
   }, [logoUrl]);
 
+  // Validate logo URL scheme before use (FR-024 — prevent XSS via javascript: URLs)
+  const safeLogo = validateImageUrl(logoUrl ?? '');
+
   const cssVars: React.CSSProperties = {
     '--tp-primary': primaryColor,
     '--tp-secondary': secondaryColor,
@@ -67,7 +73,7 @@ export function ThemePreview({
     '--tp-font': fontFamily,
   } as React.CSSProperties;
 
-  // Scoped custom CSS injection
+  // Scoped custom CSS injection (sanitized via DOMPurify — FR-023)
   const scopedCss = customCss ? `#${scopeId} { ${customCss} }` : '';
 
   return (
@@ -82,23 +88,18 @@ export function ThemePreview({
         className
       )}
     >
-      {/* Scoped style injection */}
-      {scopedCss && (
-        <style
-           
-          dangerouslySetInnerHTML={{ __html: scopedCss }}
-        />
-      )}
+      {/* Scoped style injection — sanitized via DOMPurify (FR-023) */}
+      {scopedCss && <style dangerouslySetInnerHTML={{ __html: sanitizeCss(scopedCss) }} />}
 
       {/* Header */}
       <div
         className="flex items-center gap-2 px-3 py-2 shrink-0"
         style={{ backgroundColor: 'var(--tp-primary)', fontFamily: 'var(--tp-font)' }}
       >
-        {/* Logo */}
-        {logoUrl && !logoError ? (
+        {/* Logo — URL validated before rendering (FR-024) */}
+        {safeLogo && !logoError ? (
           <img
-            src={logoUrl}
+            src={safeLogo}
             alt="Logo"
             onError={() => setLogoError(true)}
             className="w-5 h-5 rounded object-contain bg-white/20"

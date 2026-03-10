@@ -797,7 +797,7 @@ export async function extensionRegistryRoutes(fastify: FastifyInstance) {
         }
 
         const { page, pageSize } = query.data;
-        const slots = await extensionRegistryService.superAdminListAllSlots();
+        const slots = await extensionRegistryService.superAdminListAllSlots(page, pageSize);
         return reply.send({ slots, page, pageSize });
       } catch (error) {
         return handleExtensionError(

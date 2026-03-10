@@ -16,6 +16,8 @@ import {
   NotificationErrorCode,
 } from '../../types/core-services.types.js';
 import { USER_ROLES } from '../../constants/index.js';
+import { rateLimiter } from '../../middleware/rate-limiter.js';
+import { GENERAL_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
 // ============================================================================
 // Helpers
@@ -43,6 +45,9 @@ function getUserId(request: FastifyRequest): string {
 
 export const notificationRoutes: FastifyPluginAsync = async (server) => {
   server.addHook('preHandler', authMiddleware);
+  // SECURITY (Spec 015 T015-15): Apply GENERAL-tier rate limiting to all notification routes.
+  // Covers CodeQL js/missing-rate-limiting alert on line 45.
+  server.addHook('preHandler', rateLimiter(GENERAL_RATE_LIMIT));
 
   // Singleton: NotificationService initialized once per plugin registration (HIGH #4)
   const notifRepo = new NotificationRepository();
