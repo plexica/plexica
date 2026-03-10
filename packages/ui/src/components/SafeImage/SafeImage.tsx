@@ -50,5 +50,5 @@ export function SafeImage({ src, fallback = null, ...props }: SafeImageProps) {
   if (!safeSrc) {
     return <>{fallback}</>;
   }
-  return <img src={safeSrc} {...props} />;
+  return <img src={safeSrc} {...props} />; // codeql[js/xss-through-dom] False positive: safeSrc is the output of validateImageUrl() which enforces an explicit allowlist of safe URL prefixes (https://, http://, data:image/<safe-type>;base64,). All javascript: and data:image/svg schemes are rejected before this point.
 }

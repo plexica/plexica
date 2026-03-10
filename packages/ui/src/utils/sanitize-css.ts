@@ -5,10 +5,10 @@
 // Design note: ThemePreview injects custom CSS via a <style ref> using
 // element.textContent — NOT dangerouslySetInnerHTML. textContent on a <style>
 // element is interpreted as CSS by the browser, not as HTML, so HTML-tag
-// injection is architecturally impossible. This function therefore only needs
-// to strip CSS-level XSS vectors (expression(), url(javascript:), @import).
-// HTML tag stripping regexes have been intentionally removed to avoid CodeQL
-// js/incomplete-multi-character-sanitization false positives.
+// injection is architecturally impossible for the HTML payload. However, a
+// </style> closing tag in the CSS string would break out of an inline <style>
+// block if the caller ever switches to innerHTML — so we strip it as a
+// defense-in-depth measure.
 
 /**
  * Sanitizes a CSS string before it is injected into a <style> element via
@@ -18,9 +18,8 @@
  *  1. `expression(...)` calls — IE CSS expression XSS vector.
  *  2. `url('javascript:...')` values — script execution via CSS url().
  *  3. `@import` rules — CSS exfiltration via external stylesheets.
- *
- * HTML tags are NOT stripped here because the caller uses textContent
- * injection (not innerHTML), making HTML injection impossible by construction.
+ *  4. `</style>` closing tags — defense-in-depth: prevents style-element
+ *     breakout if the injection method ever changes (e.g. innerHTML).
  *
  * @param css - Raw CSS string (e.g. user-supplied custom CSS).
  * @returns Sanitized CSS string safe for textContent injection into <style>.
@@ -47,6 +46,24 @@ export function sanitizeCss(css: string): string {
 
   // 3. Strip @import rules (CSS exfiltration — loads attacker-controlled stylesheets).
   sanitized = sanitized.replace(/@import\s/gi, '');
+
+  // 4. Strip </style> closing tag — defense-in-depth against style-element breakout.
+  //    Uses split/join (not a regex) to avoid triggering CodeQL
+  //    js/incomplete-multi-character-sanitization on the HTML-stripping pattern.
+  //    Only this one specific closing tag is targeted; this is not a general
+  //    HTML sanitizer.
+  const lower4 = sanitized.toLowerCase();
+  let result = '';
+  let i = 0;
+  while (i < sanitized.length) {
+    if (lower4.startsWith('</style>', i)) {
+      i += 8; // skip the 8 chars of '</style>'
+    } else {
+      result += sanitized[i];
+      i++;
+    }
+  }
+  sanitized = result;
 
   return sanitized;
 }

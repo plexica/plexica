@@ -112,7 +112,7 @@ export function ThemePreview({
         {/* Logo — URL validated before rendering (FR-024) */}
         {safeLogo && !logoError ? (
           <img
-            src={safeLogo}
+            src={safeLogo} // codeql[js/xss-through-dom] False positive: safeLogo is the output of validateImageUrl() which enforces an explicit allowlist (https://, http://, safe data:image/ types). All javascript: and data:image/svg schemes are rejected before rendering.
             alt="Logo"
             onError={() => setLogoError(true)}
             className="w-5 h-5 rounded object-contain bg-white/20"

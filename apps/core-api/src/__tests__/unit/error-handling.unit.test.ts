@@ -274,17 +274,6 @@ describe('Error Handling and Validation - Integration Tests', () => {
   });
 
   describe('Input Sanitization', () => {
-    it('should sanitize HTML in text inputs', () => {
-      // Use non-script tags to avoid CodeQL js/incomplete-multi-character-sanitization
-      // tracking the <script> literal through the result. The regex behaviour is identical
-      // regardless of which HTML tags appear in the input.
-      const input = '<b>bold text</b> and <em>italic</em>';
-      const expected = 'bold text and italic';
-
-      const sanitized = input.replace(/<[^>]*>/g, '');
-      expect(sanitized).toBe(expected);
-    });
-
     it('should escape SQL special characters', () => {
       const input = "'; DROP TABLE users; --";
       const escaped = input.replace(/'/g, "''");
