@@ -77,8 +77,8 @@ importers:
         specifier: ^5.2.5
         version: 5.2.5
       '@keycloak/keycloak-admin-client':
-        specifier: ^26.5.4
-        version: 26.5.4
+        specifier: ^26.5.5
+        version: 26.5.5
       '@opentelemetry/api':
         specifier: ^1.9
         version: 1.9.0
@@ -1812,8 +1812,8 @@ packages:
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
 
-  '@keycloak/keycloak-admin-client@26.5.4':
-    resolution: {integrity: sha512-pVhr35J11tvKf9rPJLNZbpNVzVk8Ri5HGi2QGEGw119bSHoriOjmovpd7tJ6+yiYTk0uHKGP9IcBZtq4oRqDUw==}
+  '@keycloak/keycloak-admin-client@26.5.5':
+    resolution: {integrity: sha512-ZYP1Z+4qZ+vChNKWI+g1X08F2gCpZEWRlEMjwF03xet7bB5j5898nSJNFT1g6XIqVslHq15R8pt55fcULpRuvw==}
     engines: {node: '>=18'}
 
   '@lukeed/ms@2.0.2':
@@ -7859,7 +7859,7 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
-  '@keycloak/keycloak-admin-client@26.5.4':
+  '@keycloak/keycloak-admin-client@26.5.5':
     dependencies:
       camelize-ts: 3.0.0
       url-template: 3.1.1
