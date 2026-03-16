@@ -51,7 +51,7 @@
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.4",
+    "@vitejs/plugin-react": "^6.0.1",
     "axe-core": "^4.11.1",
     "eslint": "^9.39.3",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -62,8 +62,8 @@
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.0",
     "vitest-axe": "^0.1.0"
   }
 }
