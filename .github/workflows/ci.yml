@@ -31,6 +31,11 @@ env:
   KEYCLOAK_URL: http://localhost:8080
   KEYCLOAK_ADMIN_USER: admin
   KEYCLOAK_ADMIN_PASSWORD: changeme
+  KC_HEALTH_ENABLED: 'true'
+  KC_METRICS_ENABLED: 'false'
+  KC_HTTP_ENABLED: 'true'
+  KC_HOSTNAME_STRICT: 'false'
+  KC_HOSTNAME_STRICT_HTTPS: 'false'
   REDIS_URL: redis://localhost:6379
   MINIO_ENDPOINT: http://localhost:9000
   MINIO_ACCESS_KEY: minioadmin
