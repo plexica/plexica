@@ -2,7 +2,7 @@
 
 > Lightweight kanban. No ceremonies. Ship features, track progress, adjust scope.
 
-**Status**: All sprints NOT STARTED
+**Status**: Sprint 1 IN PROGRESS (started 2026-03-31)
 **Timeline**: 25-27 weeks (~6 months), 1 developer full-time
 **WIP Limit**: 2 features in progress max per developer
 
@@ -44,7 +44,7 @@ Allow 1-2 weeks buffer after Sprint 9 before starting Phase 4.
 ## Current Sprint State
 
 ```
-Sprint 1:  [ ] Not Started
+Sprint 1:  [→] In Progress  (2026-03-31 → 2026-04-13)  0/39 tasks done  0/109 pts
 Sprint 2:  [ ] Not Started
 Sprint 3:  [ ] Not Started
 Sprint 4:  [ ] Not Started
