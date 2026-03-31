@@ -9,11 +9,12 @@
 #   3. Lint         — eslint
 #   4. Typecheck    — tsc --noEmit
 #   5. Build        — pnpm build
-#   6. Docker up    — spin up all infrastructure services
-#   7. Migrate      — apply Prisma migrations
-#   8. Unit + Integration tests — Vitest (real services)
-#   9. E2E          — Playwright Chromium smoke test
-#  10. Teardown     — docker compose down (always runs)
+#   6. Docker pull  — pull images (or restore from cache)
+#   7. Docker up    — spin up all infrastructure services
+#   8. Migrate      — apply Prisma migrations
+#   9. Unit + Integration tests — Vitest (real services)
+#  10. E2E          — Playwright Chromium smoke test
+#  11. Teardown     — docker compose down (always runs)
 
 name: CI
 
@@ -81,7 +82,34 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # ── 6. Docker up ─────────────────────────────────────────────────────────
+      # ── 6. Docker image cache ─────────────────────────────────────────────────
+      # Images are pinned to SHA256 digests in docker-compose.yml.
+      # Cache key is the hash of that file — invalidated only when digests change.
+      # On cache hit: docker load (~5s).  On cache miss: pull + save for next run.
+      - name: Cache Docker images
+        id: docker-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-images
+          key: docker-images-${{ hashFiles('docker-compose.yml') }}
+
+      - name: Restore Docker images from cache
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/docker-images/images.tar
+
+      - name: Pull Docker images
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml pull
+
+      - name: Save Docker images to cache
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/docker-images
+          docker compose -f docker-compose.yml config --images \
+            | sort -u \
+            | xargs docker save -o /tmp/docker-images/images.tar
+
+      # ── 7. Docker up ─────────────────────────────────────────────────────────
       - name: Start infrastructure services
         run: |
           docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 300
@@ -133,12 +161,12 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.ci.yml ps --format json | \
             python3 -c "import sys,json; [print(s['Name'], s['Health']) for s in json.load(sys.stdin)]" || true
 
-      # ── 7. Migrate ────────────────────────────────────────────────────────────
+      # ── 8. Migrate ────────────────────────────────────────────────────────────
       - name: Apply database migrations
         run: pnpm --filter core-api db:migrate
         working-directory: ${{ github.workspace }}
 
-      # ── 8. Unit + Integration tests ───────────────────────────────────────────
+      # ── 9. Unit + Integration tests ───────────────────────────────────────────
       - name: Run unit and integration tests
         run: pnpm --filter core-api test
         env:
@@ -152,7 +180,7 @@ jobs:
           MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
-      # ── 9. E2E ────────────────────────────────────────────────────────────────
+      # ── 10. E2E ────────────────────────────────────────────────────────────────
       - name: Install Playwright Chromium
         run: pnpm --filter web exec playwright install --with-deps chromium
 
@@ -170,7 +198,7 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
-      # ── 10. Teardown ──────────────────────────────────────────────────────────
+      # ── 11. Teardown ──────────────────────────────────────────────────────────
       - name: Tear down infrastructure services
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
