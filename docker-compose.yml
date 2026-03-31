@@ -116,11 +116,11 @@ services:
         limits:
           memory: 320M
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9644/v1/status/ready"]
+      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 > /dev/null 2>&1"]
       interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
 
   redpanda-topics:
     image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd

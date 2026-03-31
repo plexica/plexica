@@ -8,12 +8,8 @@ set -euo pipefail
 BROKER="${REDPANDA_BROKER:-redpanda:9092}"
 RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))  # 7 days
 
-echo "Waiting for Redpanda to be ready..."
-until rpk cluster info --brokers "$BROKER" > /dev/null 2>&1; do
-  echo "  Redpanda not ready yet, retrying in 2s..."
-  sleep 2
-done
-echo "Redpanda is ready."
+# Redpanda is guaranteed healthy (Kafka broker ready) by depends_on service_healthy.
+echo "Redpanda is ready (guaranteed by service_healthy dependency)."
 
 TOPICS=("plexica.tenant.events" "plexica.user.events" "plexica.plugin.events")
 
