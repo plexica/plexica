@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "noEmit": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/**/*", "tailwind-preset.ts", ".storybook/**/*"],
+  "exclude": ["node_modules", "dist", "storybook-static"]
+}

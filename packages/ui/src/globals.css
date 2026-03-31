@@ -1,0 +1,16 @@
+/* globals.css — CSS entry point for @plexica/ui
+ *
+ * Import order matters:
+ * 1. Token definitions (CSS custom properties on :root) come first so that
+ *    Tailwind's base layer can reference them at runtime in the browser.
+ * 2. @tailwind base — Preflight reset + body { font-family: Inter } via
+ *    the fontFamily.sans mapping in tailwind.config.ts.
+ * 3. @tailwind components — component classes (none defined here yet).
+ * 4. @tailwind utilities — all utility classes used in components.
+ */
+
+@import './tokens/index.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

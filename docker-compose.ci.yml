@@ -1,0 +1,38 @@
+# docker-compose.ci.yml
+# CI resource overrides for GitHub Actions runner (7GB total).
+# Most services get tighter limits than local dev to conserve runner memory.
+# Keycloak uses the same 1024M as the base compose — no CI override needed.
+# Port bindings are inherited from docker-compose.yml — tests connect via localhost.
+
+name: plexica-ci
+
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+
+  minio:
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  redpanda:
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+
+  mailpit:
+    deploy:
+      resources:
+        limits:
+          memory: 48M

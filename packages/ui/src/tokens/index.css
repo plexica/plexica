@@ -1,0 +1,6 @@
+/* index.css — barrel import for all @plexica/ui design tokens */
+
+@import './colors.css';
+@import './spacing.css';
+@import './radius.css';
+@import './typography.css';

@@ -18,10 +18,11 @@ ma con complessità incapsulata dietro tooling e SDK, testing E2E reale e
 una UX professionale.
 
 **Documenti di riferimento principali**:
+
 - `docs/01-SPECIFICHE.md` — requisiti funzionali e non funzionali
 - `docs/02-ARCHITETTURA.md` — architettura tecnica e decisioni confermate
 - `docs/03-PROGETTO.md` — fasi, rischi, criteri di successo
-- `.forge/constitution.md` — le 5 regole non negoziabili
+- `.forge/constitution.md` — le 6 regole non negoziabili
 
 ---
 
@@ -29,45 +30,45 @@ una UX professionale.
 
 ### Backend
 
-| Layer           | Tecnologia        | Versione  | Note                                      |
-| --------------- | ----------------- | --------- | ----------------------------------------- |
-| Runtime         | Node.js           | >= 20     |                                           |
-| Linguaggio      | TypeScript        | ^5.9      | Strict mode obbligatorio                  |
-| Framework       | Fastify           | ^5        | Monolite, organizzato per feature module  |
-| Database        | PostgreSQL        | 15+       | Schema-per-tenant per isolamento GDPR     |
-| ORM             | Prisma            | ^6        | Con escape hatch SQL raw                  |
-| Cache           | Redis (ioredis)   | ^5        | Caching, rate limiting, ABAC policy cache |
-| Object Storage  | MinIO             | ^8        | S3-compatibile, bucket per tenant         |
-| Event Bus       | Kafka / Redpanda  | KafkaJS ^2| Singolo nodo in dev, 3 nodi in prod       |
-| Auth            | Keycloak          | 26+       | Multi-realm (un realm per tenant)         |
+| Layer          | Tecnologia       | Versione   | Note                                      |
+| -------------- | ---------------- | ---------- | ----------------------------------------- |
+| Runtime        | Node.js          | >= 24      |                                           |
+| Linguaggio     | TypeScript       | ^5.9       | Strict mode obbligatorio                  |
+| Framework      | Fastify          | ^5         | Monolite, organizzato per feature module  |
+| Database       | PostgreSQL       | 15+        | Schema-per-tenant per isolamento GDPR     |
+| ORM            | Prisma           | ^6         | Con escape hatch SQL raw                  |
+| Cache          | Redis (ioredis)  | ^5         | Caching, rate limiting, ABAC policy cache |
+| Object Storage | MinIO            | ^8         | S3-compatibile, bucket per tenant         |
+| Event Bus      | Kafka / Redpanda | KafkaJS ^2 | Singolo nodo in dev, 3 nodi in prod       |
+| Auth           | Keycloak         | 26+        | Multi-realm (un realm per tenant)         |
 
 ### Frontend
 
-| Layer           | Tecnologia                  | Versione  | Note                                      |
-| --------------- | --------------------------- | --------- | ----------------------------------------- |
-| UI Framework    | React                       | ^19       |                                           |
-| Build           | Vite                        | latest    |                                           |
-| Micro-frontends | Module Federation           | —         | DX incapsulata in CLI + Vite preset       |
-| Routing         | TanStack Router             | latest    | Type-safe, data loading integrato         |
-| Data Fetching   | TanStack Query              | latest    | **Unico** pattern di data fetching        |
-| State           | Zustand                     | latest    | **Un solo** store per auth, theme, sidebar|
-| Styling         | Tailwind CSS                | latest    | Utility-first                             |
-| Forms           | react-hook-form + Zod       | latest    | **Unico** pattern per tutti i form        |
-| i18n            | react-intl                  | latest    | Tutte le stringhe UI devono passare da qui|
-| Primitives      | Radix UI                    | latest    | Base del design system, accessibilità WCAG|
-| Icons           | Lucide                      | latest    | Nessuna emoji come icona                  |
+| Layer           | Tecnologia            | Versione | Note                                       |
+| --------------- | --------------------- | -------- | ------------------------------------------ |
+| UI Framework    | React                 | ^19      |                                            |
+| Build           | Vite                  | latest   |                                            |
+| Micro-frontends | Module Federation     | —        | DX incapsulata in CLI + Vite preset        |
+| Routing         | TanStack Router       | latest   | Type-safe, data loading integrato          |
+| Data Fetching   | TanStack Query        | latest   | **Unico** pattern di data fetching         |
+| State           | Zustand               | latest   | **Un solo** store per auth, theme, sidebar |
+| Styling         | Tailwind CSS          | latest   | Utility-first                              |
+| Forms           | react-hook-form + Zod | latest   | **Unico** pattern per tutti i form         |
+| i18n            | react-intl            | latest   | Tutte le stringhe UI devono passare da qui |
+| Primitives      | Radix UI              | latest   | Base del design system, accessibilità WCAG |
+| Icons           | Lucide                | latest   | Nessuna emoji come icona                   |
 
 ### Tooling
 
-| Scopo           | Tool              | Versione  |
-| --------------- | ----------------- | --------- |
-| Package Manager | pnpm              | >= 8      |
-| Monorepo        | pnpm workspaces   | —         |
-| E2E Testing     | Playwright        | latest    |
-| Unit/Int Testing| Vitest            | ^4        |
-| Linter          | ESLint            | latest    |
-| Formatter       | Prettier          | latest    |
-| CI/CD           | GitHub Actions    | —         |
+| Scopo            | Tool            | Versione |
+| ---------------- | --------------- | -------- |
+| Package Manager  | pnpm            | >= 10    |
+| Monorepo         | pnpm workspaces | —        |
+| E2E Testing      | Playwright      | latest   |
+| Unit/Int Testing | Vitest          | ^4       |
+| Linter           | ESLint          | latest   |
+| Formatter        | Prettier        | latest   |
+| CI/CD            | GitHub Actions  | —        |
 
 **Nuove dipendenze richiedono un ADR.**
 
@@ -129,26 +130,46 @@ Separare ogni gruppo con una riga vuota.
 
 ### Branch Naming
 
-| Tipo    | Pattern                     | Esempio                          |
-| ------- | --------------------------- | -------------------------------- |
-| Feature | `feat/<spec-id>-<slug>`     | `feat/WS-001-workspace-crud`     |
-| Fix     | `fix/<spec-id>-<slug>`      | `fix/AA-002-jwt-validation`      |
-| Hotfix  | `hotfix/<slug>`             | `hotfix/tenant-context-leak`     |
-| Epic    | `epic/<fase>-<slug>`        | `epic/fase1-fondamenta`          |
+| Tipo    | Pattern                 | Esempio                      |
+| ------- | ----------------------- | ---------------------------- |
+| Feature | `feat/<spec-id>-<slug>` | `feat/WS-001-workspace-crud` |
+| Fix     | `fix/<spec-id>-<slug>`  | `fix/AA-002-jwt-validation`  |
+| Hotfix  | `hotfix/<slug>`         | `hotfix/tenant-context-leak` |
+| Epic    | `epic/<fase>-<slug>`    | `epic/fase1-fondamenta`      |
 
 ### Formato Commit
+
+> **REGOLA NON NEGOZIABILE (Costituzione Rule 6)**: tutti i messaggi di commit
+> devono essere scritti **esclusivamente in inglese** — tipo, scope, subject line,
+> body e footer. Nessuna eccezione per contributor, agenti o tool automatici.
+> Un commit in un'altra lingua **deve essere rifiutato e riscritto** prima del merge.
 
 Usare [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-<type>(<scope>): <descrizione>
+<type>(<scope>): <short description in English>
 
-[body opzionale]
+[optional body in English]
 
-[footer opzionale]
+[optional footer in English]
 ```
 
 Tipi: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `ci`
+
+**Esempi corretti**:
+
+```
+feat(auth): add Keycloak token validation middleware
+fix(tenant): prevent schema creation for duplicate slugs
+chore(sprint): initialize Sprint 1 — Phase 0 infrastructure setup
+```
+
+**Esempi NON validi** (rifiutati):
+
+```
+feat(auth): aggiungi validazione token Keycloak   ← italiano: RIFIUTATO
+fix(tenant): correggi creazione schema duplicato   ← italiano: RIFIUTATO
+```
 
 ### Pull Request
 
@@ -167,6 +188,7 @@ La v1 aveva 4000+ test che non garantivano il funzionamento del sistema.
 I test verificavano mock, non il sistema reale. **Questo non si ripete nella v2.**
 
 **Gerarchia di valore**:
+
 1. **Test E2E full-stack** — attraversano browser → API → DB → Keycloak → Kafka
 2. **Test di integrazione API** — tutti i middleware attivi, Keycloak reale, DB reale
 3. **Test unitari** — solo per logica di business pura
@@ -182,11 +204,11 @@ I test verificavano mock, non il sistema reale. **Questo non si ripete nella v2.
 
 ### Metriche di Copertura
 
-| Metrica                        | Target |
-| ------------------------------ | ------ |
-| Flussi critici con test E2E    | 100%   |
-| Copertura linee (unit + int)   | >= 80% |
-| Endpoint API testati (int)     | 100%   |
+| Metrica                      | Target |
+| ---------------------------- | ------ |
+| Flussi critici con test E2E  | 100%   |
+| Copertura linee (unit + int) | >= 80% |
+| Endpoint API testati (int)   | 100%   |
 
 ### Tipi di Test Richiesti
 
@@ -200,26 +222,26 @@ I test verificavano mock, non il sistema reale. **Questo non si ripete nella v2.
 
 Queste decisioni **non sono negoziabili** e non richiedono ulteriori ADR:
 
-| Decisione                  | Perché                                                      |
-| -------------------------- | ----------------------------------------------------------- |
-| Schema-per-tenant          | GDPR compliance, isolamento fisico, right to erasure        |
-| Keycloak multi-realm       | Auth diversa per tenant (SAML, OIDC, social, MFA policies)  |
-| ABAC tree-walk             | Isolamento dati workspace-level all'interno del tenant       |
-| Kafka/Redpanda event bus   | Plugin event subscription (durabilità, ordering, replay)    |
-| Module Federation per plugin UI | iframe scartato per UX, styling, performance           |
-| Plugin data = tabelle nello schema tenant | Plugin porta migrazioni, core le esegue       |
-| Monolite Fastify (no microservices) | Un solo deployable, feature module interni        |
+| Decisione                                 | Perché                                                     |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| Schema-per-tenant                         | GDPR compliance, isolamento fisico, right to erasure       |
+| Keycloak multi-realm                      | Auth diversa per tenant (SAML, OIDC, social, MFA policies) |
+| ABAC tree-walk                            | Isolamento dati workspace-level all'interno del tenant     |
+| Kafka/Redpanda event bus                  | Plugin event subscription (durabilità, ordering, replay)   |
+| Module Federation per plugin UI           | iframe scartato per UX, styling, performance               |
+| Plugin data = tabelle nello schema tenant | Plugin porta migrazioni, core le esegue                    |
+| Monolite Fastify (no microservices)       | Un solo deployable, feature module interni                 |
 
 ### Pattern Frontend (Un Solo Pattern per Tipo)
 
-| Operazione    | Pattern Obbligatorio       | Vietato                                  |
-| ------------- | -------------------------- | ---------------------------------------- |
-| Data fetching | TanStack Query             | `fetch` raw, `useEffect + useState`      |
-| Form handling | react-hook-form + Zod      | Form context, `useState` inline          |
-| Auth state    | Zustand (un solo store)    | Context API separata, store multipli     |
-| Stringhe UI   | react-intl                 | Stringhe hardcoded                       |
-| Icone         | Lucide                     | Emoji, SVG inline non sistemizzati       |
-| Dialog/Confirm| Dialog component           | `window.confirm()`, `window.alert()`     |
+| Operazione     | Pattern Obbligatorio    | Vietato                              |
+| -------------- | ----------------------- | ------------------------------------ |
+| Data fetching  | TanStack Query          | `fetch` raw, `useEffect + useState`  |
+| Form handling  | react-hook-form + Zod   | Form context, `useState` inline      |
+| Auth state     | Zustand (un solo store) | Context API separata, store multipli |
+| Stringhe UI    | react-intl              | Stringhe hardcoded                   |
+| Icone          | Lucide                  | Emoji, SVG inline non sistemizzati   |
+| Dialog/Confirm | Dialog component        | `window.confirm()`, `window.alert()` |
 
 ---
 
@@ -236,6 +258,7 @@ Queste decisioni **non sono negoziabili** e non richiedono ulteriori ADR:
 ### Quando Aprire un ADR
 
 Aprire un ADR **solo** per:
+
 - Cambiamenti al modello dati (schema, nuove entità core)
 - Cambiamenti all'autenticazione o all'autorizzazione
 - Cambiamenti all'infrastruttura (nuovi servizi, sostituzioni)
@@ -246,6 +269,7 @@ Aprire un ADR **solo** per:
 ### Knowledge Base
 
 Prima di prendere decisioni architetturali, consultare:
+
 - **ADR**: `.forge/knowledge/adr/` — decisioni architetturali formali
 - **Decision Log**: `.forge/knowledge/decision-log.md` — decisioni di sessione
 - **Lessons Learned**: `.forge/knowledge/lessons-learned.md` — anti-pattern dalla v1
@@ -285,19 +309,19 @@ Prima di prendere decisioni architetturali, consultare:
 
 Variabili d'ambiente richieste:
 
-| Variabile                  | Scopo                                          |
-| -------------------------- | ---------------------------------------------- |
-| `DATABASE_URL`             | Connessione PostgreSQL                         |
-| `KEYCLOAK_URL`             | URL Keycloak (es. `http://localhost:8080`)     |
-| `KEYCLOAK_ADMIN_USER`      | Credenziali admin Keycloak per provisioning    |
-| `KEYCLOAK_ADMIN_PASSWORD`  | Credenziali admin Keycloak per provisioning    |
-| `REDIS_URL`                | Connessione Redis                              |
-| `KAFKA_BROKERS`            | Broker Kafka/Redpanda (comma-separated)        |
-| `MINIO_ENDPOINT`           | Endpoint MinIO                                 |
-| `MINIO_ACCESS_KEY`         | Access key MinIO                               |
-| `MINIO_SECRET_KEY`         | Secret key MinIO                               |
-| `SMTP_HOST`                | SMTP per notifiche email (Mailhog in dev)      |
-| `GITHUB_TOKEN`             | GitHub personal access token (MCP integration) |
+| Variabile                 | Scopo                                          |
+| ------------------------- | ---------------------------------------------- |
+| `DATABASE_URL`            | Connessione PostgreSQL                         |
+| `KEYCLOAK_URL`            | URL Keycloak (es. `http://localhost:8080`)     |
+| `KEYCLOAK_ADMIN_USER`     | Credenziali admin Keycloak per provisioning    |
+| `KEYCLOAK_ADMIN_PASSWORD` | Credenziali admin Keycloak per provisioning    |
+| `REDIS_URL`               | Connessione Redis                              |
+| `KAFKA_BROKERS`           | Broker Kafka/Redpanda (comma-separated)        |
+| `MINIO_ENDPOINT`          | Endpoint MinIO                                 |
+| `MINIO_ACCESS_KEY`        | Access key MinIO                               |
+| `MINIO_SECRET_KEY`        | Secret key MinIO                               |
+| `SMTP_HOST`               | SMTP per notifiche email (Mailpit in dev)      |
+| `GITHUB_TOKEN`            | GitHub personal access token (MCP integration) |
 
 **Avvio sviluppo locale**: `docker compose up` avvia l'intero stack.
 Nessuna configurazione manuale richiesta.

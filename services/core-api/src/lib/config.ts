@@ -1,0 +1,49 @@
+// config.ts
+// Environment variable loader with Zod validation.
+// Throws at startup if any required variable is missing or invalid.
+
+import { z } from 'zod';
+
+const configSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+
+  // Database
+  DATABASE_URL: z.string().url(),
+
+  // Keycloak
+  KEYCLOAK_URL: z.string().url(),
+  KEYCLOAK_ADMIN_USER: z.string().min(1),
+  KEYCLOAK_ADMIN_PASSWORD: z.string().min(1),
+
+  // Redis
+  REDIS_URL: z.string().min(1),
+
+  // MinIO
+  MINIO_ENDPOINT: z.string().min(1),
+  MINIO_ACCESS_KEY: z.string().min(1),
+  MINIO_SECRET_KEY: z.string().min(1),
+
+  // Kafka / Redpanda
+  KAFKA_BROKERS: z.string().min(1),
+
+  // SMTP (optional in development)
+  SMTP_HOST: z.string().default('localhost'),
+  SMTP_PORT: z.coerce.number().int().default(1025),
+});
+
+export type Config = z.infer<typeof configSchema>;
+
+function loadConfig(): Config {
+  const result = configSchema.safeParse(process.env);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((issue) => `  ${issue.path.join('.')}: ${issue.message}`)
+      .join('\n');
+    throw new Error(`Invalid environment configuration:\n${issues}`);
+  }
+  return result.data;
+}
+
+// Singleton config — parsed once at module load
+export const config: Config = loadConfig();

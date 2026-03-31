@@ -1,0 +1,4 @@
+# Sprint Sequence File
+# Tracks the next available sprint number.
+# Updated automatically by /forge-sprint start and /forge-sprint close.
+next_sprint_number: 2

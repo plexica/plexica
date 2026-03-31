@@ -1,0 +1,74 @@
+{
+  "realm": "plexica-test",
+  "displayName": "Plexica Test Realm",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "ssoSessionMaxLifespan": 36000,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "plexica-web",
+      "name": "Plexica Web App",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:3001/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:3001"
+      ],
+      "protocol": "openid-connect"
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "super_admin", "description": "Super administrator with full platform access" },
+      { "name": "tenant_admin", "description": "Tenant administrator" },
+      { "name": "member", "description": "Regular tenant member" }
+    ]
+  },
+  "users": [
+    {
+      "username": "super-admin@plexica.test",
+      "email": "super-admin@plexica.test",
+      "firstName": "Super",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "test1234", "temporary": false }
+      ],
+      "realmRoles": ["super_admin"]
+    },
+    {
+      "username": "admin@acme.test",
+      "email": "admin@acme.test",
+      "firstName": "Acme",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "test1234", "temporary": false }
+      ],
+      "realmRoles": ["tenant_admin"]
+    },
+    {
+      "username": "member@acme.test",
+      "email": "member@acme.test",
+      "firstName": "Acme",
+      "lastName": "Member",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "test1234", "temporary": false }
+      ],
+      "realmRoles": ["member"]
+    }
+  ]
+}

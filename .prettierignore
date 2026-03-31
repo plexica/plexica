@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+pnpm-lock.yaml
+*.generated.ts
+prisma/generated/
+storybook-static/
+playwright-report/

@@ -9,7 +9,7 @@
 
 ---
 
-## The 5 Rules
+## The 6 Rules
 
 These are absolute. No exceptions, no workarounds.
 
@@ -23,48 +23,50 @@ These are absolute. No exceptions, no workarounds.
 
 5. **Significant architectural decisions have an ADR.** Data model changes, auth changes, infrastructure changes, new core dependencies — document the decision before implementing.
 
+6. **All commit messages must be written in English.** Every part of a commit — type, scope, subject line, body, and footer — must be in English. No exceptions for any contributor, agent, or automated tool. A commit written in any other language must be rejected and rewritten before merge.
+
 ---
 
 ## Technology Stack
 
 ### Backend
 
-| Layer           | Technology        | Version   |
-| --------------- | ----------------- | --------- |
-| Runtime         | Node.js           | >= 20     |
-| Language        | TypeScript        | ^5.9      |
-| Framework       | Fastify           | ^5        |
-| Database        | PostgreSQL        | 15+       |
-| ORM             | Prisma            | ^6        |
-| Cache           | Redis (ioredis)   | ^5        |
-| Object Storage  | MinIO             | ^8        |
-| Event Bus       | Kafka / Redpanda  | KafkaJS ^2|
-| Auth            | Keycloak          | 26+       |
+| Layer          | Technology       | Version    |
+| -------------- | ---------------- | ---------- |
+| Runtime        | Node.js          | >= 24      |
+| Language       | TypeScript       | ^5.9       |
+| Framework      | Fastify          | ^5         |
+| Database       | PostgreSQL       | 15+        |
+| ORM            | Prisma           | ^6         |
+| Cache          | Redis (ioredis)  | ^5         |
+| Object Storage | MinIO            | ^8         |
+| Event Bus      | Kafka / Redpanda | KafkaJS ^2 |
+| Auth           | Keycloak         | 26+        |
 
 ### Frontend
 
-| Layer           | Technology                  | Version   |
-| --------------- | --------------------------- | --------- |
-| UI Framework    | React                       | ^19       |
-| Build           | Vite                        | latest    |
-| Micro-frontends | Module Federation           | —         |
-| Routing         | TanStack Router             | latest    |
-| Data Fetching   | TanStack Query              | latest    |
-| State           | Zustand                     | latest    |
-| Styling         | Tailwind CSS                | latest    |
-| Forms           | react-hook-form + Zod       | latest    |
-| i18n            | react-intl                  | latest    |
-| Primitives      | Radix UI                    | latest    |
+| Layer           | Technology            | Version |
+| --------------- | --------------------- | ------- |
+| UI Framework    | React                 | ^19     |
+| Build           | Vite                  | latest  |
+| Micro-frontends | Module Federation     | —       |
+| Routing         | TanStack Router       | latest  |
+| Data Fetching   | TanStack Query        | latest  |
+| State           | Zustand               | latest  |
+| Styling         | Tailwind CSS          | latest  |
+| Forms           | react-hook-form + Zod | latest  |
+| i18n            | react-intl            | latest  |
+| Primitives      | Radix UI              | latest  |
 
 ### Tooling
 
-| Purpose         | Tool              | Version   |
-| --------------- | ----------------- | --------- |
-| Package Manager | pnpm              | >= 8      |
-| Monorepo        | pnpm workspaces   | —         |
-| E2E Testing     | Playwright        | latest    |
-| Unit/Int Testing| Vitest            | ^4        |
-| CI/CD           | GitHub Actions    | —         |
+| Purpose          | Tool            | Version |
+| ---------------- | --------------- | ------- |
+| Package Manager  | pnpm            | >= 8    |
+| Monorepo         | pnpm workspaces | —       |
+| E2E Testing      | Playwright      | latest  |
+| Unit/Int Testing | Vitest          | ^4      |
+| CI/CD            | GitHub Actions  | —       |
 
 New dependencies require an ADR.
 
@@ -140,6 +142,7 @@ These are non-negotiable. Violations block release.
 
 Changes to this constitution are recorded below. Do not edit articles directly — add an amendment entry, then update the article text.
 
-| Date | Article | Change | Rationale |
-| ---- | ------- | ------ | --------- |
-| March 2026 | All | Initial constitution | Project kickoff |
+| Date       | Article   | Change                                           | Rationale                                                                                                                                                                                 |
+| ---------- | --------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| March 2026 | All       | Initial constitution                             | Project kickoff                                                                                                                                                                           |
+| March 2026 | The Rules | Added Rule 6: commit messages must be in English | Enforces a single language for all git history, making it unambiguous for all contributors, agents, and automated tools. Non-English commits must be rejected and rewritten before merge. |

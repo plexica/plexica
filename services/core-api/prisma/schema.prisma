@@ -1,0 +1,51 @@
+// schema.prisma
+// Core API Prisma schema — manages the core schema tables.
+// Tenant-specific tables are in separate tenant schemas (ADR-001).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["core"]
+}
+
+enum TenantStatus {
+  active
+  suspended
+  deleted
+
+  @@schema("core")
+}
+
+model Tenant {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String       @unique @db.VarChar(63)
+  name      String       @db.VarChar(255)
+  status    TenantStatus @default(active)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  config TenantConfig?
+
+  @@index([status])
+  @@map("tenants")
+  @@schema("core")
+}
+
+model TenantConfig {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @unique @map("tenant_id") @db.Uuid
+  keycloakRealm  String   @unique @map("keycloak_realm") @db.VarChar(255)
+  settings       Json     @default("{}") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_configs")
+  @@schema("core")
+}
