@@ -1,47 +1,41 @@
 # docker-compose.ci.yml
-# CI override for GitHub Actions. Services communicate via Docker network only.
-# No host port bindings. Tighter memory limits to fit GitHub Actions runner (7GB total).
+# CI override for GitHub Actions. Tighter memory limits to fit GitHub Actions runner (7GB total).
+# Port bindings are inherited from docker-compose.yml — tests connect via localhost.
 
 name: plexica-ci
 
 services:
   postgres:
-    ports: !reset []
     deploy:
       resources:
         limits:
           memory: 384M
 
   keycloak:
-    ports: !reset []
     deploy:
       resources:
         limits:
           memory: 512M
 
   redis:
-    ports: !reset []
     deploy:
       resources:
         limits:
           memory: 96M
 
   minio:
-    ports: !reset []
     deploy:
       resources:
         limits:
           memory: 192M
 
   redpanda:
-    ports: !reset []
     deploy:
       resources:
         limits:
           memory: 384M
 
   mailhog:
-    ports: !reset []
     deploy:
       resources:
         limits:

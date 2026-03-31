@@ -15,7 +15,7 @@ until rpk cluster info --brokers "$BROKER" > /dev/null 2>&1; do
 done
 echo "Redpanda is ready."
 
-TOPICS=("tenant.events" "user.events" "plugin.events")
+TOPICS=("plexica.tenant.events" "plexica.user.events" "plexica.plugin.events")
 
 for TOPIC in "${TOPICS[@]}"; do
   echo "Creating topic: $TOPIC"

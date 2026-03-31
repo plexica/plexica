@@ -3,14 +3,17 @@
 
 import { z } from 'zod';
 
-// Slug validation regex: lowercase alphanumeric + hyphens, 3-63 chars
-// Must start with letter, end with alphanumeric
-const SLUG_REGEX = /^[a-z][a-z0-9-]{1,61}[a-z0-9]$/;
+// Slug validation regex: lowercase alphanumeric + hyphens, 3-51 chars.
+// Max 51: "tenant_" prefix (7 chars) + 51 = 58 chars, safely under PostgreSQL's
+// 63-char identifier limit (NAMEDATALEN=64). Prevents silent schema name truncation
+// that could cause two tenants to share the same PostgreSQL schema.
+// Must start with letter, end with alphanumeric.
+const SLUG_REGEX = /^[a-z][a-z0-9-]{1,49}[a-z0-9]$/;
 
 export const slugSchema = z
   .string()
   .min(3, 'Slug must be at least 3 characters')
-  .max(63, 'Slug must be at most 63 characters')
+  .max(51, 'Slug must be at most 51 characters')
   .regex(
     SLUG_REGEX,
     'Slug must be lowercase alphanumeric + hyphens, start with a letter, end with alphanumeric'

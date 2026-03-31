@@ -51,12 +51,15 @@ export interface ToastProps
     VariantProps<typeof toastVariants> {
   title?: string;
   description?: string;
+  /** Accessible label for the close button. Pass a localized string from the caller. */
+  closeLabel?: string;
 }
 
 export const Toast = React.forwardRef<
   React.ElementRef<typeof RadixToast.Root>,
   ToastProps
->(({ className, variant = 'info', title, description, duration = 5000, ...props }, ref) => {
+>(({ className, variant = 'info', title, description, duration = 5000,
+    closeLabel = 'Close notification', ...props }, ref) => {
   const Icon = ICONS[variant ?? 'info'];
   return (
     <RadixToast.Root
@@ -76,7 +79,7 @@ export const Toast = React.forwardRef<
           </RadixToast.Description>
         )}
       </div>
-      <RadixToast.Close className="shrink-0 opacity-70 hover:opacity-100" aria-label="Close notification">
+      <RadixToast.Close className="shrink-0 opacity-70 hover:opacity-100" aria-label={closeLabel}>
         <X className="h-4 w-4" aria-hidden="true" />
       </RadixToast.Close>
     </RadixToast.Root>

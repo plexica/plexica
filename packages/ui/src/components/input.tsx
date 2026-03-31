@@ -13,10 +13,16 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   label?: string;
   error?: string;
   helperText?: string;
+  /** Accessible label for the show-password toggle. Pass a localized string from the caller. */
+  showPasswordLabel?: string;
+  /** Accessible label for the hide-password toggle. Pass a localized string from the caller. */
+  hidePasswordLabel?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, label, error, helperText, id, disabled, ...props }, ref) => {
+  ({ className, type, label, error, helperText, id, disabled,
+     showPasswordLabel = 'Show password', hidePasswordLabel = 'Hide password',
+     ...props }, ref) => {
     const inputId = id ?? React.useId();
     const errorId = `${inputId}-error`;
     const helperId = `${inputId}-helper`;
@@ -62,7 +68,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               type="button"
               onClick={() => { setShowPassword((prev) => !prev); }}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? hidePasswordLabel : showPasswordLabel}
             >
               {showPassword
                 ? <EyeOff className="h-4 w-4" aria-hidden="true" />

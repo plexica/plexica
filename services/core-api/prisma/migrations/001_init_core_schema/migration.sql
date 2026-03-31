@@ -15,7 +15,8 @@ END $$;
 -- Create tenants table
 CREATE TABLE IF NOT EXISTS core.tenants (
   id          UUID          NOT NULL DEFAULT gen_random_uuid(),
-  slug        VARCHAR(63)   NOT NULL,
+  -- Max 51 chars: "tenant_" (7) + 51 = 58, safely under PostgreSQL's 63-char identifier limit
+  slug        VARCHAR(51)   NOT NULL,
   name        VARCHAR(255)  NOT NULL,
   status      core.tenant_status NOT NULL DEFAULT 'active',
   created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS core.tenants (
   CONSTRAINT tenants_pkey PRIMARY KEY (id),
   CONSTRAINT tenants_slug_key UNIQUE (slug),
   CONSTRAINT tenants_slug_format CHECK (
-    slug ~ '^[a-z][a-z0-9-]{1,61}[a-z0-9]$'
+    slug ~ '^[a-z][a-z0-9-]{1,49}[a-z0-9]$'
   )
 );
 

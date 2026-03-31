@@ -2,15 +2,23 @@
 // Integration test: tenant schema creation happy path and duplicate error.
 // Uses real PostgreSQL — no mocks.
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
-import { createTenantSchema } from '../lib/tenant-schema.js';
+import { createTenantSchema, type TenantCreationResult } from '../lib/tenant-schema.js';
 
 const TEST_SLUG = 'smoke-test-acme';
 const TEST_SCHEMA = 'tenant_smoke_test_acme';
 
 describe('Tenant schema creation', () => {
+  let creationResult: TenantCreationResult;
+
+  beforeAll(async () => {
+    // Create the tenant schema once before all verification tests.
+    // Each test below asserts a different aspect of the resulting DB state.
+    creationResult = await createTenantSchema(TEST_SLUG);
+  });
+
   afterAll(async () => {
     // Cleanup: drop test schema and tenant records
     try {
@@ -24,11 +32,10 @@ describe('Tenant schema creation', () => {
     }
   });
 
-  it('creates tenant schema successfully (happy path)', async () => {
-    const result = await createTenantSchema(TEST_SLUG);
-    expect(result.success).toBe(true);
-    expect(result.schemaName).toBe(TEST_SCHEMA);
-    expect(result.tenantId).toBeDefined();
+  it('creates tenant schema successfully (happy path)', () => {
+    expect(creationResult.success).toBe(true);
+    expect(creationResult.schemaName).toBe(TEST_SCHEMA);
+    expect(creationResult.tenantId).toBeDefined();
   });
 
   it('creates a PostgreSQL schema with the correct name', async () => {

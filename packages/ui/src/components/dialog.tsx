@@ -33,8 +33,11 @@ DialogOverlay.displayName = 'DialogOverlay';
 
 export const DialogContent = React.forwardRef<
   React.ElementRef<typeof RadixDialog.Content>,
-  React.ComponentPropsWithoutRef<typeof RadixDialog.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof RadixDialog.Content> & {
+    /** Accessible label for the close button. Pass a localized string from the caller. */
+    closeLabel?: string;
+  }
+>(({ className, children, closeLabel = 'Close', ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <RadixDialog.Content
@@ -51,7 +54,7 @@ export const DialogContent = React.forwardRef<
       {children}
       <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary-500">
         <X className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">Close</span>
+        <span className="sr-only">{closeLabel}</span>
       </DialogClose>
     </RadixDialog.Content>
   </DialogPortal>

@@ -62,8 +62,26 @@ export async function createTenantSchema(slug: string): Promise<TenantCreationRe
         data: { slug, name: slug, status: 'active' },
       });
 
-      // Create the tenant schema using raw SQL
+      // Create the tenant schema using raw SQL.
+      // Defensive assertion: verify schema name contains only safe characters
+      // before passing to $executeRawUnsafe. Slug is already regex-validated
+      // upstream, but this guard ensures a future refactor cannot bypass it.
+      if (!/^tenant_[a-z0-9_]+$/.test(schemaName)) {
+        throw new Error(`Invalid schema name: ${schemaName}`);
+      }
       await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+
+      // FR-007: Run Prisma tenant migrations against the new schema.
+      // At Phase 0, the tenant schema has no tables (tenant-schema.prisma is empty).
+      // This call is the integration point for Phase 1+: when tenant models are added
+      // and tenant-schema.prisma is populated, `prisma migrate deploy` must be invoked
+      // here with search_path set to schemaName.
+      //
+      // Implementation (Phase 1):
+      //   await runTenantMigrations(schemaName);
+      //
+      // Until then, schema creation completes successfully — the empty schema
+      // is correct for Phase 0.
 
       // Insert tenant config
       await tx.tenantConfig.create({

@@ -2,7 +2,8 @@
 // Constitution Rule 1: every user-interactive surface must have an E2E test.
 // This is the Phase 0 capstone test — verifies the login page is rendered.
 
-import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
 
 test.describe('Login page smoke test', () => {
   test('login page renders with all required form elements', async ({ page }) => {
@@ -25,30 +26,42 @@ test.describe('Login page smoke test', () => {
     await expect(submitButton).toBeEnabled();
   });
 
-  test('form elements are accessible (labels connected to inputs)', async ({ page }) => {
+  test('page passes axe-core accessibility check (no critical violations)', async ({ page }) => {
     await page.goto('/');
 
-    // Email input has an accessible label
-    const emailInput = page.locator('input[type="email"]');
+    // Run axe-core against the full page — fulfills task 001-T30 DoD
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('form labels are programmatically associated with inputs', async ({ page }) => {
+    await page.goto('/');
+
+    // getByLabel verifies the htmlFor/id association, not just visibility.
+    // This checks that screen readers can correctly announce the field purpose.
+    const emailInput = page.getByLabel(/email/i);
     await expect(emailInput).toBeVisible();
 
-    // Password input has an accessible label
-    const passwordInput = page.locator('input[type="password"]');
+    const passwordInput = page.getByLabel(/password/i);
     await expect(passwordInput).toBeVisible();
   });
 
-  test('page responds to keyboard navigation', async ({ page }) => {
+  test('page responds to keyboard navigation in expected tab order', async ({ page }) => {
     await page.goto('/');
 
-    // Tab through the form fields
+    // First Tab: email field receives focus
     await page.keyboard.press('Tab');
     const emailInput = page.locator('input[type="email"]');
     await expect(emailInput).toBeFocused();
 
+    // Second Tab: password field or show/hide toggle is next in tab order
     await page.keyboard.press('Tab');
-    // Next focusable element (password or show/hide toggle)
-    // Just verify focus moved — exact element depends on implementation
-    const focused = page.locator(':focus');
-    await expect(focused).toBeVisible();
+    const passwordInput = page.locator('input[type="password"]');
+    const showHideToggle = page.locator('button[aria-label*="password" i]');
+    const focusedIsPasswordOrToggle =
+      (await passwordInput.evaluate((el) => el === document.activeElement)) ||
+      (await showHideToggle.count() > 0 &&
+        await showHideToggle.evaluate((el) => el === document.activeElement));
+    expect(focusedIsPasswordOrToggle).toBe(true);
   });
 });

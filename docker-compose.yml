@@ -1,8 +1,7 @@
 # docker-compose.yml
 # Dev stack: PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailhog
 # NFR-01 baseline: docker compose up --wait target < 60s
-# NOTE (NFR-05): All images must be pinned to @sha256 digests before production.
-# Run: docker inspect --format='{{index .RepoDigests 0}}' <image> to get digest.
+# NFR-05: All images are pinned to @sha256 digests for reproducibility.
 
 name: plexica-dev
 
@@ -12,8 +11,8 @@ volumes:
 
 services:
   postgres:
-    image: postgres:15-alpine
-    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' postgres:15-alpine
+    image: postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    # postgres:15-alpine — pinned 2026-03-31
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-plexica}
       POSTGRES_USER: ${POSTGRES_USER:-plexica}
@@ -34,8 +33,8 @@ services:
       start_period: 10s
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' quay.io/keycloak/keycloak:26.0
+    image: quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
+    # quay.io/keycloak/keycloak:26.0 — pinned 2026-03-31
     command: start-dev --import-realm
     environment:
       KC_DB: dev-mem
@@ -50,15 +49,16 @@ services:
         limits:
           memory: 768M
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/master/.well-known/openid-configuration > /dev/null"]
+      # Check the plexica-test realm specifically — master starts before import completes
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/plexica-test/.well-known/openid-configuration > /dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 30s
+      retries: 20
+      start_period: 60s
 
   redis:
-    image: redis:7-alpine
-    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' redis:7-alpine
+    image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
+    # redis:7-alpine — pinned 2026-03-31
     ports:
       - "${REDIS_PORT:-6379}:6379"
     deploy:
@@ -73,8 +73,8 @@ services:
       start_period: 5s
 
   minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' minio/minio:RELEASE.2024-01-16T16-07-38Z
+    image: minio/minio@sha256:4c4a4876193f030c81f57aabb22bcb9a73462010eb61fcab66908e03e5484af8
+    # minio/minio:RELEASE.2024-01-16T16-07-38Z — pinned 2026-03-31
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
@@ -96,8 +96,8 @@ services:
       start_period: 10s
 
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5
-    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' docker.redpanda.com/redpandadata/redpanda:v23.3.5
+    image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
+    # docker.redpanda.com/redpandadata/redpanda:v23.3.5 — pinned 2026-03-31
     command:
       - redpanda start
       - --smp 1
@@ -123,8 +123,8 @@ services:
       start_period: 15s
 
   redpanda-topics:
-    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5
-    # NFR-05: pin to digest — same as redpanda service above
+    image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
+    # docker.redpanda.com/redpandadata/redpanda:v23.3.5 — same digest as redpanda service
     command: ["bash", "/scripts/create-topics.sh"]
     volumes:
       - ./infra/redpanda:/scripts:ro
@@ -137,8 +137,8 @@ services:
           memory: 128M
 
   mailhog:
-    image: mailhog/mailhog:v1.0.1
-    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' mailhog/mailhog:v1.0.1
+    image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+    # mailhog/mailhog:v1.0.1 — pinned 2026-03-31
     ports:
       - "${SMTP_PORT:-1025}:1025"
       - "${SMTP_UI_PORT:-8025}:8025"

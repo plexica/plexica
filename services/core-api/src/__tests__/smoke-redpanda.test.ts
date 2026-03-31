@@ -9,9 +9,9 @@ import { Kafka, type Admin, type Producer, type Consumer } from 'kafkajs';
 import { config } from '../lib/config.js';
 
 const BROKERS = config.KAFKA_BROKERS.split(',');
-const CORE_TOPICS = ['tenant.events', 'user.events', 'plugin.events'];
-const TEST_TOPIC = 'tenant.events';
-const GROUP_ID = 'plexica-smoke-test-group';
+const CORE_TOPICS = ['plexica.tenant.events', 'plexica.user.events', 'plexica.plugin.events'];
+const TEST_TOPIC = 'plexica.tenant.events';
+const GROUP_ID = `plexica-smoke-test-${Date.now()}`;
 
 describe('Redpanda smoke test', () => {
   let kafka: Kafka;
@@ -44,11 +44,18 @@ describe('Redpanda smoke test', () => {
     }
   });
 
-  it('produces and consumes a message on tenant.events', async () => {
+  it('produces and consumes a message on plexica.tenant.events', async () => {
     const testPayload = { type: 'smoke-test', ts: Date.now() };
     const received: unknown[] = [];
 
     await consumer.subscribe({ topic: TEST_TOPIC, fromBeginning: false });
+
+    // Wait for the consumer to join the group and receive partition assignment
+    // before producing, to avoid the offset-anchor race (fromBeginning: false means
+    // messages produced before assignment is anchored are silently missed).
+    const groupJoined = new Promise<void>((resolve) => {
+      consumer.on('consumer.group_join', () => { resolve(); });
+    });
 
     // Start consuming in background
     const consumePromise = new Promise<void>((resolve) => {
@@ -62,7 +69,9 @@ describe('Redpanda smoke test', () => {
       });
     });
 
-    // Produce after subscribing
+    // Wait for group join before producing
+    await groupJoined;
+
     await producer.send({
       topic: TEST_TOPIC,
       messages: [{ value: JSON.stringify(testPayload) }],
