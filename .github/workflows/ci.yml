@@ -119,14 +119,24 @@ jobs:
           # Phase 1: start and wait for all long-running services.
           # redpanda-init is intentionally excluded here — it is a one-shot container
           # that exits with code 0 on success. docker compose --wait treats any exited
-          # container as unhealthy, so we handle it in a separate phase below.
+          # container as unhealthy regardless of exit code, so we handle it separately.
           docker compose -f docker-compose.yml -f docker-compose.ci.yml \
             up -d --wait --wait-timeout 300 \
             postgres keycloak redis minio redpanda mailpit
 
-          # Phase 2: run redpanda-init and wait for it to exit cleanly (code 0).
+          # Phase 2: run redpanda-init and wait for it to exit.
+          # --wait cannot be used for one-shot containers (exits 1 even on clean exit).
+          # Instead: start it detached, then use `docker wait` to block until it exits
+          # and capture its exit code explicitly.
           docker compose -f docker-compose.yml -f docker-compose.ci.yml \
-            up --wait --wait-timeout 60 redpanda-init
+            up -d redpanda-init
+          EXIT_CODE=$(docker wait plexica-ci-redpanda-init-1)
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "redpanda-init failed with exit code $EXIT_CODE" >&2
+            docker logs plexica-ci-redpanda-init-1 >&2
+            exit 1
+          fi
+          echo "redpanda-init completed successfully."
         env:
           POSTGRES_DB: plexica
           POSTGRES_USER: plexica
