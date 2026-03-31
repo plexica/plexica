@@ -12,8 +12,6 @@ services:
           memory: 384M
 
   keycloak:
-    environment:
-      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
     deploy:
       resources:
         limits:

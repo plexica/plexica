@@ -49,14 +49,12 @@ services:
         limits:
           memory: 768M
     healthcheck:
-      # Keycloak HTTP server accepting connections (any response including 403/302
-      # means the server is up). The CI "Wait for Keycloak realm import" step
-      # handles full readiness including realm availability.
-      test: ["CMD-SHELL", "curl --max-time 3 -s -o /dev/null http://localhost:8080/"]
+      # Check the plexica-test realm — confirms startup and realm import are complete.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/plexica-test/.well-known/openid-configuration > /dev/null"]
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 60s
+      start_period: 90s
 
   redis:
     image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
