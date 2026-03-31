@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "noEmit": true
+  },
+  "include": ["src/**/*", "tailwind-preset.ts", ".storybook/**/*"],
+  "exclude": ["node_modules", "dist", "storybook-static"]
+}

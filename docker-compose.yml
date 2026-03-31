@@ -1,0 +1,154 @@
+# docker-compose.yml
+# Dev stack: PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailhog
+# NFR-01 baseline: docker compose up --wait target < 60s
+# NOTE (NFR-05): All images must be pinned to @sha256 digests before production.
+# Run: docker inspect --format='{{index .RepoDigests 0}}' <image> to get digest.
+
+name: plexica-dev
+
+volumes:
+  postgres_data:
+  minio_data:
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-plexica}
+      POSTGRES_USER: ${POSTGRES_USER:-plexica}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plexica} -d ${POSTGRES_DB:-plexica}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    environment:
+      KC_DB: dev-mem
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/master/.well-known/openid-configuration > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' minio/minio:RELEASE.2024-01-16T16-07-38Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-changeme}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5
+    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' docker.redpanda.com/redpandadata/redpanda:v23.3.5
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --set redpanda.developer_mode=true
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    ports:
+      - "${REDPANDA_KAFKA_PORT:-19092}:19092"
+      - "${REDPANDA_ADMIN_PORT:-9644}:9644"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9644/v1/status/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  redpanda-topics:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.5
+    # NFR-05: pin to digest — same as redpanda service above
+    command: ["bash", "/scripts/create-topics.sh"]
+    volumes:
+      - ./infra/redpanda:/scripts:ro
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    # NFR-05: pin to digest — docker inspect --format='{{index .RepoDigests 0}}' mailhog/mailhog:v1.0.1
+    ports:
+      - "${SMTP_PORT:-1025}:1025"
+      - "${SMTP_UI_PORT:-8025}:8025"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8025 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s

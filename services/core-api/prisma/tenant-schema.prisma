@@ -1,0 +1,20 @@
+// tenant-schema.prisma
+// Template for tenant-specific schemas (tenant_<slug>).
+// Empty at Phase 0 — application tables added in Phase 1+.
+// Plugins bring their own migrations (ADR-007).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../generated/tenant-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public"]
+}
+
+// Tenant-specific models will be added here in subsequent phases.
+// Example:
+// model WorkspaceMember { ... @@schema("tenant_<slug>") }

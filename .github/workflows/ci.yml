@@ -1,0 +1,134 @@
+# ci.yml — Plexica v2 CI pipeline
+# Runs on every PR targeting main.
+# Constitution Rule 2: all stages must pass; failure blocks merge.
+#
+# Stages (in order):
+#   1. Setup        — checkout, Node, pnpm cache
+#   2. Install      — pnpm install
+#   3. Lint         — eslint
+#   4. Typecheck    — tsc --noEmit
+#   5. Build        — pnpm build
+#   6. Docker up    — spin up all infrastructure services
+#   7. Migrate      — apply Prisma migrations
+#   8. Unit + Integration tests — Vitest (real services)
+#   9. E2E          — Playwright Chromium smoke test
+#  10. Teardown     — docker compose down (always runs)
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  # Use CI-friendly defaults pointing to Docker service names
+  NODE_ENV: test
+  DATABASE_URL: postgresql://plexica:changeme@localhost:5432/plexica
+  KEYCLOAK_URL: http://localhost:8080
+  KEYCLOAK_ADMIN_USER: admin
+  KEYCLOAK_ADMIN_PASSWORD: changeme
+  REDIS_URL: redis://localhost:6379
+  MINIO_ENDPOINT: http://localhost:9000
+  MINIO_ACCESS_KEY: minioadmin
+  MINIO_SECRET_KEY: changeme
+  KAFKA_BROKERS: localhost:19092
+
+jobs:
+  ci:
+    name: Build, Test, and Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Setup ──────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
+
+      # ── 2. Install ────────────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── 3. Lint ───────────────────────────────────────────────────────────────
+      - name: Lint
+        run: pnpm lint
+
+      # ── 4. Typecheck ──────────────────────────────────────────────────────────
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # ── 5. Build ──────────────────────────────────────────────────────────────
+      - name: Build
+        run: pnpm build
+
+      # ── 6. Docker up ─────────────────────────────────────────────────────────
+      - name: Start infrastructure services
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait
+        env:
+          POSTGRES_DB: plexica
+          POSTGRES_USER: plexica
+          POSTGRES_PASSWORD: changeme
+          KEYCLOAK_ADMIN_USER: admin
+          KEYCLOAK_ADMIN_PASSWORD: changeme
+
+      - name: Verify all services are healthy
+        run: |
+          docker compose ps
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps --format json | \
+            python3 -c "import sys,json; [print(s['Name'], s['Health']) for s in json.load(sys.stdin)]" || true
+
+      # ── 7. Migrate ────────────────────────────────────────────────────────────
+      - name: Apply database migrations
+        run: pnpm --filter core-api db:migrate
+        working-directory: ${{ github.workspace }}
+
+      # ── 8. Unit + Integration tests ───────────────────────────────────────────
+      - name: Run unit and integration tests
+        run: pnpm --filter core-api test
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
+          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
+          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
+          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
+
+      # ── 9. E2E ────────────────────────────────────────────────────────────────
+      - name: Install Playwright Chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run Playwright E2E tests
+        run: pnpm --filter web test:e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          CI: 'true'
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+      # ── 10. Teardown ──────────────────────────────────────────────────────────
+      - name: Tear down infrastructure services
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans

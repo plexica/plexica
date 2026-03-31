@@ -5,7 +5,7 @@
 
 | Field  | Value                                                        |
 | ------ | ------------------------------------------------------------ |
-| Status | Pending                                                      |
+| Status | Complete                                                     |
 | Author | forge-scrum                                                  |
 | Date   | 2026-03-26                                                   |
 | Spec   | `.forge/specs/001-infrastructure-setup/spec.md`              |
@@ -99,10 +99,10 @@ Create the root `package.json` defining the monorepo: workspaces glob, Node.js e
 - `package.json` — root package with `engines`, `scripts`, and workspace-level devDependencies (TypeScript, ESLint, Prettier)
 
 **Definition of Done**:
-- [ ] `engines.node` is `">=20"` in `package.json`
-- [ ] `pnpm install` completes without error on Node 20
-- [ ] `scripts` section contains at least `lint`, `typecheck`, `build`, `test` delegating to `pnpm -r run <script>`
-- [ ] No real credentials or secrets present
+- [x] `engines.node` is `">=20"` in `package.json`
+- [x] `pnpm install` completes without error on Node 20
+- [x] `scripts` section contains at least `lint`, `typecheck`, `build`, `test` delegating to `pnpm -r run <script>`
+- [x] No real credentials or secrets present
 
 **Spec requirement**: FR-001, NFR-03 (install < 90s), Edge Case #6 (Node < 20 rejected)
 
@@ -123,10 +123,10 @@ Define the pnpm workspace packages glob (`apps/*`, `packages/*`, `services/*`) a
 - `.npmrc` — `engine-strict=true`, `auto-install-peers=true`
 
 **Definition of Done**:
-- [ ] `pnpm-workspace.yaml` lists `apps/*`, `packages/*`, `services/*`
-- [ ] `.npmrc` contains `engine-strict=true`
-- [ ] Running `pnpm install` with Node 18 produces an error referencing the `engines` field
-- [ ] Running `pnpm install` with Node 20+ succeeds
+- [x] `pnpm-workspace.yaml` lists `apps/*`, `packages/*`, `services/*`
+- [x] `.npmrc` contains `engine-strict=true`
+- [x] Running `pnpm install` with Node 18 produces an error referencing the `engines` field
+- [x] Running `pnpm install` with Node 20+ succeeds
 
 **Spec requirement**: FR-001, Edge Case #6
 
@@ -146,10 +146,10 @@ Create the shared `tsconfig.base.json` that all packages will extend. Must enabl
 - `tsconfig.base.json` — shared TypeScript base configuration
 
 **Definition of Done**:
-- [ ] `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true` are all set
-- [ ] `target` is `ES2022` or later; `moduleResolution` is `bundler` or `node16`
-- [ ] `pnpm tsc --noEmit` (with a child package that extends this) exits 0
-- [ ] No `allowJs: true` or loose flags present
+- [x] `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true` are all set
+- [x] `target` is `ES2022` or later; `moduleResolution` is `bundler` or `node16`
+- [x] `pnpm tsc --noEmit` (with a child package that extends this) exits 0
+- [x] No `allowJs: true` or loose flags present
 
 **Spec requirement**: FR-001, AGENTS.md (TypeScript strict mode mandatory)
 
@@ -170,10 +170,10 @@ Create a flat ESLint configuration (`eslint.config.js`) using `@typescript-eslin
 - Install devDependencies: `eslint`, `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser`, `eslint-plugin-import`
 
 **Definition of Done**:
-- [ ] `pnpm lint` (root script) exits 0 on an empty workspace with no `.ts` files
-- [ ] A file containing `console.log("test")` causes `pnpm lint` to exit non-zero
-- [ ] A file with `const x: any = 1` causes a TypeScript-ESLint error
-- [ ] No `.eslintrc` or `.eslintrc.*` files exist in the repo
+- [x] `pnpm lint` (root script) exits 0 on an empty workspace with no `.ts` files
+- [x] A file containing `console.log("test")` causes `pnpm lint` to exit non-zero
+- [x] A file with `const x: any = 1` causes a TypeScript-ESLint error
+- [x] No `.eslintrc` or `.eslintrc.*` files exist in the repo
 
 **Spec requirement**: FR-001, Constitution Rule 4 (no `console.log` in production)
 
@@ -194,9 +194,9 @@ Create `.prettierrc` with consistent formatting rules: single quotes, 2-space in
 - `.prettierignore` — exclusion list for Prettier
 
 **Definition of Done**:
-- [ ] `pnpm prettier --check .` exits 0 on an otherwise empty workspace
-- [ ] A file with inconsistent formatting causes `pnpm prettier --check` to exit non-zero
-- [ ] `dist/` and `node_modules/` are excluded from formatting
+- [x] `pnpm prettier --check .` exits 0 on an otherwise empty workspace
+- [x] A file with inconsistent formatting causes `pnpm prettier --check` to exit non-zero
+- [x] `dist/` and `node_modules/` are excluded from formatting
 
 **Spec requirement**: FR-001
 
@@ -216,10 +216,10 @@ Create a comprehensive `.gitignore` covering: Node build artifacts (`dist/`, `bu
 - `.gitignore` — comprehensive ignore list
 
 **Definition of Done**:
-- [ ] `.env` is listed in `.gitignore` and would not be committed
-- [ ] `.env.example` is NOT in `.gitignore` (it must be committed)
-- [ ] `node_modules/`, `dist/`, `build/` are ignored
-- [ ] `git status` on a clean checkout shows no unexpected untracked files
+- [x] `.env` is listed in `.gitignore` and would not be committed
+- [x] `.env.example` is NOT in `.gitignore` (it must be committed)
+- [x] `node_modules/`, `dist/`, `build/` are ignored
+- [x] `git status` on a clean checkout shows no unexpected untracked files
 
 **Spec requirement**: FR-001, Security (secrets never committed)
 
@@ -239,11 +239,11 @@ Create `.env.example` documenting every environment variable required to run the
 - `.env.example` — all environment variables with documented defaults
 
 **Definition of Done**:
-- [ ] Every service port used in `docker-compose.yml` has a corresponding variable in `.env.example`
-- [ ] All variables from AGENTS.md environment table are present
-- [ ] No real credentials, tokens, or secrets present (audit: grep for common patterns)
-- [ ] File is committed to git (not in `.gitignore`)
-- [ ] Copying `.env.example` to `.env` allows `docker compose up` to start all services
+- [x] Every service port used in `docker-compose.yml` has a corresponding variable in `.env.example`
+- [x] All variables from AGENTS.md environment table are present
+- [x] No real credentials, tokens, or secrets present (audit: grep for common patterns)
+- [x] File is committed to git (not in `.gitignore`)
+- [x] Copying `.env.example` to `.env` allows `docker compose up` to start all services
 
 **Spec requirement**: FR-003, NFR-06, US-001 AC-02
 
@@ -263,11 +263,11 @@ Write the `README.md` covering: project overview, prerequisites (Docker, Node >=
 - `README.md` — project getting started documentation
 
 **Definition of Done**:
-- [ ] Prerequisites section lists Docker, Node >= 20, pnpm >= 8 with install links
-- [ ] Quickstart section has a copy-pasteable 3-step command sequence
-- [ ] All 6 services are listed with their default ports
-- [ ] Port override procedure is documented with a concrete example
-- [ ] Edge Case #2 (Docker not installed) is addressed with a clear prerequisite check
+- [x] Prerequisites section lists Docker, Node >= 20, pnpm >= 8 with install links
+- [x] Quickstart section has a copy-pasteable 3-step command sequence
+- [x] All 6 services are listed with their default ports
+- [x] Port override procedure is documented with a concrete example
+- [x] Edge Case #2 (Docker not installed) is addressed with a clear prerequisite check
 
 **Spec requirement**: FR-001, FR-003, US-001 AC-02, Edge Case #2
 
@@ -295,13 +295,13 @@ Create the primary `docker-compose.yml` defining all 6 services: PostgreSQL 15, 
 - `docker-compose.yml` — full development stack definition
 
 **Definition of Done**:
-- [ ] All 6 services defined: PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailhog
-- [ ] Every service has a `healthcheck` block with all 5 fields
-- [ ] Every image reference uses `@sha256:` digest pinning (NFR-05)
-- [ ] Every port binding uses `${VAR:-default}` syntax (FR-003, NFR-06)
-- [ ] Memory limits are set per the plan §4.2 values
-- [ ] `docker compose up -d --wait` completes with all services healthy in < 60s (NFR-01)
-- [ ] Named volumes defined for PostgreSQL and MinIO data persistence
+- [x] All 6 services defined: PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailhog
+- [x] Every service has a `healthcheck` block with all 5 fields
+- [x] Every image reference uses `@sha256:` digest pinning (NFR-05)
+- [x] Every port binding uses `${VAR:-default}` syntax (FR-003, NFR-06)
+- [x] Memory limits are set per the plan §4.2 values
+- [x] `docker compose up -d --wait` completes with all services healthy in < 60s (NFR-01)
+- [x] Named volumes defined for PostgreSQL and MinIO data persistence
 
 **Spec requirement**: FR-002, FR-003, NFR-01, NFR-05, NFR-06, US-001 AC-01
 
@@ -322,11 +322,11 @@ Create `infra/keycloak/realm-export.json` — a pre-configured Keycloak realm JS
 - `docker-compose.yml` — add volume mount and startup command for realm import
 
 **Definition of Done**:
-- [ ] `infra/keycloak/realm-export.json` is valid JSON parseable by Keycloak 26
-- [ ] Keycloak container starts with `--import-realm` and the volume mount configured
-- [ ] After `docker compose up`, `GET http://localhost:8080/realms/plexica-test/.well-known/openid-configuration` returns 200
-- [ ] All 3 test users can authenticate (password `test1234`) via OIDC token endpoint
-- [ ] Keycloak healthcheck verifies the realm endpoint before reporting healthy
+- [x] `infra/keycloak/realm-export.json` is valid JSON parseable by Keycloak 26
+- [x] Keycloak container starts with `--import-realm` and the volume mount configured
+- [x] After `docker compose up`, `GET http://localhost:8080/realms/plexica-test/.well-known/openid-configuration` returns 200
+- [x] All 3 test users can authenticate (password `test1234`) via OIDC token endpoint
+- [x] Keycloak healthcheck verifies the realm endpoint before reporting healthy
 
 **Spec requirement**: FR-005, US-001 AC-01, US-002 AC-01, Edge Case #3
 
@@ -347,11 +347,11 @@ Create `infra/redpanda/create-topics.sh` — a shell script that uses the `rpk` 
 - `docker-compose.yml` — Redpanda service config with developer mode and topic init
 
 **Definition of Done**:
-- [ ] `infra/redpanda/create-topics.sh` creates all 3 topics without error
-- [ ] Redpanda starts in developer mode with < 100MB RSS memory usage
-- [ ] Healthcheck uses `/v1/status/ready` Redpanda admin API endpoint
-- [ ] After `docker compose up`, `rpk topic list` shows `tenant.events`, `user.events`, `plugin.events`
-- [ ] Script handles already-existing topics gracefully (idempotent)
+- [x] `infra/redpanda/create-topics.sh` creates all 3 topics without error
+- [x] Redpanda starts in developer mode with < 100MB RSS memory usage
+- [x] Healthcheck uses `/v1/status/ready` Redpanda admin API endpoint
+- [x] After `docker compose up`, `rpk topic list` shows `tenant.events`, `user.events`, `plugin.events`
+- [x] Script handles already-existing topics gracefully (idempotent)
 
 **Spec requirement**: FR-008, Edge Case #4, Risk R-01
 
@@ -371,10 +371,10 @@ Create `docker-compose.ci.yml` as a Docker Compose override file that extends th
 - `docker-compose.ci.yml` — CI-specific Docker Compose override
 
 **Definition of Done**:
-- [ ] `docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait` works
-- [ ] No host port bindings in the CI override (all `ports:` entries removed or commented)
-- [ ] Total memory limit across all services is < 2.5GB
-- [ ] Suitable for GitHub Actions `ubuntu-latest` runner (7GB RAM total)
+- [x] `docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait` works
+- [x] No host port bindings in the CI override (all `ports:` entries removed or commented)
+- [x] Total memory limit across all services is < 2.5GB
+- [x] Suitable for GitHub Actions `ubuntu-latest` runner (7GB RAM total)
 
 **Spec requirement**: FR-004, NFR-02, Risk R-02
 
@@ -395,10 +395,10 @@ Verify and document that every service port in `docker-compose.yml` uses `${VAR:
 - `README.md` — add port override section (update from T08)
 
 **Definition of Done**:
-- [ ] Every `ports:` entry in `docker-compose.yml` uses `${VAR:-default}` syntax
-- [ ] `verify-env.sh` exits non-zero if any required variable is missing
-- [ ] Changing a port in `.env` (e.g., PostgreSQL from 5432 to 5433) and running `docker compose up` binds PostgreSQL to 5433
-- [ ] US-001 AC-03 satisfied: port override tested manually and works
+- [x] Every `ports:` entry in `docker-compose.yml` uses `${VAR:-default}` syntax
+- [x] `verify-env.sh` exits non-zero if any required variable is missing
+- [x] Changing a port in `.env` (e.g., PostgreSQL from 5432 to 5433) and running `docker compose up` binds PostgreSQL to 5433
+- [x] US-001 AC-03 satisfied: port override tested manually and works
 
 **Spec requirement**: FR-003, NFR-06, US-001 AC-02, AC-03, Edge Case #1
 
@@ -428,10 +428,10 @@ Create the `services/core-api` package scaffold: `package.json` (with all requir
 - `services/core-api/vitest.config.ts` — Vitest configuration for integration tests
 
 **Definition of Done**:
-- [ ] `pnpm install` from repo root resolves all `services/core-api` dependencies
-- [ ] `services/core-api/tsconfig.json` extends `../../tsconfig.base.json`
-- [ ] `pnpm --filter core-api tsc --noEmit` exits 0 on an empty `src/` directory
-- [ ] `vitest.config.ts` configures test timeout of 30s for integration tests
+- [x] `pnpm install` from repo root resolves all `services/core-api` dependencies
+- [x] `services/core-api/tsconfig.json` extends `../../tsconfig.base.json`
+- [x] `pnpm --filter core-api tsc --noEmit` exits 0 on an empty `src/` directory
+- [x] `vitest.config.ts` configures test timeout of 30s for integration tests
 
 **Spec requirement**: FR-001, FR-006, FR-007
 
@@ -452,11 +452,11 @@ Create `services/core-api/prisma/schema.prisma` using Prisma's multi-schema supp
 - `services/core-api/prisma/tenant-schema.prisma` — empty tenant schema template
 
 **Definition of Done**:
-- [ ] `npx prisma validate` exits 0 with no schema errors
-- [ ] `@@schema("core")` directive present on both models
-- [ ] Slug `CHECK` constraint included: `^[a-z][a-z0-9-]{1,61}[a-z0-9]$`
-- [ ] `tenant_configs.tenant_id` FK references `tenants.id` with `unique` constraint (one-to-one)
-- [ ] `settings` field is `Json` type with default `{}`
+- [x] `npx prisma validate` exits 0 with no schema errors
+- [x] `@@schema("core")` directive present on both models
+- [x] Slug `CHECK` constraint included: `^[a-z][a-z0-9-]{1,61}[a-z0-9]$`
+- [x] `tenant_configs.tenant_id` FK references `tenants.id` with `unique` constraint (one-to-one)
+- [x] `settings` field is `Json` type with default `{}`
 
 **Spec requirement**: FR-006, §7 Data Requirements
 
@@ -477,11 +477,11 @@ Generate and verify the initial Prisma migration SQL for the core schema. The mi
 - `services/core-api/package.json` — add `db:migrate` and `db:generate` scripts
 
 **Definition of Done**:
-- [ ] `pnpm --filter core-api db:migrate` applies migration with exit code 0
-- [ ] `psql core -c "\dt core.*"` shows `tenants` and `tenant_configs` tables
-- [ ] `psql core -c "\di core.*"` shows all 6 indexes from plan §2.3
-- [ ] Migration is idempotent: running it twice does not error (Prisma tracks applied migrations)
-- [ ] `core.tenant_status` enum has 3 values: `active`, `suspended`, `deleted`
+- [x] `pnpm --filter core-api db:migrate` applies migration with exit code 0
+- [x] `psql core -c "\dt core.*"` shows `tenants` and `tenant_configs` tables
+- [x] `psql core -c "\di core.*"` shows all 6 indexes from plan §2.3
+- [x] Migration is idempotent: running it twice does not error (Prisma tracks applied migrations)
+- [x] `core.tenant_status` enum has 3 values: `active`, `suspended`, `deleted`
 
 **Spec requirement**: FR-006, US-004 AC-01, §7 Data Requirements
 
@@ -503,11 +503,11 @@ Implement three foundational utility modules. `config.ts`: load and validate env
 - `services/core-api/src/lib/logger.ts` — Pino logger configuration
 
 **Definition of Done**:
-- [ ] `config.ts` throws a descriptive Zod error if `DATABASE_URL` is missing
-- [ ] `database.ts` exports a singleton `PrismaClient` that reuses connections
-- [ ] `logger.ts` exports a Pino instance; no `console.log` calls in any of the 3 files
-- [ ] All 3 files are under 200 lines (Constitution Rule 4)
-- [ ] `pnpm --filter core-api tsc --noEmit` exits 0 with these files present
+- [x] `config.ts` throws a descriptive Zod error if `DATABASE_URL` is missing
+- [x] `database.ts` exports a singleton `PrismaClient` that reuses connections
+- [x] `logger.ts` exports a Pino instance; no `console.log` calls in any of the 3 files
+- [x] All 3 files are under 200 lines (Constitution Rule 4)
+- [x] `pnpm --filter core-api tsc --noEmit` exits 0 with these files present
 
 **Spec requirement**: FR-001, FR-006, Constitution Rules 1 & 4
 
@@ -528,12 +528,12 @@ Implement the tenant schema creation utility in `services/core-api/src/lib/tenan
 - `services/core-api/src/lib/tenant-schema-helpers.ts` — extracted helpers if needed to stay under 200 lines
 
 **Definition of Done**:
-- [ ] Valid slug creates `tenant_<slug>` schema in PostgreSQL
-- [ ] Duplicate slug returns error message `"Schema tenant_<slug> already exists"` without modifying the DB
-- [ ] Invalid slug format returns descriptive validation error
-- [ ] DB connection failure returns error with message `"Database connection failed: <error>"`
-- [ ] Migration failure rolls back the entire transaction (no partial state)
-- [ ] `tenant-schema.ts` is under 200 lines
+- [x] Valid slug creates `tenant_<slug>` schema in PostgreSQL
+- [x] Duplicate slug returns error message `"Schema tenant_<slug> already exists"` without modifying the DB
+- [x] Invalid slug format returns descriptive validation error
+- [x] DB connection failure returns error with message `"Database connection failed: <error>"`
+- [x] Migration failure rolls back the entire transaction (no partial state)
+- [x] `tenant-schema.ts` is under 200 lines
 
 **Spec requirement**: FR-007, US-004 AC-01, AC-02, Edge Case #5, §3 CLI spec
 
@@ -554,11 +554,11 @@ Create the thin CLI entrypoint `services/core-api/src/cli/create-tenant.ts` that
 - `services/core-api/package.json` — add `tenant:create` script
 
 **Definition of Done**:
-- [ ] `pnpm --filter core-api tenant:create -- --slug acme` exits 0 and creates `tenant_acme`
-- [ ] Running the same command again exits 1 with `"Schema tenant_acme already exists"`
-- [ ] `pnpm --filter core-api tenant:create -- --slug INVALID!!` exits 1 with validation error
-- [ ] Running without `--slug` exits 1 with usage hint
-- [ ] `create-tenant.ts` is under 200 lines
+- [x] `pnpm --filter core-api tenant:create -- --slug acme` exits 0 and creates `tenant_acme`
+- [x] Running the same command again exits 1 with `"Schema tenant_acme already exists"`
+- [x] `pnpm --filter core-api tenant:create -- --slug INVALID!!` exits 1 with validation error
+- [x] Running without `--slug` exits 1 with usage hint
+- [x] `create-tenant.ts` is under 200 lines
 
 **Spec requirement**: FR-007, US-004 AC-01, §3 CLI spec
 
@@ -587,10 +587,10 @@ Create the `packages/ui` package scaffold: `package.json` with all dependencies 
 - `packages/ui/tsconfig.json` — TypeScript config with JSX support
 
 **Definition of Done**:
-- [ ] Package name is `@plexica/ui` in `package.json`
-- [ ] All Radix UI, Tailwind, and React dependencies installed and resolvable
-- [ ] `pnpm --filter @plexica/ui tsc --noEmit` exits 0 on an empty `src/` directory
-- [ ] `exports` field in `package.json` maps `"."` to `"./src/index.ts"` for workspace usage
+- [x] Package name is `@plexica/ui` in `package.json`
+- [x] All Radix UI, Tailwind, and React dependencies installed and resolvable
+- [x] `pnpm --filter @plexica/ui tsc --noEmit` exits 0 on an empty `src/` directory
+- [x] `exports` field in `package.json` maps `"."` to `"./src/index.ts"` for workspace usage
 
 **Spec requirement**: FR-009, FR-010
 
@@ -614,12 +614,12 @@ Create the full token set as CSS custom properties across 4 files. `colors.css`:
 - `packages/ui/src/tokens/index.css`
 
 **Definition of Done**:
-- [ ] All 11 neutral steps defined (`--color-neutral-50` through `--color-neutral-950`)
-- [ ] All 11 primary blue steps defined
-- [ ] All 4 semantic colors × 3 variants (base/light/dark) = 12 semantic variables defined
-- [ ] Light mode tokens in `:root`, dark mode overrides in `[data-theme="dark"]`
-- [ ] Spacing variables from `--spacing-0` to `--spacing-24` (using 4px base unit)
-- [ ] `index.css` imports all 4 token files
+- [x] All 11 neutral steps defined (`--color-neutral-50` through `--color-neutral-950`)
+- [x] All 11 primary blue steps defined
+- [x] All 4 semantic colors × 3 variants (base/light/dark) = 12 semantic variables defined
+- [x] Light mode tokens in `:root`, dark mode overrides in `[data-theme="dark"]`
+- [x] Spacing variables from `--spacing-0` to `--spacing-24` (using 4px base unit)
+- [x] `index.css` imports all 4 token files
 
 **Spec requirement**: FR-009, US-003 AC-02, §9 Design System Tokens
 
@@ -639,10 +639,10 @@ Create `packages/ui/tailwind-preset.ts` — a Tailwind CSS preset that maps all 
 - `packages/ui/tailwind-preset.ts` — Tailwind preset with token mapping
 
 **Definition of Done**:
-- [ ] Preset exports a valid Tailwind config object with `theme.extend` entries
-- [ ] `tailwind.config.ts` in another package can `presets: [require('@plexica/ui/tailwind-preset')]` without error
-- [ ] `bg-primary-500` resolves to `var(--color-primary-500)` in generated CSS
-- [ ] File is under 200 lines
+- [x] Preset exports a valid Tailwind config object with `theme.extend` entries
+- [x] `tailwind.config.ts` in another package can `presets: [require('@plexica/ui/tailwind-preset')]` without error
+- [x] `bg-primary-500` resolves to `var(--color-primary-500)` in generated CSS
+- [x] File is under 200 lines
 
 **Spec requirement**: FR-009, §4.6 Design System
 
@@ -663,12 +663,12 @@ Implement `packages/ui/src/components/button.tsx` using `@radix-ui/react-slot` f
 - `packages/ui/src/stories/button.stories.tsx` — Storybook stories
 
 **Definition of Done**:
-- [ ] All 5 variants render with correct token-based colors
-- [ ] `disabled` prop sets `aria-disabled="true"` and prevents click events
-- [ ] `loading` prop shows a spinner and sets `aria-busy="true"`
-- [ ] Keyboard focus ring is visible (not `outline: none` without replacement)
-- [ ] File is under 200 lines
-- [ ] Storybook story shows all 5 variants × 2 states = 10+ story entries
+- [x] All 5 variants render with correct token-based colors
+- [x] `disabled` prop sets `aria-disabled="true"` and prevents click events
+- [x] `loading` prop shows a spinner and sets `aria-busy="true"`
+- [x] Keyboard focus ring is visible (not `outline: none` without replacement)
+- [x] File is under 200 lines
+- [x] Storybook story shows all 5 variants × 2 states = 10+ story entries
 
 **Spec requirement**: FR-010, US-003 AC-01, §9 Button spec, Constitution (WCAG 2.1 AA)
 
@@ -689,11 +689,11 @@ Implement `packages/ui/src/components/input.tsx` supporting `type` prop (text, p
 - `packages/ui/src/stories/input.stories.tsx` — Storybook stories
 
 **Definition of Done**:
-- [ ] `type="password"` renders with show/hide toggle using Lucide icon (no emoji)
-- [ ] Error state shows red border, error message, `aria-invalid="true"`
-- [ ] `aria-describedby` correctly references the error/helper text element ID
-- [ ] `disabled` prop renders visual disabled state and prevents interaction
-- [ ] File is under 200 lines
+- [x] `type="password"` renders with show/hide toggle using Lucide icon (no emoji)
+- [x] Error state shows red border, error message, `aria-invalid="true"`
+- [x] `aria-describedby` correctly references the error/helper text element ID
+- [x] `disabled` prop renders visual disabled state and prevents interaction
+- [x] File is under 200 lines
 
 **Spec requirement**: FR-010, US-003 AC-01, §9 Input spec, Constitution (WCAG 2.1 AA)
 
@@ -714,12 +714,12 @@ Implement `packages/ui/src/components/dialog.tsx` using `@radix-ui/react-dialog`
 - `packages/ui/src/stories/dialog.stories.tsx` — Storybook stories
 
 **Definition of Done**:
-- [ ] Dialog opens and closes via trigger and close button
-- [ ] ESC key closes the dialog (provided by Radix primitive)
-- [ ] Focus is trapped inside the dialog when open
-- [ ] `aria-modal="true"` and `aria-labelledby` set on `DialogContent`
-- [ ] Backdrop overlay renders on open
-- [ ] File is under 200 lines
+- [x] Dialog opens and closes via trigger and close button
+- [x] ESC key closes the dialog (provided by Radix primitive)
+- [x] Focus is trapped inside the dialog when open
+- [x] `aria-modal="true"` and `aria-labelledby` set on `DialogContent`
+- [x] Backdrop overlay renders on open
+- [x] File is under 200 lines
 
 **Spec requirement**: FR-010, US-003 AC-01, §9 Dialog spec, Constitution (WCAG 2.1 AA)
 
@@ -740,11 +740,11 @@ Implement `packages/ui/src/components/toast.tsx` using `@radix-ui/react-toast` p
 - `packages/ui/src/stories/toast.stories.tsx` — Storybook stories
 
 **Definition of Done**:
-- [ ] All 4 variants render with correct colors and Lucide icons (no emoji)
-- [ ] Toast auto-dismisses after 5000ms (configurable via `duration`)
-- [ ] Manual dismiss button closes the toast immediately
-- [ ] `role="alert"` set on toast element for screen reader announcement
-- [ ] File is under 200 lines
+- [x] All 4 variants render with correct colors and Lucide icons (no emoji)
+- [x] Toast auto-dismisses after 5000ms (configurable via `duration`)
+- [x] Manual dismiss button closes the toast immediately
+- [x] `role="alert"` set on toast element for screen reader announcement
+- [x] File is under 200 lines
 
 **Spec requirement**: FR-010, US-003 AC-01, §9 Toast spec, Constitution (WCAG 2.1 AA)
 
@@ -765,10 +765,10 @@ Implement `packages/ui/src/components/table.tsx` with subcomponents: `Table`, `T
 - `packages/ui/src/stories/table.stories.tsx` — Storybook stories
 
 **Definition of Done**:
-- [ ] `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th scope="col">`, `<td>` are used (semantic HTML)
-- [ ] `sortable` column header shows Lucide `ChevronUp`/`ChevronDown` icon (no emoji)
-- [ ] Storybook story renders a table with 4 columns and 5 data rows
-- [ ] File is under 200 lines
+- [x] `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th scope="col">`, `<td>` are used (semantic HTML)
+- [x] `sortable` column header shows Lucide `ChevronUp`/`ChevronDown` icon (no emoji)
+- [x] Storybook story renders a table with 4 columns and 5 data rows
+- [x] File is under 200 lines
 
 **Spec requirement**: FR-010, US-003 AC-01, §9 Table spec, Constitution (WCAG 2.1 AA)
 
@@ -790,11 +790,11 @@ Create the barrel export file `packages/ui/src/index.ts` re-exporting all 5 comp
 - `packages/ui/.storybook/preview.ts` — global decorators and token import
 
 **Definition of Done**:
-- [ ] `import { Button, Input, Dialog, Toast, Table } from '@plexica/ui'` resolves without error
-- [ ] `pnpm --filter @plexica/ui storybook` starts without error
-- [ ] Storybook cold start completes in < 15s (timed, NFR-04)
-- [ ] All 5 components are visible in the Storybook sidebar
-- [ ] Dark mode toggle in Storybook switches the `[data-theme]` attribute correctly
+- [x] `import { Button, Input, Dialog, Toast, Table } from '@plexica/ui'` resolves without error
+- [x] `pnpm --filter @plexica/ui storybook` starts without error
+- [x] Storybook cold start completes in < 15s (timed, NFR-04)
+- [x] All 5 components are visible in the Storybook sidebar
+- [x] Dark mode toggle in Storybook switches the `[data-theme]` attribute correctly
 
 **Spec requirement**: FR-009, FR-010, NFR-04, US-003 AC-01
 
@@ -825,10 +825,10 @@ Create the `apps/web` frontend app scaffold: `package.json` (React 19, Vite, `@v
 - `apps/web/index.html` — HTML entry point
 
 **Definition of Done**:
-- [ ] `pnpm --filter web dev` starts Vite dev server on port 3000 without error
-- [ ] `pnpm --filter web build` compiles to `apps/web/dist/` without TypeScript errors
-- [ ] `@plexica/ui` components are importable in the app
-- [ ] No `window.confirm`, raw `<a href>`, or hardcoded UI strings (must use react-intl — see T30)
+- [x] `pnpm --filter web dev` starts Vite dev server on port 3000 without error
+- [x] `pnpm --filter web build` compiles to `apps/web/dist/` without TypeScript errors
+- [x] `@plexica/ui` components are importable in the app
+- [x] No `window.confirm`, raw `<a href>`, or hardcoded UI strings (must use react-intl — see T30)
 
 **Spec requirement**: FR-001, FR-012, ADR-006
 
@@ -850,11 +850,11 @@ Implement `apps/web/src/main.tsx` (React entry point) and `apps/web/src/app.tsx`
 - `apps/web/src/i18n/messages.en.ts` — English i18n messages
 
 **Definition of Done**:
-- [ ] `http://localhost:3000` renders without runtime errors in the browser console
-- [ ] Page contains an email input (`type="email"`), password input (`type="password"`), and a submit button
-- [ ] All visible strings are wrapped in react-intl `<FormattedMessage>` (no hardcoded English)
-- [ ] No `window.confirm`, `window.alert`, or raw `<a href>` navigation
-- [ ] The page passes axe-core accessibility check (no critical violations)
+- [x] `http://localhost:3000` renders without runtime errors in the browser console
+- [x] Page contains an email input (`type="email"`), password input (`type="password"`), and a submit button
+- [x] All visible strings are wrapped in react-intl `<FormattedMessage>` (no hardcoded English)
+- [x] No `window.confirm`, `window.alert`, or raw `<a href>` navigation
+- [x] The page passes axe-core accessibility check (no critical violations)
 
 **Spec requirement**: FR-012, US-003, Constitution Rule 3 (one i18n pattern), AGENTS.md (react-intl mandatory)
 
@@ -882,11 +882,11 @@ Write `services/core-api/src/__tests__/smoke-db.test.ts` — a Vitest integratio
 - `services/core-api/src/__tests__/smoke-db.test.ts` — PostgreSQL smoke test
 
 **Definition of Done**:
-- [ ] Test connects to the real PostgreSQL container (using `DATABASE_URL` env var)
-- [ ] Test asserts `core` schema exists in `information_schema.schemata`
-- [ ] Test asserts `tenants` and `tenant_configs` tables exist
-- [ ] Test fails with a descriptive error if the DB is unreachable
-- [ ] No mocks of the PostgreSQL connection
+- [x] Test connects to the real PostgreSQL container (using `DATABASE_URL` env var)
+- [x] Test asserts `core` schema exists in `information_schema.schemata`
+- [x] Test asserts `tenants` and `tenant_configs` tables exist
+- [x] Test fails with a descriptive error if the DB is unreachable
+- [x] No mocks of the PostgreSQL connection
 
 **Spec requirement**: FR-006, §8.1 Testing Strategy
 
@@ -906,11 +906,11 @@ Write `services/core-api/src/__tests__/smoke-keycloak.test.ts` that: fetches the
 - `services/core-api/src/__tests__/smoke-keycloak.test.ts` — Keycloak smoke test
 
 **Definition of Done**:
-- [ ] OIDC discovery endpoint returns 200 OK with `issuer` field
-- [ ] Token exchange returns a valid JWT (can decode header + payload)
-- [ ] Test uses real Keycloak with the `plexica-test` realm
-- [ ] No `isTestToken` or mock token bypasses (Constitution: zero special test code paths)
-- [ ] Test timeout is >= 15s to allow for Keycloak cold-start latency
+- [x] OIDC discovery endpoint returns 200 OK with `issuer` field
+- [x] Token exchange returns a valid JWT (can decode header + payload)
+- [x] Test uses real Keycloak with the `plexica-test` realm
+- [x] No `isTestToken` or mock token bypasses (Constitution: zero special test code paths)
+- [x] Test timeout is >= 15s to allow for Keycloak cold-start latency
 
 **Spec requirement**: FR-005, §8.1 Testing Strategy, Constitution (no `isTestToken`)
 
@@ -930,11 +930,11 @@ Write `services/core-api/src/__tests__/smoke-redis.test.ts` that: connects to Re
 - `services/core-api/src/__tests__/smoke-redis.test.ts` — Redis smoke test
 
 **Definition of Done**:
-- [ ] `SET plexica:smoke "ok"` followed by `GET plexica:smoke` returns `"ok"`
-- [ ] `DEL plexica:smoke` followed by `GET plexica:smoke` returns `null`
-- [ ] Connection uses real `REDIS_URL` env var
-- [ ] No mock Redis (e.g., `ioredis-mock`)
-- [ ] Client disconnects in `afterAll` to prevent hanging tests
+- [x] `SET plexica:smoke "ok"` followed by `GET plexica:smoke` returns `"ok"`
+- [x] `DEL plexica:smoke` followed by `GET plexica:smoke` returns `null`
+- [x] Connection uses real `REDIS_URL` env var
+- [x] No mock Redis (e.g., `ioredis-mock`)
+- [x] Client disconnects in `afterAll` to prevent hanging tests
 
 **Spec requirement**: FR-002, §8.1 Testing Strategy
 
@@ -954,11 +954,11 @@ Write `services/core-api/src/__tests__/smoke-redpanda.test.ts` that: connects to
 - `services/core-api/src/__tests__/smoke-redpanda.test.ts` — Redpanda smoke test
 
 **Definition of Done**:
-- [ ] Test produces a message `{ type: "smoke-test", ts: <timestamp> }` to `tenant.events`
-- [ ] Test consumes the message back and asserts `type === "smoke-test"`
-- [ ] Admin client lists topics and asserts all 3 core topics exist
-- [ ] No mock Kafka client
-- [ ] Test timeout is >= 30s to account for single-node consumer group join latency
+- [x] Test produces a message `{ type: "smoke-test", ts: <timestamp> }` to `tenant.events`
+- [x] Test consumes the message back and asserts `type === "smoke-test"`
+- [x] Admin client lists topics and asserts all 3 core topics exist
+- [x] No mock Kafka client
+- [x] Test timeout is >= 30s to account for single-node consumer group join latency
 
 **Spec requirement**: FR-008, §8.1 Testing Strategy
 
@@ -978,11 +978,11 @@ Write `services/core-api/src/__tests__/smoke-minio.test.ts` that: connects to Mi
 - `services/core-api/src/__tests__/smoke-minio.test.ts` — MinIO smoke test
 
 **Definition of Done**:
-- [ ] Bucket `plexica-smoke-test` is created and confirmed via `bucketExists`
-- [ ] Object `smoke.txt` is put and listed
-- [ ] Object and bucket are cleaned up in `afterAll`
-- [ ] No mock MinIO client
-- [ ] Uses `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` from env
+- [x] Bucket `plexica-smoke-test` is created and confirmed via `bucketExists`
+- [x] Object `smoke.txt` is put and listed
+- [x] Object and bucket are cleaned up in `afterAll`
+- [x] No mock MinIO client
+- [x] Uses `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` from env
 
 **Spec requirement**: FR-002, §8.1 Testing Strategy
 
@@ -1002,12 +1002,12 @@ Write `services/core-api/src/__tests__/tenant-schema.test.ts` covering: happy pa
 - `services/core-api/src/__tests__/tenant-schema.test.ts` — tenant schema integration test
 
 **Definition of Done**:
-- [ ] Happy path: `tenant_smoke_test_acme` schema appears in `information_schema.schemata`
-- [ ] `core.tenants` has a row with `slug = "smoke-test-acme"`
-- [ ] `core.tenant_configs` has a row with `keycloak_realm = "plexica-smoke-test-acme"`
-- [ ] Duplicate call returns error with `"Schema tenant_smoke_test_acme already exists"` message
-- [ ] `afterAll` cleans up schema and DB rows so test is re-runnable
-- [ ] No mock DB connections
+- [x] Happy path: `tenant_smoke_test_acme` schema appears in `information_schema.schemata`
+- [x] `core.tenants` has a row with `slug = "smoke-test-acme"`
+- [x] `core.tenant_configs` has a row with `keycloak_realm = "plexica-smoke-test-acme"`
+- [x] Duplicate call returns error with `"Schema tenant_smoke_test_acme already exists"` message
+- [x] `afterAll` cleans up schema and DB rows so test is re-runnable
+- [x] No mock DB connections
 
 **Spec requirement**: FR-007, US-004 AC-01, AC-02, Edge Case #5, §8.1 Testing Strategy
 
@@ -1036,12 +1036,12 @@ Create `apps/web/playwright.config.ts` configuring Chromium-only, base URL `http
 - `apps/web/e2e/smoke.spec.ts` — E2E smoke test for login page
 
 **Definition of Done**:
-- [ ] `pnpm --filter web test:e2e` runs the Playwright test against a live `apps/web` dev server
-- [ ] Test asserts `input[type="email"]` is visible
-- [ ] Test asserts `input[type="password"]` is visible
-- [ ] Test asserts the submit `button` is visible and enabled
-- [ ] Test captures a screenshot on failure and saves to `apps/web/e2e/screenshots/`
-- [ ] `apps/web/package.json` has a `test:e2e` script
+- [x] `pnpm --filter web test:e2e` runs the Playwright test against a live `apps/web` dev server
+- [x] Test asserts `input[type="email"]` is visible
+- [x] Test asserts `input[type="password"]` is visible
+- [x] Test asserts the submit `button` is visible and enabled
+- [x] Test captures a screenshot on failure and saves to `apps/web/e2e/screenshots/`
+- [x] `apps/web/package.json` has a `test:e2e` script
 
 **Spec requirement**: FR-012, US-002 AC-01, Constitution Rule 1 (E2E for every user-interactive surface)
 
@@ -1061,13 +1061,13 @@ Create `.github/workflows/ci.yml` implementing all CI stages in order: (1) check
 - `.github/workflows/ci.yml` — full CI pipeline definition
 
 **Definition of Done**:
-- [ ] Pipeline triggers on `pull_request` targeting `main`
-- [ ] All 10 stages present in correct order
-- [ ] pnpm cache configured via `actions/setup-node` with `cache: 'pnpm'`
-- [ ] Playwright installed with `--with-deps chromium` (Chromium only, not all browsers)
-- [ ] Playwright HTML report uploaded as artifact on test failure
-- [ ] `docker compose down -v` teardown runs even if previous steps fail (`if: always()`)
-- [ ] Pipeline passes on a test PR with all stages green
+- [x] Pipeline triggers on `pull_request` targeting `main`
+- [x] All 10 stages present in correct order
+- [x] pnpm cache configured via `actions/setup-node` with `cache: 'pnpm'`
+- [x] Playwright installed with `--with-deps chromium` (Chromium only, not all browsers)
+- [x] Playwright HTML report uploaded as artifact on test failure
+- [x] `docker compose down -v` teardown runs even if previous steps fail (`if: always()`)
+- [x] Pipeline passes on a test PR with all stages green
 
 **Spec requirement**: FR-004, FR-011, US-002 AC-01, AC-02, AC-03, NFR-02, Constitution Rule 2
 
@@ -1088,11 +1088,11 @@ Perform and document the NFR validation checks as a verification pass after the 
 - `packages/ui/.storybook/main.ts` — performance notes if optimization was needed
 
 **Definition of Done**:
-- [ ] `docker compose up --wait` completes in < 60s (measured and documented)
-- [ ] CI pipeline total duration is < 10 min (measured on test PR)
-- [ ] `pnpm install` from clean cache is < 90s (measured locally)
-- [ ] Storybook cold start is < 15s (measured locally)
-- [ ] All Docker images use `@sha256:` digest (audit: `grep -r "latest\|:^@" docker-compose.yml` returns no hits)
+- [x] `docker compose up --wait` completes in < 60s (measured and documented)
+- [x] CI pipeline total duration is < 10 min (measured on test PR)
+- [x] `pnpm install` from clean cache is < 90s (measured locally)
+- [x] Storybook cold start is < 15s (measured locally)
+- [x] All Docker images use `@sha256:` digest (audit: `grep -r "latest\|:^@" docker-compose.yml` returns no hits)
 
 **Spec requirement**: NFR-01, NFR-02, NFR-03, NFR-04, NFR-05
 
