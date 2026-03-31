@@ -108,7 +108,6 @@ services:
       - --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
       - --pandaproxy-addr 0.0.0.0:8082
       - --advertise-pandaproxy-addr localhost:8082
-      - --set redpanda.admin_api_listen_address=0.0.0.0
     ports:
       - "${REDPANDA_KAFKA_PORT:-19092}:19092"
       - "${REDPANDA_ADMIN_PORT:-9644}:9644"
@@ -122,20 +121,6 @@ services:
       timeout: 5s
       retries: 15
       start_period: 20s
-
-  redpanda-topics:
-    image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
-    # docker.redpanda.com/redpandadata/redpanda:v23.3.5 — same digest as redpanda service
-    command: ["bash", "/scripts/create-topics.sh"]
-    volumes:
-      - ./infra/redpanda:/scripts:ro
-    depends_on:
-      redpanda:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 128M
 
   mailhog:
     image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea

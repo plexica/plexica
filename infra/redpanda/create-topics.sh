@@ -5,24 +5,26 @@
 
 set -euo pipefail
 
-BROKER="${REDPANDA_BROKER:-redpanda:9092}"
-ADMIN_URL="${REDPANDA_ADMIN_URL:-http://redpanda:9644}"
+BROKER="${REDPANDA_BROKER:-redpanda:19092}"
+BROKER_HOST="${BROKER%%:*}"
+BROKER_PORT="${BROKER##*:}"
 RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))  # 7 days
 
-# Wait for the Redpanda Admin API to report at least one registered broker.
-# --max-time 3 ensures curl does not hang on slow/unreachable connections.
-echo "Waiting for Redpanda broker to register via Admin API at $ADMIN_URL..."
+# Wait for TCP port to be open using bash /dev/tcp (no external tools needed).
+# The service_healthy dependency guarantees the Admin API is up, but we need the
+# Kafka listener on 9092 to accept connections from this container as well.
+echo "Waiting for Kafka TCP port at $BROKER_HOST:$BROKER_PORT..."
 RETRIES=30
-until curl --max-time 3 -sf "$ADMIN_URL/v1/brokers" 2>/dev/null | grep -q '"node_id"'; do
+until (echo > /dev/tcp/"$BROKER_HOST"/"$BROKER_PORT") 2>/dev/null; do
   RETRIES=$((RETRIES - 1))
   if [ "$RETRIES" -le 0 ]; then
-    echo "ERROR: No broker registered at $ADMIN_URL/v1/brokers after 60s." >&2
+    echo "ERROR: Kafka TCP port $BROKER not open after 60s." >&2
     exit 1
   fi
-  echo "  No broker registered yet, retrying in 2s... ($RETRIES retries left)"
+  echo "  Port not open yet, retrying in 2s... ($RETRIES retries left)"
   sleep 2
 done
-echo "Redpanda broker is registered."
+echo "Kafka TCP port is open."
 
 TOPICS=("plexica.tenant.events" "plexica.user.events" "plexica.plugin.events")
 
