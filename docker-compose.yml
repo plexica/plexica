@@ -44,7 +44,6 @@ services:
       KC_METRICS_ENABLED: 'false'
       KC_HTTP_ENABLED: 'true'
       KC_HOSTNAME_STRICT: 'false'
-      KC_HOSTNAME_STRICT_HTTPS: 'false'
     ports:
       - '${KEYCLOAK_PORT:-8080}:8080'
       # Management port 9000 is intentionally NOT exposed to the host.
@@ -61,12 +60,20 @@ services:
       # KC_HEALTH_ENABLED=true exposes this endpoint; it returns UP only after the
       # JVM and HTTP server are fully initialised.
       # Realm import readiness is verified separately in CI (see ci.yml step 7).
-      # curl is available in the Keycloak 26 image; grep -q UP matches the JSON body.
-      test: ['CMD-SHELL', 'curl -sf http://localhost:9000/health/ready | grep -q UP']
+      # NOTE: curl is NOT available in Keycloak 26 (ubi9-minimal base image).
+      # Use bash /dev/tcp (built-in) to make a raw HTTP/1.0 request instead.
+      test:
+        - 'CMD'
+        - '/bin/bash'
+        - '-c'
+        - >-
+          exec 3<>/dev/tcp/localhost/9000 &&
+          printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+          cat <&3 | grep -q UP
       interval: 10s
       timeout: 10s
       retries: 20
-      start_period: 120s
+      start_period: 60s
 
   redis:
     image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
