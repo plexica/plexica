@@ -15,7 +15,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 896M
 
   redis:
     deploy:

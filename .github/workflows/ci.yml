@@ -84,7 +84,7 @@ jobs:
       # ── 6. Docker up ─────────────────────────────────────────────────────────
       - name: Start infrastructure services
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 480
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 600
         env:
           POSTGRES_DB: plexica
           POSTGRES_USER: plexica
@@ -103,6 +103,20 @@ jobs:
               --topic-config "retention.ms=${RETENTION_MS}" || true
           done
           docker exec plexica-ci-redpanda-1 rpk topic list --brokers localhost:9092
+
+      - name: Wait for Keycloak realm import
+        run: |
+          echo "Waiting for plexica-test realm to be available..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/realms/plexica-test/.well-known/openid-configuration > /dev/null 2>&1; then
+              echo "Realm plexica-test is ready."
+              exit 0
+            fi
+            echo "  Realm not ready yet ($i/30), retrying in 5s..."
+            sleep 5
+          done
+          echo "ERROR: Keycloak realm plexica-test not available after 150s." >&2
+          exit 1
 
       - name: Verify all services are healthy
         run: |
