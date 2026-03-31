@@ -53,7 +53,7 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/plexica-test/.well-known/openid-configuration > /dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 60s
 
   redis:
