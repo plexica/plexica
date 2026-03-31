@@ -37,26 +37,26 @@
 
 ### 1.1 Principi Guida
 
-| N. | Principio | Implicazione |
-|----|-----------|-------------|
-| 1 | **Semplicità misurabile** | Ogni componente deve poter essere compreso in 30 minuti da uno sviluppatore nuovo. Se richiede più tempo, è troppo complesso |
-| 2 | **Verificabilità end-to-end** | Ogni feature deve essere testabile con un test che attraversa tutto lo stack: browser, API, database, Keycloak, Kafka |
-| 3 | **Plugin in mezza giornata** | L'architettura plugin deve consentire a uno sviluppatore di creare un plugin completo (UI + backend + event subscription) in 4 ore |
-| 4 | **Zero divergenza test-produzione** | Il codice eseguito nei test deve essere identico a quello in produzione. Nessun code path speciale per i test |
-| 5 | **Minimo necessario** | Non implementare nulla "perché potrebbe servire". Implementare solo ciò che serve ora con test che lo dimostrano |
-| 6 | **UX determina l'architettura** | Le scelte tecniche servono l'esperienza utente, non il contrario |
-| 7 | **Complessità incapsulata** | Le scelte architetturali complesse (MF, Kafka, schema-per-tenant) sono corrette, ma la complessità deve essere nascosta dietro tooling e astrazione |
+| N.  | Principio                           | Implicazione                                                                                                                                        |
+| --- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Semplicità misurabile**           | Ogni componente deve poter essere compreso in 30 minuti da uno sviluppatore nuovo. Se richiede più tempo, è troppo complesso                        |
+| 2   | **Verificabilità end-to-end**       | Ogni feature deve essere testabile con un test che attraversa tutto lo stack: browser, API, database, Keycloak, Kafka                               |
+| 3   | **Plugin in mezza giornata**        | L'architettura plugin deve consentire a uno sviluppatore di creare un plugin completo (UI + backend + event subscription) in 4 ore                  |
+| 4   | **Zero divergenza test-produzione** | Il codice eseguito nei test deve essere identico a quello in produzione. Nessun code path speciale per i test                                       |
+| 5   | **Minimo necessario**               | Non implementare nulla "perché potrebbe servire". Implementare solo ciò che serve ora con test che lo dimostrano                                    |
+| 6   | **UX determina l'architettura**     | Le scelte tecniche servono l'esperienza utente, non il contrario                                                                                    |
+| 7   | **Complessità incapsulata**         | Le scelte architetturali complesse (MF, Kafka, schema-per-tenant) sono corrette, ma la complessità deve essere nascosta dietro tooling e astrazione |
 
 ### 1.2 Anti-Pattern da Evitare (Lezioni dalla v1)
 
-| Anti-Pattern | Come si è manifestato nella v1 | Regola v2 |
-|-------------|-------------------------------|-----------|
-| **Over-specification** | 19 specifiche, 33 ADR, la maggior parte non implementata | Specifica solo ciò che stai per implementare nella prossima iterazione |
-| **Mock-driven testing** | 4000 test con 38% asserzioni su mock, sistema non funzionante | I test E2E e integrazione non usano mock per servizi core |
-| **Complessità esposta** | MF config esposta al plugin dev, Kafka config manuale, SDK con 6 classi | La complessità va incapsulata: il plugin dev non vede MF, Kafka, o schema management |
-| **Architettura da slide** | Service Registry, Container orchestration, Extension Points con 5 tabelle | L'architettura deve emergere dal codice che funziona, non precedere il codice |
-| **Design system cosmetico** | 49 componenti UI ma interfaccia inutilizzabile | Design system che parte dai flussi utente, non dalla component library |
-| **Governance che blocca** | Dual-model review, costituzione 9 articoli, sprint formali | Governance leggera: test E2E + code review umana |
+| Anti-Pattern                | Come si è manifestato nella v1                                            | Regola v2                                                                            |
+| --------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Over-specification**      | 19 specifiche, 33 ADR, la maggior parte non implementata                  | Specifica solo ciò che stai per implementare nella prossima iterazione               |
+| **Mock-driven testing**     | 4000 test con 38% asserzioni su mock, sistema non funzionante             | I test E2E e integrazione non usano mock per servizi core                            |
+| **Complessità esposta**     | MF config esposta al plugin dev, Kafka config manuale, SDK con 6 classi   | La complessità va incapsulata: il plugin dev non vede MF, Kafka, o schema management |
+| **Architettura da slide**   | Service Registry, Container orchestration, Extension Points con 5 tabelle | L'architettura deve emergere dal codice che funziona, non precedere il codice        |
+| **Design system cosmetico** | 49 componenti UI ma interfaccia inutilizzabile                            | Design system che parte dai flussi utente, non dalla component library               |
+| **Governance che blocca**   | Dual-model review, costituzione 9 articoli, sprint formali                | Governance leggera: test E2E + code review umana                                     |
 
 ---
 
@@ -64,50 +64,50 @@
 
 ### 2.1 Stack Tecnologico v1 — Cosa Tenere, Cosa Cambiare
 
-| Tecnologia | Ruolo v1 | Verdetto | Motivazione |
-|-----------|---------|----------|-------------|
-| **Node.js + TypeScript** | Runtime + linguaggio | TENERE | Ecosistema maturo, type-safety, competenze del team |
-| **Fastify** | Framework backend | TENERE | Performante, ben strutturato, buon ecosistema plugin |
-| **PostgreSQL** | Database | TENERE | Robusto, feature-rich, ottimo supporto JSON |
-| **Prisma** | ORM | TENERE | Type-safety eccellente, migrazioni gestibili |
-| **React + Vite** | Frontend | TENERE | Ecosistema maturo, build veloce |
-| **TanStack Router** | Routing | TENERE | Type-safe, data loading integrato |
-| **TanStack Query** | Server state | TENERE | Unico pattern di data fetching (v1 ne aveva 3) |
-| **Keycloak multi-realm** | Identity + AuthN | TENERE | Confermato: ogni tenant necessita auth diversa (SAML, OIDC, social) |
-| **pnpm monorepo** | Package management | TENERE | Funziona bene, buon supporto workspace |
-| **Module Federation** | Plugin UI loading | TENERE + SEMPLIFICARE | Confermato: iframe scartato. DX da semplificare radicalmente con CLI + Vite preset |
-| **Kafka/Redpanda** | Event bus | TENERE + SEMPLIFICARE | Confermato: necessario per plugin event subscription. DX da semplificare con SDK |
-| **Redis** | Cache + sessioni | TENERE | Cache, rate limiting, session |
-| **MinIO** | Object storage | TENERE | S3-compatibile, necessario per file upload |
-| **ABAC tree-walk** | Autorizzazione workspace | TENERE | Confermato: necessario per isolamento dati workspace-level |
+| Tecnologia               | Ruolo v1                 | Verdetto              | Motivazione                                                                        |
+| ------------------------ | ------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
+| **Node.js + TypeScript** | Runtime + linguaggio     | TENERE                | Ecosistema maturo, type-safety, competenze del team                                |
+| **Fastify**              | Framework backend        | TENERE                | Performante, ben strutturato, buon ecosistema plugin                               |
+| **PostgreSQL**           | Database                 | TENERE                | Robusto, feature-rich, ottimo supporto JSON                                        |
+| **Prisma**               | ORM                      | TENERE                | Type-safety eccellente, migrazioni gestibili                                       |
+| **React + Vite**         | Frontend                 | TENERE                | Ecosistema maturo, build veloce                                                    |
+| **TanStack Router**      | Routing                  | TENERE                | Type-safe, data loading integrato                                                  |
+| **TanStack Query**       | Server state             | TENERE                | Unico pattern di data fetching (v1 ne aveva 3)                                     |
+| **Keycloak multi-realm** | Identity + AuthN         | TENERE                | Confermato: ogni tenant necessita auth diversa (SAML, OIDC, social)                |
+| **pnpm monorepo**        | Package management       | TENERE                | Funziona bene, buon supporto workspace                                             |
+| **Module Federation**    | Plugin UI loading        | TENERE + SEMPLIFICARE | Confermato: iframe scartato. DX da semplificare radicalmente con CLI + Vite preset |
+| **Kafka/Redpanda**       | Event bus                | TENERE + SEMPLIFICARE | Confermato: necessario per plugin event subscription. DX da semplificare con SDK   |
+| **Redis**                | Cache + sessioni         | TENERE                | Cache, rate limiting, session                                                      |
+| **MinIO**                | Object storage           | TENERE                | S3-compatibile, necessario per file upload                                         |
+| **ABAC tree-walk**       | Autorizzazione workspace | TENERE                | Confermato: necessario per isolamento dati workspace-level                         |
 
 ### 2.2 Pattern Architetturali v1 — Analisi
 
-| Pattern v1 | Verdetto | Motivazione |
-|-----------|----------|-------------|
-| Schema-per-tenant | **TENERE** — confermato per GDPR, isolamento fisico. Migliorare tooling migrazioni | La complessità è reale ma giustificata da compliance |
-| ABAC con tree-walk ricorsivo | **TENERE** — confermato per workspace isolation. Migliorare DX e testabilità | Necessario per il modello di permessi workspace-level |
-| Event bus (Kafka/Redpanda) | **TENERE** — confermato per plugin event subscription. Semplificare setup dev (1 nodo) e DX (SDK) | Necessario per l'architettura enterprise |
-| Module Federation | **TENERE** — confermato come approccio UI. Semplificare con CLI + Vite preset | iframe scartato per styling, performance, UX |
-| Service Registry per plugin | **ELIMINARE** — nessun valore reale. Plugin comunicano via REST API e eventi | Complessità senza caso d'uso |
-| Container orchestration (Dockerode) | **ELIMINARE** — plugin backend come servizi HTTP, non container orchestrati | Complessità operativa ingiustificata |
-| Extension Points (5 tabelle) | **RIDURRE** — manifest-driven per UI slots, unica tabella per workspace visibility | 5 tabelle eccessive per la funzionalità |
-| AsyncLocalStorage tenant context | **TENERE** — pattern efficace e testato | Funziona bene |
-| Layered architecture | **TENERE** — Controller > Service > Repository | Buona separazione delle responsabilità |
+| Pattern v1                          | Verdetto                                                                                          | Motivazione                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Schema-per-tenant                   | **TENERE** — confermato per GDPR, isolamento fisico. Migliorare tooling migrazioni                | La complessità è reale ma giustificata da compliance  |
+| ABAC con tree-walk ricorsivo        | **TENERE** — confermato per workspace isolation. Migliorare DX e testabilità                      | Necessario per il modello di permessi workspace-level |
+| Event bus (Kafka/Redpanda)          | **TENERE** — confermato per plugin event subscription. Semplificare setup dev (1 nodo) e DX (SDK) | Necessario per l'architettura enterprise              |
+| Module Federation                   | **TENERE** — confermato come approccio UI. Semplificare con CLI + Vite preset                     | iframe scartato per styling, performance, UX          |
+| Service Registry per plugin         | **ELIMINARE** — nessun valore reale. Plugin comunicano via REST API e eventi                      | Complessità senza caso d'uso                          |
+| Container orchestration (Dockerode) | **ELIMINARE** — plugin backend come servizi HTTP, non container orchestrati                       | Complessità operativa ingiustificata                  |
+| Extension Points (5 tabelle)        | **RIDURRE** — manifest-driven per UI slots, unica tabella per workspace visibility                | 5 tabelle eccessive per la funzionalità               |
+| AsyncLocalStorage tenant context    | **TENERE** — pattern efficace e testato                                                           | Funziona bene                                         |
+| Layered architecture                | **TENERE** — Controller > Service > Repository                                                    | Buona separazione delle responsabilità                |
 
 ### 2.3 Cosa Eliminare
 
-| Componente v1 | Motivazione Eliminazione |
-|---------------|------------------------|
-| **Service Registry** | Nessun plugin lo usa, REST + eventi sono sufficienti |
-| **Container orchestration (Dockerode)** | Plugin backend non richiedono orchestrazione container |
-| **Extension Points 5 tabelle** | Ridotto a manifest + 1 tabella workspace visibility |
-| **Plugin SDK 6 classi** | Consolidate in 1 classe con API fluent |
-| **7 stati lifecycle plugin** | Ridotti a 3 stati visibili (INSTALLED, ACTIVE, DISABLED) |
-| **`isTestToken` code path** | Zero divergenza test-produzione |
-| **`test-app.ts` separata** | L'app di test = l'app di produzione |
-| **Dead code** (`App.tsx`, `pages/`, `views/`, `apps/plugins/`, `packages/config/`) | Non referenziato |
-| **Codice duplicato frontend** (2 auth store, 3 pattern fetch, 3 pattern form) | Un solo pattern per tipo |
+| Componente v1                                                                      | Motivazione Eliminazione                                 |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Service Registry**                                                               | Nessun plugin lo usa, REST + eventi sono sufficienti     |
+| **Container orchestration (Dockerode)**                                            | Plugin backend non richiedono orchestrazione container   |
+| **Extension Points 5 tabelle**                                                     | Ridotto a manifest + 1 tabella workspace visibility      |
+| **Plugin SDK 6 classi**                                                            | Consolidate in 1 classe con API fluent                   |
+| **7 stati lifecycle plugin**                                                       | Ridotti a 3 stati visibili (INSTALLED, ACTIVE, DISABLED) |
+| **`isTestToken` code path**                                                        | Zero divergenza test-produzione                          |
+| **`test-app.ts` separata**                                                         | L'app di test = l'app di produzione                      |
+| **Dead code** (`App.tsx`, `pages/`, `views/`, `apps/plugins/`, `packages/config/`) | Non referenziato                                         |
+| **Codice duplicato frontend** (2 auth store, 3 pattern fetch, 3 pattern form)      | Un solo pattern per tipo                                 |
 
 ---
 
@@ -117,14 +117,14 @@
 
 Il sistema è composto da 6 componenti principali:
 
-| Componente | Descrizione |
-|-----------|-------------|
-| **Core API** | Backend Fastify monolitico che gestisce tutta la logica di piattaforma |
-| **Web App** | Frontend React per utenti tenant (SPA con Module Federation host) |
-| **Admin App** | Frontend React per super-admin (SPA) |
-| **Plugin Apps** | Frontend React dei plugin (Module Federation remotes) |
-| **Event Bus** | Kafka/Redpanda per comunicazione asincrona core-plugin e plugin-plugin |
-| **Infrastruttura** | PostgreSQL, Keycloak, Redis, MinIO, Kafka/Redpanda |
+| Componente         | Descrizione                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| **Core API**       | Backend Fastify monolitico che gestisce tutta la logica di piattaforma |
+| **Web App**        | Frontend React per utenti tenant (SPA con Module Federation host)      |
+| **Admin App**      | Frontend React per super-admin (SPA)                                   |
+| **Plugin Apps**    | Frontend React dei plugin (Module Federation remotes)                  |
+| **Event Bus**      | Kafka/Redpanda per comunicazione asincrona core-plugin e plugin-plugin |
+| **Infrastruttura** | PostgreSQL, Keycloak, Redis, MinIO, Kafka/Redpanda                     |
 
 ### 3.2 Flusso di una Richiesta
 
@@ -141,15 +141,15 @@ Il sistema è composto da 6 componenti principali:
 
 ### 3.3 Separazione delle Responsabilità
 
-| Layer | Responsabilità | Non Fa |
-|-------|---------------|--------|
-| **Frontend (Shell)** | Rendering UI, routing, form validation, caching locale, caricamento plugin MF | Logica di business, accesso dati diretto |
-| **Frontend (Plugin MF)** | UI specifica del plugin, integrata nativamente nella shell | Gestione auth, gestione tenant context |
-| **API Gateway (middleware)** | Auth, tenant context (search_path), ABAC, rate limiting, CSRF, logging | Logica di business |
-| **Service Layer** | Logica di business, orchestrazione, validazione, emissione eventi Kafka | Accesso diretto al database |
-| **Repository Layer** | Query database, mapping dati | Logica di business, emissione eventi |
-| **Event Bus (Kafka)** | Distribuzione eventi asincroni a plugin consumer | Storage persistente, query |
-| **Database** | Storage, integrità referenziale, isolamento via schema | Logica applicativa |
+| Layer                        | Responsabilità                                                                | Non Fa                                   |
+| ---------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------- |
+| **Frontend (Shell)**         | Rendering UI, routing, form validation, caching locale, caricamento plugin MF | Logica di business, accesso dati diretto |
+| **Frontend (Plugin MF)**     | UI specifica del plugin, integrata nativamente nella shell                    | Gestione auth, gestione tenant context   |
+| **API Gateway (middleware)** | Auth, tenant context (search_path), ABAC, rate limiting, CSRF, logging        | Logica di business                       |
+| **Service Layer**            | Logica di business, orchestrazione, validazione, emissione eventi Kafka       | Accesso diretto al database              |
+| **Repository Layer**         | Query database, mapping dati                                                  | Logica di business, emissione eventi     |
+| **Event Bus (Kafka)**        | Distribuzione eventi asincroni a plugin consumer                              | Storage persistente, query               |
+| **Database**                 | Storage, integrità referenziale, isolamento via schema                        | Logica applicativa                       |
 
 ---
 
@@ -160,15 +160,16 @@ Il sistema è composto da 6 componenti principali:
 **Schema-per-tenant è confermato** come strategia di isolamento dati.
 La motivazione è la compliance GDPR:
 
-| Requisito GDPR | Come Schema-per-Tenant lo Soddisfa |
-|----------------|-----------------------------------|
-| **Isolamento dati** | Ogni tenant ha uno schema PostgreSQL separato (`tenant_acme`, `tenant_beta`). Nessun dato condiviso |
-| **Right to erasure** | `DROP SCHEMA tenant_acme CASCADE` elimina fisicamente tutti i dati del tenant in un'operazione atomica |
-| **Data portability** | `pg_dump --schema=tenant_acme` esporta tutti i dati del tenant |
-| **Data residency** | In futuro, schema diversi possono risiedere su database server diversi per regione |
-| **Audit** | Le query sono automaticamente isolate via `search_path` — impossibile accedere a dati cross-tenant per errore applicativo |
+| Requisito GDPR       | Come Schema-per-Tenant lo Soddisfa                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Isolamento dati**  | Ogni tenant ha uno schema PostgreSQL separato (`tenant_acme`, `tenant_beta`). Nessun dato condiviso                       |
+| **Right to erasure** | `DROP SCHEMA tenant_acme CASCADE` elimina fisicamente tutti i dati del tenant in un'operazione atomica                    |
+| **Data portability** | `pg_dump --schema=tenant_acme` esporta tutti i dati del tenant                                                            |
+| **Data residency**   | In futuro, schema diversi possono risiedere su database server diversi per regione                                        |
+| **Audit**            | Le query sono automaticamente isolate via `search_path` — impossibile accedere a dati cross-tenant per errore applicativo |
 
 RLS è stata valutata e scartata perché:
+
 - Un bug applicativo potrebbe esporre dati cross-tenant se la policy non è impostata correttamente
 - `DROP SCHEMA` è più pulito e verificabile di `DELETE FROM ... WHERE tenant_id = ?` per la cancellazione completa
 - L'isolamento fisico è preferito per il target enterprise
@@ -177,23 +178,23 @@ RLS è stata valutata e scartata perché:
 
 Schema-per-tenant introduce complessità reale. La v2 deve mitigarla:
 
-| Complessità | Come la v1 la Gestiva | Miglioramento v2 |
-|------------|----------------------|-----------------|
-| **Migrazioni N schema** | Iterazione sequenziale su tutti gli schema | Migrazioni parallele con pool di worker, retry su failure, report di stato |
-| **Connection pooling** | Un pool per schema | Pool condiviso con `SET search_path` per richiesta (meno connessioni) |
-| **Test database** | Schema di test creati manualmente | Script automatico che crea N schema di test con seed deterministico |
-| **Provisioning** | 7 step con error handling fragile | Provisioning transazionale: se uno step fallisce, rollback di tutti i precedenti |
-| **Monitoraggio** | Non implementato | Migrazione health check: dashboard che mostra stato migrazioni per schema |
+| Complessità             | Come la v1 la Gestiva                      | Miglioramento v2                                                                 |
+| ----------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
+| **Migrazioni N schema** | Iterazione sequenziale su tutti gli schema | Migrazioni parallele con pool di worker, retry su failure, report di stato       |
+| **Connection pooling**  | Un pool per schema                         | Pool condiviso con `SET search_path` per richiesta (meno connessioni)            |
+| **Test database**       | Schema di test creati manualmente          | Script automatico che crea N schema di test con seed deterministico              |
+| **Provisioning**        | 7 step con error handling fragile          | Provisioning transazionale: se uno step fallisce, rollback di tutti i precedenti |
+| **Monitoraggio**        | Non implementato                           | Migrazione health check: dashboard che mostra stato migrazioni per schema        |
 
 ### 4.3 Schema Architecture
 
 Tre tipi di schema nel database:
 
-| Schema | Contenuto | Accesso |
-|--------|-----------|---------|
-| `core` | Tabelle globali (tenants, plugins marketplace, system config) | Sempre accessibile, non richiede tenant context |
-| `tenant_{slug}` | Tabelle per-tenant (users, workspaces, plugin installations, plugin data, audit) | Accessibile solo con tenant context impostato |
-| `tenant_{slug}` (plugin tables) | Tabelle dei plugin (es: `crm_contacts`, `crm_deals`) | Nello stesso schema tenant, create dalle migrazioni del plugin |
+| Schema                          | Contenuto                                                                        | Accesso                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `core`                          | Tabelle globali (tenants, plugins marketplace, system config)                    | Sempre accessibile, non richiede tenant context                |
+| `tenant_{slug}`                 | Tabelle per-tenant (users, workspaces, plugin installations, plugin data, audit) | Accessibile solo con tenant context impostato                  |
+| `tenant_{slug}` (plugin tables) | Tabelle dei plugin (es: `crm_contacts`, `crm_deals`)                             | Nello stesso schema tenant, create dalle migrazioni del plugin |
 
 ### 4.4 Tenant Context — Flusso
 
@@ -249,14 +250,14 @@ La struttura target:
 
 ### 5.2 API Design
 
-| Principio | Dettaglio |
-|-----------|----------|
-| REST puro | Resource-based URL, HTTP verbs per azioni |
-| Versioning | `/api/v1/` come prefisso per tutti gli endpoint |
-| Paginazione | `page` e `pageSize` query params, max 100 per pagina |
-| Filtri | Query params per filtri (`?status=active&search=acme`) |
-| Ordinamento | `sort=field&order=asc|desc` |
-| Errori | Formato standard con code, message, details |
+| Principio   | Dettaglio                                                   |
+| ----------- | ----------------------------------------------------------- | ----- |
+| REST puro   | Resource-based URL, HTTP verbs per azioni                   |
+| Versioning  | `/api/v1/` come prefisso per tutti gli endpoint             |
+| Paginazione | `page` e `pageSize` query params, max 100 per pagina        |
+| Filtri      | Query params per filtri (`?status=active&search=acme`)      |
+| Ordinamento | `sort=field&order=asc                                       | desc` |
+| Errori      | Formato standard con code, message, details                 |
 | Validazione | Zod schema su ogni endpoint, errori 400 con dettaglio campi |
 
 ### 5.3 Middleware Stack
@@ -281,11 +282,11 @@ middleware attivo, il test o il codice ha un bug.
 
 Tre categorie di errore con handling specifico:
 
-| Categoria | HTTP Status | Risposta | Logging |
-|-----------|------------|---------|---------|
-| Validazione input | 400 | Dettaglio per campo | info |
-| Non autorizzato / Non trovato | 401/403/404 | Messaggio generico | warn |
-| Errore server | 500 | Messaggio generico senza stack trace | error con stack trace |
+| Categoria                     | HTTP Status | Risposta                             | Logging               |
+| ----------------------------- | ----------- | ------------------------------------ | --------------------- |
+| Validazione input             | 400         | Dettaglio per campo                  | info                  |
+| Non autorizzato / Non trovato | 401/403/404 | Messaggio generico                   | warn                  |
+| Errore server                 | 500         | Messaggio generico senza stack trace | error con stack trace |
 
 Tutti gli errori seguono il formato standard con `code`, `message`,
 `details` opzionale. Nessuno stack trace in produzione.
@@ -305,24 +306,25 @@ Ogni operazione CRUD su entità principali emette un evento Kafka:
 
 ### 6.1 Stack Confermato
 
-| Tecnologia | Ruolo | Motivazione |
-|-----------|-------|-------------|
-| React 19 | UI framework | Ecosistema, competenze |
-| Vite | Build tool | Velocità dev, build ottimizzato |
-| Module Federation (via `@module-federation/vite`) | Plugin UI loading | Confermato: integrazione nativa, shared deps |
-| TanStack Router | Routing | Type-safe, data loading |
-| TanStack Query | Server state | Caching, retry, invalidation — unico pattern di data fetching |
-| Zustand | Client state | Solo per stato che non viene dal server (theme, sidebar open, auth) |
-| Tailwind CSS | Styling | Utility-first, veloce, consistente |
-| react-hook-form + Zod | Form handling | Un solo pattern per tutti i form |
-| react-intl | i18n | Traduzione stringhe, formato date/numeri |
-| Radix UI | Primitivi accessibili | Base per il design system |
+| Tecnologia                                        | Ruolo                 | Motivazione                                                         |
+| ------------------------------------------------- | --------------------- | ------------------------------------------------------------------- |
+| React 19                                          | UI framework          | Ecosistema, competenze                                              |
+| Vite                                              | Build tool            | Velocità dev, build ottimizzato                                     |
+| Module Federation (via `@module-federation/vite`) | Plugin UI loading     | Confermato: integrazione nativa, shared deps                        |
+| TanStack Router                                   | Routing               | Type-safe, data loading                                             |
+| TanStack Query                                    | Server state          | Caching, retry, invalidation — unico pattern di data fetching       |
+| Zustand                                           | Client state          | Solo per stato che non viene dal server (theme, sidebar open, auth) |
+| Tailwind CSS                                      | Styling               | Utility-first, veloce, consistente                                  |
+| react-hook-form + Zod                             | Form handling         | Un solo pattern per tutti i form                                    |
+| react-intl                                        | i18n                  | Traduzione stringhe, formato date/numeri                            |
+| Radix UI                                          | Primitivi accessibili | Base per il design system                                           |
 
 ### 6.2 Architettura Module Federation
 
 #### Shell (Host)
 
 La Web App è il Module Federation host:
+
 - Carica i plugin remoti dichiarati nel manifest dei plugin attivi
 - Condivide le dipendenze core (React, React DOM, TanStack Query, `@plexica/ui`, `@plexica/i18n`)
 - Gestisce il fallback se un plugin remoto non è disponibile (error boundary)
@@ -331,6 +333,7 @@ La Web App è il Module Federation host:
 #### Plugin (Remote)
 
 Ogni plugin con UI è un Module Federation remote:
+
 - Espone componenti React standard
 - Le dipendenze condivise (React, Router, Query, UI lib) vengono dalla shell — non duplicate
 - Il plugin dev non configura MF direttamente: il `@plexica/vite-plugin` lo fa automaticamente
@@ -338,29 +341,29 @@ Ogni plugin con UI è un Module Federation remote:
 
 #### Vantaggi rispetto a iframe (motivazione della scelta)
 
-| Aspetto | Module Federation | iframe |
-|---------|------------------|--------|
-| **Styling** | CSS condiviso, design system nativo | CSS isolato, design system duplicato o non applicabile |
-| **Performance** | Shared deps non duplicate, un solo DOM | DOM separato, deps duplicate, overhead comunicazione |
-| **Comunicazione** | Props e React context nativi | postMessage asincrono, serializzazione/deserializzazione |
-| **UX** | Scrollbar unificata, focus management, animazioni fluide | Scrollbar doppia, focus trap, resize manuale |
-| **Routing** | TanStack Router condiviso | Routing separato, sync URL manuale |
-| **DX** | Con Vite preset: trasparente. Senza: complessa | Semplice ma limitante |
+| Aspetto           | Module Federation                                        | iframe                                                   |
+| ----------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| **Styling**       | CSS condiviso, design system nativo                      | CSS isolato, design system duplicato o non applicabile   |
+| **Performance**   | Shared deps non duplicate, un solo DOM                   | DOM separato, deps duplicate, overhead comunicazione     |
+| **Comunicazione** | Props e React context nativi                             | postMessage asincrono, serializzazione/deserializzazione |
+| **UX**            | Scrollbar unificata, focus management, animazioni fluide | Scrollbar doppia, focus trap, resize manuale             |
+| **Routing**       | TanStack Router condiviso                                | Routing separato, sync URL manuale                       |
+| **DX**            | Con Vite preset: trasparente. Senza: complessa           | Semplice ma limitante                                    |
 
 ### 6.3 Regole di Architettura Frontend
 
-| Regola | Motivazione |
-|--------|-------------|
-| Nessun file componente sopra le 200 righe | File troppo grandi sono i file route da 1000 righe della v1 |
-| Un solo modo di fare data fetching (TanStack Query) | v1 aveva 3 modi diversi |
-| Un solo modo di fare form (react-hook-form + Zod) | v1 aveva 3 modi diversi |
-| Un solo auth store (Zustand) | v1 aveva 2 auth store |
-| Logica di business negli hook, non nei componenti | Componenti puri che ricevono dati e rendono UI |
-| Nessun console.log in produzione | v1 ne è piena |
-| Nessun emoji come icona | v1 usa emoji. Usare una icon library (Lucide o simile) |
-| Nessun window.confirm() nativo | v1 lo usa. Usare dialog component del design system |
-| Tutte le stringhe UI da i18n | v1 ha stringhe hardcoded ovunque |
-| Error boundary per ogni plugin slot | Un crash del plugin non crasha la shell |
+| Regola                                              | Motivazione                                                 |
+| --------------------------------------------------- | ----------------------------------------------------------- |
+| Nessun file componente sopra le 200 righe           | File troppo grandi sono i file route da 1000 righe della v1 |
+| Un solo modo di fare data fetching (TanStack Query) | v1 aveva 3 modi diversi                                     |
+| Un solo modo di fare form (react-hook-form + Zod)   | v1 aveva 3 modi diversi                                     |
+| Un solo auth store (Zustand)                        | v1 aveva 2 auth store                                       |
+| Logica di business negli hook, non nei componenti   | Componenti puri che ricevono dati e rendono UI              |
+| Nessun console.log in produzione                    | v1 ne è piena                                               |
+| Nessun emoji come icona                             | v1 usa emoji. Usare una icon library (Lucide o simile)      |
+| Nessun window.confirm() nativo                      | v1 lo usa. Usare dialog component del design system         |
+| Tutte le stringhe UI da i18n                        | v1 ha stringhe hardcoded ovunque                            |
+| Error boundary per ogni plugin slot                 | Un crash del plugin non crasha la shell                     |
 
 ### 6.4 Design System
 
@@ -377,21 +380,21 @@ Ogni plugin con UI è un Module Federation remote:
 
 #### Componenti Core
 
-| Componente | Varianti | Accessibilità |
-|-----------|----------|--------------|
-| Button | primary, secondary, destructive, ghost, link | focus ring, aria-label su icon-only |
-| Input | text, email, password, number, search | aria-describedby per errori |
-| Select | single, multi, async | aria-expanded, keyboard navigation |
-| Dialog | alert, confirm, form | focus trap, aria-modal |
-| Toast | success, error, warning, info | role="alert", auto-dismiss con timer |
-| Table | sortable, paginated, selectable | scope headers, keyboard navigation |
-| Form | con validazione inline, loading state, error summary | aria-invalid, aria-errormessage |
-| Navigation | sidebar, topbar, breadcrumb | aria-current, skip link |
-| Card | standard, clickable, collapsible | keyboard accessible |
-| Badge | status, count, label | aria-label per context |
-| Avatar | image, initials, fallback | alt text |
-| Empty State | illustrazione + messaggio + azione | non decorativo, informativo |
-| Error Boundary | fallback UI per crash plugin | messaggio user-friendly, retry button |
+| Componente     | Varianti                                             | Accessibilità                         |
+| -------------- | ---------------------------------------------------- | ------------------------------------- |
+| Button         | primary, secondary, destructive, ghost, link         | focus ring, aria-label su icon-only   |
+| Input          | text, email, password, number, search                | aria-describedby per errori           |
+| Select         | single, multi, async                                 | aria-expanded, keyboard navigation    |
+| Dialog         | alert, confirm, form                                 | focus trap, aria-modal                |
+| Toast          | success, error, warning, info                        | role="alert", auto-dismiss con timer  |
+| Table          | sortable, paginated, selectable                      | scope headers, keyboard navigation    |
+| Form           | con validazione inline, loading state, error summary | aria-invalid, aria-errormessage       |
+| Navigation     | sidebar, topbar, breadcrumb                          | aria-current, skip link               |
+| Card           | standard, clickable, collapsible                     | keyboard accessible                   |
+| Badge          | status, count, label                                 | aria-label per context                |
+| Avatar         | image, initials, fallback                            | alt text                              |
+| Empty State    | illustrazione + messaggio + azione                   | non decorativo, informativo           |
+| Error Boundary | fallback UI per crash plugin                         | messaggio user-friendly, retry button |
 
 ### 6.5 Information Architecture
 
@@ -405,11 +408,13 @@ Ogni plugin con UI è un Module Federation remote:
 - Impostazioni
 
 **Dashboard**:
+
 - Riepilogo workspace recenti
 - Notifiche recenti
 - Attività recente
 
 **Workspace** (vista dettaglio):
+
 - Overview (metriche workspace)
 - Contenuto (pannelli contribuiti dai plugin attivi nel workspace)
 - Membri
@@ -417,11 +422,13 @@ Ogni plugin con UI è un Module Federation remote:
 - Impostazioni
 
 **Plugin**:
+
 - Marketplace (disponibili)
 - Installati (gestione)
 - Configurazione (per plugin)
 
 **Impostazioni Tenant**:
+
 - Generale (nome, slug, logo)
 - Branding (colori, tema)
 - Utenti e Ruoli
@@ -439,23 +446,27 @@ Ogni plugin con UI è un Module Federation remote:
 - Sistema
 
 **Dashboard**:
+
 - Metriche piattaforma (tenant, utenti, plugin)
 - Health status servizi
 - Errori recenti
 - Kafka consumer lag (per plugin)
 
 **Tenant**:
+
 - Lista tenant con ricerca e filtri
 - Dettaglio tenant (info, utenti, plugin, audit)
 - Provisioning wizard
 - Sospensione / Riattivazione / Eliminazione
 
 **Plugin**:
+
 - Catalogo plugin
 - Review queue
 - Statistiche installazione
 
 **Sistema**:
+
 - Configurazione
 - Log
 - Health check dettagliato
@@ -479,23 +490,25 @@ Kafka o schema management.**
 
 Un plugin è composto da:
 
-| Componente | Obbligatorio | Descrizione |
-|-----------|-------------|-------------|
-| `manifest.json` | Sì | Dichiarazione del plugin: nome, versione, permessi, UI slots, eventi, config schema |
-| `frontend/` | No | Componenti React (Module Federation remote — generato automaticamente dal Vite preset) |
-| `backend/` | No | Endpoint API aggiuntivi (servizio HTTP) |
-| `migrations/` | No | Migrazioni SQL/Prisma per le tabelle plugin nello schema tenant |
-| `README.md` | Sì | Documentazione per l'utente e lo sviluppatore |
+| Componente      | Obbligatorio | Descrizione                                                                            |
+| --------------- | ------------ | -------------------------------------------------------------------------------------- |
+| `manifest.json` | Sì           | Dichiarazione del plugin: nome, versione, permessi, UI slots, eventi, config schema    |
+| `frontend/`     | No           | Componenti React (Module Federation remote — generato automaticamente dal Vite preset) |
+| `backend/`      | No           | Endpoint API aggiuntivi (servizio HTTP)                                                |
+| `migrations/`   | No           | Migrazioni SQL/Prisma per le tabelle plugin nello schema tenant                        |
+| `README.md`     | Sì           | Documentazione per l'utente e lo sviluppatore                                          |
 
 ### 7.3 Module Federation Semplificato — Tre Livelli
 
 **Livello 1 — CLI di scaffolding**:
+
 - `npx create-plexica-plugin my-plugin` genera un progetto completo
 - Il progetto generato ha già: vite config con MF pre-configurato via preset,
   manifest pre-compilato, componente React di esempio, test di esempio
 - Lo sviluppatore non vede e non tocca mai la configurazione MF
 
 **Livello 2 — Vite Plugin Preset** (`@plexica/vite-plugin`):
+
 - Un plugin Vite dedicato che configura automaticamente Module Federation
 - Il preset legge il `manifest.json` del plugin e genera la config MF completa
 - Shared dependencies (React, React DOM, TanStack Router, TanStack Query,
@@ -504,6 +517,7 @@ Un plugin è composto da:
 - Nessuna configurazione manuale di remote entry, exposes, shared
 
 **Livello 3 — Dev Server integrato**:
+
 - `npm run dev` nel plugin avvia un Vite dev server con hot reload
 - Il dev server si registra automaticamente nella shell di sviluppo locale
 - La shell di sviluppo carica il plugin dal dev server locale via MF
@@ -518,6 +532,7 @@ Non configura MF. Non gestisce shared deps. Non gestisce remote entry.
 Il manifest è la fonte di verità per tutto ciò che riguarda un plugin:
 
 **Campi principali**:
+
 - `id` — identificativo unico
 - `name` — nome visualizzato (i18n key)
 - `version` — semver
@@ -536,19 +551,21 @@ Il manifest è la fonte di verità per tutto ciò che riguarda un plugin:
 
 Tre stati visibili, transizioni chiare:
 
-| Stato | Descrizione | Transizioni |
-|-------|-------------|------------|
+| Stato       | Descrizione                                                       | Transizioni           |
+| ----------- | ----------------------------------------------------------------- | --------------------- |
 | `INSTALLED` | Plugin nel sistema, non visibile agli utenti. Migrazioni eseguite | → ACTIVE, → uninstall |
-| `ACTIVE` | Plugin attivo e visibile agli utenti | → DISABLED |
-| `DISABLED` | Plugin disabilitato, dati preservati | → ACTIVE, → uninstall |
+| `ACTIVE`    | Plugin attivo e visibile agli utenti                              | → DISABLED            |
+| `DISABLED`  | Plugin disabilitato, dati preservati                              | → ACTIVE, → uninstall |
 
 **Installazione** (cosa succede):
+
 1. Validazione manifest
 2. Esecuzione migrazioni plugin nello schema di ogni tenant che lo installa
 3. Creazione Kafka consumer group per gli eventi sottoscritti
 4. Stato → INSTALLED
 
 **Disinstallazione** (cosa succede):
+
 1. Stop Kafka consumer
 2. Drop tabelle plugin dallo schema tenant (o preserva con flag, per sicurezza dati)
 3. Rimozione record installazione
@@ -560,6 +577,7 @@ Ogni plugin che necessita di persistenza ha le proprie tabelle **nello
 schema del tenant**.
 
 **Flusso**:
+
 1. Il plugin include le proprie migrazioni (SQL o Prisma) nella directory `migrations/`
 2. Al momento dell'installazione in un tenant, il core esegue le migrazioni nello schema `tenant_{slug}`
 3. Le tabelle del plugin vivono accanto alle tabelle core (es: `tenant_acme.crm_contacts`)
@@ -567,6 +585,7 @@ schema del tenant**.
 5. Alla disinstallazione, le tabelle plugin vengono rimosse dallo schema
 
 **Vantaggi**:
+
 - Modello dati tipizzato e relazionale (non JSON blob)
 - Query SQL standard (JOIN, index, constraint)
 - Migrazioni versionabili e testabili
@@ -590,6 +609,7 @@ Approccio ibrido manifest + singola tabella:
   componente plugin crasha, la shell mostra un fallback senza impattare il resto
 
 **Punti di estensione definiti dalla shell**:
+
 - `sidebar-navigation` — voci nel menu laterale
 - `workspace-panel` — pannelli nel workspace
 - `workspace-tab` — tab nella vista workspace
@@ -637,14 +657,14 @@ e lo sviluppatore scrive React e handler normali.
 
 **Confermato: un realm per tenant.**
 
-| Aspetto | Dettaglio |
-|---------|----------|
+| Aspetto                | Dettaglio                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Perché multi-realm** | Ogni tenant può avere autenticazione diversa: SAML aziendale, OIDC, social login (Google, Microsoft), MFA policies diverse. Un singolo realm non consente questa flessibilità |
-| **Provisioning** | La creazione tenant include la creazione automatica del realm con client OIDC, ruoli base e utente admin |
-| **JWT** | RS256 firmato dal realm del tenant. Il Core API verifica via JWKS endpoint del realm specifico |
-| **SSO** | Possibile intra-tenant (stessi utenti su più workspace). Cross-tenant non supportato (realm separati) |
-| **JWKS caching** | Il Core API cache le JWKS per realm con TTL (evita call a Keycloak su ogni richiesta) |
-| **Realm discovery** | Il tenant slug nell'URL determina quale realm usare per il login redirect |
+| **Provisioning**       | La creazione tenant include la creazione automatica del realm con client OIDC, ruoli base e utente admin                                                                      |
+| **JWT**                | RS256 firmato dal realm del tenant. Il Core API verifica via JWKS endpoint del realm specifico                                                                                |
+| **SSO**                | Possibile intra-tenant (stessi utenti su più workspace). Cross-tenant non supportato (realm separati)                                                                         |
+| **JWKS caching**       | Il Core API cache le JWKS per realm con TTL (evita call a Keycloak su ogni richiesta)                                                                                         |
+| **Realm discovery**    | Il tenant slug nell'URL determina quale realm usare per il login redirect                                                                                                     |
 
 ### 8.2 Autorizzazione — RBAC + ABAC
 
@@ -652,13 +672,13 @@ e lo sviluppatore scrive React e handler normali.
 
 Ruoli predefiniti che coprono la maggior parte dei casi:
 
-| Ruolo | Scope | Permessi |
-|-------|-------|----------|
-| `super-admin` | Piattaforma | Accesso completo cross-tenant |
-| `tenant-admin` | Tenant | Gestione completa del tenant (utenti, plugin, workspace, configurazione) |
-| `workspace-admin` | Workspace | Gestione del workspace (membri, impostazioni, plugin attivi) |
-| `member` | Workspace | Accesso operativo al workspace e ai plugin |
-| `viewer` | Workspace | Solo lettura |
+| Ruolo             | Scope       | Permessi                                                                 |
+| ----------------- | ----------- | ------------------------------------------------------------------------ |
+| `super-admin`     | Piattaforma | Accesso completo cross-tenant                                            |
+| `tenant-admin`    | Tenant      | Gestione completa del tenant (utenti, plugin, workspace, configurazione) |
+| `workspace-admin` | Workspace   | Gestione del workspace (membri, impostazioni, plugin attivi)             |
+| `member`          | Workspace   | Accesso operativo al workspace e ai plugin                               |
+| `viewer`          | Workspace   | Solo lettura                                                             |
 
 #### ABAC per Isolamento Workspace
 
@@ -666,24 +686,26 @@ Ruoli predefiniti che coprono la maggior parte dei casi:
 workspace-level all'interno del tenant.**
 
 L'ABAC si attiva per le risorse workspace-scoped e permette regole come:
+
 - "L'utente X può vedere solo i dati del workspace Y"
 - "L'utente con ruolo Z nel workspace W può modificare, ma non cancellare"
 - "I dati del workspace A non sono visibili dal workspace B, anche per lo stesso utente"
 
 **Miglioramenti v2 rispetto alla v1**:
 
-| Aspetto | v1 | v2 |
-|---------|----|----|
-| **Testabilità** | ABAC difficile da testare unitariamente | Policy testate con test parametrici: dato contesto X, la decisione è Y |
-| **Debugging** | Decision tree opaco | Decision logging: ogni valutazione ABAC logga input, regole valutate, risultato |
-| **Cache** | Redis cache delle policy evaluation | Stessa cache Redis, ma con invalidazione più aggressiva |
-| **DX** | Policy definite in codice complesso | Policy definite in formato dichiarativo con DSL semplice |
+| Aspetto         | v1                                      | v2                                                                              |
+| --------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
+| **Testabilità** | ABAC difficile da testare unitariamente | Policy testate con test parametrici: dato contesto X, la decisione è Y          |
+| **Debugging**   | Decision tree opaco                     | Decision logging: ogni valutazione ABAC logga input, regole valutate, risultato |
+| **Cache**       | Redis cache delle policy evaluation     | Stessa cache Redis, ma con invalidazione più aggressiva                         |
+| **DX**          | Policy definite in codice complesso     | Policy definite in formato dichiarativo con DSL semplice                        |
 
 ### 8.3 Autenticazione nei Test
 
 **Regola v2 critica**: nessun `isTestToken`, nessun token HS256 auto-firmato.
 
 I test E2E e di integrazione usano Keycloak reale:
+
 - Un container Keycloak di test con realm pre-configurati (2 tenant di test)
 - 3 utenti per tenant di test (admin, member, viewer)
 - I test ottengono token reali chiamando l'endpoint token di Keycloak
@@ -699,30 +721,30 @@ I test E2E e di integrazione usano Keycloak reale:
 
 Tabelle che non sono tenant-scoped:
 
-| Tabella | Descrizione |
-|---------|-------------|
-| `tenants` | Registro tenant (id, slug, name, status, config, created_at) |
-| `plugins` | Catalogo plugin marketplace (id, name, version, manifest, status) |
-| `plugin_versions` | Versioni pubblicate dei plugin |
-| `system_config` | Configurazione piattaforma |
+| Tabella           | Descrizione                                                       |
+| ----------------- | ----------------------------------------------------------------- |
+| `tenants`         | Registro tenant (id, slug, name, status, config, created_at)      |
+| `plugins`         | Catalogo plugin marketplace (id, name, version, manifest, status) |
+| `plugin_versions` | Versioni pubblicate dei plugin                                    |
+| `system_config`   | Configurazione piattaforma                                        |
 
 ### 9.2 Schema `tenant_{slug}` (Per-Tenant)
 
 Tabelle replicate in ogni schema tenant:
 
-| Tabella | Descrizione |
-|---------|-------------|
-| `users` | Utenti del tenant con mapping Keycloak (keycloak_user_id, email, name) |
-| `roles` | Ruoli definiti per il tenant (predefiniti + custom) |
-| `user_roles` | Assegnazione ruoli a utenti |
-| `workspaces` | Workspace del tenant (slug, name, parent_id per gerarchia) |
-| `workspace_members` | Membri dei workspace con ruoli workspace-level |
-| `plugin_installations` | Plugin installati nel tenant (plugin_id, status, config) |
-| `plugin_workspace_visibility` | Visibilità plugin per workspace |
-| `abac_policies` | Policy ABAC per workspace isolation |
-| `notifications` | Notifiche per utente |
-| `audit_logs` | Log di audit (chi, cosa, quando, su quale risorsa) |
-| `{plugin}_*` | Tabelle dei plugin (es: `crm_contacts`, `crm_deals`) |
+| Tabella                       | Descrizione                                                            |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `users`                       | Utenti del tenant con mapping Keycloak (keycloak_user_id, email, name) |
+| `roles`                       | Ruoli definiti per il tenant (predefiniti + custom)                    |
+| `user_roles`                  | Assegnazione ruoli a utenti                                            |
+| `workspaces`                  | Workspace del tenant (slug, name, parent_id per gerarchia)             |
+| `workspace_members`           | Membri dei workspace con ruoli workspace-level                         |
+| `plugin_installations`        | Plugin installati nel tenant (plugin_id, status, config)               |
+| `plugin_workspace_visibility` | Visibilità plugin per workspace                                        |
+| `abac_policies`               | Policy ABAC per workspace isolation                                    |
+| `notifications`               | Notifiche per utente                                                   |
+| `audit_logs`                  | Log di audit (chi, cosa, quando, su quale risorsa)                     |
+| `{plugin}_*`                  | Tabelle dei plugin (es: `crm_contacts`, `crm_deals`)                   |
 
 ### 9.3 Relazioni Chiave
 
@@ -735,10 +757,12 @@ Tabelle replicate in ogni schema tenant:
 ### 9.4 Confronto con v1
 
 La v1 aveva circa 30 modelli Prisma. La v2 target:
+
 - **Schema core**: 4 tabelle (da ~10 nella v1 — eliminati service registry, extension slots)
 - **Schema tenant**: ~10 tabelle core + tabelle plugin (da ~20 nella v1 — eliminati extension tables)
 
 Eliminati:
+
 - 5 tabelle Extension Points (extension_slots, extension_contributions, workspace_extension_visibility, extensible_entities, data_extensions) — sostituite da manifest + 1 tabella visibility
 - Tabelle Service Registry
 - Tabelle marketplace complesse (semplificate)
@@ -753,39 +777,39 @@ Il sistema eventi è il meccanismo che permette ai plugin di **reagire
 a ciò che succede nella piattaforma** e di **contribuire logiche
 personalizzate**. Senza eventi, i plugin sono solo UI e API isolate.
 
-| Requisito | Perché Kafka/Redpanda |
-|-----------|----------------------|
-| **Durabilità** | Gli eventi non si perdono se un consumer è temporaneamente offline |
-| **Ordering** | Gli eventi per entità sono ordinati (partition key = entityId) |
-| **Replay** | Un plugin può riprocessare eventi storici (utile per recovery e nuove installazioni) |
-| **Dead letter queue** | Eventi che falliscono non bloccano il consumer, vanno in DLQ per analisi |
-| **Multi-consumer** | Più plugin possono sottoscrivere lo stesso evento indipendentemente |
-| **Target enterprise** | Kafka è lo standard enterprise per event streaming |
+| Requisito             | Perché Kafka/Redpanda                                                                |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| **Durabilità**        | Gli eventi non si perdono se un consumer è temporaneamente offline                   |
+| **Ordering**          | Gli eventi per entità sono ordinati (partition key = entityId)                       |
+| **Replay**            | Un plugin può riprocessare eventi storici (utile per recovery e nuove installazioni) |
+| **Dead letter queue** | Eventi che falliscono non bloccano il consumer, vanno in DLQ per analisi             |
+| **Multi-consumer**    | Più plugin possono sottoscrivere lo stesso evento indipendentemente                  |
+| **Target enterprise** | Kafka è lo standard enterprise per event streaming                                   |
 
 ### 10.2 Semplificazioni v2
 
-| Aspetto | v1 | v2 |
-|---------|----|----|
-| **Setup dev locale** | Cluster Redpanda 3 nodi | Singolo nodo Redpanda per dev |
-| **Setup staging/prod** | Cluster 3 nodi | Cluster 3 nodi (invariato) |
-| **Plugin subscription** | Configurare KafkaJS consumer manualmente | `sdk.onEvent('workspace.created', handler)` |
-| **Event publishing core** | Manuale per operazione | Automatico: il service layer emette eventi su ogni CRUD |
-| **Topic naming** | Manuale | Convention: `plexica.{entity}.{action}` |
-| **Consumer group** | Configurazione manuale | Automatico: `plugin-{pluginId}-{tenantId}` |
-| **Dead letter queue** | Non implementato | Automatica per ogni consumer plugin: `dlq.plugin-{pluginId}` |
-| **Monitoring** | Non implementato | Consumer lag per plugin esposto in Prometheus |
-| **Schema validation** | Non implementato | Schema registro per validare payload eventi |
+| Aspetto                   | v1                                       | v2                                                           |
+| ------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| **Setup dev locale**      | Cluster Redpanda 3 nodi                  | Singolo nodo Redpanda per dev                                |
+| **Setup staging/prod**    | Cluster 3 nodi                           | Cluster 3 nodi (invariato)                                   |
+| **Plugin subscription**   | Configurare KafkaJS consumer manualmente | `sdk.onEvent('workspace.created', handler)`                  |
+| **Event publishing core** | Manuale per operazione                   | Automatico: il service layer emette eventi su ogni CRUD      |
+| **Topic naming**          | Manuale                                  | Convention: `plexica.{entity}.{action}`                      |
+| **Consumer group**        | Configurazione manuale                   | Automatico: `plugin-{pluginId}-{tenantId}`                   |
+| **Dead letter queue**     | Non implementato                         | Automatica per ogni consumer plugin: `dlq.plugin-{pluginId}` |
+| **Monitoring**            | Non implementato                         | Consumer lag per plugin esposto in Prometheus                |
+| **Schema validation**     | Non implementato                         | Schema registro per validare payload eventi                  |
 
 ### 10.3 Eventi Core Emessi Automaticamente
 
 Il core emette eventi per ogni operazione CRUD sulle entità principali:
 
-| Entità | Eventi |
-|--------|--------|
-| Tenant | `plexica.tenant.created`, `plexica.tenant.updated`, `plexica.tenant.suspended`, `plexica.tenant.deleted` |
-| User | `plexica.user.created`, `plexica.user.updated`, `plexica.user.deleted`, `plexica.user.invited` |
-| Workspace | `plexica.workspace.created`, `plexica.workspace.updated`, `plexica.workspace.deleted` |
-| Workspace Member | `plexica.workspace-member.added`, `plexica.workspace-member.removed`, `plexica.workspace-member.role-changed` |
+| Entità              | Eventi                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Tenant              | `plexica.tenant.created`, `plexica.tenant.updated`, `plexica.tenant.suspended`, `plexica.tenant.deleted`           |
+| User                | `plexica.user.created`, `plexica.user.updated`, `plexica.user.deleted`, `plexica.user.invited`                     |
+| Workspace           | `plexica.workspace.created`, `plexica.workspace.updated`, `plexica.workspace.deleted`                              |
+| Workspace Member    | `plexica.workspace-member.added`, `plexica.workspace-member.removed`, `plexica.workspace-member.role-changed`      |
 | Plugin Installation | `plexica.plugin.installed`, `plexica.plugin.activated`, `plexica.plugin.deactivated`, `plexica.plugin.uninstalled` |
 
 Tutti gli eventi includono: `tenantId`, `entityId`, `payload` (stato completo dell'entità), `timestamp`, `correlationId`.
@@ -793,6 +817,7 @@ Tutti gli eventi includono: `tenantId`, `entityId`, `payload` (stato completo de
 ### 10.4 Plugin Custom Events
 
 I plugin possono emettere eventi custom:
+
 - Topic naming: `plugin.{pluginId}.{entity}.{action}` (es: `plugin.crm.contact.created`)
 - I plugin dichiarano nel manifest `events.publications[]` e `events.subscriptions[]`
 - Il core valida che un plugin sottoscriva solo eventi per cui ha permesso
@@ -822,14 +847,14 @@ I plugin possono emettere eventi custom:
 
 ### 11.4 Integrazioni Esterne
 
-| Servizio | Protocollo | Scopo |
-|---------|-----------|-------|
-| Keycloak | HTTP REST (Admin API + OIDC) | Autenticazione, gestione utenti/realm |
-| PostgreSQL | TCP (Prisma) | Storage dati con schema-per-tenant |
-| Kafka/Redpanda | Kafka protocol | Event streaming |
-| Redis | TCP (ioredis) | Caching, rate limiting, ABAC policy cache |
-| MinIO | S3 API | File storage per tenant |
-| SMTP | SMTP | Email (notifiche, inviti) |
+| Servizio       | Protocollo                   | Scopo                                     |
+| -------------- | ---------------------------- | ----------------------------------------- |
+| Keycloak       | HTTP REST (Admin API + OIDC) | Autenticazione, gestione utenti/realm     |
+| PostgreSQL     | TCP (Prisma)                 | Storage dati con schema-per-tenant        |
+| Kafka/Redpanda | Kafka protocol               | Event streaming                           |
+| Redis          | TCP (ioredis)                | Caching, rate limiting, ABAC policy cache |
+| MinIO          | S3 API                       | File storage per tenant                   |
+| SMTP           | SMTP                         | Email (notifiche, inviti)                 |
 
 ---
 
@@ -837,29 +862,30 @@ I plugin possono emettere eventi custom:
 
 ### 12.1 Componenti di Infrastruttura
 
-| Servizio | Sviluppo Locale | Staging/Produzione |
-|---------|-----------------|-------------------|
-| PostgreSQL 15+ | Docker (singola istanza) | Managed PostgreSQL |
-| Keycloak 26+ | Docker (singola istanza) | Cluster con HA |
-| Redis | Docker (singola istanza) | Managed Redis |
-| MinIO | Docker (singola istanza) | MinIO o S3 |
-| Kafka/Redpanda | Docker (**singolo nodo**) | Cluster **3 nodi** |
-| SMTP | Mailhog (mock) | Provider email reale |
-| Prometheus | Docker (opzionale) | Managed o self-hosted |
-| Grafana | Docker (opzionale) | Managed o self-hosted |
+| Servizio       | Sviluppo Locale           | Staging/Produzione    |
+| -------------- | ------------------------- | --------------------- |
+| PostgreSQL 15+ | Docker (singola istanza)  | Managed PostgreSQL    |
+| Keycloak 26+   | Docker (singola istanza)  | Cluster con HA        |
+| Redis          | Docker (singola istanza)  | Managed Redis         |
+| MinIO          | Docker (singola istanza)  | MinIO o S3            |
+| Kafka/Redpanda | Docker (**singolo nodo**) | Cluster **3 nodi**    |
+| SMTP           | Mailpit (mock)            | Provider email reale  |
+| Prometheus     | Docker (opzionale)        | Managed o self-hosted |
+| Grafana        | Docker (opzionale)        | Managed o self-hosted |
 
 ### 12.2 Ambienti
 
-| Ambiente | Scopo | Stack |
-|---------|-------|-------|
+| Ambiente            | Scopo               | Stack                                                      |
+| ------------------- | ------------------- | ---------------------------------------------------------- |
 | **Sviluppo locale** | Sviluppo quotidiano | Docker Compose con tutti i servizi (Redpanda singolo nodo) |
-| **Test CI** | Pipeline CI/CD | Docker Compose identico a dev |
-| **Staging** | Pre-produzione | Identico a produzione (Redpanda 3 nodi) |
-| **Produzione** | Utenti reali | Kubernetes o Docker Compose (Redpanda 3 nodi) |
+| **Test CI**         | Pipeline CI/CD      | Docker Compose identico a dev                              |
+| **Staging**         | Pre-produzione      | Identico a produzione (Redpanda 3 nodi)                    |
+| **Produzione**      | Utenti reali        | Kubernetes o Docker Compose (Redpanda 3 nodi)              |
 
 ### 12.3 Docker Compose per Sviluppo
 
 Un singolo `docker-compose.yml` che avvia tutto:
+
 - PostgreSQL (con init script per schema `core`)
 - Keycloak (con realm di test importati automaticamente)
 - Redis
@@ -891,11 +917,11 @@ dell'architettura, non come afterthought.
 
 ### 13.2 Piramide di Test v2
 
-| Livello | Cosa Testa | Ambiente | Mock Permessi | Bloccante CI |
-|---------|-----------|---------|--------------|-------------|
-| **E2E Full-Stack** | Intero flusso utente: browser → API → database → Keycloak → Kafka | Stack Docker completo | Nessuno | Sì |
-| **Integrazione API** | Endpoint API con tutti i middleware | API reale + DB + Keycloak + Redis + Kafka | Solo SMTP | Sì |
-| **Unitario** | Logica di business isolata | In-memory | Solo I/O esterno | Sì |
+| Livello              | Cosa Testa                                                        | Ambiente                                  | Mock Permessi    | Bloccante CI |
+| -------------------- | ----------------------------------------------------------------- | ----------------------------------------- | ---------------- | ------------ |
+| **E2E Full-Stack**   | Intero flusso utente: browser → API → database → Keycloak → Kafka | Stack Docker completo                     | Nessuno          | Sì           |
+| **Integrazione API** | Endpoint API con tutti i middleware                               | API reale + DB + Keycloak + Redis + Kafka | Solo SMTP        | Sì           |
+| **Unitario**         | Logica di business isolata                                        | In-memory                                 | Solo I/O esterno | Sì           |
 
 ### 13.3 Test E2E Full-Stack — Design
 
@@ -916,22 +942,22 @@ dell'architettura, non come afterthought.
 
 Ogni flusso critico ha almeno un test E2E:
 
-| Flusso | Cosa Verifica |
-|--------|-------------|
-| Login tenant user | Redirect Keycloak (realm del tenant), token RS256, redirect dashboard, dati utente |
-| Creazione workspace | Form compilato, API chiamata, workspace visibile nella lista, membro automatico |
-| Gerarchia workspace | Creazione child workspace, navigazione parent/child |
-| Installazione plugin | Marketplace, click installa, permessi confermati, migrazioni eseguite, plugin attivo con UI MF |
-| Plugin event subscription | Plugin installato, creazione workspace, plugin riceve evento `workspace.created` |
-| Gestione utenti | Invito via email, accettazione via Keycloak, ruolo assegnato, visibilità corretta |
-| Tenant provisioning (admin) | Wizard completato, schema creato, realm creato, admin può fare login |
-| Gestione ruoli + ABAC | Ruolo assegnato, ABAC policy applicata, utente vede/non vede risorse workspace |
-| Isolamento tenant | Utente tenant A non vede dati tenant B (test di sicurezza critico) |
-| Plugin disabilitazione | Plugin attivo, disabilitazione, UI non visibile, riattivazione, UI visibile |
-| Branding tenant | Admin carica logo/colori, l'interfaccia riflette il branding |
-| Notifiche SSE | Azione che genera notifica, utente la riceve in tempo reale |
-| Tenant deletion | Super admin elimina tenant, schema droppato, realm eliminato, dati spariti |
-| i18n switch | Utente cambia lingua, tutta l'interfaccia si aggiorna |
+| Flusso                      | Cosa Verifica                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Login tenant user           | Redirect Keycloak (realm del tenant), token RS256, redirect dashboard, dati utente             |
+| Creazione workspace         | Form compilato, API chiamata, workspace visibile nella lista, membro automatico                |
+| Gerarchia workspace         | Creazione child workspace, navigazione parent/child                                            |
+| Installazione plugin        | Marketplace, click installa, permessi confermati, migrazioni eseguite, plugin attivo con UI MF |
+| Plugin event subscription   | Plugin installato, creazione workspace, plugin riceve evento `workspace.created`               |
+| Gestione utenti             | Invito via email, accettazione via Keycloak, ruolo assegnato, visibilità corretta              |
+| Tenant provisioning (admin) | Wizard completato, schema creato, realm creato, admin può fare login                           |
+| Gestione ruoli + ABAC       | Ruolo assegnato, ABAC policy applicata, utente vede/non vede risorse workspace                 |
+| Isolamento tenant           | Utente tenant A non vede dati tenant B (test di sicurezza critico)                             |
+| Plugin disabilitazione      | Plugin attivo, disabilitazione, UI non visibile, riattivazione, UI visibile                    |
+| Branding tenant             | Admin carica logo/colori, l'interfaccia riflette il branding                                   |
+| Notifiche SSE               | Azione che genera notifica, utente la riceve in tempo reale                                    |
+| Tenant deletion             | Super admin elimina tenant, schema droppato, realm eliminato, dati spariti                     |
+| i18n switch                 | Utente cambia lingua, tutta l'interfaccia si aggiorna                                          |
 
 #### Dati di Test
 
@@ -957,18 +983,19 @@ Ogni flusso critico ha almeno un test E2E:
 
 #### Differenze con v1
 
-| Aspetto | v1 | v2 |
-|---------|----|----|
-| Invocazione API | `app.inject()` in-process | HTTP client reale contro server in ascolto |
-| Autenticazione | Token HS256 auto-firmati | Token RS256 da Keycloak reale |
-| Middleware | CSRF disabilitato, rate limit 10000/min | Tutti i middleware attivi |
-| Event bus | Non testato | Kafka reale — verifica che eventi vengano emessi |
-| Database | Connessione condivisa | Schema tenant di test, `SET search_path` reale |
-| Reset | Transazione con rollback | Truncate + seed tra suite |
+| Aspetto         | v1                                      | v2                                               |
+| --------------- | --------------------------------------- | ------------------------------------------------ |
+| Invocazione API | `app.inject()` in-process               | HTTP client reale contro server in ascolto       |
+| Autenticazione  | Token HS256 auto-firmati                | Token RS256 da Keycloak reale                    |
+| Middleware      | CSRF disabilitato, rate limit 10000/min | Tutti i middleware attivi                        |
+| Event bus       | Non testato                             | Kafka reale — verifica che eventi vengano emessi |
+| Database        | Connessione condivisa                   | Schema tenant di test, `SET search_path` reale   |
+| Reset           | Transazione con rollback                | Truncate + seed tra suite                        |
 
 ### 13.5 Test Unitari — Design
 
 I test unitari testano logica di business pura:
+
 - Validazione input
 - Trasformazioni dati
 - Calcoli
@@ -1001,26 +1028,26 @@ La pipeline CI segue questo ordine:
 
 ### 14.1 Requisiti Minimi
 
-| Requisito | Implementazione |
-|-----------|----------------|
-| Health check | Endpoint `/health` che verifica database, Redis, Keycloak, Kafka |
-| Log strutturati | Pino JSON con request ID, tenant ID, user ID, correlation ID |
-| Metriche | Prometheus endpoint con metriche HTTP, database, Kafka consumer lag |
-| Tracing | OpenTelemetry con Tempo (opzionale in dev, attivo in staging/prod) |
-| Kafka monitoring | Consumer lag per plugin per tenant, DLQ size |
+| Requisito        | Implementazione                                                     |
+| ---------------- | ------------------------------------------------------------------- |
+| Health check     | Endpoint `/health` che verifica database, Redis, Keycloak, Kafka    |
+| Log strutturati  | Pino JSON con request ID, tenant ID, user ID, correlation ID        |
+| Metriche         | Prometheus endpoint con metriche HTTP, database, Kafka consumer lag |
+| Tracing          | OpenTelemetry con Tempo (opzionale in dev, attivo in staging/prod)  |
+| Kafka monitoring | Consumer lag per plugin per tenant, DLQ size                        |
 
 ### 14.2 Metriche Specifiche v2
 
 Oltre alle metriche standard (HTTP latency, error rate, DB query time):
 
-| Metrica | Scopo |
-|---------|-------|
-| `kafka_consumer_lag{plugin, tenant}` | Monitorare se un plugin è indietro nel processing eventi |
-| `kafka_dlq_size{plugin}` | Monitorare eventi falliti per plugin |
-| `tenant_schema_migration_status{tenant}` | Monitorare stato migrazioni per tenant |
-| `plugin_mf_load_time{plugin}` | Monitorare tempo caricamento Module Federation per plugin |
-| `plugin_mf_load_error{plugin}` | Monitorare errori di caricamento MF |
-| `abac_evaluation_time{policy}` | Monitorare performance valutazione ABAC |
+| Metrica                                  | Scopo                                                     |
+| ---------------------------------------- | --------------------------------------------------------- |
+| `kafka_consumer_lag{plugin, tenant}`     | Monitorare se un plugin è indietro nel processing eventi  |
+| `kafka_dlq_size{plugin}`                 | Monitorare eventi falliti per plugin                      |
+| `tenant_schema_migration_status{tenant}` | Monitorare stato migrazioni per tenant                    |
+| `plugin_mf_load_time{plugin}`            | Monitorare tempo caricamento Module Federation per plugin |
+| `plugin_mf_load_error{plugin}`           | Monitorare errori di caricamento MF                       |
+| `abac_evaluation_time{policy}`           | Monitorare performance valutazione ABAC                   |
 
 ### 14.3 Confronto con v1
 
@@ -1036,4 +1063,4 @@ il minimo necessario e lo testa:
 
 ---
 
-*Fine del Documento Architetturale — Revisione 2*
+_Fine del Documento Architetturale — Revisione 2_

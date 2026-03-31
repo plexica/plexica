@@ -3,13 +3,13 @@
 > Feature specification for Phase 0 — Infrastructure Setup.
 > Created by the `forge-pm` agent via `/forge-specify`.
 
-| Field   | Value                    |
-| ------- | ------------------------ |
-| Status  | Ready                    |
-| Author  | forge-pm                 |
-| Date    | 2026-03-26               |
-| Track   | Feature                  |
-| Spec ID | 001                      |
+| Field   | Value      |
+| ------- | ---------- |
+| Status  | Ready      |
+| Author  | forge-pm   |
+| Date    | 2026-03-26 |
+| Track   | Feature    |
+| Spec ID | 001        |
 
 ---
 
@@ -42,8 +42,9 @@ stack available locally,
 **so that** I can start developing features without manual service configuration.
 
 **Acceptance Criteria:**
+
 - Given Docker is installed, when I run `docker compose up`, then PostgreSQL,
-  Keycloak, Redis, MinIO, Redpanda, and Mailhog all reach `healthy` status.
+  Keycloak, Redis, MinIO, Redpanda, and Mailpit all reach `healthy` status.
 - Given `.env.example` exists, when I copy it to `.env`, then all services
   start on the documented default ports.
 - Given a port conflict on my machine, when I override a port in `.env`, then
@@ -58,6 +59,7 @@ services,
 local dev.
 
 **Acceptance Criteria:**
+
 - Given a PR is opened, when GitHub Actions triggers, then all stages (lint,
   typecheck, build, Docker up, seed, unit, integration, E2E, teardown) run.
 - Given all stages pass, when the pipeline completes, then it reports green.
@@ -72,6 +74,7 @@ in Storybook,
 **so that** I can build consistent, accessible UIs from the start.
 
 **Acceptance Criteria:**
+
 - Given the `@plexica/ui` package is built, when I start Storybook, then
   Button, Input, Dialog, Toast, and Table components render with all tokens.
 - Given the token set includes semantic colors, when I use `error` or `success`
@@ -85,6 +88,7 @@ in Storybook,
 **so that** I can test schema-per-tenant isolation from the first sprint.
 
 **Acceptance Criteria:**
+
 - Given the `core` schema exists with `tenants` and `tenant_configs` tables,
   when I invoke the utility with slug `acme`, then a `tenant_acme` schema is
   created and Prisma migrations run.
@@ -93,52 +97,52 @@ in Storybook,
 
 ## 4. Functional Requirements
 
-| ID     | Requirement                                                                                          | Priority | Story Ref |
-| ------ | ---------------------------------------------------------------------------------------------------- | -------- | --------- |
-| FR-001 | pnpm workspace monorepo with `apps/`, `packages/`, `services/` structure, shared tsconfig, eslint, prettier | Must     | US-001    |
-| FR-002 | Docker Compose with PostgreSQL, Keycloak, Redis, MinIO, Redpanda (1 node), Mailhog — all with healthchecks | Must     | US-001    |
-| FR-003 | All Docker Compose ports configurable via `.env` with defaults in `.env.example`                      | Must     | US-001    |
-| FR-004 | Docker Compose for CI identical to dev, runnable in GitHub Actions                                    | Must     | US-002    |
-| FR-005 | Keycloak automated setup: test realm import with 3 users (super-admin, tenant admin, tenant member)   | Must     | US-001    |
-| FR-006 | PostgreSQL `core` schema init with `tenants` and `tenant_configs` tables                              | Must     | US-004    |
-| FR-007 | Tenant schema creation/migration utility (creates `tenant_<slug>` schema, runs Prisma migrations)     | Must     | US-004    |
-| FR-008 | Redpanda setup with allow-list of core topics (`tenant.events`, `user.events`, `plugin.events`) created on startup | Must     | US-001    |
+| ID     | Requirement                                                                                                                                                                                                  | Priority | Story Ref |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | --------- |
+| FR-001 | pnpm workspace monorepo with `apps/`, `packages/`, `services/` structure, shared tsconfig, eslint, prettier                                                                                                  | Must     | US-001    |
+| FR-002 | Docker Compose with PostgreSQL, Keycloak, Redis, MinIO, Redpanda (1 node), Mailpit — all with healthchecks                                                                                                   | Must     | US-001    |
+| FR-003 | All Docker Compose ports configurable via `.env` with defaults in `.env.example`                                                                                                                             | Must     | US-001    |
+| FR-004 | Docker Compose for CI identical to dev, runnable in GitHub Actions                                                                                                                                           | Must     | US-002    |
+| FR-005 | Keycloak automated setup: test realm import with 3 users (super-admin, tenant admin, tenant member)                                                                                                          | Must     | US-001    |
+| FR-006 | PostgreSQL `core` schema init with `tenants` and `tenant_configs` tables                                                                                                                                     | Must     | US-004    |
+| FR-007 | Tenant schema creation/migration utility (creates `tenant_<slug>` schema, runs Prisma migrations)                                                                                                            | Must     | US-004    |
+| FR-008 | Redpanda setup with allow-list of core topics (`tenant.events`, `user.events`, `plugin.events`) created on startup                                                                                           | Must     | US-001    |
 | FR-009 | Design system tokens: Inter font, neutral scale (50-950), primary blue + variants, semantic colors (success/green, warning/amber, error/red, info/blue), light/dark mode, spacing scale, border-radius scale | Must     | US-003    |
-| FR-010 | Storybook with 5 components: Button, Input, Dialog, Toast, Table                                      | Must     | US-003    |
-| FR-011 | CI pipeline: lint → typecheck → build → Docker up → seed → unit tests → integration tests → E2E → teardown | Must     | US-002    |
-| FR-012 | Playwright smoke test: open frontend, verify login page renders                                       | Must     | US-002    |
+| FR-010 | Storybook with 5 components: Button, Input, Dialog, Toast, Table                                                                                                                                             | Must     | US-003    |
+| FR-011 | CI pipeline: lint → typecheck → build → Docker up → seed → unit tests → integration tests → E2E → teardown                                                                                                   | Must     | US-002    |
+| FR-012 | Playwright smoke test: open frontend, verify login page renders                                                                                                                                              | Must     | US-002    |
 
 ## 5. Non-Functional Requirements
 
-| ID     | Category    | Requirement                                                          | Target  |
-| ------ | ----------- | -------------------------------------------------------------------- | ------- |
-| NFR-01 | Performance | Docker Compose startup (from `up` to all healthchecks green)         | < 60s   |
-| NFR-02 | Performance | CI pipeline total duration                                           | < 10 min|
-| NFR-03 | Performance | `pnpm install` from clean cache                                     | < 90s   |
-| NFR-04 | Performance | Storybook cold start                                                 | < 15s   |
-| NFR-05 | Security    | All Docker images pinned to exact digests (no `:latest` tags)        | 100%    |
-| NFR-06 | DX          | All service ports configurable via `.env` file                       | 100%    |
+| ID     | Category    | Requirement                                                   | Target   |
+| ------ | ----------- | ------------------------------------------------------------- | -------- |
+| NFR-01 | Performance | Docker Compose startup (from `up` to all healthchecks green)  | < 60s    |
+| NFR-02 | Performance | CI pipeline total duration                                    | < 10 min |
+| NFR-03 | Performance | `pnpm install` from clean cache                               | < 90s    |
+| NFR-04 | Performance | Storybook cold start                                          | < 15s    |
+| NFR-05 | Security    | All Docker images pinned to exact digests (no `:latest` tags) | 100%     |
+| NFR-06 | DX          | All service ports configurable via `.env` file                | 100%     |
 
 ## 6. Edge Cases & Error Scenarios
 
-| #  | Scenario                                                  | Expected Behavior                                                     |
-| -- | --------------------------------------------------------- | --------------------------------------------------------------------- |
-| 1  | Port conflict: a default port is in use on host           | Docker Compose fails fast with clear error message; dev overrides port in `.env` |
-| 2  | Docker not installed or Docker daemon not running          | `docker compose up` fails with actionable error; README documents prerequisite |
-| 3  | Keycloak realm import fails (corrupted JSON)              | Container healthcheck fails; logs show import error; stack does not report healthy |
-| 4  | Redpanda fails to start within healthcheck timeout        | Docker Compose reports unhealthy; CI pipeline fails at Docker-up stage |
-| 5  | Tenant schema already exists when utility is invoked      | Utility reports "schema already exists" error; does not drop or overwrite |
-| 6  | `pnpm install` runs with Node < 20                       | `.npmrc` or `engines` field rejects the install with clear version error |
-| 7  | CI runner runs out of memory with all containers          | Container memory limits prevent OOM kill; pipeline fails gracefully   |
+| #   | Scenario                                             | Expected Behavior                                                                  |
+| --- | ---------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Port conflict: a default port is in use on host      | Docker Compose fails fast with clear error message; dev overrides port in `.env`   |
+| 2   | Docker not installed or Docker daemon not running    | `docker compose up` fails with actionable error; README documents prerequisite     |
+| 3   | Keycloak realm import fails (corrupted JSON)         | Container healthcheck fails; logs show import error; stack does not report healthy |
+| 4   | Redpanda fails to start within healthcheck timeout   | Docker Compose reports unhealthy; CI pipeline fails at Docker-up stage             |
+| 5   | Tenant schema already exists when utility is invoked | Utility reports "schema already exists" error; does not drop or overwrite          |
+| 6   | `pnpm install` runs with Node < 20                   | `.npmrc` or `engines` field rejects the install with clear version error           |
+| 7   | CI runner runs out of memory with all containers     | Container memory limits prevent OOM kill; pipeline fails gracefully                |
 
 ## 7. Data Requirements
 
 ### Core Schema (`core`)
 
-| Table           | Columns                                              | Notes                              |
-| --------------- | ---------------------------------------------------- | ---------------------------------- |
-| `tenants`       | `id` (UUID PK), `slug` (unique), `name`, `status` (enum: active/suspended/deleted), `created_at`, `updated_at` | Central tenant registry            |
-| `tenant_configs`| `id` (UUID PK), `tenant_id` (FK→tenants), `keycloak_realm` (unique), `settings` (JSONB), `created_at`, `updated_at` | Per-tenant configuration           |
+| Table            | Columns                                                                                                             | Notes                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `tenants`        | `id` (UUID PK), `slug` (unique), `name`, `status` (enum: active/suspended/deleted), `created_at`, `updated_at`      | Central tenant registry  |
+| `tenant_configs` | `id` (UUID PK), `tenant_id` (FK→tenants), `keycloak_realm` (unique), `settings` (JSONB), `created_at`, `updated_at` | Per-tenant configuration |
 
 ### Tenant Schema (`tenant_<slug>`)
 
@@ -165,6 +169,7 @@ HTTP endpoint.
 ### Components (Radix UI primitives)
 
 All 5 components must meet WCAG 2.1 AA accessibility per the Constitution:
+
 - **Button**: primary, secondary, destructive, ghost, outline variants; disabled state; loading state
 - **Input**: text, password, email types; error state; helper text; label
 - **Dialog**: modal with close, title, description, actions; focus trap; ESC to close
@@ -184,7 +189,7 @@ The following are explicitly **not** part of Phase 0:
 - **Load testing**: No performance benchmarks beyond the NFR startup/build metrics.
 - **Plugin infrastructure**: No Module Federation setup, SDK, or plugin lifecycle.
   Deferred to Phase 2+.
-- **Email templates**: Mailhog is available for dev but no email templates or
+- **Email templates**: Mailpit is available for dev but no email templates or
   notification logic.
 - **User management UI**: No screens for managing users, tenants, or roles.
 
@@ -198,23 +203,23 @@ None. All ambiguities resolved during `/forge-clarify` session on 2026-03-26.
 
 ### New Components
 
-| Component Type       | Path                              | Description                                               |
-| -------------------- | --------------------------------- | --------------------------------------------------------- |
-| Monorepo config      | `pnpm-workspace.yaml`            | Workspace definition for apps/, packages/, services/      |
-| TypeScript config    | `tsconfig.base.json`             | Shared TS config with strict mode                         |
-| ESLint config        | `eslint.config.js`               | Shared lint rules                                         |
-| Prettier config      | `.prettierrc`                     | Formatting rules                                          |
-| Docker Compose (dev) | `docker-compose.yml`             | Full dev stack with healthchecks                          |
-| Docker Compose (CI)  | `docker-compose.ci.yml`          | CI variant (override or identical)                        |
-| Env example          | `.env.example`                   | All env vars with default values documented               |
-| Keycloak realm       | `infra/keycloak/realm-export.json`| Pre-configured test realm with 3 users                    |
-| Core schema init     | `services/core-api/prisma/`      | Prisma schema for core tables                             |
-| Tenant utility       | `services/core-api/src/lib/`     | CLI/util for tenant schema creation                       |
-| Redpanda config      | `infra/redpanda/`                | Topic allow-list and startup configuration                |
-| Design system        | `packages/ui/`                   | @plexica/ui — tokens + 5 components                      |
-| Storybook            | `packages/ui/.storybook/`        | Storybook configuration                                   |
-| CI pipeline          | `.github/workflows/ci.yml`       | Full CI pipeline                                          |
-| Playwright smoke     | `apps/web/e2e/`                  | First E2E smoke test                                      |
+| Component Type       | Path                               | Description                                          |
+| -------------------- | ---------------------------------- | ---------------------------------------------------- |
+| Monorepo config      | `pnpm-workspace.yaml`              | Workspace definition for apps/, packages/, services/ |
+| TypeScript config    | `tsconfig.base.json`               | Shared TS config with strict mode                    |
+| ESLint config        | `eslint.config.js`                 | Shared lint rules                                    |
+| Prettier config      | `.prettierrc`                      | Formatting rules                                     |
+| Docker Compose (dev) | `docker-compose.yml`               | Full dev stack with healthchecks                     |
+| Docker Compose (CI)  | `docker-compose.ci.yml`            | CI variant (override or identical)                   |
+| Env example          | `.env.example`                     | All env vars with default values documented          |
+| Keycloak realm       | `infra/keycloak/realm-export.json` | Pre-configured test realm with 3 users               |
+| Core schema init     | `services/core-api/prisma/`        | Prisma schema for core tables                        |
+| Tenant utility       | `services/core-api/src/lib/`       | CLI/util for tenant schema creation                  |
+| Redpanda config      | `infra/redpanda/`                  | Topic allow-list and startup configuration           |
+| Design system        | `packages/ui/`                     | @plexica/ui — tokens + 5 components                  |
+| Storybook            | `packages/ui/.storybook/`          | Storybook configuration                              |
+| CI pipeline          | `.github/workflows/ci.yml`         | Full CI pipeline                                     |
+| Playwright smoke     | `apps/web/e2e/`                    | First E2E smoke test                                 |
 
 ### Modified Components
 
@@ -222,37 +227,37 @@ No existing components — this is a greenfield setup.
 
 ### Documentation Updates
 
-| Path              | Section     | Update Description                              |
-| ----------------- | ----------- | ----------------------------------------------- |
-| `README.md`       | Getting Started | Setup instructions, prerequisites, `docker compose up` |
-| `.env.example`    | All         | Document every environment variable with defaults|
+| Path           | Section         | Update Description                                     |
+| -------------- | --------------- | ------------------------------------------------------ |
+| `README.md`    | Getting Started | Setup instructions, prerequisites, `docker compose up` |
+| `.env.example` | All             | Document every environment variable with defaults      |
 
 ## 13. Constitution Compliance
 
-| Article                    | Status    | Notes                                                                       |
-| -------------------------- | --------- | --------------------------------------------------------------------------- |
-| Rule 1: E2E tests          | COMPLIANT | 001-09 provides Playwright E2E for the login page (the only user-interactive surface). Infrastructure features use integration smoke tests. |
-| Rule 2: Green CI            | COMPLIANT | FR-011 defines the full CI pipeline; AC-03 requires green status.            |
-| Rule 3: One pattern/type    | COMPLIANT | Design system establishes the single pattern for each UI primitive.          |
-| Rule 4: 200-line limit      | COMPLIANT | All files will be decomposed to stay under 200 lines.                       |
-| Rule 5: ADR for arch decisions | COMPLIANT | ADR-001 through ADR-009 already accepted for all foundational decisions.   |
-| Technology Stack            | COMPLIANT | All prescribed technologies at correct versions. Docker images pinned (NFR-05). |
-| Architecture                | COMPLIANT | Schema-per-tenant (FR-006/007), Keycloak multi-realm (FR-005), Redpanda (FR-008) match architecture. |
-| Security                    | COMPLIANT | Docker images pinned to digests. No secrets in code. `.env.example` has no real credentials. |
-| Quality Standards           | COMPLIANT | NFR targets defined and measurable. WCAG 2.1 AA for all UI components.      |
+| Article                        | Status    | Notes                                                                                                                                       |
+| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rule 1: E2E tests              | COMPLIANT | 001-09 provides Playwright E2E for the login page (the only user-interactive surface). Infrastructure features use integration smoke tests. |
+| Rule 2: Green CI               | COMPLIANT | FR-011 defines the full CI pipeline; AC-03 requires green status.                                                                           |
+| Rule 3: One pattern/type       | COMPLIANT | Design system establishes the single pattern for each UI primitive.                                                                         |
+| Rule 4: 200-line limit         | COMPLIANT | All files will be decomposed to stay under 200 lines.                                                                                       |
+| Rule 5: ADR for arch decisions | COMPLIANT | ADR-001 through ADR-009 already accepted for all foundational decisions.                                                                    |
+| Technology Stack               | COMPLIANT | All prescribed technologies at correct versions. Docker images pinned (NFR-05).                                                             |
+| Architecture                   | COMPLIANT | Schema-per-tenant (FR-006/007), Keycloak multi-realm (FR-005), Redpanda (FR-008) match architecture.                                        |
+| Security                       | COMPLIANT | Docker images pinned to digests. No secrets in code. `.env.example` has no real credentials.                                                |
+| Quality Standards              | COMPLIANT | NFR targets defined and measurable. WCAG 2.1 AA for all UI components.                                                                      |
 
 ---
 
 ## Cross-References
 
-| Document             | Path                                     |
-| -------------------- | ---------------------------------------- |
-| Constitution         | `.forge/constitution.md`                 |
-| Architecture         | `docs/02-ARCHITETTURA.md`               |
-| Decision Log         | `.forge/knowledge/decision-log.md`       |
-| ADRs                 | `.forge/knowledge/adr/`                  |
-| Plan                 | _Created by `/forge-plan`_               |
-| Tasks                | _Created by `/forge-tasks`_              |
+| Document     | Path                               |
+| ------------ | ---------------------------------- |
+| Constitution | `.forge/constitution.md`           |
+| Architecture | `docs/02-ARCHITETTURA.md`          |
+| Decision Log | `.forge/knowledge/decision-log.md` |
+| ADRs         | `.forge/knowledge/adr/`            |
+| Plan         | _Created by `/forge-plan`_         |
+| Tasks        | _Created by `/forge-tasks`_        |
 
 ## Testing Strategy
 
@@ -269,9 +274,9 @@ Phase 0.
 
 ## Risks
 
-| ID   | Risk                                                        | Impact | Likelihood | Mitigation                                                                              |
-| ---- | ----------------------------------------------------------- | ------ | ---------- | --------------------------------------------------------------------------------------- |
-| R-01 | Redpanda single-node instability in CI                      | MEDIUM | MEDIUM     | Tune container resource limits, add healthcheck retries with backoff, use Redpanda dev mode |
-| R-02 | Keycloak realm import JSON format changes across versions   | LOW    | LOW        | Pin Keycloak image to exact digest, version-lock realm export JSON                      |
-| R-03 | Docker Compose resource limits exceed CI runner capacity     | HIGH   | MEDIUM     | Profile memory usage per container, set explicit memory limits, use GitHub Actions Large Runner if needed |
-| R-04 | pnpm workspace hoisting conflicts with native dependencies  | MEDIUM | LOW        | Use `.pnpmfile.cjs` hooks for problem packages                                          |
+| ID   | Risk                                                       | Impact | Likelihood | Mitigation                                                                                                |
+| ---- | ---------------------------------------------------------- | ------ | ---------- | --------------------------------------------------------------------------------------------------------- |
+| R-01 | Redpanda single-node instability in CI                     | MEDIUM | MEDIUM     | Tune container resource limits, add healthcheck retries with backoff, use Redpanda dev mode               |
+| R-02 | Keycloak realm import JSON format changes across versions  | LOW    | LOW        | Pin Keycloak image to exact digest, version-lock realm export JSON                                        |
+| R-03 | Docker Compose resource limits exceed CI runner capacity   | HIGH   | MEDIUM     | Profile memory usage per container, set explicit memory limits, use GitHub Actions Large Runner if needed |
+| R-04 | pnpm workspace hoisting conflicts with native dependencies | MEDIUM | LOW        | Use `.pnpmfile.cjs` hooks for problem packages                                                            |

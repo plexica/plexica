@@ -3,13 +3,13 @@
 > Technical implementation plan for Phase 0 — Infrastructure Setup.
 > Created by the `forge-architect` agent via `/forge-plan`.
 
-| Field   | Value                                              |
-| ------- | -------------------------------------------------- |
-| Status  | Draft                                              |
-| Author  | forge-architect                                    |
-| Date    | 2026-03-26                                         |
-| Track   | Feature                                            |
-| Spec    | `.forge/specs/001-infrastructure-setup/spec.md`    |
+| Field  | Value                                           |
+| ------ | ----------------------------------------------- |
+| Status | Draft                                           |
+| Author | forge-architect                                 |
+| Date   | 2026-03-26                                      |
+| Track  | Feature                                         |
+| Spec   | `.forge/specs/001-infrastructure-setup/spec.md` |
 
 ---
 
@@ -41,14 +41,14 @@ All tables live in the `core` schema. Created via Prisma migration.
 
 #### core.tenants
 
-| Column       | Type                     | Constraints                          | Notes                              |
-| ------------ | ------------------------ | ------------------------------------ | ---------------------------------- |
-| `id`         | `UUID`                   | PK, DEFAULT `gen_random_uuid()`      | Immutable tenant identifier        |
-| `slug`       | `VARCHAR(63)`            | UNIQUE, NOT NULL                     | DNS-safe, used for schema naming   |
-| `name`       | `VARCHAR(255)`           | NOT NULL                             | Human-readable display name        |
-| `status`     | `tenant_status` (enum)   | NOT NULL, DEFAULT `'active'`         | Enum: `active`, `suspended`, `deleted` |
-| `created_at` | `TIMESTAMPTZ`            | NOT NULL, DEFAULT `now()`            | Immutable                          |
-| `updated_at` | `TIMESTAMPTZ`            | NOT NULL, DEFAULT `now()`            | Updated via trigger or Prisma      |
+| Column       | Type                   | Constraints                     | Notes                                  |
+| ------------ | ---------------------- | ------------------------------- | -------------------------------------- |
+| `id`         | `UUID`                 | PK, DEFAULT `gen_random_uuid()` | Immutable tenant identifier            |
+| `slug`       | `VARCHAR(63)`          | UNIQUE, NOT NULL                | DNS-safe, used for schema naming       |
+| `name`       | `VARCHAR(255)`         | NOT NULL                        | Human-readable display name            |
+| `status`     | `tenant_status` (enum) | NOT NULL, DEFAULT `'active'`    | Enum: `active`, `suspended`, `deleted` |
+| `created_at` | `TIMESTAMPTZ`          | NOT NULL, DEFAULT `now()`       | Immutable                              |
+| `updated_at` | `TIMESTAMPTZ`          | NOT NULL, DEFAULT `now()`       | Updated via trigger or Prisma          |
 
 **Enum definition**: `CREATE TYPE core.tenant_status AS ENUM ('active', 'suspended', 'deleted');`
 
@@ -56,14 +56,14 @@ All tables live in the `core` schema. Created via Prisma migration.
 
 #### core.tenant_configs
 
-| Column           | Type            | Constraints                              | Notes                              |
-| ---------------- | --------------- | ---------------------------------------- | ---------------------------------- |
-| `id`             | `UUID`          | PK, DEFAULT `gen_random_uuid()`          | Config record identifier           |
-| `tenant_id`      | `UUID`          | FK → `core.tenants(id)`, UNIQUE, NOT NULL | One config per tenant              |
-| `keycloak_realm` | `VARCHAR(255)`  | UNIQUE, NOT NULL                         | e.g. `plexica-acme`               |
-| `settings`       | `JSONB`         | NOT NULL, DEFAULT `'{}'::jsonb`          | Extensible tenant settings         |
-| `created_at`     | `TIMESTAMPTZ`   | NOT NULL, DEFAULT `now()`                | Immutable                          |
-| `updated_at`     | `TIMESTAMPTZ`   | NOT NULL, DEFAULT `now()`                | Updated via trigger or Prisma      |
+| Column           | Type           | Constraints                               | Notes                         |
+| ---------------- | -------------- | ----------------------------------------- | ----------------------------- |
+| `id`             | `UUID`         | PK, DEFAULT `gen_random_uuid()`           | Config record identifier      |
+| `tenant_id`      | `UUID`         | FK → `core.tenants(id)`, UNIQUE, NOT NULL | One config per tenant         |
+| `keycloak_realm` | `VARCHAR(255)` | UNIQUE, NOT NULL                          | e.g. `plexica-acme`           |
+| `settings`       | `JSONB`        | NOT NULL, DEFAULT `'{}'::jsonb`           | Extensible tenant settings    |
+| `created_at`     | `TIMESTAMPTZ`  | NOT NULL, DEFAULT `now()`                 | Immutable                     |
+| `updated_at`     | `TIMESTAMPTZ`  | NOT NULL, DEFAULT `now()`                 | Updated via trigger or Prisma |
 
 ### 2.2 Modified Tables
 
@@ -71,14 +71,14 @@ None — greenfield setup.
 
 ### 2.3 Indexes
 
-| Table            | Index Name                          | Columns              | Type    |
-| ---------------- | ----------------------------------- | -------------------- | ------- |
-| `tenants`        | `tenants_pkey`                      | `id`                 | PK      |
-| `tenants`        | `tenants_slug_key`                  | `slug`               | UNIQUE  |
-| `tenants`        | `tenants_status_idx`                | `status`             | BTREE   |
-| `tenant_configs` | `tenant_configs_pkey`               | `id`                 | PK      |
-| `tenant_configs` | `tenant_configs_tenant_id_key`      | `tenant_id`          | UNIQUE  |
-| `tenant_configs` | `tenant_configs_keycloak_realm_key` | `keycloak_realm`     | UNIQUE  |
+| Table            | Index Name                          | Columns          | Type   |
+| ---------------- | ----------------------------------- | ---------------- | ------ |
+| `tenants`        | `tenants_pkey`                      | `id`             | PK     |
+| `tenants`        | `tenants_slug_key`                  | `slug`           | UNIQUE |
+| `tenants`        | `tenants_status_idx`                | `status`         | BTREE  |
+| `tenant_configs` | `tenant_configs_pkey`               | `id`             | PK     |
+| `tenant_configs` | `tenant_configs_tenant_id_key`      | `tenant_id`      | UNIQUE |
+| `tenant_configs` | `tenant_configs_keycloak_realm_key` | `keycloak_realm` | UNIQUE |
 
 ### 2.4 Migrations
 
@@ -140,7 +140,7 @@ CLI tool invoked via `pnpm` script, not an HTTP endpoint.
 - **Purpose**: One-command local development environment with all infrastructure services.
 - **Location**: `docker-compose.yml`, `docker-compose.ci.yml`
 - **Responsibilities**:
-  - Run PostgreSQL, Keycloak, Redis, MinIO, Redpanda (single node), Mailhog
+  - Run PostgreSQL, Keycloak, Redis, MinIO, Redpanda (single node), Mailpit
   - All services have healthchecks (NFR-01: < 60s to all green)
   - All ports configurable via `.env` with defaults in `.env.example`
 - **Key configuration**:
@@ -151,7 +151,7 @@ CLI tool invoked via `pnpm` script, not an HTTP endpoint.
     - Redis: 128MB
     - MinIO: 256MB
     - Redpanda: 512MB (dev mode)
-    - Mailhog: 64MB
+    - Mailpit: 64MB
   - Healthchecks use `test`, `interval`, `timeout`, `retries`, `start_period`
   - `docker-compose.ci.yml` extends dev compose with CI-specific overrides (no port bindings to host, tighter memory limits)
   - Named volumes for data persistence across restarts
@@ -219,13 +219,13 @@ CLI tool invoked via `pnpm` script, not an HTTP endpoint.
   - Components export from `packages/ui/src/index.ts` barrel file
 - **Component specifications** (from spec §9):
 
-  | Component | Variants | States | A11y |
-  | --------- | -------- | ------ | ---- |
-  | Button | primary, secondary, destructive, ghost, outline | disabled, loading | `aria-disabled`, `aria-busy`, focus ring |
-  | Input | text, password, email | error, disabled | `aria-invalid`, `aria-describedby` for error/helper |
-  | Dialog | — | open/closed | focus trap, ESC to close, `aria-modal`, `aria-labelledby` |
-  | Toast | success, error, warning, info | auto-dismiss, manual dismiss | `role="alert"`, `aria-live="polite"` |
-  | Table | — | sortable headers (visual only) | `role="table"`, proper `th`/`td` semantics |
+  | Component | Variants                                        | States                         | A11y                                                      |
+  | --------- | ----------------------------------------------- | ------------------------------ | --------------------------------------------------------- |
+  | Button    | primary, secondary, destructive, ghost, outline | disabled, loading              | `aria-disabled`, `aria-busy`, focus ring                  |
+  | Input     | text, password, email                           | error, disabled                | `aria-invalid`, `aria-describedby` for error/helper       |
+  | Dialog    | —                                               | open/closed                    | focus trap, ESC to close, `aria-modal`, `aria-labelledby` |
+  | Toast     | success, error, warning, info                   | auto-dismiss, manual dismiss   | `role="alert"`, `aria-live="polite"`                      |
+  | Table     | —                                               | sortable headers (visual only) | `role="table"`, proper `th`/`td` semantics                |
 
 ### 4.7 CI Pipeline
 
@@ -261,77 +261,77 @@ CLI tool invoked via `pnpm` script, not an HTTP endpoint.
 
 ### Files to Create
 
-| Path | Purpose | Complexity |
-| ---- | ------- | ---------- |
-| **Monorepo Root** | | |
-| `package.json` | Root package.json with workspace scripts, engines field | S |
-| `pnpm-workspace.yaml` | Workspace definition: `apps/*`, `packages/*`, `services/*` | S |
-| `tsconfig.base.json` | Shared strict TypeScript config | S |
-| `eslint.config.js` | Flat ESLint config with TypeScript rules | S |
-| `.prettierrc` | Prettier formatting rules | S |
-| `.npmrc` | `engine-strict=true`, `auto-install-peers=true` | S |
-| `.gitignore` | Node, build artifacts, env files, IDE files | S |
-| `.env.example` | All env vars with documented defaults | S |
-| `README.md` | Getting started, prerequisites, `docker compose up` | M |
-| **Docker Compose** | | |
-| `docker-compose.yml` | Full dev stack with 6 services + healthchecks | L |
-| `docker-compose.ci.yml` | CI override (no host ports, memory limits) | M |
-| **Infrastructure Config** | | |
-| `infra/keycloak/realm-export.json` | Test realm with 3 users, client config, roles | L |
-| `infra/redpanda/create-topics.sh` | Entrypoint script to create core topics via `rpk` | S |
-| **Core API Service** | | |
-| `services/core-api/package.json` | Service package with Prisma, Fastify, Vitest deps | S |
-| `services/core-api/tsconfig.json` | Extends `tsconfig.base.json` | S |
-| `services/core-api/prisma/schema.prisma` | Core schema: tenants, tenant_configs | M |
-| `services/core-api/prisma/migrations/001_init_core_schema/migration.sql` | Initial migration SQL | M |
-| `services/core-api/src/lib/database.ts` | Prisma client singleton with connection management | S |
-| `services/core-api/src/lib/config.ts` | Environment variable loader with Zod validation | S |
-| `services/core-api/src/lib/logger.ts` | Pino logger configuration | S |
-| `services/core-api/src/lib/tenant-schema.ts` | Tenant schema creation utility (core logic) | M |
-| `services/core-api/src/cli/create-tenant.ts` | CLI entrypoint for `tenant:create` command | S |
-| `services/core-api/vitest.config.ts` | Vitest configuration for integration tests | S |
-| **Tenant Prisma Schema** | | |
-| `services/core-api/prisma/tenant-schema.prisma` | Empty tenant schema template (validates migrations run) | S |
-| **Design System** | | |
-| `packages/ui/package.json` | Package with React, Radix UI, Tailwind deps | S |
-| `packages/ui/tsconfig.json` | Extends `tsconfig.base.json`, JSX support | S |
-| `packages/ui/tailwind-preset.ts` | Tailwind preset with design tokens | M |
-| `packages/ui/src/tokens/colors.css` | CSS custom properties: neutral, primary, semantic scales | M |
-| `packages/ui/src/tokens/spacing.css` | CSS custom properties: spacing scale | S |
-| `packages/ui/src/tokens/radius.css` | CSS custom properties: border-radius scale | S |
-| `packages/ui/src/tokens/typography.css` | Inter font, font sizes, line heights | S |
-| `packages/ui/src/tokens/index.css` | Token barrel — imports all token files | S |
-| `packages/ui/src/components/button.tsx` | Button component (Radix Slot-based) | M |
-| `packages/ui/src/components/input.tsx` | Input component with error/helper states | M |
-| `packages/ui/src/components/dialog.tsx` | Dialog component (Radix Dialog primitive) | M |
-| `packages/ui/src/components/toast.tsx` | Toast component (Radix Toast primitive) | M |
-| `packages/ui/src/components/table.tsx` | Table component with sortable header visuals | M |
-| `packages/ui/src/index.ts` | Barrel export for all components and tokens | S |
-| `packages/ui/.storybook/main.ts` | Storybook config with Vite builder | S |
-| `packages/ui/.storybook/preview.ts` | Storybook preview with token imports, dark mode toggle | S |
-| `packages/ui/src/stories/button.stories.tsx` | Button stories — all variants and states | S |
-| `packages/ui/src/stories/input.stories.tsx` | Input stories — all types and states | S |
-| `packages/ui/src/stories/dialog.stories.tsx` | Dialog stories — open/close, focus trap | S |
-| `packages/ui/src/stories/toast.stories.tsx` | Toast stories — all variants, auto-dismiss | S |
-| `packages/ui/src/stories/table.stories.tsx` | Table stories — sortable headers | S |
-| **Frontend App (Shell)** | | |
-| `apps/web/package.json` | Web app with React, Vite, TanStack Router | S |
-| `apps/web/tsconfig.json` | Extends `tsconfig.base.json` | S |
-| `apps/web/vite.config.ts` | Vite config with React plugin | S |
-| `apps/web/index.html` | HTML entry point | S |
-| `apps/web/src/main.tsx` | React app entry — renders login redirect placeholder | S |
-| `apps/web/src/app.tsx` | Root App component (minimal — routes to login) | S |
-| `apps/web/playwright.config.ts` | Playwright config for E2E tests | S |
-| `apps/web/e2e/smoke.spec.ts` | E2E smoke test: login page renders | S |
-| **CI** | | |
-| `.github/workflows/ci.yml` | Full CI pipeline with all stages | L |
-| **Integration Tests** | | |
-| `services/core-api/src/__tests__/smoke-db.test.ts` | PostgreSQL connection + core schema exists | S |
-| `services/core-api/src/__tests__/smoke-keycloak.test.ts` | Keycloak realm accessible, token exchange works | S |
-| `services/core-api/src/__tests__/smoke-redis.test.ts` | Redis connection, set/get round-trip | S |
-| `services/core-api/src/__tests__/smoke-redpanda.test.ts` | Redpanda produce/consume round-trip on `tenant.events` | M |
-| `services/core-api/src/__tests__/smoke-minio.test.ts` | MinIO connection, bucket create/list | S |
-| `services/core-api/src/__tests__/tenant-schema.test.ts` | Tenant creation utility — happy path + duplicate error | M |
+| Path                                                                     | Purpose                                                    | Complexity |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------- | ---------- |
+| **Monorepo Root**                                                        |                                                            |            |
+| `package.json`                                                           | Root package.json with workspace scripts, engines field    | S          |
+| `pnpm-workspace.yaml`                                                    | Workspace definition: `apps/*`, `packages/*`, `services/*` | S          |
+| `tsconfig.base.json`                                                     | Shared strict TypeScript config                            | S          |
+| `eslint.config.js`                                                       | Flat ESLint config with TypeScript rules                   | S          |
+| `.prettierrc`                                                            | Prettier formatting rules                                  | S          |
+| `.npmrc`                                                                 | `engine-strict=true`, `auto-install-peers=true`            | S          |
+| `.gitignore`                                                             | Node, build artifacts, env files, IDE files                | S          |
+| `.env.example`                                                           | All env vars with documented defaults                      | S          |
+| `README.md`                                                              | Getting started, prerequisites, `docker compose up`        | M          |
+| **Docker Compose**                                                       |                                                            |            |
+| `docker-compose.yml`                                                     | Full dev stack with 6 services + healthchecks              | L          |
+| `docker-compose.ci.yml`                                                  | CI override (no host ports, memory limits)                 | M          |
+| **Infrastructure Config**                                                |                                                            |            |
+| `infra/keycloak/realm-export.json`                                       | Test realm with 3 users, client config, roles              | L          |
+| `infra/redpanda/create-topics.sh`                                        | Entrypoint script to create core topics via `rpk`          | S          |
+| **Core API Service**                                                     |                                                            |            |
+| `services/core-api/package.json`                                         | Service package with Prisma, Fastify, Vitest deps          | S          |
+| `services/core-api/tsconfig.json`                                        | Extends `tsconfig.base.json`                               | S          |
+| `services/core-api/prisma/schema.prisma`                                 | Core schema: tenants, tenant_configs                       | M          |
+| `services/core-api/prisma/migrations/001_init_core_schema/migration.sql` | Initial migration SQL                                      | M          |
+| `services/core-api/src/lib/database.ts`                                  | Prisma client singleton with connection management         | S          |
+| `services/core-api/src/lib/config.ts`                                    | Environment variable loader with Zod validation            | S          |
+| `services/core-api/src/lib/logger.ts`                                    | Pino logger configuration                                  | S          |
+| `services/core-api/src/lib/tenant-schema.ts`                             | Tenant schema creation utility (core logic)                | M          |
+| `services/core-api/src/cli/create-tenant.ts`                             | CLI entrypoint for `tenant:create` command                 | S          |
+| `services/core-api/vitest.config.ts`                                     | Vitest configuration for integration tests                 | S          |
+| **Tenant Prisma Schema**                                                 |                                                            |            |
+| `services/core-api/prisma/tenant-schema.prisma`                          | Empty tenant schema template (validates migrations run)    | S          |
+| **Design System**                                                        |                                                            |            |
+| `packages/ui/package.json`                                               | Package with React, Radix UI, Tailwind deps                | S          |
+| `packages/ui/tsconfig.json`                                              | Extends `tsconfig.base.json`, JSX support                  | S          |
+| `packages/ui/tailwind-preset.ts`                                         | Tailwind preset with design tokens                         | M          |
+| `packages/ui/src/tokens/colors.css`                                      | CSS custom properties: neutral, primary, semantic scales   | M          |
+| `packages/ui/src/tokens/spacing.css`                                     | CSS custom properties: spacing scale                       | S          |
+| `packages/ui/src/tokens/radius.css`                                      | CSS custom properties: border-radius scale                 | S          |
+| `packages/ui/src/tokens/typography.css`                                  | Inter font, font sizes, line heights                       | S          |
+| `packages/ui/src/tokens/index.css`                                       | Token barrel — imports all token files                     | S          |
+| `packages/ui/src/components/button.tsx`                                  | Button component (Radix Slot-based)                        | M          |
+| `packages/ui/src/components/input.tsx`                                   | Input component with error/helper states                   | M          |
+| `packages/ui/src/components/dialog.tsx`                                  | Dialog component (Radix Dialog primitive)                  | M          |
+| `packages/ui/src/components/toast.tsx`                                   | Toast component (Radix Toast primitive)                    | M          |
+| `packages/ui/src/components/table.tsx`                                   | Table component with sortable header visuals               | M          |
+| `packages/ui/src/index.ts`                                               | Barrel export for all components and tokens                | S          |
+| `packages/ui/.storybook/main.ts`                                         | Storybook config with Vite builder                         | S          |
+| `packages/ui/.storybook/preview.ts`                                      | Storybook preview with token imports, dark mode toggle     | S          |
+| `packages/ui/src/stories/button.stories.tsx`                             | Button stories — all variants and states                   | S          |
+| `packages/ui/src/stories/input.stories.tsx`                              | Input stories — all types and states                       | S          |
+| `packages/ui/src/stories/dialog.stories.tsx`                             | Dialog stories — open/close, focus trap                    | S          |
+| `packages/ui/src/stories/toast.stories.tsx`                              | Toast stories — all variants, auto-dismiss                 | S          |
+| `packages/ui/src/stories/table.stories.tsx`                              | Table stories — sortable headers                           | S          |
+| **Frontend App (Shell)**                                                 |                                                            |            |
+| `apps/web/package.json`                                                  | Web app with React, Vite, TanStack Router                  | S          |
+| `apps/web/tsconfig.json`                                                 | Extends `tsconfig.base.json`                               | S          |
+| `apps/web/vite.config.ts`                                                | Vite config with React plugin                              | S          |
+| `apps/web/index.html`                                                    | HTML entry point                                           | S          |
+| `apps/web/src/main.tsx`                                                  | React app entry — renders login redirect placeholder       | S          |
+| `apps/web/src/app.tsx`                                                   | Root App component (minimal — routes to login)             | S          |
+| `apps/web/playwright.config.ts`                                          | Playwright config for E2E tests                            | S          |
+| `apps/web/e2e/smoke.spec.ts`                                             | E2E smoke test: login page renders                         | S          |
+| **CI**                                                                   |                                                            |            |
+| `.github/workflows/ci.yml`                                               | Full CI pipeline with all stages                           | L          |
+| **Integration Tests**                                                    |                                                            |            |
+| `services/core-api/src/__tests__/smoke-db.test.ts`                       | PostgreSQL connection + core schema exists                 | S          |
+| `services/core-api/src/__tests__/smoke-keycloak.test.ts`                 | Keycloak realm accessible, token exchange works            | S          |
+| `services/core-api/src/__tests__/smoke-redis.test.ts`                    | Redis connection, set/get round-trip                       | S          |
+| `services/core-api/src/__tests__/smoke-redpanda.test.ts`                 | Redpanda produce/consume round-trip on `tenant.events`     | M          |
+| `services/core-api/src/__tests__/smoke-minio.test.ts`                    | MinIO connection, bucket create/list                       | S          |
+| `services/core-api/src/__tests__/tenant-schema.test.ts`                  | Tenant creation utility — happy path + duplicate error     | M          |
 
 ### Files to Modify
 
@@ -343,13 +343,13 @@ None — greenfield setup.
 
 ### Files to Reference (Read-only)
 
-| Path | Purpose |
-| ---- | ------- |
-| `.forge/constitution.md` | Validate architectural decisions |
-| `.forge/knowledge/adr/adr-001-schema-per-tenant.md` | Schema-per-tenant pattern |
-| `.forge/knowledge/adr/adr-002-keycloak-multi-realm.md` | Keycloak realm-per-tenant |
-| `.forge/knowledge/adr/adr-004-kafka-redpanda-event-bus.md` | Redpanda topic conventions |
-| `docs/02-ARCHITETTURA.md` | Architecture reference |
+| Path                                                       | Purpose                          |
+| ---------------------------------------------------------- | -------------------------------- |
+| `.forge/constitution.md`                                   | Validate architectural decisions |
+| `.forge/knowledge/adr/adr-001-schema-per-tenant.md`        | Schema-per-tenant pattern        |
+| `.forge/knowledge/adr/adr-002-keycloak-multi-realm.md`     | Keycloak realm-per-tenant        |
+| `.forge/knowledge/adr/adr-004-kafka-redpanda-event-bus.md` | Redpanda topic conventions       |
+| `docs/02-ARCHITETTURA.md`                                  | Architecture reference           |
 
 ---
 
@@ -357,55 +357,55 @@ None — greenfield setup.
 
 ### 6.1 New Dependencies (Root)
 
-| Package | Version | Purpose |
-| ------- | ------- | ------- |
-| `typescript` | ^5.9 | Language (Constitution) |
-| `eslint` | latest | Linting (Constitution) |
-| `prettier` | latest | Formatting (Constitution) |
-| `@typescript-eslint/eslint-plugin` | latest | TS ESLint rules |
-| `@typescript-eslint/parser` | latest | TS ESLint parser |
+| Package                            | Version | Purpose                   |
+| ---------------------------------- | ------- | ------------------------- |
+| `typescript`                       | ^5.9    | Language (Constitution)   |
+| `eslint`                           | latest  | Linting (Constitution)    |
+| `prettier`                         | latest  | Formatting (Constitution) |
+| `@typescript-eslint/eslint-plugin` | latest  | TS ESLint rules           |
+| `@typescript-eslint/parser`        | latest  | TS ESLint parser          |
 
 ### 6.2 New Dependencies (`services/core-api`)
 
-| Package | Version | Purpose |
-| ------- | ------- | ------- |
-| `fastify` | ^5 | HTTP framework (Constitution) |
-| `prisma` | ^6 | ORM / migrations (Constitution) |
-| `@prisma/client` | ^6 | Prisma client runtime |
-| `pino` | latest | Structured logging |
-| `zod` | latest | Input validation |
-| `vitest` | ^4 | Test runner (Constitution) |
-| `ioredis` | ^5 | Redis client (Constitution) |
-| `kafkajs` | ^2 | Kafka client for Redpanda (Constitution) |
-| `minio` | ^8 | MinIO client (Constitution) |
+| Package          | Version | Purpose                                  |
+| ---------------- | ------- | ---------------------------------------- |
+| `fastify`        | ^5      | HTTP framework (Constitution)            |
+| `prisma`         | ^6      | ORM / migrations (Constitution)          |
+| `@prisma/client` | ^6      | Prisma client runtime                    |
+| `pino`           | latest  | Structured logging                       |
+| `zod`            | latest  | Input validation                         |
+| `vitest`         | ^4      | Test runner (Constitution)               |
+| `ioredis`        | ^5      | Redis client (Constitution)              |
+| `kafkajs`        | ^2      | Kafka client for Redpanda (Constitution) |
+| `minio`          | ^8      | MinIO client (Constitution)              |
 
 ### 6.3 New Dependencies (`packages/ui`)
 
-| Package | Version | Purpose |
-| ------- | ------- | ------- |
-| `react` | ^19 | UI framework (Constitution) |
-| `react-dom` | ^19 | React DOM renderer |
-| `@radix-ui/react-dialog` | latest | Dialog primitive (Constitution) |
-| `@radix-ui/react-toast` | latest | Toast primitive |
-| `@radix-ui/react-slot` | latest | Button composition |
-| `tailwindcss` | latest | Styling (Constitution) |
-| `class-variance-authority` | latest | Variant management for components |
-| `clsx` | latest | Class name utility |
-| `tailwind-merge` | latest | Tailwind class deduplication |
-| `storybook` | latest | Component documentation |
-| `@storybook/react-vite` | latest | Storybook Vite builder |
-| `lucide-react` | latest | Icons (Constitution) |
+| Package                    | Version | Purpose                           |
+| -------------------------- | ------- | --------------------------------- |
+| `react`                    | ^19     | UI framework (Constitution)       |
+| `react-dom`                | ^19     | React DOM renderer                |
+| `@radix-ui/react-dialog`   | latest  | Dialog primitive (Constitution)   |
+| `@radix-ui/react-toast`    | latest  | Toast primitive                   |
+| `@radix-ui/react-slot`     | latest  | Button composition                |
+| `tailwindcss`              | latest  | Styling (Constitution)            |
+| `class-variance-authority` | latest  | Variant management for components |
+| `clsx`                     | latest  | Class name utility                |
+| `tailwind-merge`           | latest  | Tailwind class deduplication      |
+| `storybook`                | latest  | Component documentation           |
+| `@storybook/react-vite`    | latest  | Storybook Vite builder            |
+| `lucide-react`             | latest  | Icons (Constitution)              |
 
 ### 6.4 New Dependencies (`apps/web`)
 
-| Package | Version | Purpose |
-| ------- | ------- | ------- |
-| `react` | ^19 | UI framework (Constitution) |
-| `react-dom` | ^19 | React DOM renderer |
-| `vite` | latest | Build tool (Constitution) |
-| `@vitejs/plugin-react` | latest | Vite React plugin |
-| `@tanstack/react-router` | latest | Routing (Constitution) |
-| `@playwright/test` | latest | E2E testing (Constitution) |
+| Package                  | Version | Purpose                     |
+| ------------------------ | ------- | --------------------------- |
+| `react`                  | ^19     | UI framework (Constitution) |
+| `react-dom`              | ^19     | React DOM renderer          |
+| `vite`                   | latest  | Build tool (Constitution)   |
+| `@vitejs/plugin-react`   | latest  | Vite React plugin           |
+| `@tanstack/react-router` | latest  | Routing (Constitution)      |
+| `@playwright/test`       | latest  | E2E testing (Constitution)  |
 
 ### 6.5 Internal Dependencies
 
@@ -422,6 +422,7 @@ None — greenfield setup.
 **Objective**: Establish workspace structure, tooling, and shared configs.
 
 **Files to Create**:
+
 - `package.json` — Root with `engines: { "node": ">=20" }`, workspace scripts
 - `pnpm-workspace.yaml` — `packages: ['apps/*', 'packages/*', 'services/*']`
 - `tsconfig.base.json` — Strict mode, path aliases
@@ -441,12 +442,14 @@ empty workspace.
 **Objective**: All 6 infrastructure services running with healthchecks.
 
 **Files to Create**:
+
 - `docker-compose.yml` — Full stack definition
 - `docker-compose.ci.yml` — CI override
 - `infra/keycloak/realm-export.json` — Test realm with 3 users
 - `infra/redpanda/create-topics.sh` — Topic creation script
 
 **Tasks**:
+
 1. [ ] Pin all Docker images to exact SHA digests (NFR-05)
 2. [ ] Configure healthchecks for all 6 services
 3. [ ] Set memory limits for CI stability (edge case #7)
@@ -464,6 +467,7 @@ empty workspace.
 **Objective**: Prisma schema, core migration, and tenant creation utility.
 
 **Files to Create**:
+
 - `services/core-api/package.json`
 - `services/core-api/tsconfig.json`
 - `services/core-api/prisma/schema.prisma`
@@ -477,6 +481,7 @@ empty workspace.
 - `services/core-api/vitest.config.ts`
 
 **Tasks**:
+
 1. [ ] Define Prisma schema with multi-schema support (`core` schema)
 2. [ ] Generate and verify migration SQL
 3. [ ] Implement `tenant-schema.ts` with validation, transaction, and error handling
@@ -493,6 +498,7 @@ empty workspace.
 **Objective**: Design tokens + 5 Radix UI components + Storybook.
 
 **Files to Create**:
+
 - `packages/ui/package.json`
 - `packages/ui/tsconfig.json`
 - `packages/ui/tailwind-preset.ts`
@@ -516,6 +522,7 @@ empty workspace.
 - `packages/ui/src/stories/table.stories.tsx`
 
 **Tasks**:
+
 1. [ ] Define color tokens (neutral 50-950, primary blue 50-950, semantic colors) as CSS custom properties
 2. [ ] Implement light/dark mode via `[data-theme="dark"]` selector
 3. [ ] Create Tailwind preset consuming CSS custom properties
@@ -533,6 +540,7 @@ empty workspace.
 **Objective**: Minimal web app that shows a login page (or Keycloak redirect placeholder).
 
 **Files to Create**:
+
 - `apps/web/package.json`
 - `apps/web/tsconfig.json`
 - `apps/web/vite.config.ts`
@@ -541,6 +549,7 @@ empty workspace.
 - `apps/web/src/app.tsx`
 
 **Tasks**:
+
 1. [ ] Configure Vite with React plugin and `@plexica/ui` consumption
 2. [ ] Create minimal App component that renders a login page placeholder
 3. [ ] Verify `pnpm --filter web dev` starts and page renders
@@ -554,6 +563,7 @@ empty workspace.
 **Objective**: Vitest integration tests proving every infrastructure service is reachable and functional.
 
 **Files to Create**:
+
 - `services/core-api/src/__tests__/smoke-db.test.ts`
 - `services/core-api/src/__tests__/smoke-keycloak.test.ts`
 - `services/core-api/src/__tests__/smoke-redis.test.ts`
@@ -562,6 +572,7 @@ empty workspace.
 - `services/core-api/src/__tests__/tenant-schema.test.ts`
 
 **Tasks**:
+
 1. [ ] DB smoke: connect, verify `core` schema and tables exist
 2. [ ] Keycloak smoke: call OIDC discovery endpoint, exchange client credentials for token
 3. [ ] Redis smoke: SET, GET, DEL round-trip
@@ -578,11 +589,13 @@ empty workspace.
 **Objective**: Playwright smoke test and full CI pipeline configuration.
 
 **Files to Create**:
+
 - `apps/web/playwright.config.ts`
 - `apps/web/e2e/smoke.spec.ts`
 - `.github/workflows/ci.yml`
 
 **Tasks**:
+
 1. [ ] Configure Playwright for Chromium-only, base URL `http://localhost:3000`
 2. [ ] Write smoke test: navigate to `/`, assert login page elements visible
 3. [ ] Configure CI pipeline with all stages (lint → typecheck → build → Docker up → seed → unit → integration → E2E → teardown)
@@ -608,6 +621,7 @@ Phase 1 (Monorepo)
 **Critical path**: Phase 1 → Phase 2 → Phase 3 → Phase 6 → Phase 7
 
 **Parallel tracks**:
+
 - Track A: Phases 1 → 2 → 3 → 6 (backend/infra)
 - Track B: Phases 1 → 4 → 5 (frontend/design system)
 - Merge: Phase 7 (depends on both tracks)
@@ -620,19 +634,19 @@ Phase 1 (Monorepo)
 
 These tests run against real Docker services — no mocks (Constitution: "tests that ran against mocks instead of real services" was a v1 failure).
 
-| Test File | Service | What It Proves | FR Ref |
-| --------- | ------- | -------------- | ------ |
-| `smoke-db.test.ts` | PostgreSQL | Connection works, `core` schema exists, `tenants` + `tenant_configs` tables exist | FR-006 |
-| `smoke-keycloak.test.ts` | Keycloak | `plexica-test` realm accessible, OIDC discovery works, token exchange succeeds | FR-005 |
-| `smoke-redis.test.ts` | Redis | Connection works, SET/GET/DEL round-trip | FR-002 |
-| `smoke-redpanda.test.ts` | Redpanda | Connection works, produce/consume on `tenant.events`, all 3 topics exist | FR-008 |
-| `smoke-minio.test.ts` | MinIO | Connection works, bucket CRUD operations | FR-002 |
-| `tenant-schema.test.ts` | PostgreSQL | Tenant creation happy path, duplicate slug rejection, schema exists in PG | FR-007 |
+| Test File                | Service    | What It Proves                                                                    | FR Ref |
+| ------------------------ | ---------- | --------------------------------------------------------------------------------- | ------ |
+| `smoke-db.test.ts`       | PostgreSQL | Connection works, `core` schema exists, `tenants` + `tenant_configs` tables exist | FR-006 |
+| `smoke-keycloak.test.ts` | Keycloak   | `plexica-test` realm accessible, OIDC discovery works, token exchange succeeds    | FR-005 |
+| `smoke-redis.test.ts`    | Redis      | Connection works, SET/GET/DEL round-trip                                          | FR-002 |
+| `smoke-redpanda.test.ts` | Redpanda   | Connection works, produce/consume on `tenant.events`, all 3 topics exist          | FR-008 |
+| `smoke-minio.test.ts`    | MinIO      | Connection works, bucket CRUD operations                                          | FR-002 |
+| `tenant-schema.test.ts`  | PostgreSQL | Tenant creation happy path, duplicate slug rejection, schema exists in PG         | FR-007 |
 
 ### 8.2 E2E Test (Playwright)
 
-| Test File | What It Proves | FR Ref |
-| --------- | -------------- | ------ |
+| Test File       | What It Proves                                                  | FR Ref |
+| --------------- | --------------------------------------------------------------- | ------ |
 | `smoke.spec.ts` | Login page renders in a real browser, key form elements visible | FR-012 |
 
 ### 8.3 What "Green CI" Means for This Spec
@@ -653,14 +667,14 @@ All of the following must pass:
 
 ## 9. Architectural Decisions
 
-| ADR | Decision | Relevance to This Spec |
-| --- | -------- | ---------------------- |
-| ADR-001 | Schema-per-tenant PostgreSQL | Core schema + tenant utility directly implement this |
-| ADR-002 | Keycloak multi-realm | Realm export and test users establish the pattern |
-| ADR-004 | Redpanda for event bus | Topic creation and single-node dev setup |
-| ADR-006 | Plugin tables in tenant schema | Tenant schema structure prepared for future plugin tables |
-| ADR-007 | Plugin-brings-migrations, core-executes | Tenant utility establishes the migration runner pattern |
-| ADR-008 | TypeScript core | Core API service uses TypeScript exclusively |
+| ADR     | Decision                                | Relevance to This Spec                                    |
+| ------- | --------------------------------------- | --------------------------------------------------------- |
+| ADR-001 | Schema-per-tenant PostgreSQL            | Core schema + tenant utility directly implement this      |
+| ADR-002 | Keycloak multi-realm                    | Realm export and test users establish the pattern         |
+| ADR-004 | Redpanda for event bus                  | Topic creation and single-node dev setup                  |
+| ADR-006 | Plugin tables in tenant schema          | Tenant schema structure prepared for future plugin tables |
+| ADR-007 | Plugin-brings-migrations, core-executes | Tenant utility establishes the migration runner pattern   |
+| ADR-008 | TypeScript core                         | Core API service uses TypeScript exclusively              |
 
 **New ADRs needed**: None.
 
@@ -668,78 +682,78 @@ All of the following must pass:
 
 ## 10. Requirement Traceability
 
-| Requirement | Plan Section | Implementation Component | Acceptance Test |
-| ----------- | ------------ | ------------------------ | --------------- |
-| FR-001 | §7 Phase 1 | Monorepo root files | Lint + typecheck in CI |
-| FR-002 | §7 Phase 2 | `docker-compose.yml` | `smoke-db`, `smoke-redis`, `smoke-minio` |
-| FR-003 | §7 Phase 2 | `.env.example` + compose `${VAR:-default}` | Manual: override port in `.env`, verify |
-| FR-004 | §7 Phase 7 | `docker-compose.ci.yml` + `.github/workflows/ci.yml` | CI pipeline runs Docker up stage |
-| FR-005 | §7 Phase 2 | `infra/keycloak/realm-export.json` | `smoke-keycloak.test.ts` |
-| FR-006 | §7 Phase 3 | Prisma schema + migration | `smoke-db.test.ts` |
-| FR-007 | §7 Phase 3 | `tenant-schema.ts` + `create-tenant.ts` | `tenant-schema.test.ts` |
-| FR-008 | §7 Phase 2 | `infra/redpanda/create-topics.sh` | `smoke-redpanda.test.ts` |
-| FR-009 | §7 Phase 4 | `packages/ui/src/tokens/` | Storybook visual verification |
-| FR-010 | §7 Phase 4 | `packages/ui/src/components/` + stories | Storybook renders all 5 |
-| FR-011 | §7 Phase 7 | `.github/workflows/ci.yml` | CI pipeline completes all stages |
-| FR-012 | §7 Phase 7 | `apps/web/e2e/smoke.spec.ts` | Playwright test passes |
-| NFR-01 | §4.2 | Docker Compose healthchecks + resource config | Timed: `docker compose up --wait` < 60s |
-| NFR-02 | §7 Phase 7 | CI pipeline optimization | CI run duration < 10 min |
-| NFR-03 | §7 Phase 1 | pnpm workspace + `.npmrc` | Timed: `pnpm install` from clean < 90s |
-| NFR-04 | §7 Phase 4 | Storybook Vite builder config | Timed: Storybook cold start < 15s |
-| NFR-05 | §7 Phase 2 | Docker image digest pins | Audit: all images use `@sha256:` |
-| NFR-06 | §7 Phase 2 | `.env.example` + compose variables | Test: override port, verify service binds |
+| Requirement | Plan Section | Implementation Component                             | Acceptance Test                           |
+| ----------- | ------------ | ---------------------------------------------------- | ----------------------------------------- |
+| FR-001      | §7 Phase 1   | Monorepo root files                                  | Lint + typecheck in CI                    |
+| FR-002      | §7 Phase 2   | `docker-compose.yml`                                 | `smoke-db`, `smoke-redis`, `smoke-minio`  |
+| FR-003      | §7 Phase 2   | `.env.example` + compose `${VAR:-default}`           | Manual: override port in `.env`, verify   |
+| FR-004      | §7 Phase 7   | `docker-compose.ci.yml` + `.github/workflows/ci.yml` | CI pipeline runs Docker up stage          |
+| FR-005      | §7 Phase 2   | `infra/keycloak/realm-export.json`                   | `smoke-keycloak.test.ts`                  |
+| FR-006      | §7 Phase 3   | Prisma schema + migration                            | `smoke-db.test.ts`                        |
+| FR-007      | §7 Phase 3   | `tenant-schema.ts` + `create-tenant.ts`              | `tenant-schema.test.ts`                   |
+| FR-008      | §7 Phase 2   | `infra/redpanda/create-topics.sh`                    | `smoke-redpanda.test.ts`                  |
+| FR-009      | §7 Phase 4   | `packages/ui/src/tokens/`                            | Storybook visual verification             |
+| FR-010      | §7 Phase 4   | `packages/ui/src/components/` + stories              | Storybook renders all 5                   |
+| FR-011      | §7 Phase 7   | `.github/workflows/ci.yml`                           | CI pipeline completes all stages          |
+| FR-012      | §7 Phase 7   | `apps/web/e2e/smoke.spec.ts`                         | Playwright test passes                    |
+| NFR-01      | §4.2         | Docker Compose healthchecks + resource config        | Timed: `docker compose up --wait` < 60s   |
+| NFR-02      | §7 Phase 7   | CI pipeline optimization                             | CI run duration < 10 min                  |
+| NFR-03      | §7 Phase 1   | pnpm workspace + `.npmrc`                            | Timed: `pnpm install` from clean < 90s    |
+| NFR-04      | §7 Phase 4   | Storybook Vite builder config                        | Timed: Storybook cold start < 15s         |
+| NFR-05      | §7 Phase 2   | Docker image digest pins                             | Audit: all images use `@sha256:`          |
+| NFR-06      | §7 Phase 2   | `.env.example` + compose variables                   | Test: override port, verify service binds |
 
 ---
 
 ## 11. Risk Register
 
-| ID | Risk | Impact | Likelihood | Mitigation |
-| -- | ---- | ------ | ---------- | ---------- |
-| R-01 | **Redpanda single-node instability in CI** — Redpanda may fail health checks under resource pressure in CI runners | MEDIUM | MEDIUM | Use Redpanda dev mode (`--set redpanda.developer_mode=true`), increase healthcheck retries to 10 with 5s interval, set 512MB memory limit |
-| R-02 | **Docker Compose resource limits exceed CI runner capacity** — 6 services + test runner may OOM on standard GitHub Actions runner (7GB RAM) | HIGH | MEDIUM | Profile total memory usage; set explicit memory limits per container (total < 2.5GB for services); use `docker-compose.ci.yml` with reduced limits; monitor with `docker stats`; escalate to Large Runner if needed |
-| R-03 | **Keycloak realm import failure** — Corrupted or version-incompatible realm JSON | LOW | LOW | Pin Keycloak to exact image digest; export realm from the same version; healthcheck verifies realm endpoint responds; CI fails fast at Docker-up stage |
-| R-04 | **Port conflict on developer machines** — Default ports (5432, 8080, 6379, etc.) already in use | LOW | MEDIUM | All ports configurable via `.env`; `.env.example` documents defaults; Docker Compose fails fast with clear error; README documents the override procedure |
-| R-05 | **Storybook cold start exceeds NFR-04 (15s)** — Heavy Radix + Tailwind dependencies may slow Storybook | LOW | LOW | Use Vite builder (not Webpack); lazy-load stories; monitor startup time; optimize imports if needed |
+| ID   | Risk                                                                                                                                        | Impact | Likelihood | Mitigation                                                                                                                                                                                                          |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-01 | **Redpanda single-node instability in CI** — Redpanda may fail health checks under resource pressure in CI runners                          | MEDIUM | MEDIUM     | Use Redpanda dev mode (`--set redpanda.developer_mode=true`), increase healthcheck retries to 10 with 5s interval, set 512MB memory limit                                                                           |
+| R-02 | **Docker Compose resource limits exceed CI runner capacity** — 6 services + test runner may OOM on standard GitHub Actions runner (7GB RAM) | HIGH   | MEDIUM     | Profile total memory usage; set explicit memory limits per container (total < 2.5GB for services); use `docker-compose.ci.yml` with reduced limits; monitor with `docker stats`; escalate to Large Runner if needed |
+| R-03 | **Keycloak realm import failure** — Corrupted or version-incompatible realm JSON                                                            | LOW    | LOW        | Pin Keycloak to exact image digest; export realm from the same version; healthcheck verifies realm endpoint responds; CI fails fast at Docker-up stage                                                              |
+| R-04 | **Port conflict on developer machines** — Default ports (5432, 8080, 6379, etc.) already in use                                             | LOW    | MEDIUM     | All ports configurable via `.env`; `.env.example` documents defaults; Docker Compose fails fast with clear error; README documents the override procedure                                                           |
+| R-05 | **Storybook cold start exceeds NFR-04 (15s)** — Heavy Radix + Tailwind dependencies may slow Storybook                                      | LOW    | LOW        | Use Vite builder (not Webpack); lazy-load stories; monitor startup time; optimize imports if needed                                                                                                                 |
 
 ### Edge Case Coverage
 
-| Edge Case (from spec §6) | Handled By |
-| ------------------------- | ---------- |
-| Port conflict | `.env` overrides (FR-003), clear error from Docker Compose |
-| Docker not installed | README prerequisites section, Docker Compose error message |
-| Keycloak realm import fails | Container healthcheck fails, stack reports unhealthy |
-| Redpanda fails to start | Healthcheck + retries, CI fails at Docker-up stage |
-| Tenant schema already exists | `tenant-schema.ts` checks before creation, returns error |
-| Node < 20 | `.npmrc` `engine-strict=true` + `package.json` `engines` field |
-| CI runner OOM | Per-container memory limits in `docker-compose.ci.yml` |
+| Edge Case (from spec §6)     | Handled By                                                     |
+| ---------------------------- | -------------------------------------------------------------- |
+| Port conflict                | `.env` overrides (FR-003), clear error from Docker Compose     |
+| Docker not installed         | README prerequisites section, Docker Compose error message     |
+| Keycloak realm import fails  | Container healthcheck fails, stack reports unhealthy           |
+| Redpanda fails to start      | Healthcheck + retries, CI fails at Docker-up stage             |
+| Tenant schema already exists | `tenant-schema.ts` checks before creation, returns error       |
+| Node < 20                    | `.npmrc` `engine-strict=true` + `package.json` `engines` field |
+| CI runner OOM                | Per-container memory limits in `docker-compose.ci.yml`         |
 
 ---
 
 ## 12. Constitution Compliance
 
-| Article | Status | Notes |
-| ------- | ------ | ----- |
-| Rule 1: E2E tests | COMPLIANT | Playwright smoke test covers the login page — the only user-interactive surface. Infrastructure features use integration smoke tests against real services. |
-| Rule 2: Green CI | COMPLIANT | Full CI pipeline defined in Phase 7 with all stages. Merge is blocked on failure. |
-| Rule 3: One pattern per type | COMPLIANT | Design system establishes the single component library (Radix + Tailwind). No competing patterns. |
-| Rule 4: 200-line limit | COMPLIANT | All files designed to stay under 200 lines. Components are individual files. Tokens split across multiple CSS files. |
-| Rule 5: ADR for arch decisions | COMPLIANT | No new architectural decisions needed — ADR-001 through ADR-009 cover all choices. |
-| Technology Stack | COMPLIANT | All technologies match the constitution: Fastify ^5, Prisma ^6, React ^19, Vite, TanStack Router, Tailwind, Radix UI, Playwright, Vitest ^4, pnpm. |
-| Architecture | COMPLIANT | Schema-per-tenant (FR-006/007), Keycloak multi-realm (FR-005), Redpanda (FR-008) all match prescribed architecture. |
-| Security | COMPLIANT | Docker images pinned to digests (NFR-05). No secrets in code. `.env.example` has placeholder values only. Zod validation on CLI inputs. |
-| Quality: WCAG 2.1 AA | COMPLIANT | All 5 UI components built on Radix primitives with proper ARIA attributes, focus management, and keyboard support. |
+| Article                        | Status    | Notes                                                                                                                                                       |
+| ------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rule 1: E2E tests              | COMPLIANT | Playwright smoke test covers the login page — the only user-interactive surface. Infrastructure features use integration smoke tests against real services. |
+| Rule 2: Green CI               | COMPLIANT | Full CI pipeline defined in Phase 7 with all stages. Merge is blocked on failure.                                                                           |
+| Rule 3: One pattern per type   | COMPLIANT | Design system establishes the single component library (Radix + Tailwind). No competing patterns.                                                           |
+| Rule 4: 200-line limit         | COMPLIANT | All files designed to stay under 200 lines. Components are individual files. Tokens split across multiple CSS files.                                        |
+| Rule 5: ADR for arch decisions | COMPLIANT | No new architectural decisions needed — ADR-001 through ADR-009 cover all choices.                                                                          |
+| Technology Stack               | COMPLIANT | All technologies match the constitution: Fastify ^5, Prisma ^6, React ^19, Vite, TanStack Router, Tailwind, Radix UI, Playwright, Vitest ^4, pnpm.          |
+| Architecture                   | COMPLIANT | Schema-per-tenant (FR-006/007), Keycloak multi-realm (FR-005), Redpanda (FR-008) all match prescribed architecture.                                         |
+| Security                       | COMPLIANT | Docker images pinned to digests (NFR-05). No secrets in code. `.env.example` has placeholder values only. Zod validation on CLI inputs.                     |
+| Quality: WCAG 2.1 AA           | COMPLIANT | All 5 UI components built on Radix primitives with proper ARIA attributes, focus management, and keyboard support.                                          |
 
 ---
 
 ## Cross-References
 
-| Document | Path |
-| -------- | ---- |
-| Spec | `.forge/specs/001-infrastructure-setup/spec.md` |
-| Constitution | `.forge/constitution.md` |
-| ADR-001 | `.forge/knowledge/adr/adr-001-schema-per-tenant.md` |
-| ADR-002 | `.forge/knowledge/adr/adr-002-keycloak-multi-realm.md` |
-| ADR-004 | `.forge/knowledge/adr/adr-004-kafka-redpanda-event-bus.md` |
-| Architecture ref | `docs/02-ARCHITETTURA.md` |
-| Decision Log | `.forge/knowledge/decision-log.md` |
-| Tasks | _Created by `/forge-tasks`_ |
+| Document         | Path                                                       |
+| ---------------- | ---------------------------------------------------------- |
+| Spec             | `.forge/specs/001-infrastructure-setup/spec.md`            |
+| Constitution     | `.forge/constitution.md`                                   |
+| ADR-001          | `.forge/knowledge/adr/adr-001-schema-per-tenant.md`        |
+| ADR-002          | `.forge/knowledge/adr/adr-002-keycloak-multi-realm.md`     |
+| ADR-004          | `.forge/knowledge/adr/adr-004-kafka-redpanda-event-bus.md` |
+| Architecture ref | `docs/02-ARCHITETTURA.md`                                  |
+| Decision Log     | `.forge/knowledge/decision-log.md`                         |
+| Tasks            | _Created by `/forge-tasks`_                                |

@@ -1,6 +1,6 @@
 version: 1
 sprint_number: 1
-sprint_goal: "Bootstrap l'intero ambiente di sviluppo: monorepo pnpm, stack Docker (PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailhog), design system @plexica/ui con 5 componenti Radix, schema core PostgreSQL, utility CLI tenant, pipeline CI GitHub Actions e smoke test E2E Playwright."
+sprint_goal: "Bootstrap l'intero ambiente di sviluppo: monorepo pnpm, stack Docker (PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailpit), design system @plexica/ui con 5 componenti Radix, schema core PostgreSQL, utility CLI tenant, pipeline CI GitHub Actions e smoke test E2E Playwright."
 start_date: "2026-03-31"
 end_date: "2026-04-13"
 velocity_target: 109
