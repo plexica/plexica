@@ -61,7 +61,7 @@ una UX professionale.
 
 | Scopo           | Tool              | Versione  |
 | --------------- | ----------------- | --------- |
-| Package Manager | pnpm              | >= 8      |
+| Package Manager | pnpm              | >= 10     |
 | Monorepo        | pnpm workspaces   | —         |
 | E2E Testing     | Playwright        | latest    |
 | Unit/Int Testing| Vitest            | ^4        |
