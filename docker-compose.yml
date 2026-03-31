@@ -49,13 +49,14 @@ services:
         limits:
           memory: 768M
     healthcheck:
-      # Keycloak 26 exposes health on the management interface (port 9000).
-      # /health/ready confirms the server has finished initialising.
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/health/ready > /dev/null || curl -sf http://localhost:8080/health/ready > /dev/null"]
+      # Keycloak HTTP server accepting connections (any response including 403/302
+      # means the server is up). The CI "Wait for Keycloak realm import" step
+      # handles full readiness including realm availability.
+      test: ["CMD-SHELL", "curl --max-time 3 -s -o /dev/null http://localhost:8080/"]
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 720s
+      start_period: 60s
 
   redis:
     image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
