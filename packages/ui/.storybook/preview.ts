@@ -1,6 +1,6 @@
 // .storybook/preview.ts — global Storybook decorators and token imports
 
-import type { Preview } from '@storybook/react';
+import type { Preview } from '@storybook/react-vite';
 
 import '../src/globals.css';
 
@@ -13,13 +13,13 @@ const preview: Preview = {
       },
     },
     backgrounds: {
-      default: 'light',
-      values: [
-        { name: 'light', value: '#ffffff' },
-        { name: 'dark', value: '#0f172a' },
-      ],
+      options: {
+        light: { name: 'light', value: '#ffffff' },
+        dark: { name: 'dark', value: '#0f172a' }
+      }
     },
   },
+
   decorators: [
     (Story, context) => {
       // Apply data-theme attribute for dark mode token switching
@@ -28,6 +28,7 @@ const preview: Preview = {
       return Story();
     },
   ],
+
   globalTypes: {
     theme: {
       description: 'Color theme',
@@ -40,6 +41,12 @@ const preview: Preview = {
       },
     },
   },
+
+  initialGlobals: {
+    backgrounds: {
+      value: 'light'
+    }
+  }
 };
 
 export default preview;

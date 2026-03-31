@@ -9,7 +9,7 @@ import {
   DialogClose,
 } from '../components/dialog.js';
 
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 
 const meta: Meta = {
   title: 'Components/Dialog',
