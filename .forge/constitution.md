@@ -9,7 +9,7 @@
 
 ---
 
-## The 5 Rules
+## The 6 Rules
 
 These are absolute. No exceptions, no workarounds.
 
@@ -22,6 +22,8 @@ These are absolute. No exceptions, no workarounds.
 4. **No file above 200 lines.** If a file exceeds 200 lines, decompose it. Services, components, utilities — all subject to this limit.
 
 5. **Significant architectural decisions have an ADR.** Data model changes, auth changes, infrastructure changes, new core dependencies — document the decision before implementing.
+
+6. **All commit messages must be written in English.** Every part of a commit — type, scope, subject line, body, and footer — must be in English. No exceptions for any contributor, agent, or automated tool. A commit written in any other language must be rejected and rewritten before merge.
 
 ---
 
@@ -143,3 +145,4 @@ Changes to this constitution are recorded below. Do not edit articles directly �
 | Date | Article | Change | Rationale |
 | ---- | ------- | ------ | --------- |
 | March 2026 | All | Initial constitution | Project kickoff |
+| March 2026 | The Rules | Added Rule 6: commit messages must be in English | Enforces a single language for all git history, making it unambiguous for all contributors, agents, and automated tools. Non-English commits must be rejected and rewritten before merge. |

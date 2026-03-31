@@ -21,7 +21,7 @@ una UX professionale.
 - `docs/01-SPECIFICHE.md` — requisiti funzionali e non funzionali
 - `docs/02-ARCHITETTURA.md` — architettura tecnica e decisioni confermate
 - `docs/03-PROGETTO.md` — fasi, rischi, criteri di successo
-- `.forge/constitution.md` — le 5 regole non negoziabili
+- `.forge/constitution.md` — le 6 regole non negoziabili
 
 ---
 
@@ -138,17 +138,35 @@ Separare ogni gruppo con una riga vuota.
 
 ### Formato Commit
 
+> **REGOLA NON NEGOZIABILE (Costituzione Rule 6)**: tutti i messaggi di commit
+> devono essere scritti **esclusivamente in inglese** — tipo, scope, subject line,
+> body e footer. Nessuna eccezione per contributor, agenti o tool automatici.
+> Un commit in un'altra lingua **deve essere rifiutato e riscritto** prima del merge.
+
 Usare [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-<type>(<scope>): <descrizione>
+<type>(<scope>): <short description in English>
 
-[body opzionale]
+[optional body in English]
 
-[footer opzionale]
+[optional footer in English]
 ```
 
 Tipi: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `ci`
+
+**Esempi corretti**:
+```
+feat(auth): add Keycloak token validation middleware
+fix(tenant): prevent schema creation for duplicate slugs
+chore(sprint): initialize Sprint 1 — Phase 0 infrastructure setup
+```
+
+**Esempi NON validi** (rifiutati):
+```
+feat(auth): aggiungi validazione token Keycloak   ← italiano: RIFIUTATO
+fix(tenant): correggi creazione schema duplicato   ← italiano: RIFIUTATO
+```
 
 ### Pull Request
 
