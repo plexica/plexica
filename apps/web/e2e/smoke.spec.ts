@@ -42,7 +42,9 @@ test.describe('Login page smoke test', () => {
     const emailInput = page.getByLabel(/email/i);
     await expect(emailInput).toBeVisible();
 
-    const passwordInput = page.getByLabel(/password/i);
+    // Use exact label text 'Password' to avoid matching the show/hide toggle button
+    // whose aria-label is 'Show password' / 'Hide password' (both contain "password").
+    const passwordInput = page.getByLabel('Password', { exact: true });
     await expect(passwordInput).toBeVisible();
   });
 
@@ -60,8 +62,8 @@ test.describe('Login page smoke test', () => {
     const showHideToggle = page.locator('button[aria-label*="password" i]');
     const focusedIsPasswordOrToggle =
       (await passwordInput.evaluate((el) => el === document.activeElement)) ||
-      (await showHideToggle.count() > 0 &&
-        await showHideToggle.evaluate((el) => el === document.activeElement));
+      ((await showHideToggle.count()) > 0 &&
+        (await showHideToggle.evaluate((el) => el === document.activeElement)));
     expect(focusedIsPasswordOrToggle).toBe(true);
   });
 });

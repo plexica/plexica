@@ -43,13 +43,14 @@ describe('PostgreSQL smoke test', () => {
     expect(result[0]?.table_name).toBe('tenant_configs');
   });
 
-  it('tenant_status enum has the correct values', async () => {
+  it('TenantStatus enum has the correct values', async () => {
+    // Prisma multiSchema stores enums with PascalCase names (core."TenantStatus").
     const result = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
       SELECT e.enumlabel
       FROM pg_type t
       JOIN pg_enum e ON t.oid = e.enumtypid
       JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-      WHERE t.typname = 'tenant_status'
+      WHERE t.typname = 'TenantStatus'
         AND n.nspname = 'core'
       ORDER BY e.enumsortorder
     `;

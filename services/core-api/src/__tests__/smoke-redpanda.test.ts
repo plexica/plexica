@@ -44,32 +44,45 @@ describe('Redpanda smoke test', () => {
   });
 
   it('produces and consumes a message on plexica.tenant.events', async () => {
-    const testPayload = { type: 'smoke-test', ts: Date.now() };
-    const received: unknown[] = [];
+    // Use a unique testId to identify our message among any older messages on the topic.
+    // fromBeginning: true avoids the offset-anchor race (KafkaJS + Redpanda: consumer.group_join
+    // fires before the fetch offset is fully committed, so fromBeginning: false can silently miss
+    // messages produced immediately after group_join).
+    const testId = `smoke-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const testPayload = { type: 'smoke-test', testId, ts: Date.now() };
+    let resolveConsumed!: () => void;
+    let rejectConsumed!: (err: Error) => void;
 
-    await consumer.subscribe({ topic: TEST_TOPIC, fromBeginning: false });
-
-    // Wait for the consumer to join the group and receive partition assignment
-    // before producing, to avoid the offset-anchor race (fromBeginning: false means
-    // messages produced before assignment is anchored are silently missed).
-    const groupJoined = new Promise<void>((resolve) => {
-      consumer.on('consumer.group_join', () => { resolve(); });
+    const consumePromise = new Promise<void>((resolve, reject) => {
+      resolveConsumed = resolve;
+      rejectConsumed = reject;
     });
 
-    // Start consuming in background
-    const consumePromise = new Promise<void>((resolve) => {
-      void consumer.run({
+    await consumer.subscribe({ topic: TEST_TOPIC, fromBeginning: true });
+
+    void consumer
+      .run({
         eachMessage: async ({ message }) => {
-          if (message.value !== null) {
-            received.push(JSON.parse(message.value.toString()) as unknown);
-            resolve();
+          if (message.value === null) return;
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = JSON.parse(message.value.toString()) as Record<string, unknown>;
+          } catch {
+            return; // ignore non-JSON messages from other test runs
+          }
+          if (parsed['testId'] === testId) {
+            resolveConsumed();
           }
         },
+      })
+      .catch((err: unknown) => {
+        rejectConsumed(err instanceof Error ? err : new Error(String(err)));
       });
-    });
 
-    // Wait for group join before producing
-    await groupJoined;
+    // Give the consumer a moment to start fetching before we produce
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 500);
+    });
 
     await producer.send({
       topic: TEST_TOPIC,
@@ -80,12 +93,10 @@ describe('Redpanda smoke test', () => {
     await Promise.race([
       consumePromise,
       new Promise<void>((_, reject) =>
-        setTimeout(() => { reject(new Error('Consumer timeout')); }, 20_000)
+        setTimeout(() => {
+          reject(new Error('Consumer timeout after 20s'));
+        }, 20_000)
       ),
     ]);
-
-    expect(received.length).toBeGreaterThanOrEqual(1);
-    const msg = received[received.length - 1] as Record<string, unknown>;
-    expect(msg['type']).toBe('smoke-test');
   });
 });

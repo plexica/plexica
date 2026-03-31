@@ -6,8 +6,9 @@
 CREATE SCHEMA IF NOT EXISTS core;
 
 -- Create tenant status enum
+-- NOTE: Prisma multiSchema preview feature expects PascalCase enum names (quoted).
 DO $$ BEGIN
-  CREATE TYPE core.tenant_status AS ENUM ('active', 'suspended', 'deleted');
+  CREATE TYPE core."TenantStatus" AS ENUM ('active', 'suspended', 'deleted');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
@@ -18,7 +19,7 @@ CREATE TABLE IF NOT EXISTS core.tenants (
   -- Max 51 chars: "tenant_" (7) + 51 = 58, safely under PostgreSQL's 63-char identifier limit
   slug        VARCHAR(51)   NOT NULL,
   name        VARCHAR(255)  NOT NULL,
-  status      core.tenant_status NOT NULL DEFAULT 'active',
+  status      core."TenantStatus" NOT NULL DEFAULT 'active',
   created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
 
