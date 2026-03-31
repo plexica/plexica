@@ -2,7 +2,7 @@
 
 import type { Preview } from '@storybook/react';
 
-import '../src/tokens/index.css';
+import '../src/globals.css';
 
 const preview: Preview = {
   parameters: {
@@ -16,7 +16,7 @@ const preview: Preview = {
       default: 'light',
       values: [
         { name: 'light', value: '#ffffff' },
-        { name: 'dark',  value: '#0f172a' },
+        { name: 'dark', value: '#0f172a' },
       ],
     },
   },
