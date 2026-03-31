@@ -57,9 +57,10 @@ describe('Tenant schema creation', () => {
   it('inserts a record in core.tenant_configs', async () => {
     const tenant = await prisma.tenant.findUnique({ where: { slug: TEST_SLUG } });
     expect(tenant).not.toBeNull();
+    if (tenant === null) throw new Error('Tenant not found — test precondition failed');
 
     const config = await prisma.tenantConfig.findUnique({
-      where: { tenantId: tenant!.id },
+      where: { tenantId: tenant.id },
     });
     expect(config).not.toBeNull();
     expect(config?.keycloakRealm).toBe(`plexica-${TEST_SLUG}`);

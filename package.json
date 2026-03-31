@@ -2,6 +2,7 @@
   "name": "plexica",
   "private": true,
   "version": "0.0.1",
+  "type": "module",
   "description": "Plexica v2 — Multi-tenant SaaS platform",
   "engines": {
     "node": ">=20",

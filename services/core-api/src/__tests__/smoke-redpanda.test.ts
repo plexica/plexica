@@ -3,7 +3,6 @@
 // Connects to real Docker Redpanda — no mock Kafka client.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
 import { Kafka, type Admin, type Producer, type Consumer } from 'kafkajs';
 
 import { config } from '../lib/config.js';

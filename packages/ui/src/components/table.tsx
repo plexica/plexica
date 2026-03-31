@@ -2,7 +2,6 @@
 // WCAG 2.1 AA: proper th scope, keyboard-accessible sort indicators
 
 import * as React from 'react';
-
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 import { cn } from '../lib/cn.js';

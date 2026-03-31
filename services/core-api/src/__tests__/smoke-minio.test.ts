@@ -3,7 +3,6 @@
 // Connects to real Docker MinIO — no mock client.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
 import * as Minio from 'minio';
 
 import { config } from '../lib/config.js';

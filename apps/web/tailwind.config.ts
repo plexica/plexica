@@ -1,8 +1,9 @@
 // tailwind.config.ts — Tailwind configuration for apps/web
 // Consumes the @plexica/ui design token preset.
 
-import type { Config } from 'tailwindcss';
 import uiPreset from '@plexica/ui/tailwind-preset';
+
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [

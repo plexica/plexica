@@ -3,7 +3,6 @@
 // WCAG 2.1 AA: focus trap, aria-modal, aria-labelledby
 
 import * as React from 'react';
-
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 

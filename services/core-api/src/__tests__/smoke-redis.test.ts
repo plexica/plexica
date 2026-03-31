@@ -3,7 +3,6 @@
 // Connects to real Docker Redis — no mock (no ioredis-mock).
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
 import Redis from 'ioredis';
 
 import { config } from '../lib/config.js';

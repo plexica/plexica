@@ -4,7 +4,6 @@
 
 import { useState } from 'react';
 import { useIntl, FormattedMessage } from 'react-intl';
-
 import { Button, Input } from '@plexica/ui';
 
 export function LoginPage(): JSX.Element {

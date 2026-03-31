@@ -13,6 +13,8 @@ export default [
       '.next/**',
       'coverage/**',
       '**/*.d.ts',
+      // OpenCode agent configuration files — not project source, not linted
+      '.opencode/**',
     ],
   },
   js.configs.recommended,
