@@ -116,9 +116,9 @@ services:
         limits:
           memory: 320M
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:9644/v1/brokers | grep -q '\"node_id\"'"]
       interval: 5s
-      timeout: 10s
+      timeout: 5s
       retries: 15
       start_period: 20s
 

@@ -1,34 +1,35 @@
 #!/usr/bin/env bash
 # create-topics.sh
 # Creates the core Plexica topics in Redpanda on startup.
-# Idempotent: uses --if-not-exists to handle restarts gracefully.
+# Idempotent: rpk topic create is safe to re-run (ignores TOPIC_ALREADY_EXISTS).
 
 set -euo pipefail
 
 BROKER="${REDPANDA_BROKER:-redpanda:9092}"
+ADMIN_URL="${REDPANDA_ADMIN_URL:-http://redpanda:9644}"
 RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))  # 7 days
 
-# Wait for Kafka broker to accept connections from this container.
-# Use timeout to prevent rpk from hanging indefinitely on unreachable brokers.
-echo "Waiting for Kafka broker at $BROKER..."
+# Wait for at least one broker to appear in the Admin API response.
+# The Admin API is available before the Kafka listener is fully initialised;
+# checking /v1/brokers (not just /v1/status/ready) ensures the Kafka subsystem
+# has registered itself.
+echo "Waiting for Redpanda broker to register via Admin API at $ADMIN_URL..."
 RETRIES=30
-until timeout 5 rpk cluster info --brokers "$BROKER" > /dev/null 2>&1; do
+until curl -sf "$ADMIN_URL/v1/brokers" 2>/dev/null | grep -q '"node_id"'; do
   RETRIES=$((RETRIES - 1))
   if [ "$RETRIES" -le 0 ]; then
-    echo "ERROR: Kafka broker at $BROKER did not become reachable in time." >&2
+    echo "ERROR: No broker registered at $ADMIN_URL/v1/brokers after 60s." >&2
     exit 1
   fi
-  echo "  Broker not reachable yet, retrying in 2s... ($RETRIES retries left)"
+  echo "  No broker registered yet, retrying in 2s... ($RETRIES retries left)"
   sleep 2
 done
-echo "Kafka broker is ready."
+echo "Redpanda broker is registered."
 
 TOPICS=("plexica.tenant.events" "plexica.user.events" "plexica.plugin.events")
 
 for TOPIC in "${TOPICS[@]}"; do
   echo "Creating topic: $TOPIC"
-  # Allow exit code 1 from rpk (TOPIC_ALREADY_EXISTS is a non-zero exit),
-  # but surface any real errors via stderr.
   timeout 30 rpk topic create "$TOPIC" \
     --brokers "$BROKER" \
     --partitions 1 \
@@ -37,5 +38,5 @@ for TOPIC in "${TOPICS[@]}"; do
 done
 
 echo "Topic list:"
-timeout 10 rpk topic list --brokers "$BROKER"
+timeout 10 rpk topic list --brokers "$BROKER" || true
 echo "Done."
