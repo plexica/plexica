@@ -40,7 +40,7 @@ jobs:
   ci:
     name: Build, Test, and Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       # ── 1. Setup ──────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ jobs:
       # ── 6. Docker up ─────────────────────────────────────────────────────────
       - name: Start infrastructure services
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 600
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 900
         env:
           POSTGRES_DB: plexica
           POSTGRES_USER: plexica
