@@ -35,7 +35,6 @@ env:
   KC_METRICS_ENABLED: 'false'
   KC_HTTP_ENABLED: 'true'
   KC_HOSTNAME_STRICT: 'false'
-  KC_HOSTNAME_STRICT_HTTPS: 'false'
   REDIS_URL: redis://localhost:6379
   MINIO_ENDPOINT: http://localhost:9000
   MINIO_ACCESS_KEY: minioadmin
@@ -117,7 +116,17 @@ jobs:
       # ── 7. Docker up ─────────────────────────────────────────────────────────
       - name: Start infrastructure services
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 300
+          # Phase 1: start and wait for all long-running services.
+          # redpanda-init is intentionally excluded here — it is a one-shot container
+          # that exits with code 0 on success. docker compose --wait treats any exited
+          # container as unhealthy, so we handle it in a separate phase below.
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait --wait-timeout 300 \
+            postgres keycloak redis minio redpanda mailpit
+
+          # Phase 2: run redpanda-init and wait for it to exit cleanly (code 0).
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up --wait --wait-timeout 60 redpanda-init
         env:
           POSTGRES_DB: plexica
           POSTGRES_USER: plexica
