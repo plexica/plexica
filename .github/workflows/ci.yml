@@ -45,18 +45,18 @@ jobs:
     steps:
       # ── 1. Setup ──────────────────────────────────────────────────────────────
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 10
           run_install: false
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'pnpm'
 
       # ── 2. Install ────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ jobs:
       # ── 6. Docker up ─────────────────────────────────────────────────────────
       - name: Start infrastructure services
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 900
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 300
         env:
           POSTGRES_DB: plexica
           POSTGRES_USER: plexica
@@ -96,15 +96,20 @@ jobs:
         if: failure()
         run: docker logs plexica-ci-keycloak-1 2>&1 | tail -100 || true
 
-      - name: Create Redpanda topics
+      - name: Ensure Redpanda topics exist with correct config
         run: |
           RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))
           for TOPIC in plexica.tenant.events plexica.user.events plexica.plugin.events; do
+            # Create if not already present (redpanda-init normally handles this,
+            # but this step is the authoritative CI gate — || true is intentional).
             docker exec plexica-ci-redpanda-1 rpk topic create "$TOPIC" \
               --brokers localhost:9092 \
               --partitions 1 \
-              --replicas 1 \
-              --topic-config "retention.ms=${RETENTION_MS}" || true
+              --replicas 1 || true
+            # Idempotently apply retention policy regardless of creation order.
+            docker exec plexica-ci-redpanda-1 rpk topic alter-config "$TOPIC" \
+              --set "retention.ms=${RETENTION_MS}" \
+              --brokers localhost:9092
           done
           docker exec plexica-ci-redpanda-1 rpk topic list --brokers localhost:9092
 
@@ -159,7 +164,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: apps/web/playwright-report/

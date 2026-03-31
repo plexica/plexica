@@ -1,5 +1,5 @@
 # docker-compose.yml
-# Dev stack: PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailhog
+# Dev stack: PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailpit
 # NFR-01 baseline: docker compose up --wait target < 60s
 # NFR-05: All images are pinned to @sha256 digests for reproducibility.
 
@@ -18,7 +18,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-plexica}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     deploy:
@@ -26,7 +26,7 @@ services:
         limits:
           memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plexica} -d ${POSTGRES_DB:-plexica}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-plexica} -d ${POSTGRES_DB:-plexica}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -40,33 +40,51 @@ services:
       KC_DB: dev-mem
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'false'
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HOSTNAME_STRICT_HTTPS: 'false'
     ports:
-      - "${KEYCLOAK_PORT:-8080}:8080"
+      - '${KEYCLOAK_PORT:-8080}:8080'
+      # Management port 9000 is intentionally NOT exposed to the host.
+      # It is used only by the healthcheck inside the container.
+      # NOTE: host port 9000 is already taken by MinIO — do not expose 9000 here.
     volumes:
       - ./infra/keycloak:/opt/keycloak/data/import:ro
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 1024M
     healthcheck:
-      # Check the plexica-test realm — confirms startup and realm import are complete.
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/plexica-test/.well-known/openid-configuration > /dev/null"]
+      # Check Keycloak management health endpoint (/health/ready on port 9000).
+      # Returns UP only after the JVM, HTTP server, AND realm import are all complete.
+      # curl is not available in the UBI9-minimal image, so we use bash /dev/tcp
+      # to issue a raw HTTP/1.0 GET and verify the response status is 200 OK.
+      test:
+        - 'CMD'
+        - 'bash'
+        - '-c'
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 &&
+          read -r line <&3 && [[ "$line" == *"200"* ]]
       interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 90s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
 
   redis:
     image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
     # redis:7-alpine — pinned 2026-03-31
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - '${REDIS_PORT:-6379}:6379'
     deploy:
       resources:
         limits:
           memory: 128M
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -80,8 +98,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-changeme}
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
     volumes:
       - minio_data:/data
     deploy:
@@ -89,7 +107,7 @@ services:
         limits:
           memory: 256M
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -109,31 +127,54 @@ services:
       - --pandaproxy-addr 0.0.0.0:8082
       - --advertise-pandaproxy-addr localhost:8082
     ports:
-      - "${REDPANDA_KAFKA_PORT:-19092}:19092"
-      - "${REDPANDA_ADMIN_PORT:-9644}:9644"
+      - '${REDPANDA_KAFKA_PORT:-19092}:19092'
+      - '${REDPANDA_ADMIN_PORT:-9644}:9644'
     deploy:
       resources:
         limits:
           memory: 320M
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9644/v1/brokers | grep -q '\"node_id\"'"]
+      test: ['CMD-SHELL', 'curl -sf http://localhost:9644/v1/brokers | grep -q ''"node_id"''']
       interval: 5s
       timeout: 5s
       retries: 15
       start_period: 20s
 
-  mailhog:
-    image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
-    # mailhog/mailhog:v1.0.1 — pinned 2026-03-31
+  redpanda-init:
+    image: docker.redpanda.com/redpandadata/redpanda@sha256:342d52b03d70e8c605897b1756d6faab14067af6f8a969264093dabbce1858dd
+    # Same image as redpanda — rpk is included. Runs once to provision core topics.
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        rpk --brokers redpanda:9092 topic create \
+          plexica.tenant.events \
+          plexica.user.events \
+          plexica.plugin.events \
+          --partitions 1 \
+          --replicas 1 \
+          --topic-config "retention.ms=604800000" || true
+    restart: 'no'
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  mailpit:
+    image: axllent/mailpit@sha256:c5a6d0ba4d08187f70f305471da5fd9ad424fdfc2f25a2308226a786335dfa9f
+    # axllent/mailpit:v1.29.5 — pinned 2026-03-31
     ports:
-      - "${SMTP_PORT:-1025}:1025"
-      - "${SMTP_UI_PORT:-8025}:8025"
+      - '${SMTP_PORT:-1025}:1025'
+      - '${SMTP_UI_PORT:-8025}:8025'
     deploy:
       resources:
         limits:
           memory: 64M
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8025 || exit 1"]
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:8025 || exit 1']
       interval: 10s
       timeout: 5s
       retries: 5
