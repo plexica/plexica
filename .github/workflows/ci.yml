@@ -92,6 +92,10 @@ jobs:
           KEYCLOAK_ADMIN_USER: admin
           KEYCLOAK_ADMIN_PASSWORD: changeme
 
+      - name: Show Keycloak startup logs on failure
+        if: failure()
+        run: docker logs plexica-ci-keycloak-1 2>&1 | tail -100 || true
+
       - name: Create Redpanda topics
         run: |
           RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))

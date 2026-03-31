@@ -12,10 +12,8 @@ services:
           memory: 384M
 
   keycloak:
-    deploy:
-      resources:
-        limits:
-          memory: 896M
+    environment:
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
 
   redis:
     deploy:
