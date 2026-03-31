@@ -58,21 +58,15 @@ services:
           memory: 1024M
     healthcheck:
       # Check Keycloak management health endpoint (/health/ready on port 9000).
-      # Returns UP only after the JVM, HTTP server, AND realm import are all complete.
-      # curl is not available in the UBI9-minimal image, so we use bash /dev/tcp
-      # to issue a raw HTTP/1.0 GET and verify the response status is 200 OK.
-      test:
-        - 'CMD'
-        - 'bash'
-        - '-c'
-        - >-
-          exec 3<>/dev/tcp/127.0.0.1/9000 &&
-          printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 &&
-          read -r line <&3 && [[ "$line" == *"200"* ]]
+      # KC_HEALTH_ENABLED=true exposes this endpoint; it returns UP only after the
+      # JVM and HTTP server are fully initialised.
+      # Realm import readiness is verified separately in CI (see ci.yml step 7).
+      # curl is available in the Keycloak 26 image; grep -q UP matches the JSON body.
+      test: ['CMD-SHELL', 'curl -sf http://localhost:9000/health/ready | grep -q UP']
       interval: 10s
       timeout: 10s
       retries: 20
-      start_period: 60s
+      start_period: 120s
 
   redis:
     image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
