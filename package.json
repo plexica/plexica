@@ -23,5 +23,19 @@
     "eslint-plugin-import": "^2.29.0",
     "prettier": "^3.0.0",
     "typescript": "^5.9.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ],
+    "peerDependencyRules": {
+      "ignoreMissing": [],
+      "allowedVersions": {
+        "react-intl>react": "19"
+      }
+    }
   }
 }

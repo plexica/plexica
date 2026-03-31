@@ -5,6 +5,7 @@
 # Stages (in order):
 #   1. Setup        — checkout, Node, pnpm cache
 #   2. Install      — pnpm install
+#   2b. Generate    — prisma generate (TypeScript client)
 #   3. Lint         — eslint
 #   4. Typecheck    — tsc --noEmit
 #   5. Build        — pnpm build
@@ -61,6 +62,12 @@ jobs:
       # ── 2. Install ────────────────────────────────────────────────────────────
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # ── 2b. Generate Prisma client ────────────────────────────────────────────
+      # Must run before lint/typecheck/build — @prisma/client types are generated here.
+      # Does NOT require a running database (reads schema.prisma only).
+      - name: Generate Prisma client
+        run: pnpm --filter core-api db:generate
 
       # ── 3. Lint ───────────────────────────────────────────────────────────────
       - name: Lint
