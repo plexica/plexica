@@ -108,6 +108,7 @@ services:
       - --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
       - --pandaproxy-addr 0.0.0.0:8082
       - --advertise-pandaproxy-addr localhost:8082
+      - --set redpanda.admin_api_listen_address=0.0.0.0
     ports:
       - "${REDPANDA_KAFKA_PORT:-19092}:19092"
       - "${REDPANDA_ADMIN_PORT:-9644}:9644"

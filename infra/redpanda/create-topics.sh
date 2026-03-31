@@ -9,13 +9,11 @@ BROKER="${REDPANDA_BROKER:-redpanda:9092}"
 ADMIN_URL="${REDPANDA_ADMIN_URL:-http://redpanda:9644}"
 RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))  # 7 days
 
-# Wait for at least one broker to appear in the Admin API response.
-# The Admin API is available before the Kafka listener is fully initialised;
-# checking /v1/brokers (not just /v1/status/ready) ensures the Kafka subsystem
-# has registered itself.
+# Wait for the Redpanda Admin API to report at least one registered broker.
+# --max-time 3 ensures curl does not hang on slow/unreachable connections.
 echo "Waiting for Redpanda broker to register via Admin API at $ADMIN_URL..."
 RETRIES=30
-until curl -sf "$ADMIN_URL/v1/brokers" 2>/dev/null | grep -q '"node_id"'; do
+until curl --max-time 3 -sf "$ADMIN_URL/v1/brokers" 2>/dev/null | grep -q '"node_id"'; do
   RETRIES=$((RETRIES - 1))
   if [ "$RETRIES" -le 0 ]; then
     echo "ERROR: No broker registered at $ADMIN_URL/v1/brokers after 60s." >&2
