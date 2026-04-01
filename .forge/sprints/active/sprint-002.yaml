@@ -1,0 +1,429 @@
+version: 1
+sprint_number: 2
+sprint_goal: 'Deliver full Spec 002 foundations: JWT auth middleware with JWKS caching, multi-tenant context isolation (AsyncLocalStorage + search_path), tenant provisioning orchestrator (PostgreSQL + Keycloak + MinIO with rollback), frontend auth shell (Keycloak OIDC, Zustand auth store, TanStack Router), dashboard layout, and full integration + E2E test suite.'
+start_date: '2026-04-01'
+end_date: '2026-04-15'
+velocity_target: 219
+kanban_phase: 'Phase 1a + 1b'
+spec_id: '002-foundations'
+spec_path: '.forge/specs/002-foundations/spec.md'
+plan_path: '.forge/specs/002-foundations/plan.md'
+tasks_path: '.forge/specs/002-foundations/tasks.md'
+
+stories:
+  # ── Phase 1 — Foundation: Shared Types, Config & Migration (8 pts) ──────────
+  - id: '002-T01'
+    title: 'Add minio_bucket column migration'
+    phase: 'Phase 1 — Foundation'
+    status: pending
+    points: 1
+
+  - id: '002-T02'
+    title: 'Update Prisma schema for minio_bucket'
+    phase: 'Phase 1 — Foundation'
+    status: pending
+    points: 1
+
+  - id: '002-T03'
+    title: 'Implement typed application error classes'
+    phase: 'Phase 1 — Foundation'
+    status: pending
+    points: 2
+
+  - id: '002-T04'
+    title: 'Extend config with JWKS TTL + realm-prefix settings'
+    phase: 'Phase 1 — Foundation'
+    status: pending
+    points: 1
+
+  - id: '002-T05'
+    title: 'Add jose and frontend dependencies to package manifests'
+    phase: 'Phase 1 — Foundation'
+    status: pending
+    points: 1
+
+  - id: '002-T06'
+    title: 'Define shared TypeScript types — auth & tenant'
+    phase: 'Phase 1 — Foundation'
+    status: pending
+    points: 2
+
+  # ── Phase 2 — Backend Auth Middleware (21 pts) ───────────────────────────────
+  - id: '002-T07'
+    title: 'Implement JWKS cache'
+    phase: 'Phase 2 — Backend Auth Middleware'
+    status: pending
+    points: 5
+
+  - id: '002-T08'
+    title: 'Implement auth middleware'
+    phase: 'Phase 2 — Backend Auth Middleware'
+    status: pending
+    points: 8
+
+  - id: '002-T09'
+    title: 'Implement centralized error handler plugin'
+    phase: 'Phase 2 — Backend Auth Middleware'
+    status: pending
+    points: 2
+
+  - id: '002-T10'
+    title: 'Implement GET /api/me route'
+    phase: 'Phase 2 — Backend Auth Middleware'
+    status: pending
+    points: 3
+
+  - id: '002-T11'
+    title: 'Register auth middleware, error handler and user routes in app entry'
+    phase: 'Phase 2 — Backend Auth Middleware'
+    status: pending
+    points: 2
+
+  - id: '002-T12'
+    title: 'Run Prisma migration for minio_bucket column'
+    phase: 'Phase 2 — Backend Auth Middleware'
+    status: pending
+    points: 1
+
+  # ── Phase 3 — Tenant Context Middleware (11 pts) ─────────────────────────────
+  - id: '002-T13'
+    title: 'Implement AsyncLocalStorage tenant context store'
+    phase: 'Phase 3 — Tenant Context Middleware'
+    status: pending
+    points: 2
+
+  - id: '002-T14'
+    title: 'Implement tenant context middleware'
+    phase: 'Phase 3 — Tenant Context Middleware'
+    status: pending
+    points: 8
+
+  - id: '002-T15'
+    title: 'Register tenant context middleware in app entry'
+    phase: 'Phase 3 — Tenant Context Middleware'
+    status: pending
+    points: 1
+
+  # ── Phase 4 — Tenant Provisioning Service (30 pts) ──────────────────────────
+  - id: '002-T16'
+    title: 'Update tenant-schema.ts for provisioning integration'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 2
+
+  - id: '002-T17'
+    title: 'Implement Keycloak Admin REST client'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 8
+
+  - id: '002-T18'
+    title: 'Implement MinIO bucket client'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 3
+
+  - id: '002-T19'
+    title: 'Implement tenant provisioning orchestrator'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 8
+
+  - id: '002-T20'
+    title: 'Implement tenant API routes'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 8
+
+  - id: '002-T21'
+    title: 'Implement multi-schema migration runner'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 8
+
+  - id: '002-T22'
+    title: 'Register tenant routes in app entry'
+    phase: 'Phase 4 — Tenant Provisioning Service'
+    status: pending
+    points: 1
+
+  # ── Phase 5 — Frontend Auth Integration (50 pts) ────────────────────────────
+  - id: '002-T23'
+    title: 'Implement tenant resolver service'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 3
+
+  - id: '002-T24'
+    title: 'Implement Keycloak OIDC auth service'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 8
+
+  - id: '002-T25'
+    title: 'Implement API client'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 5
+
+  - id: '002-T26'
+    title: 'Implement Zustand auth store'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 8
+
+  - id: '002-T27'
+    title: 'Configure TanStack Router'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 5
+
+  - id: '002-T28'
+    title: 'Implement auth callback page'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 3
+
+  - id: '002-T29'
+    title: 'Implement organization error page'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 3
+
+  - id: '002-T30'
+    title: 'Implement auth guard'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 2
+
+  - id: '002-T31'
+    title: 'Implement session expired handler'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 3
+
+  - id: '002-T32'
+    title: 'Implement useCurrentUser TanStack Query hook'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 2
+
+  - id: '002-T33'
+    title: 'Wire up app entry point and providers'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 5
+
+  - id: '002-T34'
+    title: 'Add auth + tenant i18n messages'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 2
+
+  - id: '002-T35'
+    title: 'Add Vite dev API proxy'
+    phase: 'Phase 5 — Frontend Auth Integration'
+    status: pending
+    points: 1
+
+  # ── Phase 6 — Frontend Shell & Dashboard (45 pts) ───────────────────────────
+  - id: '002-T36'
+    title: 'Implement skip-to-content link'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 1
+
+  - id: '002-T37'
+    title: 'Implement user avatar component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 2
+
+  - id: '002-T38'
+    title: 'Implement user menu dropdown'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 3
+
+  - id: '002-T39'
+    title: 'Implement breadcrumb component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 3
+
+  - id: '002-T40'
+    title: 'Implement sidebar nav item'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 3
+
+  - id: '002-T41'
+    title: 'Implement sidebar component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 8
+
+  - id: '002-T42'
+    title: 'Implement header component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 5
+
+  - id: '002-T43'
+    title: 'Implement AppShell layout component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 5
+
+  - id: '002-T44'
+    title: 'Implement skeleton loader component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 2
+
+  - id: '002-T45'
+    title: 'Implement empty state component'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 2
+
+  - id: '002-T46'
+    title: 'Implement error fallback UI'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 2
+
+  - id: '002-T47'
+    title: 'Implement route-level error boundary'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 5
+
+  - id: '002-T48'
+    title: 'Implement dashboard page'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 5
+
+  - id: '002-T49'
+    title: 'Wire shell, dashboard and error boundary into router'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 2
+
+  - id: '002-T50'
+    title: 'Add shell + dashboard i18n messages'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 2
+
+  - id: '002-T51'
+    title: 'Export new UI primitives from design system package'
+    phase: 'Phase 6 — Frontend Shell & Dashboard'
+    status: pending
+    points: 1
+
+  # ── Phase 7 — Backend Integration Tests (31 pts) ────────────────────────────
+  - id: '002-T52'
+    title: 'Auth middleware integration tests'
+    phase: 'Phase 7 — Backend Integration Tests'
+    status: pending
+    points: 5
+
+  - id: '002-T53'
+    title: 'Tenant context isolation tests'
+    phase: 'Phase 7 — Backend Integration Tests'
+    status: pending
+    points: 5
+
+  - id: '002-T54'
+    title: 'Cross-tenant isolation proof test'
+    phase: 'Phase 7 — Backend Integration Tests'
+    status: pending
+    points: 5
+
+  - id: '002-T55'
+    title: 'Tenant provisioning tests'
+    phase: 'Phase 7 — Backend Integration Tests'
+    status: pending
+    points: 8
+
+  - id: '002-T56'
+    title: 'Multi-schema migration tests'
+    phase: 'Phase 7 — Backend Integration Tests'
+    status: pending
+    points: 5
+
+  - id: '002-T57'
+    title: 'User routes and tenant resolve integration tests'
+    phase: 'Phase 7 — Backend Integration Tests'
+    status: pending
+    points: 3
+
+  # ── Phase 8 — E2E Tests (Playwright) (17 pts) ───────────────────────────────
+  - id: '002-T58'
+    title: 'Configure Playwright for multi-subdomain + write login flow E2E'
+    phase: 'Phase 8 — E2E Tests'
+    status: pending
+    points: 5
+
+  - id: '002-T59'
+    title: 'Logout E2E test'
+    phase: 'Phase 8 — E2E Tests'
+    status: pending
+    points: 3
+
+  - id: '002-T60'
+    title: 'Organization error page E2E'
+    phase: 'Phase 8 — E2E Tests'
+    status: pending
+    points: 2
+
+  - id: '002-T61'
+    title: 'Cross-tenant isolation E2E'
+    phase: 'Phase 8 — E2E Tests'
+    status: pending
+    points: 3
+
+  - id: '002-T62'
+    title: 'Shell accessibility E2E audit'
+    phase: 'Phase 8 — E2E Tests'
+    status: pending
+    points: 3
+
+  - id: '002-T63'
+    title: 'Error boundary recovery E2E'
+    phase: 'Phase 8 — E2E Tests'
+    status: pending
+    points: 1
+
+  # ── Phase 9 — Polish & Verification (6 pts) ─────────────────────────────────
+  - id: '002-T64'
+    title: 'Verify shell first contentful paint performance'
+    phase: 'Phase 9 — Polish & Verification'
+    status: pending
+    points: 2
+
+  - id: '002-T65'
+    title: 'Verify responsive breakpoints manually'
+    phase: 'Phase 9 — Polish & Verification'
+    status: pending
+    points: 1
+
+  - id: '002-T66'
+    title: 'Run pnpm --filter core-api test and confirm all pass'
+    phase: 'Phase 9 — Polish & Verification'
+    status: pending
+    points: 1
+
+  - id: '002-T67'
+    title: 'Run pnpm --filter web test:e2e and confirm all pass'
+    phase: 'Phase 9 — Polish & Verification'
+    status: pending
+    points: 1
+
+  - id: '002-T68'
+    title: 'Run /forge-review adversarial review'
+    phase: 'Phase 9 — Polish & Verification'
+    status: pending
+    points: 1

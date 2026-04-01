@@ -1,0 +1,254 @@
+version: 1
+sprint_number: 1
+sprint_goal: "Bootstrap l'intero ambiente di sviluppo: monorepo pnpm, stack Docker (PostgreSQL, Keycloak, Redis, MinIO, Redpanda, Mailpit), design system @plexica/ui con 5 componenti Radix, schema core PostgreSQL, utility CLI tenant, pipeline CI GitHub Actions e smoke test E2E Playwright."
+start_date: '2026-03-31'
+end_date: '2026-04-01'
+velocity_target: 109
+actual_velocity: 109
+kanban_phase: 'Phase 0'
+spec_id: '001-infrastructure-setup'
+spec_path: '.forge/specs/001-infrastructure-setup/spec.md'
+plan_path: '.forge/specs/001-infrastructure-setup/plan.md'
+tasks_path: '.forge/specs/001-infrastructure-setup/tasks.md'
+
+stories:
+  # ── Phase 1 — Monorepo Scaffolding (13 pts) ─────────────────────────────────
+  - id: '001-T01'
+    title: 'Root package.json con workspace scripts e engine enforcement (Node >=20)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 2
+
+  - id: '001-T02'
+    title: 'pnpm-workspace.yaml e .npmrc (engine-strict=true, auto-install-peers)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 1
+
+  - id: '001-T03'
+    title: 'tsconfig.base.json — TypeScript strict condiviso (strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 2
+
+  - id: '001-T04'
+    title: 'eslint.config.js — flat ESLint config con regole TypeScript (no console.log, no any)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 2
+
+  - id: '001-T05'
+    title: '.prettierrc — regole di formattazione (single quotes, 2-space indent, 100 cols)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 1
+
+  - id: '001-T06'
+    title: '.gitignore — lista completa (node_modules, dist, .env, generated/, Playwright reports)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 1
+
+  - id: '001-T07'
+    title: ".env.example — tutte le variabili d'ambiente con default sicuri (nessuna credenziale reale)"
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 2
+
+  - id: '001-T08'
+    title: 'README.md — getting started guide (prerequisiti, docker compose up, port override)'
+    phase: 'Phase 1 — Monorepo Scaffolding'
+    status: done
+    points: 2
+
+  # ── Phase 2 — Docker Compose Stack (21 pts) ─────────────────────────────────
+  - id: '001-T09'
+    title: 'docker-compose.yml — 6 servizi con healthcheck, memory limits, immagini pinnate a digest SHA'
+    phase: 'Phase 2 — Docker Compose Stack'
+    status: done
+    points: 8
+
+  - id: '001-T10'
+    title: 'Keycloak realm export — realm plexica-test, 3 utenti, client OIDC plexica-web'
+    phase: 'Phase 2 — Docker Compose Stack'
+    status: done
+    points: 5
+
+  - id: '001-T11'
+    title: 'Redpanda dev mode + script create-topics.sh (tenant.events, user.events, plugin.events)'
+    phase: 'Phase 2 — Docker Compose Stack'
+    status: done
+    points: 3
+
+  - id: '001-T12'
+    title: 'docker-compose.ci.yml — override CI senza host port bindings, memoria totale < 2.5 GB'
+    phase: 'Phase 2 — Docker Compose Stack'
+    status: done
+    points: 3
+
+  - id: '001-T13'
+    title: 'Verifica configurabilità porte — verify-env.sh, ogni porta usa ${VAR:-default}'
+    phase: 'Phase 2 — Docker Compose Stack'
+    status: done
+    points: 2
+
+  # ── Phase 3 — Core API + Database (18 pts) ──────────────────────────────────
+  - id: '001-T14'
+    title: 'services/core-api scaffold — package.json, tsconfig.json, vitest.config.ts'
+    phase: 'Phase 3 — Core API + Database'
+    status: done
+    points: 2
+
+  - id: '001-T15'
+    title: 'Prisma schema — core.tenants e core.tenant_configs (multi-schema, enum tenant_status)'
+    phase: 'Phase 3 — Core API + Database'
+    status: done
+    points: 3
+
+  - id: '001-T16'
+    title: 'Prisma migration 001_init_core_schema — schema core, tabelle, indici, enum'
+    phase: 'Phase 3 — Core API + Database'
+    status: done
+    points: 3
+
+  - id: '001-T17'
+    title: 'Librerie condivise — database.ts (Prisma singleton), config.ts (Zod), logger.ts (Pino)'
+    phase: 'Phase 3 — Core API + Database'
+    status: done
+    points: 3
+
+  - id: '001-T18'
+    title: 'tenant-schema.ts — logica creazione tenant (validazione slug, transazione, error handling)'
+    phase: 'Phase 3 — Core API + Database'
+    status: done
+    points: 5
+
+  - id: '001-T19'
+    title: 'create-tenant.ts CLI — entrypoint --slug, exit codes 0/1, script tenant:create'
+    phase: 'Phase 3 — Core API + Database'
+    status: done
+    points: 2
+
+  # ── Phase 4 — Design System (26 pts) ────────────────────────────────────────
+  - id: '001-T20'
+    title: 'packages/ui scaffold — @plexica/ui, package.json (React 19, Radix, Tailwind, CVA), tsconfig.json'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 2
+
+  - id: '001-T21'
+    title: 'Design tokens CSS — neutral/primary/semantic colors (50-950), spacing 4px, radius, typography Inter'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 5
+
+  - id: '001-T22'
+    title: 'Tailwind preset — mappa CSS custom properties verso classi Tailwind'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 2
+
+  - id: '001-T23'
+    title: 'Button component — 5 varianti (primary/secondary/destructive/ghost/outline), disabled, loading, WCAG AA'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 3
+
+  - id: '001-T24'
+    title: 'Input component — text/password/email, error state, helper text, aria-invalid, WCAG AA'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 3
+
+  - id: '001-T25'
+    title: 'Dialog component — Radix Dialog, focus trap, ESC, aria-modal, aria-labelledby, WCAG AA'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 3
+
+  - id: '001-T26'
+    title: 'Toast component — 4 varianti (success/error/warning/info), Lucide icons, auto-dismiss, role=alert'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 3
+
+  - id: '001-T27'
+    title: 'Table component — semantica HTML (table/thead/tbody/th/td), sortable header visuale con Lucide'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 3
+
+  - id: '001-T28'
+    title: 'Barrel export index.ts + Storybook config (Vite builder, dark mode toggle, cold start < 15s)'
+    phase: 'Phase 4 — Design System'
+    status: done
+    points: 2
+
+  # ── Phase 5 — Frontend Shell (5 pts) ────────────────────────────────────────
+  - id: '001-T29'
+    title: 'apps/web scaffold — Vite + React 19 + TanStack Router, porta 3000, @plexica/ui come dep'
+    phase: 'Phase 5 — Frontend Shell'
+    status: done
+    points: 3
+
+  - id: '001-T30'
+    title: 'Login page placeholder — email/password Input + Button submit, react-intl, nessuna stringa hardcoded'
+    phase: 'Phase 5 — Frontend Shell'
+    status: done
+    points: 2
+
+  # ── Phase 6 — Integration Smoke Tests (13 pts) ──────────────────────────────
+  - id: '001-T31'
+    title: 'smoke-db.test.ts — connessione PostgreSQL, schema core esiste, tabelle tenants e tenant_configs'
+    phase: 'Phase 6 — Integration Smoke Tests'
+    status: done
+    points: 2
+
+  - id: '001-T32'
+    title: 'smoke-keycloak.test.ts — OIDC discovery + token exchange reale (realm plexica-test)'
+    phase: 'Phase 6 — Integration Smoke Tests'
+    status: done
+    points: 2
+
+  - id: '001-T33'
+    title: 'smoke-redis.test.ts — SET/GET/DEL round-trip su Redis reale'
+    phase: 'Phase 6 — Integration Smoke Tests'
+    status: done
+    points: 1
+
+  - id: '001-T34'
+    title: 'smoke-redpanda.test.ts — produce/consume su tenant.events + verifica 3 topic'
+    phase: 'Phase 6 — Integration Smoke Tests'
+    status: done
+    points: 3
+
+  - id: '001-T35'
+    title: 'smoke-minio.test.ts — bucket CRUD (create/put/list/delete) su MinIO reale'
+    phase: 'Phase 6 — Integration Smoke Tests'
+    status: done
+    points: 2
+
+  - id: '001-T36'
+    title: 'tenant-schema.test.ts — happy path (schema + righe in core.tenants/configs) + duplicate error'
+    phase: 'Phase 6 — Integration Smoke Tests'
+    status: done
+    points: 3
+
+  # ── Phase 7 — E2E Test + CI Pipeline (13 pts) ───────────────────────────────
+  - id: '001-T37'
+    title: 'Playwright config + smoke.spec.ts — login page E2E (email, password, submit button visibili)'
+    phase: 'Phase 7 — E2E Test + CI Pipeline'
+    status: done
+    points: 3
+
+  - id: '001-T38'
+    title: '.github/workflows/ci.yml — pipeline completa (lint→typecheck→build→docker-up→migrate→unit→E2E→teardown)'
+    phase: 'Phase 7 — E2E Test + CI Pipeline'
+    status: done
+    points: 8
+
+  - id: '001-T39'
+    title: 'Validazione NFR — timing benchmarks (Docker < 60s, CI < 10min, pnpm < 90s, Storybook < 15s) + digest audit'
+    phase: 'Phase 7 — E2E Test + CI Pipeline'
+    status: done
+    points: 2
