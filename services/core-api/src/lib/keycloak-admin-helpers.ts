@@ -32,6 +32,8 @@ export function buildRealmPayload(realmName: string): Record<string, unknown> {
     accessTokenLifespan: 60,
     ssoSessionIdleTimeout: 1800,
     ssoSessionMaxLifespan: 36000,
+    // Use the custom Plexica Keycloak theme for all login pages in this realm.
+    loginTheme: 'plexica',
   };
 }
 
