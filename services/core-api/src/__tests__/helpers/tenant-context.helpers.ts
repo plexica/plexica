@@ -4,10 +4,11 @@
 
 import Fastify from 'fastify';
 
-import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import errorHandlerPlugin from '../../middleware/error-handler.js';
 import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
+
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AuthUser } from '../../middleware/auth-middleware.js';
 
 /**

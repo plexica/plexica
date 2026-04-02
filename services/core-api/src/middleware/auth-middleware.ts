@@ -8,12 +8,14 @@
 
 import { jwtVerify, errors as joseErrors } from 'jose';
 
-import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { UnauthorizedError } from '../lib/app-error.js';
 import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
+
 import { getCacheStats, getJWKS, invalidate } from './jwks-cache.js';
+
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 // ---------------------------------------------------------------------------
 // Fastify type augmentation — adds `user` to FastifyRequest

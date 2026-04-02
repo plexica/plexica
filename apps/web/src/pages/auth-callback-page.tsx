@@ -29,7 +29,7 @@ export function AuthCallbackPage(): JSX.Element {
       .catch((err: unknown) => {
         setError(String(err instanceof Error ? err.message : err));
       });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — runs once on mount only
 
   if (error !== null) {
     return (

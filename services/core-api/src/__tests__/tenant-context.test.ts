@@ -9,12 +9,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-import type { FastifyInstance } from 'fastify';
 
 import { prisma } from '../lib/database.js';
 import errorHandlerPlugin from '../middleware/error-handler.js';
 import { tenantContextMiddleware, clearTenantCache } from '../middleware/tenant-context.js';
+
 import { makeAuthStub, createServerWithRealmStub } from './helpers/tenant-context.helpers.js';
+
+import type { FastifyInstance } from 'fastify';
 
 const TEST_SLUG = 'ctx-test-tenant';
 const TEST_SCHEMA = 'tenant_ctx_test_tenant';

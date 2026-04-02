@@ -6,12 +6,13 @@
 import { afterAll, beforeEach, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-import type { FastifyInstance } from 'fastify';
 
 import { config } from '../lib/config.js';
 import errorHandlerPlugin from '../middleware/error-handler.js';
 import { authMiddleware } from '../middleware/auth-middleware.js';
 import { getCacheStats, invalidate, resetCacheStats } from '../middleware/jwks-cache.js';
+
+import type { FastifyInstance } from 'fastify';
 
 // Check if Keycloak is reachable
 async function isKeycloakReachable(): Promise<boolean> {

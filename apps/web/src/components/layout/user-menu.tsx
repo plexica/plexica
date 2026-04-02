@@ -7,6 +7,7 @@ import { LogOut } from 'lucide-react';
 import { useIntl } from 'react-intl';
 
 import { useAuthStore } from '../../stores/auth-store.js';
+
 import { Avatar } from './avatar.js';
 
 export function UserMenu(): JSX.Element {

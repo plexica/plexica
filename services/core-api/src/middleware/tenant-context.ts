@@ -13,7 +13,6 @@
 // H-3 fix: X-Tenant-Slug header is only accepted in non-production environments.
 // M-9 fix: periodic cache eviction prevents unbounded memory growth.
 
-import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { InvalidTenantContextError, NotFoundError } from '../lib/app-error.js';
 import { prisma } from '../lib/database.js';
@@ -22,6 +21,8 @@ import { logger } from '../lib/logger.js';
 import { SLUG_REGEX } from '../lib/tenant-schema-helpers.js';
 import { type TenantContext, enterWithTenant } from '../lib/tenant-context-store.js';
 import { toRealmName, toSchemaName } from '../lib/tenant-schema-helpers.js';
+
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 // In-memory tenant cache — 60 second TTL
 interface TenantCacheEntry {

@@ -12,6 +12,7 @@ import { Menu } from 'lucide-react';
 import { useIntl } from 'react-intl';
 
 import { useMediaQuery } from '../../hooks/use-media-query.js';
+
 import { Breadcrumb } from './breadcrumb.js';
 import { UserMenu } from './user-menu.js';
 

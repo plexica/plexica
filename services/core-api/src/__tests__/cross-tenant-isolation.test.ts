@@ -10,12 +10,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-import type { FastifyInstance } from 'fastify';
 
 import { prisma } from '../lib/database.js';
 import errorHandlerPlugin from '../middleware/error-handler.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { withTenantDb } from '../lib/tenant-database.js';
+
+import type { FastifyInstance } from 'fastify';
 
 const TENANT_A = 'isolation-test-alpha';
 const TENANT_B = 'isolation-test-beta';

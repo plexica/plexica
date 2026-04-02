@@ -3,9 +3,11 @@
 // AppShell (sidebar + header) remains intact; only the main content shows the fallback.
 
 import { Component } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
 
 import { ErrorFallback } from './error-fallback.js';
+
+import type { ErrorInfo, ReactNode } from 'react';
+
 
 interface Props {
   children: ReactNode;

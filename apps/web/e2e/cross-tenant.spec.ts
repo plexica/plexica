@@ -46,7 +46,7 @@ test.describe('Cross-tenant isolation (NFR-04)', () => {
     // Use tenant A token with tenant B header — should be rejected
     const crossRes = await page.request.get(`${API_BASE}/api/me`, {
       headers: {
-        Authorization: `Bearer ${tokenA!}`,
+        Authorization: `Bearer ${tokenA ?? ''}`,
         'X-Tenant-Slug': TENANT_B_SLUG, // Wrong tenant context
       },
     });

@@ -4,8 +4,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import type { UserProfile } from '../types/auth.js';
 import { apiClient } from '../services/api-client.js';
+
+import type { UserProfile } from '../types/auth.js';
 
 interface UseCurrentUserResult {
   user: UserProfile | undefined;

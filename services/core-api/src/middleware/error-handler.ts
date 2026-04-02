@@ -3,9 +3,10 @@
 // Maps AppError subclasses to structured HTTP responses.
 // Non-AppError errors → 500 with generic message (no stack traces exposed).
 
+import { AppError } from '../lib/app-error.js';
+
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
-import { AppError } from '../lib/app-error.js';
 
 interface FastifyValidationError {
   validation?: unknown[];

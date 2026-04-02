@@ -4,7 +4,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-import type { FastifyInstance } from 'fastify';
 
 import { prisma } from '../lib/database.js';
 import errorHandlerPlugin from '../middleware/error-handler.js';
@@ -12,6 +11,8 @@ import { authMiddleware } from '../middleware/auth-middleware.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import userRoutes from '../modules/user/user-routes.js';
 import tenantRoutes from '../modules/tenant/tenant-routes.js';
+
+import type { FastifyInstance } from 'fastify';
 
 const RESOLVE_SLUG = 'resolve-test-tenant';
 const RESOLVE_SCHEMA = 'tenant_resolve_test_tenant';

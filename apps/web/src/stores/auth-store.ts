@@ -6,13 +6,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-import type { AuthState, UserProfile } from '../types/auth.js';
 import {
   exchangeCode,
   getLoginUrl,
   getLogoutUrl,
   refreshTokens,
 } from '../services/keycloak-auth.js';
+
+import type { AuthState, UserProfile } from '../types/auth.js';
 
 interface AuthStore extends AuthState {
   tenantSlug: string | null;

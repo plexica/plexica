@@ -14,10 +14,11 @@
 // Route handlers MUST use withTenantDb() for all tenant-specific data
 // access instead of the global prisma client.
 
-import type { Prisma } from '@prisma/client';
 
 import { prisma } from './database.js';
 import { getTenantContext } from './tenant-context-store.js';
+
+import type { Prisma } from '@prisma/client';
 
 /**
  * Executes a database callback within the current tenant's schema.

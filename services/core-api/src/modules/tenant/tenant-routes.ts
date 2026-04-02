@@ -4,14 +4,16 @@
 
 import { z } from 'zod';
 
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
 import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { TenantRequiredError, ValidationError, UnauthorizedError } from '../../lib/app-error.js';
 import { prisma } from '../../lib/database.js';
 import { slugSchema, SLUG_REGEX } from '../../lib/tenant-schema-helpers.js';
-import { provisionTenant } from './tenant-provisioning.js';
 import { migrateAll } from '../../lib/multi-schema-migrate.js';
+
+import { provisionTenant } from './tenant-provisioning.js';
+
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
 // L-2: Use the canonical slugSchema from tenant-schema-helpers so that route
 // validation is consistent with provisioning validation (same regex, same limits).

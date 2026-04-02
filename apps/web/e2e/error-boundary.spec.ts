@@ -8,7 +8,6 @@
 
 import { expect, test } from '@playwright/test';
 
-const TENANT_SLUG = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'test-tenant';
 const TEST_USER = process.env['PLAYWRIGHT_TEST_USER'] ?? 'test@example.com';
 const TEST_PASSWORD = process.env['PLAYWRIGHT_TEST_PASSWORD'] ?? 'test-password';
 
