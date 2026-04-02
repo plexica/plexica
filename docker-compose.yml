@@ -32,12 +32,47 @@ services:
       retries: 10
       start_period: 10s
 
+  # One-shot service: creates the 'keycloak' database inside the shared PostgreSQL
+  # instance if it does not already exist. Runs on every 'docker compose up' but is
+  # idempotent — the SELECT guard means it is a no-op when the DB already exists.
+  # Keycloak depends on this service completing successfully before it starts.
+  keycloak-db-init:
+    image: postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    # postgres:15-alpine — same pinned digest as the main postgres service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        psql -h postgres -U "${POSTGRES_USER:-plexica}" -d "${POSTGRES_DB:-plexica}" -tc \
+          "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1 \
+        || psql -h postgres -U "${POSTGRES_USER:-plexica}" -d "${POSTGRES_DB:-plexica}" \
+          -c "CREATE DATABASE keycloak"
+    restart: 'no'
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
   keycloak:
     image: quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
     # quay.io/keycloak/keycloak:26.0 — pinned 2026-03-31
     command: start-dev --import-realm
+    depends_on:
+      keycloak-db-init:
+        condition: service_completed_successfully
     environment:
-      KC_DB: dev-mem
+      # Persistent storage: use the shared PostgreSQL instance.
+      # Realm data (including provisioned tenants) now survives container restarts.
+      # To wipe all Keycloak state: docker compose down -v && docker compose up -d
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-plexica}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
       KC_HEALTH_ENABLED: 'true'
