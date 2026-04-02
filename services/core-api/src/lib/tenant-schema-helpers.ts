@@ -9,6 +9,11 @@ import { z } from 'zod';
 // that could cause two tenants to share the same PostgreSQL schema.
 // Must start with letter, end with alphanumeric (no trailing hyphens).
 // Exported so tenant-context.ts and tenant-routes.ts share the same canonical regex.
+//
+// M-02 (spec alignment): the original spec wrote /^[a-z][a-z0-9-]{1,62}$/ which would
+// allow up to 63-char slugs. With the "tenant_" prefix that would produce 70-char schema
+// names, exceeding PostgreSQL's NAMEDATALEN=64. The implementation deliberately tightens
+// the limit to 51 chars. This divergence is intentional and documented in the decision log.
 export const SLUG_REGEX = /^[a-z][a-z0-9-]{1,49}[a-z0-9]$/;
 
 export const slugSchema = z

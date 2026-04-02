@@ -98,11 +98,35 @@ export async function refreshTokens(refreshToken: string, realm: string): Promis
   return response.json() as Promise<TokenResponse>;
 }
 
-export function getLogoutUrl(realm: string, idToken: string): string {
+export function getLogoutUrl(
+  realm: string,
+  idToken: string,
+  postLogoutRedirectUri?: string
+): string {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    post_logout_redirect_uri: window.location.origin,
+    post_logout_redirect_uri: postLogoutRedirectUri ?? window.location.origin,
     id_token_hint: idToken,
   });
   return `${realmBase(realm)}/logout?${params.toString()}`;
+}
+
+/**
+ * Backchannel logout: invalidates the Keycloak session server-side via a
+ * direct POST request (no browser redirect required). Best-effort — errors
+ * are swallowed so that local state is always cleared even if Keycloak is
+ * temporarily unreachable.
+ */
+export async function revokeSession(realm: string, refreshToken: string): Promise<void> {
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    refresh_token: refreshToken,
+  });
+  await fetch(`${realmBase(realm)}/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  }).catch(() => {
+    // Ignore network errors — local state will be cleared regardless
+  });
 }

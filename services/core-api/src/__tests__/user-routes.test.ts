@@ -4,7 +4,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-
 import { prisma } from '../lib/database.js';
 import errorHandlerPlugin from '../middleware/error-handler.js';
 import { authMiddleware } from '../middleware/auth-middleware.js';
@@ -79,7 +78,7 @@ describe('GET /api/me', () => {
 });
 
 describe('GET /api/tenants/resolve', () => {
-  it('returns { exists: true, realm } for a known active tenant', async () => {
+  it('returns { exists: true } for a known active tenant (realm omitted — anti-enumeration, Decision ID-002)', async () => {
     const res = await server.inject({
       method: 'GET',
       url: `/api/tenants/resolve?slug=${RESOLVE_SLUG}`,
@@ -87,7 +86,9 @@ describe('GET /api/tenants/resolve', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { exists: boolean; realm?: string };
     expect(body.exists).toBe(true);
-    expect(body.realm).toMatch(/plexica-/);
+    // realm is intentionally NOT returned — frontend derives it via toRealmName() convention.
+    // Exposing the internal realm name to unauthenticated callers aids tenant enumeration.
+    expect(body.realm).toBeUndefined();
   });
 
   it('returns { exists: false } for unknown slug', async () => {

@@ -9,6 +9,7 @@ import { config } from './config.js';
 import {
   buildRealmPayload,
   buildClientPayload,
+  buildAudienceMapperPayload,
   buildRolePayload,
   buildAdminUserPayload,
   type RealmConfig,
@@ -65,7 +66,12 @@ async function adminRequest(path: string, method: string, body?: unknown): Promi
   });
 }
 
-export async function createRealm(realmConfig: RealmConfig): Promise<void> {
+export interface CreateRealmResult {
+  /** Temporary password set on the initial admin user. Must be changed on first login. */
+  tempPassword: string;
+}
+
+export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealmResult> {
   const { realmName, adminEmail, tenantSlug } = realmConfig;
 
   // Create realm
@@ -88,7 +94,44 @@ export async function createRealm(realmConfig: RealmConfig): Promise<void> {
     buildClientPayload('plexica-web', redirectUris, webOrigins)
   );
   if (!clientRes.ok && clientRes.status !== 409) {
-    throw new Error(`Failed to create client in realm ${realmName}: ${clientRes.status}`);
+    const body = await clientRes.text().catch(() => '');
+    throw new Error(
+      `Failed to create client in realm ${realmName}: ${clientRes.status}${body !== '' ? ` — ${body}` : ''}`
+    );
+  }
+
+  // Resolve the client's internal UUID so we can attach the audience mapper.
+  // On 201 the UUID is in the Location header; on 409 (already exists) we look it up.
+  let clientUuid: string | null = null;
+  if (clientRes.status === 201) {
+    const location = clientRes.headers.get('Location') ?? '';
+    clientUuid = location.split('/').pop() ?? null;
+  }
+  if (clientUuid === null || clientUuid === '') {
+    const lookupRes = await adminRequest(
+      `/admin/realms/${realmName}/clients?clientId=plexica-web`,
+      'GET'
+    );
+    if (lookupRes.ok) {
+      const clients = (await lookupRes.json()) as Array<{ id: string }>;
+      clientUuid = clients[0]?.id ?? null;
+    }
+  }
+
+  // Add the audience mapper so the access token includes 'plexica-web' in the
+  // `aud` claim. Embedded protocolMappers in the client creation payload causes
+  // a 400 in Keycloak 26, so we add it via a separate call (Decision log).
+  if (clientUuid !== null) {
+    const mapperRes = await adminRequest(
+      `/admin/realms/${realmName}/clients/${clientUuid}/protocol-mappers/models`,
+      'POST',
+      buildAudienceMapperPayload('plexica-web')
+    );
+    if (!mapperRes.ok && mapperRes.status !== 409) {
+      logger.warn({ realmName, clientUuid }, 'Failed to add audience mapper to client');
+    }
+  } else {
+    logger.warn({ realmName }, 'Could not resolve client UUID — audience mapper not added');
   }
 
   // Create default roles
@@ -120,6 +163,7 @@ export async function createRealm(realmConfig: RealmConfig): Promise<void> {
   }
 
   logger.info({ realmName }, 'Keycloak realm provisioned');
+  return { tempPassword };
 }
 
 export async function deleteRealm(realmName: string): Promise<void> {

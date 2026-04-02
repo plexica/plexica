@@ -36,6 +36,10 @@ const configSchema = z.object({
 
   // Keycloak OIDC client ID — used for JWT audience validation (H-4)
   KEYCLOAK_CLIENT_ID: z.string().default('plexica-web'),
+
+  // Keycloak master realm name — used to enforce that super_admin tokens are
+  // issued by the master realm, not by a tenant realm (H-03 security fix).
+  KEYCLOAK_MASTER_REALM: z.string().default('master'),
 });
 
 export type Config = z.infer<typeof configSchema>;

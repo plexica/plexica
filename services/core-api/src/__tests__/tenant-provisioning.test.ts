@@ -29,7 +29,9 @@ async function isKeycloakReachable(): Promise<boolean> {
 
 async function isMinioReachable(): Promise<boolean> {
   try {
-    const url = `http://${config.MINIO_ENDPOINT}/minio/health/live`;
+    // Use new URL() to correctly join base + path, avoiding the double-protocol
+    // bug that occurred when MINIO_ENDPOINT was already a full URL (http://...).
+    const url = new URL('/minio/health/live', config.MINIO_ENDPOINT).toString();
     const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
     return res.ok || res.status === 200;
   } catch {

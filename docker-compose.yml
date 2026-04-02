@@ -51,6 +51,7 @@ services:
       # NOTE: host port 9000 is already taken by MinIO — do not expose 9000 here.
     volumes:
       - ./infra/keycloak:/opt/keycloak/data/import:ro
+      - ./infra/keycloak/providers:/opt/keycloak/providers:ro
     deploy:
       resources:
         limits:

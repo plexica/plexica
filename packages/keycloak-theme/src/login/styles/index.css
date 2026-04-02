@@ -1,0 +1,7 @@
+/* index.css — Plexica Keycloak theme: barrel import for all theme styles */
+
+@import './reset.css';
+@import './layout.css';
+@import './forms.css';
+@import './buttons.css';
+@import './alerts.css';

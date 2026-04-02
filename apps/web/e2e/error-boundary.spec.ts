@@ -10,10 +10,14 @@ import { expect, test } from '@playwright/test';
 
 const TEST_USER = process.env['PLAYWRIGHT_TEST_USER'] ?? 'test@example.com';
 const TEST_PASSWORD = process.env['PLAYWRIGHT_TEST_PASSWORD'] ?? 'test-password';
+const TENANT_SLUG = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'test-tenant';
 
 // Helper: log in and navigate to a protected route
 async function loginAndGoTo(page: import('@playwright/test').Page, path: string): Promise<void> {
-  await page.goto('/');
+  // Include ?tenant= so the root loader can resolve the tenant.
+  // Without it the root loader throws no-subdomain and redirects to org-error
+  // before AuthGuard ever gets a chance to redirect to Keycloak.
+  await page.goto('/?tenant=' + TENANT_SLUG);
   // Wait for Keycloak login redirect
   await page.waitForURL(/\/realms\//, { timeout: 10_000 });
   await page.getByLabel(/email|username/i).fill(TEST_USER);

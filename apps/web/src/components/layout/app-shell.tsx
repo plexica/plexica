@@ -1,9 +1,14 @@
 // app-shell.tsx
 // Application shell layout: skip link + sidebar + header + main content area.
 // Uses CSS grid for the 2-column (sidebar + main) layout.
+//
+// M-07 fix: replaced window.innerWidth (one-shot, stale after resize) with
+// useMediaQuery (reactive, matches header.tsx convention).
 
 import { useState } from 'react';
 import { Outlet } from '@tanstack/react-router';
+
+import { useMediaQuery } from '../../hooks/use-media-query.js';
 
 import { SkipLink } from './skip-link.js';
 import { Sidebar } from './sidebar.js';
@@ -12,12 +17,12 @@ import { Header } from './header.js';
 export function AppShell(): JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   function handleToggleSidebar(): void {
     // On mobile: toggle open/close drawer
     // On desktop: toggle collapsed/expanded
-    const isMobile = window.innerWidth < 1024;
-    if (isMobile) {
+    if (!isDesktop) {
       setSidebarOpen((prev) => !prev);
     } else {
       setSidebarCollapsed((prev) => !prev);

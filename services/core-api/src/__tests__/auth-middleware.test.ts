@@ -6,7 +6,6 @@
 import { afterAll, beforeEach, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-
 import { config } from '../lib/config.js';
 import errorHandlerPlugin from '../middleware/error-handler.js';
 import { authMiddleware } from '../middleware/auth-middleware.js';
@@ -88,6 +87,43 @@ describe('Auth middleware — JWKS cache stats', () => {
 
   it('invalidate removes realm from cache without error', () => {
     expect(() => invalidate('test-realm')).not.toThrow();
+  });
+
+  skipIfNoKeycloak('JWKS cache hit rate > 99% after warm-up (NFR-03)', async () => {
+    // Send 100 requests — first will be a miss (JWKS fetch), the rest should hit the cache.
+    // NFR-03 target: > 99% hit rate on steady-state traffic.
+    const testRealm = `plexica-nfr03-cache-test`;
+    const fakePayload = Buffer.from(
+      JSON.stringify({
+        iss: `${config.KEYCLOAK_URL}/realms/${testRealm}`,
+        sub: 'test',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        aud: config.KEYCLOAK_CLIENT_ID,
+      })
+    ).toString('base64url');
+    const fakeToken = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.${fakePayload}.fake-sig`;
+
+    resetCacheStats();
+
+    const N = 100;
+    for (let i = 0; i < N; i++) {
+      await server.inject({
+        method: 'GET',
+        url: '/test-auth',
+        headers: { authorization: `Bearer ${fakeToken}` },
+      });
+    }
+
+    const stats = getCacheStats();
+    const total = stats.hits + stats.misses;
+    const hitRate = total > 0 ? stats.hits / total : 0;
+
+    // First request is a cold miss; all subsequent N-1 are cache hits.
+    // Expected hit rate: 99/100 = 0.99.
+    expect(
+      hitRate,
+      `JWKS cache hit rate ${(hitRate * 100).toFixed(1)}% — NFR-03 requires > 99%`
+    ).toBeGreaterThan(0.99);
   });
 });
 

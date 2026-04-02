@@ -32,15 +32,22 @@ test.describe('Login flow', () => {
     await expect(page).toHaveURL(new RegExp(KEYCLOAK_URL));
   });
 
-  test('full login flow: enter credentials → /callback → /dashboard', async ({ page }) => {
+  test('full login flow completes in < 3s (NFR-01)', async ({ page }) => {
+    const start = Date.now();
+
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
-
     await page.fill('input[name="username"]', KEYCLOAK_USERNAME);
     await page.fill('input[name="password"]', KEYCLOAK_PASSWORD);
     await page.click('input[type="submit"], button[type="submit"]');
-
     await page.waitForURL('**/dashboard', { timeout: 10_000 });
+
+    const elapsed = Date.now() - start;
+    // NFR-01: full login flow (navigate → Keycloak login → submit → dashboard) < 3s.
+    // This includes browser navigation, Keycloak redirect, PKCE code exchange, and React hydration.
+    // Allow 3000ms. If consistently failing in slow CI environments, review Keycloak TTY/startup.
+    expect(elapsed, `Login flow took ${elapsed}ms — NFR-01 requires < 3000ms`).toBeLessThan(3000);
+
     await expect(page).toHaveURL(/\/dashboard/);
   });
 

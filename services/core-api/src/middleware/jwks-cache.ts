@@ -1,6 +1,15 @@
 // jwks-cache.ts
 // In-memory JWKS cache keyed by Keycloak realm name.
 // Uses jose createRemoteJWKSet; deduplicates concurrent in-flight fetches.
+//
+// M-08 fix: removed TTL-based eviction from the Map level.
+// jose's createRemoteJWKSet handles its own internal HTTP caching and key rotation
+// transparently. Discarding the function reference on TTL expiry forces a full
+// JWKS round-trip on the next request, which is counterproductive for NFR-03
+// (> 99% cache hit rate). The JWKS_CACHE_TTL_MS config key is now unused here
+// but retained in config.ts to avoid a breaking env-var change.
+// The invalidate() function is preserved for EC-06: forced cache eviction on
+// JWSSignatureVerificationFailed (key rotation signal).
 
 import { createRemoteJWKSet } from 'jose';
 
@@ -9,18 +18,13 @@ import { logger } from '../lib/logger.js';
 
 type RemoteJWKSet = ReturnType<typeof createRemoteJWKSet>;
 
-interface CacheEntry {
-  jwks: RemoteJWKSet;
-  createdAt: number;
-}
-
 interface CacheStats {
   hits: number;
   misses: number;
   size: number;
 }
 
-const cache = new Map<string, CacheEntry>();
+const cache = new Map<string, RemoteJWKSet>();
 const inFlight = new Map<string, Promise<RemoteJWKSet>>();
 
 let hits = 0;
@@ -30,15 +34,11 @@ function jwksUrl(realmName: string): string {
   return `${config.KEYCLOAK_URL}/realms/${realmName}/protocol/openid-connect/certs`;
 }
 
-function isExpired(entry: CacheEntry): boolean {
-  return Date.now() - entry.createdAt > config.JWKS_CACHE_TTL_MS;
-}
-
 export async function getJWKS(realmName: string): Promise<RemoteJWKSet> {
-  const entry = cache.get(realmName);
-  if (entry !== undefined && !isExpired(entry)) {
+  const cached = cache.get(realmName);
+  if (cached !== undefined) {
     hits++;
-    return entry.jwks;
+    return cached;
   }
 
   // Check for an in-flight fetch for the same realm (deduplication)
@@ -54,7 +54,7 @@ export async function getJWKS(realmName: string): Promise<RemoteJWKSet> {
     try {
       const url = new URL(jwksUrl(realmName));
       const jwks = createRemoteJWKSet(url);
-      cache.set(realmName, { jwks, createdAt: Date.now() });
+      cache.set(realmName, jwks);
       return jwks;
     } finally {
       inFlight.delete(realmName);

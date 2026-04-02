@@ -47,7 +47,9 @@ export function UserMenu(): JSX.Element {
           <DropdownMenu.Separator className="my-1 h-px bg-neutral-100" />
 
           <DropdownMenu.Item
-            onSelect={logout}
+            onSelect={() => {
+              void logout();
+            }}
             className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-neutral-700 outline-none hover:bg-neutral-50 focus:bg-neutral-50"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />

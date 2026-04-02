@@ -1,6 +1,12 @@
 // keycloak-admin-helpers.ts
 // Helper functions for Keycloak Admin REST API operations.
 // Builds request payloads for realm and client creation.
+//
+// H-04 (logout token invalidation strategy): access token TTL is set to 60 seconds.
+// Backchannel logout revokes the refresh token immediately; the access token remains
+// technically valid until expiry. With a 60s TTL, the window is acceptably short.
+// The frontend performs a silent refresh every 55s, so users never notice the expiry.
+// This is Decision ID-005 in the decision log.
 
 export interface RealmConfig {
   realmName: string;
@@ -21,7 +27,9 @@ export function buildRealmPayload(realmName: string): Record<string, unknown> {
     resetPasswordAllowed: true,
     editUsernameAllowed: false,
     bruteForceProtected: true,
-    accessTokenLifespan: 300,
+    // H-04: 60s access token TTL. Short enough that a stolen token post-logout
+    // expires quickly. Frontend refreshes silently every 55s (see auth-store.ts).
+    accessTokenLifespan: 60,
     ssoSessionIdleTimeout: 1800,
     ssoSessionMaxLifespan: 36000,
   };
@@ -46,6 +54,31 @@ export function buildClientPayload(
     webOrigins,
     attributes: {
       'pkce.code.challenge.method': 'S256',
+      // Keycloak stores post-logout redirect URIs in attributes["post.logout.redirect.uris"]
+      // as a ##-separated string. The top-level postLogoutRedirectUris field is only
+      // available in newer Keycloak REST API versions and causes a 400 on older ones.
+      'post.logout.redirect.uris': redirectUris.join('##'),
+    },
+  };
+}
+
+/**
+ * Builds the payload for an audience protocol mapper.
+ * Adds the client ID to the `aud` claim of the access token so that the
+ * backend audience check (H-4) passes. Must be added via a separate
+ * protocol-mappers/models call after the client is created — embedding
+ * protocolMappers in the client creation payload causes a 400 in Keycloak 26.
+ */
+export function buildAudienceMapperPayload(clientId: string): Record<string, unknown> {
+  return {
+    name: 'audience-mapper',
+    protocol: 'openid-connect',
+    protocolMapper: 'oidc-audience-mapper',
+    consentRequired: false,
+    config: {
+      'included.client.audience': clientId,
+      'id.token.claim': 'false',
+      'access.token.claim': 'true',
     },
   };
 }

@@ -12,7 +12,14 @@
 // H-2 fix: verifies request.user.realm matches the resolved tenant's realm.
 // H-3 fix: X-Tenant-Slug header is only accepted in non-production environments.
 // M-9 fix: periodic cache eviction prevents unbounded memory growth.
-
+//
+// M-01 (withTenantDb enforcement):
+//   All tenant-scoped database access MUST use withTenantDb() (from lib/tenant-schema.ts).
+//   This middleware sets the context via AsyncLocalStorage; withTenantDb() reads it and
+//   executes SET search_path before each tenant query. Any code that uses `prisma` directly
+//   (without withTenantDb) will operate on the public/core schema — an invisible data routing
+//   bug. There is intentionally no lint rule for this yet; it is enforced by code review.
+//   See: services/core-api/src/lib/tenant-schema.ts → withTenantDb()
 
 import { InvalidTenantContextError, NotFoundError } from '../lib/app-error.js';
 import { prisma } from '../lib/database.js';
@@ -156,6 +163,16 @@ export async function tenantContextMiddleware(
   // in route handlers without explicit parameter passing.
   // enterWithTenant() uses AsyncLocalStorage.enterWith() which persists through
   // all subsequent async operations in the current execution tree.
+  //
+  // M-04 (enterWith vs runWithTenant): storage.run(context, fn) is normally
+  // preferred because it scopes context to a callback boundary. However,
+  // Fastify's preHandler hook does NOT wrap route handlers in a callback — it
+  // runs async, then Fastify calls the route handler separately. storage.run()
+  // would lose the context before the handler executes. enterWith() is therefore
+  // the correct API here: it sets context for the entire remaining async execution
+  // tree of the request (which is isolated per-request in Node.js's async_hooks).
+  // The risk of context leaking to unrelated requests does not apply — each
+  // Fastify request runs in its own async execution context.
   enterWithTenant(context);
 
   // Also set on request for direct access without going through ALS.

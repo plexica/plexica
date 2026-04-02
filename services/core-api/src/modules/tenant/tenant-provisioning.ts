@@ -22,6 +22,8 @@ export interface ProvisioningResult {
   schemaName: string;
   realmName: string;
   minioBucket: string;
+  /** Temporary password for the initial admin user. Must be changed on first login. */
+  tempPassword: string;
 }
 
 type CompletedStep = 'schema' | 'realm' | 'bucket';
@@ -67,7 +69,7 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
     completedSteps.push('schema');
 
     // Step 2: Create Keycloak realm
-    await createRealm({ realmName, adminEmail, tenantSlug: slug });
+    const { tempPassword } = await createRealm({ realmName, adminEmail, tenantSlug: slug });
     completedSteps.push('realm');
 
     // Step 3: Create MinIO bucket + update tenant record
@@ -85,6 +87,7 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
       schemaName,
       realmName,
       minioBucket,
+      tempPassword,
     };
   } catch (err) {
     logger.error({ slug, completedSteps, err: String(err) }, 'Provisioning failed — rolling back');

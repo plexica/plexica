@@ -8,13 +8,18 @@ import { config } from './config.js';
 import { logger } from './logger.js';
 
 function createMinioClient(): MinioClient {
-  const [host, portStr] = config.MINIO_ENDPOINT.split(':');
-  const port = portStr !== undefined ? parseInt(portStr, 10) : 9000;
+  // Parse the full URL (e.g. "http://localhost:9000") so that the scheme,
+  // host and port are extracted correctly. A naive split(':') would break
+  // on the "http:" prefix, turning "http" into the hostname.
+  const url = new URL(config.MINIO_ENDPOINT);
+  const host = url.hostname;
+  const port = url.port !== '' ? parseInt(url.port, 10) : url.protocol === 'https:' ? 443 : 80;
+  const useSSL = url.protocol === 'https:';
 
   return new MinioClient({
-    endPoint: host ?? config.MINIO_ENDPOINT,
+    endPoint: host,
     port,
-    useSSL: config.NODE_ENV === 'production',
+    useSSL,
     accessKey: config.MINIO_ACCESS_KEY,
     secretKey: config.MINIO_SECRET_KEY,
   });

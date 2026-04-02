@@ -2,6 +2,7 @@
 // Main dashboard page — shows user greeting and stat cards.
 // Uses useCurrentUser() hook for TanStack Query data fetching.
 
+import { Activity } from 'lucide-react';
 import { FormattedMessage } from 'react-intl';
 
 import { useCurrentUser } from '../hooks/use-current-user.js';
@@ -42,7 +43,7 @@ export function DashboardPage(): JSX.Element {
           <FormattedMessage id="dashboard.activity.title" />
         </h2>
         <EmptyState
-          icon="activity"
+          icon={Activity}
           heading={<FormattedMessage id="dashboard.activity.empty.heading" />}
           description={<FormattedMessage id="dashboard.activity.empty.description" />}
         />

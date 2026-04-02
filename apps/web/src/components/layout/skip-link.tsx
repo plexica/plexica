@@ -2,6 +2,10 @@
 // Accessible skip navigation link — visible on keyboard focus.
 // Must be the first focusable element in the DOM.
 // L-4 fix: text is now sourced from react-intl (was hardcoded English string).
+// L-02 note: intentionally uses <a href="#..."> (not a router Link component).
+//   AGENTS.md forbids <a href> in place of router components for page navigation,
+//   but this is an intra-page anchor jump (#main-content), not a route change.
+//   Using a native <a> is correct here; router navigation would be semantically wrong.
 
 import { useIntl } from 'react-intl';
 

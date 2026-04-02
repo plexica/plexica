@@ -1,12 +1,16 @@
 // tenant-routes.ts
 // Tenant API routes: resolve (public), create tenant (super_admin), migrate all (super_admin).
 // Admin routes use auth-only scope — no tenant context middleware (Decision log ID-003).
+//
+// H-03 fix: requireSuperAdmin now enforces that the token was issued by the Keycloak
+// master realm. A tenant admin cannot escalate to super_admin by creating a role with
+// the same name in their own realm.
 
 import { z } from 'zod';
 
-
 import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { TenantRequiredError, ValidationError, UnauthorizedError } from '../../lib/app-error.js';
+import { config } from '../../lib/config.js';
 import { prisma } from '../../lib/database.js';
 import { slugSchema, SLUG_REGEX } from '../../lib/tenant-schema-helpers.js';
 import { migrateAll } from '../../lib/multi-schema-migrate.js';
@@ -23,7 +27,13 @@ const createTenantBody = z.object({
   adminEmail: z.string().email(),
 });
 
-function requireSuperAdmin(roles: string[]): void {
+// H-03 fix: enforces that the token was issued by the Keycloak master realm.
+// A tenant admin who creates a 'super_admin' role in their own realm cannot
+// call admin routes — only tokens from KEYCLOAK_MASTER_REALM are accepted.
+function requireSuperAdmin(roles: string[], realm: string): void {
+  if (realm !== config.KEYCLOAK_MASTER_REALM) {
+    throw new UnauthorizedError('super_admin endpoints require a master realm token');
+  }
   if (!roles.includes('super_admin')) {
     throw new UnauthorizedError('super_admin role required');
   }
@@ -72,8 +82,11 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     adminScope.addHook('preHandler', authMiddleware);
 
     // POST /api/admin/tenants — provision a new tenant
+    // M-05 (TD-002): plan §3.3 specifies a 5 req/min rate limit on this endpoint.
+    // @fastify/rate-limit is not yet installed (would require an ADR as a new core
+    // dependency). Rate limiting is tracked in the decision log as TD-002.
     adminScope.post('/api/admin/tenants', async (request, reply) => {
-      requireSuperAdmin(request.user.roles);
+      requireSuperAdmin(request.user.roles, request.user.realm);
 
       const parseResult = createTenantBody.safeParse(request.body);
       if (!parseResult.success) {
@@ -88,7 +101,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
     // POST /api/admin/tenants/migrate-all — run migrations for all tenants
     adminScope.post('/api/admin/tenants/migrate-all', async (_request, reply) => {
-      requireSuperAdmin(_request.user.roles);
+      requireSuperAdmin(_request.user.roles, _request.user.realm);
 
       const report = await migrateAll();
       const status = report.failed > 0 ? 207 : 200;

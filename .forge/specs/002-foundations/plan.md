@@ -161,8 +161,7 @@ header in dev, subdomain in production).
 - **Response (200)**:
   ```json
   {
-    "exists": true,
-    "realm": "plexica-acme"
+    "exists": true
   }
   ```
 - **Response (200, not found)**:
@@ -172,7 +171,10 @@ header in dev, subdomain in production).
   }
   ```
   Note: Always returns 200 to prevent tenant enumeration via status codes.
-  The `realm` field is only included when `exists` is true.
+  The `realm` field is intentionally **not returned** — an unauthenticated caller
+  could use it to enumerate valid tenant slugs. The frontend derives the realm name
+  via the `toRealmName()` convention (`plexica-<slug>`) without a round-trip.
+  See Decision ID-002 in the decision log.
 - **Error Responses**:
   | Status | Code | When |
   | ------ | ----------------- | --------------- |

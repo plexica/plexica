@@ -9,8 +9,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   exchangeCode,
   getLoginUrl,
-  getLogoutUrl,
   refreshTokens,
+  revokeSession,
 } from '../services/keycloak-auth.js';
 
 import type { AuthState, UserProfile } from '../types/auth.js';
@@ -21,7 +21,7 @@ interface AuthStore extends AuthState {
 
   // Actions
   login: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   handleCallback: (code: string, state: string) => Promise<void>;
   refresh: () => Promise<void>;
   setSessionExpired: () => void;
@@ -79,8 +79,16 @@ export const useAuthStore = create<AuthStore>()(
         window.location.href = url;
       },
 
-      logout: () => {
-        const { idToken, realm } = get();
+      logout: async () => {
+        const { refreshToken, realm, tenantSlug } = get();
+
+        // Backchannel logout: revoke the Keycloak session server-side before
+        // clearing local state. No browser redirect to Keycloak is needed,
+        // which avoids all redirect-URI validation issues entirely.
+        if (refreshToken !== null && realm !== null) {
+          await revokeSession(realm, refreshToken);
+        }
+
         set({
           accessToken: null,
           refreshToken: null,
@@ -89,9 +97,12 @@ export const useAuthStore = create<AuthStore>()(
           status: 'unauthenticated',
           isAuthenticated: false,
         });
-        if (realm !== null && idToken !== null) {
-          window.location.href = getLogoutUrl(realm, idToken);
-        }
+
+        // Full page reload so the app re-initialises cleanly.
+        // tenantSlug stays in sessionStorage (not cleared) so the root loader
+        // fast-path resolves the tenant on the next load.
+        const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+        window.location.href = `/${tenantParam}`;
       },
 
       handleCallback: async (code: string, state: string) => {
@@ -150,6 +161,16 @@ export const useAuthStore = create<AuthStore>()(
         tenantSlug: state.tenantSlug,
         realm: state.realm,
       }),
+      // L-03: on rehydration, derive transient fields from persisted tokens.
+      // `status` and `isAuthenticated` are not persisted (they would go stale).
+      // Without this, a page reload leaves the store in `status: 'unauthenticated'`
+      // even when valid tokens exist, which triggers a spurious Keycloak redirect.
+      onRehydrateStorage: () => (state) => {
+        if (state !== undefined && state.accessToken !== null) {
+          state.status = 'authenticated';
+          state.isAuthenticated = true;
+        }
+      },
     }
   )
 );

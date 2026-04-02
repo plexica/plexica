@@ -28,6 +28,14 @@ const TestErrorPage = import.meta.env.DEV
 // Root route — resolves tenant on app load
 const rootRoute = createRootRoute({
   loader: async () => {
+    // Fast path: tenant already resolved in a previous navigation (e.g. returning
+    // from the Keycloak OAuth redirect). Zustand persists tenantSlug + realm in
+    // sessionStorage, so they survive the full-page redirect to Keycloak and back.
+    const stored = useAuthStore.getState();
+    if (stored.tenantSlug !== null && stored.realm !== null) {
+      return { tenant: { slug: stored.tenantSlug, realm: stored.realm } };
+    }
+
     try {
       const tenant = await resolveTenant();
       useAuthStore.getState().setTenantContext(tenant.slug, tenant.realm);
