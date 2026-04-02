@@ -1,8 +1,9 @@
+import { AuthLayout } from '../components/AuthLayout';
+import '../styles/index.css';
+
 import type { PageProps } from 'keycloakify/login/pages/PageProps';
 import type { KcContext } from 'keycloakify/login/KcContext';
 import type { I18n } from 'keycloakify/login/i18n';
-import { AuthLayout } from '../components/AuthLayout';
-import '../styles/index.css';
 
 type ErrorKcContext = Extract<KcContext, { pageId: 'error.ftl' }>;
 

@@ -45,6 +45,26 @@ pnpm --filter web dev
 # pnpm --filter admin dev
 ```
 
+## Stopping and Resetting
+
+To stop all running containers without losing data:
+
+```bash
+docker compose down
+```
+
+To stop everything **and delete all Docker volumes** (PostgreSQL data, Keycloak configuration,
+Redis cache, MinIO buckets, Redpanda topics):
+
+```bash
+docker compose down -v
+```
+
+> **Warning:** `docker compose down -v` is destructive and irreversible. All tenant schemas,
+> Keycloak realms, uploaded files, and cached data will be permanently deleted. After running
+> this command you will need to repeat steps 5–6 of the Quick Start (migrations and tenant
+> creation) before the application can be used again.
+
 ## Design System — Storybook
 
 The `@plexica/ui` package contains the shared component library and design tokens.

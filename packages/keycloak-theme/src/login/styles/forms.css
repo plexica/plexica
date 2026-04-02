@@ -55,6 +55,14 @@
   color: var(--color-neutral-400);
 }
 
+.form-input.readonly,
+.form-input[readonly] {
+  background: var(--color-neutral-50);
+  color: var(--color-neutral-500);
+  cursor: not-allowed;
+  border-color: var(--color-neutral-200);
+}
+
 .form-error {
   font-size: 0.8125rem;
   color: var(--color-error);

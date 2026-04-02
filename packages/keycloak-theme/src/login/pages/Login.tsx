@@ -1,11 +1,13 @@
 import { useState } from 'react';
+
+import { AuthLayout } from '../components/AuthLayout';
+import { SocialProviders } from '../components/SocialProviders';
+import '../styles/index.css';
+
 import type { FormEvent } from 'react';
 import type { PageProps } from 'keycloakify/login/pages/PageProps';
 import type { KcContext } from 'keycloakify/login/KcContext';
 import type { I18n } from 'keycloakify/login/i18n';
-import { AuthLayout } from '../components/AuthLayout';
-import { SocialProviders } from '../components/SocialProviders';
-import '../styles/index.css';
 
 type LoginKcContext = Extract<KcContext, { pageId: 'login.ftl' }>;
 
