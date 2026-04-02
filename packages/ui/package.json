@@ -15,7 +15,10 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@radix-ui/react-avatar": "latest",
     "@radix-ui/react-dialog": "^1.1.0",
+    "@radix-ui/react-dropdown-menu": "latest",
+    "@radix-ui/react-navigation-menu": "latest",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-toast": "^1.2.0",
     "class-variance-authority": "^0.7.0",

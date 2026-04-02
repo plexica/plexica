@@ -7,8 +7,9 @@ import { z } from 'zod';
 // Max 51: "tenant_" prefix (7 chars) + 51 = 58 chars, safely under PostgreSQL's
 // 63-char identifier limit (NAMEDATALEN=64). Prevents silent schema name truncation
 // that could cause two tenants to share the same PostgreSQL schema.
-// Must start with letter, end with alphanumeric.
-const SLUG_REGEX = /^[a-z][a-z0-9-]{1,49}[a-z0-9]$/;
+// Must start with letter, end with alphanumeric (no trailing hyphens).
+// Exported so tenant-context.ts and tenant-routes.ts share the same canonical regex.
+export const SLUG_REGEX = /^[a-z][a-z0-9-]{1,49}[a-z0-9]$/;
 
 export const slugSchema = z
   .string()
@@ -19,9 +20,7 @@ export const slugSchema = z
     'Slug must be lowercase alphanumeric + hyphens, start with a letter, end with alphanumeric'
   );
 
-export type SlugValidationResult =
-  | { valid: true; slug: string }
-  | { valid: false; error: string };
+export type SlugValidationResult = { valid: true; slug: string } | { valid: false; error: string };
 
 export function validateSlug(slug: string): SlugValidationResult {
   const result = slugSchema.safeParse(slug);

@@ -12,14 +12,21 @@
   },
   "dependencies": {
     "@plexica/ui": "workspace:*",
+    "@radix-ui/react-avatar": "latest",
+    "@radix-ui/react-dropdown-menu": "latest",
+    "@radix-ui/react-navigation-menu": "latest",
+    "@tanstack/react-query": "latest",
     "@tanstack/react-router": "^1.0.0",
+    "lucide-react": "latest",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-intl": "^6.6.0"
+    "react-intl": "^6.6.0",
+    "zustand": "latest"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
     "@playwright/test": "^1.44.0",
+    "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",

@@ -40,10 +40,9 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 
 ## Technical Debt
 
-_Clean start. No known technical debt._
-
-| ID  | Description | Impact | Severity | Target |
-| --- | ----------- | ------ | -------- | ------ |
+| ID     | Description                                                                                                                                                                                                                                                                                                                                                                  | Impact                                                                       | Severity | Target         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | -------------- |
+| TD-001 | `ErrorFallback` component has no error-reporting integration (Sentry or equivalent). Errors caught by React error boundaries are silently discarded — no stack trace is forwarded to an error tracking service. The `_error` prop is intentionally not displayed to users (avoids leaking implementation details) but must be forwarded to error tracking before production. | All frontend exceptions invisible in production; regression detection blind. | Medium   | Pre-production |
 
 ---
 
