@@ -92,7 +92,7 @@ jobs:
       # On cache hit: docker load (~5s).  On cache miss: pull + save for next run.
       - name: Cache Docker images
         id: docker-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/docker-images
           key: docker-images-${{ hashFiles('docker-compose.yml') }}
