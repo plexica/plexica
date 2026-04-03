@@ -1,0 +1,26 @@
+{
+  "name": "@plexica/keycloak-theme",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && keycloakify build && node --input-type=commonjs -e \"require('fs').copyFileSync('dist_keycloak/keycloak-theme-for-kc-all-other-versions.jar', '../../infra/keycloak/providers/plexica-theme.jar')\"",
+    "typecheck": "tsc --noEmit",
+    "storybook": "keycloakify storybook"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5",
+    "keycloakify": "^11",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@plexica/ui": "workspace:*",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4",
+    "typescript": "^5.9",
+    "vite": "^6.0.0"
+  }
+}

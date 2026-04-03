@@ -165,20 +165,6 @@ jobs:
           done
           docker exec plexica-ci-redpanda-1 rpk topic list --brokers localhost:9092
 
-      - name: Wait for Keycloak realm import
-        run: |
-          echo "Waiting for plexica-test realm to be available..."
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:8080/realms/plexica-test/.well-known/openid-configuration > /dev/null 2>&1; then
-              echo "Realm plexica-test is ready."
-              exit 0
-            fi
-            echo "  Realm not ready yet ($i/30), retrying in 5s..."
-            sleep 5
-          done
-          echo "ERROR: Keycloak realm plexica-test not available after 150s." >&2
-          exit 1
-
       - name: Verify all services are healthy
         run: |
           docker compose ps
@@ -213,6 +199,18 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: 'true'
+          # Infra vars — forwarded so the core-api webServer subprocess (started
+          # by Playwright) can connect to all services. These are also set at the
+          # job level (env:) but explicit forwarding ensures subprocess inheritance.
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
+          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
+          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
+          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       - name: Upload Playwright report on failure
         if: failure()

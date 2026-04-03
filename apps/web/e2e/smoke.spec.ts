@@ -1,69 +1,58 @@
-// smoke.spec.ts — E2E smoke test: login page renders.
+// smoke.spec.ts — E2E smoke test: app entry points render correctly.
 // Constitution Rule 1: every user-interactive surface must have an E2E test.
-// This is the Phase 0 capstone test — verifies the login page is rendered.
+//
+// NOTE: LoginPage (login-page.tsx) is a Phase 0 placeholder that is NOT wired
+// into the router. The app entry point at `/` redirects to /org-error when no
+// tenant is present. Full Keycloak login-page coverage lives in login-flow.spec.ts.
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
 
-test.describe('Login page smoke test', () => {
-  test('login page renders with all required form elements', async ({ page }) => {
+import { expect, test } from './helpers/base-fixture.js';
+
+test.describe('App smoke test', () => {
+  test('app loads at / without tenant and shows org-error page', async ({ page }) => {
     await page.goto('/');
 
-    // Page must load without errors
+    // Root loader must redirect to /org-error (no tenant in URL or sessionStorage)
+    await page.waitForURL(/\/org-error/, { timeout: 10_000 });
+
+    // Page must load with correct title — proves the React app mounted
     await expect(page).toHaveTitle(/Plexica/i);
 
-    // Email input must be present and visible
-    const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toBeVisible();
-
-    // Password input must be present and visible
-    const passwordInput = page.locator('input[type="password"]');
-    await expect(passwordInput).toBeVisible();
-
-    // Submit button must be present, visible, and enabled
-    const submitButton = page.locator('button[type="submit"]');
-    await expect(submitButton).toBeVisible();
-    await expect(submitButton).toBeEnabled();
+    // org-error heading must be visible
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('page passes axe-core accessibility check (no critical violations)', async ({ page }) => {
-    await page.goto('/');
+  test('org-error page passes axe-core accessibility check (no critical violations)', async ({
+    page,
+  }) => {
+    await page.goto('/org-error?reason=no-subdomain');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
-    // Run axe-core against the full page — fulfills task 001-T30 DoD
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
 
-  test('form labels are programmatically associated with inputs', async ({ page }) => {
-    await page.goto('/');
+  test('org-error headings are programmatically correct (role + level)', async ({ page }) => {
+    await page.goto('/org-error?reason=no-subdomain');
 
-    // getByLabel verifies the htmlFor/id association, not just visibility.
-    // This checks that screen readers can correctly announce the field purpose.
-    const emailInput = page.getByLabel(/email/i);
-    await expect(emailInput).toBeVisible();
-
-    // Use exact label text 'Password' to avoid matching the show/hide toggle button
-    // whose aria-label is 'Show password' / 'Hide password' (both contain "password").
-    const passwordInput = page.getByLabel('Password', { exact: true });
-    await expect(passwordInput).toBeVisible();
+    const h1 = page.getByRole('heading', { level: 1 });
+    await expect(h1).toBeVisible();
+    // Heading must contain meaningful text — not empty or whitespace-only
+    const text = (await h1.textContent()) ?? '';
+    expect(text.trim().length).toBeGreaterThan(0);
   });
 
-  test('page responds to keyboard navigation in expected tab order', async ({ page }) => {
-    await page.goto('/');
+  test('org-error page is keyboard-navigable (Tab reaches at least one focusable element)', async ({
+    page,
+  }) => {
+    await page.goto('/org-error?reason=no-subdomain');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
-    // First Tab: email field receives focus
+    // Tab from body — at least one focusable element must exist (e.g. a link)
     await page.keyboard.press('Tab');
-    const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toBeFocused();
-
-    // Second Tab: password field or show/hide toggle is next in tab order
-    await page.keyboard.press('Tab');
-    const passwordInput = page.locator('input[type="password"]');
-    const showHideToggle = page.locator('button[aria-label*="password" i]');
-    const focusedIsPasswordOrToggle =
-      (await passwordInput.evaluate((el) => el === document.activeElement)) ||
-      ((await showHideToggle.count()) > 0 &&
-        (await showHideToggle.evaluate((el) => el === document.activeElement)));
-    expect(focusedIsPasswordOrToggle).toBe(true);
+    const focused = await page.evaluate(() => document.activeElement?.tagName ?? 'BODY');
+    // If only BODY is focused there are zero interactive elements — that is a failure
+    expect(focused).not.toBe('BODY');
   });
 });

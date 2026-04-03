@@ -1,0 +1,63 @@
+/* buttons.css — Plexica Keycloak theme: primary, ghost, loading states */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  cursor: pointer;
+  border: none;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+  width: 100%;
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.btn-primary {
+  background-color: var(--color-primary-600);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-700);
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.btn-primary:disabled {
+  background-color: var(--color-neutral-300);
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--color-primary-600);
+  border: 1.5px solid var(--color-neutral-200);
+}
+
+.btn-ghost:hover {
+  background-color: var(--color-neutral-50);
+}
+
+.btn-ghost:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.btn-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}

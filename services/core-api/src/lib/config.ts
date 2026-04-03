@@ -30,6 +30,16 @@ const configSchema = z.object({
   // SMTP (optional in development)
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().default(1025),
+
+  // JWKS cache TTL in milliseconds (default 1 hour)
+  JWKS_CACHE_TTL_MS: z.coerce.number().int().default(3_600_000),
+
+  // Keycloak OIDC client ID — used for JWT audience validation (H-4)
+  KEYCLOAK_CLIENT_ID: z.string().default('plexica-web'),
+
+  // Keycloak master realm name — used to enforce that super_admin tokens are
+  // issued by the master realm, not by a tenant realm (H-03 security fix).
+  KEYCLOAK_MASTER_REALM: z.string().default('master'),
 });
 
 export type Config = z.infer<typeof configSchema>;

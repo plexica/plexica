@@ -12,14 +12,27 @@ import {
   type TenantCreationError,
 } from './tenant-schema-helpers.js';
 
+export interface TenantCreationParams {
+  slug: string;
+  name?: string;
+  minioBucket?: string;
+}
+
 export interface TenantCreationResult {
   success: boolean;
   tenantId?: string;
   schemaName?: string;
+  minioBucket?: string;
   error?: TenantCreationError;
 }
 
-export async function createTenantSchema(slug: string): Promise<TenantCreationResult> {
+export async function createTenantSchema(
+  params: TenantCreationParams | string
+): Promise<TenantCreationResult> {
+  // Support legacy string argument for backwards compatibility
+  const { slug, name, minioBucket } =
+    typeof params === 'string' ? { slug: params, name: undefined, minioBucket: undefined } : params;
+
   // Step 1: Validate slug format
   const validation = validateSlug(slug);
   if (!validation.valid) {
@@ -57,33 +70,21 @@ export async function createTenantSchema(slug: string): Promise<TenantCreationRe
   // Step 3: Create tenant in a transaction
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Insert tenant record
       const tenant = await tx.tenant.create({
-        data: { slug, name: slug, status: 'active' },
+        data: {
+          slug,
+          name: name ?? slug,
+          status: 'active',
+          ...(minioBucket !== undefined && { minioBucket }),
+        },
       });
 
-      // Create the tenant schema using raw SQL.
       // Defensive assertion: verify schema name contains only safe characters
-      // before passing to $executeRawUnsafe. Slug is already regex-validated
-      // upstream, but this guard ensures a future refactor cannot bypass it.
       if (!/^tenant_[a-z0-9_]+$/.test(schemaName)) {
         throw new Error(`Invalid schema name: ${schemaName}`);
       }
       await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-      // FR-007: Run Prisma tenant migrations against the new schema.
-      // At Phase 0, the tenant schema has no tables (tenant-schema.prisma is empty).
-      // This call is the integration point for Phase 1+: when tenant models are added
-      // and tenant-schema.prisma is populated, `prisma migrate deploy` must be invoked
-      // here with search_path set to schemaName.
-      //
-      // Implementation (Phase 1):
-      //   await runTenantMigrations(schemaName);
-      //
-      // Until then, schema creation completes successfully — the empty schema
-      // is correct for Phase 0.
-
-      // Insert tenant config
       await tx.tenantConfig.create({
         data: { tenantId: tenant.id, keycloakRealm: realmName },
       });
@@ -92,7 +93,11 @@ export async function createTenantSchema(slug: string): Promise<TenantCreationRe
     });
 
     logger.info({ slug, schemaName, tenantId: result.id }, 'Tenant schema created');
-    return { success: true, tenantId: result.id, schemaName };
+    const successResult: TenantCreationResult = { success: true, tenantId: result.id, schemaName };
+    if (minioBucket !== undefined) {
+      successResult.minioBucket = minioBucket;
+    }
+    return successResult;
   } catch (error) {
     logger.error({ slug, error: String(error) }, 'Tenant schema creation failed');
     if (isAlreadyExistsError(error)) {
