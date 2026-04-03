@@ -4,15 +4,34 @@
 //
 // M-07 fix: replaced window.innerWidth (one-shot, stale after resize) with
 // useMediaQuery (reactive, matches header.tsx convention).
+//
+// M-6 fix: RouteErrorBoundary wraps only <Outlet> (route content), not the
+// entire AppShell. Header and sidebar stay visible when a route component throws.
+// The boundary is keyed by pathname so it automatically resets on route changes.
 
 import { useState } from 'react';
-import { Outlet } from '@tanstack/react-router';
+import { Outlet, useLocation } from '@tanstack/react-router';
 
 import { useMediaQuery } from '../../hooks/use-media-query.js';
+import { RouteErrorBoundary } from '../error/route-error-boundary.js';
 
 import { SkipLink } from './skip-link.js';
 import { Sidebar } from './sidebar.js';
 import { Header } from './header.js';
+
+/**
+ * Wraps RouteErrorBoundary with a key derived from the current pathname.
+ * React unmounts and remounts the boundary on key change — resetting error state
+ * automatically when the user navigates to a different route.
+ */
+function KeyedErrorBoundary(): JSX.Element {
+  const location = useLocation();
+  return (
+    <RouteErrorBoundary key={location.pathname}>
+      <Outlet />
+    </RouteErrorBoundary>
+  );
+}
 
 export function AppShell(): JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -50,7 +69,8 @@ export function AppShell(): JSX.Element {
         />
 
         <main id="main-content" className="min-h-0 flex-1 overflow-auto" tabIndex={-1}>
-          <Outlet />
+          {/* KeyedErrorBoundary resets on route change (key = pathname) */}
+          <KeyedErrorBoundary />
         </main>
       </div>
     </div>

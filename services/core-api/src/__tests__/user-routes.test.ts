@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
 import { prisma } from '../lib/database.js';
-import errorHandlerPlugin from '../middleware/error-handler.js';
+import { configureErrorHandler } from '../middleware/error-handler.js';
 import { authMiddleware } from '../middleware/auth-middleware.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import userRoutes from '../modules/user/user-routes.js';
@@ -34,7 +34,7 @@ beforeAll(async () => {
   }
 
   server = Fastify({ logger: false });
-  await server.register(errorHandlerPlugin);
+  configureErrorHandler(server);
   await server.register(tenantRoutes);
 
   await server.register(async (tenantScope) => {

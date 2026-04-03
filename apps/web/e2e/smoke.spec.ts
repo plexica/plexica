@@ -6,7 +6,8 @@
 // tenant is present. Full Keycloak login-page coverage lives in login-flow.spec.ts.
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+
+import { expect, test } from './helpers/base-fixture.js';
 
 test.describe('App smoke test', () => {
   test('app loads at / without tenant and shows org-error page', async ({ page }) => {

@@ -34,6 +34,12 @@ export function OrgErrorPage(): JSX.Element {
         <p className="mt-6 text-sm text-neutral-500">
           <FormattedMessage id="org.error.contactAdmin" />
         </p>
+        <a
+          href="https://plexica.io"
+          className="mt-4 inline-block text-sm font-medium text-blue-600 hover:underline focus:rounded focus:outline-none focus:ring-2 focus:ring-blue-600"
+        >
+          <FormattedMessage id="org.error.visitSite" />
+        </a>
       </div>
     </main>
   );

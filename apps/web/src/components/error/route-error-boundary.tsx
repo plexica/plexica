@@ -1,13 +1,14 @@
 // route-error-boundary.tsx
 // React class component error boundary for route subtrees.
-// AppShell (sidebar + header) remains intact; only the main content shows the fallback.
+// Rendered inside AppShell's <main> so the header and sidebar remain intact.
+// The boundary is keyed by pathname via KeyedErrorBoundary in app-shell.tsx —
+// it resets automatically when the user navigates to a different route.
 
 import { Component } from 'react';
 
 import { ErrorFallback } from './error-fallback.js';
 
 import type { ErrorInfo, ReactNode } from 'react';
-
 
 interface Props {
   children: ReactNode;
@@ -43,14 +44,12 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   override render(): ReactNode {
     if (this.state.hasError) {
-      return (
-        <main id="main-content">
-          {this.state.error !== undefined ? (
-            <ErrorFallback error={this.state.error} />
-          ) : (
-            <ErrorFallback />
-          )}
-        </main>
+      // No <main> wrapper here — this component is already rendered inside
+      // AppShell's <main id="main-content">.
+      return this.state.error !== undefined ? (
+        <ErrorFallback error={this.state.error} />
+      ) : (
+        <ErrorFallback />
       );
     }
 

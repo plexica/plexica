@@ -3,7 +3,7 @@
 // Skips when PLAYWRIGHT_KEYCLOAK_URL is not provided or Keycloak is not reachable.
 // NFR-01: login flow completes < 10s. NFR-07: FCP < 1500ms.
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/base-fixture.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';

@@ -6,7 +6,7 @@
 // M-5 fix: this test was missing entirely. AC-4 from spec 002 requires that
 // expired sessions are detected and handled gracefully without a blank screen.
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/base-fixture.js';
 
 const TENANT_SLUG = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'test-tenant';
 

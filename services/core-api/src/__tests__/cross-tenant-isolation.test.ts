@@ -10,9 +10,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-
 import { prisma } from '../lib/database.js';
-import errorHandlerPlugin from '../middleware/error-handler.js';
+import { configureErrorHandler } from '../middleware/error-handler.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { withTenantDb } from '../lib/tenant-database.js';
 
@@ -41,11 +40,14 @@ beforeAll(async () => {
   await ensureTenant(TENANT_B, SCHEMA_B);
 
   server = Fastify({ logger: false });
-  await server.register(errorHandlerPlugin);
+  configureErrorHandler(server);
 
   // Route that uses withTenantDb() — the correct tenant data access pattern.
   // M-3: withTenantDb() uses $transaction + SET LOCAL search_path, which is
   // safe under connection pool concurrency (unlike the old SET search_path middleware).
+  // M-04: pass req.tenantContext explicitly — Fastify v5 runs preHandlers and
+  // route handlers in separate async execution scopes, so AsyncLocalStorage
+  // context set via enterWith() in the preHandler does not reach the handler.
   server.get(
     '/test-isolation',
     {
@@ -61,7 +63,8 @@ beforeAll(async () => {
     },
     async (req) => {
       const rows = await withTenantDb(
-        (tx) => tx.$queryRaw<Array<{ search_path: string }>>`SHOW search_path`
+        (tx) => tx.$queryRaw<Array<{ search_path: string }>>`SHOW search_path`,
+        req.tenantContext // M-04: explicit context required in Fastify v5
       );
       return {
         tenant: req.tenantContext.slug,

@@ -9,7 +9,6 @@
 // leaking implementation details, but callers should not expect it to be logged here —
 // error tracking (e.g., Sentry) should be wired at the error boundary level.
 
-import { Link } from '@tanstack/react-router';
 import { useIntl, FormattedMessage } from 'react-intl';
 
 interface ErrorFallbackProps {
@@ -35,12 +34,16 @@ export function ErrorFallback({ error: _error }: ErrorFallbackProps): JSX.Elemen
       </p>
 
       <div className="flex gap-3">
-        <Link
-          to="/dashboard"
+        {/* Full-page navigation to /dashboard forces a React tree remount, which
+            definitively resets the error boundary state. A client-side Link cannot
+            reset a class component error boundary (React does not re-render the
+            boundary on child route changes when it is a stable layout component). */}
+        <a
+          href="/dashboard"
           className="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         >
           <FormattedMessage id="error.boundary.goToDashboard" />
-        </Link>
+        </a>
 
         <button
           type="button"

@@ -2,7 +2,7 @@
 // E2E test: organization error page variants.
 // Verifies the right page is shown for no-subdomain and unknown org.
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/base-fixture.js';
 
 test.describe('Organization error pages', () => {
   test('unknown tenant slug shows org not found page', async ({ page }) => {

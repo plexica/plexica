@@ -4,8 +4,8 @@
 // Mobile drawer accessibility is covered in sidebar-drawer.spec.ts.
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
 
+import { expect, test } from './helpers/base-fixture.js';
 import {
   hasKeycloak,
   KEYCLOAK_PASSWORD,
@@ -47,7 +47,12 @@ test.describe('App shell accessibility', () => {
   });
 
   test('active nav item has aria-current="page" [002-20]', async ({ page }) => {
-    const activeLink = page.locator('[aria-current="page"]');
+    // Two [aria-current="page"] links exist: one in the hidden mobile drawer and one
+    // in the visible desktop sidebar (aside[aria-label="Sidebar"]). Use the desktop
+    // landmark to target the visible instance.
+    const activeLink = page
+      .getByRole('complementary', { name: /sidebar/i })
+      .locator('[aria-current="page"]');
     await expect(activeLink).toBeVisible();
     await expect(activeLink).toHaveAttribute('aria-current', 'page');
   });

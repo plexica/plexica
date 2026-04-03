@@ -24,6 +24,7 @@ export function UserMenu(): JSX.Element {
         <button
           type="button"
           aria-label={name}
+          data-testid="user-menu-trigger"
           className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
         >
           <Avatar name={name} size="sm" />

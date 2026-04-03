@@ -2,7 +2,7 @@
 // E2E test: cross-tenant data isolation (NFR-04).
 // Attempts to access tenant B resources while authenticated as tenant A.
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/base-fixture.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const TENANT_A_SLUG = process.env['PLAYWRIGHT_TENANT_A_SLUG'] ?? 'tenant-a';

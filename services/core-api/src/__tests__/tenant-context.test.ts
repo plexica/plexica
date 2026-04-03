@@ -9,9 +9,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
-
 import { prisma } from '../lib/database.js';
-import errorHandlerPlugin from '../middleware/error-handler.js';
+import { configureErrorHandler } from '../middleware/error-handler.js';
 import { tenantContextMiddleware, clearTenantCache } from '../middleware/tenant-context.js';
 
 import { makeAuthStub, createServerWithRealmStub } from './helpers/tenant-context.helpers.js';
@@ -44,7 +43,7 @@ beforeAll(async () => {
   }
 
   server = Fastify({ logger: false });
-  await server.register(errorHandlerPlugin);
+  configureErrorHandler(server);
   server.get(
     '/test-ctx',
     { preHandler: [makeAuthStub(TEST_REALM), tenantContextMiddleware] },
@@ -143,7 +142,7 @@ describe('Tenant context middleware', () => {
     // P4-M-1: the null guard fires BEFORE the DB lookup, so no enumeration oracle.
     const noAuthServer = Fastify({ logger: false });
     ephemeralServers.push(noAuthServer);
-    await noAuthServer.register(errorHandlerPlugin);
+    configureErrorHandler(noAuthServer);
     noAuthServer.get('/test-no-auth', { preHandler: [tenantContextMiddleware] }, async () => ({
       ok: true,
     }));

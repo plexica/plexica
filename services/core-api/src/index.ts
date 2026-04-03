@@ -10,7 +10,7 @@ import Fastify from 'fastify';
 import { config } from './lib/config.js';
 import { disconnectDatabase } from './lib/database.js';
 import { logger } from './lib/logger.js';
-import errorHandlerPlugin from './middleware/error-handler.js';
+import { configureErrorHandler } from './middleware/error-handler.js';
 import { authMiddleware } from './middleware/auth-middleware.js';
 import { tenantContextMiddleware } from './middleware/tenant-context.js';
 import userRoutes from './modules/user/user-routes.js';
@@ -18,8 +18,10 @@ import tenantRoutes from './modules/tenant/tenant-routes.js';
 
 const server = Fastify({ loggerInstance: logger });
 
-// Error handler — must be registered first
-await server.register(errorHandlerPlugin);
+// Error handler — applied directly to root instance so it covers all scopes.
+// Do NOT use server.register(configureErrorHandler) — that would scope the
+// handler to a child plugin context, leaving sibling routes unprotected.
+configureErrorHandler(server);
 
 // ---------------------------------------------------------------------------
 // Public routes — no auth required (Constitution: explicit opt-in)

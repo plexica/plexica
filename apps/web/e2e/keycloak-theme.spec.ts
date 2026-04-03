@@ -8,7 +8,7 @@
 //
 // Spec: ADR-010 (Keycloakify theme), Constitution Rule 1 (every feature has E2E).
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers/base-fixture.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
@@ -104,7 +104,9 @@ test.describe('Keycloak theme — Reset password page', () => {
     const forgotLink = page.locator('a.label-link');
     await expect(forgotLink).toBeVisible();
     await forgotLink.click();
-    await page.waitForURL(/login-reset-password/);
+    // Keycloakify SPA: page content changes without a URL pattern change.
+    // Wait for the reset-password specific input to confirm the page switched.
+    await expect(page.getByRole('heading', { name: /forgot/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.auth-card')).toBeVisible();
     await expect(page.locator('.auth-logo-text')).toHaveText('Plexica');
   });
@@ -113,7 +115,7 @@ test.describe('Keycloak theme — Reset password page', () => {
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.locator('a.label-link').click();
-    await page.waitForURL(/login-reset-password/);
+    await expect(page.getByRole('heading', { name: /forgot/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('input[name="username"]')).toBeVisible();
     await expect(page.locator('button[type="submit"].btn-primary')).toBeVisible();
   });
@@ -122,11 +124,12 @@ test.describe('Keycloak theme — Reset password page', () => {
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.locator('a.label-link').click();
-    await page.waitForURL(/login-reset-password/);
+    await expect(page.getByRole('heading', { name: /forgot/i })).toBeVisible({ timeout: 10_000 });
     const backLink = page.locator('.auth-footer a');
     await expect(backLink).toBeVisible();
     await backLink.click();
-    await page.waitForURL(/\/realms\/.*\/protocol\/openid-connect\/auth/);
+    // Back to login: wait for login form (username input visible, no reset-password heading)
+    await expect(page.locator('input[name="username"]')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.auth-card')).toBeVisible();
   });
 });
@@ -148,7 +151,8 @@ test.describe('Keycloak theme — Update password page', () => {
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
     await page.fill('input[name="password"]', FORCE_PASSWORD_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-password/);
+    // Keycloakify SPA: wait for the update-password specific field
+    await expect(page.locator('input[name="password-new"]')).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator('.auth-card')).toBeVisible();
     await expect(page.locator('.auth-logo-text')).toHaveText('Plexica');
@@ -160,7 +164,7 @@ test.describe('Keycloak theme — Update password page', () => {
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
     await page.fill('input[name="password"]', FORCE_PASSWORD_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-password/);
+    await expect(page.locator('input[name="password-new"]')).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator('input[name="password-new"]')).toBeVisible();
     await expect(page.locator('input[name="password-confirm"]')).toBeVisible();
@@ -172,7 +176,7 @@ test.describe('Keycloak theme — Update password page', () => {
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
     await page.fill('input[name="password"]', FORCE_PASSWORD_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-password/);
+    await expect(page.locator('input[name="password-new"]')).toBeVisible({ timeout: 10_000 });
 
     const newPasswordInput = page.locator('input#password-new');
     const toggleButtons = page.locator('button.input-toggle');
@@ -188,15 +192,14 @@ test.describe('Keycloak theme — Update password page', () => {
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
     await page.fill('input[name="password"]', FORCE_PASSWORD_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-password/);
+    await expect(page.locator('input[name="password-new"]')).toBeVisible({ timeout: 10_000 });
 
     await page.fill('input[name="password-new"]', 'NewPassword1!');
     await page.fill('input[name="password-confirm"]', 'DifferentPassword1!');
     await page.click('button[type="submit"].btn-primary');
 
     // Keycloak re-renders the page with an error
-    await page.waitForURL(/login-update-password/);
-    await expect(page.locator('.form-error')).toBeVisible();
+    await expect(page.locator('.form-error')).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -217,7 +220,8 @@ test.describe('Keycloak theme — Update profile page', () => {
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
     await page.fill('input[name="password"]', FORCE_PROFILE_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-profile/);
+    // Keycloakify SPA: wait for the profile form to appear
+    await expect(page.locator('.form-group').first()).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator('.auth-card')).toBeVisible();
     await expect(page.locator('.auth-logo-text')).toHaveText('Plexica');
@@ -229,7 +233,7 @@ test.describe('Keycloak theme — Update profile page', () => {
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
     await page.fill('input[name="password"]', FORCE_PROFILE_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-profile/);
+    await expect(page.locator('.form-group').first()).toBeVisible({ timeout: 10_000 });
 
     // Profile form uses .form-group and .form-input classes (our design system)
     const formGroupCount = await page.locator('.form-group').count();
@@ -244,7 +248,7 @@ test.describe('Keycloak theme — Update profile page', () => {
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
     await page.fill('input[name="password"]', FORCE_PROFILE_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-profile/);
+    await expect(page.locator('.form-group').first()).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator('button[type="submit"].btn-primary')).toBeVisible();
     await expect(page.locator('button[type="submit"].btn-primary')).toBeEnabled();
@@ -256,7 +260,7 @@ test.describe('Keycloak theme — Update profile page', () => {
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
     await page.fill('input[name="password"]', FORCE_PROFILE_PASS);
     await page.click('button[type="submit"].btn-primary');
-    await page.waitForURL(/login-update-profile/);
+    await expect(page.locator('.form-group').first()).toBeVisible({ timeout: 10_000 });
 
     // If any readonly fields exist, they must have the .readonly CSS class
     const readonlyInputs = page.locator('input.form-input[readonly]');
@@ -281,10 +285,19 @@ test.describe('Keycloak theme — Accessibility', () => {
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
 
-    await page.keyboard.press('Tab'); // username
-    await page.keyboard.press('Tab'); // password
+    // Wait for the React SPA to mount and autoFocus to fire on the username input.
+    // Once this is visible, document.activeElement is already on #username.
+    await page.locator('#username').waitFor({ state: 'visible' });
+
+    // Tab order from #username (autoFocused):
+    //   Tab 1 → "Forgot password" link (label-row, before password input in DOM)
+    //   Tab 2 → password input
+    //   Tab 3 → toggle button (.input-toggle)
+    //   Tab 4 → submit button (.btn.btn-primary)
+    await page.keyboard.press('Tab'); // forgot-password link
+    await page.keyboard.press('Tab'); // password input
     await page.keyboard.press('Tab'); // toggle button
-    await page.keyboard.press('Tab'); // submit
+    await page.keyboard.press('Tab'); // submit button
 
     const focused = await page.evaluate(() => document.activeElement?.className ?? '');
     expect(focused).toContain('btn-primary');
@@ -294,8 +307,15 @@ test.describe('Keycloak theme — Accessibility', () => {
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
 
-    await page.keyboard.press('Tab'); // username
-    await page.keyboard.press('Tab'); // password
+    // Wait for the React SPA to mount and autoFocus to fire on the username input.
+    await page.locator('#username').waitFor({ state: 'visible' });
+
+    // Tab order from #username (autoFocused):
+    //   Tab 1 → "Forgot password" link
+    //   Tab 2 → password input
+    //   Tab 3 → toggle button (.input-toggle)
+    await page.keyboard.press('Tab'); // forgot-password link
+    await page.keyboard.press('Tab'); // password input
     await page.keyboard.press('Tab'); // toggle button
 
     const focused = await page.evaluate(() => document.activeElement?.className ?? '');

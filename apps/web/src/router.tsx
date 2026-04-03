@@ -2,6 +2,7 @@
 // TanStack Router configuration.
 // Root loader resolves tenant; authenticated routes are wrapped in AppShell.
 
+import React from 'react';
 import {
   createRootRoute,
   createRoute,
@@ -13,21 +14,34 @@ import {
 import { resolveTenant, TenantResolutionError } from './services/tenant-resolver.js';
 import { useAuthStore } from './stores/auth-store.js';
 import { AppShell } from './components/layout/app-shell.js';
-import { RouteErrorBoundary } from './components/error/route-error-boundary.js';
 import { AuthCallbackPage } from './pages/auth-callback-page.js';
 import { OrgErrorPage } from './pages/org-error-page.js';
 import { DashboardPage } from './pages/dashboard-page.js';
 import { AuthGuard } from './components/auth/auth-guard.js';
 
-// Dev-only import for error boundary E2E tests (M-6)
+// Dev-only lazy import for error boundary E2E tests (M-6).
+// Using React.lazy instead of a top-level await to avoid blocking the module graph
+// evaluation — a top-level await causes Vite dev mode to keep the page in a
+// "loading" state until the dynamic import resolves, which prevents the browser
+// load event from firing and breaks Playwright E2E tests.
 // Tree-shaken away in production builds by Vite.
-const TestErrorPage = import.meta.env.DEV
-  ? (await import('./pages/test-error-page.js')).TestErrorPage
+const LazyTestErrorPage = import.meta.env.DEV
+  ? React.lazy(() =>
+      import('./pages/test-error-page.js').then((m) => ({ default: m.TestErrorPage }))
+    )
   : null;
 
 // Root route — resolves tenant on app load
 const rootRoute = createRootRoute({
-  loader: async () => {
+  loader: async ({ location }) => {
+    // Passthrough for routes that don't need tenant resolution.
+    // /org-error is the error destination for failed tenant resolution — attempting
+    // to resolve the tenant here would create an infinite redirect loop.
+    // /callback handles the Keycloak OIDC redirect and resolves its own context.
+    if (location.pathname === '/org-error' || location.pathname === '/callback') {
+      return {};
+    }
+
     // Fast path: tenant already resolved in a previous navigation (e.g. returning
     // from the Keycloak OAuth redirect). Zustand persists tenantSlug + realm in
     // sessionStorage, so they survive the full-page redirect to Keycloak and back.
@@ -70,9 +84,7 @@ const shellRoute = createRoute({
   id: 'shell',
   component: () => (
     <AuthGuard>
-      <RouteErrorBoundary>
-        <AppShell />
-      </RouteErrorBoundary>
+      <AppShell />
     </AuthGuard>
   ),
 });
@@ -86,11 +98,11 @@ const dashboardRoute = createRoute({
 
 // /test-error — dev/test only: triggers RouteErrorBoundary for E2E testing (M-6)
 const testErrorRoute =
-  import.meta.env.DEV && TestErrorPage !== null
+  import.meta.env.DEV && LazyTestErrorPage !== null
     ? createRoute({
         getParentRoute: () => shellRoute,
         path: '/test-error',
-        component: TestErrorPage,
+        component: LazyTestErrorPage,
       })
     : null;
 

@@ -33,6 +33,7 @@ export const messages = {
     "Please navigate to your organization's address to continue.",
   'org.error.addressExample': 'Example: your-org.plexica.io',
   'org.error.contactAdmin': 'If you need help, contact your administrator.',
+  'org.error.visitSite': 'Visit plexica.io',
 
   // Navigation
   'nav.dashboard': 'Dashboard',

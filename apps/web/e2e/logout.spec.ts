@@ -16,7 +16,7 @@
 //   - This is the "short TTL" mitigation strategy chosen for spec AC-3 compliance.
 //     See .forge/knowledge/decision-log.md entry ID-005.
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './helpers/base-fixture.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
@@ -54,11 +54,8 @@ async function loginAndGetTokens(page: Page): Promise<StoredTokens> {
 }
 
 async function clickSignOut(page: Page): Promise<void> {
-  // Open user menu (avatar button) then click Sign out item
-  await page
-    .getByRole('button', { name: /sign out|[A-Z]/ })
-    .first()
-    .click();
+  // Open user menu via the avatar button (data-testid="user-menu-trigger")
+  await page.getByTestId('user-menu-trigger').click();
   await page.getByText('Sign out').click();
 }
 
@@ -81,25 +78,59 @@ test.describe('Logout flow (backchannel)', () => {
   test('after sign out the local sessionStorage auth state is cleared', async ({ page }) => {
     await loginAndGetTokens(page);
 
-    // Intercept the page reload at /?tenant= so we can inspect sessionStorage
-    // before AuthGuard redirects to Keycloak.
-    await page.route('/?tenant=*', async (route) => {
-      await route.continue();
+    // Strategy: expose a capture channel via CDP before sign-out.
+    // The logout() call in auth-store:
+    //   1. Calls Keycloak backchannel revoke (async, awaited)
+    //   2. Calls set({ accessToken: null, ... }) — Zustand writes to sessionStorage
+    //   3. Sets window.location.href = /?tenant=e2e (full-page reload)
+    //
+    // We install a sessionStorage.setItem spy that sends a custom window event
+    // carrying the value. We listen for that event via page.exposeFunction() which
+    // delivers data to Node.js synchronously before page.route fires (and before
+    // the execution context is destroyed).
+    let capturedAuthState: { state?: { accessToken?: string | null } } | null | undefined;
+    const capturePromise = new Promise<void>((resolve) => {
+      page
+        .exposeFunction('__onAuthStateCapture', (value: string) => {
+          try {
+            capturedAuthState = JSON.parse(value) as { state?: { accessToken?: string | null } };
+          } catch {
+            capturedAuthState = null;
+          }
+          resolve();
+        })
+        .catch(() => {
+          // exposeFunction may throw if already registered from a previous test run
+        });
     });
+
+    await page.evaluate(() => {
+      const original = sessionStorage.setItem.bind(sessionStorage);
+      sessionStorage.setItem = (key: string, value: string) => {
+        original(key, value);
+        if (key === 'plexica-auth') {
+          // Fire-and-forget — the exposed function is async but we don't need to await it.
+          // It will resolve before the navigation unloads the context.
+          const capture = (window as unknown as { __onAuthStateCapture?: (v: string) => void })
+            .__onAuthStateCapture;
+          if (capture) void capture(value);
+        }
+      };
+    });
+
+    // Block the post-logout navigation so the test doesn't end early
+    await page.route('http://localhost:3000/?tenant=*', (route) => route.abort());
 
     await clickSignOut(page);
 
-    // Wait for the reload to /?tenant=slug
-    await page.waitForURL(/\?tenant=/, { timeout: 5_000 });
-
-    const authState = await page.evaluate(() => {
-      const stored = sessionStorage.getItem('plexica-auth');
-      if (stored === null) return null;
-      return JSON.parse(stored) as { state?: { accessToken?: string } };
-    });
+    // Wait for the spy to capture the write (or 10s timeout)
+    await Promise.race([capturePromise, page.waitForTimeout(10_000)]);
 
     // accessToken must be null — local state is cleared before the reload
-    expect(authState?.state?.accessToken ?? null).toBeNull();
+    expect(
+      capturedAuthState?.state?.accessToken ?? null,
+      'sessionStorage plexica-auth.state.accessToken must be null after logout'
+    ).toBeNull();
   });
 
   test('after sign out the refresh token is revoked (invalid_grant on token refresh)', async ({

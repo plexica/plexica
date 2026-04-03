@@ -4,8 +4,7 @@
 
 import Fastify from 'fastify';
 
-
-import errorHandlerPlugin from '../../middleware/error-handler.js';
+import { configureErrorHandler } from '../../middleware/error-handler.js';
 import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -45,7 +44,7 @@ export function makeAuthStub(realm: string): (request: FastifyRequest) => Promis
  */
 export async function createServerWithRealmStub(realm: string): Promise<FastifyInstance> {
   const s = Fastify({ logger: false });
-  await s.register(errorHandlerPlugin);
+  configureErrorHandler(s);
   s.get(
     '/test-realm',
     { preHandler: [makeAuthStub(realm), tenantContextMiddleware] },

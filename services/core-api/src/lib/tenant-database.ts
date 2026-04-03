@@ -13,11 +13,18 @@
 //
 // Route handlers MUST use withTenantDb() for all tenant-specific data
 // access instead of the global prisma client.
-
+//
+// M-04 NOTE: Fastify v5 runs each hook and route handler in its own
+// async execution scope, so AsyncLocalStorage.enterWith() set in a
+// preHandler does NOT propagate to the route handler. Route handlers
+// must pass req.tenantContext explicitly as the second argument.
+// The AsyncLocalStorage fallback (getTenantContext) is preserved for
+// non-Fastify call sites (e.g. CLI scripts, standalone utilities).
 
 import { prisma } from './database.js';
 import { getTenantContext } from './tenant-context-store.js';
 
+import type { TenantContext } from './tenant-context-store.js';
 import type { Prisma } from '@prisma/client';
 
 /**
@@ -27,16 +34,24 @@ import type { Prisma } from '@prisma/client';
  * tenant's schema, runs the callback, then commits. On error the
  * transaction rolls back automatically and search_path is restored.
  *
- * @example
- *   const workspaces = await withTenantDb((tx) => tx.workspace.findMany());
+ * @param fn     - Callback that receives a Prisma transaction client.
+ * @param context - Tenant context. Pass `request.tenantContext` from Fastify
+ *                  route handlers (required in Fastify v5 — AsyncLocalStorage
+ *                  does not propagate from preHandler to route handler).
+ *                  Falls back to AsyncLocalStorage for non-Fastify call sites.
+ *
+ * @example — Fastify route handler (pass context explicitly):
+ *   fastify.get('/path', { preHandler: [tenantContextMiddleware] }, async (req) => {
+ *     const workspaces = await withTenantDb((tx) => tx.workspace.findMany(), req.tenantContext);
+ *   });
  */
 export async function withTenantDb<T>(
-  fn: (tx: Prisma.TransactionClient) => Promise<T>
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  context?: TenantContext
 ): Promise<T> {
-  // getTenantContext() reads from AsyncLocalStorage wired by enterWithTenant()
-  // in tenant-context.ts. Throws InvalidTenantContextError if called outside
-  // a tenant request scope.
-  const { schemaName } = getTenantContext();
+  // Use explicit context when provided (required in Fastify v5 route handlers).
+  // Fall back to AsyncLocalStorage for non-Fastify call sites.
+  const { schemaName } = context ?? getTenantContext();
 
   return prisma.$transaction(async (tx) => {
     // schemaName is derived from slug via toSchemaName() which replaces hyphens

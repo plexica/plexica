@@ -7,8 +7,8 @@
 // Desktop app-shell accessibility is covered in shell-a11y.spec.ts.
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
 
+import { expect, test } from './helpers/base-fixture.js';
 import {
   hasKeycloak,
   KEYCLOAK_PASSWORD,
