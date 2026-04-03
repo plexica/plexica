@@ -10,6 +10,11 @@
 // but retained in config.ts to avoid a breaking env-var change.
 // The invalidate() function is preserved for EC-06: forced cache eviction on
 // JWSSignatureVerificationFailed (key rotation signal).
+//
+// H-1 fix: bounded cache size (MAX_CACHE_SIZE) prevents memory exhaustion from
+// unbounded growth if callers pass arbitrary realm names. Realm names are also
+// validated against Keycloak's allowed character set before caching, so only
+// plausible realm identifiers can populate the cache.
 
 import { createRemoteJWKSet } from 'jose';
 
@@ -24,6 +29,16 @@ interface CacheStats {
   size: number;
 }
 
+// H-1: hard cap on cache entries to bound memory usage.
+// A legitimate deployment has one Keycloak realm per tenant. 500 covers large
+// multi-tenant installations while preventing unbounded growth from invalid input.
+const MAX_CACHE_SIZE = 500;
+
+// H-1: Keycloak realm name format — alphanumeric, hyphens, underscores, dots.
+// Max 255 chars (Keycloak admin UI limit). Rejects empty strings and path-traversal
+// characters that would corrupt the JWKS URL.
+const REALM_NAME_RE = /^[a-zA-Z0-9._-]{1,255}$/;
+
 const cache = new Map<string, RemoteJWKSet>();
 const inFlight = new Map<string, Promise<RemoteJWKSet>>();
 
@@ -35,6 +50,11 @@ function jwksUrl(realmName: string): string {
 }
 
 export async function getJWKS(realmName: string): Promise<RemoteJWKSet> {
+  // H-1: validate realm name format before touching the cache or network.
+  if (!REALM_NAME_RE.test(realmName)) {
+    throw new Error(`Invalid realm name: "${realmName}"`);
+  }
+
   const cached = cache.get(realmName);
   if (cached !== undefined) {
     hits++;
@@ -54,7 +74,12 @@ export async function getJWKS(realmName: string): Promise<RemoteJWKSet> {
     try {
       const url = new URL(jwksUrl(realmName));
       const jwks = createRemoteJWKSet(url);
-      cache.set(realmName, jwks);
+      // H-1: only cache if we have not hit the size cap.
+      if (cache.size < MAX_CACHE_SIZE) {
+        cache.set(realmName, jwks);
+      } else {
+        logger.warn({ realm: realmName, size: cache.size }, 'JWKS cache full — entry not cached');
+      }
       return jwks;
     } finally {
       inFlight.delete(realmName);

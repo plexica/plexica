@@ -131,21 +131,15 @@ describe('Auth middleware — JWKS cache stats', () => {
 });
 
 describe('Auth middleware — validation timing (NFR-02)', () => {
-  // M-7 fix: the previous test measured rejection of a malformed JWT (purely in-memory,
-  // no JWKS fetch needed) against the wrong threshold. NFR-02 targets RS256 validation
-  // latency of < 10ms on the CACHE-HIT path (not the cold-start path).
-  //
-  // This test verifies the fast path: a structurally valid JWT (correct header.payload.sig
-  // format with a resolvable issuer) triggers a JWKS fetch on the first attempt. After the
-  // cache is warm, the second attempt uses in-memory keys and should complete in < 50ms.
-  // Note: both attempts will be rejected (invalid signature) — we measure the time cost of
-  // jose's in-memory JWKS lookup, not a full successful validation. 50ms is well below
-  // any network round-trip to Keycloak (200ms+), so this reliably proves no I/O is happening.
-  //
-  // A test with a fully valid token (for true NFR-02 validation) requires Keycloak test
-  // credentials configured in the test environment (see TODO below).
+  // M-7 fix: NFR-02 targets RS256 verification < 10ms on the CACHE-HIT path.
+  // This test verifies the fast path: a structurally valid JWT with a resolvable
+  // issuer triggers a JWKS fetch on the first call. After the cache is warm, the
+  // second call uses in-memory keys and should complete in < 20ms. Both calls
+  // will be rejected (invalid signature) — we measure jose's in-memory JWKS lookup,
+  // not a full successful validation. 20ms << any Keycloak HTTP round-trip (200ms+),
+  // so this reliably proves no I/O is occurring. (See decision-log ID-008.)
   skipIfNoKeycloak(
-    'cache-hit RS256 verification completes in < 50ms after cache warm-up (NFR-02)',
+    'cache-hit RS256 verification completes in < 20ms after cache warm-up (NFR-02)',
     async () => {
       const testRealm = `plexica-nfr02-timing-test`;
 
@@ -176,8 +170,10 @@ describe('Auth middleware — validation timing (NFR-02)', () => {
       });
       const elapsed = Date.now() - start;
 
-      // The cache-hit path should be fast (no network I/O, < 50ms proves no round-trip)
-      expect(elapsed).toBeLessThan(50);
+      // The cache-hit path should be fast (no network I/O, < 20ms proves no round-trip).
+      // 20ms gives 2× headroom over jose's raw verification cost (~5–10ms) while still
+      // being well below any Keycloak HTTP round-trip (50–200ms).
+      expect(elapsed).toBeLessThan(20);
 
       // TODO: For a true NFR-02 test with a VALID RS256 token, configure:
       //   KEYCLOAK_TEST_REALM, KEYCLOAK_TEST_USER, KEYCLOAK_TEST_PASSWORD env vars

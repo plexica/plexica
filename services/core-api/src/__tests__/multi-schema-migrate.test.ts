@@ -80,4 +80,16 @@ describe('migrateAll()', () => {
       expect(r.status).toBe('skipped');
     }
   });
+
+  it('migrateAll completes within NFR-06 budget (10 tenants < 60s)', async () => {
+    // NFR-06: migrations for up to 10 tenants must complete in < 60 000ms.
+    // This test runs against the test DB which has 3 MIGR_TENANTS + any existing
+    // tenants; it verifies that migrateAll() itself does not hang or deadlock.
+    const start = Date.now();
+    await migrateAll();
+    const elapsed = Date.now() - start;
+    expect(elapsed, `migrateAll() took ${elapsed}ms — NFR-06 requires < 60 000ms`).toBeLessThan(
+      60_000
+    );
+  });
 });

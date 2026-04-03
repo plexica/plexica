@@ -23,6 +23,7 @@ export const messages = {
   // Session expiry
   'auth.session.expired': 'Your session has expired.',
   'auth.session.redirecting': 'Redirecting to sign in…',
+  'auth.session.dismiss': 'Dismiss',
 
   // Organization error page
   'org.error.notFound.title': 'Organization not found',

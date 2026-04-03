@@ -12,6 +12,7 @@ const REDIRECT_DELAY_MS = 3_000;
 export function SessionExpiredHandler(): JSX.Element | null {
   const status = useAuthStore((s) => s.status);
   const login = useAuthStore((s) => s.login);
+  const setSessionExpired = useAuthStore((s) => s.dismissExpired);
   const intl = useIntl();
 
   useEffect(() => {
@@ -35,10 +36,20 @@ export function SessionExpiredHandler(): JSX.Element | null {
     <div
       role="alert"
       aria-live="assertive"
-      className="fixed bottom-4 right-4 z-50 rounded-md bg-error px-4 py-3 text-sm text-white shadow-lg"
+      className="fixed bottom-4 right-4 z-50 rounded-md bg-amber-500 px-4 py-3 text-sm text-neutral-900 shadow-lg"
     >
       <p>{intl.formatMessage({ id: 'auth.session.expired' })}</p>
       <p>{intl.formatMessage({ id: 'auth.session.redirecting' })}</p>
+      <button
+        type="button"
+        aria-label={intl.formatMessage({ id: 'auth.session.dismiss' })}
+        className="mt-2 underline hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900"
+        onClick={() => {
+          setSessionExpired();
+        }}
+      >
+        {intl.formatMessage({ id: 'auth.session.dismiss' })}
+      </button>
     </div>
   );
 }

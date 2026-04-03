@@ -83,7 +83,8 @@ test.describe('Cross-tenant isolation (NFR-04)', () => {
   test('reading tenant B resource as tenant A returns 404 (AC-2)', async () => {
     test.skip(
       true,
-      'TODO [AC-2]: implement once resource CRUD routes exist — reading tenant B resource as tenant A must return 404'
+      'TODO [AC-2 / Spec 003]: implement once workspace/resource CRUD routes exist (Spec 003) — ' +
+        'reading tenant B resource as tenant A must return 404'
     );
   });
 });

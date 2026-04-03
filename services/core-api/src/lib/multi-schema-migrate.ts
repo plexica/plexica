@@ -71,7 +71,12 @@ export async function migrateAll(): Promise<MigrationReport> {
       report.results.push({ slug: tenant.slug, status: 'ok' });
       logger.info({ slug: tenant.slug, schemaName }, 'Tenant migration succeeded');
     } catch (err) {
-      // EC-08: stop on first failure
+      // EC-08: stop on first failure.
+      // "Rollback on failure" means PostgreSQL transactional DDL rollback, not application-level
+      // cleanup. `prisma migrate deploy` wraps each migration file in a PostgreSQL transaction —
+      // a migration that fails mid-way is automatically rolled back to the state before it started.
+      // No application-level rollback is needed or possible. Tenants that were successfully
+      // migrated before this failure remain migrated. (See decision-log ID-007.)
       report.failed++;
       report.stoppedAt = tenant.slug;
       report.results.push({

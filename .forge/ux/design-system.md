@@ -189,6 +189,19 @@ Desktop-first approach. Design for 1440px, adapt down.
 | ProgressStepper       | Multi-step progress indicator (tenant provisioning)       | New    |
 | StatusBadge           | Tenant/provisioning status indicator                      | New    |
 
+### From Spec 003 (Core Feature Components — new)
+
+| Component       | Description                                                              | Status |
+| --------------- | ------------------------------------------------------------------------ | ------ |
+| WorkspaceTree   | Hierarchical tree nav for workspaces: expand/collapse, select, keyboard  | New    |
+| FileUpload      | File upload with preview, drag-drop, size/format validation; avatar/logo | New    |
+| ColorPicker     | Hex input + swatch + popover picker with live preview                    | New    |
+| DateRangePicker | Dual date inputs with calendar popover, range selection                  | New    |
+| ConfirmDialog   | Alert dialog with impact list; warning/destructive variants              | New    |
+| InlineFilter    | Horizontal filter bar with multiple controls + apply/clear               | New    |
+| ExpandableRow   | Table row with expand/collapse to show detail panel                      | New    |
+| ToggleSwitch    | On/off switch (Radix Switch); labeled, with disabled state               | New    |
+
 ---
 
 ## 8. Animation / Motion
@@ -227,4 +240,5 @@ Desktop-first approach. Design for 1440px, adapt down.
 | ---------------------------- | -------------------------------------------------- |
 | Spec 001 (token definitions) | `.forge/specs/001-infrastructure-setup/spec.md` §9 |
 | Spec 002 (shell + design)    | `.forge/specs/002-foundations/spec.md` §2.3        |
+| Spec 003 (core components)   | `.forge/specs/003-core-features/design-spec.md`    |
 | Constitution (WCAG mandate)  | `.forge/constitution.md` §Quality Standards        |

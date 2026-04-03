@@ -64,9 +64,27 @@ async function request<T>(method: string, path: string, options?: RequestOptions
         headers: retryHeaders,
         ...(options?.body !== undefined && { body: JSON.stringify(options.body) }),
       });
-      if (!retryResponse.ok) throw new Error('Retry failed');
+      if (!retryResponse.ok) {
+        // The retry itself failed (e.g. 403 Forbidden, 404 Not Found).
+        // This is NOT a session expiry — the refresh succeeded and returned a
+        // valid token, so the session is still alive. Throw a normal error so
+        // the caller can handle the specific HTTP status, not a session-expired
+        // redirect. setSessionExpired() must only be called when refresh() throws.
+        const errBody = (await retryResponse.json().catch(() => ({}))) as {
+          error?: { message?: string };
+        };
+        throw new Error(
+          errBody.error?.message ?? `Request failed after token refresh: ${retryResponse.status}`
+        );
+      }
       return retryResponse.json() as Promise<T>;
-    } catch {
+    } catch (err) {
+      // refresh() threw — the refresh token is expired or revoked.
+      // Only in this case is the session actually expired.
+      if (err instanceof Error && err.message.startsWith('Request failed after token refresh')) {
+        // Rethrow — this is an API error, not a session expiry.
+        throw err;
+      }
       store.setSessionExpired();
       throw new Error('Session expired');
     }

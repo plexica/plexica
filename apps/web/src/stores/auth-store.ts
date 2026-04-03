@@ -25,6 +25,7 @@ interface AuthStore extends AuthState {
   handleCallback: (code: string, state: string) => Promise<void>;
   refresh: () => Promise<void>;
   setSessionExpired: () => void;
+  dismissExpired: () => void;
   setTenantContext: (slug: string, realm: string) => void;
 }
 
@@ -149,6 +150,10 @@ export const useAuthStore = create<AuthStore>()(
       setSessionExpired: () => {
         set({ status: 'expired', isAuthenticated: false });
       },
+
+      dismissExpired: () => {
+        set({ status: 'unauthenticated' });
+      },
     }),
     {
       name: 'plexica-auth',
@@ -165,10 +170,29 @@ export const useAuthStore = create<AuthStore>()(
       // `status` and `isAuthenticated` are not persisted (they would go stale).
       // Without this, a page reload leaves the store in `status: 'unauthenticated'`
       // even when valid tokens exist, which triggers a spurious Keycloak redirect.
+      //
+      // M-6 fix: also verify the access token has not expired before marking the
+      // session as authenticated. An expired token in sessionStorage (e.g. the
+      // browser was suspended for > 60s) must not restore `status: 'authenticated'`
+      // — that would allow stale tokens to bypass the refresh-on-401 guard.
       onRehydrateStorage: () => (state) => {
         if (state !== undefined && state.accessToken !== null) {
-          state.status = 'authenticated';
-          state.isAuthenticated = true;
+          const parts = state.accessToken.split('.');
+          const payloadPart = parts[1];
+          if (payloadPart !== undefined) {
+            try {
+              const payload = decodeBase64Url(payloadPart) as Record<string, unknown>;
+              const exp = typeof payload['exp'] === 'number' ? payload['exp'] : 0;
+              if (exp > Date.now() / 1000) {
+                state.status = 'authenticated';
+                state.isAuthenticated = true;
+              }
+              // If exp <= now, leave status as 'unauthenticated' — the app will
+              // redirect to Keycloak for a fresh login or attempt a silent refresh.
+            } catch {
+              // Malformed token payload — leave as unauthenticated.
+            }
+          }
         }
       },
     }
