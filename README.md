@@ -106,16 +106,102 @@ pnpm --filter @plexica/ui build-storybook
 
 ## Running Tests
 
-```bash
-# All tests (unit + integration + E2E)
-pnpm test
+The test suite mirrors CI exactly. The same `docker compose` stack, the same
+commands, the same environment variables.
 
+### Prerequisites
+
+Infrastructure must be running before any test that touches the database,
+Keycloak, Redis, MinIO, or Redpanda. The root `.env` file (copied from
+`.env.example` during Quick Start) provides the credentials.
+
+### Unit and Integration Tests (Core API)
+
+These tests run against real services — Keycloak, PostgreSQL, Redis, MinIO, and
+Redpanda. No mocks.
+
+```bash
+# 1. Start the full infrastructure stack (same as CI)
+docker compose up -d --wait postgres keycloak redis minio redpanda mailpit
+
+# 2. Apply migrations
+pnpm --filter core-api db:migrate
+
+# 3. Run unit + integration tests
+pnpm --filter core-api test
+```
+
+### E2E Tests (Playwright — Chromium)
+
+Playwright starts `core-api` and the Vite dev server automatically via
+`webServer` in `playwright.config.ts`. You only need the infrastructure stack.
+
+`global-setup.ts` runs before every test session and auto-provisions:
+
+- Two test tenants (`e2e`, `e2e-b`) via the `tenant:create` CLI
+- Test users in each Keycloak realm
+- The `plexica` login theme on both realms
+
+The setup is **idempotent** — safe to re-run without wiping volumes.
+
+```bash
+# 1. Start the full infrastructure stack
+docker compose up -d --wait postgres keycloak redis minio redpanda mailpit
+
+# 2. Apply migrations (required if running E2E without having run integration tests first)
+pnpm --filter core-api db:migrate
+
+# 3. Install Playwright browsers (only needed once, or after a Playwright version bump)
+pnpm --filter web exec playwright install --with-deps chromium
+
+# 4. Run the full E2E suite
+pnpm --filter web test:e2e
+```
+
+To run a single spec or test by name:
+
+```bash
+pnpm --filter web exec playwright test logout
+pnpm --filter web exec playwright test --grep "FCP"
+```
+
+To open the interactive Playwright UI:
+
+```bash
+pnpm --filter web exec playwright test --ui
+```
+
+### Full Reset (after `docker compose down -v`)
+
+After wiping all volumes the provisioning state is gone. Run the full
+sequence to restore a working test environment:
+
+```bash
+docker compose up -d --wait postgres keycloak redis minio redpanda mailpit
+pnpm --filter core-api db:migrate
+pnpm --filter web test:e2e   # global-setup re-provisions tenants and users
+```
+
+### Linting and Type Checking
+
+```bash
 # Type checking across all packages
 pnpm typecheck
 
 # Lint
 pnpm lint
 ```
+
+### Expected Results
+
+| Suite                     | Command                       | Expected             |
+| ------------------------- | ----------------------------- | -------------------- |
+| Unit + integration        | `pnpm --filter core-api test` | All pass             |
+| E2E (Playwright Chromium) | `pnpm --filter web test:e2e`  | 54 passed, 1 skipped |
+
+The 1 skipped test (`reading tenant B resource as tenant A returns 404`) is
+intentional — it is a placeholder for resource-level isolation coverage
+that requires CRUD routes not yet implemented (see `cross-tenant.spec.ts`).
 
 ## Changing Default Ports
 
