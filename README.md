@@ -28,12 +28,7 @@ pnpm install
 # 5. Apply database migrations
 pnpm --filter core-api db:migrate
 
-# 6. Create a demo tenant (required before opening the web UI)
-#    Provisions PostgreSQL schema + Keycloak realm + MinIO bucket.
-#    --name and --admin-email are optional (default to slug and admin@<slug>.local)
-pnpm --filter core-api tenant:create -- --slug demo --name "Demo" --admin-email admin@demo.local
-
-# 7. Start the application (three separate terminals)
+# 6. Start the application (three separate terminals)
 
 # Terminal A — Core API (http://localhost:3001)
 pnpm --filter core-api dev
@@ -43,6 +38,11 @@ pnpm --filter web dev
 
 # Terminal C — Admin UI (http://localhost:5174)  [not yet implemented — coming in Phase 2]
 # pnpm --filter admin dev
+
+# 7. Create a demo tenant (required before opening the web UI)
+#    Provisions PostgreSQL schema + Keycloak realm + MinIO bucket.
+#    --name and --admin-email are optional (default to slug and admin@<slug>.local)
+pnpm --filter core-api tenant:create -- --slug demo --name "Demo" --admin-email admin@demo.local
 ```
 
 ## Stopping and Resetting
