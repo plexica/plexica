@@ -1,0 +1,47 @@
+version: 2
+updates:
+  # npm / pnpm packages
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+    open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react*'
+      tanstack:
+        patterns:
+          - '@tanstack/*'
+      radix:
+        patterns:
+          - '@radix-ui/*'
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+      playwright:
+        patterns:
+          - '@playwright/*'
+          - 'playwright'
+      prisma:
+        patterns:
+          - 'prisma'
+          - '@prisma/*'
+    ignore:
+      # Major version bumps require manual review and an ADR
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+    open-pull-requests-limit: 5
