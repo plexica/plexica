@@ -64,7 +64,9 @@ describe('Rate limit — GET /api/tenants/resolve (30 req/min, IP key)', () => {
           url: '/api/tenants/resolve?slug=acme',
         });
       }
-      const body = JSON.parse(lastRes!.body) as { error: { code: string } };
+      expect(lastRes).toBeDefined();
+      const res = lastRes as Awaited<ReturnType<typeof server.inject>>;
+      const body = JSON.parse(res.body) as { error: { code: string } };
       expect(body.error.code).toBe('RATE_LIMIT_EXCEEDED');
     } finally {
       await server.close();

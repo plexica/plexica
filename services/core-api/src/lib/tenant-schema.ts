@@ -4,8 +4,6 @@
 
 import { prisma } from './database.js';
 import { logger } from './logger.js';
-
-import type { Prisma } from '@prisma/client';
 import {
   validateSlug,
   toSchemaName,
@@ -13,6 +11,8 @@ import {
   isAlreadyExistsError,
   type TenantCreationError,
 } from './tenant-schema-helpers.js';
+
+import type { Prisma } from '@prisma/client';
 
 export interface TenantCreationParams {
   slug: string;

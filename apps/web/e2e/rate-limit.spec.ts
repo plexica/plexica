@@ -42,8 +42,10 @@ test.describe('Rate limit — GET /api/tenants/resolve (30 req/min)', () => {
       lastRes = await request.get(url);
     }
 
-    expect(lastRes!.status()).toBe(429);
-    const body = (await lastRes!.json()) as { error?: { code?: string; retryAfter?: string } };
+    expect(lastRes).toBeDefined();
+    const res45 = lastRes as Awaited<ReturnType<typeof request.get>>;
+    expect(res45.status()).toBe(429);
+    const body = (await res45.json()) as { error?: { code?: string; retryAfter?: string } };
     expect(body.error?.code).toBe('RATE_LIMIT_EXCEEDED');
     expect(typeof body.error?.retryAfter).toBe('string');
   });
@@ -56,8 +58,10 @@ test.describe('Rate limit — GET /api/tenants/resolve (30 req/min)', () => {
       lastRes = await request.get(url);
     }
 
-    expect(lastRes!.status()).toBe(429);
-    const retryAfter = lastRes!.headers()['retry-after'];
+    expect(lastRes).toBeDefined();
+    const res59 = lastRes as Awaited<ReturnType<typeof request.get>>;
+    expect(res59.status()).toBe(429);
+    const retryAfter = res59.headers()['retry-after'];
     expect(retryAfter).toBeDefined();
     expect((retryAfter ?? '').length).toBeGreaterThan(0);
   });

@@ -39,6 +39,7 @@ vi.mock('../middleware/auth-middleware.js', () => ({
 import { configureErrorHandler } from '../middleware/error-handler.js';
 import tenantRoutes from '../modules/tenant/tenant-routes.js';
 import { GLOBAL_RATE_LIMIT, rateLimitErrorResponseBuilder } from '../lib/rate-limit-config.js';
+
 import type { FastifyInstance } from 'fastify';
 import type { AuthUser } from '../middleware/auth-middleware.js';
 

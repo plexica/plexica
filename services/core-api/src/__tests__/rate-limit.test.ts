@@ -71,7 +71,9 @@ describe('Rate limit — POST /api/admin/tenants (5 req/min, user-keyed)', () =>
           payload: { slug: 'test-slug', name: 'Test', adminEmail: 'x@x.com' },
         });
       }
-      const body = JSON.parse(lastRes!.body) as { error: { code: string; message: string } };
+      expect(lastRes).toBeDefined();
+      const res74 = lastRes as Awaited<ReturnType<typeof server.inject>>;
+      const body = JSON.parse(res74.body) as { error: { code: string; message: string } };
       expect(body.error.code).toBe('RATE_LIMIT_EXCEEDED');
       expect(typeof body.error.message).toBe('string');
     } finally {
@@ -90,10 +92,12 @@ describe('Rate limit — POST /api/admin/tenants (5 req/min, user-keyed)', () =>
           payload: { slug: 'test-slug', name: 'Test', adminEmail: 'x@x.com' },
         });
       }
-      expect(lastRes!.statusCode).toBe(429);
-      expect(lastRes!.headers['retry-after']).toBeDefined();
-      expect(Number(lastRes!.headers['x-ratelimit-limit'])).toBe(5);
-      expect(Number(lastRes!.headers['x-ratelimit-remaining'])).toBe(0);
+      expect(lastRes).toBeDefined();
+      const res93 = lastRes as Awaited<ReturnType<typeof server.inject>>;
+      expect(res93.statusCode).toBe(429);
+      expect(res93.headers['retry-after']).toBeDefined();
+      expect(Number(res93.headers['x-ratelimit-limit'])).toBe(5);
+      expect(Number(res93.headers['x-ratelimit-remaining'])).toBe(0);
     } finally {
       await server.close();
     }
