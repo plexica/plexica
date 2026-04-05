@@ -1,7 +1,13 @@
 // user-routes.test.ts
 // Integration tests for /api/me and /api/tenants/resolve endpoints.
+//
+// NOTE: with isolate:false a prior test file (e.g. rate-limit.test.ts) may have
+// registered a vi.mock for database.js that persists in the module cache.
+// vi.unmock is hoisted by Vitest before imports, ensuring this file always uses
+// the real Prisma client so that the "unknown slug" assertion is not fooled by
+// a mocked { status: 'active' } leaking from a previous test file.
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 
 import { prisma } from '../lib/database.js';
@@ -13,6 +19,10 @@ import tenantRoutes from '../modules/tenant/tenant-routes.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { Prisma } from '@prisma/client';
+
+// Vitest hoists vi.unmock calls (like vi.mock) before module resolution.
+// This removes any mock registered by a prior test file for database.js.
+vi.unmock('../lib/database.js');
 
 const RESOLVE_SLUG = 'resolve-test-tenant';
 const RESOLVE_SCHEMA = 'tenant_resolve_test_tenant';
