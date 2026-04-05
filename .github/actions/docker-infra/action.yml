@@ -4,6 +4,11 @@
 # and ensure Redpanda topics are created with the correct retention policy.
 #
 # Extracted from ci.yml to keep that file ≤ 200 lines (Constitution Rule 4).
+#
+# phase input controls two-phase execution (OPT-3):
+#   start — cache + pull/load + `docker compose up -d` (returns immediately)
+#   wait  — wait for healthy + Redpanda topics + health verification
+#   full  — start + wait combined (default, backward-compatible)
 
 name: Start Docker infrastructure
 description: >
@@ -26,6 +31,14 @@ inputs:
   keycloak-admin-password:
     description: Keycloak admin password
     default: changeme
+  phase:
+    description: >
+      Execution phase. One of: start | wait | full.
+      Use "start" to launch containers in the background while other steps
+      (lint, typecheck, build) run concurrently. Then call again with "wait"
+      to block until all services are healthy before running tests.
+      "full" (default) runs both phases sequentially for backward compatibility.
+    default: full
 
 runs:
   using: composite
@@ -33,26 +46,29 @@ runs:
     # ── Docker image cache ───────────────────────────────────────────────────
     # Images are pinned to SHA256 digests in docker-compose.yml.
     # Cache key is the hash of that file — invalidated only when digests change.
+    # restore-keys allows a partial cache hit on a stale tar (avoids full re-pull).
     # On cache hit: docker load (~5s).  On cache miss: pull + save for next run.
     - name: Cache Docker images
       id: docker-cache
+      if: inputs.phase == 'start' || inputs.phase == 'full'
       uses: actions/cache@v5
       with:
         path: /tmp/docker-images
         key: docker-images-${{ hashFiles('docker-compose.yml') }}
+        restore-keys: docker-images-
 
     - name: Restore Docker images from cache
-      if: steps.docker-cache.outputs.cache-hit == 'true'
+      if: (inputs.phase == 'start' || inputs.phase == 'full') && steps.docker-cache.outputs.cache-hit == 'true'
       shell: bash
       run: docker load -i /tmp/docker-images/images.tar
 
     - name: Pull Docker images
-      if: steps.docker-cache.outputs.cache-hit != 'true'
+      if: (inputs.phase == 'start' || inputs.phase == 'full') && steps.docker-cache.outputs.cache-hit != 'true'
       shell: bash
       run: docker compose -f docker-compose.yml -f docker-compose.ci.yml pull
 
     - name: Save Docker images to cache
-      if: steps.docker-cache.outputs.cache-hit != 'true'
+      if: (inputs.phase == 'start' || inputs.phase == 'full') && steps.docker-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         mkdir -p /tmp/docker-images
@@ -61,7 +77,11 @@ runs:
           | xargs docker save -o /tmp/docker-images/images.tar
 
     # ── Start services ───────────────────────────────────────────────────────
-    - name: Start infrastructure services
+    # phase=start: launch containers detached and return immediately so that
+    # lint/typecheck/build can run in parallel while Docker warms up.
+    # phase=full:  same launch, then falls through to the wait steps below.
+    - name: Start infrastructure services (detached)
+      if: inputs.phase == 'start' || inputs.phase == 'full'
       shell: bash
       env:
         POSTGRES_DB: ${{ inputs.postgres-db }}
@@ -70,18 +90,36 @@ runs:
         KEYCLOAK_ADMIN_USER: ${{ inputs.keycloak-admin-user }}
         KEYCLOAK_ADMIN_PASSWORD: ${{ inputs.keycloak-admin-password }}
       run: |
-        # Phase 1: start and wait for all long-running services.
-        # redpanda-init is intentionally excluded here — it is a one-shot container
-        # that exits with code 0 on success. docker compose --wait treats any exited
-        # container as unhealthy regardless of exit code, so we handle it separately.
+        # Start all long-running services detached (no --wait).
+        # Returns immediately — healthchecks are polled in the wait phase.
+        # redpanda-init is excluded here: it is a one-shot container handled
+        # separately in the wait phase.
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+          up -d \
+          postgres keycloak redis minio redpanda mailpit
+
+    # ── Wait for services to be healthy ─────────────────────────────────────
+    # phase=wait: called after lint/typecheck/build; blocks until healthy.
+    # phase=full: falls through here immediately after start.
+    - name: Wait for infrastructure services to be healthy
+      if: inputs.phase == 'wait' || inputs.phase == 'full'
+      shell: bash
+      env:
+        POSTGRES_DB: ${{ inputs.postgres-db }}
+        POSTGRES_USER: ${{ inputs.postgres-user }}
+        POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+        KEYCLOAK_ADMIN_USER: ${{ inputs.keycloak-admin-user }}
+        KEYCLOAK_ADMIN_PASSWORD: ${{ inputs.keycloak-admin-password }}
+      run: |
+        # --wait on already-running containers: Docker polls until all are
+        # healthy or the timeout is reached. Near-instant if already healthy.
         docker compose -f docker-compose.yml -f docker-compose.ci.yml \
           up -d --wait --wait-timeout 300 \
           postgres keycloak redis minio redpanda mailpit
 
-        # Phase 2: run redpanda-init and wait for it to exit.
-        # --wait cannot be used for one-shot containers (exits 1 even on clean exit).
-        # Instead: start it detached, then use `docker wait` to block until it exits
-        # and capture its exit code explicitly.
+        # One-shot container: start, then block until it exits.
+        # --wait cannot be used for one-shot containers (exits 1 even on clean
+        # exit), so we use `docker wait` to capture the exit code explicitly.
         docker compose -f docker-compose.yml -f docker-compose.ci.yml \
           up -d redpanda-init
         EXIT_CODE=$(docker wait plexica-ci-redpanda-init-1)
@@ -99,6 +137,7 @@ runs:
 
     # ── Redpanda topics ──────────────────────────────────────────────────────
     - name: Ensure Redpanda topics exist with correct config
+      if: inputs.phase == 'wait' || inputs.phase == 'full'
       shell: bash
       run: |
         RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))
@@ -118,6 +157,7 @@ runs:
 
     # ── Health verification ──────────────────────────────────────────────────
     - name: Verify all services are healthy
+      if: inputs.phase == 'wait' || inputs.phase == 'full'
       shell: bash
       run: |
         docker compose ps

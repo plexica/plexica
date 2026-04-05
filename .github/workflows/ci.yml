@@ -2,17 +2,18 @@
 # Runs on every PR targeting main.
 # Constitution Rule 2: all stages must pass; failure blocks merge.
 #
-# Stages (in order):
+# Stages (optimized order — Docker warms up in parallel with lint/build):
 #   1. Setup        — checkout, Node, pnpm cache
 #   2. Install      — pnpm install
 #   2b. Generate    — prisma generate (TypeScript client)
-#   3. Lint         — eslint
-#   4. Typecheck    — tsc --noEmit
-#   5. Build        — pnpm build
-#   6–7. Infra      — Docker cache/pull/start/verify/topics (.github/actions/docker-infra)
+#   3. Infra-start  — Docker cache/pull/`up -d` (detached, returns immediately)
+#   4. Lint         — eslint              ┐ run while Docker is warming up
+#   5. Typecheck    — tsc --noEmit        │
+#   6. Build        — pnpm build          ┘
+#   7. Infra-wait   — block until all services are healthy + topics created
 #   8. Migrate      — apply Prisma migrations
 #   9. Unit + Integration tests — Vitest (real services)
-#  10. E2E          — Playwright Chromium smoke test
+#  10. E2E          — Playwright Chromium smoke test (browser cached)
 #  11. Teardown     — docker compose down (always runs)
 
 name: CI
@@ -75,24 +76,41 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter core-api db:generate
 
-      # ── 3. Lint ───────────────────────────────────────────────────────────────
+      # ── 3. Infra start (detached) ─────────────────────────────────────────────
+      # Launch Docker containers in the background (phase=start). Returns as soon
+      # as `docker compose up -d` exits — healthchecks run asynchronously.
+      # Lint, typecheck, and build execute while Keycloak (~60-120s) warms up,
+      # recovering 2-3 min of wall-clock time per run.
+      - name: Start Docker infrastructure (detached)
+        uses: ./.github/actions/docker-infra
+        with:
+          phase: start
+          postgres-db: plexica
+          postgres-user: plexica
+          postgres-password: changeme
+          keycloak-admin-user: admin
+          keycloak-admin-password: changeme
+
+      # ── 4. Lint ───────────────────────────────────────────────────────────────
       - name: Lint
         run: pnpm lint
 
-      # ── 4. Typecheck ──────────────────────────────────────────────────────────
+      # ── 5. Typecheck ──────────────────────────────────────────────────────────
       - name: Typecheck
         run: pnpm typecheck
 
-      # ── 5. Build ──────────────────────────────────────────────────────────────
+      # ── 6. Build ──────────────────────────────────────────────────────────────
       - name: Build
         run: pnpm build
 
-      # ── 6–7. Docker infrastructure ────────────────────────────────────────────
-      # Composite action: cache images, pull, start services, create topics, verify.
-      # See .github/actions/docker-infra/action.yml for full implementation.
-      - name: Start Docker infrastructure
+      # ── 7. Infra wait ─────────────────────────────────────────────────────────
+      # Block until all services report healthy. If Docker is already ready
+      # (lint+build took longer than Keycloak startup) this completes in seconds.
+      # Also creates Redpanda topics and runs the health verification step.
+      - name: Wait for Docker infrastructure to be healthy
         uses: ./.github/actions/docker-infra
         with:
+          phase: wait
           postgres-db: plexica
           postgres-user: plexica
           postgres-password: changeme
@@ -119,7 +137,19 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
+      # Cache the Playwright browser binaries. The cache key is tied to the web
+      # package.json (which pins the @playwright/test version). On a cache hit the
+      # ~400 MB Chromium download is skipped entirely, saving ~1-2 min per run.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+          restore-keys: playwright-chromium-
+
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E tests
