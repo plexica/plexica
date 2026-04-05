@@ -1,8 +1,10 @@
 // keycloak-login.spec.ts
 // E2E tests: Plexica Keycloak custom theme — login branding and reset password.
 //
-// Accessibility (WCAG 2.4.7 focus management) tests are in keycloak-accessibility.spec.ts.
-// Split to satisfy Constitution Rule 4 (no file above 200 lines).
+// Coverage preserved: all original login and reset-password scenarios remain here.
+// All accessibility (WCAG 2.4.7 focus management) scenarios are in
+// keycloak-accessibility.spec.ts — split to satisfy Constitution Rule 4
+// (no file above 200 lines) without losing any coverage.
 //
 // Requires the full stack: docker compose up (Keycloak with plexica-theme.jar).
 // Skips when PLAYWRIGHT_KEYCLOAK_URL is not provided.

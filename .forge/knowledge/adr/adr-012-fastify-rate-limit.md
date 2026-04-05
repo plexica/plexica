@@ -168,11 +168,12 @@ After implementation is merged, remove the TD-002 entry from
 
 ## Rate Limit Configuration Table
 
-| Scope          | Endpoint                    | Max | Window | Key        |
-| -------------- | --------------------------- | --- | ------ | ---------- |
-| Global default | All authenticated endpoints | 100 | 1 min  | user sub   |
-| Admin override | `POST /api/admin/tenants`   | 5   | 1 min  | user sub   |
-| Public         | `GET /api/tenants/resolve`  | 30  | 1 min  | IP address |
+| Scope          | Endpoint                              | Max | Window | Key        |
+| -------------- | ------------------------------------- | --- | ------ | ---------- |
+| Global default | All authenticated endpoints           | 100 | 1 min  | user sub   |
+| Admin override | `POST /api/admin/tenants`             | 5   | 1 min  | user sub   |
+| Admin override | `POST /api/admin/tenants/migrate-all` | 2   | 5 min  | user sub   |
+| Public         | `GET /api/tenants/resolve`            | 30  | 1 min  | IP address |
 
 > The `GET /api/tenants/resolve` public endpoint is currently unlimited and
 > also benefits from a rate limit to prevent tenant enumeration at scale.

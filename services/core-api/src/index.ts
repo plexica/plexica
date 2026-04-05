@@ -12,13 +12,16 @@ import { config } from './lib/config.js';
 import { disconnectDatabase } from './lib/database.js';
 import { logger } from './lib/logger.js';
 import { redis, disconnectRedis } from './lib/redis.js';
+import {
+  GLOBAL_RATE_LIMIT,
+  rateLimitKeyGenerator,
+  rateLimitErrorResponseBuilder,
+} from './lib/rate-limit-config.js';
 import { configureErrorHandler } from './middleware/error-handler.js';
 import { authMiddleware } from './middleware/auth-middleware.js';
 import { tenantContextMiddleware } from './middleware/tenant-context.js';
 import userRoutes from './modules/user/user-routes.js';
 import tenantRoutes from './modules/tenant/tenant-routes.js';
-
-import type { errorResponseBuilderContext } from '@fastify/rate-limit';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -28,33 +31,33 @@ const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY 
 configureErrorHandler(server);
 
 // ---------------------------------------------------------------------------
+// Redis — connect eagerly so the first request does not pay the TCP handshake
+// cost. lazyConnect:true in redis.ts means connect() is a no-op if already
+// connected. Failures are non-fatal: @fastify/rate-limit fails open (ADR-012).
+// ---------------------------------------------------------------------------
+try {
+  await redis.connect();
+} catch {
+  logger.warn(
+    'Redis unavailable at startup — rate limiting degraded to in-memory (fail-open per ADR-012)'
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Rate limiting — registered before route plugins so all routes are covered.
 // Redis-backed for correctness across multiple Node.js processes.
-// keyGenerator: IP-based (request.user is not yet populated at onRequest lifecycle).
-// Per-user keying is applied via hook:'preHandler' on auth-protected routes
-// that need it (e.g. POST /api/admin/tenants uses keyGenerator in preHandler).
+// keyGenerator: IP-based at plugin level (request.user not yet populated here).
+// Per-user keying is applied via hook:'preHandler' on individual routes
+// (e.g. POST /api/admin/tenants uses its own keyGenerator in preHandler).
 // Fails open when Redis is unavailable (ADR-012).
 // ---------------------------------------------------------------------------
 await server.register(rateLimit, {
   global: true,
-  max: 100,
-  timeWindow: '1 minute',
+  max: GLOBAL_RATE_LIMIT.max,
+  timeWindow: GLOBAL_RATE_LIMIT.timeWindow,
   redis,
-  keyGenerator: (request) => request.ip,
-  errorResponseBuilder: (_request, context: errorResponseBuilderContext) => {
-    const body = {
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: `Rate limit exceeded. Retry after ${context.after}.`,
-        retryAfter: context.after,
-      },
-    };
-    const err = Object.assign(new Error('Rate limit exceeded'), {
-      statusCode: 429,
-      rateLimitBody: body,
-    });
-    return err;
-  },
+  keyGenerator: rateLimitKeyGenerator,
+  errorResponseBuilder: rateLimitErrorResponseBuilder,
 });
 
 // ---------------------------------------------------------------------------

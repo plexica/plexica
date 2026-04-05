@@ -6,8 +6,6 @@
 // instance or prisma generate.
 
 import { describe, expect, it, vi } from 'vitest';
-import Fastify from 'fastify';
-import rateLimit from '@fastify/rate-limit';
 
 // Mock database and migration dependencies.
 vi.mock('../lib/database.js', () => ({
@@ -30,52 +28,7 @@ vi.mock('../middleware/auth-middleware.js', () => ({
   authMiddleware: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { configureErrorHandler } from '../middleware/error-handler.js';
-import tenantRoutes from '../modules/tenant/tenant-routes.js';
-import type { FastifyInstance } from 'fastify';
-import type { AuthUser } from '../middleware/auth-middleware.js';
-
-const SUPER_ADMIN_USER: AuthUser = {
-  id: 'test-super-admin',
-  email: 'admin@example.com',
-  firstName: 'Super',
-  lastName: 'Admin',
-  realm: 'master',
-  roles: ['super_admin'],
-};
-
-async function buildTestServer(): Promise<FastifyInstance> {
-  const server = Fastify({ logger: false });
-  configureErrorHandler(server);
-
-  await server.register(rateLimit, {
-    global: true,
-    max: 100,
-    timeWindow: '1 minute',
-    keyGenerator: (request) => request.ip,
-    errorResponseBuilder: (_request, context) => {
-      const body = {
-        error: {
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: `Rate limit exceeded. Retry after ${context.after}.`,
-          retryAfter: context.after,
-        },
-      };
-      return Object.assign(new Error('Rate limit exceeded'), {
-        statusCode: 429,
-        rateLimitBody: body,
-      });
-    },
-  });
-
-  server.addHook('onRequest', async (request) => {
-    request.user = SUPER_ADMIN_USER;
-  });
-
-  await server.register(tenantRoutes);
-  await server.ready();
-  return server;
-}
+import { buildTestServer } from './helpers/rate-limit-helpers.js';
 
 // ---------------------------------------------------------------------------
 // GET /api/tenants/resolve — 30 req/min limit, keyed by IP (ADR-012)
