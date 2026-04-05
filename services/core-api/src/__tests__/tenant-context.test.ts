@@ -16,6 +16,7 @@ import { tenantContextMiddleware, clearTenantCache } from '../middleware/tenant-
 import { makeAuthStub, createServerWithRealmStub } from './helpers/tenant-context.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 
 const TEST_SLUG = 'ctx-test-tenant';
 const TEST_SCHEMA = 'tenant_ctx_test_tenant';
@@ -31,7 +32,7 @@ const ephemeralServers: FastifyInstance[] = [];
 beforeAll(async () => {
   const existing = await prisma.tenant.findUnique({ where: { slug: TEST_SLUG } });
   if (existing === null) {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const t = await tx.tenant.create({
         data: { slug: TEST_SLUG, name: TEST_SLUG, status: 'active' },
       });

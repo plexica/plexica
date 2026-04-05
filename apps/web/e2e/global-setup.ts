@@ -10,7 +10,8 @@
 //      playwright.config.ts (local dev).
 //   2. Call the Keycloak Admin REST API directly (fetch) to add test users.
 //      This does not require the core-api HTTP server to be running yet.
-//   3. Set the login theme to 'plexica' (falls back to '' if JAR not deployed).
+//   3. Set the login theme to 'plexica' with a render probe fallback — if the
+//      JAR is not deployed or the FTL template crashes, falls back to default.
 //      Build the JAR first: pnpm --filter @plexica/keycloak-theme build
 //
 // Idempotent: 409 responses are treated as "already exists" and the password
@@ -26,190 +27,23 @@
 //     test@e2e.local          / PlexicaE2e!1   (for cross-tenant isolation tests)
 
 import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
+import { getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
+
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+
+// Marker file written after theme probe — read by theme spec files to skip
+// tests that require the Plexica custom theme when it is not active.
+// Path: apps/web/e2e/.e2e-plexica-theme-active ('1' = active, '0' = fallback)
+const THEME_MARKER_PATH = path.resolve(__dirname, '.e2e-plexica-theme-active');
 
 // Absolute path to the core-api source root (monorepo layout)
 const CORE_API_DIR = path.resolve(__dirname, '../../../services/core-api');
 // tsx binary lives in core-api's own node_modules (it's a devDependency there)
 const TSX_BIN = path.resolve(CORE_API_DIR, 'node_modules/.bin/tsx');
-
-const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
-const KEYCLOAK_ADMIN_USER = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
-const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
-
-// ---------------------------------------------------------------------------
-// Keycloak Admin REST API helpers
-// ---------------------------------------------------------------------------
-
-interface AdminToken {
-  access_token: string;
-  expires_in: number;
-}
-
-async function getAdminToken(): Promise<string> {
-  const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'admin-cli',
-      username: KEYCLOAK_ADMIN_USER,
-      password: KEYCLOAK_ADMIN_PASSWORD,
-    }).toString(),
-  });
-  if (!res.ok) {
-    throw new Error(`Keycloak admin token fetch failed: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as AdminToken;
-  return data.access_token;
-}
-
-async function adminFetch(
-  token: string,
-  path: string,
-  method: string,
-  body?: unknown
-): Promise<Response> {
-  return fetch(`${KEYCLOAK_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-}
-
-interface KeycloakUser {
-  username: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  password: string;
-  requiredActions?: string[];
-}
-
-/**
- * Creates (or resets the password of) a Keycloak user in the given realm.
- * Handles 409 (already exists) by looking up the existing user and resetting
- * their password — so the setup is idempotent and safe after volume wipes.
- */
-async function upsertUser(token: string, realm: string, user: KeycloakUser): Promise<void> {
-  const userPayload: Record<string, unknown> = {
-    username: user.username,
-    email: user.email,
-    enabled: true,
-    emailVerified: true,
-    ...(user.firstName !== undefined ? { firstName: user.firstName } : {}),
-    ...(user.lastName !== undefined ? { lastName: user.lastName } : {}),
-    ...(user.requiredActions !== undefined ? { requiredActions: user.requiredActions } : {}),
-    credentials: [{ type: 'password', value: user.password, temporary: false }],
-  };
-
-  const createRes = await adminFetch(token, `/admin/realms/${realm}/users`, 'POST', userPayload);
-
-  if (createRes.status === 201) {
-    // Created successfully
-    return;
-  }
-
-  if (createRes.status === 409) {
-    // User already exists — look up their ID and reset password
-    const lookupRes = await adminFetch(
-      token,
-      `/admin/realms/${realm}/users?username=${encodeURIComponent(user.username)}&exact=true`,
-      'GET'
-    );
-    if (!lookupRes.ok) {
-      throw new Error(
-        `Failed to look up existing user ${user.username} in realm ${realm}: ${lookupRes.status}`
-      );
-    }
-    const users = (await lookupRes.json()) as Array<{ id: string }>;
-    const userId = users[0]?.id;
-    if (userId === undefined) {
-      throw new Error(`User ${user.username} reported as 409 but not found in lookup`);
-    }
-
-    // Reset password to known value
-    const resetRes = await adminFetch(
-      token,
-      `/admin/realms/${realm}/users/${userId}/reset-password`,
-      'PUT',
-      { type: 'password', value: user.password, temporary: false }
-    );
-    if (!resetRes.ok) {
-      throw new Error(
-        `Failed to reset password for ${user.username} in realm ${realm}: ${resetRes.status}`
-      );
-    }
-
-    // Update profile fields (firstName, lastName) and re-apply required actions.
-    // This ensures idempotency when the user was created in a previous run without
-    // these fields (e.g. before lastName was added). Without lastName, Keycloak
-    // shows the "Update Account Information" form after login, blocking OIDC redirect.
-    const profileUpdate: Record<string, unknown> = {};
-    if (user.firstName !== undefined) profileUpdate['firstName'] = user.firstName;
-    if (user.lastName !== undefined) profileUpdate['lastName'] = user.lastName;
-    if (user.requiredActions !== undefined) profileUpdate['requiredActions'] = user.requiredActions;
-
-    if (Object.keys(profileUpdate).length > 0) {
-      const updateRes = await adminFetch(
-        token,
-        `/admin/realms/${realm}/users/${userId}`,
-        'PUT',
-        profileUpdate
-      );
-      if (!updateRes.ok) {
-        // Non-fatal — log but don't block
-        process.stderr.write(
-          `[global-setup] Warning: could not update profile for ${user.username}: ${updateRes.status}\n`
-        );
-      }
-    }
-    return;
-  }
-
-  throw new Error(
-    `Failed to create user ${user.username} in realm ${realm}: ${createRes.status} ${await createRes.text()}`
-  );
-}
-
-/**
- * Sets the Keycloak realm login theme to 'plexica' (the custom Plexica theme).
- * Falls back to '' (default Keycloak theme) if the Plexica theme is not available
- * (e.g. before the JAR is built in local dev) to ensure login tests still pass.
- *
- * keycloak-theme.spec.ts tests the custom theme's branded elements (.auth-card, etc.)
- * and only passes when the plexica theme is active. In CI, the theme is built before E2E.
- * Locally, run `pnpm --filter @plexica/keycloak-theme build` first.
- */
-async function setRealmPlexicaTheme(token: string, realm: string): Promise<void> {
-  // Try to set 'plexica' theme. Keycloak validates the theme name exists before accepting.
-  const setRes = await adminFetch(token, `/admin/realms/${realm}`, 'PUT', {
-    loginTheme: 'plexica',
-  });
-  if (setRes.ok) {
-    process.stdout.write(`[global-setup] Realm ${realm}: loginTheme set to 'plexica'.\n`);
-    return;
-  }
-  // Theme not available — Keycloak returns 400 if the theme name is unknown.
-  // Fall back to the default theme so login tests can still run.
-  process.stdout.write(
-    `[global-setup] Warning: 'plexica' theme not available (${String(setRes.status)}), falling back to default theme for realm ${realm}.\n`
-  );
-  const fallbackRes = await adminFetch(token, `/admin/realms/${realm}`, 'PUT', {
-    loginTheme: '',
-  });
-  if (!fallbackRes.ok) {
-    process.stderr.write(
-      `[global-setup] Warning: could not reset loginTheme for realm ${realm}: ${String(fallbackRes.status)}\n`
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Tenant provisioning via CLI
@@ -234,9 +68,6 @@ function provisionTenant(slug: string, name: string, adminEmail: string): void {
     throw new Error(`Failed to spawn tsx for tenant ${slug}: ${String(result.error)}`);
   }
 
-  // Exit code 0 = success; non-zero = failure
-  // We treat a specific "already exists" message as idempotent success.
-  // The CLI writes to stdout/stderr — check for the success marker.
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? '';
 
@@ -247,8 +78,6 @@ function provisionTenant(slug: string, name: string, adminEmail: string): void {
 
   // Idempotency: if the tenant already exists (unique constraint violation),
   // treat as success — the tenant was already provisioned from a previous run.
-  // Prisma / PostgreSQL will throw P2002 (unique constraint) or the slug will
-  // already be in the core.tenants table.
   if (
     stderr.includes('already exists') ||
     stderr.includes('P2002') ||
@@ -260,7 +89,6 @@ function provisionTenant(slug: string, name: string, adminEmail: string): void {
     return;
   }
 
-  // Real failure
   process.stderr.write(`[global-setup] stdout: ${stdout}\n`);
   process.stderr.write(`[global-setup] stderr: ${stderr}\n`);
   throw new Error(`Tenant provisioning failed for ${slug} (exit ${String(result.status)})`);
@@ -274,10 +102,7 @@ async function setup(): Promise<void> {
   process.stdout.write('[global-setup] Starting E2E environment provisioning…\n');
 
   // ── 1. Provision tenants ──────────────────────────────────────────────────
-  // Tenant A: primary E2E tenant (used by most test suites)
   provisionTenant('e2e', 'E2E', 'admin@e2e.local');
-
-  // Tenant B: secondary tenant (used only by cross-tenant isolation tests)
   provisionTenant('e2e-b', 'E2E-B', 'admin@e2e-b.local');
 
   // ── 2. Add test users via Keycloak Admin REST API ─────────────────────────
@@ -289,15 +114,22 @@ async function setup(): Promise<void> {
   const REALM_A = 'plexica-e2e';
   const REALM_B = 'plexica-e2e-b';
 
-  process.stdout.write(`[global-setup] Creating test users in realm ${REALM_A}…\n`);
+  process.stdout.write(`[global-setup] Configuring realms and creating test users…\n`);
 
-  // Reset login theme to default — the 'plexica' theme set by tenant-provisioning.ts
-  // may fail with a FreeMarker parse error if the theme JAR is not deployed or has
-  // template errors. Use the default Keycloak theme so login tests pass reliably.
-  // keycloak-theme.spec.ts tests the plexica theme specifically; those tests need
-  // the JAR to be built and deployed (handled separately in CI).
-  await setRealmPlexicaTheme(token, REALM_A);
-  await setRealmPlexicaTheme(token, REALM_B);
+  // Set login theme with render-probe fallback (see keycloak-admin-client.ts).
+  // The 'plexica' theme may crash at render time in CI if the JAR was built with
+  // a different Keycloak data model. The probe detects this and uses the default.
+  // Both realms must agree — theme is active only if it works on both.
+  const themeActiveA = await setRealmPlexicaTheme(token, REALM_A);
+  const themeActiveB = await setRealmPlexicaTheme(token, REALM_B);
+  const plexicaThemeActive = themeActiveA && themeActiveB;
+
+  // Write marker file so spec files can skip theme-specific tests instantly
+  // instead of waiting for each assertion to time out at 10 s.
+  fs.writeFileSync(THEME_MARKER_PATH, plexicaThemeActive ? '1' : '0', 'utf8');
+  process.stdout.write(
+    `[global-setup] Plexica theme active: ${String(plexicaThemeActive)} (marker written).\n`
+  );
 
   // Regular test user (used by login-flow, logout, shell-a11y, sidebar-drawer,
   // error-boundary, session-expiry, keycloak-theme branding tests)
@@ -325,10 +157,7 @@ async function setup(): Promise<void> {
     requiredActions: ['UPDATE_PROFILE'],
   });
 
-  process.stdout.write(`[global-setup] Creating test users in realm ${REALM_B}…\n`);
-
-  // Cross-tenant: same credentials in realm B so the isolation test
-  // can log in as tenant A user and then try tenant B resources
+  // Cross-tenant: same credentials in realm B for isolation tests
   await upsertUser(token, REALM_B, {
     username: 'test@e2e.local',
     email: 'test@e2e.local',

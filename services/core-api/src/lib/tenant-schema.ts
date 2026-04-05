@@ -12,6 +12,8 @@ import {
   type TenantCreationError,
 } from './tenant-schema-helpers.js';
 
+import type { Prisma } from '@prisma/client';
+
 export interface TenantCreationParams {
   slug: string;
   name?: string;
@@ -69,7 +71,7 @@ export async function createTenantSchema(
 
   // Step 3: Create tenant in a transaction
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const tenant = await tx.tenant.create({
         data: {
           slug,

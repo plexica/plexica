@@ -2,18 +2,18 @@
 # Runs on every PR targeting main.
 # Constitution Rule 2: all stages must pass; failure blocks merge.
 #
-# Stages (in order):
+# Stages (optimized order — Docker warms up in parallel with lint/build):
 #   1. Setup        — checkout, Node, pnpm cache
 #   2. Install      — pnpm install
 #   2b. Generate    — prisma generate (TypeScript client)
-#   3. Lint         — eslint
-#   4. Typecheck    — tsc --noEmit
-#   5. Build        — pnpm build
-#   6. Docker pull  — pull images (or restore from cache)
-#   7. Docker up    — spin up all infrastructure services
+#   3. Infra-start  — Docker cache/pull/`up -d` (detached, returns immediately)
+#   4. Lint         — eslint              ┐ run while Docker is warming up
+#   5. Typecheck    — tsc --noEmit        │
+#   6. Build        — pnpm build          ┘
+#   7. Infra-wait   — block until all services are healthy + topics created
 #   8. Migrate      — apply Prisma migrations
 #   9. Unit + Integration tests — Vitest (real services)
-#  10. E2E          — Playwright Chromium smoke test
+#  10. E2E          — Playwright Chromium smoke test (browser cached)
 #  11. Teardown     — docker compose down (always runs)
 
 name: CI
@@ -46,6 +46,8 @@ jobs:
     name: Build, Test, and Validate
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read # Minimum required for checkout; all other permissions denied
 
     steps:
       # ── 1. Setup ──────────────────────────────────────────────────────────────
@@ -74,102 +76,53 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter core-api db:generate
 
-      # ── 3. Lint ───────────────────────────────────────────────────────────────
+      # ── 2c. Build Keycloak theme JAR ──────────────────────────────────────────
+      # Build and copy the JAR to infra/keycloak/providers/ BEFORE Docker starts.
+      # Keycloak loads provider JARs at startup — if Docker starts first it loads
+      # the stale committed JAR and won't reload it after pnpm build (step 6).
+      - name: Build Keycloak theme JAR
+        run: pnpm --filter @plexica/keycloak-theme build
+
+      # ── 3. Infra start (detached) ─────────────────────────────────────────────
+      # Launch Docker containers in the background (phase=start). Returns as soon
+      # as `docker compose up -d` exits — healthchecks run asynchronously.
+      # Lint, typecheck, and build execute while Keycloak (~60-120s) warms up,
+      # recovering 2-3 min of wall-clock time per run.
+      - name: Start Docker infrastructure (detached)
+        uses: ./.github/actions/docker-infra
+        with:
+          phase: start
+          postgres-db: plexica
+          postgres-user: plexica
+          postgres-password: changeme
+          keycloak-admin-user: admin
+          keycloak-admin-password: changeme
+
+      # ── 4. Lint ───────────────────────────────────────────────────────────────
       - name: Lint
         run: pnpm lint
 
-      # ── 4. Typecheck ──────────────────────────────────────────────────────────
+      # ── 5. Typecheck ──────────────────────────────────────────────────────────
       - name: Typecheck
         run: pnpm typecheck
 
-      # ── 5. Build ──────────────────────────────────────────────────────────────
+      # ── 6. Build ──────────────────────────────────────────────────────────────
       - name: Build
         run: pnpm build
 
-      # ── 6. Docker image cache ─────────────────────────────────────────────────
-      # Images are pinned to SHA256 digests in docker-compose.yml.
-      # Cache key is the hash of that file — invalidated only when digests change.
-      # On cache hit: docker load (~5s).  On cache miss: pull + save for next run.
-      - name: Cache Docker images
-        id: docker-cache
-        uses: actions/cache@v5
+      # ── 7. Infra wait ─────────────────────────────────────────────────────────
+      # Block until all services report healthy. If Docker is already ready
+      # (lint+build took longer than Keycloak startup) this completes in seconds.
+      # Also creates Redpanda topics and runs the health verification step.
+      - name: Wait for Docker infrastructure to be healthy
+        uses: ./.github/actions/docker-infra
         with:
-          path: /tmp/docker-images
-          key: docker-images-${{ hashFiles('docker-compose.yml') }}
-
-      - name: Restore Docker images from cache
-        if: steps.docker-cache.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/docker-images/images.tar
-
-      - name: Pull Docker images
-        if: steps.docker-cache.outputs.cache-hit != 'true'
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml pull
-
-      - name: Save Docker images to cache
-        if: steps.docker-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /tmp/docker-images
-          docker compose -f docker-compose.yml config --images \
-            | sort -u \
-            | xargs docker save -o /tmp/docker-images/images.tar
-
-      # ── 7. Docker up ─────────────────────────────────────────────────────────
-      - name: Start infrastructure services
-        run: |
-          # Phase 1: start and wait for all long-running services.
-          # redpanda-init is intentionally excluded here — it is a one-shot container
-          # that exits with code 0 on success. docker compose --wait treats any exited
-          # container as unhealthy regardless of exit code, so we handle it separately.
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
-            up -d --wait --wait-timeout 300 \
-            postgres keycloak redis minio redpanda mailpit
-
-          # Phase 2: run redpanda-init and wait for it to exit.
-          # --wait cannot be used for one-shot containers (exits 1 even on clean exit).
-          # Instead: start it detached, then use `docker wait` to block until it exits
-          # and capture its exit code explicitly.
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
-            up -d redpanda-init
-          EXIT_CODE=$(docker wait plexica-ci-redpanda-init-1)
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "redpanda-init failed with exit code $EXIT_CODE" >&2
-            docker logs plexica-ci-redpanda-init-1 >&2
-            exit 1
-          fi
-          echo "redpanda-init completed successfully."
-        env:
-          POSTGRES_DB: plexica
-          POSTGRES_USER: plexica
-          POSTGRES_PASSWORD: changeme
-          KEYCLOAK_ADMIN_USER: admin
-          KEYCLOAK_ADMIN_PASSWORD: changeme
-
-      - name: Show Keycloak startup logs on failure
-        if: failure()
-        run: docker logs plexica-ci-keycloak-1 2>&1 | tail -100 || true
-
-      - name: Ensure Redpanda topics exist with correct config
-        run: |
-          RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))
-          for TOPIC in plexica.tenant.events plexica.user.events plexica.plugin.events; do
-            # Create if not already present (redpanda-init normally handles this,
-            # but this step is the authoritative CI gate — || true is intentional).
-            docker exec plexica-ci-redpanda-1 rpk topic create "$TOPIC" \
-              --brokers localhost:9092 \
-              --partitions 1 \
-              --replicas 1 || true
-            # Idempotently apply retention policy regardless of creation order.
-            docker exec plexica-ci-redpanda-1 rpk topic alter-config "$TOPIC" \
-              --set "retention.ms=${RETENTION_MS}" \
-              --brokers localhost:9092
-          done
-          docker exec plexica-ci-redpanda-1 rpk topic list --brokers localhost:9092
-
-      - name: Verify all services are healthy
-        run: |
-          docker compose ps
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml ps --format json | \
-            python3 -c "import sys,json; [print(s['Name'], s['Health']) for s in json.load(sys.stdin)]" || true
+          phase: wait
+          postgres-db: plexica
+          postgres-user: plexica
+          postgres-password: changeme
+          keycloak-admin-user: admin
+          keycloak-admin-password: changeme
 
       # ── 8. Migrate ────────────────────────────────────────────────────────────
       - name: Apply database migrations
@@ -191,7 +144,19 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
+      # Cache the Playwright browser binaries. The cache key is tied to the web
+      # package.json (which pins the @playwright/test version). On a cache hit the
+      # ~400 MB Chromium download is skipped entirely, saving ~1-2 min per run.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+          restore-keys: playwright-chromium-
+
       - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E tests

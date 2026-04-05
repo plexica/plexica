@@ -87,7 +87,7 @@ export async function migrateAll(): Promise<MigrationReport> {
       logger.error({ slug: tenant.slug, err: String(err) }, 'Tenant migration failed — stopping');
 
       // Mark remaining tenants as skipped
-      const failedIndex = tenants.findIndex((t) => t.slug === tenant.slug);
+      const failedIndex = tenants.findIndex((t: { slug: string }) => t.slug === tenant.slug);
       for (const remaining of tenants.slice(failedIndex + 1)) {
         report.results.push({ slug: remaining.slug, status: 'skipped' });
       }

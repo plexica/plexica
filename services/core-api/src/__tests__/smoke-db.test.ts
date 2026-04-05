@@ -54,7 +54,7 @@ describe('PostgreSQL smoke test', () => {
         AND n.nspname = 'core'
       ORDER BY e.enumsortorder
     `;
-    const values = result.map((r) => r.enumlabel);
+    const values = result.map((r: { enumlabel: string }) => r.enumlabel);
     expect(values).toEqual(['active', 'suspended', 'deleted']);
   });
 });

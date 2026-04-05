@@ -12,6 +12,7 @@ import userRoutes from '../modules/user/user-routes.js';
 import tenantRoutes from '../modules/tenant/tenant-routes.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 
 const RESOLVE_SLUG = 'resolve-test-tenant';
 const RESOLVE_SCHEMA = 'tenant_resolve_test_tenant';
@@ -22,7 +23,7 @@ beforeAll(async () => {
   // Seed a tenant for the resolve endpoint tests
   const existing = await prisma.tenant.findUnique({ where: { slug: RESOLVE_SLUG } });
   if (existing === null) {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const t = await tx.tenant.create({
         data: { slug: RESOLVE_SLUG, name: RESOLVE_SLUG, status: 'active' },
       });

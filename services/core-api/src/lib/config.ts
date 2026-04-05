@@ -40,6 +40,25 @@ const configSchema = z.object({
   // Keycloak master realm name — used to enforce that super_admin tokens are
   // issued by the master realm, not by a tenant realm (H-03 security fix).
   KEYCLOAK_MASTER_REALM: z.string().default('master'),
+
+  // Fastify trustProxy — controls how many X-Forwarded-For hops to trust.
+  // false  = trust no proxy (safe default; request.ip is the direct connection IP).
+  // 1      = trust one hop (set this when running behind a single reverse proxy).
+  // Never use `true` — it trusts the entire X-Forwarded-For chain, enabling
+  // trivial IP spoofing by any client that sends a forged X-Forwarded-For header.
+  TRUST_PROXY: z.preprocess(
+    (v) =>
+      v === 'true'
+        ? true
+        : v === 'false'
+          ? false
+          : v === undefined
+            ? false
+            : Number.isNaN(Number(v))
+              ? v
+              : Number(v),
+    z.union([z.boolean(), z.string(), z.number()]).default(false)
+  ),
 });
 
 export type Config = z.infer<typeof configSchema>;
