@@ -76,7 +76,7 @@ importers:
         specifier: ^1.59.1
         version: 1.59.1
       '@types/node':
-        specifier: ^20.0.0
+        specifier: ^20.19.39
         version: 20.19.39
       '@types/react':
         specifier: ^19.0.0
@@ -244,7 +244,7 @@ importers:
         version: 3.25.76
     devDependencies:
       '@types/node':
-        specifier: ^20.0.0
+        specifier: ^20.19.39
         version: 20.19.39
       dotenv-cli:
         specifier: ^11.0.0
