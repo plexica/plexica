@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: April 2026
+**Last Updated**: April 2026 (ADR-012 added; TD-002 resolved)
 
 ---
 
@@ -27,6 +27,7 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 | ADR-009 | Better Auth Evaluated and Rejected                           | Accepted | March 2026 |
 | ADR-010 | Keycloakify for Keycloak Custom Theme                        | Accepted | April 2026 |
 | ADR-011 | Keycloak Admin API Integration for Tenant Auth Configuration | Accepted | April 2026 |
+| ADR-012 | Rate Limiting via @fastify/rate-limit                        | Accepted | April 2026 |
 
 ---
 
@@ -46,10 +47,10 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 
 ## Technical Debt
 
-| ID     | Description                                                                                                                                                                                                                                                                                                                                                                  | Impact                                                                                                                                                                                  | Severity | Target         |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------- |
-| TD-001 | `ErrorFallback` component has no error-reporting integration (Sentry or equivalent). Errors caught by React error boundaries are silently discarded — no stack trace is forwarded to an error tracking service. The `_error` prop is intentionally not displayed to users (avoids leaking implementation details) but must be forwarded to error tracking before production. | All frontend exceptions invisible in production; regression detection blind.                                                                                                            | Medium   | Pre-production |
-| TD-002 | `POST /api/admin/tenants` has no rate limiting. Plan §3.3 specifies 5 req/min. `@fastify/rate-limit` is not installed — adding it requires an ADR as a new core dependency.                                                                                                                                                                                                  | An unauthenticated caller cannot reach this endpoint (auth required), but a compromised super-admin token could trigger resource exhaustion. Low urgency; enforce before public launch. | Low      | Pre-production |
+| ID         | Description                                                                                                                                                                                                                                                                                                                                                                  | Impact                                                                       | Severity | Target                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ------------------------- |
+| TD-001     | `ErrorFallback` component has no error-reporting integration (Sentry or equivalent). Errors caught by React error boundaries are silently discarded — no stack trace is forwarded to an error tracking service. The `_error` prop is intentionally not displayed to users (avoids leaking implementation details) but must be forwarded to error tracking before production. | All frontend exceptions invisible in production; regression detection blind. | Medium   | Pre-production            |
+| ~~TD-002~~ | ~~`POST /api/admin/tenants` has no rate limiting.~~ **Resolved**: ADR-012 accepted; implementation tracked as a follow-up task.                                                                                                                                                                                                                                              | —                                                                            | —        | **Resolved** (April 2026) |
 
 ---
 

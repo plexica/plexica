@@ -40,6 +40,14 @@ const configSchema = z.object({
   // Keycloak master realm name — used to enforce that super_admin tokens are
   // issued by the master realm, not by a tenant realm (H-03 security fix).
   KEYCLOAK_MASTER_REALM: z.string().default('master'),
+
+  // Fastify trustProxy — set to true when running behind a reverse proxy
+  // (nginx, Kubernetes ingress) so request.ip reflects the real client IP
+  // rather than the load-balancer IP. Defaults to true for containerised envs.
+  TRUST_PROXY: z.preprocess(
+    (v) => (v === 'true' ? true : v === 'false' ? false : v),
+    z.union([z.boolean(), z.string(), z.number()]).default(true)
+  ),
 });
 
 export type Config = z.infer<typeof configSchema>;

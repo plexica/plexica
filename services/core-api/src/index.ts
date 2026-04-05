@@ -5,18 +5,22 @@
 //   Admin     — auth only, no tenant context (admin/tenants*) — ID-003
 //   Tenant    — auth + tenant context (all tenant-scoped routes)
 
+import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 
 import { config } from './lib/config.js';
 import { disconnectDatabase } from './lib/database.js';
 import { logger } from './lib/logger.js';
+import { redis, disconnectRedis } from './lib/redis.js';
 import { configureErrorHandler } from './middleware/error-handler.js';
 import { authMiddleware } from './middleware/auth-middleware.js';
 import { tenantContextMiddleware } from './middleware/tenant-context.js';
 import userRoutes from './modules/user/user-routes.js';
 import tenantRoutes from './modules/tenant/tenant-routes.js';
 
-const server = Fastify({ loggerInstance: logger });
+import type { errorResponseBuilderContext } from '@fastify/rate-limit';
+
+const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
 // Error handler — applied directly to root instance so it covers all scopes.
 // Do NOT use server.register(configureErrorHandler) — that would scope the
@@ -24,9 +28,42 @@ const server = Fastify({ loggerInstance: logger });
 configureErrorHandler(server);
 
 // ---------------------------------------------------------------------------
+// Rate limiting — registered before route plugins so all routes are covered.
+// Redis-backed for correctness across multiple Node.js processes.
+// keyGenerator: IP-based (request.user is not yet populated at onRequest lifecycle).
+// Per-user keying is applied via hook:'preHandler' on auth-protected routes
+// that need it (e.g. POST /api/admin/tenants uses keyGenerator in preHandler).
+// Fails open when Redis is unavailable (ADR-012).
+// ---------------------------------------------------------------------------
+await server.register(rateLimit, {
+  global: true,
+  max: 100,
+  timeWindow: '1 minute',
+  redis,
+  keyGenerator: (request) => request.ip,
+  errorResponseBuilder: (_request, context: errorResponseBuilderContext) => {
+    const body = {
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: `Rate limit exceeded. Retry after ${context.after}.`,
+        retryAfter: context.after,
+      },
+    };
+    const err = Object.assign(new Error('Rate limit exceeded'), {
+      statusCode: 429,
+      rateLimitBody: body,
+    });
+    return err;
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Public routes — no auth required (Constitution: explicit opt-in)
 // ---------------------------------------------------------------------------
-server.get('/health', async () => ({ status: 'ok', version: '2.0.0' }));
+server.get('/health', { config: { rateLimit: false } }, async () => ({
+  status: 'ok',
+  version: '2.0.0',
+}));
 
 // Tenant resolve is public (registered inside tenantRoutes, no auth hook here)
 await server.register(tenantRoutes);
@@ -47,6 +84,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Shutdown signal received — closing server');
   await server.close();
   await disconnectDatabase();
+  await disconnectRedis();
   logger.info('Server closed gracefully');
   process.exit(0);
 }

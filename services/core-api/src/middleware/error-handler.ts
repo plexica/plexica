@@ -24,34 +24,51 @@ interface FastifyValidationError {
   message?: string;
 }
 
+// Shape of the error thrown by @fastify/rate-limit's errorResponseBuilder.
+// The builder creates an Error with statusCode=429 and a structured body
+// attached as `rateLimitBody` for the error handler to forward as-is.
+interface RateLimitError extends Error {
+  statusCode?: number;
+  rateLimitBody?: { error: { code: string; message: string; retryAfter: string } };
+}
+
 /**
  * Registers the application error handler on the given Fastify instance.
  * Call this directly on the root server instance — do NOT use server.register().
  */
 export function configureErrorHandler(fastify: AnyFastifyInstance): void {
-  fastify.setErrorHandler<Error & FastifyValidationError>((error, request, reply) => {
-    if (error instanceof AppError) {
-      request.log.warn(
-        { code: error.code, statusCode: error.statusCode, msg: error.message },
-        'Application error'
-      );
-      return reply.status(error.statusCode).send({
-        error: { code: error.code, message: error.message },
+  fastify.setErrorHandler<Error & FastifyValidationError & RateLimitError>(
+    (error, request, reply) => {
+      if (error instanceof AppError) {
+        request.log.warn(
+          { code: error.code, statusCode: error.statusCode, msg: error.message },
+          'Application error'
+        );
+        return reply.status(error.statusCode).send({
+          error: { code: error.code, message: error.message },
+        });
+      }
+
+      // @fastify/rate-limit throws an Error with statusCode=429 and a structured
+      // body attached as `rateLimitBody`. Forward it as-is with the correct HTTP status.
+      if ((error as RateLimitError).statusCode === 429 && (error as RateLimitError).rateLimitBody) {
+        request.log.warn({ ip: request.ip }, 'Rate limit exceeded');
+        return reply.status(429).send((error as RateLimitError).rateLimitBody);
+      }
+
+      // Fastify validation errors (from JSON schema)
+      if ('validation' in error && error.validation !== undefined) {
+        request.log.warn({ validation: error.validation }, 'Request validation error');
+        return reply.status(400).send({
+          error: { code: 'VALIDATION_ERROR', message: 'Request validation failed' },
+        });
+      }
+
+      // Unexpected errors — log full details, never expose to client
+      request.log.error({ err: error }, 'Unhandled server error');
+      return reply.status(500).send({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
       });
     }
-
-    // Fastify validation errors (from JSON schema)
-    if ('validation' in error && error.validation !== undefined) {
-      request.log.warn({ validation: error.validation }, 'Request validation error');
-      return reply.status(400).send({
-        error: { code: 'VALIDATION_ERROR', message: 'Request validation failed' },
-      });
-    }
-
-    // Unexpected errors — log full details, never expose to client
-    request.log.error({ err: error }, 'Unhandled server error');
-    return reply.status(500).send({
-      error: { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
-    });
-  });
+  );
 }

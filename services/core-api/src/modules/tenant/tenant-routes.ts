@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { TenantRequiredError, ValidationError, UnauthorizedError } from '../../lib/app-error.js';
+import { rateLimitKey } from '../../lib/rate-limit-key.js';
 import { config } from '../../lib/config.js';
 import { prisma } from '../../lib/database.js';
 import { slugSchema, SLUG_REGEX } from '../../lib/tenant-schema-helpers.js';
@@ -49,31 +50,43 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   //              convention; exposing the internal realm name to unauthenticated callers
   //              aids enumeration attacks.
   // ---------------------------------------------------------------------------
-  fastify.get('/api/tenants/resolve', async (request) => {
-    const query = request.query as Record<string, string | undefined>;
-    const slug = query['slug'];
+  fastify.get(
+    '/api/tenants/resolve',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: (request) => request.ip,
+        },
+      },
+    },
+    async (request) => {
+      const query = request.query as Record<string, string | undefined>;
+      const slug = query['slug'];
 
-    if (slug === undefined || slug.trim() === '') {
-      throw new TenantRequiredError();
+      if (slug === undefined || slug.trim() === '') {
+        throw new TenantRequiredError();
+      }
+
+      // NEW-H-3: validate slug format before touching the DB
+      if (!SLUG_REGEX.test(slug)) {
+        throw new TenantRequiredError();
+      }
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { slug },
+        select: { status: true },
+      });
+
+      if (tenant === null || tenant.status !== 'active') {
+        return { exists: false };
+      }
+
+      // NEW-H-3: return only { exists: true } — realm name is derived client-side
+      return { exists: true };
     }
-
-    // NEW-H-3: validate slug format before touching the DB
-    if (!SLUG_REGEX.test(slug)) {
-      throw new TenantRequiredError();
-    }
-
-    const tenant = await prisma.tenant.findUnique({
-      where: { slug },
-      select: { status: true },
-    });
-
-    if (tenant === null || tenant.status !== 'active') {
-      return { exists: false };
-    }
-
-    // NEW-H-3: return only { exists: true } — realm name is derived client-side
-    return { exists: true };
-  });
+  );
 
   // ---------------------------------------------------------------------------
   // ADMIN SCOPE: auth required, no tenant context (ID-003)
@@ -82,31 +95,59 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     adminScope.addHook('preHandler', authMiddleware);
 
     // POST /api/admin/tenants — provision a new tenant
-    // M-05 (TD-002): plan §3.3 specifies a 5 req/min rate limit on this endpoint.
-    // @fastify/rate-limit is not yet installed (would require an ADR as a new core
-    // dependency). Rate limiting is tracked in the decision log as TD-002.
-    adminScope.post('/api/admin/tenants', async (request, reply) => {
-      requireSuperAdmin(request.user.roles, request.user.realm);
+    // ADR-012: 5 req/min override (stricter than global 100 req/min default).
+    // hook:'preHandler' ensures keyGenerator runs AFTER authMiddleware has
+    // populated request.user, enabling per-user rate-limit keying (HIGH-2 fix).
+    adminScope.post(
+      '/api/admin/tenants',
+      {
+        config: {
+          rateLimit: {
+            max: 5,
+            timeWindow: '1 minute',
+            hook: 'preHandler',
+            keyGenerator: rateLimitKey,
+          },
+        },
+      },
+      async (request, reply) => {
+        requireSuperAdmin(request.user.roles, request.user.realm);
 
-      const parseResult = createTenantBody.safeParse(request.body);
-      if (!parseResult.success) {
-        throw new ValidationError(parseResult.error.issues.map((i) => i.message).join(', '));
+        const parseResult = createTenantBody.safeParse(request.body);
+        if (!parseResult.success) {
+          throw new ValidationError(parseResult.error.issues.map((i) => i.message).join(', '));
+        }
+
+        const { slug, name, adminEmail } = parseResult.data;
+        const result = await provisionTenant({ slug, name, adminEmail });
+
+        return reply.status(201).send(result);
       }
-
-      const { slug, name, adminEmail } = parseResult.data;
-      const result = await provisionTenant({ slug, name, adminEmail });
-
-      return reply.status(201).send(result);
-    });
+    );
 
     // POST /api/admin/tenants/migrate-all — run migrations for all tenants
-    adminScope.post('/api/admin/tenants/migrate-all', async (_request, reply) => {
-      requireSuperAdmin(_request.user.roles, _request.user.realm);
+    // ADR-012: 2 req/5 min override — DDL-heavy operation, strict throttle.
+    // hook:'preHandler' for same reason as above (user-keyed after auth).
+    adminScope.post(
+      '/api/admin/tenants/migrate-all',
+      {
+        config: {
+          rateLimit: {
+            max: 2,
+            timeWindow: '5 minutes',
+            hook: 'preHandler',
+            keyGenerator: rateLimitKey,
+          },
+        },
+      },
+      async (_request, reply) => {
+        requireSuperAdmin(_request.user.roles, _request.user.realm);
 
-      const report = await migrateAll();
-      const status = report.failed > 0 ? 207 : 200;
-      return reply.status(status).send(report);
-    });
+        const report = await migrateAll();
+        const status = report.failed > 0 ? 207 : 200;
+        return reply.status(status).send(report);
+      }
+    );
   });
 };
 
