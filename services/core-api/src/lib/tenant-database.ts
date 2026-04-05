@@ -53,7 +53,7 @@ export async function withTenantDb<T>(
   // Fall back to AsyncLocalStorage for non-Fastify call sites.
   const { schemaName } = context ?? getTenantContext();
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // schemaName is derived from slug via toSchemaName() which replaces hyphens
     // with underscores — only contains [a-z0-9_]. Safe for $executeRawUnsafe.
     // Controlled exception per Decision Log ID-001 (same validation applies).

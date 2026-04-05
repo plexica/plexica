@@ -16,6 +16,7 @@ import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { withTenantDb } from '../lib/tenant-database.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 
 const TENANT_A = 'isolation-test-alpha';
 const TENANT_B = 'isolation-test-beta';
@@ -28,7 +29,7 @@ let serverPort: number;
 async function ensureTenant(slug: string, schema: string): Promise<void> {
   const existing = await prisma.tenant.findUnique({ where: { slug } });
   if (existing !== null) return;
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const t = await tx.tenant.create({ data: { slug, name: slug, status: 'active' } });
     await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
     await tx.tenantConfig.create({ data: { tenantId: t.id, keycloakRealm: `plexica-${slug}` } });
@@ -62,10 +63,10 @@ beforeAll(async () => {
       ],
     },
     async (req) => {
-      const rows = await withTenantDb(
+      const rows = (await withTenantDb(
         (tx) => tx.$queryRaw<Array<{ search_path: string }>>`SHOW search_path`,
         req.tenantContext // M-04: explicit context required in Fastify v5
-      );
+      )) as Array<{ search_path: string }>;
       return {
         tenant: req.tenantContext.slug,
         schemaName: req.tenantContext.schemaName,

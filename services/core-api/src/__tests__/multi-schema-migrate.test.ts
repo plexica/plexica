@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '../lib/database.js';
 import { migrateAll } from '../lib/multi-schema-migrate.js';
 
+import type { Prisma } from '@prisma/client';
+
 const MIGR_TENANTS = [
   { slug: 'migr-test-alpha', schema: 'tenant_migr_test_alpha' },
   { slug: 'migr-test-beta', schema: 'tenant_migr_test_beta' },
@@ -17,7 +19,7 @@ beforeAll(async () => {
   for (const { slug, schema } of MIGR_TENANTS) {
     const existing = await prisma.tenant.findUnique({ where: { slug } });
     if (existing !== null) continue;
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const t = await tx.tenant.create({ data: { slug, name: slug, status: 'active' } });
       await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
       await tx.tenantConfig.create({ data: { tenantId: t.id, keycloakRealm: `plexica-${slug}` } });

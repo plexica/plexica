@@ -4,6 +4,8 @@
 
 import { prisma } from './database.js';
 import { logger } from './logger.js';
+
+import type { Prisma } from '@prisma/client';
 import {
   validateSlug,
   toSchemaName,
@@ -69,7 +71,7 @@ export async function createTenantSchema(
 
   // Step 3: Create tenant in a transaction
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const tenant = await tx.tenant.create({
         data: {
           slug,
