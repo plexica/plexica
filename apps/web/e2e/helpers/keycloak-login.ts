@@ -4,6 +4,10 @@
 // safeguard (P10-M-2), and the login page flow (P10-L-1) — fixing selector
 // drift and the missing KEYCLOAK_PASSWORD guard (P10-M-1) in one place.
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as url from 'node:url';
+
 import type { Page } from '@playwright/test';
 
 export const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
@@ -49,4 +53,25 @@ export async function loginViaKeycloak(
   // P11-L-1: explicit 10s timeout matches login-flow.spec.ts and fails fast on
   // Keycloak misconfiguration rather than silently hanging for the 30s default.
   await page.waitForURL('**/dashboard', { timeout: 10_000 });
+}
+
+// ---------------------------------------------------------------------------
+// Plexica theme marker
+// ---------------------------------------------------------------------------
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const THEME_MARKER_PATH = path.resolve(__dirname, '..', '.e2e-plexica-theme-active');
+
+/**
+ * Returns true when the Plexica custom Keycloak theme is active for this run.
+ * Written by global-setup.ts after the render probe. If the marker file is
+ * absent (e.g. local dev without running global-setup), defaults to false so
+ * theme-specific tests are skipped rather than timing out.
+ */
+export function isPlexicaThemeActive(): boolean {
+  try {
+    return fs.readFileSync(THEME_MARKER_PATH, 'utf8').trim() === '1';
+  } catch {
+    return false;
+  }
 }

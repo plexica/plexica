@@ -76,6 +76,13 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter core-api db:generate
 
+      # ── 2c. Build Keycloak theme JAR ──────────────────────────────────────────
+      # Build and copy the JAR to infra/keycloak/providers/ BEFORE Docker starts.
+      # Keycloak loads provider JARs at startup — if Docker starts first it loads
+      # the stale committed JAR and won't reload it after pnpm build (step 6).
+      - name: Build Keycloak theme JAR
+        run: pnpm --filter @plexica/keycloak-theme build
+
       # ── 3. Infra start (detached) ─────────────────────────────────────────────
       # Launch Docker containers in the background (phase=start). Returns as soon
       # as `docker compose up -d` exits — healthchecks run asynchronously.

@@ -27,12 +27,18 @@
 //     test@e2e.local          / PlexicaE2e!1   (for cross-tenant isolation tests)
 
 import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
 import { getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+
+// Marker file written after theme probe — read by theme spec files to skip
+// tests that require the Plexica custom theme when it is not active.
+// Path: apps/web/e2e/.e2e-plexica-theme-active ('1' = active, '0' = fallback)
+const THEME_MARKER_PATH = path.resolve(__dirname, '.e2e-plexica-theme-active');
 
 // Absolute path to the core-api source root (monorepo layout)
 const CORE_API_DIR = path.resolve(__dirname, '../../../services/core-api');
@@ -113,8 +119,17 @@ async function setup(): Promise<void> {
   // Set login theme with render-probe fallback (see keycloak-admin-client.ts).
   // The 'plexica' theme may crash at render time in CI if the JAR was built with
   // a different Keycloak data model. The probe detects this and uses the default.
-  await setRealmPlexicaTheme(token, REALM_A);
-  await setRealmPlexicaTheme(token, REALM_B);
+  // Both realms must agree — theme is active only if it works on both.
+  const themeActiveA = await setRealmPlexicaTheme(token, REALM_A);
+  const themeActiveB = await setRealmPlexicaTheme(token, REALM_B);
+  const plexicaThemeActive = themeActiveA && themeActiveB;
+
+  // Write marker file so spec files can skip theme-specific tests instantly
+  // instead of waiting for each assertion to time out at 10 s.
+  fs.writeFileSync(THEME_MARKER_PATH, plexicaThemeActive ? '1' : '0', 'utf8');
+  process.stdout.write(
+    `[global-setup] Plexica theme active: ${String(plexicaThemeActive)} (marker written).\n`
+  );
 
   // Regular test user (used by login-flow, logout, shell-a11y, sidebar-drawer,
   // error-boundary, session-expiry, keycloak-theme branding tests)

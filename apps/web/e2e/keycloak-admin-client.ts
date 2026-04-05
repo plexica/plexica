@@ -166,8 +166,9 @@ async function resetToDefaultTheme(token: string, realm: string): Promise<void> 
 /**
  * Sets realm loginTheme to 'plexica', then probes the login page render.
  * Falls back to '' (default) if the PUT is rejected or the page returns 5xx.
+ * Returns true when the Plexica theme is active, false when the fallback is used.
  */
-export async function setRealmPlexicaTheme(token: string, realm: string): Promise<void> {
+export async function setRealmPlexicaTheme(token: string, realm: string): Promise<boolean> {
   const setRes = await adminFetch(token, `/admin/realms/${realm}`, 'PUT', {
     loginTheme: 'plexica',
   });
@@ -176,7 +177,7 @@ export async function setRealmPlexicaTheme(token: string, realm: string): Promis
       `[global-setup] Warning: 'plexica' theme rejected (${String(setRes.status)}), falling back for realm ${realm}.\n`
     );
     await resetToDefaultTheme(token, realm);
-    return;
+    return false;
   }
 
   const renders = await isLoginPageRendering(realm);
@@ -184,11 +185,12 @@ export async function setRealmPlexicaTheme(token: string, realm: string): Promis
     process.stdout.write(
       `[global-setup] Realm ${realm}: loginTheme set to 'plexica' (render probe OK).\n`
     );
-    return;
+    return true;
   }
 
   process.stdout.write(
     `[global-setup] Warning: 'plexica' theme renders with 5xx; falling back for realm ${realm}.\n`
   );
   await resetToDefaultTheme(token, realm);
+  return false;
 }
