@@ -191,16 +191,18 @@ Desktop-first approach. Design for 1440px, adapt down.
 
 ### From Spec 003 (Core Feature Components — new)
 
-| Component       | Description                                                              | Status |
-| --------------- | ------------------------------------------------------------------------ | ------ |
-| WorkspaceTree   | Hierarchical tree nav for workspaces: expand/collapse, select, keyboard  | New    |
-| FileUpload      | File upload with preview, drag-drop, size/format validation; avatar/logo | New    |
-| ColorPicker     | Hex input + swatch + popover picker with live preview                    | New    |
-| DateRangePicker | Dual date inputs with calendar popover, range selection                  | New    |
-| ConfirmDialog   | Alert dialog with impact list; warning/destructive variants              | New    |
-| InlineFilter    | Horizontal filter bar with multiple controls + apply/clear               | New    |
-| ExpandableRow   | Table row with expand/collapse to show detail panel                      | New    |
-| ToggleSwitch    | On/off switch (Radix Switch); labeled, with disabled state               | New    |
+| Component            | Description                                                              | Status |
+| -------------------- | ------------------------------------------------------------------------ | ------ |
+| WorkspaceTree        | Hierarchical tree nav for workspaces: expand/collapse, select, keyboard  | New    |
+| FileUpload           | File upload with preview, drag-drop, size/format validation; avatar/logo | New    |
+| ColorPicker          | Hex input + swatch + popover picker with live preview                    | New    |
+| DateRangePicker      | Dual date inputs with calendar popover, range selection                  | New    |
+| ConfirmDialog        | Alert dialog with impact list; warning/destructive variants              | New    |
+| InlineFilter         | Horizontal filter bar with multiple controls + apply/clear               | New    |
+| ExpandableRow        | Table row with expand/collapse to show detail panel                      | New    |
+| ToggleSwitch         | On/off switch (Radix Switch); labeled, with disabled state               | New    |
+| TemplateCard         | Template display card: name, type badge, description, child count, role  | New    |
+| ChildWorkspaceEditor | Ordered list editor for defining child workspaces in a template          | New    |
 
 ---
 

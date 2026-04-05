@@ -13,7 +13,7 @@
 
 **Phase**: 2 — Core Features
 **Duration**: 4-5 weeks
-**Last Clarified**: 2026-04-03 (action matrix + plugin extension added 2026-04-03)
+**Last Clarified**: 2026-04-05 (DR-12 and AC-15 moved to Spec 004; role management screens DR-13/DR-14 added)
 **Dependencies**: Spec 002 (Foundations)
 
 ---
@@ -149,6 +149,8 @@ can be built on top.
 | FR-018 | End-to-end permission check      | Must     | US-003    | Viewer can't create workspace, member can't manage users                                                                   |
 | FR-023 | Plugin action role assignment UI | Must     | US-003    | Workspace admin opens plugin permissions panel, changes required role for a plugin action, change takes effect immediately |
 | FR-024 | Plugin action ABAC enforcement   | Must     | US-003    | Request carrying a plugin action key is evaluated via `workspace_role_action`; denied if user role < required role         |
+| FR-025 | Role management screen           | Must     | US-002    | Tenant admin opens Roles & Permissions screen, sees all built-in roles with descriptions and the full action matrix        |
+| FR-026 | Workspace permission association | Must     | US-002    | Workspace admin opens Permissions panel, views core permission matrix and changes member roles inline via role selector    |
 
 ### 4.3 Tenant Settings (1 week)
 
@@ -262,7 +264,7 @@ Additional rules:
   has no access to workspace A's children unless explicitly added.
 - The data model supports custom roles (configurable permission sets) but the
   UI for custom role creation is deferred.
-- Plugin-contributed actions extend this matrix — see DR-12.
+- Plugin-contributed actions extend this matrix — see Spec 004, DR-12.
 
 #### DR-05: User Invitation Flow
 
@@ -379,62 +381,93 @@ via the Keycloak Admin API:
 - A validation step previews changes before applying to prevent lockout
   (e.g., warn if disabling all login methods).
 
-#### DR-12: Plugin Action Extension
+#### DR-13: Role Management Screen
 
-Plugins can contribute new named actions to the RBAC system, making plugin
-features first-class citizens of the permission model. Workspace admins can
-control which role is required to execute any plugin action within their
-workspace.
+Defines the tenant-level screen for viewing the RBAC role model
+(Tenant Settings → Roles & Permissions). Access is restricted to Tenant Admin.
 
-**Action naming:**
+**Screen sections:**
 
-Plugin actions use the format `{plugin-slug}:{resource}:{verb}` (three parts,
-colon-separated). Examples: `crm:contact:create`, `crm:deal:close`,
-`inventory:item:delete`. This format is unambiguous and scoped to the plugin.
-Core action keys (two-part) and plugin action keys (three-part) are structurally
-distinct — the ABAC engine dispatches on part count.
+1. **Built-in Roles Overview** — card grid, one card per built-in role:
 
-**Plugin manifest declaration:**
+   | Card field   | Content                                                   |
+   | ------------ | --------------------------------------------------------- |
+   | Role name    | Display name (e.g., "Workspace Admin")                    |
+   | Scope badge  | "Tenant" or "Workspace"                                   |
+   | Description  | Role description from DR-04                               |
+   | Member count | Number of users currently holding this role (tenant-wide) |
 
-Each plugin declares its actions in its `manifest.json` under an `actions`
-array. Each entry specifies:
+   All cards are read-only. The "Add custom role" action is not exposed
+   (custom role creation is out of scope — see Section 10).
 
-| Field         | Type                                  | Description                                                             |
-| ------------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| `action`      | string                                | Full action key, e.g. `crm:contact:create`                              |
-| `label`       | string (i18n key)                     | Human-readable label shown in the admin permissions UI                  |
-| `description` | string                                | What the action allows                                                  |
-| `defaultRole` | `"admin"` \| `"member"` \| `"viewer"` | Minimum role granted this action when plugin is enabled for a workspace |
+2. **Action Matrix** — collapsible table, collapsed by default:
+   - Columns: Tenant Admin, Workspace Admin, Workspace Member, Workspace Viewer
+   - Rows: all actions from DR-04, grouped by resource category
+     (workspace, content, member, settings, invitation)
+   - Cells: ✓ (allowed) / ✗ (denied) / — (not workspace-scoped)
+   - A "Copy as CSV" button exports the matrix for compliance documentation.
 
-**Registration lifecycle:**
+3. **Role Assignment Summary** — informational read-only panel:
+   - Shows total number of users per role across all workspaces.
+   - Each row links to the corresponding workspace member list for drill-down.
 
-1. On plugin **installation** for a tenant, all declared actions are stored
-   in the `action_registry` table (scoped to the tenant schema).
-2. When the plugin is **enabled for a workspace**, `workspace_role_action`
-   entries are seeded for each declared action using its `default_role`.
-3. A **workspace admin** can override role assignments for their workspace
-   from the workspace settings → Plugins → Permissions UI (FR-023).
-4. On plugin **uninstall**, all `action_registry` and `workspace_role_action`
-   entries for that plugin are removed via cascade.
+**Navigation path:** Tenant Settings → Roles & Permissions
 
-**ABAC resolution for plugin actions:**
+**Access control:** Tenant Admin only. Workspace-level roles do not have
+access to this screen; direct URL navigation returns 403.
 
-1. Extract the action key from the request context.
-2. If the key is two-part → core action, apply the hardcoded matrix (DR-04).
-3. If the key is three-part → plugin action: look up `workspace_role_action`
-   for `(workspace_id, action_key)`. If no workspace override exists, fall back
-   to the `default_role` from `action_registry`.
-4. Compare the requesting user's workspace role against the required role using
-   the hierarchy: Admin ≥ Member ≥ Viewer.
-5. Log the decision to `abac_decision_log` (same as core actions, DR-09).
+**Empty state:** If no workspace exists, the Role Assignment Summary shows
+"No workspaces yet. Create a workspace to start assigning roles."
 
-**Namespace rules:**
+#### DR-14: Permission Association Screen
 
-- Plugin slugs must be unique in the registry (enforced at install time).
-- A plugin cannot declare a key that matches an existing core action or another
-  installed plugin's actions. Manifest validation (Spec 004, FR-002) rejects
-  conflicting keys.
-- Plugin slugs follow the same regex as tenant slugs: `/^[a-z][a-z0-9-]{1,62}$/`.
+Defines the workspace-level permissions panel
+(Workspace Settings → Permissions). This screen gives workspace admins a
+consolidated view of who can do what in their workspace, and allows inline
+role reassignment.
+
+**Screen sections:**
+
+1. **Core Permissions** — read-only table:
+   - Mirrors the DR-04 action matrix, filtered to workspace-scoped actions only.
+   - Columns: Workspace Admin, Workspace Member, Workspace Viewer.
+   - Clearly labelled "Platform Defaults — Cannot Be Changed".
+   - Grouped by resource category (workspace, content, member, settings,
+     invitation).
+
+2. **Member Role Overview** — interactive table:
+
+   | Column        | Content                                                                  |
+   | ------------- | ------------------------------------------------------------------------ |
+   | User          | Avatar + display name (no email — PII per §Security-6)                   |
+   | Current role  | Role badge (Admin / Member / Viewer)                                     |
+   | Role selector | Inline dropdown to change role; triggers `member:role-change` ABAC check |
+   | Joined        | Relative date (e.g., "3 days ago")                                       |
+   - Role changes take effect immediately on confirm.
+   - Changing one's own role requires a confirmation dialog: "You are
+     changing your own role. This may remove your admin access."
+   - Consistent with FR-012 (RBAC role assignment).
+
+3. **Plugin Permissions** — conditionally shown when plugins are installed:
+   - One collapsible section per plugin installed for this workspace.
+   - Each section lists the plugin's declared actions with the current
+     required role and a role-override dropdown (Admin / Member / Viewer).
+   - A "Reset to defaults" button restores all overrides for that plugin
+     to the `default_role` values from the manifest.
+   - Hidden entirely when no plugins are installed (no empty placeholder).
+   - Full implementation specification in Spec 004, DR-12.
+
+**Navigation path:** Workspace Settings → Permissions
+
+**Access control:** Workspace Admin and Tenant Admin (by inheritance).
+Workspace Member and Viewer do not have access.
+
+**Empty state (members):** "No members yet. Invite team members to get
+started."
+
+**Dependency:** The Plugin Permissions sub-section requires Spec 004 to be
+implemented. It is rendered conditionally; no stub is shown when no plugins
+are installed for the workspace.
 
 ## 5. Non-Functional Requirements
 
@@ -635,23 +668,39 @@ profile, audit log, member management, invite flow),
 **Then** the screen meets WCAG 2.1 AA standards: keyboard navigable, screen-
 reader compatible, color contrast ratio >= 4.5:1, focus indicators visible.
 
-### AC-15: Plugin Action Authorization
+### AC-15: Role Management Screen
 
-**Given** a plugin is installed with action `crm:contact:create` and
-`default_role = "member"`,
-**When** a user with the Viewer role in that workspace attempts to perform the
-action,
-**Then** the API returns 403 Forbidden and the decision is logged to
-`abac_decision_log`.
+**Given** a tenant admin opens Tenant Settings → Roles & Permissions,
+**When** the page loads,
+**Then** all four built-in roles are displayed as cards with their name, scope
+badge, description, and current member count.
 
-**Given** a workspace admin overrides `crm:contact:create` to require `"admin"`,
-**When** a user with the Member role attempts the same action,
-**Then** the API returns 403, reflecting the workspace-specific override.
+**Given** the tenant admin expands the Action Matrix section,
+**When** they view the table,
+**Then** all actions from DR-04 are listed with correct ✓ / ✗ / — indicators
+for each role column, grouped by resource category.
 
-**Given** the plugin is uninstalled from the tenant,
-**When** any request references the plugin's action keys,
-**Then** the ABAC engine returns 403 (action unknown / plugin not installed),
-and all `action_registry` and `workspace_role_action` entries are gone.
+**Given** a user with the Workspace Member role navigates directly to the
+Roles & Permissions URL,
+**When** the request is received,
+**Then** the server returns 403 Forbidden.
+
+### AC-16: Permission Association Screen
+
+**Given** a workspace admin opens Workspace Settings → Permissions,
+**When** the page loads,
+**Then** the Core Permissions table is displayed as read-only and the Member
+Role Overview table lists all workspace members with their current roles.
+
+**Given** a workspace admin changes a member's role from Member to Viewer via
+the inline dropdown and confirms,
+**When** the change is saved,
+**Then** the role is updated immediately, the ABAC engine enforces the new role
+on the next request from that user, and the change is recorded in the audit log.
+
+**Given** no plugins are installed for the workspace,
+**When** the workspace admin views the Permissions screen,
+**Then** the Plugin Permissions section is not shown (no empty placeholder).
 
 ## 9. UX/UI Notes
 
@@ -665,13 +714,20 @@ and all `action_registry` and `workspace_role_action` entries are gone.
 - Audit log uses a filterable table with pagination.
 - All forms use react-hook-form + Zod (per Constitution Rule 3).
 - All strings via react-intl (per Constitution Rule 3).
+- **Role Management Screen** (DR-13): card grid + collapsible action matrix
+  table. Read-only; no edit actions on built-in roles.
+- **Permission Association Screen** (DR-14): two-panel layout — read-only
+  Core Permissions table on the left, interactive Member Role Overview on the
+  right. Inline role selector uses a Radix UI Select component. Plugin
+  Permissions section is conditionally rendered (requires Spec 004).
 
 ## 10. Out of Scope
 
 - **Custom role creation UI** — the data model supports custom roles, but
   the admin UI for defining and managing custom roles (beyond the three fixed
-  roles) is deferred to a future spec. Assigning plugin actions to the
-  existing roles (Admin/Member/Viewer) **is** in scope (FR-023, DR-12).
+  workspace-level roles) is deferred to a future spec. Plugin action role
+  assignment UI (FR-023) is in scope; its detailed implementation contract
+  (DR-12) is defined in Spec 004.
 - **Plugin manifest authoring / plugin installation flow** — the plugin
   system and manifest format are specified in Spec 004. This spec defines
   the RBAC contract (DR-12) that Spec 004 must satisfy.
@@ -722,10 +778,11 @@ implementing FR-022. Per Constitution Rule 5, auth changes require an ADR.
 
 ## Cross-References
 
-| Document     | Path                                   |
-| ------------ | -------------------------------------- |
-| Constitution | `.forge/constitution.md`               |
-| Spec 002     | `.forge/specs/002-foundations/spec.md` |
-| Decision Log | `.forge/knowledge/decision-log.md`     |
-| Plan         | <!-- Created by /forge-plan -->        |
-| Tasks        | <!-- Created by /forge-tasks -->       |
+| Document     | Path                                     |
+| ------------ | ---------------------------------------- |
+| Constitution | `.forge/constitution.md`                 |
+| Spec 002     | `.forge/specs/002-foundations/spec.md`   |
+| Spec 004     | `.forge/specs/004-plugin-system/spec.md` |
+| Decision Log | `.forge/knowledge/decision-log.md`       |
+| Plan         | <!-- Created by /forge-plan -->          |
+| Tasks        | <!-- Created by /forge-tasks -->         |
