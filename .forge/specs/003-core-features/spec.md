@@ -136,21 +136,21 @@ can be built on top.
 
 ### 4.2 Users, Roles & ABAC (2 weeks)
 
-| ID     | Requirement                      | Priority | Story Ref | E2E Test                                                                                                                   |
-| ------ | -------------------------------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| FR-010 | Tenant user list                 | Must     | US-002    | Tenant admin sees all users in their tenant                                                                                |
-| FR-011 | Invite user via email            | Must     | US-002    | Admin invites user, email arrives (Mailpit), user accepts, logs in                                                         |
-| FR-012 | RBAC role assignment             | Must     | US-002    | Admin assigns role, user has correct permissions                                                                           |
-| FR-013 | ABAC workspace isolation         | Must     | US-003    | User with role in workspace A cannot see data in workspace B                                                               |
-| FR-014 | ABAC condition tree              | Must     | US-003    | ABAC policy evaluated: given context X, decision is Y                                                                      |
-| FR-015 | ABAC decision logging            | Must     | US-003    | Every ABAC evaluation logs input, rules, result (for debugging)                                                            |
-| FR-016 | Remove user                      | Must     | US-002    | Admin removes user, resources reassigned, user can no longer access                                                        |
-| FR-017 | User profile                     | Must     | US-007    | User views and edits profile (name, avatar, tz, lang, notif)                                                               |
-| FR-018 | End-to-end permission check      | Must     | US-003    | Viewer can't create workspace, member can't manage users                                                                   |
-| FR-023 | Plugin action role assignment UI | Must     | US-003    | Workspace admin opens plugin permissions panel, changes required role for a plugin action, change takes effect immediately |
-| FR-024 | Plugin action ABAC enforcement   | Must     | US-003    | Request carrying a plugin action key is evaluated via `workspace_role_action`; denied if user role < required role         |
-| FR-025 | Role management screen           | Must     | US-002    | Tenant admin opens Roles & Permissions screen, sees all built-in roles with descriptions and the full action matrix        |
-| FR-026 | Workspace permission association | Must     | US-002    | Workspace admin opens Permissions panel, views core permission matrix and changes member roles inline via role selector    |
+| ID     | Requirement                      | Priority                                                                                                     | Story Ref | E2E Test                                                                                                                   |
+| ------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| FR-010 | Tenant user list                 | Must                                                                                                         | US-002    | Tenant admin sees all users in their tenant                                                                                |
+| FR-011 | Invite user via email            | Must                                                                                                         | US-002    | Admin invites user, email arrives (Mailpit), user accepts, logs in                                                         |
+| FR-012 | RBAC role assignment             | Must                                                                                                         | US-002    | Admin assigns role, user has correct permissions                                                                           |
+| FR-013 | ABAC workspace isolation         | Must                                                                                                         | US-003    | User with role in workspace A cannot see data in workspace B                                                               |
+| FR-014 | ABAC condition tree              | Must                                                                                                         | US-003    | ABAC policy evaluated: given context X, decision is Y                                                                      |
+| FR-015 | ABAC decision logging            | Must                                                                                                         | US-003    | Every ABAC evaluation logs input, rules, result (for debugging)                                                            |
+| FR-016 | Remove user                      | Must                                                                                                         | US-002    | Admin removes user, resources reassigned, user can no longer access                                                        |
+| FR-017 | User profile                     | Must                                                                                                         | US-007    | User views and edits profile (name, avatar, tz, lang, notif)                                                               |
+| FR-018 | End-to-end permission check      | Must                                                                                                         | US-003    | Viewer can't create workspace, member can't manage users                                                                   |
+| FR-023 | Plugin action role assignment UI | Must — data model + ABAC engine only in Spec 003; full UI requires Spec 004 to populate `action_registry`    | US-003    | Workspace admin opens plugin permissions panel, changes required role for a plugin action, change takes effect immediately |
+| FR-024 | Plugin action ABAC enforcement   | Must — ABAC enforcement implemented in Spec 003; enforcement meaningful only after Spec 004 installs plugins | US-003    | Request carrying a plugin action key is evaluated via `workspace_role_action`; denied if user role < required role         |
+| FR-025 | Role management screen           | Must                                                                                                         | US-002    | Tenant admin opens Roles & Permissions screen, sees all built-in roles with descriptions and the full action matrix        |
+| FR-026 | Workspace permission association | Must                                                                                                         | US-002    | Workspace admin opens Permissions panel, views core permission matrix and changes member roles inline via role selector    |
 
 ### 4.3 Tenant Settings (1 week)
 
@@ -764,15 +764,17 @@ on 2026-04-03.
 | Rule 2 (CI)       | COMPLIANT | All tests required green before merge                                         |
 | Rule 3 (Patterns) | COMPLIANT | TanStack Query, react-hook-form + Zod, Zustand, react-intl, Lucide            |
 | Rule 4 (200 LOC)  | COMPLIANT | Applies at implementation; spec does not violate                              |
-| Rule 5 (ADRs)     | ACTION    | FR-022 (Keycloak Admin API) requires ADR-010 before implementation            |
+| Rule 5 (ADRs)     | COMPLIANT | FR-022 (Keycloak Admin API) covered by ADR-011 (accepted April 2026)          |
 | Rule 6 (English)  | COMPLIANT | Applies to commits; noted for implementation phase                            |
 | Tech Stack        | COMPLIANT | All technologies from prescribed stack                                        |
 | Architecture      | COMPLIANT | Schema-per-tenant, Keycloak multi-realm, ABAC tree-walk                       |
 | Security          | COMPLIANT | Tenant isolation, auth on all endpoints, no PII in logs, Zod input validation |
 | Quality           | COMPLIANT | NFRs have measurable targets; WCAG 2.1 AA included                            |
 
-**Action Required**: Create ADR-010 (Keycloak Admin API Integration) before
-implementing FR-022. Per Constitution Rule 5, auth changes require an ADR.
+**Action Required**: ~~Create ADR-010 (Keycloak Admin API Integration) before
+implementing FR-022. Per Constitution Rule 5, auth changes require an ADR.~~
+**Resolved**: ADR-011 (Keycloak Admin API Integration for Tenant Auth Configuration)
+was accepted April 2026. No further action required.
 
 ---
 
@@ -784,5 +786,5 @@ implementing FR-022. Per Constitution Rule 5, auth changes require an ADR.
 | Spec 002     | `.forge/specs/002-foundations/spec.md`   |
 | Spec 004     | `.forge/specs/004-plugin-system/spec.md` |
 | Decision Log | `.forge/knowledge/decision-log.md`       |
-| Plan         | <!-- Created by /forge-plan -->          |
+| Plan         | `.forge/specs/003-core-features/plan.md` |
 | Tasks        | <!-- Created by /forge-tasks -->         |
