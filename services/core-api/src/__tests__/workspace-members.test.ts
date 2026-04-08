@@ -29,8 +29,9 @@ import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { WorkspaceMemberDto } from '../modules/workspace/types.js';
 
 const SLUG = 'ws-int02-members';
-const ADMIN_ID = 'admin-int02';
-const MEMBER_ID = 'member-int02';
+// Fixed UUIDs so req.user.id and workspace.created_by/workspace_member.user_id match
+const ADMIN_ID = '00000000-0102-0001-0000-000000000001';
+const MEMBER_ID = '00000000-0102-0002-0000-000000000001';
 
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 const skipIfNoStack = it.skipIf(!(await isDbReachable()) || !(await isRedisReachable()));
@@ -43,8 +44,9 @@ let workspaceId: string;
 beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
-  await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin User');
-  await seedUserProfile(ctx, MEMBER_ID, `${MEMBER_ID}@test.plexica.io`, 'Member User');
+  // Pass the same UUID as userId so req.user.id == workspace.created_by == user_profile.user_id
+  await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin User', ADMIN_ID);
+  await seedUserProfile(ctx, MEMBER_ID, `${MEMBER_ID}@test.plexica.io`, 'Member User', MEMBER_ID);
 
   server = await createTestServer();
   const stub = makeFullStub(ADMIN_ID, ctx, ['tenant_admin']);

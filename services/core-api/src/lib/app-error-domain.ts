@@ -2,8 +2,13 @@
 // Domain-specific error classes — workspace, member, invitation, user, file, plugin.
 // Kept separate from app-error.ts to stay within the 200-line file limit.
 // All classes are re-exported from app-error.ts for backwards compatibility.
+//
+// IMPORTANT: imports AppError from app-error-base.ts (not app-error.ts) to
+// avoid a circular ESM dependency. app-error.ts re-exports from this file,
+// so importing back from app-error.ts would create a cycle where AppError
+// is undefined at class definition time.
 
-import { AppError } from './app-error.js';
+import { AppError } from './app-error-base.js';
 
 export class WorkspaceNotFoundError extends AppError {
   readonly statusCode = 404;

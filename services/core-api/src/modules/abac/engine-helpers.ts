@@ -38,7 +38,7 @@ export async function getMembership(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = tenantDb as any;
   const member = await db.workspaceMember.findUnique({
-    where: { workspace_id_user_id: { workspace_id: ctx.workspaceId, user_id: ctx.userId } },
+    where: { workspaceId_userId: { workspaceId: ctx.workspaceId, userId: ctx.userId } },
     select: { role: true },
   });
 
@@ -65,12 +65,12 @@ export async function getPluginActionOverride(
   const db = tenantDb as any;
   const override = await db.workspaceRoleAction.findFirst({
     where: {
-      workspace_id: ctx.workspaceId,
-      action_key: ctx.pluginActionKey,
-      is_overridden: true,
+      workspaceId: ctx.workspaceId,
+      actionKey: ctx.pluginActionKey,
+      isOverridden: true,
     },
-    select: { required_role: true },
+    select: { requiredRole: true },
   });
 
-  return (override?.required_role as WorkspaceRole | null) ?? null;
+  return (override?.requiredRole as WorkspaceRole | null) ?? null;
 }

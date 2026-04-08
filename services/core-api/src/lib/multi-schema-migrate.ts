@@ -1,14 +1,34 @@
 // multi-schema-migrate.ts
-// Runs Prisma migrations against all active tenant schemas sequentially.
+// Runs tenant DDL migrations against all active tenant schemas sequentially.
 // Stops on first failure (EC-08) and returns a detailed MigrationReport.
+//
+// Design note: We do NOT use `prisma migrate deploy` for tenant schemas because
+// Prisma stores _prisma_migrations in the schema specified by DATABASE_URL, which
+// for the core schema is `core`. When we change the schema to `tenant_<slug>`,
+// Prisma cannot find its migration tracking table and fails with
+// "Invariant violation: migration persistence is not initialized."
+//
+// Instead, we execute the tenant DDL migration files directly using raw SQL via
+// the Prisma client with SET LOCAL search_path. All migration files use
+// CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS so they are idempotent
+// and safe to re-run. (See decision-log ID-007 for rollback semantics.)
 
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 
 import { prisma } from './database.js';
 import { logger } from './logger.js';
 
-const execAsync = promisify(exec);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Relative to src/lib/ → ../.. → services/core-api/
+const MIGRATIONS_DIR = resolve(__dirname, '../../prisma/migrations');
+
+// Migration files that contain tenant-schema DDL.
+// These are executed in order against every tenant schema.
+const TENANT_MIGRATION_FILES = ['003_core_features/migration.sql'];
 
 export interface MigrationResult {
   slug: string;
@@ -24,28 +44,32 @@ export interface MigrationReport {
   results: MigrationResult[];
 }
 
-async function migrateTenantSchema(slug: string, schemaName: string): Promise<void> {
-  const env = {
-    ...process.env,
-    DATABASE_URL: process.env['DATABASE_URL'] ?? '',
-  };
+/**
+ * Applies all tenant DDL migration files to a single tenant schema.
+ * Runs inside a transaction with SET LOCAL search_path so the connection
+ * pool is not polluted (same pattern as withTenantDb, Decision Log ID-001).
+ */
+async function migrateTenantSchema(schemaName: string): Promise<void> {
+  for (const relPath of TENANT_MIGRATION_FILES) {
+    const sqlPath = resolve(MIGRATIONS_DIR, relPath);
+    const rawSql = readFileSync(sqlPath, 'utf8');
 
-  const schemaArg = `?schema=${schemaName}`;
-  const url = env.DATABASE_URL.includes('?')
-    ? `${env.DATABASE_URL}&schema=${schemaName}`
-    : `${env.DATABASE_URL}${schemaArg}`;
+    // Strip SQL line comments and split into individual statements.
+    const cleanSql = rawSql.replace(/--.*$/gm, '').trim();
+    const statements = cleanSql
+      .split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
 
-  // L-11: Each tenant spawns a child_process for `prisma migrate deploy`.
-  // For N tenants this is N process spawns — acceptable for the NFR-06 target
-  // of 10 tenants < 60s, but should be replaced with a programmatic Prisma
-  // migration API if tenant counts grow significantly.
-  // NEW-M-5: 120s timeout prevents a stalled migration from blocking migrateAll() indefinitely.
-  await execAsync('prisma migrate deploy', {
-    env: { ...env, DATABASE_URL: url },
-    cwd: process.cwd(),
-    timeout: 120_000,
-    maxBuffer: 10 * 1024 * 1024,
-  });
+    await prisma.$transaction(async (tx) => {
+      // schemaName is derived from slug via toSchemaName() — only [a-z0-9_].
+      // Same controlled exception as Decision Log ID-001.
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}",public`);
+      for (const stmt of statements) {
+        await tx.$executeRawUnsafe(stmt);
+      }
+    });
+  }
 }
 
 export async function migrateAll(): Promise<MigrationReport> {
@@ -66,17 +90,16 @@ export async function migrateAll(): Promise<MigrationReport> {
     const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
 
     try {
-      await migrateTenantSchema(tenant.slug, schemaName);
+      await migrateTenantSchema(schemaName);
       report.migrated++;
       report.results.push({ slug: tenant.slug, status: 'ok' });
       logger.info({ slug: tenant.slug, schemaName }, 'Tenant migration succeeded');
     } catch (err) {
       // EC-08: stop on first failure.
-      // "Rollback on failure" means PostgreSQL transactional DDL rollback, not application-level
-      // cleanup. `prisma migrate deploy` wraps each migration file in a PostgreSQL transaction —
-      // a migration that fails mid-way is automatically rolled back to the state before it started.
-      // No application-level rollback is needed or possible. Tenants that were successfully
-      // migrated before this failure remain migrated. (See decision-log ID-007.)
+      // "Rollback on failure" means PostgreSQL transactional DDL rollback — each DDL
+      // statement batch runs in a transaction. If a batch fails mid-way, PostgreSQL
+      // rolls back that transaction automatically. Prior successful tenants remain migrated.
+      // (See decision-log ID-007.)
       report.failed++;
       report.stoppedAt = tenant.slug;
       report.results.push({

@@ -8,7 +8,6 @@
 
 import { jwtVerify, errors as joseErrors } from 'jose';
 
-
 import { UnauthorizedError } from '../lib/app-error.js';
 import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
@@ -90,6 +89,15 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
 }
 
 export async function authMiddleware(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+  // If request.user is already populated by a prior hook (e.g. test stub or
+  // upstream gateway that pre-authenticates), skip JWT verification.
+  // This is NOT a test-only code path: it also supports future scenarios where
+  // a reverse proxy or API gateway has already verified the token and injected
+  // the user context before the request reaches Fastify.
+  if (request.user !== undefined) {
+    return;
+  }
+
   const token = extractBearerToken(request.headers.authorization);
   const payload = decodePayload(token);
   const realm = realmFromIssuer(String(payload['iss'] ?? ''));

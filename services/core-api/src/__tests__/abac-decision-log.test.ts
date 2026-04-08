@@ -8,7 +8,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
-import { withTenantDb } from '../lib/tenant-database.js';
 import { workspaceRoutes } from '../modules/workspace/routes.js';
 
 import {
@@ -19,6 +18,7 @@ import {
 } from './helpers/server.helpers.js';
 import {
   cleanupTenant,
+  queryAbacDecisionLog,
   seedTenant,
   seedUserProfile,
   seedWorkspace,
@@ -30,7 +30,8 @@ import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
 
 const SLUG = 'ws-ac07-declog';
-const ADMIN_ID = 'admin-ac07';
+// Fixed UUID so req.user.id (Keycloak sub) and workspace.created_by (internal userId) match
+const ADMIN_ID = '00000000-ac07-0001-0000-000000000001';
 
 const dbOk = await isDbReachable();
 const redisOk = await isRedisReachable();
@@ -47,7 +48,8 @@ beforeAll(async () => {
   if (!allOk) return;
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
-  await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin AC07');
+  // Pass ADMIN_ID as both keycloakUserId and userId so req.user.id matches created_by UUID
+  await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin AC07', ADMIN_ID);
 
   server = await createTestServer();
   server.addHook('preHandler', makeFullStub(ADMIN_ID, ctx, ['tenant_admin']));
@@ -85,29 +87,29 @@ describe('AC-07 ABAC decision log', () => {
     // Give the fire-and-forget log writer a moment to commit
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Query the decision log directly
-    const rows = await withTenantDb(
-      async (tx) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (tx as any).abacDecisionLog.findMany({
-          where: { userId: ADMIN_ID, action: 'workspace:read', resourceId: workspaceId },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-        }),
-      ctx
-    );
+    // Query the decision log directly via helper (uses TenantPrismaClient)
+    const rows = await queryAbacDecisionLog(ctx, {
+      userId: ADMIN_ID,
+      action: 'workspace:read',
+      resourceId: workspaceId,
+    });
 
     expect(rows.length).toBeGreaterThanOrEqual(1);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((rows[0] as any).decision).toBe('allow');
+    expect(rows[0]?.decision).toBe('allow');
   });
 
   skipIfNoStack(
     'deny decision is recorded in abac_decision_log when non-member attempts access',
     async () => {
       // Create a server with a non-member, non-admin stub
-      const nonMemberId = 'nonmember-ac07';
-      await seedUserProfile(ctx, nonMemberId, `${nonMemberId}@test.plexica.io`, 'Non Member');
+      const nonMemberId = '00000000-ac07-0002-0000-000000000001';
+      await seedUserProfile(
+        ctx,
+        nonMemberId,
+        `${nonMemberId}@test.plexica.io`,
+        'Non Member',
+        nonMemberId
+      );
 
       const restrictedServer = await createTestServer();
       restrictedServer.addHook('preHandler', makeFullStub(nonMemberId, ctx, []));
@@ -124,20 +126,14 @@ describe('AC-07 ABAC decision log', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const rows = await withTenantDb(
-        async (tx) =>
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (tx as any).abacDecisionLog.findMany({
-            where: { userId: nonMemberId, action: 'workspace:read', resourceId: workspaceId },
-            orderBy: { createdAt: 'desc' },
-            take: 5,
-          }),
-        ctx
-      );
+      const rows = await queryAbacDecisionLog(ctx, {
+        userId: nonMemberId,
+        action: 'workspace:read',
+        resourceId: workspaceId,
+      });
 
       expect(rows.length).toBeGreaterThanOrEqual(1);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((rows[0] as any).decision).toBe('deny');
+      expect(rows[0]?.decision).toBe('deny');
 
       await restrictedServer.close();
     }

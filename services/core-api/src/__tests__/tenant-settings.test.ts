@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '../lib/database.js';
 import { tenantSettingsRoutes } from '../modules/tenant-settings/routes.js';
 import { config } from '../lib/config.js';
+import { createRealm, deleteRealm } from '../lib/keycloak-admin.js';
 
 import {
   createTestServer,
@@ -26,11 +27,16 @@ import type {
 } from '../modules/tenant-settings/types.js';
 
 const SLUG = 'ws-int06-settings';
-const ADMIN_ID = 'admin-int06';
+// Fixed UUID — audit_log.actor_id is UUID NOT NULL (written by updateSettings/updateBranding/updateAuthConfig)
+const ADMIN_ID = '00000000-0106-0001-0000-000000000001';
 
-const skipIfNoDb = it.skipIf(!(await isDbReachable()));
-const skipIfNoKC = it.skipIf(!(await isKeycloakReachable()));
-const skipIfNoMinio = it.skipIf(!(await isMinioReachable()));
+const dbAvailable = await isDbReachable();
+const kcAvailable = await isKeycloakReachable();
+const minioAvailable = await isMinioReachable();
+
+const skipIfNoDb = it.skipIf(!dbAvailable);
+const skipIfNoKC = it.skipIf(!kcAvailable);
+const skipIfNoMinio = it.skipIf(!minioAvailable);
 
 let server: FastifyInstance;
 let ctx: TenantContext;
@@ -39,6 +45,18 @@ let reqHeaders: Record<string, string>;
 beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
+
+  if (kcAvailable) {
+    try {
+      await createRealm({
+        realmName: ctx.realmName,
+        adminEmail: 'admin@test.plexica.io',
+        tenantSlug: SLUG,
+      });
+    } catch {
+      // Realm may already exist from a previous run — safe to continue
+    }
+  }
 
   server = await createTestServer();
   const stub = makeFullStub(ADMIN_ID, ctx, ['tenant_admin']);
@@ -51,6 +69,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await server.close();
+  if (kcAvailable && ctx) {
+    try {
+      await deleteRealm(ctx.realmName);
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
   await cleanupTenant(SLUG);
   await prisma.$disconnect();
 });
@@ -147,7 +172,7 @@ describe('INT-06 Branding', () => {
 });
 
 describe('INT-06 Auth config', () => {
-  skipIfNoDb('GET /api/v1/tenant/auth-config → returns auth config shape', async () => {
+  skipIfNoKC('GET /api/v1/tenant/auth-config → returns auth config shape', async () => {
     const res = await server.inject({
       method: 'GET',
       url: '/api/v1/tenant/auth-config',

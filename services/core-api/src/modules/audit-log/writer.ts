@@ -25,13 +25,13 @@ export function writeAuditLog(
   db.auditLog
     .create({
       data: {
-        actor_id: entry.actorId,
-        action_type: entry.actionType,
-        target_type: entry.targetType,
-        target_id: entry.targetId ?? null,
-        before_value: entry.beforeValue ?? null,
-        after_value: entry.afterValue ?? null,
-        ip_address: entry.ipAddress ?? null,
+        actorId: entry.actorId,
+        actionType: entry.actionType,
+        targetType: entry.targetType,
+        targetId: entry.targetId ?? null,
+        beforeValue: entry.beforeValue ?? null,
+        afterValue: entry.afterValue ?? null,
+        ipAddress: entry.ipAddress ?? null,
       },
     })
     .catch((err: unknown) => {

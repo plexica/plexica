@@ -3,9 +3,9 @@
 // Implements tracked rollback — compensates completed steps in reverse order on failure.
 
 // TODO: Run 'pnpm db:generate' to generate tenant client types before Step 4 compiles.
- 
+
 // @ts-ignore — generated/tenant-client does not exist until after 'pnpm db:generate'
-import { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+import { PrismaClient as TenantPrismaClient } from '../../../generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { ProvisioningFailedError } from '../../lib/app-error.js';
@@ -96,16 +96,13 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
       ? `${baseUrl}&schema=${schemaName}`
       : `${baseUrl}?schema=${schemaName}`;
 
-     
     const tenantDb = new TenantPrismaClient({ datasources: { db: { url: tenantUrl } } });
     try {
-       
       await seedBuiltInTemplates(tenantDb);
-       
+
       await seedDefaultBranding(tenantDb);
       logger.info({ slug }, 'Tenant seed data applied');
     } finally {
-       
       await tenantDb.$disconnect();
     }
 

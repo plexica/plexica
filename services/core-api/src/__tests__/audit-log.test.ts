@@ -6,7 +6,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
 import { auditLogRoutes } from '../modules/audit-log/routes.js';
-import { withTenantDb } from '../lib/tenant-database.js';
 
 import {
   createTestServer,
@@ -14,46 +13,23 @@ import {
   isDbReachable,
   isRedisReachable,
 } from './helpers/server.helpers.js';
-import { seedTenant, cleanupTenant, wipeTenantWorkspaces } from './helpers/db.helpers.js';
+import {
+  seedTenant,
+  cleanupTenant,
+  wipeTenantWorkspaces,
+  wipeTenantAuditLog,
+  seedAuditLog,
+} from './helpers/db.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
 
 const TENANT_SLUG = 'test-auditlog';
-const ACTOR_ID = 'kcuser-audit-001';
+// Fixed UUID — audit_log.actor_id is UUID NOT NULL
+const ACTOR_ID = '00000000-a091-0001-0000-000000000001';
 
 let server: FastifyInstance;
 let ctx: TenantContext;
-
-async function seedAuditEntry(
-  tenantCtx: TenantContext,
-  actorId: string,
-  actionType: string
-): Promise<string> {
-  const row = await withTenantDb(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (tx as any).auditLog.create({
-      data: {
-        actorId,
-        actionType,
-        targetType: 'workspace',
-        targetId: null,
-        beforeValue: null,
-        afterValue: null,
-        ipAddress: null,
-      },
-      select: { id: true },
-    });
-  }, tenantCtx);
-  return (row as { id: string }).id;
-}
-
-async function wipeAuditLog(tenantCtx: TenantContext): Promise<void> {
-  await withTenantDb(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (tx as any).auditLog.deleteMany({});
-  }, tenantCtx);
-}
 
 const dbOk = await isDbReachable();
 const redisOk = await isRedisReachable();
@@ -79,7 +55,7 @@ describe('INT-07 — Audit Log routes', () => {
   beforeEach(async () => {
     if (!allOk) return;
     await wipeTenantWorkspaces(ctx);
-    await wipeAuditLog(ctx);
+    await wipeTenantAuditLog(ctx);
   });
 
   // ── GET /api/v1/tenant/audit-log/action-types ─────────────────────────────
@@ -112,8 +88,8 @@ describe('INT-07 — Audit Log routes', () => {
   // ── Seeded entries ────────────────────────────────────────────────────────
 
   it.skipIf(!allOk)('returns seeded audit entries ordered newest first', async () => {
-    await seedAuditEntry(ctx, ACTOR_ID, 'workspace.create');
-    await seedAuditEntry(ctx, ACTOR_ID, 'workspace.update');
+    await seedAuditLog(ctx, ACTOR_ID, 'workspace.create');
+    await seedAuditLog(ctx, ACTOR_ID, 'workspace.update');
 
     const res = await server.inject({ method: 'GET', url: '/api/v1/tenant/audit-log' });
     expect(res.statusCode).toBe(200);
@@ -127,9 +103,9 @@ describe('INT-07 — Audit Log routes', () => {
   // ── actorId filter ────────────────────────────────────────────────────────
 
   it.skipIf(!allOk)('filters by actorId', async () => {
-    const other = 'kcuser-other-002';
-    await seedAuditEntry(ctx, ACTOR_ID, 'workspace.create');
-    await seedAuditEntry(ctx, other, 'workspace.delete');
+    const other = '00000000-a091-0002-0000-000000000001';
+    await seedAuditLog(ctx, ACTOR_ID, 'workspace.create');
+    await seedAuditLog(ctx, other, 'workspace.delete');
 
     const res = await server.inject({
       method: 'GET',
@@ -145,8 +121,8 @@ describe('INT-07 — Audit Log routes', () => {
   // ── actionType filter ─────────────────────────────────────────────────────
 
   it.skipIf(!allOk)('filters by actionType', async () => {
-    await seedAuditEntry(ctx, ACTOR_ID, 'workspace.create');
-    await seedAuditEntry(ctx, ACTOR_ID, 'member.add');
+    await seedAuditLog(ctx, ACTOR_ID, 'workspace.create');
+    await seedAuditLog(ctx, ACTOR_ID, 'member.add');
 
     const res = await server.inject({
       method: 'GET',
@@ -163,7 +139,7 @@ describe('INT-07 — Audit Log routes', () => {
 
   it.skipIf(!allOk)('respects page and limit query params', async () => {
     for (let i = 0; i < 5; i++) {
-      await seedAuditEntry(ctx, ACTOR_ID, 'workspace.create');
+      await seedAuditLog(ctx, ACTOR_ID, 'workspace.create');
     }
 
     const res = await server.inject({

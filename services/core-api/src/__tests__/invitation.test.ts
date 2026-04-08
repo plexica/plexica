@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../lib/database.js';
 import { invitationRoutes, invitationPublicRoutes } from '../modules/invitation/routes.js';
 import { workspaceRoutes } from '../modules/workspace/routes.js';
-import { withTenantDb } from '../lib/tenant-database.js';
+import { createRealm, deleteRealm } from '../lib/keycloak-admin.js';
 
 import {
   createTestServer,
@@ -20,6 +20,7 @@ import {
   seedUserProfile,
   seedWorkspace,
   seedWorkspaceMember,
+  seedInvitation,
   wipeTenantWorkspaces,
   cleanupTenant,
 } from './helpers/db.helpers.js';
@@ -29,10 +30,12 @@ import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { InvitationDto } from '../modules/invitation/types.js';
 
 const SLUG = 'ws-int03-invite';
-const ACTOR = 'actor-int03';
+// Fixed UUID so req.user.id matches workspace.created_by and invitation.invited_by FK constraints
+const ACTOR = '00000000-0103-0001-0000-000000000001';
 
+const kcAvailable = await isKeycloakReachable();
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
-const skipIfNoKC = it.skipIf(!(await isKeycloakReachable()));
+const skipIfNoKC = it.skipIf(!kcAvailable);
 
 let server: FastifyInstance;
 let ctx: TenantContext;
@@ -42,7 +45,21 @@ let workspaceId: string;
 beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
-  await seedUserProfile(ctx, ACTOR, `${ACTOR}@test.plexica.io`, 'Invite Actor');
+  // Pass the same UUID as userId so req.user.id == invitation.invited_by == user_profile.user_id
+  await seedUserProfile(ctx, ACTOR, `${ACTOR}@test.plexica.io`, 'Invite Actor', ACTOR);
+
+  // Provision Keycloak realm for the accept-invitation flow (only when KC is available)
+  if (kcAvailable) {
+    try {
+      await createRealm({
+        realmName: ctx.realmName,
+        adminEmail: 'admin@test.plexica.io',
+        tenantSlug: SLUG,
+      });
+    } catch {
+      // Realm may already exist from a previous run — safe to continue
+    }
+  }
 
   server = await createTestServer();
   const stub = makeFullStub(ACTOR, ctx, ['tenant_admin']);
@@ -57,6 +74,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await server.close();
+  if (kcAvailable && ctx) {
+    try {
+      await deleteRealm(ctx.realmName);
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
   await cleanupTenant(SLUG);
   await prisma.$disconnect();
 });
@@ -78,7 +102,7 @@ describe('INT-03 Create invitation', () => {
     });
     expect(res.statusCode).toBe(201);
     const inv = JSON.parse(res.body) as InvitationDto;
-    expect(inv.email).toBe('newuser@example.com');
+    expect(inv.email).toBe('n***@example.com'); // email is masked (PII protection — see maskEmail in service.ts)
     expect(inv.status).toBe('pending');
   });
 
@@ -112,7 +136,7 @@ describe('INT-03 Resend invitation', () => {
     const resendRes = await server.inject({
       method: 'POST',
       url: `/api/v1/invitations/${inv.id}/resend`,
-      headers: reqHeaders,
+      headers: { 'x-tenant-slug': SLUG }, // no content-type: resend has no request body
     });
     expect(resendRes.statusCode).toBe(200);
     const updated = JSON.parse(resendRes.body) as InvitationDto;
@@ -126,20 +150,15 @@ describe('INT-03 Accept invitation', () => {
   skipIfNoDb('expired invitation returns 410 INVITATION_EXPIRED', async () => {
     // Seed an invitation directly in DB with a past expiry
     const token = 'expired-token-int03';
-    await withTenantDb(async (tx) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (tx as any).invitation.create({
-        data: {
-          email: 'expired@example.com',
-          workspaceId,
-          role: 'member',
-          invitedBy: ACTOR,
-          token,
-          status: 'pending',
-          expiresAt: new Date(Date.now() - 1000),
-        },
-      });
-    }, ctx);
+    await seedInvitation(ctx, {
+      email: 'expired@example.com',
+      workspaceId,
+      role: 'member',
+      invitedBy: ACTOR,
+      token,
+      status: 'pending',
+      expiresAt: new Date(Date.now() - 1000),
+    });
 
     const res = await server.inject({
       method: 'POST',
@@ -153,20 +172,15 @@ describe('INT-03 Accept invitation', () => {
 
   skipIfNoDb('accepting same token twice returns 409', async () => {
     const token = 'double-accept-token-int03';
-    await withTenantDb(async (tx) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (tx as any).invitation.create({
-        data: {
-          email: 'double@example.com',
-          workspaceId,
-          role: 'member',
-          invitedBy: ACTOR,
-          token,
-          status: 'accepted',
-          expiresAt: new Date(Date.now() + 86400_000),
-        },
-      });
-    }, ctx);
+    await seedInvitation(ctx, {
+      email: 'double@example.com',
+      workspaceId,
+      role: 'member',
+      invitedBy: ACTOR,
+      token,
+      status: 'accepted',
+      expiresAt: new Date(Date.now() + 86400_000),
+    });
 
     const res = await server.inject({
       method: 'POST',
@@ -191,11 +205,13 @@ describe('INT-03 Accept invitation', () => {
     expect(createRes.statusCode).toBe(201);
     const inv = JSON.parse(createRes.body) as InvitationDto;
 
-    // Retrieve token from DB for the public accept endpoint
-    const row = await withTenantDb(async (tx) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (tx as any).invitation.findUnique({ where: { id: inv.id }, select: { token: true } });
-    }, ctx);
+    // Retrieve token from DB for the public accept endpoint — use withTenantDb now that
+    // it correctly passes a TenantPrismaClient.
+    const { withTenantDb } = await import('../lib/tenant-database.js');
+    const row = await withTenantDb(
+      async (db) => db.invitation.findUnique({ where: { id: inv.id }, select: { token: true } }),
+      ctx
+    );
     const tokenVal = (row as { token: string }).token;
 
     const acceptRes = await server.inject({

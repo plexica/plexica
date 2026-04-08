@@ -6,13 +6,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
 import { userManagementRoutes } from '../modules/user-management/routes.js';
-import { withTenantDb } from '../lib/tenant-database.js';
 
 import { createTestServer, makeFullStub, isDbReachable } from './helpers/server.helpers.js';
 import {
   seedTenant,
   seedUserProfile,
   wipeTenantWorkspaces,
+  wipeTenantUsers,
   cleanupTenant,
 } from './helpers/db.helpers.js';
 
@@ -21,9 +21,11 @@ import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { TenantUserDto } from '../modules/user-management/types.js';
 
 const SLUG = 'ws-int04-usermgmt';
-const ADMIN_ID = 'admin-int04';
-const USER_A = 'user-int04-a';
-const USER_B = 'user-int04-b';
+// Fixed UUIDs — used as both keycloakUserId and internal userId (passed as 5th arg to seedUserProfile)
+// so audit_log.actor_id (UUID NOT NULL) and the DELETE/GET route params are satisfied.
+const ADMIN_ID = '00000000-0104-0001-0000-000000000001';
+const USER_A = '00000000-0104-0002-0000-000000000001';
+const USER_B = '00000000-0104-0003-0000-000000000001';
 
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 
@@ -52,14 +54,10 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await wipeTenantWorkspaces(ctx);
-  // Reset user profiles
-  await withTenantDb(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (tx as any).userProfile.deleteMany({});
-  }, ctx);
-  await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin Int04');
-  await seedUserProfile(ctx, USER_A, `alice@test.plexica.io`, 'Alice User');
-  await seedUserProfile(ctx, USER_B, `bob@test.plexica.io`, 'Bob User');
+  await wipeTenantUsers(ctx);
+  await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin Int04', ADMIN_ID);
+  await seedUserProfile(ctx, USER_A, `alice@test.plexica.io`, 'Alice User', USER_A);
+  await seedUserProfile(ctx, USER_B, `bob@test.plexica.io`, 'Bob User', USER_B);
 });
 
 describe('INT-04 User list', () => {

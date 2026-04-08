@@ -1,0 +1,243 @@
+// tenant-schema.prisma
+// Prisma schema for the tenant-specific schema (tenant_<slug>).
+// The tenant Prisma client connects directly to the tenant schema (search_path = tenant_<slug>),
+// so all models use @@schema("public") — "public" here means the default search_path table,
+// not the PostgreSQL public schema.
+// Generated into: ../generated/tenant-client
+// Run: pnpm db:generate (after updating this file)
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  output          = "../generated/tenant-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public"]
+}
+
+// ---------------------------------------------------------------------------
+// Model 1: UserProfile
+// Represents a user within this tenant. user_id is the Plexica internal UUID
+// assigned at invite time — not auto-generated.
+// ---------------------------------------------------------------------------
+model UserProfile {
+  userId            String    @id @map("user_id") @db.Uuid
+  keycloakUserId    String    @unique @map("keycloak_user_id") @db.VarChar(255)
+  email             String    @db.VarChar(255)
+  displayName       String?   @map("display_name") @db.VarChar(255)
+  avatarPath        String?   @map("avatar_path")
+  timezone          String    @default("UTC") @db.VarChar(63)
+  language          String    @default("en") @db.VarChar(8)
+  notificationPrefs Json      @default("{}") @map("notification_prefs")
+  status            String    @default("active") @db.VarChar(16)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  workspacesCreated Workspace[]       @relation("WorkspaceCreator")
+  workspaceMembers  WorkspaceMember[]
+  invitationsSent   Invitation[]
+
+  @@map("user_profile")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 2: WorkspaceTemplate
+// Built-in and custom workspace structural blueprints.
+// created_by is NULL for built-in templates.
+// ---------------------------------------------------------------------------
+model WorkspaceTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?
+  structure   Json     @default("[]")
+  isBuiltin   Boolean  @default(false) @map("is_builtin")
+  createdBy   String?  @map("created_by") @db.Uuid
+  version     Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  workspaces Workspace[]
+
+  @@map("workspace_template")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 3: TenantBranding
+// Stores the visual branding settings for this tenant. One row per tenant.
+// ---------------------------------------------------------------------------
+model TenantBranding {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logoPath     String?  @map("logo_path")
+  primaryColor String   @default("#6366F1") @map("primary_color") @db.VarChar(9)
+  darkMode     Boolean  @default(false) @map("dark_mode")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("tenant_branding")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 4: Workspace
+// Core organizational unit. Supports hierarchy via parent_id + materialized_path.
+// ---------------------------------------------------------------------------
+model Workspace {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String    @db.VarChar(255)
+  slug             String    @unique @db.VarChar(63)
+  description      String?
+  parentId         String?   @map("parent_id") @db.Uuid
+  materializedPath String    @default("/") @map("materialized_path")
+  status           String    @default("active") @db.VarChar(16)
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz
+  templateId       String?   @map("template_id") @db.Uuid
+  createdBy        String    @map("created_by") @db.Uuid
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  parent      Workspace?            @relation("WorkspaceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Workspace[]           @relation("WorkspaceHierarchy")
+  template    WorkspaceTemplate?    @relation(fields: [templateId], references: [id])
+  creator     UserProfile           @relation("WorkspaceCreator", fields: [createdBy], references: [userId])
+  members     WorkspaceMember[]
+  invitations Invitation[]
+  roleActions WorkspaceRoleAction[]
+
+  @@map("workspace")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 5: WorkspaceMember
+// Join table between Workspace and UserProfile with a role.
+// ---------------------------------------------------------------------------
+model WorkspaceMember {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        String   @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_member")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 6: Invitation
+// Tracks pending/accepted/expired invitations to join a workspace.
+// ---------------------------------------------------------------------------
+model Invitation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String    @db.VarChar(255)
+  workspaceId String    @map("workspace_id") @db.Uuid
+  role        String    @db.VarChar(32)
+  status      String    @default("pending") @db.VarChar(16)
+  invitedBy   String    @map("invited_by") @db.Uuid
+  token       String    @unique @db.VarChar(255)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  acceptedAt  DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   UserProfile @relation(fields: [invitedBy], references: [userId])
+
+  @@index([email, workspaceId])
+  @@map("invitation")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 7: AuditLog
+// Immutable record of significant actor actions within the tenant.
+// ip_address stored as VARCHAR — INET type enforced in SQL constraint.
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  actionType  String   @map("action_type") @db.VarChar(63)
+  targetType  String   @map("target_type") @db.VarChar(63)
+  targetId    String?  @map("target_id") @db.Uuid
+  beforeValue Json?    @map("before_value")
+  afterValue  Json?    @map("after_value")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@index([actionType])
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt, actionType])
+  @@map("audit_log")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 8: AbacDecisionLog
+// Records ABAC policy evaluation results for debugging and auditing.
+// ---------------------------------------------------------------------------
+model AbacDecisionLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  resourceType   String   @map("resource_type") @db.VarChar(63)
+  resourceId     String?  @map("resource_id") @db.Uuid
+  action         String   @db.VarChar(63)
+  decision       String   @db.VarChar(8)
+  rulesEvaluated Json     @default("[]") @map("rules_evaluated")
+  logLevel       String   @default("info") @map("log_level") @db.VarChar(8)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt, userId, action, decision])
+  @@index([createdAt])
+  @@map("abac_decision_log")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 9: ActionRegistry
+// Catalogs plugin-defined actions and their default minimum role.
+// plugin_id references core.plugins.id — no FK in Prisma (cross-schema).
+// ---------------------------------------------------------------------------
+model ActionRegistry {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pluginId     String   @map("plugin_id") @db.Uuid
+  actionKey    String   @map("action_key") @db.VarChar(255)
+  labelI18nKey String   @map("label_i18n_key") @db.VarChar(255)
+  description  String?
+  defaultRole  String   @default("admin") @map("default_role") @db.VarChar(32)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([pluginId, actionKey])
+  @@map("action_registry")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Model 10: WorkspaceRoleAction
+// Per-workspace overrides for plugin action role requirements.
+// ---------------------------------------------------------------------------
+model WorkspaceRoleAction {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  pluginId     String   @map("plugin_id") @db.Uuid
+  actionKey    String   @map("action_key") @db.VarChar(255)
+  requiredRole String   @map("required_role") @db.VarChar(32)
+  isOverridden Boolean  @default(false) @map("is_overridden")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, pluginId, actionKey])
+  @@map("workspace_role_action")
+  @@schema("public")
+}

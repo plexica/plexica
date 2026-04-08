@@ -10,18 +10,13 @@ import type { AuditLogDto, AuditLogFilters } from './types.js';
 function rowToDto(row: Record<string, unknown>): AuditLogDto {
   return {
     id: String(row['id']),
-    actorId: String(row['actorId'] ?? row['actor_id']),
-    actionType: String(row['actionType'] ?? row['action_type']),
-    targetType: String(row['targetType'] ?? row['target_type']),
-    targetId:
-      row['targetId'] != null
-        ? String(row['targetId'])
-        : row['target_id'] != null
-          ? String(row['target_id'])
-          : null,
+    actorId: String(row['actorId']),
+    actionType: String(row['actionType']),
+    targetType: String(row['targetType']),
+    targetId: row['targetId'] != null ? String(row['targetId']) : null,
     createdAt: (row['createdAt'] instanceof Date
       ? row['createdAt']
-      : new Date(String(row['createdAt'] ?? row['created_at']))
+      : new Date(String(row['createdAt']))
     ).toISOString(),
   };
 }

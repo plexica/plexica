@@ -28,7 +28,8 @@ import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { WorkspaceDetailDto } from '../modules/workspace/types.js';
 
 const SLUG = 'ws-int01-test';
-const ACTOR = 'actor-ws-int01';
+// Fixed UUID so req.user.id matches workspace.created_by UUID FK constraint
+const ACTOR = '00000000-0101-0001-0000-000000000001';
 
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 
@@ -39,7 +40,8 @@ let reqHeaders: Record<string, string>;
 beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
-  await seedUserProfile(ctx, ACTOR, `${ACTOR}@test.plexica.io`, 'WS Actor');
+  // Pass the same UUID as userId so req.user.id == workspace.created_by == user_profile.user_id
+  await seedUserProfile(ctx, ACTOR, `${ACTOR}@test.plexica.io`, 'WS Actor', ACTOR);
 
   server = await createTestServer();
   const stub = makeFullStub(ACTOR, ctx, ['tenant_admin']);
@@ -114,7 +116,6 @@ describe('INT-01 Workspace hierarchy', () => {
     let current = await mustCreateWorkspace(server, reqHeaders, 'Depth0');
     // Build 10 levels; the 11th should fail
     for (let i = 1; i <= 10; i++) {
-       
       const { statusCode, body } = await createWorkspaceViaApi(server, reqHeaders, {
         name: `Depth${i}`,
         parentId: current.id,

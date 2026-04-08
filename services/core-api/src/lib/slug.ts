@@ -22,8 +22,16 @@ export function generateSlug(name: string): string {
     slug = `w${slug}`;
   }
 
-  // Truncate to 62 chars (leaving room for at least one char after the leading letter)
-  return slug.slice(0, 62);
+  // Truncate to 63 chars (SLUG_REGEX allows up to 63 total: 1 leading letter + up to 62 more)
+  slug = slug.slice(0, 63);
+
+  // Ensure minimum length of 2 (SLUG_REGEX requires [a-z][a-z0-9-]{1,62})
+  // Example: generateSlug('A') → 'a' (1 char) → pad to 'a0'
+  if (slug.length < 2) {
+    slug = `${slug}0`;
+  }
+
+  return slug;
 }
 
 /** Returns true if the slug matches SLUG_REGEX. */

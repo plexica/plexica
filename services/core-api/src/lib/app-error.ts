@@ -2,20 +2,13 @@
 // Typed application error hierarchy for core-api.
 // All middleware and route handlers throw these — never raw Error objects.
 //
+// AppError base class lives in app-error-base.ts to prevent a circular ESM
+// import cycle with app-error-domain.ts.
 // Domain-specific errors (workspace, member, invitation, file, ABAC) live in
 // app-error-domain.ts and are re-exported here for backwards compatibility.
 
-export abstract class AppError extends Error {
-  abstract readonly statusCode: number;
-  abstract readonly code: string;
-
-  constructor(message: string) {
-    super(message);
-    this.name = this.constructor.name;
-    // Maintains proper prototype chain for instanceof checks
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}
+export { AppError } from './app-error-base.js';
+import { AppError } from './app-error-base.js';
 
 export class UnauthorizedError extends AppError {
   readonly statusCode = 401;
@@ -45,7 +38,7 @@ export class InvalidSlugError extends AppError {
 }
 
 export class ValidationError extends AppError {
-  readonly statusCode = 400;
+  readonly statusCode = 422;
   readonly code = 'VALIDATION_ERROR';
 
   constructor(message = 'Validation failed') {

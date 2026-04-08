@@ -24,16 +24,20 @@ export async function logDecision(
   const db = tenantDb as any;
 
   // Fire-and-forget: never throw, never block
+  // resourceId is nullable (UUID | null) — pass null when workspaceId is empty
+  // so routes without a workspace param don't fail with a UUID format error.
+  const resourceId = ctx.workspaceId !== '' ? ctx.workspaceId : null;
+
   db.abacDecisionLog
     .create({
       data: {
-        user_id: ctx.userId,
-        resource_type: 'workspace',
-        resource_id: ctx.workspaceId,
+        userId: ctx.userId,
+        resourceType: 'workspace',
+        resourceId,
         action: ctx.action,
         decision: decision.decision,
-        rules_evaluated: [{ action: ctx.action, reason: decision.reason }],
-        log_level: 'info',
+        rulesEvaluated: [{ action: ctx.action, reason: decision.reason }],
+        logLevel: 'info',
       },
     })
     .catch((err: unknown) => {

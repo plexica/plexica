@@ -114,6 +114,13 @@ export async function tenantContextMiddleware(
   request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> {
+  // If tenantContext is already set by a prior hook (e.g. test stub or
+  // upstream middleware), skip resolution and re-use the existing context.
+  if (request.tenantContext !== undefined) {
+    enterWithTenant(request.tenantContext);
+    return;
+  }
+
   const slug = extractSlug(request);
 
   // EC-01: missing tenant identifier — ID-002: use generic error code

@@ -7,15 +7,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
 import { evaluate } from '../modules/abac/engine.js';
-import { withTenantDb } from '../lib/tenant-database.js';
 
 import { createTestServer, isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
 import {
   seedTenant,
   cleanupTenant,
+  seedUserProfile,
   seedWorkspace,
   seedWorkspaceMember,
   wipeTenantWorkspaces,
+  buildTenantClientForCtx,
 } from './helpers/db.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -25,8 +26,9 @@ import type { Redis } from 'ioredis';
 
 const SLUG_A = 'test-isolation-a';
 const SLUG_B = 'test-isolation-b';
-const USER_A = 'kcuser-isolation-001';
-const USER_B = 'kcuser-isolation-002';
+// Fixed UUIDs so workspace.created_by and workspace_member.user_id FK constraints are satisfied
+const USER_A = '00000000-1501-0001-0000-000000000001';
+const USER_B = '00000000-1501-0002-0000-000000000001';
 
 let server: FastifyInstance;
 let ctxA: TenantContext;
@@ -43,6 +45,13 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
     const [seedA, seedB] = await Promise.all([seedTenant(SLUG_A), seedTenant(SLUG_B)]);
     ctxA = seedA.tenantContext;
     ctxB = seedB.tenantContext;
+    // Seed user profiles so FK constraints on workspace.created_by/workspace_member.user_id are satisfied
+    await Promise.all([
+      seedUserProfile(ctxA, USER_A, `${USER_A}@test.plexica.io`, null, USER_A),
+      seedUserProfile(ctxA, USER_B, `${USER_B}@test.plexica.io`, null, USER_B),
+      seedUserProfile(ctxB, USER_A, `${USER_A}@test.plexica.io`, null, USER_A),
+      seedUserProfile(ctxB, USER_B, `${USER_B}@test.plexica.io`, null, USER_B),
+    ]);
     server = await createTestServer();
     await server.ready();
     const mod = await import('../lib/redis.js');
@@ -69,25 +78,28 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
     // USER_A is only a member of wsA
     await seedWorkspaceMember(ctxA, wsA.id, USER_A, 'admin');
 
-    const tenantDb = await withTenantDb(async (tx) => tx, ctxA);
+    const tenantDb = buildTenantClientForCtx(ctxA);
+    try {
+      const accessA: AbacContext = {
+        userId: USER_A,
+        workspaceId: wsA.id,
+        tenantSlug: ctxA.slug,
+        action: 'workspace:read',
+        isTenantAdmin: false,
+      };
+      const accessB: AbacContext = {
+        userId: USER_A,
+        workspaceId: wsB.id,
+        tenantSlug: ctxA.slug,
+        action: 'workspace:read',
+        isTenantAdmin: false,
+      };
 
-    const accessA: AbacContext = {
-      userId: USER_A,
-      workspaceId: wsA.id,
-      tenantSlug: ctxA.slug,
-      action: 'workspace:read',
-      isTenantAdmin: false,
-    };
-    const accessB: AbacContext = {
-      userId: USER_A,
-      workspaceId: wsB.id,
-      tenantSlug: ctxA.slug,
-      action: 'workspace:read',
-      isTenantAdmin: false,
-    };
-
-    expect((await evaluate(accessA, tenantDb, redis)).allowed).toBe(true);
-    expect((await evaluate(accessB, tenantDb, redis)).allowed).toBe(false);
+      expect((await evaluate(accessA, tenantDb, redis)).allowed).toBe(true);
+      expect((await evaluate(accessB, tenantDb, redis)).allowed).toBe(false);
+    } finally {
+      await tenantDb.$disconnect();
+    }
   });
 
   it.skipIf(!allOk)('admin of workspace A cannot invite members to workspace B', async () => {
@@ -95,18 +107,21 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
     const wsB = await seedWorkspace(ctxA, 'WS-Delta', USER_A);
     await seedWorkspaceMember(ctxA, wsA.id, USER_A, 'admin');
 
-    const tenantDb = await withTenantDb(async (tx) => tx, ctxA);
+    const tenantDb = buildTenantClientForCtx(ctxA);
+    try {
+      const inviteIntoB: AbacContext = {
+        userId: USER_A,
+        workspaceId: wsB.id,
+        tenantSlug: ctxA.slug,
+        action: 'member:invite',
+        isTenantAdmin: false,
+      };
 
-    const inviteIntoB: AbacContext = {
-      userId: USER_A,
-      workspaceId: wsB.id,
-      tenantSlug: ctxA.slug,
-      action: 'member:invite',
-      isTenantAdmin: false,
-    };
-
-    const d = await evaluate(inviteIntoB, tenantDb, redis);
-    expect(d.allowed).toBe(false);
+      const d = await evaluate(inviteIntoB, tenantDb, redis);
+      expect(d.allowed).toBe(false);
+    } finally {
+      await tenantDb.$disconnect();
+    }
   });
 
   // ── Cross-tenant isolation ─────────────────────────────────────────────────
@@ -121,19 +136,22 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
       await seedWorkspaceMember(ctxA, wsInA.id, USER_A, 'admin');
 
       // Evaluate against tenant B's DB with tenant A's context — should deny
-      const tenantDbB = await withTenantDb(async (tx) => tx, ctxB);
+      const tenantDbB = buildTenantClientForCtx(ctxB);
+      try {
+        const crossTenantCtx: AbacContext = {
+          userId: USER_A,
+          workspaceId: wsInB.id,
+          tenantSlug: ctxB.slug, // tenant B
+          action: 'workspace:read',
+          isTenantAdmin: false,
+        };
 
-      const crossTenantCtx: AbacContext = {
-        userId: USER_A,
-        workspaceId: wsInB.id,
-        tenantSlug: ctxB.slug, // tenant B
-        action: 'workspace:read',
-        isTenantAdmin: false,
-      };
-
-      const d = await evaluate(crossTenantCtx, tenantDbB, redis);
-      expect(d.allowed).toBe(false);
-      expect(d.reason).toMatch(/not a workspace member/);
+        const d = await evaluate(crossTenantCtx, tenantDbB, redis);
+        expect(d.allowed).toBe(false);
+        expect(d.reason).toMatch(/not a workspace member/);
+      } finally {
+        await tenantDbB.$disconnect();
+      }
     }
   );
 
@@ -141,24 +159,27 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
     'cross-tenant isTenantAdmin flag does not bypass other tenant resources',
     async () => {
       const wsInB = await seedWorkspace(ctxB, 'WS-TenantB-2', USER_B);
-      const tenantDbB = await withTenantDb(async (tx) => tx, ctxB);
+      const tenantDbB = buildTenantClientForCtx(ctxB);
+      try {
+        // USER_A claims isTenantAdmin but in the context of tenant B's workspace
+        // The engine trusts isTenantAdmin from middleware — but in real middleware this
+        // would never be set for a foreign tenant. Here we confirm the bypass itself works,
+        // meaning any grant must come exclusively from authenticated context in tenant B.
+        // This test documents that the engine does NOT validate the tenant in AbacContext —
+        // the isolation guarantee comes from the DB schema, not the engine.
+        const ctx: AbacContext = {
+          userId: USER_A,
+          workspaceId: wsInB.id,
+          tenantSlug: ctxB.slug,
+          action: 'workspace:delete',
+          isTenantAdmin: false, // not admin in tenant B
+        };
 
-      // USER_A claims isTenantAdmin but in the context of tenant B's workspace
-      // The engine trusts isTenantAdmin from middleware — but in real middleware this
-      // would never be set for a foreign tenant. Here we confirm the bypass itself works,
-      // meaning any grant must come exclusively from authenticated context in tenant B.
-      // This test documents that the engine does NOT validate the tenant in AbacContext —
-      // the isolation guarantee comes from the DB schema, not the engine.
-      const ctx: AbacContext = {
-        userId: USER_A,
-        workspaceId: wsInB.id,
-        tenantSlug: ctxB.slug,
-        action: 'workspace:delete',
-        isTenantAdmin: false, // not admin in tenant B
-      };
-
-      const d = await evaluate(ctx, tenantDbB, redis);
-      expect(d.allowed).toBe(false);
+        const d = await evaluate(ctx, tenantDbB, redis);
+        expect(d.allowed).toBe(false);
+      } finally {
+        await tenantDbB.$disconnect();
+      }
     }
   );
 
@@ -173,25 +194,28 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
       await seedWorkspaceMember(ctxA, wsA.id, USER_A, 'viewer');
       await seedWorkspaceMember(ctxA, wsB.id, USER_A, 'admin');
 
-      const tenantDb = await withTenantDb(async (tx) => tx, ctxA);
+      const tenantDb = buildTenantClientForCtx(ctxA);
+      try {
+        const deleteA: AbacContext = {
+          userId: USER_A,
+          workspaceId: wsA.id,
+          tenantSlug: ctxA.slug,
+          action: 'workspace:delete',
+          isTenantAdmin: false,
+        };
+        const deleteB: AbacContext = {
+          userId: USER_A,
+          workspaceId: wsB.id,
+          tenantSlug: ctxA.slug,
+          action: 'workspace:delete',
+          isTenantAdmin: false,
+        };
 
-      const deleteA: AbacContext = {
-        userId: USER_A,
-        workspaceId: wsA.id,
-        tenantSlug: ctxA.slug,
-        action: 'workspace:delete',
-        isTenantAdmin: false,
-      };
-      const deleteB: AbacContext = {
-        userId: USER_A,
-        workspaceId: wsB.id,
-        tenantSlug: ctxA.slug,
-        action: 'workspace:delete',
-        isTenantAdmin: false,
-      };
-
-      expect((await evaluate(deleteA, tenantDb, redis)).allowed).toBe(false);
-      expect((await evaluate(deleteB, tenantDb, redis)).allowed).toBe(true);
+        expect((await evaluate(deleteA, tenantDb, redis)).allowed).toBe(false);
+        expect((await evaluate(deleteB, tenantDb, redis)).allowed).toBe(true);
+      } finally {
+        await tenantDb.$disconnect();
+      }
     }
   );
 
@@ -206,35 +230,40 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
       await seedWorkspaceMember(ctxA, wsA.id, USER_A, 'admin');
       // USER_A has NO membership in tenant B
 
-      const tenantDbA = await withTenantDb(async (tx) => tx, ctxA);
-      const tenantDbB = await withTenantDb(async (tx) => tx, ctxB);
+      const tenantDbA = buildTenantClientForCtx(ctxA);
+      const tenantDbB = buildTenantClientForCtx(ctxB);
 
-      // Populate cache for tenant A
-      await evaluate(
-        {
-          userId: USER_A,
-          workspaceId: wsA.id,
-          tenantSlug: ctxA.slug,
-          action: 'workspace:read',
-          isTenantAdmin: false,
-        },
-        tenantDbA,
-        redis
-      );
+      try {
+        // Populate cache for tenant A
+        await evaluate(
+          {
+            userId: USER_A,
+            workspaceId: wsA.id,
+            tenantSlug: ctxA.slug,
+            action: 'workspace:read',
+            isTenantAdmin: false,
+          },
+          tenantDbA,
+          redis
+        );
 
-      // Evaluate against tenant B — must not reuse tenant A's cache entry
-      const d = await evaluate(
-        {
-          userId: USER_A,
-          workspaceId: wsB.id,
-          tenantSlug: ctxB.slug,
-          action: 'workspace:read',
-          isTenantAdmin: false,
-        },
-        tenantDbB,
-        redis
-      );
-      expect(d.allowed).toBe(false);
+        // Evaluate against tenant B — must not reuse tenant A's cache entry
+        const d = await evaluate(
+          {
+            userId: USER_A,
+            workspaceId: wsB.id,
+            tenantSlug: ctxB.slug,
+            action: 'workspace:read',
+            isTenantAdmin: false,
+          },
+          tenantDbB,
+          redis
+        );
+        expect(d.allowed).toBe(false);
+      } finally {
+        await tenantDbA.$disconnect();
+        await tenantDbB.$disconnect();
+      }
     }
   );
 });

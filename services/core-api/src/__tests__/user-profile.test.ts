@@ -6,7 +6,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
 import { userProfileRoutes } from '../modules/user-profile/routes.js';
-import { withTenantDb } from '../lib/tenant-database.js';
 import { config } from '../lib/config.js';
 
 import {
@@ -19,6 +18,7 @@ import {
   seedTenant,
   seedUserProfile,
   wipeTenantWorkspaces,
+  wipeTenantUsers,
   cleanupTenant,
 } from './helpers/db.helpers.js';
 
@@ -57,10 +57,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await wipeTenantWorkspaces(ctx);
-  await withTenantDb(async (tx) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (tx as any).userProfile.deleteMany({});
-  }, ctx);
+  await wipeTenantUsers(ctx);
   await seedUserProfile(ctx, USER_ID, `${USER_ID}@test.plexica.io`, 'Profile User');
 });
 
