@@ -54,3 +54,31 @@ export function rateLimitErrorResponseBuilder(
     rateLimitBody: body,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Per-route rate limit configurations
+// ---------------------------------------------------------------------------
+
+/** Invitation endpoints: 10 req/min per user. */
+export const INVITATION_RATE_LIMIT = {
+  max: 10,
+  timeWindow: '1 minute',
+} as const;
+
+/** Avatar / logo upload: 5 req/min per user. */
+export const UPLOAD_RATE_LIMIT = {
+  max: 5,
+  timeWindow: '1 minute',
+} as const;
+
+/** Auth config endpoints: 5 req/min per user. */
+export const AUTH_CONFIG_RATE_LIMIT = {
+  max: 5,
+  timeWindow: '1 minute',
+} as const;
+
+/** General settings endpoints: 30 req/min per user. */
+export const SETTINGS_RATE_LIMIT = {
+  max: 30,
+  timeWindow: '1 minute',
+} as const;

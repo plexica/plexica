@@ -1,7 +1,11 @@
 // tenant-provisioning.ts
-// Orchestrates full tenant provisioning: PostgreSQL schema + Keycloak realm + MinIO bucket.
+// Orchestrates full tenant provisioning: PostgreSQL schema + Keycloak realm + MinIO bucket + seed data.
 // Implements tracked rollback — compensates completed steps in reverse order on failure.
 
+// TODO: Run 'pnpm db:generate' to generate tenant client types before Step 4 compiles.
+ 
+// @ts-ignore — generated/tenant-client does not exist until after 'pnpm db:generate'
+import { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { ProvisioningFailedError } from '../../lib/app-error.js';
@@ -9,6 +13,9 @@ import { createTenantSchema } from '../../lib/tenant-schema.js';
 import { createRealm, deleteRealm } from '../../lib/keycloak-admin.js';
 import { createBucket, deleteBucket } from '../../lib/minio-client.js';
 import { toRealmName, toSchemaName } from '../../lib/tenant-schema-helpers.js';
+
+import { seedBuiltInTemplates } from './seed/003-built-in-templates.js';
+import { seedDefaultBranding } from './seed/003-default-branding.js';
 
 export interface ProvisioningParams {
   slug: string;
@@ -79,6 +86,28 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
       UPDATE core.tenants SET minio_bucket = ${minioBucket} WHERE slug = ${slug}
     `;
     completedSteps.push('bucket');
+
+    // Step 4: Seed initial tenant data (built-in templates + default branding).
+    // A dedicated TenantPrismaClient is connected directly to the tenant schema so
+    // that Prisma model names resolve against the tenant-client generated types.
+    // The search_path is set via the ?schema= query parameter in the DATABASE_URL.
+    const baseUrl = process.env['DATABASE_URL'] ?? '';
+    const tenantUrl = baseUrl.includes('?')
+      ? `${baseUrl}&schema=${schemaName}`
+      : `${baseUrl}?schema=${schemaName}`;
+
+     
+    const tenantDb = new TenantPrismaClient({ datasources: { db: { url: tenantUrl } } });
+    try {
+       
+      await seedBuiltInTemplates(tenantDb);
+       
+      await seedDefaultBranding(tenantDb);
+      logger.info({ slug }, 'Tenant seed data applied');
+    } finally {
+       
+      await tenantDb.$disconnect();
+    }
 
     logger.info({ slug, realmName, minioBucket }, 'Tenant provisioned successfully');
     return {

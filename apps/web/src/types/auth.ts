@@ -17,6 +17,9 @@ export interface UserProfile {
   lastName: string;
   realm: string;
   roles: string[];
+  // Derived from roles at usage sites via roles.includes('tenant_admin').
+  // May be absent for non-admin users.
+  tenantRole?: 'tenant_admin' | 'member';
 }
 
 export type AuthStatus = 'unauthenticated' | 'authenticating' | 'authenticated' | 'expired';

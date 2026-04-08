@@ -1,11 +1,11 @@
 // keycloak-admin.ts
 // Keycloak Admin REST API client — token management and realm lifecycle.
-// Uses native fetch (Node.js 18+). Token cached for its expires_in duration.
+// Uses native fetch (Node.js 18+).
 
 import { randomUUID } from 'node:crypto';
 
 import { logger } from './logger.js';
-import { config } from './config.js';
+import { adminRequest, invalidateAdminTokenCache } from './keycloak-admin-internal.js';
 import {
   buildRealmPayload,
   buildClientPayload,
@@ -15,56 +15,7 @@ import {
   type RealmConfig,
 } from './keycloak-admin-helpers.js';
 
-interface AdminToken {
-  accessToken: string;
-  expiresAt: number;
-}
-
-let cachedToken: AdminToken | null = null;
-
-async function getAdminToken(): Promise<string> {
-  if (cachedToken !== null && Date.now() < cachedToken.expiresAt) {
-    return cachedToken.accessToken;
-  }
-
-  const url = `${config.KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`;
-  const body = new URLSearchParams({
-    grant_type: 'password',
-    client_id: 'admin-cli',
-    username: config.KEYCLOAK_ADMIN_USER,
-    password: config.KEYCLOAK_ADMIN_PASSWORD,
-  });
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Keycloak admin token fetch failed: ${response.status}`);
-  }
-
-  const data = (await response.json()) as { access_token: string; expires_in: number };
-  cachedToken = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + (data.expires_in - 10) * 1000,
-  };
-
-  return cachedToken.accessToken;
-}
-
-async function adminRequest(path: string, method: string, body?: unknown): Promise<Response> {
-  const token = await getAdminToken();
-  return fetch(`${config.KEYCLOAK_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    ...(body !== undefined && { body: JSON.stringify(body) }),
-  });
-}
+export type { RealmConfig };
 
 export interface CreateRealmResult {
   /** Temporary password set on the initial admin user. Must be changed on first login. */
@@ -82,7 +33,6 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
   logger.debug({ realmName }, 'Keycloak realm created');
 
   // M-bonus: scope redirect URIs and web origins to this tenant's domain.
-  // Avoids the open-redirect / token leakage risk of wildcard ['*'].
   const productionOrigin = `https://${tenantSlug}.plexica.io`;
   const redirectUris = [`${productionOrigin}/*`, 'http://localhost:3000/*'];
   const webOrigins = [productionOrigin, 'http://localhost:3000'];
@@ -101,7 +51,6 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
   }
 
   // Resolve the client's internal UUID so we can attach the audience mapper.
-  // On 201 the UUID is in the Location header; on 409 (already exists) we look it up.
   let clientUuid: string | null = null;
   if (clientRes.status === 201) {
     const location = clientRes.headers.get('Location') ?? '';
@@ -118,9 +67,7 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
     }
   }
 
-  // Add the audience mapper so the access token includes 'plexica-web' in the
-  // `aud` claim. Embedded protocolMappers in the client creation payload causes
-  // a 400 in Keycloak 26, so we add it via a separate call (Decision log).
+  // Add the audience mapper
   if (clientUuid !== null) {
     const mapperRes = await adminRequest(
       `/admin/realms/${realmName}/clients/${clientUuid}/protocol-mappers/models`,
@@ -149,9 +96,7 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
     }
   }
 
-  // L-3: Use a cryptographically random temporary password instead of the
-  // predictable timestamp-based pattern that an attacker could guess during
-  // the window before the admin's first login.
+  // L-3: Cryptographically random temporary password
   const tempPassword = `Tmp-${randomUUID()}`;
   const userRes = await adminRequest(
     `/admin/realms/${realmName}/users`,
@@ -171,6 +116,6 @@ export async function deleteRealm(realmName: string): Promise<void> {
   if (!res.ok && res.status !== 404) {
     throw new Error(`Failed to delete realm ${realmName}: ${res.status}`);
   }
-  cachedToken = null; // Invalidate token cache after destructive operations
+  invalidateAdminTokenCache();
   logger.info({ realmName }, 'Keycloak realm deleted');
 }

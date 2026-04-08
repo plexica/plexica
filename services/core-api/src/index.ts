@@ -22,6 +22,13 @@ import { authMiddleware } from './middleware/auth-middleware.js';
 import { tenantContextMiddleware } from './middleware/tenant-context.js';
 import userRoutes from './modules/user/user-routes.js';
 import tenantRoutes from './modules/tenant/tenant-routes.js';
+import { workspaceRoutes } from './modules/workspace/routes.js';
+import { workspaceMemberRoutes } from './modules/workspace-member/routes.js';
+import { invitationRoutes, invitationPublicRoutes } from './modules/invitation/routes.js';
+import { userManagementRoutes } from './modules/user-management/routes.js';
+import { userProfileRoutes } from './modules/user-profile/routes.js';
+import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
+import { auditLogRoutes } from './modules/audit-log/routes.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -71,6 +78,9 @@ server.get('/health', { config: { rateLimit: false } }, async () => ({
 // Tenant resolve is public (registered inside tenantRoutes, no auth hook here)
 await server.register(tenantRoutes);
 
+// Public invitation accept endpoint — tenant context required but no auth
+await server.register(invitationPublicRoutes);
+
 // ---------------------------------------------------------------------------
 // Authenticated + tenant-scoped routes
 // ---------------------------------------------------------------------------
@@ -78,6 +88,13 @@ await server.register(async (tenantScope) => {
   tenantScope.addHook('preHandler', authMiddleware);
   tenantScope.addHook('preHandler', tenantContextMiddleware);
   await tenantScope.register(userRoutes);
+  await tenantScope.register(workspaceRoutes);
+  await tenantScope.register(workspaceMemberRoutes);
+  await tenantScope.register(invitationRoutes);
+  await tenantScope.register(userManagementRoutes);
+  await tenantScope.register(userProfileRoutes);
+  await tenantScope.register(tenantSettingsRoutes);
+  await tenantScope.register(auditLogRoutes);
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,9 @@
 // app-error.ts
 // Typed application error hierarchy for core-api.
 // All middleware and route handlers throw these — never raw Error objects.
+//
+// Domain-specific errors (workspace, member, invitation, file, ABAC) live in
+// app-error-domain.ts and are re-exported here for backwards compatibility.
 
 export abstract class AppError extends Error {
   abstract readonly statusCode: number;
@@ -87,3 +90,32 @@ export class NotFoundError extends AppError {
     super(message);
   }
 }
+
+export class KeycloakError extends AppError {
+  readonly statusCode = 502;
+  readonly code = 'KEYCLOAK_ERROR';
+  constructor(message = 'Keycloak service error') {
+    super(message);
+  }
+}
+
+// Re-export all domain errors for backwards compatibility.
+// Consumers import from this single entrypoint.
+export {
+  WorkspaceNotFoundError,
+  WorkspaceArchivedError,
+  CircularReparentError,
+  MaxHierarchyDepthError,
+  WorkspaceSlugConflictError,
+  MemberAlreadyExistsError,
+  MemberNotFoundError,
+  InvitationNotFoundError,
+  InvitationExpiredError,
+  InvitationAlreadyAcceptedError,
+  UserNotFoundError,
+  FileTooLargeError,
+  InvalidFileTypeError,
+  ForbiddenError,
+  VersionConflictError,
+  WorkspaceNotArchivedError,
+} from './app-error-domain.js';
