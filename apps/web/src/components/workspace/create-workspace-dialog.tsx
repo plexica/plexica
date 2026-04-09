@@ -40,7 +40,7 @@ export function CreateWorkspaceDialog({
 }: CreateWorkspaceDialogProps): JSX.Element {
   const intl = useIntl();
   const { mutate, isPending } = useCreateWorkspace();
-  const { data: workspacesData } = useWorkspaces();
+  const { data: workspacesData } = useWorkspaces({ limit: 100 });
   const { data: templatesData } = useWorkspaceTemplates();
 
   const {
@@ -71,7 +71,7 @@ export function CreateWorkspaceDialog({
     label: w.name,
   }));
 
-  const templateOptions = (templatesData?.data ?? []).map((t) => ({
+  const templateOptions = (templatesData ?? []).map((t) => ({
     value: t.id,
     label: t.name,
   }));

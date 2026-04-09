@@ -21,6 +21,9 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 // ---------------------------------------------------------------------------
 export interface AuthUser {
   id: string;
+  /** Original Keycloak user ID (JWT sub). Preserved after user-profile-resolver
+   *  replaces `id` with the internal user_profile.user_id. */
+  keycloakUserId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -78,8 +81,10 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
     audience: config.KEYCLOAK_CLIENT_ID,
   });
 
+  const sub = String(payload['sub'] ?? '');
   return {
-    id: String(payload['sub'] ?? ''),
+    id: sub,
+    keycloakUserId: sub,
     email: String(payload['email'] ?? ''),
     firstName: String(payload['given_name'] ?? ''),
     lastName: String(payload['family_name'] ?? ''),

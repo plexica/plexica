@@ -49,7 +49,7 @@ export interface MigrationReport {
  * Runs inside a transaction with SET LOCAL search_path so the connection
  * pool is not polluted (same pattern as withTenantDb, Decision Log ID-001).
  */
-async function migrateTenantSchema(schemaName: string): Promise<void> {
+export async function migrateTenantSchema(schemaName: string): Promise<void> {
   for (const relPath of TENANT_MIGRATION_FILES) {
     const sqlPath = resolve(MIGRATIONS_DIR, relPath);
     const rawSql = readFileSync(sqlPath, 'utf8');

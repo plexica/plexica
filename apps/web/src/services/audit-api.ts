@@ -13,7 +13,6 @@ export const auditApi = {
     if (filters?.limit !== undefined) params['limit'] = String(filters.limit);
     if (filters?.actorId) params['actorId'] = filters.actorId;
     if (filters?.actionType) params['actionType'] = filters.actionType;
-    if (filters?.workspaceId) params['workspaceId'] = filters.workspaceId;
     if (filters?.fromDate) params['fromDate'] = filters.fromDate;
     if (filters?.toDate) params['toDate'] = filters.toDate;
     const qs = Object.keys(params).length > 0 ? '?' + new URLSearchParams(params).toString() : '';
@@ -25,6 +24,5 @@ export const auditApi = {
     }>(`/api/v1/tenant/audit-log${qs}`);
   },
 
-  getActionTypes: () =>
-    apiClient.get<{ data: AuditActionType[] }>('/api/v1/tenant/audit-log/action-types'),
+  getActionTypes: () => apiClient.get<AuditActionType[]>('/api/v1/tenant/audit-log/action-types'),
 };

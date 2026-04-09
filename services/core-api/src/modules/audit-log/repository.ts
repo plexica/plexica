@@ -14,6 +14,9 @@ function rowToDto(row: Record<string, unknown>): AuditLogDto {
     actionType: String(row['actionType']),
     targetType: String(row['targetType']),
     targetId: row['targetId'] != null ? String(row['targetId']) : null,
+    beforeValue: (row['beforeValue'] as Record<string, unknown>) ?? null,
+    afterValue: (row['afterValue'] as Record<string, unknown>) ?? null,
+    ipAddress: row['ipAddress'] != null ? String(row['ipAddress']) : null,
     createdAt: (row['createdAt'] instanceof Date
       ? row['createdAt']
       : new Date(String(row['createdAt']))

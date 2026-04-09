@@ -35,11 +35,11 @@ export function ProfilePage(): JSX.Element {
   });
 
   useEffect(() => {
-    if (data?.data !== undefined) {
+    if (data !== undefined) {
       reset({
-        displayName: data.data.displayName ?? '',
-        timezone: data.data.timezone,
-        language: data.data.language,
+        displayName: data.displayName ?? '',
+        timezone: data.timezone,
+        language: data.language,
       });
     }
   }, [data, reset]);
@@ -61,7 +61,7 @@ export function ProfilePage(): JSX.Element {
       </div>
     );
 
-  const profile = data.data;
+  const profile = data;
 
   return (
     <div className="space-y-6 p-6">

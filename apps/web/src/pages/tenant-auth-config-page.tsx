@@ -1,5 +1,6 @@
 // tenant-auth-config-page.tsx
-// Form to update tenant authentication config: MFA, session TTL.
+// Form to update tenant authentication config: brute force protection, session TTL.
+// Fields map to Keycloak realm settings via the backend auth-config API.
 
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
@@ -11,12 +12,8 @@ import { Button, Input, ToggleSwitch } from '@plexica/ui';
 import { useAuthConfig, useUpdateAuthConfig } from '../hooks/use-tenant-settings.js';
 
 const schema = z.object({
-  mfaRequired: z.boolean(),
-  sessionMaxSecs: z
-    .number()
-    .int()
-    .min(60)
-    .max(86400 * 7),
+  bruteForceProtected: z.boolean(),
+  ssoSessionMaxLifespan: z.number().int().min(300).max(86400),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -35,16 +32,16 @@ export function TenantAuthConfigPage(): JSX.Element {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { mfaRequired: false, sessionMaxSecs: 3600 },
+    defaultValues: { bruteForceProtected: true, ssoSessionMaxLifespan: 36000 },
   });
 
-  const mfaRequired = watch('mfaRequired');
+  const bruteForceProtected = watch('bruteForceProtected');
 
   useEffect(() => {
-    if (data?.data !== undefined) {
+    if (data !== undefined) {
       reset({
-        mfaRequired: data.data.mfaRequired ?? false,
-        sessionMaxSecs: data.data.sessionMaxSecs ?? 3600,
+        bruteForceProtected: data.bruteForceProtected ?? true,
+        ssoSessionMaxLifespan: data.ssoSessionMaxLifespan ?? 36000,
       });
     }
   }, [data, reset]);
@@ -80,18 +77,18 @@ export function TenantAuthConfigPage(): JSX.Element {
         noValidate
       >
         <ToggleSwitch
-          label={intl.formatMessage({ id: 'settings.auth.mfa.label' })}
-          checked={mfaRequired}
-          onCheckedChange={(checked) => setValue('mfaRequired', checked)}
+          label={intl.formatMessage({ id: 'settings.auth.bruteForce.label' })}
+          checked={bruteForceProtected}
+          onCheckedChange={(checked) => setValue('bruteForceProtected', checked)}
         />
 
         <div>
           <Input
             type="number"
-            label={intl.formatMessage({ id: 'settings.auth.sessionMaxSecs.label' })}
-            {...register('sessionMaxSecs', { valueAsNumber: true })}
-            {...(errors.sessionMaxSecs?.message !== undefined
-              ? { error: errors.sessionMaxSecs.message }
+            label={intl.formatMessage({ id: 'settings.auth.sessionLifespan.label' })}
+            {...register('ssoSessionMaxLifespan', { valueAsNumber: true })}
+            {...(errors.ssoSessionMaxLifespan?.message !== undefined
+              ? { error: errors.ssoSessionMaxLifespan.message }
               : {})}
           />
         </div>

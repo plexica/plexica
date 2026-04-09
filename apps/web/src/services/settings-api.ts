@@ -17,23 +17,25 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 export const settingsApi = {
-  getSettings: () => apiClient.get<{ data: TenantSettings }>('/api/v1/tenant/settings'),
+  // Backend returns objects directly (no { data } wrapper)
+  getSettings: () => apiClient.get<TenantSettings>('/api/v1/tenant/settings'),
 
   updateSettings: (payload: UpdateTenantSettingsPayload) =>
-    apiClient.patch<{ data: TenantSettings }>('/api/v1/tenant/settings', payload),
+    apiClient.patch<TenantSettings>('/api/v1/tenant/settings', payload),
 
-  getBranding: () => apiClient.get<{ data: TenantBranding }>('/api/v1/tenant/branding'),
+  getBranding: () => apiClient.get<TenantBranding>('/api/v1/tenant/branding'),
 
   updateBranding: (payload: { primaryColor?: string; darkMode?: boolean }) =>
-    apiClient.patch<{ data: TenantBranding }>('/api/v1/tenant/branding', payload),
+    apiClient.patch<TenantBranding>('/api/v1/tenant/branding', payload),
 
-  getAuthConfig: () => apiClient.get<{ data: AuthConfig }>('/api/v1/tenant/auth-config'),
+  getAuthConfig: () => apiClient.get<AuthConfig>('/api/v1/tenant/auth-config'),
 
   updateAuthConfig: (payload: UpdateAuthConfigPayload) =>
-    apiClient.patch<{ data: AuthConfig }>('/api/v1/tenant/auth-config', payload),
+    apiClient.patch<AuthConfig>('/api/v1/tenant/auth-config', payload),
 
   // Multipart upload for logo — uses native fetch to avoid apiClient's application/json header
-  uploadLogo: async (file: File): Promise<{ data: TenantBranding }> => {
+  // Backend returns TenantBranding directly (no { data } wrapper)
+  uploadLogo: async (file: File): Promise<TenantBranding> => {
     const { accessToken, tenantSlug } = useAuthStore.getState();
     const headers: Record<string, string> = {};
     if (accessToken !== null) headers['Authorization'] = `Bearer ${accessToken}`;
@@ -49,6 +51,6 @@ export const settingsApi = {
       const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
       throw new Error(err.error?.message ?? `Upload failed: ${res.status}`);
     }
-    return res.json() as Promise<{ data: TenantBranding }>;
+    return res.json() as Promise<TenantBranding>;
   },
 };

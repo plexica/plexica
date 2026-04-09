@@ -21,6 +21,8 @@ export default [
       'packages/keycloak-theme/src/kc.gen.tsx',
       // Keycloakify dev-mode resources (vendor JS copied at build time)
       '**/public/keycloakify-dev-resources/**',
+      // Prisma-generated client (auto-generated JS/TS — not project source)
+      '**/generated/**',
       // Stale Vite build output from old keycloak theme pipeline (superseded by JAR approach)
       'infra/keycloak/themes/**',
       // OpenCode agent configuration files — not project source, not linted

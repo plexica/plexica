@@ -30,8 +30,8 @@ export function RoleManagementPage(): JSX.Element {
     );
   }
 
-  const roles = rolesData?.data ?? [];
-  const matrix = matrixData?.data ?? [];
+  const roles = rolesData ?? [];
+  const matrix = matrixData ?? [];
 
   return (
     <div className="space-y-8 p-6">
@@ -42,7 +42,7 @@ export function RoleManagementPage(): JSX.Element {
       <section>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {roles.map((r) => (
-            <RoleCard key={r.id} role={r} />
+            <RoleCard key={r.name} role={r} />
           ))}
         </div>
       </section>

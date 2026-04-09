@@ -7,12 +7,12 @@
 // search_path transaction. evaluate() receives the transaction client (tx).
 // logDecision() is called fire-and-forget after the decision is made.
 
-
 import { redis } from '../lib/redis.js';
 import { logger } from '../lib/logger.js';
 import { withTenantDb } from '../lib/tenant-database.js';
 import { evaluate, invalidateAbacCache } from '../modules/abac/engine.js';
 import { logDecision } from '../modules/abac/decision-logger.js';
+import { TENANT_LEVEL_ACTIONS } from '../modules/abac/policies.js';
 import { ForbiddenError } from '../lib/app-error.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -39,6 +39,24 @@ export function requireAbac(action: string) {
     // Extract workspaceId from route params — supports both :id and :workspaceId
     const params = request.params as Record<string, string>;
     const workspaceId = params['workspaceId'] ?? params['id'] ?? '';
+
+    // If there is no workspaceId in the URL, we cannot do workspace-level
+    // membership checks. Two cases:
+    //
+    // 1. Tenant-level actions (workspace:create, audit:read, settings:*,
+    //    branding:*, user:*, etc.) — require tenant_admin role.
+    // 2. Workspace-scoped collection endpoints (workspace:read on
+    //    GET /api/v1/workspaces) — allow through; the service layer
+    //    filters results by the caller's memberships.
+    if (workspaceId === '') {
+      if (isTenantAdmin) return; // tenant admin — always allowed
+      if (TENANT_LEVEL_ACTIONS.has(action)) {
+        throw new ForbiddenError('Tenant admin role required');
+      }
+      // Non-admin on a workspace-scoped list endpoint — allow through,
+      // service layer filters by membership.
+      return;
+    }
 
     const ctx: AbacContext = {
       userId: request.user.id,

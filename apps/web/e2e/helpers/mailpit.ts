@@ -66,10 +66,10 @@ export async function getMessage(id: string): Promise<MailpitMessageDetail> {
 
 /**
  * Extracts the invitation accept link from an email body (HTML or plain text).
- * Looks for a URL containing /invitations/accept or /accept.
+ * The backend generates URLs like `APP_URL/invite/<token>`.
  */
 export function extractInviteLink(body: string): string | null {
-  const match = body.match(/https?:\/\/[^\s"'<]+\/(?:invitations\/accept|accept)[^\s"'<]*/);
+  const match = body.match(/https?:\/\/[^\s"'<]+\/invite\/[^\s"'<]*/);
   return match?.[0] ?? null;
 }
 

@@ -7,12 +7,15 @@
 import type { FastifyRequest } from 'fastify';
 import type { errorResponseBuilderContext } from '@fastify/rate-limit';
 
+import { config } from './config.js';
+
 // ---------------------------------------------------------------------------
-// Global default: 100 req / 1 min per key (IP in public scope,
+// Global default: RATE_LIMIT_MAX req / 1 min per key (IP in public scope,
 // user sub in authenticated scopes via per-route keyGenerator override).
+// Configurable via RATE_LIMIT_MAX env var (default 100, increase for E2E).
 // ---------------------------------------------------------------------------
 export const GLOBAL_RATE_LIMIT = {
-  max: 100,
+  max: config.RATE_LIMIT_MAX,
   timeWindow: '1 minute',
 } as const;
 

@@ -24,7 +24,7 @@ export function RoleCard({ role }: RoleCardProps): JSX.Element {
         />
       </div>
       <p className="mt-1 text-sm text-neutral-500">{role.description}</p>
-      <p className="mt-2 text-xs text-neutral-400">{role.actionCount} actions</p>
+      <p className="mt-2 text-xs text-neutral-500">{role.actionCount} actions</p>
     </div>
   );
 }

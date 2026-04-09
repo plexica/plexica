@@ -25,7 +25,7 @@ export function WorkspaceTemplatesPage(): JSX.Element {
     );
   }
 
-  const templates = data?.data ?? [];
+  const templates = data ?? [];
 
   return (
     <div className="space-y-6 p-6">

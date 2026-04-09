@@ -5,6 +5,8 @@ import { FormattedMessage } from 'react-intl';
 import { Layers } from 'lucide-react';
 import { Badge } from '@plexica/ui';
 
+import { getTemplateChildren } from '../../types/workspace.js';
+
 import type { WorkspaceTemplate } from '../../types/workspace.js';
 
 interface TemplateCardProps {
@@ -12,6 +14,8 @@ interface TemplateCardProps {
 }
 
 export function TemplateCard({ template }: TemplateCardProps): JSX.Element {
+  const children = getTemplateChildren(template);
+
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
@@ -24,9 +28,9 @@ export function TemplateCard({ template }: TemplateCardProps): JSX.Element {
       {template.description !== null && (
         <p className="mt-1 text-sm text-neutral-500">{template.description}</p>
       )}
-      {template.childWorkspaces.length > 0 && (
-        <p className="mt-2 text-xs text-neutral-400">
-          {template.childWorkspaces.length} <FormattedMessage id="workspace.detail.children" />
+      {children.length > 0 && (
+        <p className="mt-2 text-xs text-neutral-500">
+          {children.length} <FormattedMessage id="workspace.detail.children" />
         </p>
       )}
     </div>

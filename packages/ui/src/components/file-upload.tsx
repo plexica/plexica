@@ -79,6 +79,18 @@ export function FileUpload({
   return (
     <div className="flex flex-col gap-1">
       {label !== undefined && <span className="text-sm font-medium text-neutral-700">{label}</span>}
+      {/* Hidden file input lives OUTSIDE the role="button" to avoid nested-interactive
+          axe violation (WCAG 4.1.2). It is triggered programmatically. */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        disabled={disabled}
+        onChange={handleChange}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -130,18 +142,9 @@ export function FileUpload({
         ) : (
           <>
             <Upload className="h-8 w-8 text-neutral-400" aria-hidden="true" />
-            <span className="text-sm text-neutral-500">Drag & drop or click to upload</span>
+            <span className="text-sm text-neutral-500">Drag &amp; drop or click to upload</span>
           </>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          disabled={disabled}
-          onChange={handleChange}
-          className="sr-only"
-          tabIndex={-1}
-        />
       </div>
       <div aria-live="polite" aria-atomic="true">
         {currentError !== null && (

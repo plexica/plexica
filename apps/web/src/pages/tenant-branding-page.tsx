@@ -18,9 +18,9 @@ export function TenantBrandingPage(): JSX.Element {
   const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
-    if (data?.data !== undefined) {
-      setPrimaryColor(data.data.primaryColor);
-      setDarkMode(data.data.darkMode);
+    if (data !== undefined) {
+      setPrimaryColor(data.primaryColor);
+      setDarkMode(data.darkMode);
     }
   }, [data]);
 
@@ -57,7 +57,7 @@ export function TenantBrandingPage(): JSX.Element {
             maxSizeBytes={2 * 1024 * 1024}
             onFile={(f) => uploadLogo(f)}
             disabled={isUploading}
-            {...(data.data.logoUrl !== null ? { preview: data.data.logoUrl } : {})}
+            {...(data.logoUrl !== null ? { preview: data.logoUrl } : {})}
           />
         </div>
 

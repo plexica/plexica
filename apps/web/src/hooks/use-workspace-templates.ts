@@ -6,8 +6,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { workspaceApi } from '../services/workspace-api.js';
 
-import type { WorkspaceTemplate } from '../types/workspace.js';
-
 export function useWorkspaceTemplates() {
   return useQuery({
     queryKey: ['workspace-templates'],
@@ -19,7 +17,7 @@ export function useWorkspaceTemplates() {
 export function useCreateTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<WorkspaceTemplate, 'id' | 'isBuiltin'>) =>
+    mutationFn: (payload: { name: string; description?: string; structure: unknown[] }) =>
       workspaceApi.createTemplate(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workspace-templates'] });

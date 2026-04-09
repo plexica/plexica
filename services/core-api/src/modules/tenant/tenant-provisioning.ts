@@ -12,6 +12,7 @@ import { ProvisioningFailedError } from '../../lib/app-error.js';
 import { createTenantSchema } from '../../lib/tenant-schema.js';
 import { createRealm, deleteRealm } from '../../lib/keycloak-admin.js';
 import { createBucket, deleteBucket } from '../../lib/minio-client.js';
+import { migrateTenantSchema } from '../../lib/multi-schema-migrate.js';
 import { toRealmName, toSchemaName } from '../../lib/tenant-schema-helpers.js';
 
 import { seedBuiltInTemplates } from './seed/003-built-in-templates.js';
@@ -74,6 +75,10 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
       throw new ProvisioningFailedError(schemaResult.error?.message ?? 'Schema creation failed');
     }
     completedSteps.push('schema');
+
+    // Step 1b: Apply tenant DDL migrations (creates workspace, user_profile, etc.)
+    // Must run before seeding — tables do not exist until migrations are applied.
+    await migrateTenantSchema(schemaName);
 
     // Step 2: Create Keycloak realm
     const { tempPassword } = await createRealm({ realmName, adminEmail, tenantSlug: slug });

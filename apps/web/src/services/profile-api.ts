@@ -11,10 +11,12 @@ import type { UserProfileDto, UpdateProfilePayload } from '../types/profile.js';
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 export const profileApi = {
-  get: () => apiClient.get<{ data: UserProfileDto }>('/api/v1/profile'),
+  // Backend returns UserProfileDto directly (no { data } wrapper)
+  get: () => apiClient.get<UserProfileDto>('/api/v1/profile'),
 
+  // Backend returns UserProfileDto directly (no { data } wrapper)
   update: (payload: UpdateProfilePayload) =>
-    apiClient.patch<{ data: UserProfileDto }>('/api/v1/profile', payload),
+    apiClient.patch<UserProfileDto>('/api/v1/profile', payload),
 
   // Multipart upload — uses native fetch to avoid apiClient's application/json header
   uploadAvatar: async (file: File): Promise<{ data: UserProfileDto }> => {

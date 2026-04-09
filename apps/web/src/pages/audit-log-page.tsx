@@ -1,5 +1,5 @@
 // audit-log-page.tsx
-// Displays paginated tenant audit log with filters: actor, action type, workspace, date range.
+// Displays paginated tenant audit log with filters: actor, action type, date range.
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -15,12 +15,14 @@ import {
 } from '@plexica/ui';
 
 import { useAuditLog, useAuditActionTypes } from '../hooks/use-audit-log.js';
-import { useWorkspaces } from '../hooks/use-workspaces.js';
 import { ExpandableRow } from '../components/audit/expandable-row.js';
 
 import type { AuditLogEntry, AuditLogFilters } from '../types/audit.js';
 
 const PAGE_SIZE = 20;
+// Radix UI <Select.Item value=""> throws — empty string is reserved for
+// "no selection" / placeholder display.  Use a sentinel instead.
+const ALL_SENTINEL = '__all__';
 
 export function AuditLogPage(): JSX.Element {
   const intl = useIntl();
@@ -29,14 +31,10 @@ export function AuditLogPage(): JSX.Element {
 
   const { data, isPending, isError } = useAuditLog({ ...filters, page, limit: PAGE_SIZE });
   const { data: actionTypesData } = useAuditActionTypes();
-  const { data: workspacesData } = useWorkspaces();
 
-  // auditApi.list returns { data: AuditLogEntry[], total, page, totalPages }
-  // TanStack Query wraps result in { data: T }, so data?.data is the API response object
   const entries: AuditLogEntry[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
-  const actionTypes = actionTypesData?.data ?? [];
-  const workspaces = workspacesData?.data ?? [];
+  const actionTypes = actionTypesData ?? [];
 
   function handleTextFilter(key: keyof typeof filters, value: string): void {
     setPage(1);
@@ -48,20 +46,16 @@ export function AuditLogPage(): JSX.Element {
 
   function handleSelectFilter(key: keyof typeof filters, value: string): void {
     setPage(1);
+    const cleared = value === ALL_SENTINEL;
     setFilters((prev) => ({
       ...prev,
-      ...(value !== '' ? { [key]: value } : { [key]: undefined }),
+      ...(cleared ? { [key]: undefined } : { [key]: value }),
     }));
   }
 
   const actionTypeOptions = [
-    { value: '', label: intl.formatMessage({ id: 'auditLog.filter.action' }) },
+    { value: ALL_SENTINEL, label: intl.formatMessage({ id: 'auditLog.filter.action' }) },
     ...actionTypes.map((a) => ({ value: a.key, label: a.label })),
-  ];
-
-  const workspaceOptions = [
-    { value: '', label: intl.formatMessage({ id: 'auditLog.filter.workspace' }) },
-    ...workspaces.map((w) => ({ value: w.id, label: w.name })),
   ];
 
   return (
@@ -83,12 +77,6 @@ export function AuditLogPage(): JSX.Element {
           aria-label={intl.formatMessage({ id: 'auditLog.filter.action' })}
           options={actionTypeOptions}
           onValueChange={(v) => handleSelectFilter('actionType', v)}
-        />
-
-        <Select
-          aria-label={intl.formatMessage({ id: 'auditLog.filter.workspace' })}
-          options={workspaceOptions}
-          onValueChange={(v) => handleSelectFilter('workspaceId', v)}
         />
 
         <Input
@@ -133,9 +121,6 @@ export function AuditLogPage(): JSX.Element {
                   <FormattedMessage id="auditLog.table.target" />
                 </TableHead>
                 <TableHead>
-                  <FormattedMessage id="auditLog.table.workspace" />
-                </TableHead>
-                <TableHead>
                   <FormattedMessage id="auditLog.table.time" />
                 </TableHead>
               </TableRow>
@@ -143,7 +128,7 @@ export function AuditLogPage(): JSX.Element {
             <TableBody>
               {entries.length === 0 ? (
                 <TableRow>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-neutral-500">
+                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-neutral-500">
                     <FormattedMessage id="auditLog.empty" />
                   </td>
                 </TableRow>

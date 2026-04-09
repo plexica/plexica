@@ -1,6 +1,9 @@
 // expandable-row.tsx
-// Table row that expands to show audit log entry metadata.
-// Uses <details>/<summary> for native collapse behavior.
+// Table row that expands to show audit log entry detail (before/after values).
+// Uses a state toggle to show/hide the detail row within the table structure.
+
+import { useState } from 'react';
+import { TableRow, TableCell } from '@plexica/ui';
 
 import type { AuditLogEntry } from '../../types/audit.js';
 
@@ -9,26 +12,34 @@ interface ExpandableRowProps {
 }
 
 export function ExpandableRow({ entry }: ExpandableRowProps): JSX.Element {
-  const hasMetadata = Object.keys(entry.metadata).length > 0;
+  const [expanded, setExpanded] = useState(false);
+  const hasDetail = entry.beforeValue != null || entry.afterValue != null;
 
   return (
-    <details className="group">
-      <summary className="grid cursor-pointer list-none grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-neutral-50 [&::-webkit-details-marker]:hidden">
-        <span className="truncate text-neutral-700">{entry.actorId}</span>
-        <span className="truncate text-neutral-700">{entry.actionType}</span>
-        <span className="truncate text-neutral-700">
-          {entry.targetType}:{entry.targetId}
-        </span>
-        <span className="truncate text-neutral-500">{entry.workspaceId ?? '—'}</span>
-        <span className="text-neutral-500">{new Date(entry.createdAt).toLocaleString()}</span>
-      </summary>
-      {hasMetadata && (
-        <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3">
-          <pre className="overflow-x-auto rounded-md bg-white p-3 text-xs text-neutral-700">
-            {JSON.stringify(entry.metadata, null, 2)}
-          </pre>
-        </div>
+    <>
+      <TableRow
+        className="cursor-pointer hover:bg-neutral-50"
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <TableCell className="truncate text-sm text-neutral-700">{entry.actorId}</TableCell>
+        <TableCell className="truncate text-sm text-neutral-700">{entry.actionType}</TableCell>
+        <TableCell className="truncate text-sm text-neutral-700">
+          {entry.targetType}
+          {entry.targetId != null ? `:${entry.targetId}` : ''}
+        </TableCell>
+        <TableCell className="text-sm text-neutral-500">
+          {new Date(entry.createdAt).toLocaleString()}
+        </TableCell>
+      </TableRow>
+      {expanded && hasDetail && (
+        <TableRow data-testid="audit-row-detail">
+          <TableCell colSpan={4} className="bg-neutral-50 px-4 py-3">
+            <pre className="overflow-x-auto rounded-md bg-white p-3 text-xs text-neutral-700">
+              {JSON.stringify({ before: entry.beforeValue, after: entry.afterValue }, null, 2)}
+            </pre>
+          </TableCell>
+        </TableRow>
       )}
-    </details>
+    </>
   );
 }

@@ -46,6 +46,10 @@ const configSchema = z.object({
   // SMTP sender address
   SMTP_FROM: z.string().default('noreply@plexica.io'),
 
+  // Global rate limit — max requests per time window (default 100).
+  // Increase for E2E / load-test environments where a single IP fires many requests.
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
+
   // JWKS cache TTL in milliseconds (default 1 hour)
   JWKS_CACHE_TTL_MS: z.coerce.number().int().default(3_600_000),
 

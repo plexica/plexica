@@ -21,7 +21,6 @@ export interface Invitation {
 }
 
 export interface Role {
-  id: string;
   name: string;
   scope: 'tenant' | 'workspace';
   description: string;

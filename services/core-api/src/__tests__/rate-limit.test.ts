@@ -32,6 +32,7 @@ import type { AuthUser } from '../middleware/auth-middleware.js';
 // ---------------------------------------------------------------------------
 const SUPER_ADMIN_USER: AuthUser = {
   id: 'test-super-admin',
+  keycloakUserId: 'test-super-admin',
   email: 'admin@example.com',
   firstName: 'Super',
   lastName: 'Admin',

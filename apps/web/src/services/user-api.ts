@@ -32,9 +32,9 @@ export const userApi = {
   getWorkspaces: (userId: string) =>
     apiClient.get<{ data: WorkspaceMembership[] }>(`/api/v1/users/${userId}/workspaces`),
 
-  listRoles: () => apiClient.get<{ data: Role[] }>('/api/v1/roles'),
+  listRoles: () => apiClient.get<Role[]>('/api/v1/roles'),
 
-  getActionMatrix: () => apiClient.get<{ data: ActionMatrixRow[] }>('/api/v1/roles/action-matrix'),
+  getActionMatrix: () => apiClient.get<ActionMatrixRow[]>('/api/v1/roles/action-matrix'),
 };
 
 export const invitationApi = {

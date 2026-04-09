@@ -26,6 +26,7 @@ export function makeAuthStub(
   return async (req: FastifyRequest): Promise<void> => {
     const user: AuthUser = {
       id: userId,
+      keycloakUserId: userId,
       email: `${userId}@test.plexica.io`,
       firstName: 'Test',
       lastName: 'User',
@@ -49,6 +50,7 @@ export function makeFullStub(
   return async (req: FastifyRequest): Promise<void> => {
     const user: AuthUser = {
       id: userId,
+      keycloakUserId: userId,
       email: `${userId}@test.plexica.io`,
       firstName: 'Test',
       lastName: 'User',

@@ -1,21 +1,19 @@
 // tenant-schema.prisma
 // Prisma schema for the tenant-specific schema (tenant_<slug>).
-// The tenant Prisma client connects directly to the tenant schema (search_path = tenant_<slug>),
-// so all models use @@schema("public") — "public" here means the default search_path table,
-// not the PostgreSQL public schema.
+// The tenant Prisma client connects directly to the tenant schema via
+// ?schema=<schemaName> in the DATABASE_URL, which sets PostgreSQL's search_path.
+// Prisma generates unqualified table names so they resolve through search_path.
 // Generated into: ../generated/tenant-client
 // Run: pnpm db:generate (after updating this file)
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
-  output          = "../generated/tenant-client"
+  provider = "prisma-client-js"
+  output   = "../generated/tenant-client"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["public"]
 }
 
 // ---------------------------------------------------------------------------
@@ -24,30 +22,29 @@ datasource db {
 // assigned at invite time — not auto-generated.
 // ---------------------------------------------------------------------------
 model UserProfile {
-  userId            String    @id @db.Uuid
-  keycloakUserId    String    @unique @db.VarChar(255)
+  userId            String    @id @map("user_id") @db.Uuid
+  keycloakUserId    String    @unique @map("keycloak_user_id") @db.VarChar(255)
   email             String    @db.VarChar(255)
-  displayName       String?   @db.VarChar(255)
-  avatarPath        String?
+  displayName       String?   @map("display_name") @db.VarChar(255)
+  avatarPath        String?   @map("avatar_path")
   timezone          String    @default("UTC") @db.VarChar(63)
   language          String    @default("en") @db.VarChar(8)
-  notificationPrefs Json      @default("{}")
+  notificationPrefs Json      @default("{}") @map("notification_prefs")
   status            String    @default("active") @db.VarChar(16)
-  deletedAt         DateTime? @db.Timestamptz
-  createdAt         DateTime  @default(now()) @db.Timestamptz
-  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   workspacesCreated Workspace[]       @relation("WorkspaceCreator")
   workspaceMembers  WorkspaceMember[]
   invitationsSent   Invitation[]
 
   @@map("user_profile")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
 // Model 2: WorkspaceTemplate
-// Built-in and custom templates that define the initial structure of a workspace.
+// Built-in and custom workspace structural blueprints.
 // created_by is NULL for built-in templates.
 // ---------------------------------------------------------------------------
 model WorkspaceTemplate {
@@ -55,16 +52,15 @@ model WorkspaceTemplate {
   name        String    @db.VarChar(255)
   description String?
   structure   Json      @default("[]")
-  isBuiltin   Boolean   @default(false)
-  createdBy   String?   @db.Uuid
+  isBuiltin   Boolean   @default(false) @map("is_builtin")
+  createdBy   String?   @map("created_by") @db.Uuid
   version     Int       @default(1)
-  createdAt   DateTime  @default(now()) @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   workspaces Workspace[]
 
   @@map("workspace_template")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -73,13 +69,12 @@ model WorkspaceTemplate {
 // ---------------------------------------------------------------------------
 model TenantBranding {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  logoPath     String?
-  primaryColor String   @default("#6366F1") @db.VarChar(9)
-  darkMode     Boolean  @default(false)
-  updatedAt    DateTime @updatedAt @db.Timestamptz
+  logoPath     String?  @map("logo_path")
+  primaryColor String   @default("#6366F1") @map("primary_color") @db.VarChar(9)
+  darkMode     Boolean  @default(false) @map("dark_mode")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("tenant_branding")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -91,26 +86,25 @@ model Workspace {
   name             String    @db.VarChar(255)
   slug             String    @unique @db.VarChar(63)
   description      String?
-  parentId         String?   @db.Uuid
-  materializedPath String    @default("/")
+  parentId         String?   @map("parent_id") @db.Uuid
+  materializedPath String    @default("/") @map("materialized_path")
   status           String    @default("active") @db.VarChar(16)
-  archivedAt       DateTime? @db.Timestamptz
-  templateId       String?   @db.Uuid
-  createdBy        String    @db.Uuid
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz
+  templateId       String?   @map("template_id") @db.Uuid
+  createdBy        String    @map("created_by") @db.Uuid
   version          Int       @default(1)
-  createdAt        DateTime  @default(now()) @db.Timestamptz
-  updatedAt        DateTime  @updatedAt @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  parent      Workspace?        @relation("WorkspaceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    Workspace[]       @relation("WorkspaceHierarchy")
+  parent      Workspace?         @relation("WorkspaceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Workspace[]        @relation("WorkspaceHierarchy")
   template    WorkspaceTemplate? @relation(fields: [templateId], references: [id])
-  creator     UserProfile       @relation("WorkspaceCreator", fields: [createdBy], references: [userId])
+  creator     UserProfile        @relation("WorkspaceCreator", fields: [createdBy], references: [userId])
   members     WorkspaceMember[]
   invitations Invitation[]
   roleActions WorkspaceRoleAction[]
 
   @@map("workspace")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -119,17 +113,16 @@ model Workspace {
 // ---------------------------------------------------------------------------
 model WorkspaceMember {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workspaceId String   @db.Uuid
-  userId      String   @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
   role        String   @db.VarChar(32)
-  createdAt   DateTime @default(now()) @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
   @@map("workspace_member")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -139,21 +132,20 @@ model WorkspaceMember {
 model Invitation {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email       String    @db.VarChar(255)
-  workspaceId String    @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
   role        String    @db.VarChar(32)
   status      String    @default("pending") @db.VarChar(16)
-  invitedBy   String    @db.Uuid
+  invitedBy   String    @map("invited_by") @db.Uuid
   token       String    @unique @db.VarChar(255)
-  expiresAt   DateTime  @db.Timestamptz
-  acceptedAt  DateTime? @db.Timestamptz
-  createdAt   DateTime  @default(now()) @db.Timestamptz
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  acceptedAt  DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   inviter   UserProfile @relation(fields: [invitedBy], references: [userId])
 
   @@index([email, workspaceId])
   @@map("invitation")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -163,14 +155,14 @@ model Invitation {
 // ---------------------------------------------------------------------------
 model AuditLog {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  actorId     String    @db.Uuid
-  actionType  String    @db.VarChar(63)
-  targetType  String    @db.VarChar(63)
-  targetId    String?   @db.Uuid
-  beforeValue Json?
-  afterValue  Json?
-  ipAddress   String?   @db.VarChar(45)
-  createdAt   DateTime  @default(now()) @db.Timestamptz
+  actorId     String    @map("actor_id") @db.Uuid
+  actionType  String    @map("action_type") @db.VarChar(63)
+  targetType  String    @map("target_type") @db.VarChar(63)
+  targetId    String?   @map("target_id") @db.Uuid
+  beforeValue Json?     @map("before_value")
+  afterValue  Json?     @map("after_value")
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([createdAt])
   @@index([actionType])
@@ -178,7 +170,6 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([createdAt, actionType])
   @@map("audit_log")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -187,19 +178,18 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 model AbacDecisionLog {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String   @db.Uuid
-  resourceType   String   @db.VarChar(63)
-  resourceId     String?  @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  resourceType   String   @map("resource_type") @db.VarChar(63)
+  resourceId     String?  @map("resource_id") @db.Uuid
   action         String   @db.VarChar(63)
   decision       String   @db.VarChar(8)
-  rulesEvaluated Json     @default("[]")
-  logLevel       String   @default("info") @db.VarChar(8)
-  createdAt      DateTime @default(now()) @db.Timestamptz
+  rulesEvaluated Json     @default("[]") @map("rules_evaluated")
+  logLevel       String   @default("info") @map("log_level") @db.VarChar(8)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([createdAt, userId, action, decision])
   @@index([createdAt])
   @@map("abac_decision_log")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -209,16 +199,15 @@ model AbacDecisionLog {
 // ---------------------------------------------------------------------------
 model ActionRegistry {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pluginId     String   @db.Uuid
-  actionKey    String   @db.VarChar(255)
-  labelI18nKey String   @db.VarChar(255)
+  pluginId     String   @map("plugin_id") @db.Uuid
+  actionKey    String   @map("action_key") @db.VarChar(255)
+  labelI18nKey String   @map("label_i18n_key") @db.VarChar(255)
   description  String?
-  defaultRole  String   @default("admin") @db.VarChar(32)
-  createdAt    DateTime @default(now()) @db.Timestamptz
+  defaultRole  String   @default("admin") @map("default_role") @db.VarChar(32)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([pluginId, actionKey])
   @@map("action_registry")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -227,17 +216,16 @@ model ActionRegistry {
 // ---------------------------------------------------------------------------
 model WorkspaceRoleAction {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workspaceId  String   @db.Uuid
-  pluginId     String   @db.Uuid
-  actionKey    String   @db.VarChar(255)
-  requiredRole String   @db.VarChar(32)
-  isOverridden Boolean  @default(false)
-  createdAt    DateTime @default(now()) @db.Timestamptz
-  updatedAt    DateTime @updatedAt @db.Timestamptz
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  pluginId     String   @map("plugin_id") @db.Uuid
+  actionKey    String   @map("action_key") @db.VarChar(255)
+  requiredRole String   @map("required_role") @db.VarChar(32)
+  isOverridden Boolean  @default(false) @map("is_overridden")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, pluginId, actionKey])
   @@map("workspace_role_action")
-  @@schema("public")
 }

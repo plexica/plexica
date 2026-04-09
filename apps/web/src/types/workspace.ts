@@ -41,12 +41,31 @@ export interface WorkspaceMember {
   email: string;
 }
 
+export interface WorkspaceTemplateChild {
+  name: string;
+  description?: string;
+}
+
 export interface WorkspaceTemplate {
   id: string;
   name: string;
   description: string | null;
   isBuiltin: boolean;
-  childWorkspaces: Array<{ name: string; description?: string }>;
+  structure: unknown;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Safely parse the `structure` JSON field into child workspace entries. */
+export function getTemplateChildren(template: WorkspaceTemplate): WorkspaceTemplateChild[] {
+  if (!Array.isArray(template.structure)) return [];
+  return template.structure.filter(
+    (item): item is WorkspaceTemplateChild =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as Record<string, unknown>).name === 'string'
+  );
 }
 
 export interface CreateWorkspacePayload {

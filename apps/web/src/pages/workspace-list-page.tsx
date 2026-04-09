@@ -78,9 +78,9 @@ export function WorkspaceListPage(): JSX.Element {
           {workspaces.map((ws) => {
             // TanStack Router route tree not yet generated — pending full codegen (TD-003)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const wsTo = '/workspaces/$id' as any;
+            const wsTo = '/workspaces/$workspaceId' as any;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const wsParams = { id: ws.id } as any;
+            const wsParams = { workspaceId: ws.id } as any;
             return (
               <li
                 key={ws.id}

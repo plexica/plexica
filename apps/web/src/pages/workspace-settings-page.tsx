@@ -19,7 +19,7 @@ import {
 
 function useWorkspaceId(): string {
   const params = useParams({ strict: false });
-  return (params as Record<string, string>).id ?? '';
+  return (params as Record<string, string>).workspaceId ?? '';
 }
 
 const schema = z.object({
@@ -49,10 +49,10 @@ export function WorkspaceSettingsPage(): JSX.Element {
   });
 
   useEffect(() => {
-    if (data?.data !== undefined) {
+    if (data !== undefined) {
       reset({
-        name: data.data.name,
-        description: data.data.description ?? '',
+        name: data.name,
+        description: data.description ?? '',
       });
     }
   }, [data, reset]);
@@ -70,7 +70,8 @@ export function WorkspaceSettingsPage(): JSX.Element {
       </div>
     );
 
-  const ws = data.data;
+  // Backend returns WorkspaceDetail directly (no { data } wrapper)
+  const ws = data;
 
   function onSubmit(values: FormValues): void {
     const payload: { name: string; description?: string } = { name: values.name };

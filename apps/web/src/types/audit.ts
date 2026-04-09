@@ -6,9 +6,10 @@ export interface AuditLogEntry {
   actorId: string;
   actionType: string;
   targetType: string;
-  targetId: string;
-  workspaceId: string | null;
-  metadata: Record<string, unknown>;
+  targetId: string | null;
+  beforeValue: Record<string, unknown> | null;
+  afterValue: Record<string, unknown> | null;
+  ipAddress: string | null;
   createdAt: string;
 }
 
@@ -17,7 +18,6 @@ export interface AuditLogFilters {
   limit?: number;
   actorId?: string;
   actionType?: string;
-  workspaceId?: string;
   fromDate?: string;
   toDate?: string;
 }

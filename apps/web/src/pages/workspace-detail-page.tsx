@@ -10,7 +10,7 @@ import { useWorkspaceMembers } from '../hooks/use-workspace-members.js';
 
 function useWorkspaceId(): string {
   const params = useParams({ strict: false });
-  return (params as Record<string, string>).id ?? '';
+  return (params as Record<string, string>).workspaceId ?? '';
 }
 
 function MembersTab({ workspaceId }: { workspaceId: string }): JSX.Element {
@@ -105,7 +105,8 @@ export function WorkspaceDetailPage(): JSX.Element {
     );
   }
 
-  const ws = data.data;
+  // Backend returns WorkspaceDetail directly (no { data } wrapper)
+  const ws = data;
 
   const tabs = [
     {

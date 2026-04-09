@@ -1,7 +1,6 @@
 // routes.ts
 // User-profile module Fastify plugin — registers GET/PATCH /profile and POST /profile/avatar.
 
-
 import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { ValidationError } from '../../lib/app-error.js';
@@ -20,7 +19,7 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
   // ── GET /api/v1/profile ───────────────────────────────────────────────────
   fastify.get('/api/v1/profile', { preHandler: pre }, async (request) => {
     return withTenantDb(
-      (tx) => getProfile(tx, request.user.id, request.tenantContext),
+      (tx) => getProfile(tx, request.user.keycloakUserId, request.tenantContext),
       request.tenantContext
     );
   });
@@ -36,7 +35,7 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
     const input = parsed.data as Parameters<typeof updateProfile>[2];
 
     return withTenantDb(
-      (tx) => updateProfile(tx, request.user.id, input, request.tenantContext),
+      (tx) => updateProfile(tx, request.user.keycloakUserId, input, request.tenantContext),
       request.tenantContext
     );
   });
@@ -49,7 +48,7 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
     }
     validateMimeType(file.mimetype, AVATAR_ALLOWED_MIME_TYPES);
     const result = await withTenantDb(
-      (tx) => uploadAvatar(tx, request.user.id, file, request.tenantContext),
+      (tx) => uploadAvatar(tx, request.user.keycloakUserId, file, request.tenantContext),
       request.tenantContext
     );
     return reply.send({ data: result });

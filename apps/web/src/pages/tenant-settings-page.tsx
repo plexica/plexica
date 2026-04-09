@@ -31,8 +31,8 @@ export function TenantSettingsPage(): JSX.Element {
   });
 
   useEffect(() => {
-    if (data?.data !== undefined) {
-      reset({ displayName: data.data.displayName });
+    if (data !== undefined) {
+      reset({ displayName: data.displayName });
     }
   }, [data, reset]);
 
@@ -69,7 +69,7 @@ export function TenantSettingsPage(): JSX.Element {
         />
         <Input
           label={intl.formatMessage({ id: 'settings.general.slug.label' })}
-          value={data.data.slug}
+          value={data.slug}
           disabled
           readOnly
           helperText={intl.formatMessage({ id: 'settings.general.slug.tooltip' })}

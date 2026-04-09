@@ -24,6 +24,7 @@
 
 // @ts-ignore — generated at build time via 'pnpm db:generate'
 import { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+
 import { getTenantContext } from './tenant-context-store.js';
 
 import type { TenantContext } from './tenant-context-store.js';

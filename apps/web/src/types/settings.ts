@@ -15,17 +15,11 @@ export interface TenantBranding {
   logoUrl: string | null;
 }
 
-export interface IdpConfig {
-  alias: string;
-  displayName: string;
-  providerId: string;
-}
-
 export interface AuthConfig {
-  mfaRequired?: boolean;
-  sessionMaxSecs?: number;
-  idps?: IdpConfig[];
-  [key: string]: unknown;
+  loginTheme: string;
+  ssoSessionMaxLifespan: number;
+  bruteForceProtected: boolean;
+  failureFactor: number;
 }
 
 export interface UpdateTenantSettingsPayload {
@@ -38,6 +32,8 @@ export interface UpdateBrandingPayload {
 }
 
 export interface UpdateAuthConfigPayload {
-  mfaRequired?: boolean;
-  sessionMaxSecs?: number;
+  loginTheme?: string;
+  ssoSessionMaxLifespan?: number;
+  bruteForceProtected?: boolean;
+  failureFactor?: number;
 }

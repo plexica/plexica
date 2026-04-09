@@ -1,21 +1,19 @@
 // tenant-schema.prisma
 // Prisma schema for the tenant-specific schema (tenant_<slug>).
-// The tenant Prisma client connects directly to the tenant schema (search_path = tenant_<slug>),
-// so all models use @@schema("public") — "public" here means the default search_path table,
-// not the PostgreSQL public schema.
+// The tenant Prisma client connects directly to the tenant schema via
+// ?schema=<schemaName> in the DATABASE_URL, which sets PostgreSQL's search_path.
+// Prisma generates unqualified table names so they resolve through search_path.
 // Generated into: ../generated/tenant-client
 // Run: pnpm db:generate (after updating this file)
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
-  output          = "../generated/tenant-client"
+  provider = "prisma-client-js"
+  output   = "../generated/tenant-client"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["public"]
 }
 
 // ---------------------------------------------------------------------------
@@ -42,7 +40,6 @@ model UserProfile {
   invitationsSent   Invitation[]
 
   @@map("user_profile")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -64,7 +61,6 @@ model WorkspaceTemplate {
   workspaces Workspace[]
 
   @@map("workspace_template")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +75,6 @@ model TenantBranding {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("tenant_branding")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +105,6 @@ model Workspace {
   roleActions WorkspaceRoleAction[]
 
   @@map("workspace")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +123,6 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@map("workspace_member")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +146,6 @@ model Invitation {
 
   @@index([email, workspaceId])
   @@map("invitation")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +170,6 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([createdAt, actionType])
   @@map("audit_log")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +190,6 @@ model AbacDecisionLog {
   @@index([createdAt, userId, action, decision])
   @@index([createdAt])
   @@map("abac_decision_log")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +208,6 @@ model ActionRegistry {
 
   @@unique([pluginId, actionKey])
   @@map("action_registry")
-  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
@@ -239,5 +228,4 @@ model WorkspaceRoleAction {
 
   @@unique([workspaceId, pluginId, actionKey])
   @@map("workspace_role_action")
-  @@schema("public")
 }

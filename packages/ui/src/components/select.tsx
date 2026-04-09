@@ -66,7 +66,7 @@ export function Select({
           position="popper"
           sideOffset={4}
         >
-          <RadixSelect.Viewport className="p-1">
+          <RadixSelect.Viewport className="max-h-60 overflow-y-auto p-1">
             {options.map((opt) => (
               <RadixSelect.Item
                 key={opt.value}

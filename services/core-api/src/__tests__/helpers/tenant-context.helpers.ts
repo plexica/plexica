@@ -18,6 +18,7 @@ export function makeAuthStub(realm: string): (request: FastifyRequest) => Promis
   return async (request: FastifyRequest): Promise<void> => {
     const user: AuthUser = {
       id: 'test-user-id',
+      keycloakUserId: 'test-user-id',
       email: 'test@example.com',
       firstName: 'Test',
       lastName: 'User',

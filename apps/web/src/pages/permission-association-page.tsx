@@ -6,20 +6,20 @@ import { useParams } from '@tanstack/react-router';
 
 import { PermissionAssociationPanel } from '../components/user/permission-association-panel.js';
 
-function useWorkspaceId(): string {
+function useRoleId(): string {
   const params = useParams({ strict: false });
-  return (params as Record<string, string>).id ?? '';
+  return (params as Record<string, string>).roleId ?? '';
 }
 
 export function PermissionAssociationPage(): JSX.Element {
-  const workspaceId = useWorkspaceId();
+  const roleId = useRoleId();
 
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold text-neutral-900">
         <FormattedMessage id="members.title" />
       </h1>
-      <PermissionAssociationPanel workspaceId={workspaceId} />
+      <PermissionAssociationPanel workspaceId={roleId} />
     </div>
   );
 }

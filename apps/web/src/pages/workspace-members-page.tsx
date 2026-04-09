@@ -17,7 +17,7 @@ import { useInvitations } from '../hooks/use-invitations.js';
 
 function useWorkspaceId(): string {
   const params = useParams({ strict: false });
-  return (params as Record<string, string>).id ?? '';
+  return (params as Record<string, string>).workspaceId ?? '';
 }
 
 const roleOptions = [

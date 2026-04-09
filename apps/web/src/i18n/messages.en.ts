@@ -145,8 +145,8 @@ export const messages = {
   'settings.branding.darkMode.label': 'Dark mode',
   'settings.branding.save': 'Save',
   'settings.auth.title': 'Authentication',
-  'settings.auth.mfa.label': 'Require MFA',
-  'settings.auth.sessionMaxSecs.label': 'Session duration (seconds)',
+  'settings.auth.bruteForce.label': 'Brute force protection',
+  'settings.auth.sessionLifespan.label': 'Session lifespan (seconds)',
   'settings.auth.save': 'Save',
 
   // Profile
