@@ -3,7 +3,6 @@
 // All routes require auth + tenant context + ABAC check.
 // Implements: Spec 003, Phase 10
 
-
 import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { requireAbac } from '../../middleware/abac.js';
@@ -35,8 +34,15 @@ export async function auditLogRoutes(fastify: FastifyInstance): Promise<void> {
       };
       if (parsed.data.actorId !== undefined) filters.actorId = parsed.data.actorId;
       if (parsed.data.actionType !== undefined) filters.actionType = parsed.data.actionType;
+      if (parsed.data.workspaceId !== undefined) filters.workspaceId = parsed.data.workspaceId;
       if (parsed.data.fromDate !== undefined) filters.from = new Date(parsed.data.fromDate);
-      if (parsed.data.toDate !== undefined) filters.to = new Date(parsed.data.toDate);
+      if (parsed.data.toDate !== undefined) {
+        // Date-only strings (YYYY-MM-DD) resolve to midnight UTC, excluding
+        // all events later in that same day. Normalize to end-of-day.
+        const raw = parsed.data.toDate;
+        const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+        filters.to = isDateOnly ? new Date(`${raw}T23:59:59.999Z`) : new Date(raw);
+      }
 
       return withTenantDb((tx) => getAuditLog(tx, filters), request.tenantContext);
     }

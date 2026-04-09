@@ -7,6 +7,7 @@ import multipart from '@fastify/multipart';
 
 import { configureErrorHandler } from '../../middleware/error-handler.js';
 import { config } from '../../lib/config.js';
+import { TRUSTED_AUTH_SYMBOL } from '../../middleware/auth-middleware.js';
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AuthUser } from '../../middleware/auth-middleware.js';
@@ -34,6 +35,7 @@ export function makeAuthStub(
       roles,
     };
     req.user = user;
+    (req as Record<symbol, boolean>)[TRUSTED_AUTH_SYMBOL] = true;
   };
 }
 
@@ -59,6 +61,7 @@ export function makeFullStub(
     };
     req.user = user;
     req.tenantContext = tenantContext;
+    (req as Record<symbol, boolean>)[TRUSTED_AUTH_SYMBOL] = true;
 
     // Also seed AsyncLocalStorage so withTenantDb fallback path works
     const { enterWithTenant } = await import('../../lib/tenant-context-store.js');

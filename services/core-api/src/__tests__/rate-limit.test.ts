@@ -18,6 +18,7 @@ import rateLimit from '@fastify/rate-limit';
 
 import { configureErrorHandler } from '../middleware/error-handler.js';
 import { rateLimitKey } from '../lib/rate-limit-key.js';
+import { TRUSTED_AUTH_SYMBOL } from '../middleware/auth-middleware.js';
 import {
   GLOBAL_RATE_LIMIT,
   rateLimitKeyGenerator,
@@ -63,6 +64,7 @@ async function buildAdminServer(): Promise<FastifyInstance> {
   // This is NOT vi.mock: the real auth-middleware module is never loaded here.
   server.addHook('onRequest', async (request) => {
     request.user = SUPER_ADMIN_USER;
+    (request as Record<symbol, boolean>)[TRUSTED_AUTH_SYMBOL] = true;
   });
 
   // POST /api/admin/tenants — 5 req/min, user-keyed (ADR-012)

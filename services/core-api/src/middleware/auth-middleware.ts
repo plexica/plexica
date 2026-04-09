@@ -31,9 +31,17 @@ export interface AuthUser {
   roles: string[];
 }
 
+/**
+ * Symbol used to mark a request as pre-authenticated by a trusted internal source.
+ * Only code with access to this symbol can bypass JWT verification.
+ * External plugins cannot forge this — symbols are identity-based, not string-based.
+ */
+export const TRUSTED_AUTH_SYMBOL = Symbol.for('plexica:trusted-auth');
+
 declare module 'fastify' {
   interface FastifyRequest {
     user: AuthUser;
+    [key: symbol]: boolean;
   }
 }
 
@@ -94,12 +102,13 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
 }
 
 export async function authMiddleware(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
-  // If request.user is already populated by a prior hook (e.g. test stub or
-  // upstream gateway that pre-authenticates), skip JWT verification.
-  // This is NOT a test-only code path: it also supports future scenarios where
-  // a reverse proxy or API gateway has already verified the token and injected
-  // the user context before the request reaches Fastify.
-  if (request.user !== undefined) {
+  // Allow bypass ONLY when a trusted internal source (identified by a Symbol
+  // that cannot be forged by external plugins) has pre-authenticated the request.
+  // This prevents untrusted code from escalating privileges by pre-setting request.user.
+  if (
+    request.user !== undefined &&
+    (request as Record<symbol, boolean>)[TRUSTED_AUTH_SYMBOL] === true
+  ) {
     return;
   }
 

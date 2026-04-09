@@ -37,6 +37,7 @@ export async function queryAuditLog(
   const where: Record<string, unknown> = {};
   if (filters.actorId !== undefined) where['actorId'] = filters.actorId;
   if (filters.actionType !== undefined) where['actionType'] = filters.actionType;
+  if (filters.workspaceId !== undefined) where['targetId'] = filters.workspaceId;
 
   // Date range filter
   if (filters.from !== undefined || filters.to !== undefined) {

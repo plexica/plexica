@@ -34,20 +34,14 @@ export async function userProfileResolver(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = tx as any;
 
-    // Look up existing profile by Keycloak user ID
-    const existing = await db.userProfile.findUnique({
-      where: { keycloakUserId },
-      select: { userId: true },
-    });
-
-    if (existing !== null) {
-      return existing.userId as string;
-    }
-
-    // JIT provisioning: create a minimal profile on first authenticated visit
+    // Upsert to avoid TOCTOU race: two concurrent requests for a new user
+    // both attempt findUnique → null → create, and the second fails with a
+    // unique constraint violation. Upsert is atomic at the DB level.
     const newUserId = crypto.randomUUID();
-    await db.userProfile.create({
-      data: {
+    const profile = await db.userProfile.upsert({
+      where: { keycloakUserId },
+      update: {},
+      create: {
         userId: newUserId,
         keycloakUserId,
         email: request.user.email ?? '',
@@ -57,14 +51,15 @@ export async function userProfileResolver(
         language: 'en',
         status: 'active',
       },
+      select: { userId: true },
     });
 
-    logger.info(
-      { keycloakUserId, userId: newUserId },
-      'Auto-provisioned user profile on first tenant visit'
-    );
+    // Log only on first provision (userId matches the one we generated)
+    if (profile.userId === newUserId) {
+      logger.info('Auto-provisioned user profile on first tenant visit');
+    }
 
-    return newUserId;
+    return profile.userId as string;
   }, request.tenantContext);
 
   // Replace the Keycloak sub with the internal user_profile.user_id

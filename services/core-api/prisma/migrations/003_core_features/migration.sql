@@ -160,7 +160,8 @@ CREATE INDEX IF NOT EXISTS invitation_expires_at_idx ON invitation (expires_at);
 -- ---------------------------------------------------------------------------
 -- 7. audit_log
 -- Immutable, append-only record of actor actions. No UPDATE/DELETE should occur.
--- ip_address uses INET type for efficient network-address storage and querying.
+-- ip_address uses VARCHAR(45) to accommodate both IPv4 and IPv6 addresses.
+-- Prisma schema declares @db.VarChar(45) — the types must match.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (
   id           UUID        NOT NULL DEFAULT gen_random_uuid(),
@@ -170,7 +171,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   target_id    UUID,
   before_value JSONB,
   after_value  JSONB,
-  ip_address   INET,
+  ip_address   VARCHAR(45),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   CONSTRAINT audit_log_pkey PRIMARY KEY (id)

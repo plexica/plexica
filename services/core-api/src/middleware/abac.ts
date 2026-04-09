@@ -70,8 +70,11 @@ export function requireAbac(action: string) {
     // has the correct search_path set (tenant schema isolation).
     const decision = await withTenantDb((tx) => evaluate(ctx, tx, redis), tenantCtx);
 
-    // Fire-and-forget: log the decision asynchronously, never block the request
-    withTenantDb((tx) => logDecision(tx, ctx, decision), tenantCtx).catch(() => {});
+    // Fire-and-forget: log the decision asynchronously, never block the request.
+    // Errors are logged (not silently swallowed) to maintain audit compliance.
+    withTenantDb((tx) => logDecision(tx, ctx, decision), tenantCtx).catch((err) => {
+      logger.error({ err, action: ctx.action, workspaceId }, 'ABAC decision log failed');
+    });
 
     if (!decision.allowed) {
       logger.debug(

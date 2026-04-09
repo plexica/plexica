@@ -30,6 +30,7 @@ export interface AuditLogFilters {
   from?: Date;
   to?: Date;
   actorId?: string;
+  workspaceId?: string;
   page?: number;
   pageSize?: number;
 }
