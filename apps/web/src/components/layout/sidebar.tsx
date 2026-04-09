@@ -5,18 +5,17 @@
 // See git log for per-pass fix history.
 
 import { useEffect, useRef } from 'react';
-import { LayoutDashboard, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useIntl } from 'react-intl';
 
 import { SidebarNavItem } from './sidebar-nav-item.js';
+import { NAV_ITEMS } from './sidebar-nav-config.js';
 
 interface SidebarProps {
   isOpen: boolean;
   isCollapsed: boolean;
   onToggle: () => void;
 }
-
-const NAV_ITEMS = [{ icon: LayoutDashboard, labelId: 'nav.dashboard', to: '/dashboard' }] as const;
 
 // Selectors for all keyboard-focusable elements within the drawer
 const FOCUSABLE =

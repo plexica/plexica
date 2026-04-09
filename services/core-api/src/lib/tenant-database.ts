@@ -1,18 +1,19 @@
 // tenant-database.ts
-// Transaction-scoped database access for tenant schemas.
+// Tenant-scoped database access using a dedicated TenantPrismaClient.
 //
-// H-1 FIX: The global `prisma` client uses a connection pool. Calling
-// `SET search_path` on a pooled connection is unreliable because the
-// connection is returned to the pool immediately and may be reused by a
-// concurrent request before that request sets its own search_path.
+// ARCHITECTURE NOTE (Decision Log ID-001 follow-up):
+// The original implementation used `prisma.$transaction` with `SET LOCAL search_path`.
+// This approach failed because the core Prisma client only knows core-schema models
+// (Tenant, TenantConfig, …) and cannot access tenant-schema models (workspace,
+// workspaceMember, invitation, auditLog, userProfile, …).
 //
-// The correct solution: wrap every tenant data query in a `$transaction`
-// that starts with `SET LOCAL search_path`. SET LOCAL resets when the
-// transaction commits or rolls back, ensuring the connection is clean
-// before it returns to the pool.
+// The correct solution: create a TenantPrismaClient per request using the
+// `?schema=<schemaName>` connection URL parameter. This is the same pattern
+// already used by db.helpers.ts (buildTenantClient) and tested in integration.
 //
-// Route handlers MUST use withTenantDb() for all tenant-specific data
-// access instead of the global prisma client.
+// Trade-off: one extra PrismaClient per request (no connection pooling for
+// tenant schemas). Acceptable for v2 phase 1; a PgBouncer/Prisma Accelerate
+// layer can be added later if connection limits become a concern.
 //
 // M-04 NOTE: Fastify v5 runs each hook and route handler in its own
 // async execution scope, so AsyncLocalStorage.enterWith() set in a
@@ -21,20 +22,24 @@
 // The AsyncLocalStorage fallback (getTenantContext) is preserved for
 // non-Fastify call sites (e.g. CLI scripts, standalone utilities).
 
-import { prisma } from './database.js';
+// @ts-ignore — generated at build time via 'pnpm db:generate'
+import { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+
 import { getTenantContext } from './tenant-context-store.js';
 
 import type { TenantContext } from './tenant-context-store.js';
-import type { Prisma } from '@prisma/client';
+
+export type { TenantPrismaClient };
 
 /**
  * Executes a database callback within the current tenant's schema.
  *
- * Opens a PostgreSQL transaction, sets `SET LOCAL search_path` to the
- * tenant's schema, runs the callback, then commits. On error the
- * transaction rolls back automatically and search_path is restored.
+ * Creates a TenantPrismaClient connected to the tenant's schema via the
+ * `?schema=<schemaName>` connection URL parameter, runs the callback,
+ * then disconnects. On error the client is disconnected and the error
+ * is re-thrown.
  *
- * @param fn     - Callback that receives a Prisma transaction client.
+ * @param fn      - Callback that receives a TenantPrismaClient instance.
  * @param context - Tenant context. Pass `request.tenantContext` from Fastify
  *                  route handlers (required in Fastify v5 — AsyncLocalStorage
  *                  does not propagate from preHandler to route handler).
@@ -42,22 +47,29 @@ import type { Prisma } from '@prisma/client';
  *
  * @example — Fastify route handler (pass context explicitly):
  *   fastify.get('/path', { preHandler: [tenantContextMiddleware] }, async (req) => {
- *     const workspaces = await withTenantDb((tx) => tx.workspace.findMany(), req.tenantContext);
+ *     const workspaces = await withTenantDb(
+ *       (db) => db.workspace.findMany(),
+ *       req.tenantContext
+ *     );
  *   });
  */
 export async function withTenantDb<T>(
-  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  fn: (db: InstanceType<typeof TenantPrismaClient>) => Promise<T>,
   context?: TenantContext
 ): Promise<T> {
   // Use explicit context when provided (required in Fastify v5 route handlers).
   // Fall back to AsyncLocalStorage for non-Fastify call sites.
   const { schemaName } = context ?? getTenantContext();
 
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // schemaName is derived from slug via toSchemaName() which replaces hyphens
-    // with underscores — only contains [a-z0-9_]. Safe for $executeRawUnsafe.
-    // Controlled exception per Decision Log ID-001 (same validation applies).
-    await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}",core,public`);
-    return fn(tx);
-  });
+  const baseUrl = process.env['DATABASE_URL'] ?? '';
+  const tenantUrl = baseUrl.includes('?')
+    ? `${baseUrl}&schema=${schemaName}`
+    : `${baseUrl}?schema=${schemaName}`;
+
+  const tenantDb = new TenantPrismaClient({ datasources: { db: { url: tenantUrl } } });
+  try {
+    return await fn(tenantDb);
+  } finally {
+    await tenantDb.$disconnect();
+  }
 }

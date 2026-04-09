@@ -8,7 +8,6 @@
 
 import { jwtVerify, errors as joseErrors } from 'jose';
 
-
 import { UnauthorizedError } from '../lib/app-error.js';
 import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
@@ -22,6 +21,9 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 // ---------------------------------------------------------------------------
 export interface AuthUser {
   id: string;
+  /** Original Keycloak user ID (JWT sub). Preserved after user-profile-resolver
+   *  replaces `id` with the internal user_profile.user_id. */
+  keycloakUserId: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -29,9 +31,17 @@ export interface AuthUser {
   roles: string[];
 }
 
+/**
+ * Symbol used to mark a request as pre-authenticated by a trusted internal source.
+ * Only code with access to this symbol can bypass JWT verification.
+ * External plugins cannot forge this — symbols are identity-based, not string-based.
+ */
+export const TRUSTED_AUTH_SYMBOL = Symbol.for('plexica:trusted-auth');
+
 declare module 'fastify' {
   interface FastifyRequest {
     user: AuthUser;
+    [key: symbol]: boolean;
   }
 }
 
@@ -79,8 +89,10 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
     audience: config.KEYCLOAK_CLIENT_ID,
   });
 
+  const sub = String(payload['sub'] ?? '');
   return {
-    id: String(payload['sub'] ?? ''),
+    id: sub,
+    keycloakUserId: sub,
     email: String(payload['email'] ?? ''),
     firstName: String(payload['given_name'] ?? ''),
     lastName: String(payload['family_name'] ?? ''),
@@ -90,6 +102,16 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
 }
 
 export async function authMiddleware(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+  // Allow bypass ONLY when a trusted internal source (identified by a Symbol
+  // that cannot be forged by external plugins) has pre-authenticated the request.
+  // This prevents untrusted code from escalating privileges by pre-setting request.user.
+  if (
+    request.user !== undefined &&
+    (request as Record<symbol, boolean>)[TRUSTED_AUTH_SYMBOL] === true
+  ) {
+    return;
+  }
+
   const token = extractBearerToken(request.headers.authorization);
   const payload = decodePayload(token);
   const realm = realmFromIssuer(String(payload['iss'] ?? ''));

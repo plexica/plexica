@@ -12,6 +12,7 @@ import { Menu } from 'lucide-react';
 import { useIntl } from 'react-intl';
 
 import { useMediaQuery } from '../../hooks/use-media-query.js';
+import { WorkspaceSelectorDropdown } from '../workspace/workspace-selector-dropdown.js';
 
 import { Breadcrumb } from './breadcrumb.js';
 import { UserMenu } from './user-menu.js';
@@ -60,8 +61,10 @@ export function Header({
         <Breadcrumb />
       </div>
 
-      {/* Right: search placeholder + user menu */}
+      {/* Right: workspace selector + search placeholder + user menu */}
       <div className="flex items-center gap-3">
+        <WorkspaceSelectorDropdown />
+
         <div
           role="search"
           aria-label={intl.formatMessage({ id: 'nav.search' })}

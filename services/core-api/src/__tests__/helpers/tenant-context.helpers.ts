@@ -6,6 +6,7 @@ import Fastify from 'fastify';
 
 import { configureErrorHandler } from '../../middleware/error-handler.js';
 import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
+import { TRUSTED_AUTH_SYMBOL } from '../../middleware/auth-middleware.js';
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AuthUser } from '../../middleware/auth-middleware.js';
@@ -18,6 +19,7 @@ export function makeAuthStub(realm: string): (request: FastifyRequest) => Promis
   return async (request: FastifyRequest): Promise<void> => {
     const user: AuthUser = {
       id: 'test-user-id',
+      keycloakUserId: 'test-user-id',
       email: 'test@example.com',
       firstName: 'Test',
       lastName: 'User',
@@ -25,6 +27,7 @@ export function makeAuthStub(realm: string): (request: FastifyRequest) => Promis
       roles: [],
     };
     request.user = user;
+    (request as Record<symbol, boolean>)[TRUSTED_AUTH_SYMBOL] = true;
   };
 }
 

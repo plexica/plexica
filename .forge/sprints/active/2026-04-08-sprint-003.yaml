@@ -1,0 +1,837 @@
+version: 1
+sprint_number: 3
+sprint_goal: 'Deliver full Spec 003 core features: workspace CRUD + hierarchy + templates, ABAC engine + decision log, workspace member management, invitation flow, user management + profile, tenant settings + branding + auth config, audit log (write + query), and full UI with integration + E2E test suite.'
+start_date: '2026-04-08'
+end_date: '2026-04-22'
+velocity_target: 322
+kanban_phase: 'Phase 2a'
+spec_id: '003-core-features'
+spec_path: '.forge/specs/003-core-features/spec.md'
+plan_path: '.forge/specs/003-core-features/plan.md'
+tasks_path: '.forge/specs/003-core-features/tasks.md'
+
+stories:
+  # ── Phase 1 — Foundation: Shared Libraries & Configuration (22 pts) ───────────
+  - id: '003-T01'
+    title: 'Create email library (nodemailer SMTP client)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T02'
+    title: 'Create file-upload library (size + MIME validation)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T03'
+    title: 'Create pagination library (PaginatedResult + buildPaginationClause)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T04'
+    title: 'Create slug library (generateSlug + collision handling)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T05'
+    title: 'Create crypto library (generateInviteToken)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T06'
+    title: 'Extend Keycloak admin library (user + realm config operations)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 3
+
+  - id: '003-T07'
+    title: 'Extend MinIO client library (uploadAvatar, uploadLogo, presigned URLs)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 3
+
+  - id: '003-T08'
+    title: 'Extend app config (ABAC_CACHE_TTL, INVITATION_EXPIRY_DAYS, file size limits)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T09'
+    title: 'Extend rate-limit config (invitation, upload, auth-config, settings routes)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T10'
+    title: 'Extend error classes (14 new error types)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  - id: '003-T11'
+    title: 'Install new npm packages (nodemailer, multipart, Radix, react-hook-form, zod)'
+    phase: 'Phase 1 — Foundation'
+    status: todo
+    points: 1
+
+  # ── Phase 2 — Database Migration & Prisma Schema (11 pts) ────────────────────
+  - id: '003-T12'
+    title: 'Write Prisma schema models (10 new tenant-schema models)'
+    phase: 'Phase 2 — Database Migration & Prisma Schema'
+    status: todo
+    points: 5
+
+  - id: '003-T13'
+    title: 'Write SQL migration file (003_core_features/migration.sql)'
+    phase: 'Phase 2 — Database Migration & Prisma Schema'
+    status: todo
+    points: 3
+
+  - id: '003-T14'
+    title: 'Write seed: built-in workspace templates (Team, Department, Project)'
+    phase: 'Phase 2 — Database Migration & Prisma Schema'
+    status: todo
+    points: 1
+
+  - id: '003-T15'
+    title: 'Write seed: default tenant branding'
+    phase: 'Phase 2 — Database Migration & Prisma Schema'
+    status: todo
+    points: 1
+
+  - id: '003-T16'
+    title: 'Extend tenant provisioning to seed templates + branding'
+    phase: 'Phase 2 — Database Migration & Prisma Schema'
+    status: todo
+    points: 1
+
+  # ── Phase 3 — ABAC Engine & Audit Log Writer (15 pts) ─────────────────────────
+  - id: '003-T17'
+    title: 'Define ABAC types (AbacContext, AbacDecision, PolicyRule)'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 1
+
+  - id: '003-T18'
+    title: 'Define ABAC policies (22-action registry + plugin resolution)'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 3
+
+  - id: '003-T19'
+    title: 'Implement ABAC engine (evaluate() with Redis cache, < 50ms P95)'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 5
+
+  - id: '003-T20'
+    title: 'Implement ABAC decision logger (fire-and-forget, sample rate)'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 1
+
+  - id: '003-T21'
+    title: 'Implement ABAC middleware (requireAbac() factory, cache invalidation)'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 3
+
+  - id: '003-T22'
+    title: 'Implement audit log writer (fire-and-forget writeAuditLog())'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 1
+
+  - id: '003-T23'
+    title: 'Define audit log action types registry'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 1
+
+  - id: '003-T24'
+    title: 'Define shared domain types (AuditLogEntry, AuditLogDto, AuditLogFilters)'
+    phase: 'Phase 3 — ABAC Engine & Audit Log Writer'
+    status: todo
+    points: 1
+
+  # ── Phase 4 — Workspace Module (Backend) (17 pts) ────────────────────────────
+  - id: '003-T25'
+    title: 'Define workspace types & Zod schemas'
+    phase: 'Phase 4 — Workspace Module (Backend)'
+    status: todo
+    points: 3
+
+  - id: '003-T26'
+    title: 'Implement workspace repository (GIN/B-tree aware queries)'
+    phase: 'Phase 4 — Workspace Module (Backend)'
+    status: todo
+    points: 3
+
+  - id: '003-T27'
+    title: 'Implement workspace service (CRUD, hierarchy, archive, restore, reparent)'
+    phase: 'Phase 4 — Workspace Module (Backend)'
+    status: todo
+    points: 5
+
+  - id: '003-T28'
+    title: 'Implement workspace routes (11 routes + ABAC middleware)'
+    phase: 'Phase 4 — Workspace Module (Backend)'
+    status: todo
+    points: 3
+
+  # ── Phase 5 — Workspace Member Module (Backend) (8 pts) ──────────────────────
+  - id: '003-T29'
+    title: 'Define workspace-member types & schemas (admin/member/viewer roles)'
+    phase: 'Phase 5 — Workspace Member Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T30'
+    title: 'Implement workspace-member repository'
+    phase: 'Phase 5 — Workspace Member Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T31'
+    title: 'Implement workspace-member service (add/remove/role-change + ABAC invalidation)'
+    phase: 'Phase 5 — Workspace Member Module (Backend)'
+    status: todo
+    points: 3
+
+  - id: '003-T32'
+    title: 'Implement workspace-member routes (4 routes + ABAC)'
+    phase: 'Phase 5 — Workspace Member Module (Backend)'
+    status: todo
+    points: 3
+
+  # ── Phase 6 — Invitation Module (Backend) (12 pts) ───────────────────────────
+  - id: '003-T33'
+    title: 'Define invitation types & schemas (email, token, 7-day expiry)'
+    phase: 'Phase 6 — Invitation Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T34'
+    title: 'Implement invitation repository'
+    phase: 'Phase 6 — Invitation Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T35'
+    title: 'Implement invitation service (create, accept, resend — KC + profile + member)'
+    phase: 'Phase 6 — Invitation Module (Backend)'
+    status: todo
+    points: 5
+
+  - id: '003-T36'
+    title: 'Implement invitation routes (4 routes, accept is public)'
+    phase: 'Phase 6 — Invitation Module (Backend)'
+    status: todo
+    points: 3
+
+  # ── Phase 7 — User Management Module (Backend) (12 pts) ──────────────────────
+  - id: '003-T37'
+    title: 'Define user-management types & schemas (TenantUserDto, RemoveUserSchema)'
+    phase: 'Phase 7 — User Management Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T38'
+    title: 'Implement user-management repository (list, find, reassign)'
+    phase: 'Phase 7 — User Management Module (Backend)'
+    status: todo
+    points: 3
+
+  - id: '003-T39'
+    title: 'Implement user-management service (list, remove with reassignment, roles matrix)'
+    phase: 'Phase 7 — User Management Module (Backend)'
+    status: todo
+    points: 5
+
+  - id: '003-T40'
+    title: 'Implement user-management routes (5 routes + ABAC)'
+    phase: 'Phase 7 — User Management Module (Backend)'
+    status: todo
+    points: 3
+
+  # ── Phase 8 — User Profile Module (Backend) (7 pts) ──────────────────────────
+  - id: '003-T41'
+    title: 'Define user-profile types & schemas (UpdateProfileSchema, avatar validation)'
+    phase: 'Phase 8 — User Profile Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T42'
+    title: 'Implement user-profile repository (findByUserId, upsert, updateAvatarUrl)'
+    phase: 'Phase 8 — User Profile Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T43'
+    title: 'Implement user-profile service (getProfile, updateProfile, uploadAvatar)'
+    phase: 'Phase 8 — User Profile Module (Backend)'
+    status: todo
+    points: 3
+
+  - id: '003-T44'
+    title: 'Implement user-profile routes (3 routes, multipart avatar)'
+    phase: 'Phase 8 — User Profile Module (Backend)'
+    status: todo
+    points: 1
+
+  # ── Phase 9 — Tenant Settings Module (Backend) (12 pts) ──────────────────────
+  - id: '003-T45'
+    title: 'Define tenant-settings types & schemas (settings, branding, auth config)'
+    phase: 'Phase 9 — Tenant Settings Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T46'
+    title: 'Implement tenant-settings repository (core + branding tables)'
+    phase: 'Phase 9 — Tenant Settings Module (Backend)'
+    status: todo
+    points: 1
+
+  - id: '003-T47'
+    title: 'Implement tenant-settings service (settings, branding, KC realm auth config)'
+    phase: 'Phase 9 — Tenant Settings Module (Backend)'
+    status: todo
+    points: 5
+
+  - id: '003-T48'
+    title: 'Implement tenant-settings routes (6 routes, multipart logo, ABAC)'
+    phase: 'Phase 9 — Tenant Settings Module (Backend)'
+    status: todo
+    points: 3
+
+  # ── Phase 10 — Audit Log Query Module (Backend) (4 pts) ──────────────────────
+  - id: '003-T49'
+    title: 'Implement audit-log service + repository + schema (paginated query, GIN index)'
+    phase: 'Phase 10 — Audit Log Query Module (Backend)'
+    status: todo
+    points: 3
+
+  - id: '003-T50'
+    title: 'Implement audit-log routes (2 routes: query + action-types)'
+    phase: 'Phase 10 — Audit Log Query Module (Backend)'
+    status: todo
+    points: 1
+
+  # ── Phase 11 — Route Registration & API Integration (3 pts) ──────────────────
+  - id: '003-T51'
+    title: 'Register all 8 new module routes in app entry (tenant-scoped plugin scope)'
+    phase: 'Phase 11 — Route Registration & API Integration'
+    status: todo
+    points: 3
+
+  # ── Phase 12 — Shared UI Components (@plexica/ui) (22 pts) ───────────────────
+  - id: '003-T52'
+    title: 'Create ConfirmDialog component (warning/destructive variants, WCAG 2.1 AA)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 3
+
+  - id: '003-T53'
+    title: 'Create FileUpload component (drag-drop, preview, accessible errors)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 3
+
+  - id: '003-T54'
+    title: 'Create ToggleSwitch component (Radix Switch, WCAG 2.1 AA)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T55'
+    title: 'Create DateRangePicker component (calendar popover, keyboard navigation)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 3
+
+  - id: '003-T56'
+    title: 'Create InlineFilter component (horizontal filter bar, sub-filter types)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 3
+
+  - id: '003-T57'
+    title: 'Create Pagination component (keyboard accessible, ARIA)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T58'
+    title: 'Create Select component (Radix UI Select, WCAG 2.1 AA)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T59'
+    title: 'Create Badge component (admin/member/viewer/pending/success/error variants)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T60'
+    title: 'Create Tabs component (Radix UI Tabs, keyboard navigation)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T61'
+    title: 'Create Textarea component (label, error state)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T62'
+    title: 'Create Popover component (Radix UI Popover)'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  - id: '003-T63'
+    title: 'Re-export all 11 new UI components from @plexica/ui index'
+    phase: 'Phase 12 — Shared UI Components'
+    status: todo
+    points: 1
+
+  # ── Phase 13 — Frontend Types, Store & API Client (21 pts) ───────────────────
+  - id: '003-T64'
+    title: 'Create workspace TypeScript types (Workspace, WorkspaceTreeNode, etc.)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T65'
+    title: 'Create user-management TypeScript types (TenantUser, Invitation, Role, etc.)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T66'
+    title: 'Create settings TypeScript types (TenantSettings, TenantBranding, AuthConfig)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T67'
+    title: 'Create audit log TypeScript types (AuditLogEntry, AuditLogFilters)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T68'
+    title: 'Create workspace Zustand store (currentWorkspaceId, setCurrentWorkspace)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T69'
+    title: 'Extend auth store with tenantRole field'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T70'
+    title: 'Extend auth types (AuthUser + tenantRole)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 1
+
+  - id: '003-T71'
+    title: 'Add API client functions (32 typed endpoints across all 7 modules)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 5
+
+  - id: '003-T72'
+    title: 'Add i18n translation keys (~180 new keys for all new screens)'
+    phase: 'Phase 13 — Frontend Types, Store & API Client'
+    status: todo
+    points: 3
+
+  # ── Phase 14 — Frontend TanStack Query Hooks (11 pts) ─────────────────────────
+  - id: '003-T73'
+    title: 'Create workspace hooks (useWorkspaces, useCreateWorkspace, useReparentWorkspace, etc.)'
+    phase: 'Phase 14 — Frontend TanStack Query Hooks'
+    status: todo
+    points: 3
+
+  - id: '003-T74'
+    title: 'Create user & invitation hooks (useUsers, useSendInvite, useRoles, etc.)'
+    phase: 'Phase 14 — Frontend TanStack Query Hooks'
+    status: todo
+    points: 3
+
+  - id: '003-T75'
+    title: 'Create tenant settings hooks (useTenantSettings, useBranding, useAuthConfig, etc.)'
+    phase: 'Phase 14 — Frontend TanStack Query Hooks'
+    status: todo
+    points: 3
+
+  - id: '003-T76'
+    title: 'Create user profile hooks (useProfile, useUpdateProfile, useUploadAvatar)'
+    phase: 'Phase 14 — Frontend TanStack Query Hooks'
+    status: todo
+    points: 1
+
+  - id: '003-T77'
+    title: 'Create audit log hooks (useAuditLog, useAuditActionTypes)'
+    phase: 'Phase 14 — Frontend TanStack Query Hooks'
+    status: todo
+    points: 1
+
+  - id: '003-T78'
+    title: 'Create ABAC UI hook (useAbac for client-side permission gating)'
+    phase: 'Phase 14 — Frontend TanStack Query Hooks'
+    status: todo
+    points: 1
+
+  # ── Phase 15 — Frontend Pages & Layout Components (33 pts) ───────────────────
+  - id: '003-T79'
+    title: 'Build WorkspaceListPage (tree view, search, status filter)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T80'
+    title: 'Build WorkspaceDetailPage (info panel, children, members preview)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T81'
+    title: 'Build WorkspaceSettingsPage (edit, danger zone, reparent)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T82'
+    title: 'Build WorkspaceMembersPage (member list, add, remove, role change, invitations)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T83'
+    title: 'Build WorkspaceTemplatesPage (built-in + custom templates, create dialog)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T84'
+    title: 'Build UserListPage (paginated directory, search, RemoveUserDialog)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T85'
+    title: 'Build RoleManagementPage (role cards + action matrix + CSV export)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T86'
+    title: 'Build PermissionAssociationPage (inline role selector, ABAC gating)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T87'
+    title: 'Build TenantSettingsPage (display name edit, slug read-only)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T88'
+    title: 'Build TenantBrandingPage (logo upload, color picker, dark mode toggle, live preview)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T89'
+    title: 'Build TenantAuthConfigPage (MFA toggle, IdP list, session settings)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T90'
+    title: 'Build ProfilePage (avatar upload, display name, timezone, language, notifications)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  - id: '003-T91'
+    title: 'Build AuditLogPage (paginated table, filters, expandable rows)'
+    phase: 'Phase 15 — Frontend Pages & Layout Components'
+    status: todo
+    points: 3
+
+  # ── Phase 16 — Frontend Feature Components (23 pts) ───────────────────────────
+  - id: '003-T92'
+    title: 'Create WorkspaceTree component (hierarchical, keyboard navigation, WCAG 2.1 AA)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T93'
+    title: 'Create WorkspaceSelectorDropdown component (header switcher, searchable)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T94'
+    title: 'Create CreateWorkspaceDialog component (name, description, parent, template)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T95'
+    title: 'Create TemplateCard + ChildWorkspaceEditor + CreateTemplateDialog'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T96'
+    title: 'Create AddMemberDialog component (search existing users + invite new by email)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T97'
+    title: 'Create RemoveUserDialog component (workspace reassignment selector)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T98'
+    title: 'Create RoleCard + ActionMatrixTable components (22×4 matrix, CSV export)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T99'
+    title: 'Create PermissionAssociationPanel component (member list, inline role selector)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 3
+
+  - id: '003-T100'
+    title: 'Create ColorPicker component (react-colorful + hex text input)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 1
+
+  - id: '003-T101'
+    title: 'Create ExpandableRow component (audit log, collapsed/expanded states)'
+    phase: 'Phase 16 — Frontend Feature Components'
+    status: todo
+    points: 1
+
+  # ── Phase 17 — Routing & Layout Integration (7 pts) ───────────────────────────
+  - id: '003-T102'
+    title: 'Add 13 new TanStack Router routes (workspaces, users, settings, audit, profile)'
+    phase: 'Phase 17 — Routing & Layout Integration'
+    status: todo
+    points: 3
+
+  - id: '003-T103'
+    title: 'Update header layout (add WorkspaceSelectorDropdown)'
+    phase: 'Phase 17 — Routing & Layout Integration'
+    status: todo
+    points: 1
+
+  - id: '003-T104'
+    title: 'Update sidebar layout (add nav items + role-based visibility)'
+    phase: 'Phase 17 — Routing & Layout Integration'
+    status: todo
+    points: 3
+
+  # ── Phase 18 — Integration Tests (Vitest) (22 pts) ────────────────────────────
+  - id: '003-T105'
+    title: 'Write workspace integration tests (INT-01: CRUD, hierarchy, archive, restore, reparent)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 5
+
+  - id: '003-T106'
+    title: 'Write workspace-member integration tests (INT-02: add/remove/role-change, ABAC cache)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T107'
+    title: 'Write invitation integration tests (INT-03: invite, accept, expire, resend)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T108'
+    title: 'Write user-management integration tests (INT-04: list, remove, reassign, KC disable)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T109'
+    title: 'Write user-profile integration tests (INT-05: GET/PATCH, avatar, KC sync)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T110'
+    title: 'Write tenant-settings integration tests (INT-06: settings, branding, auth config)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T111'
+    title: 'Write audit-log integration tests (INT-07: filters, pagination, action types)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T112'
+    title: 'Write ABAC engine integration tests (INT-08: all 22 actions, cache, decision log)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 5
+
+  - id: '003-T113'
+    title: 'Write ABAC workspace isolation integration tests (INT-09: cross-workspace 403s)'
+    phase: 'Phase 18 — Integration Tests (Vitest)'
+    status: todo
+    points: 3
+
+  # ── Phase 19 — Unit Tests (Vitest) (9 pts) ────────────────────────────────────
+  - id: '003-T114'
+    title: 'Write workspace service unit tests (path calc, cycle detection, depth, slug)'
+    phase: 'Phase 19 — Unit Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T115'
+    title: 'Write ABAC engine unit tests (88 action×role cases, admin bypass, sample rate)'
+    phase: 'Phase 19 — Unit Tests (Vitest)'
+    status: todo
+    points: 3
+
+  - id: '003-T116'
+    title: 'Write invitation service unit tests (entropy, expiry, email template)'
+    phase: 'Phase 19 — Unit Tests (Vitest)'
+    status: todo
+    points: 1
+
+  - id: '003-T117'
+    title: 'Write file-upload validation unit tests (size boundary, MIME allowlist)'
+    phase: 'Phase 19 — Unit Tests (Vitest)'
+    status: todo
+    points: 1
+
+  - id: '003-T118'
+    title: 'Write Zod schema validation unit tests (slug, hex color, IANA tz, ISO 639-1)'
+    phase: 'Phase 19 — Unit Tests (Vitest)'
+    status: todo
+    points: 3
+
+  # ── Phase 20 — E2E Tests (Playwright) (27 pts) ────────────────────────────────
+  - id: '003-T119'
+    title: 'Write workspace CRUD E2E tests (E2E-01: create, view, update, delete, restore)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 5
+
+  - id: '003-T120'
+    title: 'Write workspace hierarchy E2E tests (E2E-02: tree nav, reparent, depth limit)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T121'
+    title: 'Write workspace members E2E tests (E2E-03: add, role change, remove)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T122'
+    title: 'Write invitation flow E2E tests (E2E-04: invite, Mailpit, accept, expire, resend)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 5
+
+  - id: '003-T123'
+    title: 'Write user management E2E tests (E2E-05: list, remove, reassign, login check)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T124'
+    title: 'Write RBAC permissions E2E tests (E2E-06: viewer/member/admin role enforcement)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T125'
+    title: 'Write tenant settings E2E tests (E2E-07: name, logo, color, dark mode, MFA toggle)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 5
+
+  - id: '003-T126'
+    title: 'Write user profile E2E tests (E2E-08: display name, avatar, timezone, language)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T127'
+    title: 'Write audit log E2E tests (E2E-09: actions, entries, filters, expand row)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T128'
+    title: 'Write workspace templates E2E tests (E2E-10: built-in read-only, custom, instantiate)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T129'
+    title: 'Write role management E2E tests (E2E-11: role cards, matrix, CSV export)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  - id: '003-T130'
+    title: 'Write permission association E2E tests (E2E-12: inline role change, non-admin gated)'
+    phase: 'Phase 20 — E2E Tests (Playwright)'
+    status: todo
+    points: 3
+
+  # ── Phase 21 — Polish & Quality (7 pts) ───────────────────────────────────────
+  - id: '003-T131'
+    title: 'WCAG 2.1 AA accessibility audit (axe-core via Playwright, 0 violations target)'
+    phase: 'Phase 21 — Polish & Quality'
+    status: todo
+    points: 3
+
+  - id: '003-T132'
+    title: 'Performance baseline measurement (ABAC < 50ms, list < 200ms, audit < 500ms P95)'
+    phase: 'Phase 21 — Polish & Quality'
+    status: todo
+    points: 3
+
+  - id: '003-T133'
+    title: 'Run /forge-review adversarial review (address all HIGH findings before merge)'
+    phase: 'Phase 21 — Polish & Quality'
+    status: todo
+    points: 3
+
+  - id: '003-T134'
+    title: 'Update decision log with Spec 003 implementation decisions'
+    phase: 'Phase 21 — Polish & Quality'
+    status: todo
+    points: 1

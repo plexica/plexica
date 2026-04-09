@@ -31,6 +31,25 @@ const configSchema = z.object({
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().default(1025),
 
+  // ABAC
+  ABAC_CACHE_TTL_SECONDS: z.coerce.number().int().default(300),
+  ABAC_DECISION_LOG_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1.0),
+
+  // Invitations
+  INVITATION_EXPIRY_DAYS: z.coerce.number().int().default(7),
+  APP_URL: z.string().default('http://localhost:5173'),
+
+  // File uploads (in bytes)
+  AVATAR_MAX_BYTES: z.coerce.number().int().default(1_048_576), // 1MB
+  LOGO_MAX_BYTES: z.coerce.number().int().default(2_097_152), // 2MB
+
+  // SMTP sender address
+  SMTP_FROM: z.string().default('noreply@plexica.io'),
+
+  // Global rate limit — max requests per time window (default 100).
+  // Increase for E2E / load-test environments where a single IP fires many requests.
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
+
   // JWKS cache TTL in milliseconds (default 1 hour)
   JWKS_CACHE_TTL_MS: z.coerce.number().int().default(3_600_000),
 

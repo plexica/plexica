@@ -2,10 +2,13 @@
 // Thin MinIO client wrapper for tenant bucket lifecycle management.
 // Bucket-per-tenant: private policy, isolated object storage.
 
+
 import { Client as MinioClient } from 'minio';
 
 import { config } from './config.js';
 import { logger } from './logger.js';
+
+import type { Readable } from 'node:stream';
 
 function createMinioClient(): MinioClient {
   // Parse the full URL (e.g. "http://localhost:9000") so that the scheme,
@@ -71,4 +74,48 @@ export async function deleteBucket(bucketName: string): Promise<void> {
 
   await minio.removeBucket(bucketName);
   logger.info({ bucketName }, 'MinIO bucket deleted');
+}
+
+/**
+ * Uploads a user avatar to the tenant bucket.
+ * Stored at key `avatars/{userId}`.
+ * Returns the object key.
+ */
+export async function uploadAvatar(
+  tenantSlug: string,
+  userId: string,
+  stream: Readable,
+  mimeType: string,
+  size: number
+): Promise<string> {
+  const bucketName = `tenant-${tenantSlug}`;
+  const objectKey = `avatars/${userId}`;
+  await minio.putObject(bucketName, objectKey, stream, size, { 'Content-Type': mimeType });
+  logger.info({ bucketName, objectKey }, 'Avatar uploaded to MinIO');
+  return objectKey;
+}
+
+/**
+ * Uploads a tenant logo to the tenant bucket.
+ * Stored at key `logo`.
+ * Returns the object key.
+ */
+export async function uploadLogo(
+  tenantSlug: string,
+  stream: Readable,
+  mimeType: string,
+  size: number
+): Promise<string> {
+  const bucketName = `tenant-${tenantSlug}`;
+  const objectKey = 'logo';
+  await minio.putObject(bucketName, objectKey, stream, size, { 'Content-Type': mimeType });
+  logger.info({ bucketName, objectKey }, 'Logo uploaded to MinIO');
+  return objectKey;
+}
+
+/**
+ * Returns a presigned GET URL valid for 1 hour (3600 seconds).
+ */
+export async function getPresignedReadUrl(bucketName: string, objectKey: string): Promise<string> {
+  return minio.presignedGetObject(bucketName, objectKey, 3600);
 }
