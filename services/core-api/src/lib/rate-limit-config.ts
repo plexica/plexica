@@ -4,10 +4,10 @@
 // Centralised here so any change to error shape or key strategy is applied
 // consistently across production and tests.
 
+import { config } from './config.js';
+
 import type { FastifyRequest } from 'fastify';
 import type { errorResponseBuilderContext } from '@fastify/rate-limit';
-
-import { config } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Global default: RATE_LIMIT_MAX req / 1 min per key (IP in public scope,
