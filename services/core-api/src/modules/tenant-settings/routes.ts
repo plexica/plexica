@@ -2,10 +2,11 @@
 // Fastify plugin — tenant settings, branding, and auth-config routes.
 // All routes require auth + tenant context + ABAC check.
 // Implements: Spec 003, Phase 9
+//
+// NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
+// registered as scope-level addHook('preHandler', ...) in index.ts and run
+// automatically for every route in this plugin. Do NOT re-add them here.
 
-
-import { authMiddleware } from '../../middleware/auth-middleware.js';
-import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { ValidationError } from '../../lib/app-error.js';
@@ -17,13 +18,11 @@ import { getBranding, updateBranding } from './service-branding.js';
 import type { FastifyInstance } from 'fastify';
 import type { UpdateBrandingInput } from './types.js';
 
-const pre = [authMiddleware, tenantContextMiddleware];
-
 export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/tenant/settings ──────────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/settings',
-    { preHandler: [...pre, requireAbac('settings:read')] },
+    { preHandler: [requireAbac('settings:read')] },
     async (request) => {
       return getSettings(request.tenantContext);
     }
@@ -32,7 +31,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── PATCH /api/v1/tenant/settings ────────────────────────────────────────
   fastify.patch(
     '/api/v1/tenant/settings',
-    { preHandler: [...pre, requireAbac('settings:update')] },
+    { preHandler: [requireAbac('settings:update')] },
     async (request) => {
       const parsed = updateSettingsSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -48,7 +47,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── GET /api/v1/tenant/branding ──────────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/branding',
-    { preHandler: [...pre, requireAbac('settings:read')] },
+    { preHandler: [requireAbac('settings:read')] },
     async (request) => {
       return withTenantDb((tx) => getBranding(tx, request.tenantContext), request.tenantContext);
     }
@@ -57,7 +56,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── PATCH /api/v1/tenant/branding ────────────────────────────────────────
   fastify.patch(
     '/api/v1/tenant/branding',
-    { preHandler: [...pre, requireAbac('branding:update')] },
+    { preHandler: [requireAbac('branding:update')] },
     async (request) => {
       if (request.isMultipart()) {
         const parts = request.parts();
@@ -103,7 +102,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── GET /api/v1/tenant/auth-config ───────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/auth-config',
-    { preHandler: [...pre, requireAbac('auth:config-read')] },
+    { preHandler: [requireAbac('auth:config-read')] },
     async (request) => {
       return getAuthConfig(request.tenantContext);
     }
@@ -112,7 +111,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── PATCH /api/v1/tenant/auth-config ─────────────────────────────────────
   fastify.patch(
     '/api/v1/tenant/auth-config',
-    { preHandler: [...pre, requireAbac('auth:config-update')] },
+    { preHandler: [requireAbac('auth:config-update')] },
     async (request) => {
       const parsed = updateAuthConfigSchema.safeParse(request.body);
       if (!parsed.success) {

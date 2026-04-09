@@ -1,9 +1,13 @@
 // routes.ts
 // Invitation module Fastify plugin — registers all invitation routes.
 // The public accept endpoint requires tenantContextMiddleware but NO auth.
+//
+// NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
+// registered as scope-level addHook('preHandler', ...) in index.ts and run
+// automatically for every route in invitationRoutes. Do NOT re-add them here.
+// invitationPublicRoutes is registered OUTSIDE the tenant scope and retains
+// its explicit [tenantContextMiddleware] preHandler.
 
-
-import { authMiddleware } from '../../middleware/auth-middleware.js';
 import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { requireAbac } from '../../middleware/abac.js';
 import { ForbiddenError, ValidationError } from '../../lib/app-error.js';
@@ -20,13 +24,11 @@ import { acceptInvitationService } from './service-accept.js';
 import type { FastifyInstance } from 'fastify';
 import type { ListInvitationsFilters } from './types.js';
 
-const auth = [authMiddleware, tenantContextMiddleware];
-
 export async function invitationRoutes(fastify: FastifyInstance): Promise<void> {
   // ── List invitations for a workspace ─────────────────────────────────────
   fastify.get(
     '/api/v1/workspaces/:id/invitations',
-    { preHandler: [...auth, requireAbac('invitation:list')] },
+    { preHandler: [requireAbac('invitation:list')] },
     async (req) => {
       const { id } = req.params as { id: string };
       const parsed = invitationListQuerySchema.safeParse(req.query);
@@ -41,7 +43,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
   );
 
   // ── Send invitation (tenant_admin or workspace admin) ─────────────────────
-  fastify.post('/api/v1/users/invite', { preHandler: auth }, async (req, reply) => {
+  fastify.post('/api/v1/users/invite', {}, async (req, reply) => {
     const parsed = createInvitationSchema.safeParse(req.body);
     if (!parsed.success)
       throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
@@ -79,7 +81,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
   // ── Resend invitation ────────────────────────────────────────────────────
   fastify.post(
     '/api/v1/invitations/:id/resend',
-    { preHandler: [...auth, requireAbac('invitation:resend')] },
+    { preHandler: [requireAbac('invitation:resend')] },
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb(

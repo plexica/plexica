@@ -2,10 +2,11 @@
 // Fastify plugin — registers all user-management routes.
 // All routes require authentication and a valid tenant context.
 // Tenant-admin-only routes perform an explicit role check.
+//
+// NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
+// registered as scope-level addHook('preHandler', ...) in index.ts and run
+// automatically for every route in this plugin. Do NOT re-add them here.
 
-
-import { authMiddleware } from '../../middleware/auth-middleware.js';
-import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { ForbiddenError, ValidationError } from '../../lib/app-error.js';
 
@@ -21,8 +22,6 @@ import {
 import type { UserListFilters } from './types.js';
 import type { FastifyInstance } from 'fastify';
 
-const pre = [authMiddleware, tenantContextMiddleware];
-
 function requireTenantAdmin(roles: string[]): void {
   if (!roles.includes('tenant_admin')) {
     throw new ForbiddenError('Tenant admin role required');
@@ -31,7 +30,7 @@ function requireTenantAdmin(roles: string[]): void {
 
 export async function userManagementRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /api/v1/users — paginated tenant user list (tenant_admin only)
-  fastify.get('/api/v1/users', { preHandler: pre }, async (req) => {
+  fastify.get('/api/v1/users', {}, async (req) => {
     requireTenantAdmin(req.user.roles);
 
     const parsed = userListQuerySchema.safeParse(req.query);
@@ -51,7 +50,7 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
   });
 
   // DELETE /api/v1/users/:id — remove user from tenant (tenant_admin only)
-  fastify.delete('/api/v1/users/:id', { preHandler: pre }, async (req, reply) => {
+  fastify.delete('/api/v1/users/:id', {}, async (req, reply) => {
     requireTenantAdmin(req.user.roles);
 
     const { id } = req.params as { id: string };
@@ -67,7 +66,7 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
   });
 
   // GET /api/v1/users/:id/workspaces — workspace memberships for a user (tenant_admin only)
-  fastify.get('/api/v1/users/:id/workspaces', { preHandler: pre }, async (req) => {
+  fastify.get('/api/v1/users/:id/workspaces', {}, async (req) => {
     requireTenantAdmin(req.user.roles);
 
     const { id } = req.params as { id: string };
@@ -76,12 +75,12 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
   });
 
   // GET /api/v1/roles — list all roles with metadata (any authenticated tenant user)
-  fastify.get('/api/v1/roles', { preHandler: pre }, async () => {
+  fastify.get('/api/v1/roles', {}, async () => {
     return listRoles();
   });
 
   // GET /api/v1/roles/action-matrix — full ABAC action matrix (any authenticated tenant user)
-  fastify.get('/api/v1/roles/action-matrix', { preHandler: pre }, async () => {
+  fastify.get('/api/v1/roles/action-matrix', {}, async () => {
     return getActionMatrix();
   });
 }

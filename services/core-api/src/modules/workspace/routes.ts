@@ -1,10 +1,13 @@
 // routes.ts
 // Workspace module Fastify plugin — registers all workspace and template routes.
 // Template routes are registered BEFORE /:id routes to avoid param shadowing.
+//
+// NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
+// registered as scope-level addHook('preHandler', ...) in index.ts and run
+// automatically for every route in this plugin. Do NOT re-add them here —
+// doing so would run authMiddleware twice per request, overwriting the internal
+// user_profile.user_id that userProfileResolver sets back to the Keycloak sub.
 
-
-import { authMiddleware } from '../../middleware/auth-middleware.js';
-import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { requireAbac } from '../../middleware/abac.js';
 import { redis } from '../../lib/redis.js';
 import { ValidationError } from '../../lib/app-error.js';
@@ -32,13 +35,11 @@ import { findTemplates, findTemplateById, createTemplate } from './repository-te
 
 import type { FastifyInstance } from 'fastify';
 
-const pre = [authMiddleware, tenantContextMiddleware];
-
 export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
   // ── Template routes (MUST come before /:id) ──────────────────────────────
   fastify.get(
     '/api/v1/workspaces/templates',
-    { preHandler: [...pre, requireAbac('workspace:read')] },
+    { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       return withTenantDb((tx) => findTemplates(tx), req.tenantContext);
     }
@@ -46,7 +47,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.post(
     '/api/v1/workspaces/templates',
-    { preHandler: [...pre, requireAbac('workspace:create')] },
+    { preHandler: [requireAbac('workspace:create')] },
     async (req, reply) => {
       const parsed = createTemplateSchema.safeParse(req.body);
       if (!parsed.success)
@@ -68,7 +69,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.get(
     '/api/v1/workspaces/templates/:templateId',
-    { preHandler: [...pre, requireAbac('workspace:read')] },
+    { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       const { templateId } = req.params as { templateId: string };
       return withTenantDb((tx) => findTemplateById(tx, templateId), req.tenantContext);
@@ -78,7 +79,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
   // ── Workspace list & create ───────────────────────────────────────────────
   fastify.get(
     '/api/v1/workspaces',
-    { preHandler: [...pre, requireAbac('workspace:read')] },
+    { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       const parsed = workspaceListQuerySchema.safeParse(req.query);
       if (!parsed.success)
@@ -97,7 +98,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.post(
     '/api/v1/workspaces',
-    { preHandler: [...pre, requireAbac('workspace:create')] },
+    { preHandler: [requireAbac('workspace:create')] },
     async (req, reply) => {
       const parsed = createWorkspaceSchema.safeParse(req.body);
       if (!parsed.success)
@@ -113,7 +114,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
   // ── Single workspace ──────────────────────────────────────────────────────
   fastify.get(
     '/api/v1/workspaces/:id',
-    { preHandler: [...pre, requireAbac('workspace:read')] },
+    { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb((tx) => getWorkspaceService(tx, id, req.user.id), req.tenantContext);
@@ -122,7 +123,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.patch(
     '/api/v1/workspaces/:id',
-    { preHandler: [...pre, requireAbac('workspace:update')] },
+    { preHandler: [requireAbac('workspace:update')] },
     async (req) => {
       const { id } = req.params as { id: string };
       const parsed = updateWorkspaceSchema.safeParse(req.body);
@@ -139,7 +140,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.delete(
     '/api/v1/workspaces/:id',
-    { preHandler: [...pre, requireAbac('workspace:delete')] },
+    { preHandler: [requireAbac('workspace:delete')] },
     async (req, reply) => {
       const { id } = req.params as { id: string };
       await withTenantDb(
@@ -153,7 +154,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
   // ── Workspace actions ─────────────────────────────────────────────────────
   fastify.post(
     '/api/v1/workspaces/:id/restore',
-    { preHandler: [...pre, requireAbac('workspace:restore')] },
+    { preHandler: [requireAbac('workspace:restore')] },
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb(
@@ -165,7 +166,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.post(
     '/api/v1/workspaces/:id/reparent',
-    { preHandler: [...pre, requireAbac('workspace:reparent')] },
+    { preHandler: [requireAbac('workspace:reparent')] },
     async (req) => {
       const { id } = req.params as { id: string };
       const parsed = reparentSchema.safeParse(req.body);
@@ -188,7 +189,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.get(
     '/api/v1/workspaces/:id/hierarchy',
-    { preHandler: [...pre, requireAbac('workspace:read')] },
+    { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb((tx) => getWorkspaceService(tx, id, req.user.id), req.tenantContext);

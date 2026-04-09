@@ -1,10 +1,11 @@
 // routes.ts
 // Fastify plugin — workspace member routes.
 // Implements: WS-003 (Workspace Member Management)
+//
+// NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
+// registered as scope-level addHook('preHandler', ...) in index.ts and run
+// automatically for every route in this plugin. Do NOT re-add them here.
 
-
-import { authMiddleware } from '../../middleware/auth-middleware.js';
-import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { requireAbac } from '../../middleware/abac.js';
 import { ValidationError } from '../../lib/app-error.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
@@ -15,13 +16,11 @@ import { listMembers, addMember, removeMember, changeMemberRole } from './servic
 import type { FastifyInstance } from 'fastify';
 import type { MemberListFilters } from './types.js';
 
-const pre = [authMiddleware, tenantContextMiddleware];
-
 export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /api/v1/workspaces/:id/members
   fastify.get(
     '/api/v1/workspaces/:id/members',
-    { preHandler: [...pre, requireAbac('member:list')] },
+    { preHandler: [requireAbac('member:list')] },
     async (req) => {
       const { id } = req.params as { id: string };
       const parsed = memberListQuerySchema.safeParse(req.query);
@@ -37,7 +36,7 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
   // POST /api/v1/workspaces/:id/members
   fastify.post(
     '/api/v1/workspaces/:id/members',
-    { preHandler: [...pre, requireAbac('member:invite')] },
+    { preHandler: [requireAbac('member:invite')] },
     async (req, reply) => {
       const { id } = req.params as { id: string };
       const parsed = addMemberSchema.safeParse(req.body);
@@ -62,7 +61,7 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
   // DELETE /api/v1/workspaces/:id/members/:userId
   fastify.delete(
     '/api/v1/workspaces/:id/members/:userId',
-    { preHandler: [...pre, requireAbac('member:remove')] },
+    { preHandler: [requireAbac('member:remove')] },
     async (req, reply) => {
       const { id, userId } = req.params as { id: string; userId: string };
       await withTenantDb(
@@ -76,7 +75,7 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
   // PATCH /api/v1/workspaces/:id/members/:userId
   fastify.patch(
     '/api/v1/workspaces/:id/members/:userId',
-    { preHandler: [...pre, requireAbac('member:role-change')] },
+    { preHandler: [requireAbac('member:role-change')] },
     async (req) => {
       const { id, userId } = req.params as { id: string; userId: string };
       const parsed = changeMemberRoleSchema.safeParse(req.body);

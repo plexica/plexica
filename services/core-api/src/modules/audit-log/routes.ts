@@ -2,9 +2,11 @@
 // Fastify plugin — audit log query routes.
 // All routes require auth + tenant context + ABAC check.
 // Implements: Spec 003, Phase 10
+//
+// NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
+// registered as scope-level addHook('preHandler', ...) in index.ts and run
+// automatically for every route in this plugin. Do NOT re-add them here.
 
-import { authMiddleware } from '../../middleware/auth-middleware.js';
-import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
 import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { ValidationError } from '../../lib/app-error.js';
@@ -15,13 +17,11 @@ import { getAuditLog, getActionTypes } from './service.js';
 import type { FastifyInstance } from 'fastify';
 import type { AuditLogFilters } from './types.js';
 
-const pre = [authMiddleware, tenantContextMiddleware];
-
 export async function auditLogRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/tenant/audit-log ─────────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/audit-log',
-    { preHandler: [...pre, requireAbac('audit:read')] },
+    { preHandler: [requireAbac('audit:read')] },
     async (request) => {
       const parsed = auditLogQuerySchema.safeParse(request.query);
       if (!parsed.success) {
@@ -51,7 +51,7 @@ export async function auditLogRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/tenant/audit-log/action-types ────────────────────────────
   fastify.get(
     '/api/v1/tenant/audit-log/action-types',
-    { preHandler: [...pre, requireAbac('audit:read')] },
+    { preHandler: [requireAbac('audit:read')] },
     async () => {
       return getActionTypes();
     }
