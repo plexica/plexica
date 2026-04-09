@@ -68,6 +68,9 @@ export function UserListPage(): JSX.Element {
             >
               <div>
                 <p className="text-sm font-medium text-neutral-900">{u.displayName ?? u.email}</p>
+                {u.displayName !== null && u.displayName !== undefined && (
+                  <p className="text-xs text-neutral-500">{u.email}</p>
+                )}
               </div>
               <Button variant="ghost" size="sm" onClick={() => setRemoveUserId(u.userId)}>
                 <FormattedMessage id="common.delete" />

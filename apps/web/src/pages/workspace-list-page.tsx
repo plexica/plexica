@@ -13,7 +13,9 @@ import { CreateWorkspaceDialog } from '../components/workspace/create-workspace-
 export function WorkspaceListPage(): JSX.Element {
   const intl = useIntl();
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<'active' | 'archived' | undefined>(undefined);
+  // Default to 'active' so soft-deleted (archived) workspaces are hidden
+  // from the default list view. Users can click "Archived" to reveal them.
+  const [status, setStatus] = useState<'active' | 'archived' | undefined>('active');
   const [showCreate, setShowCreate] = useState(false);
 
   const filters = status !== undefined ? { page, status } : { page };

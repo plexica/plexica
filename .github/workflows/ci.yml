@@ -164,6 +164,12 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: 'true'
+          # Raise the global rate-limit ceiling for E2E runs. The 120 tests in
+          # the suite make many workspace POSTs from a single IP in rapid
+          # succession; the default of 100 req/min is exhausted mid-suite,
+          # causing 429s. 1000 req/min is still a meaningful guard against
+          # runaway loops while allowing all tests to complete.
+          RATE_LIMIT_MAX: '1000'
           # Infra vars — forwarded so the core-api webServer subprocess (started
           # by Playwright) can connect to all services. These are also set at the
           # job level (env:) but explicit forwarding ensures subprocess inheritance.
