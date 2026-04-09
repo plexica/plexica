@@ -33,7 +33,17 @@ export function FileUpload({
 
   const errorId = React.useId();
   const currentError = externalError ?? localError;
-  const displayPreview = localPreview ?? preview ?? null;
+  // Sanitize preview src: only allow blob:, data:image/, and http(s): URLs to
+  // prevent javascript: URL injection flagged by CodeQL (DOM text reinterpreted as HTML).
+  const rawPreview = localPreview ?? preview ?? null;
+  const displayPreview =
+    rawPreview !== null &&
+    (rawPreview.startsWith('blob:') ||
+      rawPreview.startsWith('data:image/') ||
+      rawPreview.startsWith('https://') ||
+      rawPreview.startsWith('http://'))
+      ? rawPreview
+      : null;
 
   function validateAndAccept(file: File): void {
     const acceptedTypes = accept.split(',').map((t) => t.trim());

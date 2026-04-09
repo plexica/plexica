@@ -82,7 +82,7 @@ export function UserListPage(): JSX.Element {
       {removeUserId !== null && (
         <RemoveUserDialog
           userId={removeUserId}
-          open={removeUserId !== null}
+          open={true}
           onOpenChange={(open) => {
             if (!open) setRemoveUserId(null);
           }}
