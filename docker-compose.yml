@@ -112,6 +112,50 @@ services:
       retries: 20
       start_period: 60s
 
+  # One-shot service: disables HTTPS-required on the master realm after first boot.
+  # Keycloak 26 defaults sslRequired=external on the master realm. When accessed
+  # from the host machine via Docker port-mapping the remote address is the Docker
+  # gateway IP (not 127.0.0.1), so Keycloak treats it as an external connection and
+  # rejects plain-HTTP token requests with 403. Setting sslRequired=none is safe for
+  # dev because the stack is never exposed outside localhost.
+  # This service runs after keycloak is healthy, so kcadm.sh can connect.
+  keycloak-init:
+    image: quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
+    # quay.io/keycloak/keycloak:26.0 — same pinned digest as keycloak service
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        /opt/keycloak/bin/kcadm.sh config credentials \
+          --server http://keycloak:8080 \
+          --realm master \
+          --user "$$KEYCLOAK_ADMIN_USER" \
+          --password "$$KEYCLOAK_ADMIN_PASSWORD"
+
+        # DEV ONLY — do NOT replicate this in production.
+        # In production Keycloak runs behind TLS termination; sslRequired=external
+        # (the Keycloak default) is the correct and secure setting there.
+        # In dev the Docker gateway IP is not 127.0.0.1, so Keycloak treats every
+        # connection from the host as "external" and returns 403 HTTPS required on
+        # plain-HTTP login redirects. We set sslRequired=none on every realm to
+        # prevent this — both the master realm and any tenant realm already provisioned.
+        for realm in $$(/opt/keycloak/bin/kcadm.sh get realms --fields realm \
+          | grep '"realm"' | sed 's/.*: "\(.*\)".*/\1/'); do
+          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none && \
+          echo "keycloak-init: sslRequired=none applied to realm: $$realm"
+        done
+    restart: 'no'
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   redis:
     image: redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065
     # redis:7-alpine — pinned 2026-03-31

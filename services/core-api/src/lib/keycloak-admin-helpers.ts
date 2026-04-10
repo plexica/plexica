@@ -16,7 +16,10 @@ export interface RealmConfig {
   tenantSlug: string;
 }
 
-export function buildRealmPayload(realmName: string): Record<string, unknown> {
+export function buildRealmPayload(
+  realmName: string,
+  nodeEnv: string = process.env['NODE_ENV'] ?? 'development'
+): Record<string, unknown> {
   return {
     realm: realmName,
     enabled: true,
@@ -34,6 +37,12 @@ export function buildRealmPayload(realmName: string): Record<string, unknown> {
     ssoSessionMaxLifespan: 36000,
     // Use the custom Plexica Keycloak theme for all login pages in this realm.
     loginTheme: 'plexica',
+    // DEV ONLY — do NOT set sslRequired=none in production.
+    // In production Keycloak sits behind TLS termination; sslRequired=external
+    // (the Keycloak default) is the correct and secure setting there.
+    // In dev the stack is accessed over plain HTTP on localhost, so we disable
+    // the HTTPS requirement to prevent "HTTPS required" errors on login redirects.
+    ...(nodeEnv !== 'production' && { sslRequired: 'none' }),
   };
 }
 
