@@ -10,7 +10,6 @@ import { RouterProvider } from '@tanstack/react-router';
 import { messages } from './i18n/messages.en.js';
 import { router } from './router.js';
 import { SessionExpiredHandler } from './components/auth/session-expired-handler.js';
-import { TokenRefreshProvider } from './components/auth/token-refresh-provider.js';
 
 import '@plexica/ui/tokens';
 import './styles/globals.css';
@@ -30,7 +29,6 @@ ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <IntlProvider locale="en" messages={messages}>
       <QueryClientProvider client={queryClient}>
-        <TokenRefreshProvider />
         <SessionExpiredHandler />
         <RouterProvider router={router} />
       </QueryClientProvider>
