@@ -84,15 +84,19 @@ describe('AC-07 ABAC decision log', () => {
     });
     expect(res.statusCode).toBe(200);
 
-    // Give the fire-and-forget log writer a moment to commit
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    // Query the decision log directly via helper (uses TenantPrismaClient)
-    const rows = await queryAbacDecisionLog(ctx, {
-      userId: ADMIN_ID,
-      action: 'workspace:read',
-      resourceId: workspaceId,
-    });
+    // Poll for the fire-and-forget log writer to commit.
+    // The async withTenantDb + PrismaClient creation may take >50ms in CI.
+    // Retry up to 3s with 100ms intervals.
+    let rows: Awaited<ReturnType<typeof queryAbacDecisionLog>> = [];
+    for (let i = 0; i < 30; i++) {
+      rows = await queryAbacDecisionLog(ctx, {
+        userId: ADMIN_ID,
+        action: 'workspace:read',
+        resourceId: workspaceId,
+      });
+      if (rows.length >= 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(rows[0]?.decision).toBe('allow');
@@ -124,13 +128,17 @@ describe('AC-07 ABAC decision log', () => {
       // Should be denied (403 Forbidden)
       expect(res.statusCode).toBe(403);
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      const rows = await queryAbacDecisionLog(ctx, {
-        userId: nonMemberId,
-        action: 'workspace:read',
-        resourceId: workspaceId,
-      });
+      // Poll for the fire-and-forget log writer to commit (same pattern as allow test)
+      let rows: Awaited<ReturnType<typeof queryAbacDecisionLog>> = [];
+      for (let i = 0; i < 30; i++) {
+        rows = await queryAbacDecisionLog(ctx, {
+          userId: nonMemberId,
+          action: 'workspace:read',
+          resourceId: workspaceId,
+        });
+        if (rows.length >= 1) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
 
       expect(rows.length).toBeGreaterThanOrEqual(1);
       expect(rows[0]?.decision).toBe('deny');
