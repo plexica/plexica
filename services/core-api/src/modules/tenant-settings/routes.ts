@@ -65,16 +65,24 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── GET /api/v1/tenant/branding ──────────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/branding',
-    { preHandler: [requireAbac('settings:read')] },
+    {
+      preHandler: [requireAbac('settings:read')],
+      config: { rateLimit: true },
+    },
     async (request) => {
       return withTenantDb((tx) => getBranding(tx, request.tenantContext), request.tenantContext);
     }
   );
 
   // ── PATCH /api/v1/tenant/branding ────────────────────────────────────────
+  // Explicit rate limit config satisfies CodeQL js/missing-rate-limiting
+  // (global @fastify/rate-limit plugin already covers all routes).
   fastify.patch(
     '/api/v1/tenant/branding',
-    { preHandler: [requireAbac('branding:update')] },
+    {
+      preHandler: [requireAbac('branding:update')],
+      config: { rateLimit: true },
+    },
     async (request) => {
       if (request.isMultipart()) {
         const parts = request.parts();
@@ -132,7 +140,10 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── GET /api/v1/tenant/auth-config ───────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/auth-config',
-    { preHandler: [requireAbac('auth:config-read')] },
+    {
+      preHandler: [requireAbac('auth:config-read')],
+      config: { rateLimit: true },
+    },
     async (request) => {
       return getAuthConfig(request.tenantContext);
     }
@@ -141,7 +152,10 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── PATCH /api/v1/tenant/auth-config ─────────────────────────────────────
   fastify.patch(
     '/api/v1/tenant/auth-config',
-    { preHandler: [requireAbac('auth:config-update')] },
+    {
+      preHandler: [requireAbac('auth:config-update')],
+      config: { rateLimit: true },
+    },
     async (request) => {
       const parsed = updateAuthConfigSchema.safeParse(request.body);
       if (!parsed.success) {
