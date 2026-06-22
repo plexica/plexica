@@ -13,6 +13,11 @@ import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { ValidationError, FileTooLargeError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
+import {
+  UPLOAD_RATE_LIMIT,
+  AUTH_CONFIG_RATE_LIMIT,
+  SETTINGS_RATE_LIMIT,
+} from '../../lib/rate-limit-config.js';
 
 import { updateSettingsSchema, updateBrandingSchema, updateAuthConfigSchema } from './schema.js';
 import { getSettings, updateSettings, getAuthConfig, updateAuthConfig } from './service.js';
@@ -40,7 +45,10 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── GET /api/v1/tenant/settings ──────────────────────────────────────────
   fastify.get(
     '/api/v1/tenant/settings',
-    { preHandler: [requireAbac('settings:read')] },
+    {
+      preHandler: [requireAbac('settings:read')],
+      config: { rateLimit: SETTINGS_RATE_LIMIT },
+    },
     async (request) => {
       return getSettings(request.tenantContext);
     }
@@ -49,7 +57,10 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
   // ── PATCH /api/v1/tenant/settings ────────────────────────────────────────
   fastify.patch(
     '/api/v1/tenant/settings',
-    { preHandler: [requireAbac('settings:update')] },
+    {
+      preHandler: [requireAbac('settings:update')],
+      config: { rateLimit: SETTINGS_RATE_LIMIT },
+    },
     async (request) => {
       const parsed = updateSettingsSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -67,7 +78,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
     '/api/v1/tenant/branding',
     {
       preHandler: [requireAbac('settings:read')],
-      config: { rateLimit: true },
+      config: { rateLimit: SETTINGS_RATE_LIMIT },
     },
     async (request) => {
       return withTenantDb((tx) => getBranding(tx, request.tenantContext), request.tenantContext);
@@ -81,7 +92,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
     '/api/v1/tenant/branding',
     {
       preHandler: [requireAbac('branding:update')],
-      config: { rateLimit: true },
+      config: { rateLimit: UPLOAD_RATE_LIMIT },
     },
     async (request) => {
       if (request.isMultipart()) {
@@ -142,7 +153,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
     '/api/v1/tenant/auth-config',
     {
       preHandler: [requireAbac('auth:config-read')],
-      config: { rateLimit: true },
+      config: { rateLimit: AUTH_CONFIG_RATE_LIMIT },
     },
     async (request) => {
       return getAuthConfig(request.tenantContext);
@@ -154,7 +165,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
     '/api/v1/tenant/auth-config',
     {
       preHandler: [requireAbac('auth:config-update')],
-      config: { rateLimit: true },
+      config: { rateLimit: AUTH_CONFIG_RATE_LIMIT },
     },
     async (request) => {
       const parsed = updateAuthConfigSchema.safeParse(request.body);
