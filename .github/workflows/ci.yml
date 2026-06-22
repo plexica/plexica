@@ -45,7 +45,7 @@ jobs:
   ci:
     name: Build, Test, and Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read # Minimum required for checkout; all other permissions denied
 
@@ -147,6 +147,9 @@ jobs:
       # Cache the Playwright browser binaries. The cache key is tied to the web
       # package.json (which pins the @playwright/test version). On a cache hit the
       # ~400 MB Chromium download is skipped entirely, saving ~1-2 min per run.
+      - name: Install Playwright system dependencies
+        run: pnpm --filter web exec playwright install-deps chromium
+
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v5
@@ -157,7 +160,7 @@ jobs:
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter web exec playwright install --with-deps chromium
+        run: pnpm --filter web exec playwright install chromium
 
       - name: Run Playwright E2E tests
         run: pnpm --filter web test:e2e

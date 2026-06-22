@@ -8,6 +8,7 @@
 import { ValidationError } from '../../lib/app-error.js';
 import { validateMimeType } from '../../lib/file-upload.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
+import { UPLOAD_RATE_LIMIT } from '../../lib/rate-limit-config.js';
 
 import { updateProfileSchema } from './schema.js';
 import { getProfile, updateProfile, uploadAvatar } from './service.js';
@@ -42,16 +43,20 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
   });
 
   // ── POST /api/v1/profile/avatar ───────────────────────────────────────────
-  fastify.post('/api/v1/profile/avatar', {}, async (request, reply) => {
-    const file = await request.file();
-    if (file === undefined) {
-      throw new ValidationError('No file uploaded');
+  fastify.post(
+    '/api/v1/profile/avatar',
+    { config: { rateLimit: UPLOAD_RATE_LIMIT } },
+    async (request, reply) => {
+      const file = await request.file();
+      if (file === undefined) {
+        throw new ValidationError('No file uploaded');
+      }
+      validateMimeType(file.mimetype, AVATAR_ALLOWED_MIME_TYPES);
+      const result = await withTenantDb(
+        (tx) => uploadAvatar(tx, request.user.keycloakUserId, file, request.tenantContext),
+        request.tenantContext
+      );
+      return reply.send({ data: result });
     }
-    validateMimeType(file.mimetype, AVATAR_ALLOWED_MIME_TYPES);
-    const result = await withTenantDb(
-      (tx) => uploadAvatar(tx, request.user.keycloakUserId, file, request.tenantContext),
-      request.tenantContext
-    );
-    return reply.send({ data: result });
-  });
+  );
 }

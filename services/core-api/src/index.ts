@@ -72,7 +72,13 @@ await server.register(rateLimit, {
 // ---------------------------------------------------------------------------
 // Multipart support — required for file uploads (logo, avatar).
 // Must be registered before routes that use request.isMultipart().
+// Rate limiting is provided by the global @fastify/rate-limit plugin above
+// (global: true, Redis-backed). Per-route config: { rateLimit: ... } is
+// set on all upload routes. CodeQL js/missing-rate-limiting is suppressed
+// here because the static query cannot trace through Fastify's plugin
+// architecture to see the global rate-limit registration at line 63.
 // ---------------------------------------------------------------------------
+// codeql[js/missing-rate-limiting]
 await server.register(multipart, {
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max file size
 });
