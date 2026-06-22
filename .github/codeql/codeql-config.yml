@@ -1,0 +1,31 @@
+# CodeQL Configuration
+# 
+# This config excludes auto-generated files from CodeQL analysis.
+# Generated Prisma client files are not project source code and
+# should not trigger alerts for unused variables, useless conditionals,
+# or other code-quality rules.
+#
+# Path configuration for the default CodeQL setup:
+# 1. Go to Settings → Code security and analysis → Code scanning
+# 2. Under "CodeQL default setup", click "Manage"
+# 3. In "Additional configuration", select "Config file"
+# 4. Point to: .github/codeql/codeql-config.yml
+#
+# If using Advanced setup with a workflow file, add:
+#   - name: Initialize CodeQL
+#     uses: github/codeql-action/init@v3
+#     with:
+#       config-file: ./.github/codeql/codeql-config.yml
+
+name: "Plexica CodeQL Config"
+
+# Exclude generated and vendored directories from analysis.
+# These files are not maintained by hand and any findings in them
+# are false positives that would be overwritten on regeneration.
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/coverage/**'
+  - '**/generated/**'
+  - '**/*.d.ts'

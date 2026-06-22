@@ -1,0 +1,54 @@
+# CodeQL Advanced Workflow
+#
+# Runs CodeQL analysis on push to main and on pull requests.
+# Uses the config file at .github/codeql/codeql-config.yml to
+# exclude generated files (Prisma client, etc.) from scanning.
+#
+# This replaces the GitHub default CodeQL setup. To switch:
+# 1. Go to Settings → Code security and analysis → Code scanning
+# 2. Under "CodeQL default setup", click "Manage" → "Stop scanning"
+# 3. This workflow will run automatically on push/PR
+
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 3 * * 1'  # Every Monday at 3 AM
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
