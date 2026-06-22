@@ -146,12 +146,14 @@ jobs:
       # ── 10. E2E ────────────────────────────────────────────────────────────────
       # Cache strategy: use restore/save as separate steps so the cache is
       # written immediately after installation (before E2E runs). This prevents
-      # the common failure mode where a cancelled/timed-out job never triggers
-      # the post-job cache save, leaving the cache empty for the next run.
+      # the failure mode where a cancelled job never triggers the post-job save,
+      # leaving the cache empty for the next run.
       #
-      # Install timeout: 15 min. If playwright.azureedge.net is unreachable or
-      # the CDN connection hangs (observed: 57-min stall), fail fast rather than
-      # consuming the entire job budget.
+      # Install timing (observed on GitHub-hosted ubuntu-latest runners):
+      # playwright install --with-deps chromium consistently takes ~27-28 min
+      # (system deps + ~285 MB browser binary download from playwright.azureedge.net).
+      # timeout-minutes: 35 gives the install room to complete on the first run.
+      # Once the cache is populated, subsequent runs skip the install entirely.
       - name: Restore Playwright browsers cache
         id: playwright-cache
         uses: actions/cache/restore@v4
@@ -161,12 +163,13 @@ jobs:
           restore-keys: playwright-chromium-
 
       - name: Install Playwright Chromium
+        id: install-playwright
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 15
+        timeout-minutes: 35
         run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Save Playwright browsers cache
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.playwright-cache.outputs.cache-hit != 'true' && steps.install-playwright.conclusion == 'success'
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ms-playwright
