@@ -29,6 +29,24 @@ export default [
       '.opencode/**',
     ],
   },
+  // Node.js scripts (.mjs) — utility scripts not bundled into the app
+  {
+    files: ['**/*.mjs', '**/*.cjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'off',
+      'no-console': 'off',
+    },
+  },
   js.configs.recommended,
   {
     files: ['**/*.{ts,tsx}'],

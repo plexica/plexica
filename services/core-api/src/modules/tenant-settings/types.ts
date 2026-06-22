@@ -38,3 +38,15 @@ export interface UpdateAuthConfigInput {
   bruteForceProtected?: boolean;
   failureFactor?: number;
 }
+
+/**
+ * Processed logo file with stream already consumed.
+ * Used instead of @fastify/multipart MultipartFile to prevent
+ * generator deadlocks in for-await loops over request.parts().
+ */
+export interface LogoFileBuffer {
+  filename: string;
+  mimetype: string;
+  data: Buffer;
+  size: number;
+}

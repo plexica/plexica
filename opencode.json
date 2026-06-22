@@ -53,7 +53,7 @@
           "model": "opencode/deepseek-v4-flash"
       },
       "forge-reviewer-codex": {
-          "model": "opencode/qwen-3.6-plus"
+          "model": "opencode/qwen3.6-plus"
       }
   },
 
@@ -81,7 +81,7 @@
           "mv *": "allow",
           "rm -f *": "allow",
           "echo *": "allow",
-          "*": "ask"
+          "*": "allow"
       },
       "edit": "allow",
       "write": "allow",

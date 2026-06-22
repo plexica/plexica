@@ -50,6 +50,10 @@ const configSchema = z.object({
   // Increase for E2E / load-test environments where a single IP fires many requests.
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
 
+  // Resolve endpoint rate limit — max requests per minute per IP (default 30).
+  // Set higher (e.g. 1000) in dev/E2E to prevent flaky tests from shared budget.
+  RATE_LIMIT_RESOLVE_MAX: z.coerce.number().int().min(1).default(30),
+
   // JWKS cache TTL in milliseconds (default 1 hour)
   JWKS_CACHE_TTL_MS: z.coerce.number().int().default(3_600_000),
 

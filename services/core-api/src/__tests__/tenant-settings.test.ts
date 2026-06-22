@@ -4,25 +4,22 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { prisma } from '../lib/database.js';
-import { tenantSettingsRoutes } from '../modules/tenant-settings/routes.js';
 import { config } from '../lib/config.js';
+import { prisma } from '../lib/database.js';
 import { createRealm, deleteRealm } from '../lib/keycloak-admin.js';
+import { tenantSettingsRoutes } from '../modules/tenant-settings/routes.js';
 
 import {
-  createTestServer,
-  makeFullStub,
-  isDbReachable,
-  isKeycloakReachable,
-  isMinioReachable,
+  cleanupTenant, ensureTenantBucket, removeTenantBucket, seedTenant,
+} from './helpers/db.helpers.js';
+import {
+  createTestServer, isDbReachable, isKeycloakReachable, isMinioReachable, makeFullStub,
 } from './helpers/server.helpers.js';
-import { seedTenant, cleanupTenant } from './helpers/db.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
 import type {
-  TenantSettingsDto,
-  TenantBrandingDto,
+  TenantSettingsDto, TenantBrandingDto,
   AuthConfigDto,
 } from '../modules/tenant-settings/types.js';
 
@@ -45,6 +42,7 @@ let reqHeaders: Record<string, string>;
 beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
+  await ensureTenantBucket(SLUG);
 
   if (kcAvailable) {
     try {
@@ -68,7 +66,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await server.close();
+  await server?.close();
   if (kcAvailable && ctx) {
     try {
       await deleteRealm(ctx.realmName);
@@ -76,6 +74,7 @@ afterAll(async () => {
       /* best-effort cleanup */
     }
   }
+  await removeTenantBucket(SLUG);
   await cleanupTenant(SLUG);
   await prisma.$disconnect();
 });

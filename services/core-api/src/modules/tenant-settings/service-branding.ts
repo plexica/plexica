@@ -5,9 +5,6 @@
 
 import { Readable } from 'node:stream';
 
-
-import { config } from '../../lib/config.js';
-import { FileTooLargeError } from '../../lib/app-error.js';
 import { uploadLogo, getPresignedReadUrl } from '../../lib/minio-client.js';
 import { validateMimeType } from '../../lib/file-upload.js';
 import { LOGO_ALLOWED_MIME_TYPES } from '../../lib/file-upload.js';
@@ -16,27 +13,7 @@ import { writeAuditLog } from '../audit-log/writer.js';
 import { findBranding, upsertBranding, updateLogoPath } from './repository.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
-import type { TenantBrandingDto, UpdateBrandingInput } from './types.js';
-import type { MultipartFile } from '@fastify/multipart';
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/** Reads a Readable stream into a Buffer; throws FileTooLargeError if exceeded. */
-async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-  for await (const chunk of stream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-    totalBytes += buf.length;
-    if (totalBytes > maxBytes) {
-      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
-    }
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
-}
+import type { TenantBrandingDto, UpdateBrandingInput, LogoFileBuffer } from './types.js';
 
 async function attachLogoUrl(
   branding: TenantBrandingDto,
@@ -71,18 +48,17 @@ export async function updateBranding(
   actorId: string,
   tenantContext: TenantContext,
   input: UpdateBrandingInput,
-  logoFile?: MultipartFile
+  logoFile?: LogoFileBuffer
 ): Promise<TenantBrandingDto> {
   let branding: TenantBrandingDto;
 
   if (logoFile !== undefined) {
     validateMimeType(logoFile.mimetype, LOGO_ALLOWED_MIME_TYPES);
-    const fileBytes = await readStream(logoFile.file as unknown as Readable, config.LOGO_MAX_BYTES);
     const logoPath = await uploadLogo(
       tenantContext.slug,
-      Readable.from(fileBytes),
+      Readable.from(logoFile.data),
       logoFile.mimetype,
-      fileBytes.length
+      logoFile.size
     );
     // Upsert branding fields first, then update logo path
     await upsertBranding(tenantDb, tenantContext.tenantId, input);

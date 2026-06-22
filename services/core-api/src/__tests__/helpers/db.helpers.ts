@@ -360,3 +360,28 @@ export function buildTenantClientForCtx(
 ): InstanceType<typeof TenantPrismaClient> {
   return buildTenantClient(tenantContext.schemaName);
 }
+
+/**
+ * Ensures a MinIO bucket exists for the given tenant slug.
+ * Idempotent — safe to call multiple times.
+ * Used by tests that exercise MinIO (avatar upload, branding logo, etc.).
+ */
+export async function ensureTenantBucket(tenantSlug: string): Promise<void> {
+  const { createBucket } = await import('../../lib/minio-client.js');
+  const bucketName = `tenant-${tenantSlug}`;
+  await createBucket(bucketName);
+}
+
+/**
+ * Removes a MinIO bucket and all its objects for the given tenant slug.
+ * Safe to call even if bucket does not exist.
+ */
+export async function removeTenantBucket(tenantSlug: string): Promise<void> {
+  const { deleteBucket } = await import('../../lib/minio-client.js');
+  const bucketName = `tenant-${tenantSlug}`;
+  try {
+    await deleteBucket(bucketName);
+  } catch {
+    /* best-effort cleanup */
+  }
+}

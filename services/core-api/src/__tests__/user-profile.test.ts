@@ -20,6 +20,8 @@ import {
   wipeTenantWorkspaces,
   wipeTenantUsers,
   cleanupTenant,
+  ensureTenantBucket,
+  removeTenantBucket,
 } from './helpers/db.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -40,6 +42,8 @@ beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
 
+  await ensureTenantBucket(SLUG);
+
   server = await createTestServer();
   const stub = makeFullStub(USER_ID, ctx, []);
   server.addHook('preHandler', stub);
@@ -51,6 +55,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await server.close();
+  await removeTenantBucket(SLUG);
   await cleanupTenant(SLUG);
   await prisma.$disconnect();
 });

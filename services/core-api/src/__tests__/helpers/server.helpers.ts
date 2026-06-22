@@ -121,9 +121,8 @@ export async function isRedisReachable(): Promise<boolean> {
 /** Returns true when MinIO is reachable. */
 export async function isMinioReachable(): Promise<boolean> {
   try {
-    const res = await fetch(`http://${config.MINIO_ENDPOINT}/minio/health/live`, {
-      signal: AbortSignal.timeout(3000),
-    });
+    const url = new URL('/minio/health/live', config.MINIO_ENDPOINT).toString();
+    const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
     return res.ok;
   } catch {
     return false;

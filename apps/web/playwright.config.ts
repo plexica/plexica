@@ -35,6 +35,7 @@ function setDefault(key: string, value: string): void {
 }
 
 setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+setDefault('PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX', '30');
 setDefault('PLAYWRIGHT_TENANT_SLUG', 'e2e');
 setDefault('PLAYWRIGHT_KEYCLOAK_USER', 'test@e2e.local');
 setDefault('PLAYWRIGHT_KEYCLOAK_PASS', 'PlexicaE2e!1');

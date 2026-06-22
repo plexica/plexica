@@ -7,16 +7,34 @@
 // registered as scope-level addHook('preHandler', ...) in index.ts and run
 // automatically for every route in this plugin. Do NOT re-add them here.
 
+import { Readable } from 'node:stream';
+
 import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
-import { ValidationError } from '../../lib/app-error.js';
+import { ValidationError, FileTooLargeError } from '../../lib/app-error.js';
+import { config } from '../../lib/config.js';
 
 import { updateSettingsSchema, updateBrandingSchema, updateAuthConfigSchema } from './schema.js';
 import { getSettings, updateSettings, getAuthConfig, updateAuthConfig } from './service.js';
 import { getBranding, updateBranding } from './service-branding.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { UpdateBrandingInput } from './types.js';
+import type { UpdateBrandingInput, LogoFileBuffer } from './types.js';
+
+/** Reads a Readable stream into a Buffer; throws FileTooLargeError if maxBytes exceeded. */
+async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of stream) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
+    totalBytes += buf.length;
+    if (totalBytes > maxBytes) {
+      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
+}
 
 export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/tenant/settings ──────────────────────────────────────────
@@ -61,11 +79,23 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       if (request.isMultipart()) {
         const parts = request.parts();
         const fields: Record<string, string> = {};
-        let logoFile: import('@fastify/multipart').MultipartFile | undefined;
+        let logoBuffer: LogoFileBuffer | undefined;
 
         for await (const part of parts) {
           if (part.type === 'file') {
-            logoFile = part;
+            // Consume the file stream inside the loop — required by @fastify/multipart
+            // to prevent deadlock in the for-await generator (it blocks until the
+            // current part's file stream is fully consumed).
+            const fileBytes = await readStream(
+              part.file as unknown as Readable,
+              config.LOGO_MAX_BYTES
+            );
+            logoBuffer = {
+              filename: part.filename,
+              mimetype: part.mimetype,
+              data: fileBytes,
+              size: fileBytes.length,
+            };
           } else {
             fields[part.fieldname] = part.value as string;
           }
@@ -82,7 +112,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
         const input = parsed.data as UpdateBrandingInput;
 
         return withTenantDb(
-          (tx) => updateBranding(tx, request.user.id, request.tenantContext, input, logoFile),
+          (tx) => updateBranding(tx, request.user.id, request.tenantContext, input, logoBuffer),
           request.tenantContext
         );
       }

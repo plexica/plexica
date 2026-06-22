@@ -14,7 +14,9 @@
     "db:studio": "dotenv -e ../../.env -- prisma studio",
     "tenant:create": "dotenv -e ../../.env -- tsx src/cli/create-tenant.ts",
     "tenant:migrate": "dotenv -e ../../.env -- tsx src/cli/migrate-tenants.ts",
-    "test": "vitest run"
+    "test:unit": "vitest run --project unit",
+    "test:int": "bash scripts/check-test-env.sh && vitest run --project integration",
+    "test": "vitest run --project unit && bash scripts/check-test-env.sh && vitest run --project integration"
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",

@@ -88,26 +88,17 @@ export async function createWorkspace(
 
 /**
  * Finds a workspace link on the paginated workspace list.
- * Navigates through pages until found (max 10 pages).
+ * Navigates through pages until found (max 10 pages per pass).
+ * On failure, reloads and retries once (handles stale TanStack Query cache).
  * Waits for the API response after each "Next page" click.
  */
-export async function findWorkspaceInList(page: Page, workspaceName: string): Promise<void> {
-  await page.goto('/workspaces');
-  // Wait for the initial workspace list to load
-  await page.waitForResponse(
-    (r) =>
-      r.url().includes('/api/v1/workspaces') &&
-      !r.url().includes('/templates') &&
-      !r.url().includes('/members') &&
-      r.status() === 200
-  );
-
+async function paginateToWorkspace(page: Page, workspaceName: string): Promise<boolean> {
   for (let attempt = 0; attempt < 10; attempt++) {
     const link = page.getByRole('link', { name: workspaceName });
-    if (await link.isVisible().catch(() => false)) return;
+    if (await link.isVisible().catch(() => false)) return true;
     const nextBtn = page.getByRole('button', { name: /next page/i });
-    if ((await nextBtn.count()) === 0) break;
-    if (await nextBtn.isDisabled()) break;
+    if ((await nextBtn.count()) === 0) return false;
+    if (await nextBtn.isDisabled()) return false;
     await Promise.all([
       page.waitForResponse(
         (r) =>
@@ -120,10 +111,41 @@ export async function findWorkspaceInList(page: Page, workspaceName: string): Pr
     ]);
     await page.waitForTimeout(300);
   }
+  return false;
+}
+
+export async function findWorkspaceInList(page: Page, workspaceName: string): Promise<void> {
+  await page.goto('/workspaces');
+  // Wait for the initial workspace list to load
+  await page.waitForResponse(
+    (r) =>
+      r.url().includes('/api/v1/workspaces') &&
+      !r.url().includes('/templates') &&
+      !r.url().includes('/members') &&
+      r.status() === 200
+  );
+
+  // First pass: paginate through available pages
+  let found = await paginateToWorkspace(page, workspaceName);
+  if (!found) {
+    // Stale cache fallback: reload and retry once
+    await page.reload();
+    await page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/v1/workspaces') &&
+        !r.url().includes('/templates') &&
+        !r.url().includes('/members') &&
+        r.status() === 200
+    );
+    found = await paginateToWorkspace(page, workspaceName);
+  }
+
   // Final assertion — will fail with a clear message if not found
-  await page
-    .getByRole('link', { name: workspaceName })
-    .waitFor({ state: 'visible', timeout: 5_000 });
+  if (!found) {
+    await page
+      .getByRole('link', { name: workspaceName })
+      .waitFor({ state: 'visible', timeout: 15_000 });
+  }
 }
 
 /**
