@@ -144,15 +144,17 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
-      # Cache the Playwright browser binaries. The cache key is tied to the web
-      # package.json (which pins the @playwright/test version). On a cache hit the
-      # ~400 MB Chromium download is skipped entirely, saving ~1-2 min per run.
-      - name: Install Playwright system dependencies
-        run: pnpm --filter web exec playwright install-deps chromium
-
-      - name: Cache Playwright browsers
+      # Cache strategy: use restore/save as separate steps so the cache is
+      # written immediately after installation (before E2E runs). This prevents
+      # the common failure mode where a cancelled/timed-out job never triggers
+      # the post-job cache save, leaving the cache empty for the next run.
+      #
+      # Install timeout: 15 min. If playwright.azureedge.net is unreachable or
+      # the CDN connection hangs (observed: 57-min stall), fail fast rather than
+      # consuming the entire job budget.
+      - name: Restore Playwright browsers cache
         id: playwright-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
@@ -160,7 +162,15 @@ jobs:
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter web exec playwright install chromium
+        timeout-minutes: 15
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Save Playwright browsers cache
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
 
       - name: Run Playwright E2E tests
         run: pnpm --filter web test:e2e
