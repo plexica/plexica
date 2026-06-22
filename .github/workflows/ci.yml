@@ -144,20 +144,17 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
-      # Download problem: cdn.playwright.dev throttles to ~135 KB/s on
-      # GitHub-hosted runners (vs ~900 KB/s on a typical machine). Total
-      # payload is ~285 MB (chromium 170 MB + headless-shell 112 MB + ffmpeg
-      # 2 MB), which takes ~35 min on a single connection.
-      #
-      # Fix: aria2c with -x16 (16 parallel connections). If the CDN throttles
-      # per-connection (not per-IP), this brings the download from ~35 min to
-      # ~2-3 min. If throttling is per-IP, aria2c takes the same 35 min and we
-      # fall back to the standard install. timeout-minutes: 50 ensures the job
-      # never hangs longer than needed on the first run (cold cache).
+      # Download problem: cdn.playwright.dev throttles GitHub-hosted runners to
+      # ~135 KB/s per connection. Total payload: ~285 MB (chromium 170 MB +
+      # headless-shell 112 MB + ffmpeg 2 MB). At that speed the install takes
+      # ~35 min. timeout-minutes: 50 gives 15 min of margin over the worst
+      # observed time (35.2 min, which was 99% complete when killed).
       #
       # Cache strategy: restore/save as separate inline steps so the cache is
-      # written immediately after installation, before E2E. Prevents the
-      # failure mode where a cancelled job never triggers the post-job save.
+      # written immediately after installation (before E2E runs). Prevents the
+      # failure mode where a cancelled/timed-out job never triggers the
+      # post-job save, leaving the cache empty for the next run.
+      # On cache hit (all runs after the first), install is skipped entirely.
       - name: Restore Playwright browsers cache
         id: playwright-cache
         uses: actions/cache/restore@v4
@@ -170,63 +167,7 @@ jobs:
         id: install-playwright
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 50
-        run: |
-          set -euo pipefail
-          CACHE_DIR="$HOME/.cache/ms-playwright"
-          BROWSERS_JSON="${GITHUB_WORKSPACE}/apps/web/node_modules/playwright-core/browsers.json"
-          CDN="https://cdn.playwright.dev"
-
-          # Read browser metadata from Playwright's browsers.json (version-agnostic)
-          CHROME_VER=$(node -e "const b=require('${BROWSERS_JSON}');const c=b.browsers.find(x=>x.name==='chromium');console.log(c.browserVersion)")
-          CHROME_REV=$(node -e "const b=require('${BROWSERS_JSON}');const c=b.browsers.find(x=>x.name==='chromium');console.log(c.revision)")
-          HEADLESS_REV=$(node -e "const b=require('${BROWSERS_JSON}');const c=b.browsers.find(x=>x.name==='chromium-headless-shell');console.log(c.revision)")
-          FFMPEG_REV=$(node -e "const b=require('${BROWSERS_JSON}');const c=b.browsers.find(x=>x.name==='ffmpeg');console.log(c.revision)")
-
-          echo "Chromium ${CHROME_VER} (rev ${CHROME_REV}), headless-shell rev ${HEADLESS_REV}, ffmpeg rev ${FFMPEG_REV}"
-
-          # Install system dependencies (fast: ~13s)
-          pnpm --filter web exec playwright install-deps chromium
-
-          # Attempt 1: aria2c with 16 parallel connections per file.
-          # Bypasses per-connection CDN throttling. Expected: ~2-4 min.
-          # Falls back to playwright install if aria2c fails or binaries are missing.
-          mkdir -p /tmp/pw-dl
-          ARIA_OK=true
-          aria2c \
-            --dir=/tmp/pw-dl \
-            --max-connection-per-server=16 \
-            --split=16 \
-            --min-split-size=5M \
-            --max-concurrent-downloads=3 \
-            --retry-wait=5 \
-            --max-tries=3 \
-            --connect-timeout=30 \
-            --timeout=120 \
-            "${CDN}/builds/cft/${CHROME_VER}/linux64/chrome-linux64.zip" \
-            "${CDN}/builds/cft/${CHROME_VER}/linux64/chrome-headless-shell-linux64.zip" \
-            "${CDN}/builds/ffmpeg/${FFMPEG_REV}/ffmpeg-linux.zip" || ARIA_OK=false
-
-          if [ "$ARIA_OK" = true ]; then
-            echo "aria2c download succeeded — extracting..."
-            mkdir -p "${CACHE_DIR}/chromium-${CHROME_REV}"
-            mkdir -p "${CACHE_DIR}/chromium_headless_shell-${HEADLESS_REV}"
-            mkdir -p "${CACHE_DIR}/ffmpeg-${FFMPEG_REV}"
-            unzip -q /tmp/pw-dl/chrome-linux64.zip                  -d "${CACHE_DIR}/chromium-${CHROME_REV}/"
-            unzip -q /tmp/pw-dl/chrome-headless-shell-linux64.zip    -d "${CACHE_DIR}/chromium_headless_shell-${HEADLESS_REV}/"
-            unzip -q /tmp/pw-dl/ffmpeg-linux.zip                     -d "${CACHE_DIR}/ffmpeg-${FFMPEG_REV}/"
-            chmod +x "${CACHE_DIR}/chromium-${CHROME_REV}/chrome-linux64/chrome"
-            chmod +x "${CACHE_DIR}/chromium_headless_shell-${HEADLESS_REV}/chrome-headless-shell-linux64/chrome-headless-shell"
-            # Marker files checked by Playwright runtime before launching a browser
-            touch "${CACHE_DIR}/chromium-${CHROME_REV}/INSTALLATION_COMPLETE"
-            touch "${CACHE_DIR}/chromium_headless_shell-${HEADLESS_REV}/INSTALLATION_COMPLETE"
-            touch "${CACHE_DIR}/ffmpeg-${FFMPEG_REV}/INSTALLATION_COMPLETE"
-            echo "Installation complete via aria2c:"
-            ls "${CACHE_DIR}/"
-          else
-            # Fallback: standard playwright install (single-stream, ~35 min on cold runner)
-            echo "aria2c failed — falling back to playwright install chromium"
-            pnpm --filter web exec playwright install chromium
-          fi
+        run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Save Playwright browsers cache
         if: steps.playwright-cache.outputs.cache-hit != 'true' && steps.install-playwright.conclusion == 'success'
