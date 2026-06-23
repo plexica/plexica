@@ -144,17 +144,18 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
-      # Download problem: cdn.playwright.dev throttles GitHub-hosted runners to
-      # ~135 KB/s per connection. Total payload: ~285 MB (chromium 170 MB +
-      # headless-shell 112 MB + ffmpeg 2 MB). At that speed the install takes
-      # ~35 min. timeout-minutes: 50 gives 15 min of margin over the worst
-      # observed time (35.2 min, which was 99% complete when killed).
+      # Installation is split into two separate steps to avoid a post-download
+      # hang observed with --with-deps: apt finishes in ~10 s, the zip downloads
+      # instantly, but Playwright then silently blocks for the full timeout
+      # (possibly a font-cache rebuild or binary verification triggered by the
+      # combined --with-deps path). Splitting lets each concern have the right
+      # timeout and makes failures immediately diagnosable.
       #
       # Cache strategy: restore/save as separate inline steps so the cache is
       # written immediately after installation (before E2E runs). Prevents the
       # failure mode where a cancelled/timed-out job never triggers the
       # post-job save, leaving the cache empty for the next run.
-      # On cache hit (all runs after the first), install is skipped entirely.
+      # On cache hit (all runs after the first), both install steps are skipped.
       - name: Restore Playwright browsers cache
         id: playwright-cache
         uses: actions/cache/restore@v4
@@ -163,11 +164,15 @@ jobs:
           key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
           restore-keys: playwright-chromium-
 
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter web exec playwright install-deps chromium
+
       - name: Install Playwright Chromium
         id: install-playwright
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 50
-        run: pnpm --filter web exec playwright install --with-deps --only-shell chromium
+        timeout-minutes: 20
+        run: pnpm --filter web exec playwright install --only-shell chromium
 
       - name: Save Playwright browsers cache
         if: steps.playwright-cache.outputs.cache-hit != 'true' && steps.install-playwright.conclusion == 'success'
