@@ -10,7 +10,7 @@ test.describe('Organization error pages', () => {
     await page.goto('/?tenant=this-org-does-not-exist-xyz123');
 
     // Should redirect to /org-error with reason=unknown
-    await page.waitForURL(/\/org-error/, { timeout: 10_000 });
+    await page.waitForURL('**/org-error?reason=*', { timeout: 10_000 });
 
     // Should show the org not found variant
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/not found|organization/i);
