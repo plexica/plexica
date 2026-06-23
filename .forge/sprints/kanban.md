@@ -2,8 +2,8 @@
 
 > Lightweight kanban. No ceremonies. Ship features, track progress, adjust scope.
 
-**Status**: Sprint 3 NOT STARTED (Sprint 2 completed 2026-04-03)
-**Timeline**: 19-24 weeks remaining (~5 months), 1 developer full-time
+**Status**: Sprint 3 DONE — Sprint 4 NEXT
+**Timeline**: 14-18 weeks remaining (~4 months), 1 developer full-time
 **WIP Limit**: 2 features in progress max per developer
 
 ---
@@ -42,7 +42,7 @@ Allow 1 week buffer after Sprint 4 before starting Sprint 5.
 ```
 Sprint 1:  [✓] Done        (2026-03-31 → 2026-04-01)  39/39 tasks done  109/109 pts  — Spec 001
 Sprint 2:  [✓] Done        (2026-04-01 → 2026-04-03)  68/68 tasks done  219/219 pts  — Spec 002
-Sprint 3:  [ ] Not Started  — Spec 003
+Sprint 3:  [✓] Done        (2026-04-08 → 2026-06-19) 134/134 tasks done  322/322 pts  — Spec 003
 Sprint 4:  [ ] Not Started  — Spec 004
 Sprint 5:  [ ] Not Started  — Spec 005
 Sprint 6:  [ ] Not Started  — Spec 006

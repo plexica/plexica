@@ -11,6 +11,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { config } from '../lib/config.js';
 import { prisma } from '../lib/database.js';
 import { provisionTenant } from '../modules/tenant/tenant-provisioning.js';
+import * as keycloakAdmin from '../lib/keycloak-admin.js';
 import * as minioClient from '../lib/minio-client.js';
 
 const TEST_SLUG = 'provision-test-org';
@@ -92,12 +93,18 @@ describe('Tenant provisioning', () => {
   });
 
   // EC-03: schema rolled back when Keycloak creation fails.
-  // Requires DB but NOT Keycloak.
-  it.skipIf(!dbOk || keycloakOk)(
+  // Uses vi.spyOn to inject Keycloak failure without taking Keycloak offline.
+  it.skipIf(!dbOk)(
     'rollback EC-03: schema dropped when Keycloak realm creation fails',
     async () => {
       const slug = 'rollback-test-no-kc';
       const schema = 'tenant_rollback_test_no_kc';
+
+      // Inject Keycloak failure for this test only
+      const createRealmSpy = vi
+        .spyOn(keycloakAdmin, 'createRealm')
+        .mockRejectedValueOnce(new Error('Keycloak unreachable (injected for EC-03 test)'));
+
       try {
         await expect(
           provisionTenant({ slug, name: 'Rollback', adminEmail: 'x@x.com' })
@@ -110,6 +117,7 @@ describe('Tenant provisioning', () => {
         const tenant = await prisma.tenant.findUnique({ where: { slug } });
         expect(tenant).toBeNull();
       } finally {
+        createRealmSpy.mockRestore();
         await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
         await prisma.tenant.deleteMany({ where: { slug } });
       }

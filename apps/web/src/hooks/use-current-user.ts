@@ -17,7 +17,7 @@ interface UseCurrentUserResult {
 export function useCurrentUser(): UseCurrentUserResult {
   const { data, isLoading, isError } = useQuery<UserProfile>({
     queryKey: ['me'],
-    queryFn: () => apiClient.get<UserProfile>('/me'),
+    queryFn: () => apiClient.get<UserProfile>('/api/me'),
     staleTime: 5 * 60 * 1_000, // 5 minutes
     retry: 1,
   });
