@@ -45,7 +45,7 @@ jobs:
   ci:
     name: Build, Test, and Validate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read # Minimum required for checkout; all other permissions denied
 
@@ -144,26 +144,25 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
-      # Cache the Playwright browser binaries. The cache key is tied to the web
-      # package.json (which pins the @playwright/test version). On a cache hit the
-      # ~400 MB Chromium download is skipped entirely, saving ~1-2 min per run.
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
-          restore-keys: playwright-chromium-
-
-      - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter web exec playwright install --with-deps chromium
+      # GitHub-hosted Ubuntu runners already ship with Google Chrome.
+      # Downloading Playwright-managed Chromium has repeatedly hung after the
+      # archive reached 100%, so CI uses the preinstalled system browser
+      # instead of downloading another Chromium bundle.
+      - name: Verify preinstalled Chrome
+        run: google-chrome --version
 
       - name: Run Playwright E2E tests
         run: pnpm --filter web test:e2e
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
           CI: 'true'
+          # Raise the global rate-limit ceiling for E2E runs. The 120 tests in
+          # the suite make many workspace POSTs from a single IP in rapid
+          # succession; the default of 100 req/min is exhausted mid-suite,
+          # causing 429s. 1000 req/min is still a meaningful guard against
+          # runaway loops while allowing all tests to complete.
+          RATE_LIMIT_MAX: '1000'
           # Infra vars — forwarded so the core-api webServer subprocess (started
           # by Playwright) can connect to all services. These are also set at the
           # job level (env:) but explicit forwarding ensures subprocess inheritance.

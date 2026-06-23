@@ -1,20 +1,10 @@
 // keycloak-admin-client.ts
 // Keycloak Admin REST API helpers used by global-setup.ts.
-// Exports: getAdminToken, upsertUser, setRealmPlexicaTheme.
-//
-// Key safety net: Keycloak 26 accepts PUT /admin/realms/{realm} with any
-// loginTheme value (HTTP 200) but crashes at FTL render time (HTTP 5xx).
-// setRealmPlexicaTheme probes the login page after setting the theme and
-// falls back to '' so login-dependent E2E tests always have a working page.
+// Exports: getAdminToken, adminFetch, upsertUser, setRealmPlexicaTheme (re-export).
 
-const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
+export const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
 const KEYCLOAK_ADMIN_USER = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
 const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
-
-interface AdminToken {
-  access_token: string;
-  expires_in: number;
-}
 
 export async function getAdminToken(): Promise<string> {
   const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
@@ -30,11 +20,11 @@ export async function getAdminToken(): Promise<string> {
   if (!res.ok) {
     throw new Error(`Keycloak admin token fetch failed: ${res.status} ${await res.text()}`);
   }
-  const data = (await res.json()) as AdminToken;
+  const data = (await res.json()) as { access_token: string };
   return data.access_token;
 }
 
-async function adminFetch(
+export async function adminFetch(
   token: string,
   apiPath: string,
   method: string,
@@ -57,11 +47,52 @@ export interface KeycloakUser {
   lastName?: string;
   password: string;
   requiredActions?: string[];
+  /** Realm-level roles to assign after user creation (e.g. ['tenant_admin']). */
+  realmRoles?: string[];
+}
+
+/**
+ * Assigns realm-level roles to a Keycloak user.
+ * Resolves each role name to its Keycloak representation, then posts the mapping.
+ * Idempotent — assigning an already-assigned role is a no-op (Keycloak returns 204).
+ */
+async function assignRealmRoles(
+  token: string,
+  realm: string,
+  userId: string,
+  roleNames: string[]
+): Promise<void> {
+  const roleRepresentations: Array<{ id: string; name: string }> = [];
+  for (const roleName of roleNames) {
+    const res = await adminFetch(token, `/admin/realms/${realm}/roles/${roleName}`, 'GET');
+    if (!res.ok) {
+      process.stderr.write(
+        `[global-setup] Warning: role '${roleName}' not found in realm ${realm} (${String(res.status)})\n`
+      );
+      continue;
+    }
+    const role = (await res.json()) as { id: string; name: string };
+    roleRepresentations.push({ id: role.id, name: role.name });
+  }
+  if (roleRepresentations.length === 0) return;
+
+  const mapRes = await adminFetch(
+    token,
+    `/admin/realms/${realm}/users/${userId}/role-mappings/realm`,
+    'POST',
+    roleRepresentations
+  );
+  if (!mapRes.ok && mapRes.status !== 204) {
+    process.stderr.write(
+      `[global-setup] Warning: could not assign roles to user ${userId}: ${String(mapRes.status)}\n`
+    );
+  }
 }
 
 /**
  * Creates (or resets the password of) a Keycloak user in the given realm.
  * Handles 409 (already exists) idempotently — resets password and profile.
+ * Assigns realm roles if specified (idempotent — already-assigned roles are a no-op).
  */
 export async function upsertUser(token: string, realm: string, user: KeycloakUser): Promise<void> {
   const userPayload: Record<string, unknown> = {
@@ -77,7 +108,29 @@ export async function upsertUser(token: string, realm: string, user: KeycloakUse
 
   const createRes = await adminFetch(token, `/admin/realms/${realm}/users`, 'POST', userPayload);
 
-  if (createRes.status === 201) return;
+  if (createRes.status === 201) {
+    // Assign roles for newly created user — need to resolve userId from Location header or lookup.
+    if (user.realmRoles !== undefined && user.realmRoles.length > 0) {
+      let userId: string | null = null;
+      const location = createRes.headers.get('Location') ?? '';
+      userId = location.split('/').pop() ?? null;
+      if (userId === null || userId === '') {
+        const lookupRes = await adminFetch(
+          token,
+          `/admin/realms/${realm}/users?username=${encodeURIComponent(user.username)}&exact=true`,
+          'GET'
+        );
+        if (lookupRes.ok) {
+          const users = (await lookupRes.json()) as Array<{ id: string }>;
+          userId = users[0]?.id ?? null;
+        }
+      }
+      if (userId !== null) {
+        await assignRealmRoles(token, realm, userId, user.realmRoles);
+      }
+    }
+    return;
+  }
 
   if (createRes.status !== 409) {
     throw new Error(
@@ -133,64 +186,12 @@ export async function upsertUser(token: string, realm: string, user: KeycloakUse
       );
     }
   }
-}
 
-/**
- * Probes the login page render for a realm. Returns false if Keycloak returns
- * 5xx (FTL crash), true otherwise (including network errors — don't block setup).
- */
-async function isLoginPageRendering(realm: string): Promise<boolean> {
-  // Use a fake client_id — Keycloak renders the login page before client validation,
-  // so a 5xx here means the theme crashed, not a client configuration error.
-  const loginUrl =
-    `${KEYCLOAK_URL}/realms/${realm}/protocol/openid-connect/auth` +
-    `?client_id=probe&response_type=code&scope=openid&redirect_uri=http://localhost`;
-  try {
-    const res = await fetch(loginUrl, { method: 'GET', redirect: 'follow' });
-    return res.status < 500;
-  } catch {
-    // Network error — Keycloak not reachable. Don't block setup.
-    return true;
+  // Assign roles for existing user (idempotent — already-assigned roles are a no-op).
+  if (user.realmRoles !== undefined && user.realmRoles.length > 0) {
+    await assignRealmRoles(token, realm, userId, user.realmRoles);
   }
 }
 
-async function resetToDefaultTheme(token: string, realm: string): Promise<void> {
-  const fallbackRes = await adminFetch(token, `/admin/realms/${realm}`, 'PUT', { loginTheme: '' });
-  if (!fallbackRes.ok) {
-    process.stderr.write(
-      `[global-setup] Warning: could not reset loginTheme for realm ${realm}: ${String(fallbackRes.status)}\n`
-    );
-  }
-}
-
-/**
- * Sets realm loginTheme to 'plexica', then probes the login page render.
- * Falls back to '' (default) if the PUT is rejected or the page returns 5xx.
- * Returns true when the Plexica theme is active, false when the fallback is used.
- */
-export async function setRealmPlexicaTheme(token: string, realm: string): Promise<boolean> {
-  const setRes = await adminFetch(token, `/admin/realms/${realm}`, 'PUT', {
-    loginTheme: 'plexica',
-  });
-  if (!setRes.ok) {
-    process.stdout.write(
-      `[global-setup] Warning: 'plexica' theme rejected (${String(setRes.status)}), falling back for realm ${realm}.\n`
-    );
-    await resetToDefaultTheme(token, realm);
-    return false;
-  }
-
-  const renders = await isLoginPageRendering(realm);
-  if (renders) {
-    process.stdout.write(
-      `[global-setup] Realm ${realm}: loginTheme set to 'plexica' (render probe OK).\n`
-    );
-    return true;
-  }
-
-  process.stdout.write(
-    `[global-setup] Warning: 'plexica' theme renders with 5xx; falling back for realm ${realm}.\n`
-  );
-  await resetToDefaultTheme(token, realm);
-  return false;
-}
+// Re-export theme helpers so global-setup.ts can import from one place.
+export { setRealmPlexicaTheme } from './keycloak-theme-helpers.js';

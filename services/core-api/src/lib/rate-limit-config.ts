@@ -4,15 +4,18 @@
 // Centralised here so any change to error shape or key strategy is applied
 // consistently across production and tests.
 
+import { config } from './config.js';
+
 import type { FastifyRequest } from 'fastify';
 import type { errorResponseBuilderContext } from '@fastify/rate-limit';
 
 // ---------------------------------------------------------------------------
-// Global default: 100 req / 1 min per key (IP in public scope,
+// Global default: RATE_LIMIT_MAX req / 1 min per key (IP in public scope,
 // user sub in authenticated scopes via per-route keyGenerator override).
+// Configurable via RATE_LIMIT_MAX env var (default 100, increase for E2E).
 // ---------------------------------------------------------------------------
 export const GLOBAL_RATE_LIMIT = {
-  max: 100,
+  max: config.RATE_LIMIT_MAX,
   timeWindow: '1 minute',
 } as const;
 
@@ -54,3 +57,31 @@ export function rateLimitErrorResponseBuilder(
     rateLimitBody: body,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Per-route rate limit configurations
+// ---------------------------------------------------------------------------
+
+/** Invitation endpoints: 10 req/min per user. */
+export const INVITATION_RATE_LIMIT = {
+  max: 10,
+  timeWindow: '1 minute',
+} as const;
+
+/** Avatar / logo upload: 5 req/min per user. */
+export const UPLOAD_RATE_LIMIT = {
+  max: 5,
+  timeWindow: '1 minute',
+} as const;
+
+/** Auth config endpoints: 5 req/min per user. */
+export const AUTH_CONFIG_RATE_LIMIT = {
+  max: 5,
+  timeWindow: '1 minute',
+} as const;
+
+/** General settings endpoints: 30 req/min per user. */
+export const SETTINGS_RATE_LIMIT = {
+  max: 30,
+  timeWindow: '1 minute',
+} as const;

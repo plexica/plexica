@@ -3,7 +3,12 @@
 // Attaches Authorization and X-Tenant-Slug headers on every request.
 // On 401: attempts token refresh; if failed, emits sessionExpired + redirects.
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+// API paths already include the /api/v1 prefix (e.g. /api/v1/workspaces).
+// The Vite dev proxy forwards /api/* → http://localhost:3001 without rewriting,
+// so API_BASE must be empty to avoid doubling the prefix (/api/api/v1/…).
+// When VITE_API_URL is set (e.g. in CI pointing to a real backend), it should
+// NOT include /api — e.g. "http://localhost:3001", not "http://localhost:3001/api".
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 // L-8: module-level lazy cache avoids the dynamic import() overhead on every
 // API call while still breaking the circular dependency between api-client
@@ -24,10 +29,13 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-async function buildHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
+async function buildHeaders(
+  extra?: Record<string, string>,
+  hasBody = false
+): Promise<Record<string, string>> {
   const store = await getAuthStore();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     ...extra,
   };
 
@@ -44,7 +52,8 @@ async function buildHeaders(extra?: Record<string, string>): Promise<Record<stri
 
 async function request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const headers = await buildHeaders(options?.headers);
+  const hasBody = options?.body !== undefined;
+  const headers = await buildHeaders(options?.headers, hasBody);
 
   const response = await fetch(url, {
     method,
@@ -58,7 +67,7 @@ async function request<T>(method: string, path: string, options?: RequestOptions
     try {
       await store.refresh();
       // Retry with new token
-      const retryHeaders = await buildHeaders(options?.headers);
+      const retryHeaders = await buildHeaders(options?.headers, hasBody);
       const retryResponse = await fetch(url, {
         method,
         headers: retryHeaders,
@@ -77,6 +86,10 @@ async function request<T>(method: string, path: string, options?: RequestOptions
           errBody.error?.message ?? `Request failed after token refresh: ${retryResponse.status}`
         );
       }
+      // 204 No Content — no body to parse
+      if (retryResponse.status === 204) {
+        return undefined as T;
+      }
       return retryResponse.json() as Promise<T>;
     } catch (err) {
       // refresh() threw — the refresh token is expired or revoked.
@@ -93,6 +106,11 @@ async function request<T>(method: string, path: string, options?: RequestOptions
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(errorBody.error?.message ?? `Request failed: ${response.status}`);
+  }
+
+  // 204 No Content — no body to parse
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
