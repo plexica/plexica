@@ -21,6 +21,7 @@ coverage/
 playwright-report/
 test-results/
 apps/web/e2e/screenshots/
+apps/web/e2e/.e2e-plexica-theme-active
 
 # Prisma generated
 prisma/generated/

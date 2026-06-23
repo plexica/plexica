@@ -53,7 +53,7 @@ test.describe('Mobile sidebar drawer', () => {
     await expect(drawer.getByRole('button', { name: 'Close navigation' })).toBeFocused();
   });
 
-  test('Tab wraps from last item to close button; Shift+Tab wraps close to last [002-20, WCAG 2.1.2]', async ({
+  test('Tab cycles through all drawer items and wraps; Shift+Tab wraps back [002-20, WCAG 2.1.2]', async ({
     page,
   }) => {
     await page.getByRole('button', { name: 'Toggle sidebar' }).click();
@@ -61,19 +61,27 @@ test.describe('Mobile sidebar drawer', () => {
     await expect(drawer).toBeVisible();
 
     const closeBtn = drawer.getByRole('button', { name: 'Close navigation' });
-    const dashboardLink = drawer.getByRole('link', { name: 'Dashboard' });
 
-    // Tab: close button → Dashboard link (only nav item)
-    await page.keyboard.press('Tab');
-    await expect(dashboardLink).toBeFocused();
+    // Close button should be focused initially
+    await expect(closeBtn).toBeFocused();
 
-    // Tab again from last item → wraps to close button
+    // The drawer contains: close button + 7 nav links (Dashboard, Workspaces,
+    // Users, Roles & Permissions, Settings, Audit Log, Profile).
+    // Tab 7 times to reach the last nav item (Profile).
+    for (let i = 0; i < 7; i++) {
+      await page.keyboard.press('Tab');
+    }
+    // After 7 Tabs from close button, we should be on the last nav link (Profile)
+    const lastNavLink = drawer.getByRole('link', { name: 'Profile' });
+    await expect(lastNavLink).toBeFocused();
+
+    // Tab once more → wraps to close button (focus trap)
     await page.keyboard.press('Tab');
     await expect(closeBtn).toBeFocused();
 
-    // Shift+Tab from close button → wraps back to Dashboard link
+    // Shift+Tab from close button → wraps back to Profile (last item)
     await page.keyboard.press('Shift+Tab');
-    await expect(dashboardLink).toBeFocused();
+    await expect(lastNavLink).toBeFocused();
   });
 
   test('Escape closes drawer and returns focus to the hamburger button [002-20, WCAG 2.4.3]', async ({
@@ -130,8 +138,9 @@ test.describe('Mobile sidebar drawer', () => {
     await page.getByRole('button', { name: 'Toggle sidebar' }).click();
     await expect(page.locator('#sidebar-drawer')).toBeVisible();
 
-    // Tab 10 times — focus must stay inside #sidebar-drawer on every press
-    for (let i = 0; i < 10; i++) {
+    // Tab 20 times — focus must stay inside #sidebar-drawer on every press
+    // (8 focusable items × 2.5 cycles)
+    for (let i = 0; i < 20; i++) {
       await page.keyboard.press('Tab');
       const isInsideDrawer = await page.evaluate(() => {
         const drawerEl = document.getElementById('sidebar-drawer');

@@ -55,7 +55,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     {
       config: {
         rateLimit: {
-          max: 30,
+          max: config.RATE_LIMIT_RESOLVE_MAX,
           timeWindow: '1 minute',
           keyGenerator: (request) => request.ip,
         },

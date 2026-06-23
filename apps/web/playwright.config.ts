@@ -1,5 +1,6 @@
 // playwright.config.ts — Playwright configuration for apps/web E2E tests.
-// Chromium only (CI installs only Chromium to keep pipeline fast).
+// Chromium only. CI uses the preinstalled Google Chrome channel on GitHub
+// runners to avoid flaky Playwright browser downloads.
 //
 // Env loading strategy:
 //   Local dev  — dotenv.config() reads ../../.env (monorepo root). No-ops if absent.
@@ -35,6 +36,7 @@ function setDefault(key: string, value: string): void {
 }
 
 setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+setDefault('PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX', '30');
 setDefault('PLAYWRIGHT_TENANT_SLUG', 'e2e');
 setDefault('PLAYWRIGHT_KEYCLOAK_USER', 'test@e2e.local');
 setDefault('PLAYWRIGHT_KEYCLOAK_PASS', 'PlexicaE2e!1');
@@ -49,6 +51,7 @@ setDefault('PLAYWRIGHT_FORCE_PROFILE_USER', 'force-profile@e2e.local');
 setDefault('PLAYWRIGHT_FORCE_PROFILE_PASS', 'ForceProfile!1');
 
 const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
+const playwrightBrowserChannel = process.env['PLAYWRIGHT_BROWSER_CHANNEL'];
 
 // ── Core-api webServer command ─────────────────────────────────────────────────
 // CI: after `pnpm build`, start the compiled output directly (no tsx / dotenv wrapper).
@@ -82,7 +85,10 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(playwrightBrowserChannel === undefined ? {} : { channel: playwrightBrowserChannel }),
+      },
     },
   ],
   // Two webServers: core-api (backend) and Vite frontend.

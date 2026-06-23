@@ -1,7 +1,10 @@
 // login-flow.spec.ts
 // E2E test: full login flow via Keycloak OIDC PKCE.
 // Skips when PLAYWRIGHT_KEYCLOAK_URL is not provided or Keycloak is not reachable.
-// NFR-01: login flow completes < 10s. NFR-07: FCP < 1500ms.
+// NFR-01: login flow completes < 3s. NFR-07: FCP < 1500ms.
+// Performance NFR tests (NFR-01, NFR-07) are skipped in dev mode — they only
+// apply to the production build (pnpm start). In CI, playwright.config.ts uses
+// the built output; locally it uses the Vite dev server which is unoptimized.
 
 import { expect, test } from './helpers/base-fixture.js';
 
@@ -18,6 +21,9 @@ const USER_FIRST_NAME =
 const TENANT_SLUG = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'test-tenant';
 
 const hasKeycloak = KEYCLOAK_URL.length > 0 && KEYCLOAK_USERNAME.length > 0;
+// Performance NFRs only apply to the production build (CI uses pnpm start).
+// Dev mode (Vite HMR, no bundling) is 2-5x slower by design.
+const isCi = process.env['CI'] !== undefined;
 
 test.describe('Login flow', () => {
   test.skip(
@@ -33,6 +39,7 @@ test.describe('Login flow', () => {
   });
 
   test('full login flow completes in < 3s (NFR-01)', async ({ page }) => {
+    test.skip(!isCi, 'NFR-01 performance threshold only applies to the production build (CI)');
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', KEYCLOAK_USERNAME);
@@ -68,6 +75,7 @@ test.describe('Login flow', () => {
   });
 
   test('FCP < 1500ms after login (NFR-07)', async ({ page }) => {
+    test.skip(!isCi, 'NFR-07 performance threshold only applies to the production build (CI)');
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', KEYCLOAK_USERNAME);
