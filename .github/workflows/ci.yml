@@ -167,7 +167,7 @@ jobs:
         id: install-playwright
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 50
-        run: pnpm --filter web exec playwright install --with-deps chromium
+        run: pnpm --filter web exec playwright install --with-deps --only-shell chromium
 
       - name: Save Playwright browsers cache
         if: steps.playwright-cache.outputs.cache-hit != 'true' && steps.install-playwright.conclusion == 'success'
