@@ -1,0 +1,47 @@
+# sca.yml — Plexica v2 SCA (Software Composition Analysis)
+# Scans production dependencies via Trivy for known vulnerabilities.
+# Constitution Rule 2: 0 production vulnerabilities required.
+# Fails the pipeline if any vulnerability is detected.
+#
+# Dev dependencies are excluded by default (Trivy default behaviour);
+# use `--include-dev-deps` locally to reproduce the full scan.
+#
+# Fast: completes in ~30s, no Docker infrastructure required.
+
+name: SCA
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  sca:
+    name: Software Composition Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ── SCA scan via Trivy GitHub Action ─────────────────────────────────
+      # Scans pnpm-lock.yaml for known vulnerabilities.
+      # scan-type: fs = filesystem scan (lock files, not container images)
+      # scanners: vuln = vulnerability scanning only (not misconfig, secret)
+      # exit-code: 1 = fail the pipeline if ANY vulnerability is found
+      #
+      # NOTE: `include-dev-deps` is NOT set. Trivy excludes dev dependencies
+      # by default, so only production dependency issues are reported.
+      # This enforces "0 production vulnerabilities" as a merge gate.
+      - name: Run Trivy SCA scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: table
+          exit-code: 1
