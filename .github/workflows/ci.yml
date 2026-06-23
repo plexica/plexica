@@ -144,47 +144,18 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
 
       # ── 10. E2E ────────────────────────────────────────────────────────────────
-      # Installation is split into two separate steps to avoid a post-download
-      # hang observed with --with-deps: apt finishes in ~10 s, the zip downloads
-      # instantly, but Playwright then silently blocks for the full timeout
-      # (possibly a font-cache rebuild or binary verification triggered by the
-      # combined --with-deps path). Splitting lets each concern have the right
-      # timeout and makes failures immediately diagnosable.
-      #
-      # Cache strategy: restore/save as separate inline steps so the cache is
-      # written immediately after installation (before E2E runs). Prevents the
-      # failure mode where a cancelled/timed-out job never triggers the
-      # post-job save, leaving the cache empty for the next run.
-      # On cache hit (all runs after the first), both install steps are skipped.
-      - name: Restore Playwright browsers cache
-        id: playwright-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
-          restore-keys: playwright-chromium-
-
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter web exec playwright install-deps chromium
-
-      - name: Install Playwright Chromium
-        id: install-playwright
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 20
-        run: pnpm --filter web exec playwright install --only-shell chromium
-
-      - name: Save Playwright browsers cache
-        if: steps.playwright-cache.outputs.cache-hit != 'true' && steps.install-playwright.conclusion == 'success'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+      # GitHub-hosted Ubuntu runners already ship with Google Chrome.
+      # Downloading Playwright-managed Chromium has repeatedly hung after the
+      # archive reached 100%, so CI uses the preinstalled system browser
+      # instead of downloading another Chromium bundle.
+      - name: Verify preinstalled Chrome
+        run: google-chrome --version
 
       - name: Run Playwright E2E tests
         run: pnpm --filter web test:e2e
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
           CI: 'true'
           # Raise the global rate-limit ceiling for E2E runs. The 120 tests in
           # the suite make many workspace POSTs from a single IP in rapid
