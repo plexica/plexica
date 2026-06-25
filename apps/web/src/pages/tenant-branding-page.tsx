@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { Button, FileUpload, ToggleSwitch } from '@plexica/ui';
+import { FileUpload, ToggleSwitch } from '@plexica/ui';
 
 import { useBranding, useUpdateBranding, useUploadLogo } from '../hooks/use-tenant-settings.js';
 import { ColorPicker } from '../components/settings/color-picker.js';

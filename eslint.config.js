@@ -27,6 +27,8 @@ export default [
       'infra/keycloak/themes/**',
       // OpenCode agent configuration files — not project source, not linted
       '.opencode/**',
+      // FORGE tooling templates and examples — installed by forge init, not project source
+      '.forge/**',
     ],
   },
   // Node.js scripts (.mjs) — utility scripts not bundled into the app

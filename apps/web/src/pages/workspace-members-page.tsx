@@ -53,7 +53,6 @@ export function WorkspaceMembersPage(): JSX.Element {
   const workspaceId = useWorkspaceId();
   const [showInvite, setShowInvite] = useState(false);
   const [removeTargetId, setRemoveTargetId] = useState<string | null>(null);
-  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const { data, isPending, isError, refetch } = useWorkspaceMembers(workspaceId);
   const { data: invData } = useInvitations(workspaceId);
@@ -156,7 +155,7 @@ export function WorkspaceMembersPage(): JSX.Element {
       <ConfirmDialog
         open={removeTargetId !== null}
         onOpenChange={(open) => {
-          if (!open) { setRemoveTargetId(null); setRemoveError(null); }
+          if (!open) { setRemoveTargetId(null); }
         }}
         title={intl.formatMessage({ id: 'members.remove.confirm.title' })}
         description={intl.formatMessage({ id: 'members.remove.confirm.description' })}
@@ -165,12 +164,10 @@ export function WorkspaceMembersPage(): JSX.Element {
         variant="destructive"
         onConfirm={() => {
           if (removeTargetId === null) return;
-          setRemoveError(null);
           removeM(
             { workspaceId, userId: removeTargetId },
             {
-              onSuccess: () => { setRemoveTargetId(null); setRemoveError(null); },
-              onError: () => setRemoveError(intl.formatMessage({ id: 'common.error' })),
+              onSuccess: () => { setRemoveTargetId(null); },
             },
           );
         }}

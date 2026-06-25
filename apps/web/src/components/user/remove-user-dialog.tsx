@@ -4,7 +4,7 @@
 // Mutation errors are shown inline; dialog stays open so the user can retry.
 
 import { useState } from 'react';
-import { useIntl, FormattedMessage } from 'react-intl';
+import { useIntl } from 'react-intl';
 import { TypeToConfirmDialog } from '@plexica/ui';
 
 import { useRemoveUser } from '../../hooks/use-users.js';
