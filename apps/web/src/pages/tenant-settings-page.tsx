@@ -2,7 +2,7 @@
 // Form to edit tenant display name. Slug is read-only.
 // Settings Panel pattern: SettingsSection card, isDirty indicator, save feedback.
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,7 +12,7 @@ import { Input } from '@plexica/ui';
 import { useTenantSettings, useUpdateTenantSettings } from '../hooks/use-tenant-settings.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
-import { SettingsSection, SaveBar } from '../components/settings/settings-section.js';
+import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 
 const schema = z.object({ displayName: z.string().min(1) });
 type FormValues = z.infer<typeof schema>;
@@ -31,7 +31,7 @@ function TenantSettingsSkeleton(): JSX.Element {
 
 export function TenantSettingsPage(): JSX.Element {
   const intl = useIntl();
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const { saveStatus, markSaved } = useSaveStatus();
   const { data, isPending, isError, refetch } = useTenantSettings();
   const { mutate, isPending: isSaving } = useUpdateTenantSettings();
 
@@ -52,8 +52,7 @@ export function TenantSettingsPage(): JSX.Element {
     mutate({ displayName: values.displayName }, {
       onSuccess: () => {
         reset({ displayName: values.displayName });
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+        markSaved();
       },
     });
   }

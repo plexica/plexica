@@ -2,7 +2,7 @@
 // User profile page: avatar upload + profile form.
 // Settings Panel pattern: two sections, isDirty indicator, save feedback.
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Input, FileUpload } from '@plexica/ui';
 import { useProfile, useUpdateProfile, useUploadAvatar } from '../hooks/use-profile.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
-import { SettingsSection, SaveBar } from '../components/settings/settings-section.js';
+import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 
 const schema = z.object({
   displayName: z.string().min(1).max(120),
@@ -34,7 +34,7 @@ function ProfileSkeleton(): JSX.Element {
 
 export function ProfilePage(): JSX.Element {
   const intl = useIntl();
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const { saveStatus, markSaved } = useSaveStatus();
   const { data, isPending, isError, refetch } = useProfile();
   const { mutate: updateProfile, isPending: isSaving } = useUpdateProfile();
   const { mutate: uploadAvatar, isPending: isUploading } = useUploadAvatar();
@@ -59,9 +59,7 @@ export function ProfilePage(): JSX.Element {
   function onSubmit(values: FormValues): void {
     updateProfile(values, {
       onSuccess: () => {
-        reset(values);
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+        reset(values); markSaved();
       },
     });
   }

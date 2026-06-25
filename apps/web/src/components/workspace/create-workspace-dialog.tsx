@@ -17,8 +17,7 @@ import {
   DialogTitle,
 } from '@plexica/ui';
 
-import { useCreateWorkspace } from '../../hooks/use-workspaces.js';
-import { useWorkspaces } from '../../hooks/use-workspaces.js';
+import { useCreateWorkspace, useWorkspaces } from '../../hooks/use-workspaces.js';
 import { useWorkspaceTemplates } from '../../hooks/use-workspace-templates.js';
 
 interface CreateWorkspaceDialogProps {

@@ -112,7 +112,6 @@ export function TypeToConfirmDialog({
             variant="destructive"
             type="button"
             disabled={!isMatch || loading}
-            aria-disabled={!isMatch || loading}
             loading={loading}
             onClick={onConfirm}
           >

@@ -39,7 +39,8 @@ export function WorkspaceListPage(): JSX.Element {
   const [filterValues, setFilterValues] = useState<FilterValues>({ status: 'active' });
   const [showCreate, setShowCreate] = useState(false);
 
-  const status = filterValues.status as 'active' | 'archived' | undefined;
+  // Empty string from InlineFilter means "no filter" — treat as undefined
+  const status = ((filterValues.status as string) || undefined) as 'active' | 'archived' | undefined;
   const filters = status !== undefined ? { page, status } : { page };
 
   const { data, isPending, isError, refetch } = useWorkspaces(filters);

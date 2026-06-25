@@ -2,7 +2,7 @@
 // Form to update tenant authentication config: brute force protection, session TTL.
 // Settings Panel pattern: SettingsSection card, isDirty indicator, save feedback.
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Input, ToggleSwitch } from '@plexica/ui';
 import { useAuthConfig, useUpdateAuthConfig } from '../hooks/use-tenant-settings.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
-import { SettingsSection, SaveBar } from '../components/settings/settings-section.js';
+import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 
 const schema = z.object({
   bruteForceProtected: z.boolean(),
@@ -32,7 +32,7 @@ function AuthConfigSkeleton(): JSX.Element {
 
 export function TenantAuthConfigPage(): JSX.Element {
   const intl = useIntl();
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const { saveStatus, markSaved } = useSaveStatus();
   const { data, isPending, isError, refetch } = useAuthConfig();
   const { mutate: updateConfig, isPending: isSaving } = useUpdateAuthConfig();
 
@@ -59,9 +59,7 @@ export function TenantAuthConfigPage(): JSX.Element {
   function onSubmit(values: FormValues): void {
     updateConfig(values, {
       onSuccess: () => {
-        reset(values);
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
+        reset(values); markSaved();
       },
     });
   }

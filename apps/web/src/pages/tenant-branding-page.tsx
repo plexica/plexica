@@ -10,7 +10,7 @@ import { useBranding, useUpdateBranding, useUploadLogo } from '../hooks/use-tena
 import { ColorPicker } from '../components/settings/color-picker.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
-import { SettingsSection, SaveBar } from '../components/settings/settings-section.js';
+import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 
 function BrandingSkeleton(): JSX.Element {
   return (
@@ -25,7 +25,7 @@ function BrandingSkeleton(): JSX.Element {
 
 export function TenantBrandingPage(): JSX.Element {
   const intl = useIntl();
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const { saveStatus, markSaved } = useSaveStatus();
   const { data, isPending, isError, refetch } = useBranding();
   const { mutate: updateBranding, isPending: isSaving } = useUpdateBranding();
   const { mutate: uploadLogo, isPending: isUploading } = useUploadLogo();
@@ -50,10 +50,7 @@ export function TenantBrandingPage(): JSX.Element {
 
   function handleSave(): void {
     updateBranding({ primaryColor, darkMode }, {
-      onSuccess: () => {
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
-      },
+      onSuccess: () => { markSaved(); },
     });
   }
 

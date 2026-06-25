@@ -3,11 +3,39 @@
 // Provides: card container, section header (title + description), content slot.
 // SaveBar handles the unsaved-changes indicator + save button + success feedback.
 // Pattern: idle → editing (isDirty) → saving → saved (2s) → idle
+//
+// useSaveStatus: hook that manages the saved/idle state with safe timer cleanup.
 
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { FormattedMessage } from 'react-intl';
 import { cn } from '@plexica/ui';
 import { Button } from '@plexica/ui';
+
+// ─── useSaveStatus ──────────────────────────────────────────────────────────
+// Manages the 2-second "Saved" feedback with proper cleanup on unmount.
+// Usage: const { saveStatus, markSaved } = useSaveStatus()
+
+export function useSaveStatus(): {
+  saveStatus: 'idle' | 'saved';
+  markSaved: () => void;
+} {
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Auto-clear the "Saved" indicator after 2s, with cleanup on unmount
+  useEffect(() => {
+    if (saveStatus !== 'saved') return;
+    timerRef.current = setTimeout(() => setSaveStatus('idle'), 2000);
+    return () => clearTimeout(timerRef.current);
+  }, [saveStatus]);
+
+  function markSaved(): void {
+    setSaveStatus('saved');
+  }
+
+  return { saveStatus, markSaved };
+}
 
 // ─── SettingsSection ────────────────────────────────────────────────────────
 
@@ -79,7 +107,7 @@ export function SaveBar({
         </p>
       )}
 
-      <Button type="submit" loading={isSaving} disabled={!isDirty && saveStatus !== 'saved'}>
+      <Button type="submit" loading={isSaving} disabled={!isDirty || isSaving}>
         {label}
       </Button>
     </div>

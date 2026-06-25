@@ -2,8 +2,7 @@
 // Aggregates lightweight stats for the dashboard KPI cards.
 // Each query fetches only 1 record to minimize payload — only the `total` field is used.
 
-import { useQuery } from '@tanstack/react-query';
-import { keepPreviousData } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 
 import { workspaceApi } from '../services/workspace-api.js';
 import { userApi } from '../services/user-api.js';

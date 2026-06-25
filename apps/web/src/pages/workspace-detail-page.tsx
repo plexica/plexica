@@ -30,6 +30,7 @@ function TabContentSkeleton(): JSX.Element {
 }
 
 function MembersTab({ workspaceId }: { workspaceId: string }): JSX.Element {
+  const intl = useIntl();
   const { data, isPending, isError, refetch } = useWorkspaceMembers(workspaceId);
 
   if (isPending) return <TabContentSkeleton />;
@@ -59,7 +60,13 @@ function MembersTab({ workspaceId }: { workspaceId: string }): JSX.Element {
           </div>
           <Badge
             variant={m.role === 'admin' ? 'admin' : m.role === 'viewer' ? 'viewer' : 'member'}
-            label={m.role}
+            label={
+              m.role === 'admin'
+                ? intl.formatMessage({ id: 'members.role.admin' })
+                : m.role === 'viewer'
+                  ? intl.formatMessage({ id: 'members.role.viewer' })
+                  : intl.formatMessage({ id: 'members.role.member' })
+            }
           />
         </li>
       ))}
