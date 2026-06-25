@@ -1,11 +1,22 @@
 // workspace-members-page.tsx
 // Shows workspace members list with add/invite and remove/role-change actions.
+// Uses Table component for consistent data display.
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { useParams } from '@tanstack/react-router';
 import { UserPlus, Users } from 'lucide-react';
-import { Button, Select, Badge } from '@plexica/ui';
+import {
+  Button,
+  Select,
+  Badge,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@plexica/ui';
 
 import {
   useWorkspaceMembers,
@@ -23,7 +34,7 @@ function useWorkspaceId(): string {
   return (params as Record<string, string>).workspaceId ?? '';
 }
 
-const roleOptions = [
+const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
   { value: 'member', label: 'Member' },
   { value: 'viewer', label: 'Viewer' },
@@ -39,7 +50,7 @@ function MembersSkeleton(): JSX.Element {
       </div>
       <div className="space-y-2">
         {Array.from({ length: 4 }).map((_, i) => (
-          <SkeletonLoader key={i} variant="card" className="h-14" />
+          <SkeletonLoader key={i} variant="card" className="h-12" />
         ))}
       </div>
     </div>
@@ -93,38 +104,54 @@ export function WorkspaceMembersPage(): JSX.Element {
           }
         />
       ) : (
-        <ul className="space-y-2">
-          {members.map((m) => (
-            <li
-              key={m.userId}
-              className="flex items-center justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-neutral-900">
-                  {m.displayName ?? m.email}
-                </p>
-                <p className="truncate text-xs text-neutral-500">{m.email}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  options={roleOptions}
-                  value={m.role}
-                  onValueChange={(v) => changeRole({ workspaceId, userId: m.userId, role: v })}
-                  aria-label={intl.formatMessage({ id: 'members.role.member' })}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeM({ workspaceId, userId: m.userId })}
-                  disabled={isRemoving}
-                  aria-label={intl.formatMessage({ id: 'members.remove.confirm.title' })}
-                >
-                  <FormattedMessage id="common.delete" />
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <Table aria-label={intl.formatMessage({ id: 'members.title' })}>
+          <TableHeader>
+            <TableRow>
+              <TableHead><FormattedMessage id="profile.displayName.label" /></TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <FormattedMessage id="login.email.label" />
+              </TableHead>
+              <TableHead><FormattedMessage id="members.role.member" /></TableHead>
+              <TableHead>
+                <span className="sr-only"><FormattedMessage id="common.actions" /></span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {members.map((m) => (
+              <TableRow key={m.userId}>
+                <TableCell>
+                  <div>
+                    <p className="font-medium text-neutral-900">{m.displayName ?? m.email}</p>
+                    <p className="text-xs text-neutral-500 sm:hidden">{m.email}</p>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden text-neutral-600 sm:table-cell">
+                  {m.email}
+                </TableCell>
+                <TableCell>
+                  <Select
+                    options={ROLE_OPTIONS}
+                    value={m.role}
+                    onValueChange={(v) => changeRole({ workspaceId, userId: m.userId, role: v })}
+                    aria-label={intl.formatMessage({ id: 'members.role.member' })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeM({ workspaceId, userId: m.userId })}
+                    disabled={isRemoving}
+                    aria-label={intl.formatMessage({ id: 'members.remove.confirm.title' })}
+                  >
+                    <FormattedMessage id="common.delete" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {invitations.length > 0 && (

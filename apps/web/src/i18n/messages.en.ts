@@ -161,6 +161,8 @@ export const messages = {
   'auditLog.title': 'Audit Log',
   'auditLog.filter.actor': 'Actor',
   'auditLog.filter.action': 'Action type',
+  'auditLog.filter.allActions': 'All actions',
+  'auditLog.filter.dateRange': 'Date range',
   'auditLog.filter.workspace': 'Workspace',
   'auditLog.filter.from': 'From',
   'auditLog.filter.to': 'To',
@@ -184,9 +186,19 @@ export const messages = {
   'common.noData': 'No data.',
   'common.search': 'Search',
   'common.filter': 'Filter',
+  'common.status': 'Status',
+  'common.actions': 'Actions',
   'common.page': 'Page {page} of {total}',
   'common.prevPage': 'Previous page',
   'common.nextPage': 'Next page',
+
+  // User status labels
+  'users.status.active': 'Active',
+  'users.status.suspended': 'Suspended',
+  'users.status.pending_deletion': 'Pending deletion',
+
+  // Workspace status
+  'workspace.status.all': 'All statuses',
 
   // Page-level error state (PageError component)
   'error.page.heading': 'Failed to load',
