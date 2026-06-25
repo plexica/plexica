@@ -135,24 +135,34 @@ export const messages = {
   'roles.matrix.title': 'Permission Matrix',
   'roles.export.csv': 'Export CSV',
 
-  // Settings
+  // Settings — feedback
+  'settings.unsavedChanges': 'Unsaved changes',
+  'settings.saved': 'Saved',
+
+  // Settings — pages
   'settings.general.title': 'General Settings',
+  'settings.general.displayName.description': 'This name is shown in the header and emails.',
   'settings.general.displayName.label': 'Organization name',
   'settings.general.slug.label': 'Organization slug',
   'settings.general.slug.tooltip': 'The slug cannot be changed after creation.',
   'settings.general.save': 'Save',
   'settings.branding.title': 'Branding',
   'settings.branding.logo.label': 'Logo',
+  'settings.branding.logo.description': 'Shown in the header and login page. Max 2 MB.',
+  'settings.branding.appearance.title': 'Appearance',
+  'settings.branding.appearance.description': 'Customize your organization\'s color theme.',
   'settings.branding.primaryColor.label': 'Primary color',
   'settings.branding.darkMode.label': 'Dark mode',
   'settings.branding.save': 'Save',
   'settings.auth.title': 'Authentication',
+  'settings.auth.description': 'Configure Keycloak realm security settings.',
   'settings.auth.bruteForce.label': 'Brute force protection',
   'settings.auth.sessionLifespan.label': 'Session lifespan (seconds)',
   'settings.auth.save': 'Save',
 
   // Profile
   'profile.title': 'Profile',
+  'profile.avatar.description': 'Upload a photo. Max 2 MB, JPEG or PNG.',
   'profile.displayName.label': 'Display name',
   'profile.timezone.label': 'Timezone',
   'profile.language.label': 'Language',

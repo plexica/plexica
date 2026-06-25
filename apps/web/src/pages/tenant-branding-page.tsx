@@ -1,5 +1,6 @@
 // tenant-branding-page.tsx
 // Form to update tenant branding: logo, primary color, dark mode.
+// Settings Panel pattern: two sections (Logo, Appearance), manual dirty tracking.
 
 import { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -9,24 +10,22 @@ import { useBranding, useUpdateBranding, useUploadLogo } from '../hooks/use-tena
 import { ColorPicker } from '../components/settings/color-picker.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
+import { SettingsSection, SaveBar } from '../components/settings/settings-section.js';
 
 function BrandingSkeleton(): JSX.Element {
   return (
     <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
       <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
       <SkeletonLoader className="h-8 w-28" />
-      <div className="max-w-lg space-y-6">
-        <SkeletonLoader variant="card" className="h-24" />
-        <SkeletonLoader variant="card" className="h-10" />
-        <SkeletonLoader variant="card" className="h-10" />
-        <SkeletonLoader className="h-9 w-20 rounded-md" />
-      </div>
+      <SkeletonLoader variant="card" className="h-36" />
+      <SkeletonLoader variant="card" className="h-36" />
     </div>
   );
 }
 
 export function TenantBrandingPage(): JSX.Element {
   const intl = useIntl();
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const { data, isPending, isError, refetch } = useBranding();
   const { mutate: updateBranding, isPending: isSaving } = useUpdateBranding();
   const { mutate: uploadLogo, isPending: isUploading } = useUploadLogo();
@@ -43,15 +42,19 @@ export function TenantBrandingPage(): JSX.Element {
 
   if (isPending) return <BrandingSkeleton />;
   if (isError || data === undefined) {
-    return (
-      <div className="p-6">
-        <PageError onRetry={() => void refetch()} />
-      </div>
-    );
+    return <div className="p-6"><PageError onRetry={() => void refetch()} /></div>;
   }
 
+  // Manual dirty tracking — branding uses controlled state, not RHF
+  const isDirty = primaryColor !== data.primaryColor || darkMode !== data.darkMode;
+
   function handleSave(): void {
-    updateBranding({ primaryColor, darkMode });
+    updateBranding({ primaryColor, darkMode }, {
+      onSuccess: () => {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      },
+    });
   }
 
   return (
@@ -60,11 +63,12 @@ export function TenantBrandingPage(): JSX.Element {
         <FormattedMessage id="settings.branding.title" />
       </h1>
 
-      <div className="max-w-lg space-y-6">
-        <div>
-          <p className="mb-1 text-sm font-medium text-neutral-700">
-            <FormattedMessage id="settings.branding.logo.label" />
-          </p>
+      <div className="max-w-2xl space-y-4">
+        {/* Logo section — independent upload, no dirty tracking */}
+        <SettingsSection
+          title={<FormattedMessage id="settings.branding.logo.label" />}
+          description={<FormattedMessage id="settings.branding.logo.description" />}
+        >
           <FileUpload
             accept="image/*"
             maxSizeBytes={2 * 1024 * 1024}
@@ -72,23 +76,35 @@ export function TenantBrandingPage(): JSX.Element {
             disabled={isUploading}
             {...(data.logoUrl !== null ? { preview: data.logoUrl } : {})}
           />
-        </div>
+        </SettingsSection>
 
-        <ColorPicker
-          label={intl.formatMessage({ id: 'settings.branding.primaryColor.label' })}
-          value={primaryColor}
-          onChange={setPrimaryColor}
-        />
-
-        <ToggleSwitch
-          label={intl.formatMessage({ id: 'settings.branding.darkMode.label' })}
-          checked={darkMode}
-          onCheckedChange={setDarkMode}
-        />
-
-        <Button onClick={handleSave} loading={isSaving}>
-          <FormattedMessage id="settings.branding.save" />
-        </Button>
+        {/* Appearance section — color + dark mode with save */}
+        <SettingsSection
+          title={<FormattedMessage id="settings.branding.appearance.title" />}
+          description={<FormattedMessage id="settings.branding.appearance.description" />}
+        >
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSave(); }}
+            className="space-y-6"
+          >
+            <ColorPicker
+              label={intl.formatMessage({ id: 'settings.branding.primaryColor.label' })}
+              value={primaryColor}
+              onChange={setPrimaryColor}
+            />
+            <ToggleSwitch
+              label={intl.formatMessage({ id: 'settings.branding.darkMode.label' })}
+              checked={darkMode}
+              onCheckedChange={setDarkMode}
+            />
+            <SaveBar
+              isDirty={isDirty}
+              isSaving={isSaving}
+              saveStatus={saveStatus}
+              saveLabel={<FormattedMessage id="settings.branding.save" />}
+            />
+          </form>
+        </SettingsSection>
       </div>
     </div>
   );
