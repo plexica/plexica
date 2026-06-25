@@ -1,10 +1,11 @@
 // create-workspace-dialog.tsx
 // Dialog form for creating a new workspace.
 // Modal Flow pattern: error state inline, form reset on close, server error display.
+// Selects controlled via RHF <Controller> for reliable reset on close.
 
 import { useState } from 'react';
 import { useIntl, FormattedMessage } from 'react-intl';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -41,20 +42,18 @@ export function CreateWorkspaceDialog({
   const intl = useIntl();
   const [serverError, setServerError] = useState<string | null>(null);
   const { mutate, isPending } = useCreateWorkspace();
-  // Fetch workspaces and templates only when the dialog is open (lazy — avoids
-  // unnecessary API calls on page load before the user has opened the dialog).
+  // Lazy fetch: only hit the API when the dialog is actually open
   const { data: workspacesData } = useWorkspaces({ limit: 100 }, { enabled: open });
-  const { data: templatesData } = useWorkspaceTemplates();
+  const { data: templatesData } = useWorkspaceTemplates({ enabled: open });
 
   const {
     register,
     handleSubmit,
     reset,
-    setValue,
+    control,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  // Modal Flow §5.4 — reset form and errors on close
   function handleOpenChange(newOpen: boolean): void {
     if (!newOpen) {
       reset();
@@ -76,7 +75,6 @@ export function CreateWorkspaceDialog({
         reset();
         onOpenChange(false);
       },
-      // Modal Flow §5.2 — stay open on error, show message
       onError: () => {
         setServerError(intl.formatMessage({ id: 'common.error' }));
       },
@@ -92,6 +90,8 @@ export function CreateWorkspaceDialog({
     value: t.id,
     label: t.name,
   }));
+
+  const selectPlaceholder = intl.formatMessage({ id: 'common.none' });
 
   return (
     <DialogRoot open={open} onOpenChange={handleOpenChange}>
@@ -119,11 +119,18 @@ export function CreateWorkspaceDialog({
               <label className="text-sm font-medium text-neutral-700">
                 <FormattedMessage id="workspace.create.parent.label" />
               </label>
-              <Select
-                options={workspaceOptions}
-                placeholder={intl.formatMessage({ id: 'common.none' })}
-                onValueChange={(v) => setValue('parentId', v)}
-                aria-label={intl.formatMessage({ id: 'workspace.create.parent.label' })}
+              <Controller
+                name="parentId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    options={workspaceOptions}
+                    placeholder={selectPlaceholder}
+                    {...(field.value !== undefined ? { value: field.value } : {})}
+                    onValueChange={(v) => field.onChange(v)}
+                    aria-label={intl.formatMessage({ id: 'workspace.create.parent.label' })}
+                  />
+                )}
               />
             </div>
           )}
@@ -132,16 +139,22 @@ export function CreateWorkspaceDialog({
               <label className="text-sm font-medium text-neutral-700">
                 <FormattedMessage id="workspace.create.template.label" />
               </label>
-              <Select
-                options={templateOptions}
-                placeholder={intl.formatMessage({ id: 'common.none' })}
-                onValueChange={(v) => setValue('templateId', v)}
-                aria-label={intl.formatMessage({ id: 'workspace.create.template.label' })}
+              <Controller
+                name="templateId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    options={templateOptions}
+                    placeholder={selectPlaceholder}
+                    {...(field.value !== undefined ? { value: field.value } : {})}
+                    onValueChange={(v) => field.onChange(v)}
+                    aria-label={intl.formatMessage({ id: 'workspace.create.template.label' })}
+                  />
+                )}
               />
             </div>
           )}
 
-          {/* Server error — visible inside dialog, stays open */}
           {serverError !== null && (
             <p role="alert" className="text-sm text-error">
               {serverError}

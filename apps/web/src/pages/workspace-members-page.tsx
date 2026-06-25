@@ -1,22 +1,20 @@
 // workspace-members-page.tsx
 // Shows workspace members with add/invite, role change, and remove actions.
-// All destructive actions guarded by ConfirmDialog.
-// Role labels localized via react-intl.
+// Removal is guarded by ConfirmDialog with inline error display on failure.
+// Role change uses optimistic update (see useChangeMemberRole).
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { UserPlus, Users } from 'lucide-react';
 import {
   Button,
-  Select,
   Badge,
   ConfirmDialog,
   Table,
   TableHeader,
   TableBody,
-  TableRow,
   TableHead,
-  TableCell,
+  TableRow,
 } from '@plexica/ui';
 
 import {
@@ -30,6 +28,7 @@ import { useWorkspaceId } from '../hooks/use-workspace-params.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
+import { WorkspaceMemberRow } from '../components/workspace/workspace-member-row.js';
 
 function MembersSkeleton(): JSX.Element {
   return (
@@ -53,13 +52,13 @@ export function WorkspaceMembersPage(): JSX.Element {
   const workspaceId = useWorkspaceId();
   const [showInvite, setShowInvite] = useState(false);
   const [removeTargetId, setRemoveTargetId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const { data, isPending, isError, refetch } = useWorkspaceMembers(workspaceId);
   const { data: invData } = useInvitations(workspaceId);
   const { mutate: removeM, isPending: isRemoving } = useRemoveWorkspaceMember();
-  const { mutate: changeRole, isError: isRoleError } = useChangeMemberRole();
+  const { mutate: changeRole, isPending: isRoleChanging, isError: isRoleError } = useChangeMemberRole();
 
-  // Role options localized via react-intl (not hardcoded English)
   const roleOptions = [
     { value: 'admin', label: intl.formatMessage({ id: 'members.role.admin' }) },
     { value: 'member', label: intl.formatMessage({ id: 'members.role.member' }) },
@@ -86,7 +85,6 @@ export function WorkspaceMembersPage(): JSX.Element {
         </Button>
       </div>
 
-      {/* Role change error — shown inline above the table */}
       {isRoleError && (
         <p role="alert" className="text-sm text-error">
           <FormattedMessage id="common.error" />
@@ -121,32 +119,15 @@ export function WorkspaceMembersPage(): JSX.Element {
           </TableHeader>
           <TableBody>
             {members.map((m) => (
-              <TableRow key={m.userId}>
-                <TableCell>
-                  <div>
-                    <p className="font-medium text-neutral-900">{m.displayName ?? m.email}</p>
-                    <p className="text-xs text-neutral-500 sm:hidden">{m.email}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden text-neutral-600 sm:table-cell">{m.email}</TableCell>
-                <TableCell>
-                  <Select
-                    options={roleOptions}
-                    value={m.role}
-                    onValueChange={(v) => changeRole({ workspaceId, userId: m.userId, role: v })}
-                    aria-label={intl.formatMessage({ id: 'members.role.member' })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost" size="sm"
-                    onClick={() => setRemoveTargetId(m.userId)}
-                    aria-label={intl.formatMessage({ id: 'members.remove.confirm.title' })}
-                  >
-                    <FormattedMessage id="common.delete" />
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <WorkspaceMemberRow
+                key={m.userId}
+                member={m}
+                workspaceId={workspaceId}
+                roleOptions={roleOptions}
+                roleChangeDisabled={isRoleChanging}
+                onRoleChange={changeRole}
+                onRemoveClick={setRemoveTargetId}
+              />
             ))}
           </TableBody>
         </Table>
@@ -175,10 +156,11 @@ export function WorkspaceMembersPage(): JSX.Element {
 
       <AddMemberDialog workspaceId={workspaceId} open={showInvite} onOpenChange={setShowInvite} />
 
-      {/* Confirmation dialog for member removal */}
       <ConfirmDialog
         open={removeTargetId !== null}
-        onOpenChange={(open) => { if (!open) setRemoveTargetId(null); }}
+        onOpenChange={(open) => {
+          if (!open) { setRemoveTargetId(null); setRemoveError(null); }
+        }}
         title={intl.formatMessage({ id: 'members.remove.confirm.title' })}
         description={intl.formatMessage({ id: 'members.remove.confirm.description' })}
         confirmLabel={intl.formatMessage({ id: 'common.delete' })}
@@ -186,9 +168,13 @@ export function WorkspaceMembersPage(): JSX.Element {
         variant="destructive"
         onConfirm={() => {
           if (removeTargetId === null) return;
+          setRemoveError(null);
           removeM(
             { workspaceId, userId: removeTargetId },
-            { onSuccess: () => setRemoveTargetId(null) },
+            {
+              onSuccess: () => { setRemoveTargetId(null); setRemoveError(null); },
+              onError: () => setRemoveError(intl.formatMessage({ id: 'common.error' })),
+            },
           );
         }}
         loading={isRemoving}

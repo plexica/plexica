@@ -15,7 +15,7 @@ import { PageError } from '../components/feedback/page-error.js';
 import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 
 // Curated IANA timezone list (most common zones)
-const TIMEZONE_OPTIONS = [
+const TIMEZONE_VALUES = [
   'UTC', 'Europe/London', 'Europe/Rome', 'Europe/Paris', 'Europe/Berlin',
   'Europe/Madrid', 'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Stockholm',
   'Europe/Warsaw', 'Europe/Athens', 'Europe/Helsinki', 'Europe/Lisbon',
@@ -26,10 +26,19 @@ const TIMEZONE_OPTIONS = [
   'Asia/Dubai', 'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Jakarta',
   'Australia/Sydney', 'Australia/Melbourne', 'Pacific/Auckland',
   'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos',
-].map((tz) => ({ value: tz, label: tz.replace('_', ' ') }));
+];
+
+/** Build timezone Select options, ensuring the stored value is always present */
+function timezoneOptions(stored: string | undefined): Array<{ value: string; label: string; disabled?: boolean }> {
+  const list: Array<{ value: string; label: string; disabled?: boolean }> = TIMEZONE_VALUES.map((tz) => ({ value: tz, label: tz.replace(/_/g, ' ') }));
+  if (stored !== undefined && stored !== '' && !TIMEZONE_VALUES.includes(stored)) {
+    list.push({ value: stored, label: stored.replace(/_/g, ' '), disabled: true });
+  }
+  return list;
+}
 
 // Curated supported language codes
-const LANGUAGE_OPTIONS = [
+const LANGUAGE_VALUES: Array<{ value: string; label: string }> = [
   { value: 'en', label: 'English' },
   { value: 'it', label: 'Italiano' },
   { value: 'fr', label: 'Français' },
@@ -41,6 +50,14 @@ const LANGUAGE_OPTIONS = [
   { value: 'ko', label: '한국어' },
   { value: 'ar', label: 'العربية' },
 ];
+
+/** Build language Select options, ensuring the stored value is always present */
+function languageOptions(stored: string | undefined): Array<{ value: string; label: string; disabled?: boolean }> {
+  if (stored === undefined || stored === '' || LANGUAGE_VALUES.some((l) => l.value === stored)) {
+    return LANGUAGE_VALUES;
+  }
+  return [...LANGUAGE_VALUES, { value: stored, label: stored, disabled: true }];
+}
 
 const schema = z.object({
   displayName: z.string().min(1).max(120),
@@ -124,9 +141,10 @@ export function ProfilePage(): JSX.Element {
                 control={control}
                 render={({ field }) => (
                   <Select
-                    options={TIMEZONE_OPTIONS}
+                    options={timezoneOptions(data.timezone)}
                     value={field.value}
                     onValueChange={(v) => field.onChange(v)}
+                    placeholder={intl.formatMessage({ id: 'common.select.placeholder' })}
                     aria-label={intl.formatMessage({ id: 'profile.timezone.label' })}
                   />
                 )}
@@ -141,9 +159,10 @@ export function ProfilePage(): JSX.Element {
                 control={control}
                 render={({ field }) => (
                   <Select
-                    options={LANGUAGE_OPTIONS}
+                    options={languageOptions(data.language)}
                     value={field.value}
                     onValueChange={(v) => field.onChange(v)}
+                    placeholder={intl.formatMessage({ id: 'common.select.placeholder' })}
                     aria-label={intl.formatMessage({ id: 'profile.language.label' })}
                   />
                 )}

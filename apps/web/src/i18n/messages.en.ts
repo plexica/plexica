@@ -119,6 +119,8 @@ export const messages = {
   'members.role.admin': 'Admin',
   'members.role.member': 'Member',
   'members.role.viewer': 'Viewer',
+  'members.role.aria': 'Role for {name}',
+  'members.remove.aria': 'Remove {name}',
   'members.invitation.pending': 'Invitation pending',
   'members.invitation.resend': 'Resend',
 
@@ -194,6 +196,7 @@ export const messages = {
   'common.edit': 'Edit',
   'common.retry': 'Try again',
   'common.none': 'None',
+  'common.select.placeholder': 'Select\u2026',
   'common.loading': 'Loading\u2026',
   'common.error': 'An error occurred.',
   'common.noData': 'No data.',

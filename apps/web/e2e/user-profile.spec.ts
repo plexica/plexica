@@ -1,6 +1,7 @@
 // user-profile.spec.ts
 // E2E-08: User profile (Spec 003, Phase 20.8).
 // Tests display name update, avatar upload, timezone/language preferences.
+// Timezone and language use Radix <Select> (button trigger + listbox popup).
 // Skips when Keycloak credentials are absent or the stack is not running.
 
 import AxeBuilder from '@axe-core/playwright';
@@ -53,7 +54,6 @@ test.describe('E2E-08: User profile', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==',
       'base64'
     );
-    // FileUpload renders a hidden <input type="file"> outside the drop zone
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles({
       name: 'avatar.png',
@@ -61,52 +61,52 @@ test.describe('E2E-08: User profile', () => {
       buffer: pngBytes,
     });
 
-    // FileUpload shows local preview with alt="Preview" immediately
     await expect(page.getByRole('img', { name: /preview/i })).toBeVisible({
       timeout: 10_000,
     });
   });
 
-  test('change timezone — input value updates', async ({ page }) => {
+  test('change timezone — Select value persists', async ({ page }) => {
     await page.goto('/profile');
 
-    // Timezone is an <input> element, not a <select>.
+    // Timezone is now a Radix <Select> (button trigger + listbox popup).
     // i18n: profile.timezone.label = 'Timezone'
-    const tzInput = page.getByLabel(/timezone/i);
-    await tzInput.clear();
-    await tzInput.fill('Europe/Rome');
+    const tzTrigger = page.getByRole('combobox', { name: /timezone/i });
+    await tzTrigger.click();
+    // Select "Europe/Rome" from the listbox
+    await page.getByRole('option', { name: 'Europe Rome' }).click();
     await page.getByRole('button', { name: /save/i }).click();
 
-    // Verify persists after reload
+    // Verify persists after reload — the trigger shows the selected value
     await page.reload();
-    await expect(page.getByLabel(/timezone/i)).toHaveValue('Europe/Rome', { timeout: 8_000 });
+    await expect(page.getByRole('combobox', { name: /timezone/i })).toHaveText('Europe Rome', { timeout: 8_000 });
   });
 
-  test('change language — input value updates', async ({ page }) => {
+  test('change language — Select value persists', async ({ page }) => {
     await page.goto('/profile');
 
-    // Language is an <input> element, not a <select>.
+    // Language is now a Radix <Select> (button trigger + listbox popup).
     // i18n: profile.language.label = 'Language'
-    const langInput = page.getByLabel(/language/i);
-    await langInput.clear();
-    await langInput.fill('it');
+    const langTrigger = page.getByRole('combobox', { name: /language/i });
+    await langTrigger.click();
+    // Select "Italiano" (value 'it')
+    await page.getByRole('option', { name: 'Italiano' }).click();
     await page.getByRole('button', { name: /save/i }).click();
 
     // Verify persists after reload
     await page.reload();
-    await expect(page.getByLabel(/language/i)).toHaveValue('it', { timeout: 8_000 });
+    await expect(page.getByRole('combobox', { name: /language/i })).toHaveText('Italiano', { timeout: 8_000 });
 
     // Reset to English to avoid breaking other tests
-    const langInputAfter = page.getByLabel(/language|lingua/i);
-    await langInputAfter.clear();
-    await langInputAfter.fill('en');
-    await page.getByRole('button', { name: /save|salva/i }).click();
+    const langTriggerAfter = page.getByRole('combobox', { name: /language/i });
+    await langTriggerAfter.click();
+    await page.getByRole('option', { name: 'English' }).click();
+    await page.getByRole('button', { name: /save/i }).click();
     await page.reload();
   });
 
   test('/profile page is keyboard-navigable', async ({ page }) => {
     await page.goto('/profile');
-    // Wait for the profile heading to ensure page is fully loaded
     await expect(page.getByRole('heading', { name: /profile/i })).toBeVisible();
     await page.keyboard.press('Tab');
     const focused = await page.evaluate(() => document.activeElement?.tagName ?? 'BODY');
