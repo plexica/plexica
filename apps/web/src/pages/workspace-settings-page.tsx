@@ -55,6 +55,7 @@ export function WorkspaceSettingsPage(): JSX.Element {
   const { mutate: restore, isPending: isRestoring } = useRestoreWorkspace();
   const [showArchive, setShowArchive] = useState(false);
   const [showRestore, setShowRestore] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const {
     register,
@@ -116,17 +117,52 @@ export function WorkspaceSettingsPage(): JSX.Element {
 
       <hr className="border-neutral-200" />
 
-      <div className="space-y-3">
-        {ws.status === 'active' ? (
-          <Button variant="destructive" onClick={() => setShowArchive(true)} disabled={isArchiving}>
-            <FormattedMessage id="common.delete" />
-          </Button>
-        ) : (
-          <Button variant="secondary" onClick={() => setShowRestore(true)} disabled={isRestoring}>
-            <FormattedMessage id="common.restore" />
-          </Button>
-        )}
-      </div>
+      {/* Danger Zone */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-neutral-900">
+          <FormattedMessage id="workspace.dangerZone.title" />
+        </h2>
+        <div className="rounded-lg border border-error-light bg-white p-4">
+          {archiveError !== null && (
+            <p role="alert" className="mb-3 text-sm text-error">
+              {archiveError}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-neutral-900">
+                {ws.status === 'active'
+                  ? intl.formatMessage({ id: 'workspace.delete.confirm.title' })
+                  : intl.formatMessage({ id: 'workspace.restore.confirm.title' })}
+              </p>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                {ws.status === 'active'
+                  ? intl.formatMessage({ id: 'workspace.delete.confirm.description' })
+                  : intl.formatMessage({ id: 'workspace.restore.confirm.description' })}
+              </p>
+            </div>
+            {ws.status === 'active' ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { setArchiveError(null); setShowArchive(true); }}
+                disabled={isArchiving}
+              >
+                <FormattedMessage id="common.delete" />
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => { setArchiveError(null); setShowRestore(true); }}
+                disabled={isRestoring}
+              >
+                <FormattedMessage id="common.restore" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </section>
 
       <ConfirmDialog
         open={showArchive}
@@ -136,7 +172,15 @@ export function WorkspaceSettingsPage(): JSX.Element {
         confirmLabel={intl.formatMessage({ id: 'common.delete' })}
         cancelLabel={intl.formatMessage({ id: 'common.cancel' })}
         variant="destructive"
-        onConfirm={() => archive(id, { onSuccess: () => setShowArchive(false) })}
+        onConfirm={() =>
+          archive(id, {
+            onSuccess: () => setShowArchive(false),
+            onError: () => {
+              setShowArchive(false);
+              setArchiveError(intl.formatMessage({ id: 'common.error' }));
+            },
+          })
+        }
         loading={isArchiving}
       />
 
@@ -147,7 +191,15 @@ export function WorkspaceSettingsPage(): JSX.Element {
         description={intl.formatMessage({ id: 'workspace.restore.confirm.description' })}
         confirmLabel={intl.formatMessage({ id: 'common.restore' })}
         cancelLabel={intl.formatMessage({ id: 'common.cancel' })}
-        onConfirm={() => restore(id, { onSuccess: () => setShowRestore(false) })}
+        onConfirm={() =>
+          restore(id, {
+            onSuccess: () => setShowRestore(false),
+            onError: () => {
+              setShowRestore(false);
+              setArchiveError(intl.formatMessage({ id: 'common.error' }));
+            },
+          })
+        }
         loading={isRestoring}
       />
     </div>

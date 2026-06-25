@@ -4,6 +4,7 @@
 import { useIntl, FormattedMessage } from 'react-intl';
 import { useParams } from '@tanstack/react-router';
 import { Users, FolderOpen } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { Tabs, Badge } from '@plexica/ui';
 
 import { useWorkspace } from '../hooks/use-workspaces.js';
@@ -82,14 +83,27 @@ function ChildrenTab({
   }
   return (
     <ul className="space-y-2">
-      {workspace.children.map((child) => (
-        <li
-          key={child.id}
-          className="rounded-lg border border-neutral-200 bg-white p-3 text-sm font-medium text-neutral-900"
-        >
-          {child.name}
-        </li>
-      ))}
+      {workspace.children.map((child) => {
+        // TanStack Router route tree not yet generated — pending full codegen (TD-003)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const wsTo = '/workspaces/$workspaceId' as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const wsParams = { workspaceId: child.id } as any;
+        return (
+          <li
+            key={child.id}
+            className="rounded-lg border border-neutral-200 bg-white p-3"
+          >
+            <Link
+              to={wsTo}
+              params={wsParams}
+              className="text-sm font-medium text-neutral-900 hover:text-primary-600"
+            >
+              {child.name}
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -108,6 +108,7 @@ export const messages = {
   'workspace.detail.members': 'Members',
   'workspace.detail.children': 'Sub-workspaces',
   'workspace.reparent.label': 'Move to',
+  'workspace.dangerZone.title': 'Danger Zone',
 
   // Members
   'members.title': 'Members',
@@ -126,6 +127,7 @@ export const messages = {
   'users.search.placeholder': 'Search users\u2026',
   'users.remove.title': 'Remove user',
   'users.remove.description': 'This user will be removed from the tenant.',
+  'users.remove.confirm.instructions': 'Type CONFIRM to permanently remove this user',
   'users.remove.reassign.label': 'Reassign content to',
 
   // Roles
@@ -181,6 +183,7 @@ export const messages = {
   'common.restore': 'Restore',
   'common.edit': 'Edit',
   'common.retry': 'Try again',
+  'common.none': 'None',
   'common.loading': 'Loading\u2026',
   'common.error': 'An error occurred.',
   'common.noData': 'No data.',

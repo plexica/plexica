@@ -1,7 +1,8 @@
 // create-workspace-dialog.tsx
 // Dialog form for creating a new workspace.
-// Uses react-hook-form + Zod. All strings via react-intl.
+// Modal Flow pattern: error state inline, form reset on close, server error display.
 
+import { useState } from 'react';
 import { useIntl, FormattedMessage } from 'react-intl';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,6 +40,7 @@ export function CreateWorkspaceDialog({
   onOpenChange,
 }: CreateWorkspaceDialogProps): JSX.Element {
   const intl = useIntl();
+  const [serverError, setServerError] = useState<string | null>(null);
   const { mutate, isPending } = useCreateWorkspace();
   const { data: workspacesData } = useWorkspaces({ limit: 100 });
   const { data: templatesData } = useWorkspaceTemplates();
@@ -51,7 +53,17 @@ export function CreateWorkspaceDialog({
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  // Modal Flow §5.4 — reset form and errors on close
+  function handleOpenChange(newOpen: boolean): void {
+    if (!newOpen) {
+      reset();
+      setServerError(null);
+    }
+    onOpenChange(newOpen);
+  }
+
   function onSubmit(values: FormValues): void {
+    setServerError(null);
     const payload = {
       name: values.name,
       ...(values.description ? { description: values.description } : {}),
@@ -62,6 +74,10 @@ export function CreateWorkspaceDialog({
       onSuccess: () => {
         reset();
         onOpenChange(false);
+      },
+      // Modal Flow §5.2 — stay open on error, show message
+      onError: () => {
+        setServerError(intl.formatMessage({ id: 'common.error' }));
       },
     });
   }
@@ -77,12 +93,17 @@ export function CreateWorkspaceDialog({
   }));
 
   return (
-    <DialogRoot open={open} onOpenChange={onOpenChange}>
+    <DialogRoot open={open} onOpenChange={handleOpenChange}>
       <DialogContent closeLabel={intl.formatMessage({ id: 'common.cancel' })}>
         <DialogTitle>
           <FormattedMessage id="workspace.create.title" />
         </DialogTitle>
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4" noValidate>
+
+        <form
+          onSubmit={(e) => { void handleSubmit(onSubmit)(e); }}
+          className="mt-4 space-y-4"
+          noValidate
+        >
           <Input
             label={intl.formatMessage({ id: 'workspace.create.name.label' })}
             {...(errors.name?.message !== undefined ? { error: errors.name.message } : {})}
@@ -99,7 +120,7 @@ export function CreateWorkspaceDialog({
               </label>
               <Select
                 options={workspaceOptions}
-                placeholder="None"
+                placeholder={intl.formatMessage({ id: 'common.none' })}
                 onValueChange={(v) => setValue('parentId', v)}
                 aria-label={intl.formatMessage({ id: 'workspace.create.parent.label' })}
               />
@@ -112,17 +133,25 @@ export function CreateWorkspaceDialog({
               </label>
               <Select
                 options={templateOptions}
-                placeholder="None"
+                placeholder={intl.formatMessage({ id: 'common.none' })}
                 onValueChange={(v) => setValue('templateId', v)}
                 aria-label={intl.formatMessage({ id: 'workspace.create.template.label' })}
               />
             </div>
           )}
+
+          {/* Server error — visible inside dialog, stays open */}
+          {serverError !== null && (
+            <p role="alert" className="text-sm text-error">
+              {serverError}
+            </p>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <Button
               variant="outline"
               type="button"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               disabled={isPending}
             >
               <FormattedMessage id="common.cancel" />
