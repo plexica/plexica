@@ -41,7 +41,9 @@ export function CreateWorkspaceDialog({
   const intl = useIntl();
   const [serverError, setServerError] = useState<string | null>(null);
   const { mutate, isPending } = useCreateWorkspace();
-  const { data: workspacesData } = useWorkspaces({ limit: 100 });
+  // Fetch workspaces and templates only when the dialog is open (lazy — avoids
+  // unnecessary API calls on page load before the user has opened the dialog).
+  const { data: workspacesData } = useWorkspaces({ limit: 100 }, { enabled: open });
   const { data: templatesData } = useWorkspaceTemplates();
 
   const {

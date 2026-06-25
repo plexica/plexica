@@ -5,22 +5,17 @@
 
 import { useEffect } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { useParams } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input, Textarea } from '@plexica/ui';
 
 import { useWorkspace, useUpdateWorkspace } from '../hooks/use-workspaces.js';
+import { useWorkspaceId } from '../hooks/use-workspace-params.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
 import { SettingsSection, SaveBar, useSaveStatus } from '../components/settings/settings-section.js';
 import { WorkspaceDangerZone } from '../components/workspace/workspace-danger-zone.js';
-
-function useWorkspaceId(): string {
-  const params = useParams({ strict: false });
-  return (params as Record<string, string>).workspaceId ?? '';
-}
 
 const schema = z.object({
   name: z.string().min(1),

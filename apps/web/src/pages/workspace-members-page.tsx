@@ -3,9 +3,8 @@
 // All destructive actions guarded by ConfirmDialog.
 // Role labels localized via react-intl.
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { useParams } from '@tanstack/react-router';
 import { UserPlus, Users } from 'lucide-react';
 import {
   Button,
@@ -27,14 +26,10 @@ import {
 } from '../hooks/use-workspace-members.js';
 import { AddMemberDialog } from '../components/user/add-member-dialog.js';
 import { useInvitations } from '../hooks/use-invitations.js';
+import { useWorkspaceId } from '../hooks/use-workspace-params.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
-
-function useWorkspaceId(): string {
-  const params = useParams({ strict: false });
-  return (params as Record<string, string>).workspaceId ?? '';
-}
 
 function MembersSkeleton(): JSX.Element {
   return (

@@ -2,21 +2,16 @@
 // Shows workspace details with members and children tabs.
 
 import { useIntl, FormattedMessage } from 'react-intl';
-import { useParams } from '@tanstack/react-router';
 import { Users, FolderOpen } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Tabs, Badge } from '@plexica/ui';
 
+import { useWorkspaceId } from '../hooks/use-workspace-params.js';
 import { useWorkspace } from '../hooks/use-workspaces.js';
 import { useWorkspaceMembers } from '../hooks/use-workspace-members.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
-
-function useWorkspaceId(): string {
-  const params = useParams({ strict: false });
-  return (params as Record<string, string>).workspaceId ?? '';
-}
 
 function TabContentSkeleton(): JSX.Element {
   return (

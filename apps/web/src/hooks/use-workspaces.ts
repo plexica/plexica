@@ -19,10 +19,11 @@ interface WorkspaceFilters {
   limit?: number;
 }
 
-export function useWorkspaces(filters?: WorkspaceFilters) {
+export function useWorkspaces(filters?: WorkspaceFilters, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['workspaces', filters],
     queryFn: () => workspaceApi.list(filters),
+    enabled: options?.enabled !== false,
   });
 }
 
