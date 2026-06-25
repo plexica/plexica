@@ -29,6 +29,7 @@ import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
 import { WorkspaceMemberRow } from '../components/workspace/workspace-member-row.js';
+import { getRoleOptions } from '../lib/role-options.js';
 
 function MembersSkeleton(): JSX.Element {
   return (
@@ -59,11 +60,7 @@ export function WorkspaceMembersPage(): JSX.Element {
   const { mutate: removeM, isPending: isRemoving } = useRemoveWorkspaceMember();
   const { mutate: changeRole, isPending: isRoleChanging, isError: isRoleError } = useChangeMemberRole();
 
-  const roleOptions = [
-    { value: 'admin', label: intl.formatMessage({ id: 'members.role.admin' }) },
-    { value: 'member', label: intl.formatMessage({ id: 'members.role.member' }) },
-    { value: 'viewer', label: intl.formatMessage({ id: 'members.role.viewer' }) },
-  ];
+  const roleOptions = getRoleOptions(intl);
 
   if (isPending) return <MembersSkeleton />;
   if (isError) {

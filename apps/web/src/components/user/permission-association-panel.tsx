@@ -6,16 +6,11 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { Select } from '@plexica/ui';
 
 import { useWorkspaceMembers, useChangeMemberRole } from '../../hooks/use-workspace-members.js';
+import { getRoleOptions } from '../../lib/role-options.js';
 
 interface PermissionAssociationPanelProps {
   workspaceId: string;
 }
-
-const roleOptions = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'member', label: 'Member' },
-  { value: 'viewer', label: 'Viewer' },
-];
 
 export function PermissionAssociationPanel({
   workspaceId,
@@ -61,10 +56,10 @@ export function PermissionAssociationPanel({
             <p className="truncate text-xs text-neutral-500">{m.email}</p>
           </div>
           <Select
-            options={roleOptions}
+            options={getRoleOptions(intl)}
             value={m.role}
             onValueChange={(v) => changeRole({ workspaceId, userId: m.userId, role: v })}
-            aria-label={intl.formatMessage({ id: 'members.role.member' })}
+            aria-label={intl.formatMessage({ id: 'members.role.aria' }, { name: m.displayName ?? m.email })}
           />
         </li>
       ))}

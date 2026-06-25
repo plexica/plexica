@@ -14,7 +14,9 @@ import type {
   UpdateAuthConfigPayload,
 } from '../types/settings.js';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+// API paths already include the /api/v1 prefix.
+// API_BASE must be empty to avoid doubling the prefix (/api/api/v1/…).
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 export const settingsApi = {
   // Backend returns objects directly (no { data } wrapper)
