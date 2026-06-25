@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { Button, Input } from '@plexica/ui';
 
 import { useTenantSettings, useUpdateTenantSettings } from '../hooks/use-tenant-settings.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { PageError } from '../components/feedback/page-error.js';
 
 const schema = z.object({
   displayName: z.string().min(1),
@@ -16,9 +18,23 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function TenantSettingsSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <SkeletonLoader className="h-8 w-40" />
+      <div className="max-w-lg space-y-4">
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader className="h-9 w-20 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
 export function TenantSettingsPage(): JSX.Element {
   const intl = useIntl();
-  const { data, isPending, isError } = useTenantSettings();
+  const { data, isPending, isError, refetch } = useTenantSettings();
   const { mutate, isPending: isSaving } = useUpdateTenantSettings();
 
   const {
@@ -36,18 +52,14 @@ export function TenantSettingsPage(): JSX.Element {
     }
   }, [data, reset]);
 
-  if (isPending)
+  if (isPending) return <TenantSettingsSkeleton />;
+  if (isError || data === undefined) {
     return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
       </div>
     );
-  if (isError || data === undefined)
-    return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
-      </div>
-    );
+  }
 
   function onSubmit(values: FormValues): void {
     mutate({ displayName: values.displayName });

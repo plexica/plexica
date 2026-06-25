@@ -9,6 +9,8 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { Button, Input, FileUpload } from '@plexica/ui';
 
 import { useProfile, useUpdateProfile, useUploadAvatar } from '../hooks/use-profile.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { PageError } from '../components/feedback/page-error.js';
 
 const schema = z.object({
   displayName: z.string().min(1).max(120),
@@ -18,9 +20,27 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function ProfileSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <SkeletonLoader className="h-8 w-24" />
+      <div className="max-w-lg space-y-6">
+        <SkeletonLoader variant="card" className="h-24 w-24 rounded-lg" />
+        <div className="space-y-4">
+          <SkeletonLoader variant="card" className="h-10" />
+          <SkeletonLoader variant="card" className="h-10" />
+          <SkeletonLoader variant="card" className="h-10" />
+          <SkeletonLoader className="h-9 w-24 rounded-md" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProfilePage(): JSX.Element {
   const intl = useIntl();
-  const { data, isPending, isError } = useProfile();
+  const { data, isPending, isError, refetch } = useProfile();
   const { mutate: updateProfile, isPending: isSaving } = useUpdateProfile();
   const { mutate: uploadAvatar, isPending: isUploading } = useUploadAvatar();
 
@@ -44,24 +64,20 @@ export function ProfilePage(): JSX.Element {
     }
   }, [data, reset]);
 
+  if (isPending) return <ProfileSkeleton />;
+  if (isError || data === undefined) {
+    return (
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
+      </div>
+    );
+  }
+
+  const profile = data;
+
   function onSubmit(values: FormValues): void {
     updateProfile(values);
   }
-
-  if (isPending)
-    return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
-      </div>
-    );
-  if (isError || data === undefined)
-    return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
-      </div>
-    );
-
-  const profile = data;
 
   return (
     <div className="space-y-6 p-6">

@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { useParams } from '@tanstack/react-router';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Users } from 'lucide-react';
 import { Button, Select, Badge } from '@plexica/ui';
 
 import {
@@ -14,6 +14,9 @@ import {
 } from '../hooks/use-workspace-members.js';
 import { AddMemberDialog } from '../components/user/add-member-dialog.js';
 import { useInvitations } from '../hooks/use-invitations.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { EmptyState } from '../components/feedback/empty-state.js';
+import { PageError } from '../components/feedback/page-error.js';
 
 function useWorkspaceId(): string {
   const params = useParams({ strict: false });
@@ -26,28 +29,41 @@ const roleOptions = [
   { value: 'viewer', label: 'Viewer' },
 ];
 
+function MembersSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <div className="flex items-center justify-between">
+        <SkeletonLoader className="h-8 w-28" />
+        <SkeletonLoader className="h-9 w-36 rounded-md" />
+      </div>
+      <div className="space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonLoader key={i} variant="card" className="h-14" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WorkspaceMembersPage(): JSX.Element {
   const intl = useIntl();
   const workspaceId = useWorkspaceId();
   const [showInvite, setShowInvite] = useState(false);
 
-  const { data, isPending, isError } = useWorkspaceMembers(workspaceId);
+  const { data, isPending, isError, refetch } = useWorkspaceMembers(workspaceId);
   const { data: invData } = useInvitations(workspaceId);
   const { mutate: removeM, isPending: isRemoving } = useRemoveWorkspaceMember();
   const { mutate: changeRole } = useChangeMemberRole();
 
-  if (isPending)
+  if (isPending) return <MembersSkeleton />;
+  if (isError) {
     return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
       </div>
     );
-  if (isError)
-    return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
-      </div>
-    );
+  }
 
   const members = data?.data ?? [];
   const invitations = invData?.data ?? [];
@@ -64,38 +80,52 @@ export function WorkspaceMembersPage(): JSX.Element {
         </Button>
       </div>
 
-      <ul className="space-y-2">
-        {members.map((m) => (
-          <li
-            key={m.userId}
-            className="flex items-center justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-3"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-neutral-900">
-                {m.displayName ?? m.email}
-              </p>
-              <p className="truncate text-xs text-neutral-500">{m.email}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Select
-                options={roleOptions}
-                value={m.role}
-                onValueChange={(v) => changeRole({ workspaceId, userId: m.userId, role: v })}
-                aria-label={intl.formatMessage({ id: 'members.role.member' })}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeM({ workspaceId, userId: m.userId })}
-                disabled={isRemoving}
-                aria-label={intl.formatMessage({ id: 'members.remove.confirm.title' })}
-              >
-                <FormattedMessage id="common.delete" />
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {members.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          heading={<FormattedMessage id="workspace.members.empty" />}
+          description={<FormattedMessage id="workspace.members.empty.description" />}
+          action={
+            <Button onClick={() => setShowInvite(true)}>
+              <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+              <FormattedMessage id="members.invite" />
+            </Button>
+          }
+        />
+      ) : (
+        <ul className="space-y-2">
+          {members.map((m) => (
+            <li
+              key={m.userId}
+              className="flex items-center justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-neutral-900">
+                  {m.displayName ?? m.email}
+                </p>
+                <p className="truncate text-xs text-neutral-500">{m.email}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  options={roleOptions}
+                  value={m.role}
+                  onValueChange={(v) => changeRole({ workspaceId, userId: m.userId, role: v })}
+                  aria-label={intl.formatMessage({ id: 'members.role.member' })}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeM({ workspaceId, userId: m.userId })}
+                  disabled={isRemoving}
+                  aria-label={intl.formatMessage({ id: 'members.remove.confirm.title' })}
+                >
+                  <FormattedMessage id="common.delete" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {invitations.length > 0 && (
         <section>

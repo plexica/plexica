@@ -7,10 +7,27 @@ import { Button, FileUpload, ToggleSwitch } from '@plexica/ui';
 
 import { useBranding, useUpdateBranding, useUploadLogo } from '../hooks/use-tenant-settings.js';
 import { ColorPicker } from '../components/settings/color-picker.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { PageError } from '../components/feedback/page-error.js';
+
+function BrandingSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <SkeletonLoader className="h-8 w-28" />
+      <div className="max-w-lg space-y-6">
+        <SkeletonLoader variant="card" className="h-24" />
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader className="h-9 w-20 rounded-md" />
+      </div>
+    </div>
+  );
+}
 
 export function TenantBrandingPage(): JSX.Element {
   const intl = useIntl();
-  const { data, isPending, isError } = useBranding();
+  const { data, isPending, isError, refetch } = useBranding();
   const { mutate: updateBranding, isPending: isSaving } = useUpdateBranding();
   const { mutate: uploadLogo, isPending: isUploading } = useUploadLogo();
 
@@ -24,18 +41,14 @@ export function TenantBrandingPage(): JSX.Element {
     }
   }, [data]);
 
-  if (isPending)
+  if (isPending) return <BrandingSkeleton />;
+  if (isError || data === undefined) {
     return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
       </div>
     );
-  if (isError || data === undefined)
-    return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
-      </div>
-    );
+  }
 
   function handleSave(): void {
     updateBranding({ primaryColor, darkMode });

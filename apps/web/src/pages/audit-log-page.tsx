@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
+import { RefreshCw } from 'lucide-react';
 import {
   Input,
   Select,
@@ -12,10 +13,12 @@ import {
   TableBody,
   TableRow,
   TableHead,
+  Button,
 } from '@plexica/ui';
 
 import { useAuditLog, useAuditActionTypes } from '../hooks/use-audit-log.js';
 import { ExpandableRow } from '../components/audit/expandable-row.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 
 import type { AuditLogEntry, AuditLogFilters } from '../types/audit.js';
 
@@ -29,7 +32,7 @@ export function AuditLogPage(): JSX.Element {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<Omit<AuditLogFilters, 'page' | 'limit'>>({});
 
-  const { data, isPending, isError } = useAuditLog({ ...filters, page, limit: PAGE_SIZE });
+  const { data, isPending, isError, refetch } = useAuditLog({ ...filters, page, limit: PAGE_SIZE });
   const { data: actionTypesData } = useAuditActionTypes();
 
   const entries: AuditLogEntry[] = data?.data ?? [];
@@ -96,13 +99,20 @@ export function AuditLogPage(): JSX.Element {
 
       {/* Table */}
       {isPending && (
-        <div aria-live="polite" className="text-sm text-neutral-500">
-          <FormattedMessage id="common.loading" />
+        <div aria-live="polite" className="space-y-2">
+          <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonLoader key={i} variant="card" className="h-12" />
+          ))}
         </div>
       )}
       {isError && (
-        <div role="alert" className="text-sm text-red-600">
-          <FormattedMessage id="common.error" />
+        <div role="alert" className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-4 text-sm text-error">
+          <FormattedMessage id="error.page.heading" />
+          <Button variant="ghost" size="sm" onClick={() => void refetch()}>
+            <RefreshCw className="mr-1 h-3 w-3" aria-hidden="true" />
+            <FormattedMessage id="common.retry" />
+          </Button>
         </div>
       )}
 

@@ -1,14 +1,13 @@
 // workspace-settings-page.tsx
 // Form to edit workspace name/description, and archive/restore actions.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { useParams } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input, Textarea, ConfirmDialog } from '@plexica/ui';
-import { useState } from 'react';
 
 import {
   useWorkspace,
@@ -16,6 +15,8 @@ import {
   useDeleteWorkspace,
   useRestoreWorkspace,
 } from '../hooks/use-workspaces.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { PageError } from '../components/feedback/page-error.js';
 
 function useWorkspaceId(): string {
   const params = useParams({ strict: false });
@@ -29,10 +30,26 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function WorkspaceSettingsSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-8 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <SkeletonLoader className="h-8 w-40" />
+      <div className="max-w-lg space-y-4">
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader variant="card" className="h-20" />
+        <SkeletonLoader className="h-9 w-28 rounded-md" />
+      </div>
+      <hr className="border-neutral-200" />
+      <SkeletonLoader className="h-9 w-32 rounded-md" />
+    </div>
+  );
+}
+
 export function WorkspaceSettingsPage(): JSX.Element {
   const intl = useIntl();
   const id = useWorkspaceId();
-  const { data, isPending, isError } = useWorkspace(id);
+  const { data, isPending, isError, refetch } = useWorkspace(id);
   const { mutate: update, isPending: isSaving } = useUpdateWorkspace();
   const { mutate: archive, isPending: isArchiving } = useDeleteWorkspace();
   const { mutate: restore, isPending: isRestoring } = useRestoreWorkspace();
@@ -57,20 +74,15 @@ export function WorkspaceSettingsPage(): JSX.Element {
     }
   }, [data, reset]);
 
-  if (isPending)
+  if (isPending) return <WorkspaceSettingsSkeleton />;
+  if (isError || data === undefined) {
     return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
       </div>
     );
-  if (isError || data === undefined)
-    return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
-      </div>
-    );
+  }
 
-  // Backend returns WorkspaceDetail directly (no { data } wrapper)
   const ws = data;
 
   function onSubmit(values: FormValues): void {

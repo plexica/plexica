@@ -178,6 +178,7 @@ export const messages = {
   'common.delete': 'Delete',
   'common.restore': 'Restore',
   'common.edit': 'Edit',
+  'common.retry': 'Try again',
   'common.loading': 'Loading\u2026',
   'common.error': 'An error occurred.',
   'common.noData': 'No data.',
@@ -186,6 +187,20 @@ export const messages = {
   'common.page': 'Page {page} of {total}',
   'common.prevPage': 'Previous page',
   'common.nextPage': 'Next page',
+
+  // Page-level error state (PageError component)
+  'error.page.heading': 'Failed to load',
+  'error.page.description': 'Something went wrong while loading this page.',
+
+  // Empty states (per-page)
+  'users.list.empty': 'No users yet',
+  'users.list.empty.description': 'Users added to this organization will appear here.',
+  'workspace.templates.empty': 'No templates',
+  'workspace.templates.empty.description': 'Workspace templates have not been configured yet.',
+  'workspace.members.empty': 'No members yet',
+  'workspace.members.empty.description': 'Invite users to give them access to this workspace.',
+  'workspace.children.empty': 'No sub-workspaces',
+  'workspace.children.empty.description': 'Sub-workspaces created under this workspace will appear here.',
 } as const;
 
 export type MessageKey = keyof typeof messages;

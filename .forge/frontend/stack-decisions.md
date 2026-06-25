@@ -1,9 +1,12 @@
-# Stack Decisions
+# Stack Decisions — Plexica v2
 
-> **Target**: React projects with shadcn/ui + Tailwind CSS
-> **Status**: Approved · **Last updated**: 2026-06-24
-> **Purpose**: Define the frontend stack, conventions, and code generation rules ONCE.
-> **All patterns in this library ASSUME these decisions.**
+> **Project**: Plexica v2 (SaaS multi-tenant enterprise)
+> **Status**: Approved · **Last updated**: 2026-06-25
+> **Purpose**: Define the frontend stack, conventions, and code generation rules for Plexica v2.
+> **All patterns in this library MUST follow these decisions.**
+>
+> ⚠️ **This file is Plexica-specific.** It overrides any generic FORGE template defaults.
+> The original FORGE template assumed Next.js + shadcn/ui. Plexica uses Vite + TanStack Router + @plexica/ui.
 
 ---
 
@@ -11,13 +14,14 @@
 
 | Decision | Choice | Rationale |
 |-----------|--------|-------------|
-| Framework | React 18+ (Next.js App Router / Vite + React Router) | shadcn/ui requires React |
-| Routing | Next.js App Router (preferred) or React Router v6+ | Server Components, RSC, nested layouts |
-| Rendering | SSR + Client Components where needed | Perf, SEO, progressive UX |
+| Framework | React 19 + Vite | No SSR needed; SPA per tenant subdomain |
+| Build tool | Vite (latest) | Fast HMR, ESM-native, Module Federation ready |
+| Routing | **TanStack Router v1** | Type-safe routes, data loading, URL state |
+| Rendering | **Client-side only (SPA)** | No SSR, no Server Components, no `'use client'` directive |
 | TypeScript | Strict mode | `strict: true` in tsconfig — no exceptions |
 
-**Rule**: `'use client'` only when hooks, events, or client-side state are needed.
-Everything else is a Server Component by default.
+**Rule**: There is NO `'use client'` directive in Plexica — it is a pure Vite SPA.
+Every component is a client component by default. Never add `'use client'`.
 
 ---
 
@@ -25,14 +29,49 @@ Everything else is a Server Component by default.
 
 | Decision | Choice | Rationale |
 |-----------|--------|-------------|
-| Library | shadcn/ui (Radix primitives + Tailwind) | Built-in accessibility, native Tailwind, copy-customize |
-| Version | Latest (Radix v1 + class-variance-authority) | Stable API, React 18 |
-| Installation | `npx shadcn@latest init` (legacy: `shadcn-ui` still works but is deprecated) | Components copied into the project, not an external dependency |
-| Customization | Direct modification of component files | shadcn/ui is a registry, not a library — modify in-place |
+| Library | **@plexica/ui** (Radix UI + Tailwind) | Custom design system wrapping Radix primitives |
+| NOT used | ~~shadcn/ui CLI~~ | Plexica has its own component package, not generated via CLI |
+| Primitives | Radix UI (via @plexica/ui) | Built-in accessibility, composable |
+| Customization | Extend @plexica/ui or add to packages/ui/src/ | Never copy-paste shadcn components directly |
 
-**Rule**: Do NOT create new components if an existing shadcn/ui component
-can be extended with `variant` or `className`. When extending, use
-`cva()` (class-variance-authority) for variants.
+**@plexica/ui component inventory** (all available for import):
+
+```ts
+import {
+  Button, Input, Textarea, Select, Badge, Pagination, Tabs,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  DialogRoot, DialogTrigger, DialogContent, DialogTitle, DialogDescription, DialogClose,
+  DropdownMenuRoot, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuGroup,
+  PopoverRoot, PopoverTrigger, PopoverContent, PopoverAnchor,
+  ToastProvider, ToastViewport, Toast,
+  ConfirmDialog,
+  FileUpload,
+  ToggleSwitch,
+  DateRangePicker,
+  InlineFilter,
+  cn,
+} from '@plexica/ui'
+```
+
+**Components NOT in @plexica/ui** (use these local alternatives or build new ones):
+
+| Missing shadcn/ui component | Plexica alternative |
+|-----------------------------|---------------------|
+| `Skeleton` | `<SkeletonLoader>` in `apps/web/src/components/feedback/skeleton-loader.tsx` |
+| `Alert / AlertDescription` | Custom inline `<div role="alert">` with Tailwind tokens |
+| `Card / CardHeader` | Custom `<div>` with `rounded-lg border border-neutral-200 bg-white p-4` |
+| `ScrollArea` | Native CSS `overflow-y-auto` |
+| `Separator` | `<hr>` or `<div className="border-t border-neutral-200">` |
+| `Sheet` (drawer) | `DialogRoot` + `DialogContent` with side panel styling |
+| `Avatar / AvatarFallback` | `apps/web/src/components/layout/avatar.tsx` |
+| `Checkbox` | Radix `@radix-ui/react-checkbox` directly |
+| `Switch` | `<ToggleSwitch>` from @plexica/ui |
+| `Command / Combobox` | Radix + custom implementation |
+| `Form / FormField` | react-hook-form + Zod directly (no shadcn Form wrapper) |
+| `Progress` | Native `<progress>` or custom div |
+| `AlertDialog` | `<ConfirmDialog>` from @plexica/ui |
+| `Sonner / Toaster` | `<ToastProvider>` + `<Toast>` from @plexica/ui |
 
 ---
 
@@ -40,26 +79,26 @@ can be extended with `variant` or `className`. When extending, use
 
 | Decision | Choice | Rationale |
 |-----------|--------|-------------|
-| Engine | Tailwind CSS v3+ | Utility-first, consistency via design tokens |
-| Config | `tailwind.config.ts` with extends for custom colors | Design tokens → Tailwind classes |
-| Variants | `class-variance-authority` (cva) | Native shadcn/ui pattern |
-| Class merging | `tailwind-merge` (cn helper) | shadcn/ui standard |
-| Animations | Tailwind `animate-` + CSS transitions | No external libraries for simple animations |
-| Theme | CSS custom properties for dark/light mode | `next-themes` for React |
+| Engine | Tailwind CSS v3 | Utility-first, design tokens as CSS custom properties |
+| Preset | `@plexica/ui/tailwind-preset` | Consumed in every app's `tailwind.config.ts` |
+| Variants | `class-variance-authority` (cva) | Used inside @plexica/ui components |
+| Class merging | `tailwind-merge` + `cn` helper from `@plexica/ui` | Standard Plexica pattern |
+| Dark mode | **CSS custom properties via `[data-theme="dark"]`** | NOT via Tailwind `dark:` variants |
+| Animations | Tailwind `animate-*` + CSS transitions | No external animation libraries |
 
-Standard helper:
+**Critical dark mode rule**: Plexica dark mode works by swapping CSS custom property values
+via the `[data-theme="dark"]` attribute on `<html>`. Do NOT use Tailwind `dark:` variant classes
+(e.g. `dark:bg-neutral-800`) — they won't work because `darkMode` is not configured in Tailwind.
+Use semantic color tokens instead: `bg-neutral-100` will automatically become the dark-mode
+equivalent when the CSS variable swaps.
 
+**cn helper**:
 ```tsx
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { cn } from '@plexica/ui'
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
+// Usage
+<div className={cn('base-classes', condition && 'conditional-class')} />
 ```
-
-**Rule**: Never use arbitrary CSS strings. Every color, spacing, border-radius
-must match a design token or a Tailwind class. No exceptions.
 
 ---
 
@@ -67,25 +106,24 @@ must match a design token or a Tailwind class. No exceptions.
 
 | State | Solution | Rationale |
 |-------|-----------|-------------|
-| Server state (API data) | TanStack React Query v5 | Caching, refetch, optimistic updates, SSR |
-| Client state (UI) | `useState`/`useReducer` (default), Zustand (when global UI state is needed) | Zustand is recommended only for UI state shared across components not in the same hierarchy |
-| URL state (filters, page) | useSearchParams (Next.js) or useSearchParams (React Router) | Shareable, bookmarkable |
-| Form state | React Hook Form v7 | Performant, minimal re-renders |
-| Form validation | Zod (shared schema client/server) | TypeScript-first, composable |
-| File upload | React Dropzone + upload mutation | Established pattern |
+| Server state (API data) | **TanStack Query v5** | Caching, refetch, optimistic updates |
+| Client state (UI) | `useState` / `useReducer` (default) | Local state first |
+| Global UI state | **Zustand** (one store only) | auth, theme, sidebar — nothing else |
+| URL state (filters, pagination) | **TanStack Router `useSearch()`** | Type-safe, bookmarkable, shareable |
+| Form state | **React Hook Form v7** | Performant, minimal re-renders |
+| Form validation | **Zod** | TypeScript-first, shared client/server |
 
-**React Query pattern**:
+**TanStack Query pattern** (use `keepPreviousData` for smooth pagination):
 ```tsx
-// Query
+// hooks/use-items.ts
 export function useItems(filters: Filters) {
   return useQuery({
     queryKey: ['items', filters],
     queryFn: () => api.getItems(filters),
-    placeholderData: keepPreviousData, // smooth transition
+    placeholderData: keepPreviousData,
   })
 }
 
-// Mutation
 export function useCreateItem() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -95,6 +133,17 @@ export function useCreateItem() {
 }
 ```
 
+**TanStack Router URL state pattern** (NOT `useSearchParams` from Next.js):
+```tsx
+// In route definition:
+const searchSchema = z.object({ page: z.number().default(1), status: z.string().optional() })
+
+// In component:
+const { page, status } = useSearch({ from: '/workspaces' })
+const navigate = useNavigate()
+navigate({ search: (prev) => ({ ...prev, page: 2 }) })
+```
+
 ---
 
 ## 5. Forms
@@ -102,37 +151,56 @@ export function useCreateItem() {
 | Rule | Detail |
 |--------|-----------|
 | Schema | Zod defined ONCE, shared client/server |
-| Custom hook | `useZodForm` wrapper that unifies RHF + Zod |
-| Error display | Per-field with shadcn/ui `<FormMessage>` |
-| Submit | `handleSubmit` with Zod validation + mutation |
-| Server error | Catch from mutation, map to field errors |
-| Debounce | Validation onBlur (not onKeystroke for long forms) |
-| Optimistic | useMutation onMutate for immediate updates |
+| Hookup | `useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) })` |
+| Error display | Per-field `<p className="text-sm text-error">{errors.field.message}</p>` |
+| Submit | `handleSubmit` with Zod validation + useMutation |
+| Server error | Catch from mutation, `setError('root', { message })` |
+| Debounce | Validation `mode: 'onBlur'` for long forms |
+| NO shadcn Form wrapper | Use RHF register/control directly with @plexica/ui inputs |
+
+```tsx
+// Standard form pattern
+const form = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onBlur' })
+const { mutate, isPending } = useCreateItem()
+
+<form onSubmit={form.handleSubmit((data) => mutate(data))}>
+  <Input {...form.register('name')} aria-invalid={!!form.formState.errors.name} />
+  {form.formState.errors.name && (
+    <p className="text-sm text-error">{form.formState.errors.name.message}</p>
+  )}
+  <Button type="submit" loading={isPending}>Save</Button>
+</form>
+```
 
 ---
 
 ## 6. Project Structure
 
 ```
-src/
-├── app/                    # Next.js App Router pages
-│   ├── layout.tsx
-│   ├── page.tsx
-│   └── (routes)/
-├── components/             # UI components
-│   ├── ui/                 # shadcn/ui components (generated)
-│   └── features/           # Feature-specific components
-├── lib/                    # Utility functions
-│   ├── utils.ts            # cn helper
-│   └── api.ts              # API client
-├── hooks/                  # Custom React hooks
-├── types/                  # TypeScript types
-├── queries/                # React Query hooks (useItems, useCreateItem...)
-└── schemas/                # Zod schemas
-```
+apps/web/src/
+├── pages/              # Page components (one per route)
+├── components/
+│   ├── layout/         # Shell: sidebar, header, breadcrumb, user-menu, avatar
+│   ├── feedback/       # Cross-cutting: empty-state, skeleton-loader
+│   ├── error/          # Error boundaries and fallbacks
+│   ├── workspace/      # Workspace-specific components
+│   ├── user/           # User management components
+│   ├── audit/          # Audit log components
+│   └── settings/       # Settings-specific components
+├── hooks/              # Custom React hooks (all data fetching)
+├── services/           # API clients and service modules
+├── stores/             # Zustand stores (auth, workspace)
+├── types/              # TypeScript type definitions
+├── i18n/               # Translations (react-intl message catalogs)
+├── router.tsx          # TanStack Router root setup
+└── main.tsx            # App entry point
 
-**Rule**: Feature components in `components/features/[feature-name]/`.
-React Query hooks in `queries/` following the pattern `use[ResourceName]`.
+packages/ui/src/
+├── components/         # @plexica/ui component library
+├── tokens/             # CSS custom properties (colors, spacing, radius, typography)
+├── lib/                # Utilities (cn)
+└── index.ts            # Barrel exports
+```
 
 ---
 
@@ -140,119 +208,142 @@ React Query hooks in `queries/` following the pattern `use[ResourceName]`.
 
 | Type | Pattern | Example |
 |------|---------|---------|
-| Components | PascalCase.tsx | `OrderTable.tsx` |
-| Hooks | camelCase with use | `useOrders.ts` |
-| Schemas | camelCase | `orderSchema.ts` |
-| Types | PascalCase | `Order.ts` (type) |
-| Queries | camelCase with use | `useOrdersQuery.ts` |
-| Pages | Next.js conventions | `page.tsx`, `layout.tsx` |
+| Pages | **kebab-case.tsx** | `workspace-list-page.tsx` |
+| Components | **kebab-case.tsx** | `create-workspace-dialog.tsx` |
+| Hooks | **kebab-case.ts** | `use-workspaces.ts` |
+| Stores | **kebab-case.ts** | `auth-store.ts` |
+| Services | **kebab-case.ts** | `workspace-api.ts` |
+| Types | **kebab-case.ts** | `workspace.ts` |
+| i18n | **messages.{locale}.ts** | `messages.en.ts` |
 
-**Export rule**: Default export for page components (`page.tsx`).
-Named export for everything else. Never mixed exports.
+**Export rule**: Named exports everywhere. No default exports (except `main.tsx`).
 
 ```tsx
-// components/features/OrderTable.tsx
-export function OrderTable({ ... }: OrderTableProps) { ... }
+// workspace-list-page.tsx — named export
+export function WorkspaceListPage(): JSX.Element { ... }
 
-// app/orders/page.tsx  
-export default function OrdersPage() { ... }
+// create-workspace-dialog.tsx — named export
+export function CreateWorkspaceDialog({ ... }: Props): JSX.Element { ... }
 ```
 
 ---
 
-## 8. Data Fetching
+## 8. Routing
 
-| Rule | Detail |
-|--------|-----------|
-| Server fetch | Direct `fetch` in Server Components (RSC) |
-| Client fetch | React Query (cache, dedup, retry) |
-| API client | Single `apiClient` with base URL, auth header, error handling |
-| Error handling | `apiClient` throws typed errors → React Query `onError` |
-| Revalidation | `revalidatePath` / `revalidateTag` for Server Actions |
+**TanStack Router** — type-safe file-based or code-based routing.
+
+```tsx
+// Navigation
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+
+// Link component
+<Link to="/workspaces/$workspaceId" params={{ workspaceId: ws.id }}>
+  {ws.name}
+</Link>
+
+// Programmatic navigation
+const navigate = useNavigate()
+navigate({ to: '/workspaces', search: { status: 'active' } })
+
+// URL params
+const { workspaceId } = useParams({ from: '/workspaces/$workspaceId' })
+
+// Search params (URL state)
+const { page, status } = useSearch({ from: '/workspaces' })
+```
 
 ---
 
-## 9. Accessibility Baseline
+## 9. i18n
+
+All UI strings go through **react-intl**. No hardcoded strings.
+
+```tsx
+import { FormattedMessage, useIntl } from 'react-intl'
+
+// JSX string
+<h1><FormattedMessage id="workspace.list.title" /></h1>
+
+// Imperative string (for aria-label, placeholder, etc.)
+const intl = useIntl()
+intl.formatMessage({ id: 'common.search' })
+```
+
+Translations live in `apps/web/src/i18n/messages.en.ts`.
+
+---
+
+## 10. Accessibility Baseline
 
 | Requirement | Standard |
 |-----------|----------|
-| Contrast | WCAG 2.1 AA (4.5:1 text, 3:1 large) |
+| Contrast | WCAG 2.1 AA (4.5:1 text, 3:1 large / interactive) |
 | Keyboard | Everything reachable via Tab + Enter/Esc/Arrows |
 | Screen reader | Correct aria-label, aria-describedby, role |
-| Focus | Visible focus ring on all interactive elements |
-| Heading | h1→h2→h3 hierarchy, no skips |
-| Landmarks | `<nav>`, `<main>`, `<aside>` semantic tags |
-
-shadcn/ui provides built-in accessibility via Radix. Do NOT remove ARIA attributes.
+| Focus | Visible focus ring: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500` |
+| Heading hierarchy | h1→h2→h3 hierarchy, no skips, one h1 per page |
+| Landmarks | `<main>`, `<nav>`, `<aside>` semantic tags |
+| Dynamic updates | `aria-live="polite"` for loading states, `role="alert"` for errors |
 
 ---
 
-## 10. Testing Convention
+## 11. Testing Convention
 
 | Layer | Tool | What to test |
 |-------|------|-------------|
-| Unit | Vitest | Pure functions, hooks, schemas |
-| Component | React Testing Library | Rendering, interactions, states |
-| Integration | MSW + RTL | Complete flows with mocked APIs |
-| E2E | Playwright | Critical paths (deploy preview) |
+| Unit | **Vitest v4** | Pure functions, hooks, Zod schemas |
+| Component | **Vitest + @testing-library/react** | Rendering, interactions, states |
+| Integration | **Vitest + real app** | API endpoints with middleware active |
+| E2E | **Playwright** | Every user flow (mandatory, CI-blocking) |
 
 **Test pattern**:
 ```tsx
-// __tests__/OrdersTable.test.tsx
-describe('OrdersTable', () => {
-  it('shows skeleton while loading', () => { ... })
-  it('shows orders when loaded', () => { ... })
-  it('shows empty state when no orders', () => { ... })
-  it('shows error with retry button', () => { ... })
-  it('filters by status via URL params', () => { ... })
+// __tests__/workspace-list-page.test.tsx
+describe('WorkspaceListPage', () => {
+  it('shows skeleton while loading')
+  it('shows workspace list when loaded')
+  it('shows empty state when no workspaces')
+  it('shows error with retry when API fails')
+  it('filters by status via URL params')
 })
 ```
 
 ---
 
-## 11. Responsive Breakpoints
+## 12. Responsive Breakpoints
 
 | Name | Width | Layout |
 |------|-----------|--------|
-| Mobile | 320-767px | Single column, bottom nav |
-| Tablet | 768-1023px | 2 columns, sidebar |
-| Desktop | 1024-1439px | Full layout |
+| Mobile | 320-767px | Single column, mobile drawer nav |
+| Tablet | 768-1023px | 2 columns, collapsible sidebar |
+| Desktop | 1024-1439px | Full layout with sidebar |
 | Wide | 1440px+ | Full layout, max-width container |
 
-Implementation: Default Tailwind breakpoints (`sm`, `md`, `lg`, `xl`, `2xl`).
+Tailwind breakpoints: `sm` (640), `md` (768), `lg` (1024), `xl` (1280), `2xl` (1536).
 Container max-width: `max-w-7xl mx-auto`.
 
 ---
 
-## 12. Icons
+## 13. Available Packages
 
-| Library | Usage |
-|----------|-----|
-| Lucide React | Primary icons (shadcn/ui default) |
-| Inline SVG | Custom icons only if not present in Lucide |
-
-```tsx
-import { Search, Trash2 } from "lucide-react"
-<Search className="h-4 w-4" />
-```
-
----
-
-## 13. Recommended Additional Packages
-
-| Package | Purpose |
-|-----------|-------|
-| date-fns | Date formatting |
-| zustand | Client state |
-| sonner | Toast notifications |
-| recharts | Charts (dashboard) |
-| @hello-pangea/dnd | Drag & drop |
-| next-themes | Dark/light mode |
-| @tanstack/react-table | Data table logic — required for shadcn/ui Data Table example; not bundled |
+| Package | Status | Usage |
+|---------|--------|-------|
+| @tanstack/react-query | ✅ installed | Server state |
+| @tanstack/react-router | ✅ installed | Routing + URL state |
+| react-hook-form | ✅ installed | Form state |
+| zod | ✅ installed | Validation |
+| react-intl | ✅ installed | i18n |
+| lucide-react | ✅ installed (via @plexica/ui) | Icons |
+| zustand | ✅ installed | Global UI state |
+| @plexica/ui | ✅ installed | Component library |
+| sonner | ❌ NOT installed | Use @plexica/ui Toast instead |
+| recharts | ❌ NOT installed | Add via ADR if needed |
+| @tanstack/react-table | ❌ NOT installed | Add via ADR if needed |
+| next-themes | ❌ NOT installed | Dark mode via data-theme attribute |
 
 ---
 
-## Appendix A: tsconfig.json Template
+## Appendix A: tsconfig.json
 
 ```json
 {
@@ -262,34 +353,26 @@ import { Search, Trash2 } from "lucide-react"
     "lib": ["dom", "dom.iterable", "esnext"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "jsx": "preserve",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "jsx": "react-jsx"
   }
 }
 ```
 
-## Appendix B: tailwind.config.ts Template
-
-> **See [design-system.md §1.3](design-system.md)** for the canonical Tailwind configuration with
-> all tokens (primary, secondary, destructive, success, warning, muted, accent, border, input, ring).
-> The template below is a minimal skeleton.
+## Appendix B: tailwind.config.ts
 
 ```ts
-import type { Config } from "tailwindcss"
+// apps/web/tailwind.config.ts
+import uiPreset from '@plexica/ui/tailwind-preset'
+import type { Config } from 'tailwindcss'
 
 const config: Config = {
-  content: ["./src/**/*.{ts,tsx}"],
-  theme: {
-    extend: {
-      colors: {
-        // Copy the entire colors block from design-system.md §1.3
-        // (includes all semantic tokens: primary, secondary, destructive, success, warning, etc.)
-      },
-    },
-  },
-  plugins: [require("tailwindcss-animate")],
+  content: [
+    './src/**/*.{ts,tsx}',
+    '../../packages/ui/src/**/*.{ts,tsx}',
+  ],
+  presets: [uiPreset],
+  // NO darkMode config — dark mode is handled via CSS custom properties
+  // and the [data-theme="dark"] attribute on <html>. Never use dark: variants.
 }
 
 export default config

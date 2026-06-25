@@ -10,6 +10,8 @@ import { FormattedMessage, useIntl } from 'react-intl';
 import { Button, Input, ToggleSwitch } from '@plexica/ui';
 
 import { useAuthConfig, useUpdateAuthConfig } from '../hooks/use-tenant-settings.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { PageError } from '../components/feedback/page-error.js';
 
 const schema = z.object({
   bruteForceProtected: z.boolean(),
@@ -18,9 +20,23 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function AuthConfigSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <SkeletonLoader className="h-8 w-36" />
+      <div className="max-w-lg space-y-6">
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader variant="card" className="h-10" />
+        <SkeletonLoader className="h-9 w-20 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
 export function TenantAuthConfigPage(): JSX.Element {
   const intl = useIntl();
-  const { data, isPending, isError } = useAuthConfig();
+  const { data, isPending, isError, refetch } = useAuthConfig();
   const { mutate: updateConfig, isPending: isSaving } = useUpdateAuthConfig();
 
   const {
@@ -46,22 +62,18 @@ export function TenantAuthConfigPage(): JSX.Element {
     }
   }, [data, reset]);
 
+  if (isPending) return <AuthConfigSkeleton />;
+  if (isError) {
+    return (
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
+      </div>
+    );
+  }
+
   function onSubmit(values: FormValues): void {
     updateConfig(values);
   }
-
-  if (isPending)
-    return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
-      </div>
-    );
-  if (isError)
-    return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
-      </div>
-    );
 
   return (
     <div className="space-y-6 p-6">

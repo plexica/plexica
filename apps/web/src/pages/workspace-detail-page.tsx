@@ -3,39 +3,47 @@
 
 import { useIntl, FormattedMessage } from 'react-intl';
 import { useParams } from '@tanstack/react-router';
+import { Users, FolderOpen } from 'lucide-react';
 import { Tabs, Badge } from '@plexica/ui';
 
 import { useWorkspace } from '../hooks/use-workspaces.js';
 import { useWorkspaceMembers } from '../hooks/use-workspace-members.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { EmptyState } from '../components/feedback/empty-state.js';
+import { PageError } from '../components/feedback/page-error.js';
 
 function useWorkspaceId(): string {
   const params = useParams({ strict: false });
   return (params as Record<string, string>).workspaceId ?? '';
 }
 
-function MembersTab({ workspaceId }: { workspaceId: string }): JSX.Element {
-  const { data, isPending, isError } = useWorkspaceMembers(workspaceId);
+function TabContentSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-2 pt-2" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <SkeletonLoader key={i} variant="card" className="h-12" />
+      ))}
+    </div>
+  );
+}
 
-  if (isPending)
-    return (
-      <p className="text-sm text-neutral-500">
-        <FormattedMessage id="common.loading" />
-      </p>
-    );
-  if (isError)
-    return (
-      <p className="text-sm text-error" role="alert">
-        <FormattedMessage id="common.error" />
-      </p>
-    );
+function MembersTab({ workspaceId }: { workspaceId: string }): JSX.Element {
+  const { data, isPending, isError, refetch } = useWorkspaceMembers(workspaceId);
+
+  if (isPending) return <TabContentSkeleton />;
+  if (isError) return <PageError onRetry={() => void refetch()} />;
 
   const members = data?.data ?? [];
-  if (members.length === 0)
+  if (members.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
-        <FormattedMessage id="common.noData" />
-      </p>
+      <EmptyState
+        icon={Users}
+        heading={<FormattedMessage id="workspace.members.empty" />}
+        description={<FormattedMessage id="workspace.members.empty.description" />}
+      />
     );
+  }
 
   return (
     <ul className="space-y-2">
@@ -65,9 +73,11 @@ function ChildrenTab({
 }): JSX.Element {
   if (workspace.children.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
-        <FormattedMessage id="common.noData" />
-      </p>
+      <EmptyState
+        icon={FolderOpen}
+        heading={<FormattedMessage id="workspace.children.empty" />}
+        description={<FormattedMessage id="workspace.children.empty.description" />}
+      />
     );
   }
   return (
@@ -84,28 +94,33 @@ function ChildrenTab({
   );
 }
 
+function WorkspaceDetailSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <div className="flex items-center gap-3">
+        <SkeletonLoader className="h-8 w-48" />
+        <SkeletonLoader className="h-5 w-16 rounded-full" />
+      </div>
+      <SkeletonLoader variant="card" className="h-48" />
+    </div>
+  );
+}
+
 export function WorkspaceDetailPage(): JSX.Element {
   const intl = useIntl();
   const id = useWorkspaceId();
-  const { data, isPending, isError } = useWorkspace(id);
+  const { data, isPending, isError, refetch } = useWorkspace(id);
 
-  if (isPending) {
-    return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
-      </div>
-    );
-  }
-
+  if (isPending) return <WorkspaceDetailSkeleton />;
   if (isError || data === undefined) {
     return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
       </div>
     );
   }
 
-  // Backend returns WorkspaceDetail directly (no { data } wrapper)
   const ws = data;
 
   const tabs = [

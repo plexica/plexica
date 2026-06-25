@@ -3,10 +3,29 @@
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
+import { Users } from 'lucide-react';
 import { Button, Input, Pagination } from '@plexica/ui';
 
 import { useUsers } from '../hooks/use-users.js';
 import { RemoveUserDialog } from '../components/user/remove-user-dialog.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { EmptyState } from '../components/feedback/empty-state.js';
+import { PageError } from '../components/feedback/page-error.js';
+
+function UserListSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-6 p-6" aria-busy="true" aria-live="polite">
+      <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+      <SkeletonLoader className="h-8 w-24" />
+      <SkeletonLoader className="h-9 w-full max-w-sm rounded-md" />
+      <div className="space-y-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonLoader key={i} variant="card" className="h-14" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function UserListPage(): JSX.Element {
   const intl = useIntl();
@@ -15,20 +34,13 @@ export function UserListPage(): JSX.Element {
   const [removeUserId, setRemoveUserId] = useState<string | null>(null);
 
   const filters = search ? { page, search } : { page };
-  const { data, isPending, isError } = useUsers(filters);
+  const { data, isPending, isError, refetch } = useUsers(filters);
 
-  if (isPending) {
-    return (
-      <div className="p-6" aria-live="polite">
-        <FormattedMessage id="common.loading" />
-      </div>
-    );
-  }
-
+  if (isPending) return <UserListSkeleton />;
   if (isError) {
     return (
-      <div className="p-6" role="alert">
-        <FormattedMessage id="common.error" />
+      <div className="p-6">
+        <PageError onRetry={() => void refetch()} />
       </div>
     );
   }
@@ -56,9 +68,11 @@ export function UserListPage(): JSX.Element {
       </div>
 
       {users.length === 0 ? (
-        <p className="text-neutral-500">
-          <FormattedMessage id="common.noData" />
-        </p>
+        <EmptyState
+          icon={Users}
+          heading={<FormattedMessage id="users.list.empty" />}
+          description={<FormattedMessage id="users.list.empty.description" />}
+        />
       ) : (
         <ul className="space-y-2">
           {users.map((u) => (
