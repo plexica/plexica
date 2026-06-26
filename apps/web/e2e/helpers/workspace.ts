@@ -47,7 +47,7 @@ export async function fillCreateWorkspaceForm(
  */
 export async function openCreateWorkspaceDialog(page: Page): Promise<void> {
   await page.goto('/workspaces');
-  await page.getByRole('button', { name: /new workspace|create workspace/i }).click();
+  await page.getByRole('button', { name: /new workspace|create workspace/i }).first().click();
 }
 
 /**

@@ -1,11 +1,11 @@
 // audit-log-page.tsx
-// Displays paginated tenant audit log with filters: actor, action type, date range.
+// Displays paginated tenant audit log.
+// Filters managed via InlineFilter: actor (text), action type (select), date range.
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import {
-  Input,
-  Select,
+  InlineFilter,
   Pagination,
   Table,
   TableHeader,
@@ -16,47 +16,65 @@ import {
 
 import { useAuditLog, useAuditActionTypes } from '../hooks/use-audit-log.js';
 import { ExpandableRow } from '../components/audit/expandable-row.js';
+import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
+import { PageError } from '../components/feedback/page-error.js';
 
-import type { AuditLogEntry, AuditLogFilters } from '../types/audit.js';
+import type { FilterValues } from '@plexica/ui';
+import type { AuditLogEntry } from '../types/audit.js';
 
 const PAGE_SIZE = 20;
-// Radix UI <Select.Item value=""> throws — empty string is reserved for
-// "no selection" / placeholder display.  Use a sentinel instead.
-const ALL_SENTINEL = '__all__';
 
 export function AuditLogPage(): JSX.Element {
   const intl = useIntl();
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Omit<AuditLogFilters, 'page' | 'limit'>>({});
+  const [filterValues, setFilterValues] = useState<FilterValues>({});
 
-  const { data, isPending, isError } = useAuditLog({ ...filters, page, limit: PAGE_SIZE });
   const { data: actionTypesData } = useAuditActionTypes();
+  const actionTypes = actionTypesData ?? [];
+
+  // Derive API filter params from InlineFilter values — build object without undefined keys
+  // to satisfy exactOptionalPropertyTypes in tsconfig.
+  const dateRange = filterValues.dateRange as { from?: string; to?: string } | undefined;
+  const actionTypeRaw = filterValues.actionType as string | undefined;
+  const actorIdRaw = filterValues.actorId as string | undefined;
+
+  const apiFilters: Parameters<typeof useAuditLog>[0] = { page, limit: PAGE_SIZE };
+  if (actorIdRaw) apiFilters.actorId = actorIdRaw;
+  if (actionTypeRaw && actionTypeRaw !== '__all__') apiFilters.actionType = actionTypeRaw;
+  if (dateRange?.from) apiFilters.fromDate = dateRange.from;
+  if (dateRange?.to) apiFilters.toDate = dateRange.to;
+
+  const { data, isPending, isError, refetch } = useAuditLog(apiFilters);
+
+  const filterDefs = [
+    {
+      key: 'actorId',
+      label: intl.formatMessage({ id: 'auditLog.filter.actor' }),
+      type: 'text' as const,
+    },
+    {
+      key: 'actionType',
+      label: intl.formatMessage({ id: 'auditLog.filter.action' }),
+      type: 'select' as const,
+      options: [
+        { value: '__all__', label: intl.formatMessage({ id: 'auditLog.filter.allActions' }) },
+        ...actionTypes.map((a) => ({ value: a.key, label: a.label })),
+      ],
+    },
+    {
+      key: 'dateRange',
+      label: intl.formatMessage({ id: 'auditLog.filter.dateRange' }),
+      type: 'date-range' as const,
+    },
+  ];
+
+  function handleFilterChange(values: FilterValues): void {
+    setPage(1);
+    setFilterValues(values);
+  }
 
   const entries: AuditLogEntry[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
-  const actionTypes = actionTypesData ?? [];
-
-  function handleTextFilter(key: keyof typeof filters, value: string): void {
-    setPage(1);
-    setFilters((prev) => ({
-      ...prev,
-      ...(value !== '' ? { [key]: value } : { [key]: undefined }),
-    }));
-  }
-
-  function handleSelectFilter(key: keyof typeof filters, value: string): void {
-    setPage(1);
-    const cleared = value === ALL_SENTINEL;
-    setFilters((prev) => ({
-      ...prev,
-      ...(cleared ? { [key]: undefined } : { [key]: value }),
-    }));
-  }
-
-  const actionTypeOptions = [
-    { value: ALL_SENTINEL, label: intl.formatMessage({ id: 'auditLog.filter.action' }) },
-    ...actionTypes.map((a) => ({ value: a.key, label: a.label })),
-  ];
 
   return (
     <div className="space-y-4 p-6">
@@ -64,65 +82,37 @@ export function AuditLogPage(): JSX.Element {
         <FormattedMessage id="auditLog.title" />
       </h1>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <Input
-          placeholder={intl.formatMessage({ id: 'auditLog.filter.actor' })}
-          aria-label={intl.formatMessage({ id: 'auditLog.filter.actor' })}
-          onChange={(e) => handleTextFilter('actorId', e.target.value)}
-          className="w-44"
-        />
+      <InlineFilter
+        filters={filterDefs}
+        values={filterValues}
+        onChange={handleFilterChange}
+      />
 
-        <Select
-          aria-label={intl.formatMessage({ id: 'auditLog.filter.action' })}
-          options={actionTypeOptions}
-          onValueChange={(v) => handleSelectFilter('actionType', v)}
-        />
+      {/* Loading state */}
+      {isPending && (
+        <div aria-live="polite" className="space-y-2">
+          <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonLoader key={i} variant="card" className="h-12" />
+          ))}
+        </div>
+      )}
 
-        <Input
-          type="date"
-          aria-label={intl.formatMessage({ id: 'auditLog.filter.from' })}
-          onChange={(e) => handleTextFilter('fromDate', e.target.value)}
-          className="w-40"
-        />
-
-        <Input
-          type="date"
-          aria-label={intl.formatMessage({ id: 'auditLog.filter.to' })}
-          onChange={(e) => handleTextFilter('toDate', e.target.value)}
-          className="w-40"
-        />
-      </div>
+      {/* Error state */}
+      {isError && (
+        <PageError onRetry={() => void refetch()} />
+      )}
 
       {/* Table */}
-      {isPending && (
-        <div aria-live="polite" className="text-sm text-neutral-500">
-          <FormattedMessage id="common.loading" />
-        </div>
-      )}
-      {isError && (
-        <div role="alert" className="text-sm text-red-600">
-          <FormattedMessage id="common.error" />
-        </div>
-      )}
-
       {!isPending && !isError && (
         <>
           <Table aria-label={intl.formatMessage({ id: 'auditLog.title' })}>
             <TableHeader>
               <TableRow>
-                <TableHead>
-                  <FormattedMessage id="auditLog.table.actor" />
-                </TableHead>
-                <TableHead>
-                  <FormattedMessage id="auditLog.table.action" />
-                </TableHead>
-                <TableHead>
-                  <FormattedMessage id="auditLog.table.target" />
-                </TableHead>
-                <TableHead>
-                  <FormattedMessage id="auditLog.table.time" />
-                </TableHead>
+                <TableHead><FormattedMessage id="auditLog.table.actor" /></TableHead>
+                <TableHead><FormattedMessage id="auditLog.table.action" /></TableHead>
+                <TableHead><FormattedMessage id="auditLog.table.target" /></TableHead>
+                <TableHead><FormattedMessage id="auditLog.table.time" /></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

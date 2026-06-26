@@ -1,8 +1,11 @@
 // remove-user-dialog.tsx
-// Confirm dialog for removing a user from the tenant.
+// Confirms removal of a user from the tenant via TypeToConfirmDialog.
+// The user must type "CONFIRM" before the destructive action is enabled.
+// Mutation errors are shown inline; dialog stays open so the user can retry.
 
+import { useState } from 'react';
 import { useIntl } from 'react-intl';
-import { ConfirmDialog } from '@plexica/ui';
+import { TypeToConfirmDialog } from '@plexica/ui';
 
 import { useRemoveUser } from '../../hooks/use-users.js';
 
@@ -18,25 +21,36 @@ export function RemoveUserDialog({
   onOpenChange,
 }: RemoveUserDialogProps): JSX.Element {
   const intl = useIntl();
+  const [serverError, setServerError] = useState<string | null>(null);
   const { mutate, isPending } = useRemoveUser();
 
+  function handleOpenChange(newOpen: boolean): void {
+    if (!newOpen) setServerError(null);
+    onOpenChange(newOpen);
+  }
+
   function handleConfirm(): void {
+    setServerError(null);
     mutate(userId, {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => handleOpenChange(false),
+      onError: () => {
+        setServerError(intl.formatMessage({ id: 'common.error' }));
+      },
     });
   }
 
   return (
-    <ConfirmDialog
+    <TypeToConfirmDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={intl.formatMessage({ id: 'users.remove.title' })}
       description={intl.formatMessage({ id: 'users.remove.description' })}
+      confirmInstructions={intl.formatMessage({ id: 'users.remove.confirm.instructions' })}
       confirmLabel={intl.formatMessage({ id: 'common.delete' })}
       cancelLabel={intl.formatMessage({ id: 'common.cancel' })}
-      variant="destructive"
       onConfirm={handleConfirm}
       loading={isPending}
+      error={serverError}
     />
   );
 }

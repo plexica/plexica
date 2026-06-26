@@ -22,12 +22,12 @@ export interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  admin: 'bg-indigo-100 text-indigo-800',
-  member: 'bg-blue-100 text-blue-800',
-  viewer: 'bg-neutral-100 text-neutral-700',
-  pending: 'bg-yellow-100 text-yellow-800',
-  success: 'bg-green-100 text-green-800',
-  error: 'bg-red-100 text-red-800',
+  admin:   'bg-primary-100 text-primary-800',
+  member:  'bg-primary-50 text-primary-700',
+  viewer:  'bg-neutral-100 text-neutral-700',
+  pending: 'bg-warning-light text-warning-dark',
+  success: 'bg-success-light text-success-dark',
+  error:   'bg-error-light text-error-dark',
   default: 'bg-neutral-100 text-neutral-700',
 };
 

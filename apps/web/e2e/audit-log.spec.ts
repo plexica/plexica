@@ -64,9 +64,9 @@ test.describe('E2E-09: Audit log', () => {
 
     const today = new Date().toISOString().split('T')[0] ?? '';
 
-    // The date inputs have aria-labels "From" and "To"
-    const fromInput = page.getByLabel(/^from$/i);
-    const toInput = page.getByLabel(/^to$/i);
+    // The date inputs have aria-labels "From date" and "To date"
+    const fromInput = page.getByLabel(/^from date/i);
+    const toInput = page.getByLabel(/^to date/i);
 
     await fromInput.fill(today);
     await toInput.fill(today);

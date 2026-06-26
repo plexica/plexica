@@ -14,7 +14,7 @@ interface ActionMatrixTableProps {
 
 function BoolCell({ value }: { value: boolean }): JSX.Element {
   return value ? (
-    <Check className="h-4 w-4 text-green-600" aria-label="Yes" />
+    <Check className="h-4 w-4 text-success" aria-label="Yes" />
   ) : (
     <Minus className="h-4 w-4 text-neutral-300" aria-label="No" />
   );

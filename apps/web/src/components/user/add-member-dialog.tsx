@@ -3,12 +3,13 @@
 // Uses react-hook-form + Zod. All strings via react-intl.
 
 import { useIntl, FormattedMessage } from 'react-intl';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button, Input, Select, DialogRoot, DialogContent, DialogTitle } from '@plexica/ui';
 
 import { useSendInvite } from '../../hooks/use-invitations.js';
+import { getRoleOptions } from '../../lib/role-options.js';
 
 interface AddMemberDialogProps {
   workspaceId: string;
@@ -23,12 +24,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const roleOptions = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'member', label: 'Member' },
-  { value: 'viewer', label: 'Viewer' },
-];
-
 export function AddMemberDialog({
   workspaceId,
   open,
@@ -41,7 +36,7 @@ export function AddMemberDialog({
     register,
     handleSubmit,
     reset,
-    setValue,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -77,11 +72,17 @@ export function AddMemberDialog({
             <label className="text-sm font-medium text-neutral-700">
               <FormattedMessage id="members.role.member" />
             </label>
-            <Select
-              options={roleOptions}
-              value="member"
-              onValueChange={(v) => setValue('role', v as 'admin' | 'member' | 'viewer')}
-              aria-label={intl.formatMessage({ id: 'members.role.member' })}
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  options={getRoleOptions(intl)}
+                  {...(field.value !== undefined ? { value: field.value } : {})}
+                  onValueChange={(v) => field.onChange(v)}
+                  aria-label={intl.formatMessage({ id: 'members.role.aria' }, { name: '' })}
+                />
+              )}
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">

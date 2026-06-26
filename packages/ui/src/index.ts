@@ -48,6 +48,9 @@ export {
 export { ConfirmDialog } from './components/confirm-dialog.js';
 export type { ConfirmDialogProps } from './components/confirm-dialog.js';
 
+export { TypeToConfirmDialog } from './components/type-to-confirm-dialog.js';
+export type { TypeToConfirmDialogProps } from './components/type-to-confirm-dialog.js';
+
 export { FileUpload } from './components/file-upload.js';
 export type { FileUploadProps } from './components/file-upload.js';
 

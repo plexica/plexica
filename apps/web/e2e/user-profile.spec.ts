@@ -1,6 +1,7 @@
 // user-profile.spec.ts
 // E2E-08: User profile (Spec 003, Phase 20.8).
 // Tests display name update, avatar upload, timezone/language preferences.
+// Timezone and language use Radix <Select> (button trigger + listbox popup).
 // Skips when Keycloak credentials are absent or the stack is not running.
 
 import AxeBuilder from '@axe-core/playwright';
@@ -27,8 +28,8 @@ test.describe('E2E-08: User profile', () => {
   test('navigate to /profile shows profile page', async ({ page }) => {
     await page.goto('/profile');
     await expect(page).toHaveURL(/\/profile/);
-    // i18n: profile.title = 'Profile'
-    await expect(page.getByRole('heading', { name: /profile/i })).toBeVisible();
+    // i18n: profile.title = 'Profile' (used for both <h1> page title and <h2> section heading)
+    await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible();
   });
 
   test('update display name — persists after reload', async ({ page }) => {
@@ -39,7 +40,12 @@ test.describe('E2E-08: User profile', () => {
     const newName = uniqueName('Test User');
     await displayNameInput.clear();
     await displayNameInput.fill(newName);
-    await page.getByRole('button', { name: /save/i }).click();
+    // Click Save and wait for the API call to complete
+    const [saveResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
+      page.getByRole('button', { name: /save/i }).click(),
+    ]);
+    if (saveResp.status() >= 400) throw new Error(`Profile save failed: ${saveResp.status()}`);
 
     // Verify the value persists after reload (TanStack Query refetch)
     await page.reload();
@@ -53,7 +59,6 @@ test.describe('E2E-08: User profile', () => {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==',
       'base64'
     );
-    // FileUpload renders a hidden <input type="file"> outside the drop zone
     const fileInput = page.locator('input[type="file"]');
     await fileInput.setInputFiles({
       name: 'avatar.png',
@@ -61,53 +66,82 @@ test.describe('E2E-08: User profile', () => {
       buffer: pngBytes,
     });
 
-    // FileUpload shows local preview with alt="Preview" immediately
     await expect(page.getByRole('img', { name: /preview/i })).toBeVisible({
       timeout: 10_000,
     });
   });
 
-  test('change timezone — input value updates', async ({ page }) => {
+  test('change timezone — Select value persists', async ({ page }) => {
     await page.goto('/profile');
 
-    // Timezone is an <input> element, not a <select>.
+    // Use a timezone that is DIFFERENT from whatever the current value is,
+    // to avoid the form being not-dirty when we try to Save.
+    // "Pacific/Auckland" is unlikely to be the current value.
     // i18n: profile.timezone.label = 'Timezone'
-    const tzInput = page.getByLabel(/timezone/i);
-    await tzInput.clear();
-    await tzInput.fill('Europe/Rome');
-    await page.getByRole('button', { name: /save/i }).click();
+    const tzTrigger = page.getByRole('combobox', { name: /timezone/i });
+    await tzTrigger.click();
+    // Select "Pacific/Auckland" from the listbox (slash is preserved in the label)
+    await page.getByRole('option', { name: /Pacific\/Auckland/ }).click();
+    // Click Save and wait for the API call to complete
+    const [tzSaveResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
+      page.getByRole('button', { name: /save/i }).click(),
+    ]);
+    if (tzSaveResp.status() >= 400) throw new Error(`Timezone save failed: ${tzSaveResp.status()}`);
 
-    // Verify persists after reload
+    // Verify persists after reload — the trigger shows the selected value
     await page.reload();
-    await expect(page.getByLabel(/timezone/i)).toHaveValue('Europe/Rome', { timeout: 8_000 });
+    await expect(page.getByRole('combobox', { name: /timezone/i })).toHaveText(/Pacific\/Auckland/, { timeout: 8_000 });
+
+    // Reset to UTC to avoid breaking other tests (order-dependent state)
+    const tzTriggerAfter = page.getByRole('combobox', { name: /timezone/i });
+    await tzTriggerAfter.click();
+    await page.getByRole('option', { name: /^UTC$/ }).click();
+    const [tzResetSave] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
+      page.getByRole('button', { name: /save/i }).click(),
+    ]);
+    if (tzResetSave.status() >= 400) throw new Error(`Timezone reset failed: ${tzResetSave.status()}`);
+    await page.reload();
   });
 
-  test('change language — input value updates', async ({ page }) => {
+  test('change language — Select value persists', async ({ page }) => {
     await page.goto('/profile');
 
-    // Language is an <input> element, not a <select>.
+    // Use a language that is DIFFERENT from whatever the current value is,
+    // to avoid the form being not-dirty when we try to Save.
+    // French ('fr') is unlikely to be the current value.
     // i18n: profile.language.label = 'Language'
-    const langInput = page.getByLabel(/language/i);
-    await langInput.clear();
-    await langInput.fill('it');
-    await page.getByRole('button', { name: /save/i }).click();
+    const langTrigger = page.getByRole('combobox', { name: /language/i });
+    await langTrigger.click();
+    // Select "Français" (value 'fr')
+    await page.getByRole('option', { name: 'Français' }).click();
+    // Click Save and wait for the API call to complete
+    const [langSaveResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
+      page.getByRole('button', { name: /save/i }).click(),
+    ]);
+    if (langSaveResp.status() >= 400) throw new Error(`Language save failed: ${langSaveResp.status()}`);
 
     // Verify persists after reload
     await page.reload();
-    await expect(page.getByLabel(/language/i)).toHaveValue('it', { timeout: 8_000 });
+    await expect(page.getByRole('combobox', { name: /language/i })).toHaveText('Français', { timeout: 8_000 });
 
     // Reset to English to avoid breaking other tests
-    const langInputAfter = page.getByLabel(/language|lingua/i);
-    await langInputAfter.clear();
-    await langInputAfter.fill('en');
-    await page.getByRole('button', { name: /save|salva/i }).click();
+    const langTriggerAfter = page.getByRole('combobox', { name: /language/i });
+    await langTriggerAfter.click();
+    await page.getByRole('option', { name: 'English' }).click();
+    const [resetSaveResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/v1/profile') && r.request().method() === 'PATCH'),
+      page.getByRole('button', { name: /save/i }).click(),
+    ]);
+    if (resetSaveResp.status() >= 400) throw new Error(`Language reset failed: ${resetSaveResp.status()}`);
     await page.reload();
   });
 
   test('/profile page is keyboard-navigable', async ({ page }) => {
     await page.goto('/profile');
-    // Wait for the profile heading to ensure page is fully loaded
-    await expect(page.getByRole('heading', { name: /profile/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible();
     await page.keyboard.press('Tab');
     const focused = await page.evaluate(() => document.activeElement?.tagName ?? 'BODY');
     expect(focused).not.toBe('BODY');

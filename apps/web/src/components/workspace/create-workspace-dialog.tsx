@@ -1,9 +1,11 @@
 // create-workspace-dialog.tsx
 // Dialog form for creating a new workspace.
-// Uses react-hook-form + Zod. All strings via react-intl.
+// Modal Flow pattern: error state inline, form reset on close, server error display.
+// Selects controlled via RHF <Controller> for reliable reset on close.
 
+import { useState } from 'react';
 import { useIntl, FormattedMessage } from 'react-intl';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -16,8 +18,7 @@ import {
   DialogTitle,
 } from '@plexica/ui';
 
-import { useCreateWorkspace } from '../../hooks/use-workspaces.js';
-import { useWorkspaces } from '../../hooks/use-workspaces.js';
+import { useCreateWorkspace, useWorkspaces } from '../../hooks/use-workspaces.js';
 import { useWorkspaceTemplates } from '../../hooks/use-workspace-templates.js';
 
 interface CreateWorkspaceDialogProps {
@@ -39,19 +40,30 @@ export function CreateWorkspaceDialog({
   onOpenChange,
 }: CreateWorkspaceDialogProps): JSX.Element {
   const intl = useIntl();
+  const [serverError, setServerError] = useState<string | null>(null);
   const { mutate, isPending } = useCreateWorkspace();
-  const { data: workspacesData } = useWorkspaces({ limit: 100 });
-  const { data: templatesData } = useWorkspaceTemplates();
+  // Lazy fetch: only hit the API when the dialog is actually open
+  const { data: workspacesData } = useWorkspaces({ limit: 100 }, { enabled: open });
+  const { data: templatesData } = useWorkspaceTemplates({ enabled: open });
 
   const {
     register,
     handleSubmit,
     reset,
-    setValue,
+    control,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  function handleOpenChange(newOpen: boolean): void {
+    if (!newOpen) {
+      reset();
+      setServerError(null);
+    }
+    onOpenChange(newOpen);
+  }
+
   function onSubmit(values: FormValues): void {
+    setServerError(null);
     const payload = {
       name: values.name,
       ...(values.description ? { description: values.description } : {}),
@@ -62,6 +74,9 @@ export function CreateWorkspaceDialog({
       onSuccess: () => {
         reset();
         onOpenChange(false);
+      },
+      onError: () => {
+        setServerError(intl.formatMessage({ id: 'common.error' }));
       },
     });
   }
@@ -76,13 +91,20 @@ export function CreateWorkspaceDialog({
     label: t.name,
   }));
 
+  const selectPlaceholder = intl.formatMessage({ id: 'common.none' });
+
   return (
-    <DialogRoot open={open} onOpenChange={onOpenChange}>
+    <DialogRoot open={open} onOpenChange={handleOpenChange}>
       <DialogContent closeLabel={intl.formatMessage({ id: 'common.cancel' })}>
         <DialogTitle>
           <FormattedMessage id="workspace.create.title" />
         </DialogTitle>
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4" noValidate>
+
+        <form
+          onSubmit={(e) => { void handleSubmit(onSubmit)(e); }}
+          className="mt-4 space-y-4"
+          noValidate
+        >
           <Input
             label={intl.formatMessage({ id: 'workspace.create.name.label' })}
             {...(errors.name?.message !== undefined ? { error: errors.name.message } : {})}
@@ -97,11 +119,18 @@ export function CreateWorkspaceDialog({
               <label className="text-sm font-medium text-neutral-700">
                 <FormattedMessage id="workspace.create.parent.label" />
               </label>
-              <Select
-                options={workspaceOptions}
-                placeholder="None"
-                onValueChange={(v) => setValue('parentId', v)}
-                aria-label={intl.formatMessage({ id: 'workspace.create.parent.label' })}
+              <Controller
+                name="parentId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    options={workspaceOptions}
+                    placeholder={selectPlaceholder}
+                    {...(field.value !== undefined ? { value: field.value } : {})}
+                    onValueChange={(v) => field.onChange(v)}
+                    aria-label={intl.formatMessage({ id: 'workspace.create.parent.label' })}
+                  />
+                )}
               />
             </div>
           )}
@@ -110,19 +139,33 @@ export function CreateWorkspaceDialog({
               <label className="text-sm font-medium text-neutral-700">
                 <FormattedMessage id="workspace.create.template.label" />
               </label>
-              <Select
-                options={templateOptions}
-                placeholder="None"
-                onValueChange={(v) => setValue('templateId', v)}
-                aria-label={intl.formatMessage({ id: 'workspace.create.template.label' })}
+              <Controller
+                name="templateId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    options={templateOptions}
+                    placeholder={selectPlaceholder}
+                    {...(field.value !== undefined ? { value: field.value } : {})}
+                    onValueChange={(v) => field.onChange(v)}
+                    aria-label={intl.formatMessage({ id: 'workspace.create.template.label' })}
+                  />
+                )}
               />
             </div>
           )}
+
+          {serverError !== null && (
+            <p role="alert" className="text-sm text-error">
+              {serverError}
+            </p>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <Button
               variant="outline"
               type="button"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               disabled={isPending}
             >
               <FormattedMessage id="common.cancel" />

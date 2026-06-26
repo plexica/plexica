@@ -55,7 +55,24 @@ export function useChangeMemberRole() {
       userId: string;
       role: string;
     }) => workspaceApi.changeMemberRole(workspaceId, userId, role),
-    onSuccess: (_data, { workspaceId }) => {
+    // Optimistic update — patch the cache immediately, rollback on error
+    onMutate: async ({ workspaceId, userId, role }) => {
+      await queryClient.cancelQueries({ queryKey: ['workspace-members', workspaceId] });
+      const previous = queryClient.getQueryData<{ data: Array<{ userId: string; role: string }> }>(['workspace-members', workspaceId]);
+      if (previous !== undefined) {
+        queryClient.setQueryData(['workspace-members', workspaceId], {
+          ...previous,
+          data: previous.data.map((m) => (m.userId === userId ? { ...m, role } : m)),
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, { workspaceId }, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['workspace-members', workspaceId], context.previous);
+      }
+    },
+    onSettled: (_data, _error, { workspaceId }) => {
       void queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
     },
   });

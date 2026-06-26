@@ -6,11 +6,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { workspaceApi } from '../services/workspace-api.js';
 
-export function useWorkspaceTemplates() {
+export function useWorkspaceTemplates(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['workspace-templates'],
     queryFn: () => workspaceApi.listTemplates(),
     staleTime: 10 * 60 * 1000, // templates change rarely
+    enabled: options?.enabled !== false,
   });
 }
 
