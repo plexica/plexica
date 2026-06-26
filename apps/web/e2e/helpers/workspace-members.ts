@@ -70,7 +70,8 @@ export async function sendInviteViaUi(
   role: 'admin' | 'member' | 'viewer' = 'member'
 ): Promise<void> {
   // The button text is "Invite by email" (i18n key: members.invite)
-  await page.getByRole('button', { name: /invite/i }).click();
+  // Use .first() because both the header and empty state have this button.
+  await page.getByRole('button', { name: /invite/i }).first().click();
   // Dialog opens with email input and role select.
   // Use getByRole('textbox') to avoid ambiguity with the dialog title label.
   await page.getByRole('dialog').getByRole('textbox', { name: /email/i }).fill(email);

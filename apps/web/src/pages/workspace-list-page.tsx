@@ -39,8 +39,9 @@ export function WorkspaceListPage(): JSX.Element {
   const [filterValues, setFilterValues] = useState<FilterValues>({ status: 'active' });
   const [showCreate, setShowCreate] = useState(false);
 
-  // Empty string from InlineFilter means "no filter" — treat as undefined
-  const status = ((filterValues.status as string) || undefined) as 'active' | 'archived' | undefined;
+  // '__all__' sentinel from InlineFilter means "no filter" — treat as undefined
+  const rawStatus = filterValues.status as string | undefined;
+  const status = (rawStatus && rawStatus !== '__all__' ? rawStatus : undefined) as 'active' | 'archived' | undefined;
   const filters = status !== undefined ? { page, status } : { page };
 
   const { data, isPending, isError, refetch } = useWorkspaces(filters);
@@ -51,7 +52,7 @@ export function WorkspaceListPage(): JSX.Element {
       label: intl.formatMessage({ id: 'common.status' }),
       type: 'select' as const,
       options: [
-        { value: '', label: intl.formatMessage({ id: 'workspace.status.all' }) },
+        { value: '__all__', label: intl.formatMessage({ id: 'workspace.status.all' }) },
         { value: 'active', label: intl.formatMessage({ id: 'workspace.status.active' }) },
         { value: 'archived', label: intl.formatMessage({ id: 'workspace.status.archived' }) },
       ],

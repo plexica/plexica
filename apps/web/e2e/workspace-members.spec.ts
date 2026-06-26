@@ -38,7 +38,7 @@ test.describe('E2E-03: Workspace member management', () => {
     await openWorkspaceMembers(page);
 
     await expect(page.getByRole('heading', { name: /members/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /invite/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /invite/i }).first()).toBeVisible();
   });
 
   test('admin sends an invitation via the invite dialog', async ({ page }) => {
@@ -63,7 +63,7 @@ test.describe('E2E-03: Workspace member management', () => {
     await navigateToWorkspaceById(page, id);
     await openWorkspaceMembers(page);
 
-    await page.getByRole('button', { name: /invite/i }).click();
+    await page.getByRole('button', { name: /invite/i }).first().click();
 
     // Dialog should be visible with email input
     const dialog = page.getByRole('dialog');

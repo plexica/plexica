@@ -40,7 +40,7 @@ export function AuditLogPage(): JSX.Element {
 
   const apiFilters: Parameters<typeof useAuditLog>[0] = { page, limit: PAGE_SIZE };
   if (actorIdRaw) apiFilters.actorId = actorIdRaw;
-  if (actionTypeRaw) apiFilters.actionType = actionTypeRaw;
+  if (actionTypeRaw && actionTypeRaw !== '__all__') apiFilters.actionType = actionTypeRaw;
   if (dateRange?.from) apiFilters.fromDate = dateRange.from;
   if (dateRange?.to) apiFilters.toDate = dateRange.to;
 
@@ -57,7 +57,7 @@ export function AuditLogPage(): JSX.Element {
       label: intl.formatMessage({ id: 'auditLog.filter.action' }),
       type: 'select' as const,
       options: [
-        { value: '', label: intl.formatMessage({ id: 'auditLog.filter.allActions' }) },
+        { value: '__all__', label: intl.formatMessage({ id: 'auditLog.filter.allActions' }) },
         ...actionTypes.map((a) => ({ value: a.key, label: a.label })),
       ],
     },
