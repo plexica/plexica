@@ -10,6 +10,7 @@ import { useIntl } from 'react-intl';
 
 import { SidebarNavItem } from './sidebar-nav-item.js';
 import { NAV_ITEMS } from './sidebar-nav-config.js';
+import { SidebarSlot } from '../../mf-host/extension-slots/sidebar-slot.js';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -44,6 +45,9 @@ function SidebarContent({
           />
         ))}
       </ul>
+
+      {/* Plugin extension point — sidebar:admin slot */}
+      <SidebarSlot pluginEntries={[]} />
     </nav>
   );
 }

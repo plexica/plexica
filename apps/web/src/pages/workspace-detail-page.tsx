@@ -12,6 +12,7 @@ import { useWorkspaceMembers } from '../hooks/use-workspace-members.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
+import { WorkspacePanelSlot } from '../mf-host/extension-slots/workspace-panel-slot.js';
 
 function TabContentSkeleton(): JSX.Element {
   return (
@@ -167,6 +168,7 @@ export function WorkspaceDetailPage(): JSX.Element {
       </div>
       {ws.description !== null && <p className="text-neutral-600">{ws.description}</p>}
       <Tabs tabs={tabs} />
+      <WorkspacePanelSlot pluginEntries={[]} />
     </div>
   );
 }

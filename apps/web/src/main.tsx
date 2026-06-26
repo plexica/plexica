@@ -10,6 +10,10 @@ import { RouterProvider } from '@tanstack/react-router';
 import { messages } from './i18n/messages.en.js';
 import { router } from './router.js';
 import { SessionExpiredHandler } from './components/auth/session-expired-handler.js';
+import { startDevWatcher } from './mf-host/plugin-dev-watcher.js';
+
+// Start dev mode WebSocket listener for plugin hot reload
+startDevWatcher();
 
 import '@plexica/ui/tokens';
 import './styles/globals.css';
