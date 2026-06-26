@@ -35,8 +35,8 @@ export function Select({
 }: SelectProps): React.JSX.Element {
   return (
     <RadixSelect.Root
-      {...(value !== undefined ? { value } : {})}
-      onValueChange={onValueChange}
+      value={value ?? ''}
+      onValueChange={(v) => { if (v !== '') onValueChange(v); }}
       disabled={disabled}
     >
       <RadixSelect.Trigger

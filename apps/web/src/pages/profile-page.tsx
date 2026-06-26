@@ -2,7 +2,7 @@
 // User profile page: avatar upload + profile form with Select for timezone/language.
 // Settings Panel pattern: two sections, isDirty indicator, save feedback.
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -90,9 +90,17 @@ export function ProfilePage(): JSX.Element {
       defaultValues: { displayName: '', timezone: 'UTC', language: 'en' },
     });
 
+  // Only reset the form on initial data load — NOT on background refetches,
+  // which would undo any in-progress user edits and disable the Save button.
+  const initialized = useRef(false);
   useEffect(() => {
-    if (data !== undefined) {
-      reset({ displayName: data.displayName ?? '', timezone: data.timezone, language: data.language });
+    if (data !== undefined && !initialized.current) {
+      reset({
+        displayName: data.displayName ?? '',
+        timezone: data.timezone || 'UTC',
+        language: data.language || 'en',
+      });
+      initialized.current = true;
     }
   }, [data, reset]);
 

@@ -43,7 +43,8 @@ test.describe('E2E-05: User management', () => {
       const searchName = MEMBER_USERNAME.split('@')[0] ?? MEMBER_USERNAME;
       await searchInput.fill(searchName);
       // Deterministic: wait for the member to appear, not a fixed timeout
-      await expect(main.getByText(MEMBER_USERNAME)).toBeVisible({ timeout: 8_000 });
+      // Mobile <p> is sm:hidden (invisible on desktop). Target the table cell instead.
+      await expect(main.getByRole('cell', { name: MEMBER_USERNAME })).toBeVisible({ timeout: 8_000 });
     });
 
     test('search with no match shows empty state', async ({ page }) => {
@@ -130,10 +131,10 @@ test.describe('E2E-05: User management', () => {
     await page.goto('/users');
     // A non-admin must NOT see the users list — assert a deterministic blocked outcome.
     // Either redirected to dashboard, or shown a forbidden/error message.
+    // PageError wraps the error in role="alert" — use that to avoid strict mode
+    // (both "Failed to load" and "Something went wrong" match the same regex).
     await expect(
-      page
-        .getByText(/forbidden|403|not allowed|an error occurred/i)
-        .or(page.getByRole('heading', { name: /dashboard/i }))
+      page.getByRole('alert').or(page.getByRole('heading', { name: /dashboard/i }))
     ).toBeVisible({ timeout: 8_000 });
   });
 });
