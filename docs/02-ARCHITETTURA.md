@@ -90,7 +90,7 @@
 | Event bus (Kafka/Redpanda)          | **TENERE** — confermato per plugin event subscription. Semplificare setup dev (1 nodo) e DX (SDK) | Necessario per l'architettura enterprise              |
 | Module Federation                   | **TENERE** — confermato come approccio UI. Semplificare con CLI + Vite preset                     | iframe scartato per styling, performance, UX          |
 | Service Registry per plugin         | **ELIMINARE** — nessun valore reale. Plugin comunicano via REST API e eventi                      | Complessità senza caso d'uso                          |
-| Container orchestration (Dockerode) | **ELIMINARE** — plugin backend come servizi HTTP, non container orchestrati                       | Complessità operativa ingiustificata                  |
+| Container orchestration (Dockerode) | **RIATTIVATO da ADR-013** — container sidecar per dev/CI, K8s per prod. Dev mode (§10.7) bypassa container con processo locale. Decisione basata su requisiti di isolamento runtime, health check, resource limits e lifecycle management per plugin di terze parti. | ADR-013 approvato durante clarifica Spec 004, 2026-06-26 |
 | Extension Points (5 tabelle)        | **RIDURRE** — manifest-driven per UI slots, unica tabella per workspace visibility                | 5 tabelle eccessive per la funzionalità               |
 | AsyncLocalStorage tenant context    | **TENERE** — pattern efficace e testato                                                           | Funziona bene                                         |
 | Layered architecture                | **TENERE** — Controller > Service > Repository                                                    | Buona separazione delle responsabilità                |
@@ -100,7 +100,7 @@
 | Componente v1                                                                      | Motivazione Eliminazione                                 |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | **Service Registry**                                                               | Nessun plugin lo usa, REST + eventi sono sufficienti     |
-| **Container orchestration (Dockerode)**                                            | Plugin backend non richiedono orchestrazione container   |
+| **Container orchestration (Dockerode)**                                            | **RIATTIVATO da ADR-013** per isolamento runtime plugin (sidecar dev, K8s prod). Dev mode bypassa container. |
 | **Extension Points 5 tabelle**                                                     | Ridotto a manifest + 1 tabella workspace visibility      |
 | **Plugin SDK 6 classi**                                                            | Consolidate in 1 classe con API fluent                   |
 | **7 stati lifecycle plugin**                                                       | Ridotti a 3 stati visibili (INSTALLED, ACTIVE, DISABLED) |

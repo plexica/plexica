@@ -1,6 +1,6 @@
 # ADR-020: Plugin Reinstall = Update Flow
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-19 from Spec 004 (Plugin System) — Plugin Update Mechanism
 **Extends**: ADR-006 (Plugin Tables in Tenant Schema), ADR-013 (Container Hosting Model)

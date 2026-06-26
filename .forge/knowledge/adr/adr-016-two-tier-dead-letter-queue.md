@@ -1,6 +1,6 @@
 # ADR-016: Two-Tier Dead Letter Queue
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-17 from Spec 004 (Plugin System) — Plugin Event Delivery Failure Handling
 **Extends**: ADR-004 (Kafka/Redpanda Event Bus)

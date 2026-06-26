@@ -1,8 +1,8 @@
 # ADR-013: Plugin Container Hosting Model
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
-**Deciders**: (pending team review)
+**Deciders**: Product Owner (decision recorded in Spec 004 DR-13)
 **Driver**: DR-13 from Spec 004 (Plugin System) — Plugin Packaging & Hosting Model
 
 ## Context

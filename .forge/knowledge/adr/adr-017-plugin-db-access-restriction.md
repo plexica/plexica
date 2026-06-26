@@ -1,6 +1,6 @@
 # ADR-017: Plugin DB Access Restriction
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-18 from Spec 004 (Plugin System) — Plugin Database Access Isolation
 **Extends**: ADR-006 (Plugin Tables in Tenant Schema)

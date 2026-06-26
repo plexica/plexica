@@ -1,6 +1,6 @@
 # ADR-018: Two-Level Plugin Visibility
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-16 from Spec 004 (Plugin System) — Per-Workspace Plugin Visibility
 **Extends**: ADR-006 (Plugin Tables in Tenant Schema)

@@ -1,6 +1,6 @@
 # ADR-019: Plugin SDK & OpenAPI Architecture
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-20 from Spec 004 (Plugin System) — Plugin Developer SDK Design
 **Extends**: ADR-008 (TypeScript Core + Polyglot Plugins)

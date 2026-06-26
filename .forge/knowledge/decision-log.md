@@ -68,16 +68,16 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 
 ### Plugin System ADRs (Spec 004)
 
-| ADR | Title | Date | Decision |
-| --- | ----- | ---- | -------- |
-| 013 | Container Hosting Model | 2026-06-26 | Docker sidecar (dev/CI) + K8s (prod) via Strategy pattern. Dev mode bypasses containers entirely (§10.7). |
-| 014 | Hybrid UI Delivery Model | 2026-06-26 | MinIO for MF static assets in production; Vite dev server in development. Decouples UI from container health. |
-| 015 | Plugin Action Extension in ABAC | 2026-06-26 | 3-part action keys (`plugin-slug:resource:verb`) with structural dispatch in ABAC engine. No schema migration needed. |
-| 016 | Two-Tier Dead Letter Queue | 2026-06-26 | Kafka DLQ topic + PostgreSQL `core.dead_letter_queue` table. 3-retry exponential backoff before DLQ. Super admin management UI. |
-| 017 | Plugin DB Access Restriction | 2026-06-26 | PostgreSQL role-level restrictions — `CREATE ROLE plugin_{installId}` with GRANT only on declared tables. DB-enforced, not app-level. |
-| 018 | Two-Level Plugin Visibility | 2026-06-26 | Tenant default (`enabled`) + per-workspace override. Visibility gates UI; ABAC gates API independently. |
-| 019 | Plugin SDK & OpenAPI Architecture | 2026-06-26 | Single `PluginSDK` class + OpenAPI 3.1 contract for polyglot backends. Health, readiness, and event delivery webhooks. |
-| 020 | Plugin Reinstall = Update Flow | 2026-06-26 | Reinstall detected by existing slug → additive-only schema changes → atomic rollout across all tenants. Forward-compatible with semver. |
+| ADR | Title | Date | Status | Decision |
+| --- | ----- | ---- | ------ | -------- |
+| 013 | Container Hosting Model | 2026-06-26 | Accepted | Docker sidecar (dev/CI) + K8s (prod) via Strategy pattern. Dev mode bypasses containers entirely (§10.7). |
+| 014 | Hybrid UI Delivery Model | 2026-06-26 | Accepted | MinIO for MF static assets in production; Vite dev server in development. |
+| 015 | Plugin Action Extension in ABAC | 2026-06-26 | Accepted | 3-part action keys with structural dispatch in ABAC engine. |
+| 016 | Two-Tier Dead Letter Queue | 2026-06-26 | Accepted | Kafka DLQ topic + PostgreSQL `core.dead_letter_queue` table. |
+| 017 | Plugin DB Access Restriction | 2026-06-26 | Accepted | PostgreSQL role-level restrictions — GRANT only on declared tables. |
+| 018 | Two-Level Plugin Visibility | 2026-06-26 | Accepted | Tenant default (`enabled`) + per-workspace override. |
+| 019 | Plugin SDK & OpenAPI Architecture | 2026-06-26 | Accepted | Single `PluginSDK` class + OpenAPI 3.1 contract. |
+| 020 | Plugin Reinstall = Update Flow | 2026-06-26 | Accepted | Reinstall = update with additive-only schema changes. |
 
 ---
 

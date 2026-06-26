@@ -64,6 +64,7 @@ model Plugin {
   iconUrl     String?  @map("icon_url")
   categories  Json     @default("[]")
   manifest    Json     @default("{}")
+  // Registry status: draft (unpublished), published (available in marketplace), unpublished
   status      String   @default("draft") @db.VarChar(16)
 
   registryUrl    String  @map("registry_url") @db.VarChar(512)

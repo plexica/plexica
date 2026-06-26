@@ -1,6 +1,6 @@
 # ADR-014: Hybrid UI Delivery Model
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-14 from Spec 004 (Plugin System) — Plugin UI Asset Delivery Strategy
 **Extends**: ADR-005 (Module Federation Plugin UI)

@@ -1,6 +1,6 @@
 # ADR-015: Plugin Action Extension in ABAC
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-06-26
 **Driver**: DR-12 from Spec 004 (Plugin System) — Plugin Action Registration & Authorization
 **Extends**: ADR-003 (ABAC Tree-Walk)
