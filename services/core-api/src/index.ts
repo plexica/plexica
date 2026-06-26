@@ -31,6 +31,7 @@ import { userManagementRoutes } from './modules/user-management/routes.js';
 import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
+import { pluginAdminRoutes, pluginTenantRoutes } from './modules/plugin/index.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -97,6 +98,12 @@ await server.register(tenantRoutes);
 // Public invitation accept endpoint — tenant context required but no auth
 await server.register(invitationPublicRoutes);
 
+// Super admin plugin management routes — auth-only scope (no tenant context)
+await server.register(async (adminScope) => {
+  adminScope.addHook('preHandler', authMiddleware);
+  await adminScope.register(pluginAdminRoutes);
+});
+
 // ---------------------------------------------------------------------------
 // Authenticated + tenant-scoped routes
 // ---------------------------------------------------------------------------
@@ -112,6 +119,7 @@ await server.register(async (tenantScope) => {
   await tenantScope.register(userProfileRoutes);
   await tenantScope.register(tenantSettingsRoutes);
   await tenantScope.register(auditLogRoutes);
+  await tenantScope.register(pluginTenantRoutes);
 });
 
 // ---------------------------------------------------------------------------

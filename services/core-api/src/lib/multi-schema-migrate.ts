@@ -20,6 +20,7 @@ import { dirname } from 'node:path';
 
 import { prisma } from './database.js';
 import { logger } from './logger.js';
+import type { Prisma } from '@prisma/client';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -61,7 +62,7 @@ export async function migrateTenantSchema(schemaName: string): Promise<void> {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // schemaName is derived from slug via toSchemaName() — only [a-z0-9_].
       // Same controlled exception as Decision Log ID-001.
       await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}",public`);

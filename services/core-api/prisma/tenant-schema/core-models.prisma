@@ -1,0 +1,49 @@
+// core-models.prisma
+// UserProfile, WorkspaceTemplate, TenantBranding
+
+model UserProfile {
+  userId            String    @id @map("user_id") @db.Uuid
+  keycloakUserId    String    @unique @map("keycloak_user_id") @db.VarChar(255)
+  email             String    @db.VarChar(255)
+  displayName       String?   @map("display_name") @db.VarChar(255)
+  avatarPath        String?   @map("avatar_path")
+  timezone          String    @default("UTC") @db.VarChar(63)
+  language          String    @default("en") @db.VarChar(8)
+  notificationPrefs Json      @default("{}") @map("notification_prefs")
+  status            String    @default("active") @db.VarChar(16)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  workspacesCreated Workspace[]       @relation("WorkspaceCreator")
+  workspaceMembers  WorkspaceMember[]
+  invitationsSent   Invitation[]
+
+  @@map("user_profile")
+}
+
+model WorkspaceTemplate {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String    @db.VarChar(255)
+  description String?
+  structure   Json      @default("[]")
+  isBuiltin   Boolean   @default(false) @map("is_builtin")
+  createdBy   String?   @map("created_by") @db.Uuid
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  workspaces Workspace[]
+
+  @@map("workspace_template")
+}
+
+model TenantBranding {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logoPath     String?  @map("logo_path")
+  primaryColor String   @default("#6366F1") @map("primary_color") @db.VarChar(9)
+  darkMode     Boolean  @default(false) @map("dark_mode")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("tenant_branding")
+}

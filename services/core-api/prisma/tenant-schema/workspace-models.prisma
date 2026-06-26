@@ -1,0 +1,61 @@
+// workspace-models.prisma
+// Workspace, WorkspaceMember, Invitation
+
+model Workspace {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String    @db.VarChar(255)
+  slug             String    @unique @db.VarChar(63)
+  description      String?
+  parentId         String?   @map("parent_id") @db.Uuid
+  materializedPath String    @default("/") @map("materialized_path")
+  status           String    @default("active") @db.VarChar(16)
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz
+  templateId       String?   @map("template_id") @db.Uuid
+  createdBy        String    @map("created_by") @db.Uuid
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  parent      Workspace?         @relation("WorkspaceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Workspace[]        @relation("WorkspaceHierarchy")
+  template    WorkspaceTemplate? @relation(fields: [templateId], references: [id])
+  creator     UserProfile        @relation("WorkspaceCreator", fields: [createdBy], references: [userId])
+  members     WorkspaceMember[]
+  invitations Invitation[]
+  roleActions WorkspaceRoleAction[]
+
+  @@map("workspace")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  role        String   @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_member")
+}
+
+model Invitation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String    @db.VarChar(255)
+  workspaceId String    @map("workspace_id") @db.Uuid
+  role        String    @db.VarChar(32)
+  status      String    @default("pending") @db.VarChar(16)
+  invitedBy   String    @map("invited_by") @db.Uuid
+  token       String    @unique @db.VarChar(255)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  acceptedAt  DateTime? @map("accepted_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   UserProfile @relation(fields: [invitedBy], references: [userId])
+
+  @@index([email, workspaceId])
+  @@map("invitation")
+}

@@ -24,6 +24,8 @@
 
 // @ts-ignore — generated at build time via 'pnpm db:generate'
 import { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
+import { PrismaClient } from '@prisma/client';
+import { prisma as coreDb } from './database.js';
 
 import { getTenantContext } from './tenant-context-store.js';
 
@@ -72,4 +74,23 @@ export async function withTenantDb<T>(
   } finally {
     await tenantDb.$disconnect();
   }
+}
+
+/**
+ * Executes a database callback against the core schema using the singleton pool.
+ *
+ * Uses the global `prisma` singleton from database.ts (which manages a single
+ * connection pool across the application). Do NOT create per-call PrismaClients
+ * — that exhausts PostgreSQL connections and bypasses connection pooling.
+ *
+ * For admin-only endpoints (low frequency). Type-casts to CoreDbClient for
+ * Prisma generics compatibility.
+ *
+ * @example
+ *   const plugins = await withCoreDb((db) => db.plugin.findMany());
+ */
+export async function withCoreDb<T>(
+  fn: (db: PrismaClient) => Promise<T>
+): Promise<T> {
+  return fn(coreDb);
 }

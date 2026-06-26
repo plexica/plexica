@@ -1,0 +1,71 @@
+// plugin-models.prisma
+// PluginInstallation, PluginMigrationStatus, PluginWorkspaceVisibility, PluginContainerConfig
+
+model PluginInstallation {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pluginId                String   @map("plugin_id") @db.Uuid
+  tenantSlug              String   @map("tenant_slug") @db.VarChar(63)
+  version                 String   @default("") @db.VarChar(32)
+  status                  String   @default("installing") @db.VarChar(16)
+  hostingType             String   @default("sidecar") @map("hosting_type") @db.VarChar(16)
+  containerId             String?  @map("container_id")
+  k8sPodName              String?  @map("k8s_pod_name")
+  tenantDefaultVisibility String   @default("enabled") @map("tenant_default_visibility") @db.VarChar(16)
+  installedBy             String   @map("installed_by") @db.Uuid
+  installedAt             DateTime @default(now()) @map("installed_at") @db.Timestamptz
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  visibility    PluginWorkspaceVisibility[]
+  containerCfg  PluginContainerConfig?
+  migrationLogs PluginMigrationStatus[]
+
+  @@unique([pluginId, tenantSlug])
+  @@index([status])
+  @@map("plugin_installations")
+}
+
+model PluginMigrationStatus {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  installId      String    @map("install_id") @db.Uuid
+  migrationName  String    @map("migration_name") @db.VarChar(255)
+  status         String    @default("pending") @db.VarChar(16)
+  appliedAt      DateTime? @map("applied_at") @db.Timestamptz
+  errorMessage   String?   @map("error_message")
+
+  installation PluginInstallation @relation(fields: [installId], references: [id], onDelete: Cascade)
+
+  @@unique([installId, migrationName])
+  @@map("plugin_migration_status")
+}
+
+model PluginWorkspaceVisibility {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  installId      String   @map("install_id") @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  isEnabled      Boolean  @default(true) @map("is_enabled")
+  isOverride     Boolean  @default(false) @map("is_override")
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  installation PluginInstallation @relation(fields: [installId], references: [id], onDelete: Cascade)
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([installId, workspaceId])
+  @@map("plugin_workspace_visibility")
+}
+
+model PluginContainerConfig {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  installId      String    @unique @map("install_id") @db.Uuid
+  type           String    @default("sidecar") @db.VarChar(16)
+  image          String    @db.VarChar(512)
+  imagePullSecret String?  @map("image_pull_secret")
+  resourceLimits Json      @default("{}") @map("resource_limits")
+  envOverrides   Json      @default("{}") @map("env_overrides")
+  healthStatus   String    @default("healthy") @map("health_status") @db.VarChar(16)
+  lastHealthCheckAt DateTime? @map("last_health_check_at") @db.Timestamptz
+
+  installation PluginInstallation @relation(fields: [installId], references: [id], onDelete: Cascade)
+
+  @@map("plugin_container_config")
+}

@@ -1209,21 +1209,21 @@ not logged.
         "memberCount": 2
       },
       {
-        "name": "workspace_admin",
+        "name": "admin",
         "displayName": "Workspace Admin",
         "scope": "workspace",
         "description": "Full control within a workspace...",
         "memberCount": 8
       },
       {
-        "name": "workspace_member",
+        "name": "member",
         "displayName": "Workspace Member",
         "scope": "workspace",
         "description": "Create and edit content...",
         "memberCount": 23
       },
       {
-        "name": "workspace_viewer",
+        "name": "viewer",
         "displayName": "Workspace Viewer",
         "scope": "workspace",
         "description": "Read-only access...",
