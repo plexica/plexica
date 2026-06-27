@@ -7,6 +7,15 @@ export interface PluginConfig {
   workspaceId?: string;
   kafkaBrokers: string;
   apiUrl: string;
+  accessToken?: string;  // Bearer token for API auth
+  // Context headers injected by the platform
+  plexicaHeaders?: {
+    tenantId?: string;
+    userId?: string;
+    workspaceId?: string;
+    role?: string;
+    correlationId?: string;
+  };
 }
 
 export interface PluginContext {

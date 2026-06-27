@@ -10,11 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "prompts": "^2.4.2"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/prompts": "^2.4.9",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   }

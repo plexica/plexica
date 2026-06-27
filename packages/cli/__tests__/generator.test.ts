@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-// Test the template rendering function directly
-function render(template: string, slug: string, name: string): string {
-  return template.replace(/\{\{slug\}\}/g, slug).replace(/\{\{name\}\}/g, name);
-}
+import { render } from '../src/templates.js';
 
 describe('CLI template rendering', () => {
   it('replaces {{slug}} in manifest', () => {
