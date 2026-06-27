@@ -52,10 +52,10 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, consecutiveCrashes: nextCount });
   };
 
-  // Reset crash counter on successful render
+  // Reset crash counter on successful recovery
   componentDidUpdate(_prevProps: Props, prevState: State): void {
     if (prevState.hasError && !this.state.hasError) {
-      // Render succeeded — keep consecutiveCrashes as-is (it's checked in handleRetry)
+      this.setState({ consecutiveCrashes: 0 });
     }
   }
 

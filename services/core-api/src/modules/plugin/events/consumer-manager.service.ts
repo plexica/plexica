@@ -15,33 +15,48 @@ const consumers = new Map<string, ConsumerEntry>();
 export const CONSUMER_GROUP_PREFIX = 'plugin-';
 export const DEV_CONSUMER_PREFIX = 'plugin-dev-';
 
-/**
- * Converts glob-style event patterns to Kafka regex patterns.
- * e.g. "plexica.workspace.*" → /^plexica\.workspace\..*$/ (matches created/updated etc.)
- */
-function patternsToRegex(patterns: string[]): RegExp[] {
-  return patterns.map((p) => new RegExp(`^${p.replace(/\./g, '\\.').replace(/\*/g, '.*')}$`));
+// Known core event topics that plugins can subscribe to
+const CORE_TOPICS = [
+  'plexica.workspace.created', 'plexica.workspace.updated', 'plexica.workspace.deleted',
+  'plexica.user.invited', 'plexica.user.joined', 'plexica.user.removed',
+  'plexica.tenant.created', 'plexica.tenant.suspended', 'plexica.tenant.deleted',
+  'plexica.plugin.installed', 'plexica.plugin.activated', 'plexica.plugin.deactivated', 'plexica.plugin.uninstalled',
+];
+
+// Wildcard patterns that expand to concrete topics
+const PATTERN_MAP: Record<string, string[]> = {
+  'plexica.workspace.*': ['plexica.workspace.created', 'plexica.workspace.updated', 'plexica.workspace.deleted'],
+  'plexica.user.*': ['plexica.user.invited', 'plexica.user.joined', 'plexica.user.removed'],
+  'plexica.tenant.*': ['plexica.tenant.created', 'plexica.tenant.suspended', 'plexica.tenant.deleted'],
+  'plexica.plugin.*': ['plexica.plugin.installed', 'plexica.plugin.activated', 'plexica.plugin.deactivated', 'plexica.plugin.uninstalled'],
+  'plexica.*': CORE_TOPICS,
+};
+
+function resolvePatterns(patterns: string[]): string[] {
+  const resolved = new Set<string>();
+  for (const p of patterns) {
+    if (PATTERN_MAP[p]) {
+      for (const t of PATTERN_MAP[p]) resolved.add(t);
+    } else if (p.startsWith('plugin.')) {
+      resolved.add(p); // Custom plugin topics — subscribe literally
+    }
+  }
+  return Array.from(resolved);
 }
 
 export async function createConsumerGroup(
-  installId: string,
-  tenantSlug: string,
-  eventPatterns: string[],
+  installId: string, tenantSlug: string, eventPatterns: string[],
   eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>
 ): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
-
-  if (consumers.has(groupId)) {
-    logger.warn({ groupId }, 'Consumer group already exists');
-    return;
-  }
+  if (consumers.has(groupId)) return;
 
   const consumer = createConsumer(groupId, eventPatterns, eachMessage);
   await consumer.connect();
 
-  const regexes = patternsToRegex(eventPatterns);
-  for (const regex of regexes) {
-    await consumer.subscribe({ topic: regex, fromBeginning: false });
+  const topics = resolvePatterns(eventPatterns);
+  for (const topic of topics) {
+    await consumer.subscribe({ topic, fromBeginning: false });
   }
 
   consumer.run({
@@ -55,38 +70,32 @@ export async function createConsumerGroup(
     },
   });
 
-  consumers.set(groupId, { consumer, topics: eventPatterns, isRunning: true });
-  logger.info({ groupId, patterns: eventPatterns }, 'Consumer group created');
+  consumers.set(groupId, { consumer, topics, isRunning: true });
+  logger.info({ groupId, topics }, 'Consumer group created');
 }
 
 export async function pauseConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
   const entry = consumers.get(groupId);
   if (!entry) return;
-
   await entry.consumer.pause(entry.topics.map((t) => ({ topic: t })));
   entry.isRunning = false;
-  logger.info({ groupId }, 'Consumer group paused');
 }
 
 export async function resumeConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
   const entry = consumers.get(groupId);
   if (!entry) return;
-
   await entry.consumer.resume(entry.topics.map((t) => ({ topic: t })));
   entry.isRunning = true;
-  logger.info({ groupId }, 'Consumer group resumed');
 }
 
 export async function deleteConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
   const entry = consumers.get(groupId);
   if (!entry) return;
-
   await entry.consumer.disconnect();
   consumers.delete(groupId);
-  logger.info({ groupId }, 'Consumer group deleted');
 }
 
 export async function createDevConsumerGroup(slug: string): Promise<string> {
