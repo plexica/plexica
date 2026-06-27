@@ -1,0 +1,26 @@
+// types.ts
+// TypeScript types for the Plugin SDK.
+
+export interface PluginConfig {
+  pluginId: string;
+  tenantId: string;
+  workspaceId?: string;
+  kafkaBrokers: string;
+  apiUrl: string;
+}
+
+export interface PluginContext {
+  tenantId: string;
+  userId: string;
+  workspaceId: string | null;
+  role: string;
+}
+
+export interface PluginEvent {
+  type: string;
+  payload: unknown;
+  timestamp: string;
+  correlationId: string;
+}
+
+export type EventHandler = (event: PluginEvent) => Promise<void>;
