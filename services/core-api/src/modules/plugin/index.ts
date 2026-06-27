@@ -6,6 +6,9 @@ import { adminPublishRoutes } from './routes/admin-publish.routes.js';
 import { adminVersionsRoutes } from './routes/admin-versions.routes.js';
 import { dlqRoutes } from './routes/dlq.routes.js';
 import { devPluginRoutes } from './routes/dev.routes.js';
+import { proxyRoutes } from './routes/proxy.routes.js';
+import { lifecycleRoutes } from './routes/lifecycle.routes.js';
+import { visibilityRoutes } from './routes/visibility.routes.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -17,11 +20,8 @@ export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void>
 }
 
 export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void> {
-  // Dev mode registration (gated by NODE_ENV=development internally)
   await fastify.register(devPluginRoutes);
-
-  // Phases 5+:
-  // - lifecycle.routes (install/deactivate/reactivate/uninstall)
-  // - visibility.routes (workspace visibility)
-  // - proxy.routes (plugin API proxy)
+  await fastify.register(proxyRoutes);
+  await fastify.register(lifecycleRoutes);
+  await fastify.register(visibilityRoutes);
 }
