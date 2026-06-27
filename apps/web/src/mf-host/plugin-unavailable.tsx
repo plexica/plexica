@@ -4,16 +4,20 @@
 import { useIntl, FormattedMessage } from 'react-intl';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
+import type { RefObject } from 'react';
+
 interface PluginUnavailableProps {
   pluginSlug: string;
   isPermanentlyDegraded?: boolean;
   onRetry?: () => void;
+  retryButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
 export function PluginUnavailable({
   pluginSlug,
   isPermanentlyDegraded = false,
   onRetry,
+  retryButtonRef,
 }: PluginUnavailableProps): JSX.Element {
   const intl = useIntl();
 
@@ -42,6 +46,7 @@ export function PluginUnavailable({
 
       {!isPermanentlyDegraded && onRetry && (
         <button
+          ref={retryButtonRef}
           onClick={onRetry}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-warning-700 hover:bg-warning-100 dark:text-warning-300 dark:hover:bg-warning-900"
           aria-label={intl.formatMessage({ id: 'plugin.retry' }, { slug: pluginSlug })}
