@@ -16,22 +16,11 @@ export const CONSUMER_GROUP_PREFIX = 'plugin-';
 export const DEV_CONSUMER_PREFIX = 'plugin-dev-';
 
 /**
- * Converts glob-style event patterns to Kafka topic names.
- * e.g. "plexica.workspace.*" → subscribes to "plexica.workspace" events
+ * Converts glob-style event patterns to Kafka regex patterns.
+ * e.g. "plexica.workspace.*" → /^plexica\.workspace\..*$/ (matches created/updated etc.)
  */
-function patternsToTopics(patterns: string[]): string[] {
-  const topics = new Set<string>();
-  for (const p of patterns) {
-    // Extract prefix from pattern (e.g., "plexica.workspace.*" → "plexica.workspace")
-    const prefix = p.replace(/\.\*$/, '');
-    if (prefix.startsWith('plexica.')) {
-      topics.add(`plexica.${prefix.split('.').slice(1).join('.')}`);
-    }
-    if (prefix.startsWith('plugin.')) {
-      topics.add(p);
-    }
-  }
-  return Array.from(topics);
+function patternsToRegex(patterns: string[]): RegExp[] {
+  return patterns.map((p) => new RegExp(`^${p.replace(/\./g, '\\.').replace(/\*/g, '.*')}$`));
 }
 
 export async function createConsumerGroup(
@@ -50,9 +39,9 @@ export async function createConsumerGroup(
   const consumer = createConsumer(groupId, eventPatterns, eachMessage);
   await consumer.connect();
 
-  const topics = patternsToTopics(eventPatterns);
-  for (const topic of topics) {
-    await consumer.subscribe({ topic, fromBeginning: false });
+  const regexes = patternsToRegex(eventPatterns);
+  for (const regex of regexes) {
+    await consumer.subscribe({ topic: regex, fromBeginning: false });
   }
 
   consumer.run({
@@ -66,8 +55,8 @@ export async function createConsumerGroup(
     },
   });
 
-  consumers.set(groupId, { consumer, topics, isRunning: true });
-  logger.info({ groupId, topics }, 'Consumer group created');
+  consumers.set(groupId, { consumer, topics: eventPatterns, isRunning: true });
+  logger.info({ groupId, patterns: eventPatterns }, 'Consumer group created');
 }
 
 export async function pauseConsumerGroup(installId: string, tenantSlug: string): Promise<void> {

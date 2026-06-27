@@ -66,9 +66,10 @@ export async function recordSuccess(installId: string): Promise<CircuitState> {
     logger.info({ installId }, 'Circuit breaker closed — plugin healthy');
     notify(installId, 'degraded', 'healthy');
   } else if (state.state === 'open') {
-    state.state = 'closed';
-    state.failureCount = 0;
-    state.lastTransitionAt = Date.now();
+    // Do NOT transition directly from open to closed — shouldProbe() handles
+    // the open → half-open → closed sequence via timeout. This prevents
+    // flaky plugins from immediately resetting the breaker.
+    // Simply persist the updated success count.
   }
 
   await redis.set(cbKey(installId), JSON.stringify(state), 'EX', CB_TTL_SECONDS);

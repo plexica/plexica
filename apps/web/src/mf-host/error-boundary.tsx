@@ -45,8 +45,7 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
     const nextCount = this.state.consecutiveCrashes + 1;
 
     if (nextCount >= MAX_CONSECUTIVE_CRASHES) {
-      // Permanently degraded after consecutive crashes
-      this.setState({ hasError: false, consecutiveCrashes: nextCount });
+      this.setState({ consecutiveCrashes: nextCount }); // Stay in error state — don't re-render children
       return;
     }
 
