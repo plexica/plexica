@@ -11,6 +11,7 @@ import Fastify from 'fastify';
 
 import { config } from './lib/config.js';
 import { disconnectDatabase } from './lib/database.js';
+import { disconnectKafka } from './lib/kafka.js';
 import { logger } from './lib/logger.js';
 import { redis, disconnectRedis } from './lib/redis.js';
 import {
@@ -130,6 +131,7 @@ async function shutdown(signal: string): Promise<void> {
   await server.close();
   await disconnectDatabase();
   await disconnectRedis();
+  await disconnectKafka();
   logger.info('Server closed gracefully');
   process.exit(0);
 }

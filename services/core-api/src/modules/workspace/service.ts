@@ -3,6 +3,7 @@
 // Archive/restore/reparent live in service-archive.ts.
 
 import { generateSlug } from '../../lib/slug.js';
+import { emitEvent, Topics } from '../../lib/kafka.js';
 import {
   WorkspaceNotFoundError,
   WorkspaceArchivedError,
@@ -135,6 +136,7 @@ export async function createWorkspaceService(
     targetType: 'workspace',
     targetId: created.id,
   });
+  void emitEvent(Topics.workspace('created'), { id: created.id, slug, name: input.name });
   return getWorkspaceService(tenantDb, created.id, userId);
 }
 
