@@ -41,7 +41,7 @@ export async function getCircuitState(installId: string): Promise<CircuitState> 
   const raw = await redis.get(cbKey(installId));
   if (!raw) return 'closed';
   try {
-    const state: CircuitBreakerState = JSON.parse(raw);
+  const state = safeParse(raw, { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() });
     return state.state;
   } catch {
     return 'closed';
@@ -51,11 +51,15 @@ export async function getCircuitState(installId: string): Promise<CircuitState> 
 /**
  * Records a health check success and transitions state accordingly.
  */
+function safeParse(raw: string | null, fallback: CircuitBreakerState): CircuitBreakerState {
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); }
+  catch { return fallback; }
+}
+
 export async function recordSuccess(installId: string): Promise<CircuitState> {
   const raw = await redis.get(cbKey(installId));
-  let state: CircuitBreakerState = raw
-    ? JSON.parse(raw)
-    : { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() };
+  let state = safeParse(raw, { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() });
 
   state.successCount++;
 
@@ -81,9 +85,7 @@ export async function recordSuccess(installId: string): Promise<CircuitState> {
  */
 export async function recordFailure(installId: string): Promise<CircuitState> {
   const raw = await redis.get(cbKey(installId));
-  let state: CircuitBreakerState = raw
-    ? JSON.parse(raw)
-    : { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() };
+  let state = safeParse(raw, { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() });
 
   state.failureCount++;
   state.lastFailureAt = Date.now();

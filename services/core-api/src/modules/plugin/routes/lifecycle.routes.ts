@@ -35,10 +35,10 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
     if (!plugin) throw new PluginNotFoundError(slug);
     if (plugin.status !== 'published') throw new PluginValidationError(`Plugin "${slug}" is not published`);
 
-    // Fix #6: Zod-validate container image fields
-    const registryUrl = z.string().url().parse(plugin.registryUrl ?? 'https://docker.io');
-    const imageName = z.string().regex(IMAGE_NAME_REGEX).parse(plugin.imageName ?? slug);
-    const imageTag = z.string().regex(SEMVER_REGEX).parse(plugin.imageTag ?? '1.0.0');
+    // Zod-validate container image fields — no ?? fallbacks (require valid data)
+    const registryUrl = z.string().url().parse(plugin.registryUrl);
+    const imageName = z.string().regex(IMAGE_NAME_REGEX).parse(plugin.imageName);
+    const imageTag = z.string().regex(SEMVER_REGEX).parse(plugin.imageTag);
     // Fix #7: Zod-validate full manifest
     const manifest = manifestSchema.parse(plugin.manifest);
 
@@ -75,7 +75,14 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
     let degraded = false;
     try {
       const mgr = createContainerManager('sidecar');
-      await mgr.startContainer(install.id, { hosting: { type: 'sidecar', image: `${registryUrl}/${imageName}:${imageTag}`, port: 3000 } } as any);
+      await mgr.startContainer(install.id, {
+        slug, name: slug, version: plugin.version as string, description: '', author: '',
+        categories: ['plugin'],
+        hosting: { type: 'sidecar' as const, image: `${registryUrl}/${imageName}:${imageTag}`, port: 3000 },
+        declaredTables: [],
+        ui: { remoteEntry: 'remoteEntry.js', extensionPoints: [] },
+        events: { subscribes: [] },
+      });
     } catch (err: any) {
       logger.warn({ err: err.message, installId: install.id }, 'Container start failed — plugin marked active but backend may be unreachable');
       degraded = true;
@@ -94,11 +101,12 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (degraded) {
       await withTenantDb(async (tx: any) => {
-        await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: 'degraded' as any } });
+        await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: 'degraded' } });
       }, ctx).catch(() => {});
     }
 
-    void emitEvent(Topics.plugin('installed'), { installId: install.id, slug });
+    emitEvent(Topics.plugin('installed'), { installId: install.id, slug })
+      .catch((err: any) => logger.warn({ err: err.message, installId: install.id }, 'Failed to emit install event'));
     return { status: degraded ? 'degraded' : 'active', installId: install.id, slug };
   });
 
@@ -173,7 +181,7 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
             continue;
           }
           try {
-            await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
+            await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${tableName}"`);
             // Fix #9: Log successful cleanup
             logger.info({ tableName, installId }, 'Plugin table dropped');
           } catch (err: any) {

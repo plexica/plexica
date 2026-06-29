@@ -34,7 +34,13 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
     if (import.meta.env.DEV) {
       console.warn(`[PluginSlot] "${this.props.pluginSlug}" crashed (${this.state.crashCount}/${MAX_CRASHES}):`, error.message);
     }
-    setTimeout(() => this.retryButtonRef.current?.focus(), 0);
+  }
+
+  componentDidUpdate(_prevProps: Props, prevState: State): void {
+    // Focus retry button on re-entry to error state (after retry failed)
+    if (!prevState.hasError && this.state.hasError) {
+      setTimeout(() => this.retryButtonRef.current?.focus(), 0);
+    }
   }
 
   handleRetry = (): void => {
