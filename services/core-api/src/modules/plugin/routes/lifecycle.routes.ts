@@ -114,8 +114,8 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
       if (inst.tenantSlug !== ctx.slug) throw new PluginNotFoundError(`Installation ${installId}`);
       if (inst.status !== 'active') throw new PluginValidationError(`Status: ${inst.status}`);
 
-      const mgr = createContainerManager(inst.hostingType);
-      await mgr.stopContainer(installId);
+      // Per AC-01: container stays running, data preserved, events accumulate
+      // Only pause the consumer — stop container happens on uninstall
       await pauseConsumerGroup(installId, inst.tenantSlug);
       await tx.pluginInstallation.update({ where: { id: installId }, data: { status: 'deactivated' } });
       return { status: 'deactivated', installId };

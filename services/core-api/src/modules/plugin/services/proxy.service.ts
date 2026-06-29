@@ -16,16 +16,16 @@ interface ProxyTarget {
 // Dev-mode registered backends (in-memory)
 const devBackends = new Map<string, ProxyTarget>();
 
-export function registerDevBackend(slug: string, backendUrl: string): void {
-  devBackends.set(slug, { baseUrl: backendUrl, installId: `dev-${slug}` });
+export function registerDevBackend(installId: string, backendUrl: string): void {
+  devBackends.set(installId, { baseUrl: backendUrl, installId });
 }
 
-export function unregisterDevBackend(slug: string): void {
-  devBackends.delete(slug);
+export function unregisterDevBackend(installId: string): void {
+  devBackends.delete(installId);
 }
 
-export function getDevBackend(slug: string): ProxyTarget | undefined {
-  return devBackends.get(slug);
+export function getDevBackend(installId: string): ProxyTarget | undefined {
+  return devBackends.get(installId);
 }
 
 /**
@@ -58,8 +58,8 @@ export async function proxyRequest(
     'X-Plexica-Correlation-Id': crypto.randomUUID(),
   };
 
-  // Forward relevant headers
-  const forwardHeaders = ['authorization', 'accept', 'accept-language', 'if-none-match'];
+  // Forward safe headers only — DO NOT forward 'authorization' (JWT leak to untrusted plugins)
+  const forwardHeaders = ['accept', 'accept-language', 'if-none-match'];
   for (const h of forwardHeaders) {
     const val = request.headers[h];
     if (val) headers[h] = val as string;

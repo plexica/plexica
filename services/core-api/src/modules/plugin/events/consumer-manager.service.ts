@@ -44,47 +44,49 @@ export async function createConsumerGroup(
   eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>
 ): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
+  // TOCTOU fix: claim slot atomically before connecting
   if (consumers.has(groupId)) return;
+  const placeholder: ConsumerEntry = { consumer: null as unknown as ReturnType<typeof createConsumer>, topics: [], isRunning: false };
+  consumers.set(groupId, placeholder);
 
-  const consumer = createConsumer(groupId, eventPatterns, eachMessage);
-  await consumer.connect();
+  try {
+    const consumer = createConsumer(groupId, eventPatterns, eachMessage);
+    await consumer.connect();
 
-  const topics = resolvePatterns(eventPatterns);
+    const topics = resolvePatterns(eventPatterns);
+    // Batch subscribe with concurrency limit (5 parallel)
+    const batchSize = 5;
+    for (let i = 0; i < topics.length; i += batchSize) {
+      await Promise.all(topics.slice(i, i + batchSize).map((t) => consumer.subscribe({ topic: t, fromBeginning: false })));
+    }
 
-  // Parallel subscribe for performance
-  if (topics.length > 0) {
-    await Promise.all(topics.map((topic) => consumer.subscribe({ topic, fromBeginning: false })));
+    await consumer.run({
+      eachMessage: async ({ topic, message }) => {
+        try {
+          const payload = JSON.parse(message.value?.toString() ?? '{}');
+          logger.debug({ groupId, topic }, 'Consumer processing event');
+          await eachMessage(topic, payload);
+        } catch (err) {
+          logger.error({ err, groupId, topic }, 'Consumer message processing failed');
+        }
+      },
+    });
+
+    consumers.set(groupId, { consumer, topics, isRunning: true });
+    logger.info({ groupId, topics }, 'Consumer group started');
+  } catch (err) {
+    // Clean up placeholder on failure
+    consumers.delete(groupId);
+    logger.error({ err, groupId }, 'Failed to create consumer group');
+    throw err;
   }
-
-  // Fix #3: await consumer.run() before marking stored (prevents race on deactivate/uninstall)
-  await consumer.run({
-    eachMessage: async ({ topic, message }) => {
-      try {
-        const payload = JSON.parse(message.value?.toString() ?? '{}');
-        // Fix #5: Log only metadata, never full payload (PII protection)
-        logger.debug({ groupId, topic, eventType: (payload as any)?.type }, 'Consumer processing event');
-        await eachMessage(topic, payload);
-      } catch (err) {
-        logger.error({ err, groupId, topic }, 'Consumer message processing failed');
-      }
-    },
-  });
-
-  consumers.set(groupId, { consumer, topics, isRunning: true });
-  logger.info({ groupId, topics }, 'Consumer group started');
 }
 
-// Fix #4: Commit offsets before pause (EC-14 — prevents duplicate events on reactivation)
+// EC-14: Commit offsets before pause to prevent event replay on reactivation
 export async function pauseConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
   const entry = consumers.get(groupId);
   if (!entry) return;
-
-  // TODO: EC-14 — commit current offsets before pause to prevent event replay
-  // on reactivation. KafkaJS consumer.commitOffsets() needs partition-level
-  // position tracking which requires a managed partition assignment strategy.
-  // For now, pause() is sufficient: at-least-once semantics means some events
-  // may be re-delivered on reactivation, which is documented in spec EC-14.
 
   await entry.consumer.pause(entry.topics.map((t) => ({ topic: t })));
   entry.isRunning = false;

@@ -1,6 +1,5 @@
 // error-boundary.tsx
 // Per-slot React error boundary for plugin MF components.
-// On error: focuses the retry button (not the container div). Fixes WCAG 2.4.3.
 
 import { Component, createRef } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
@@ -13,54 +12,46 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  consecutiveCrashes: number;
+  crashCount: number;
 }
 
-const MAX_CONSECUTIVE_CRASHES = 3;
+const MAX_CRASHES = 3;
 
 export class PluginSlotErrorBoundary extends Component<Props, State> {
   private retryButtonRef = createRef<HTMLButtonElement>();
 
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, consecutiveCrashes: 0 };
+    this.state = { hasError: false, crashCount: 0 };
   }
 
-  static getDerivedStateFromError(): Partial<State> {
-    return { hasError: true };
+  // Increment crash counter on each error
+  static getDerivedStateFromError(_error: Error, prevState: State): Partial<State> {
+    return { hasError: true, crashCount: (prevState.crashCount ?? 0) + 1 };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     if (import.meta.env.DEV) {
-      console.warn(`[PluginSlot] "${this.props.pluginSlug}" crashed:`, error.message, errorInfo);
+      console.warn(`[PluginSlot] "${this.props.pluginSlug}" crashed (${this.state.crashCount}/${MAX_CRASHES}):`, error.message);
     }
-    // Focus the retry button (not the container div) — WCAG 2.4.3
     setTimeout(() => this.retryButtonRef.current?.focus(), 0);
   }
 
   handleRetry = (): void => {
-    const nextCount = this.state.consecutiveCrashes + 1;
-    if (nextCount >= MAX_CONSECUTIVE_CRASHES) {
-      this.setState({ consecutiveCrashes: nextCount }); // Stay in error state
-      return;
-    }
-    this.setState({ hasError: false, consecutiveCrashes: nextCount });
+    // If max crashes reached, stay in error state (permanently degraded)
+    if (this.state.crashCount >= MAX_CRASHES) return;
+    this.setState({ hasError: false });
   };
-
-  // Reset crash counter on successful recovery
-  componentDidUpdate(_prevProps: Props, prevState: State): void {
-    if (prevState.hasError && !this.state.hasError) {
-      this.setState({ consecutiveCrashes: 0 });
-    }
-  }
 
   render(): ReactNode {
     if (this.state.hasError) {
+      const isPermanentlyDegraded = this.state.crashCount >= MAX_CRASHES;
+
       return (
         <div role="alert" aria-live="assertive">
           <PluginUnavailable
             pluginSlug={this.props.pluginSlug}
-            isPermanentlyDegraded={this.state.consecutiveCrashes >= MAX_CONSECUTIVE_CRASHES}
+            isPermanentlyDegraded={isPermanentlyDegraded}
             onRetry={this.handleRetry}
             retryButtonRef={this.retryButtonRef}
           />
