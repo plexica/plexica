@@ -23,6 +23,7 @@ model Workspace {
   members     WorkspaceMember[]
   invitations Invitation[]
   roleActions WorkspaceRoleAction[]
+  pluginVisibility PluginWorkspaceVisibility[]
 
   @@map("workspace")
 }

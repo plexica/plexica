@@ -38,6 +38,7 @@ export const messagesPlugins = {
   'plugins.status.unreachable': 'Unreachable',
   'plugins.status.updating': 'Updating',
   'plugins.status.failed': 'Failed',
+  'plugins.status.uninstalled': 'Uninstalled',
   'plugins.activate': 'Activate',
   'plugins.deactivate': 'Deactivate',
   'plugins.uninstall': 'Uninstall',
@@ -87,7 +88,9 @@ export const messagesPlugins = {
   'admin.dlq.status': 'Status',
   'admin.dlq.error': 'Error',
   'admin.dlq.payload': 'Payload',
+  'admin.dlq.filterAll': 'All Statuses',
   'admin.dlq.status.pending': 'Pending',
   'admin.dlq.status.retried': 'Retried',
   'admin.dlq.status.dismissed': 'Dismissed',
+  'marketplace.close': 'Close',
 } as const;
