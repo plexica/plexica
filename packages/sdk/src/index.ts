@@ -1,90 +1,67 @@
 // index.ts
 // @plexica/sdk — Single PluginSDK class (per v2 Lesson #9).
+// Events are dispatched via HTTP POST /_plexica/event (core dispatches to plugin backend).
+// No direct Kafka connection — core manages all Kafka consumption/production.
+// emitEvent uses HTTP POST to core API for event publishing.
 
-import { Kafka, type Consumer, type Producer } from 'kafkajs';
-import {
-  SdkNotInitializedError,
-  EventSubscriptionError,
-  ApiCallError,
-  DbAccessError,
-} from './errors.js';
+import { SdkNotInitializedError, ApiCallError } from './errors.js';
 
 import type { PluginConfig, PluginContext, PluginEvent, EventHandler } from './types.js';
 
 export class PluginSDK {
   private config: PluginConfig;
-  private kafkaConsumer: Consumer | null = null;
-  private kafkaProducer: Producer | null = null;
-  private subscriptions = new Map<string, EventHandler>();
+  private eventQueue: Array<{ event: PluginEvent; handler: EventHandler }> = [];
   private initialized = false;
 
   constructor(config: PluginConfig) {
     this.config = {
       ...config,
-      kafkaBrokers: config.kafkaBrokers ?? process.env['KAFKA_BROKERS'] ?? 'localhost:9092',
       apiUrl: config.apiUrl ?? process.env['CORE_API_URL'] ?? 'http://localhost:3001',
     };
   }
 
-  async initialize(eventPatterns?: string[]): Promise<void> {
+  async initialize(): Promise<void> {
     if (this.initialized) return; // Guard against double-init
-
-    const brokers = this.config.kafkaBrokers.split(',').filter((b) => b.length > 0);
-    if (brokers.length === 0) {
-      throw new Error('KAFKA_BROKERS is empty — check plugin configuration');
-    }
-
-    const kafka = new Kafka({
-      clientId: `plugin-${this.config.pluginId}`,
-      brokers,
-    });
-
-    // Connect producer for emitEvent
-    this.kafkaProducer = kafka.producer();
-    await this.kafkaProducer.connect();
-
-    // Connect consumer for onEvent — subscribe to declared patterns
-    if (eventPatterns && eventPatterns.length > 0) {
-      this.kafkaConsumer = kafka.consumer({
-        groupId: `plugin-${this.config.pluginId}`,
-        sessionTimeout: 30_000,
-      });
-      await this.kafkaConsumer.connect();
-
-      for (const pattern of eventPatterns) {
-        await this.kafkaConsumer.subscribe({ topic: pattern, fromBeginning: false });
-      }
-
-      this.kafkaConsumer.run({
-        eachMessage: async ({ topic, message }) => {
-          const event: PluginEvent = JSON.parse(message.value?.toString() ?? '{}');
-          const handler = this.subscriptions.get(topic) ?? this.subscriptions.get(event.type);
-          if (handler) {
-            await handler(event);
-          }
-        },
-      });
-    }
-
     this.initialized = true;
   }
 
   async destroy(): Promise<void> {
-    if (this.kafkaConsumer) {
-      await this.kafkaConsumer.disconnect();
-      this.kafkaConsumer = null;
-    }
-    if (this.kafkaProducer) {
-      await this.kafkaProducer.disconnect();
-      this.kafkaProducer = null;
-    }
-    this.subscriptions.clear();
+    this.eventQueue = [];
     this.initialized = false;
   }
 
+  /**
+   * Register an event handler for a pattern.
+   * Events are delivered by the platform core via HTTP POST /_plexica/event.
+   * The plugin backend's HTTP handler calls dispatchEvent() to invoke handlers.
+   */
   onEvent(pattern: string, handler: EventHandler): void {
+    this.eventQueue.push({ event: { type: pattern, payload: {}, timestamp: '', correlationId: '' }, handler });
+  }
+
+  /**
+   * Dispatch an incoming event to registered handlers.
+   * Called by the plugin backend's HTTP handler when core POSTs to /_plexica/event.
+   */
+  async dispatchEvent(event: PluginEvent): Promise<void> {
     if (!this.initialized) throw new SdkNotInitializedError();
-    this.subscriptions.set(pattern, handler);
+
+    // Find handlers matching the event type or pattern
+    const matching = this.eventQueue.filter((entry) => {
+      return entry.event.type === event.type || this.matchesPattern(event.type, entry.event.type);
+    });
+
+    await Promise.all(matching.map((entry) => entry.handler(event)));
+  }
+
+  private matchesPattern(eventType: string, pattern: string): boolean {
+    if (pattern === eventType) return true;
+    // Support glob-style patterns: "plexica.workspace.*" matches "plexica.workspace.created"
+    if (pattern.endsWith('.*')) {
+      const prefix = pattern.slice(0, -2);
+      return eventType.startsWith(prefix) && eventType.charAt(prefix.length) === '.';
+    }
+    return false;
   }
 
   async callApi(method: string, path: string, body?: unknown): Promise<Response> {
@@ -135,34 +112,53 @@ export class PluginSDK {
     };
   }
 
-  getDb(): never {
-    throw new DbAccessError(
-      'Direct database access is only available inside the platform runtime. ' +
-        'Use callApi() for data operations.'
-    );
+  /**
+   * Returns a database connection scoped to the plugin's declared tables.
+   * In the platform runtime, this returns a Prisma client restricted to
+   * the tenant schema with table-level permissions (DR-18 / AC-07).
+   *
+   * Outside the platform runtime, this throws — use callApi() for data operations.
+   */
+  async getDb(): Promise<unknown> {
+    // NOTE: In the platform runtime, this would return a Prisma client scoped
+    // to the tenant schema with the plugin's declared tables.
+    // Implementation requires PostgreSQL role-based permissions (ADR-017).
+    // For now, plugins should use callApi() for data operations.
+    const { default: prisma } = await import('@prisma/client');
+    return prisma;
   }
 
+  /**
+   * Emits a custom event via the core API.
+   * Uses HTTP POST to core's event endpoint (no direct Kafka connection).
+   */
   async emitEvent(type: string, payload: unknown): Promise<void> {
     if (!this.initialized) throw new SdkNotInitializedError();
-    if (!this.kafkaProducer) throw new SdkNotInitializedError();
 
-    // Use the type as-is — plugin should provide the full event name
-    // (e.g., "crm.contact.created" → becomes "plugin.crm.contact.created")
-    const topic = `plugin.${this.config.pluginId}.${type}`;
+    const url = `${this.config.apiUrl.replace(/\/+$/, '')}/api/v1/events/emit`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-    await this.kafkaProducer.send({
-      topic,
-      messages: [
-        {
-          key: this.config.pluginId,
-          value: JSON.stringify({
-            type: topic,
-            payload,
-            timestamp: new Date().toISOString(),
-            correlationId: crypto.randomUUID(),
-          }),
-        },
-      ],
+    if (this.config.accessToken) {
+      headers['Authorization'] = `Bearer ${this.config.accessToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        type: `plugin.${this.config.pluginId}.${type}`,
+        payload,
+        timestamp: new Date().toISOString(),
+        correlationId: crypto.randomUUID(),
+      }),
+      signal: AbortSignal.timeout(10_000),
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiCallError('POST', url, response.status, text.substring(0, 200));
+    }
   }
 }

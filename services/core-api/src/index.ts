@@ -33,6 +33,7 @@ import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
 import { pluginAdminRoutes, pluginTenantRoutes } from './modules/plugin/index.js';
+import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -129,6 +130,7 @@ await server.register(async (tenantScope) => {
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Shutdown signal received — closing server');
   await server.close();
+  await stopDlqConsumer();
   await disconnectDatabase();
   await disconnectRedis();
   await disconnectKafka();
@@ -144,6 +146,11 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 // ---------------------------------------------------------------------------
 async function start(): Promise<void> {
   try {
+    // Start DLQ consumer (reads from Kafka DLQ topic → populates DB table)
+    startDlqConsumer().catch((err) =>
+      logger.error({ err }, 'DLQ consumer failed to start — DLQ management UI will be empty')
+    );
+
     await server.listen({ port: config.PORT, host: '0.0.0.0' });
   } catch (err) {
     logger.error({ err }, 'Server failed to start');

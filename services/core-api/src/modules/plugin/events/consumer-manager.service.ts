@@ -3,6 +3,7 @@
 
 import { createConsumer } from '../../../lib/kafka.js';
 import { logger } from '../../../lib/logger.js';
+import { moveToDlq } from './dlq.service.js';
 
 interface ConsumerEntry {
   consumer: ReturnType<typeof createConsumer>;
@@ -11,6 +12,8 @@ interface ConsumerEntry {
 }
 
 const consumers = new Map<string, ConsumerEntry>();
+// Pending consumers guard: deduplicates concurrent createConsumerGroup calls
+const pendingConsumers = new Map<string, Promise<void>>();
 
 export const CONSUMER_GROUP_PREFIX = 'plugin-';
 export const DEV_CONSUMER_PREFIX = 'plugin-dev-';
@@ -44,42 +47,64 @@ export async function createConsumerGroup(
   eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>
 ): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
-  // TOCTOU fix: claim slot atomically before connecting
+
+  // Atomic deduplication: if a consumer is being created, wait for it
+  const existing = pendingConsumers.get(groupId);
+  if (existing) {
+    logger.debug({ groupId }, 'Consumer group creation already in progress — waiting');
+    return existing;
+  }
+
+  // Check if already exists
   if (consumers.has(groupId)) return;
-  const placeholder: ConsumerEntry = { consumer: null as unknown as ReturnType<typeof createConsumer>, topics: [], isRunning: false };
-  consumers.set(groupId, placeholder);
+
+  // Create the promise and claim the slot before any async work
+  const createPromise = createConsumerGroupInner(groupId, installId, eventPatterns, eachMessage, tenantSlug);
+  pendingConsumers.set(groupId, createPromise);
 
   try {
-    const consumer = createConsumer(groupId, eventPatterns, eachMessage);
-    await consumer.connect();
+    await createPromise;
+  } finally {
+    pendingConsumers.delete(groupId);
+  }
+}
 
-    const topics = resolvePatterns(eventPatterns);
-    // Batch subscribe with concurrency limit (5 parallel)
-    const batchSize = 5;
-    for (let i = 0; i < topics.length; i += batchSize) {
-      await Promise.all(topics.slice(i, i + batchSize).map((t) => consumer.subscribe({ topic: t, fromBeginning: false })));
-    }
+async function createConsumerGroupInner(
+  groupId: string, installId: string, eventPatterns: string[],
+  eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>,
+  tenantSlug: string
+): Promise<void> {
+  const consumer = createConsumer(groupId, eventPatterns, eachMessage);
+  await consumer.connect();
 
-    await consumer.run({
-      eachMessage: async ({ topic, message }) => {
+  const topics = resolvePatterns(eventPatterns);
+  // Batch subscribe with concurrency limit (5 parallel)
+  const batchSize = 5;
+  for (let i = 0; i < topics.length; i += batchSize) {
+    await Promise.all(topics.slice(i, i + batchSize).map((t) => consumer.subscribe({ topic: t, fromBeginning: false })));
+  }
+
+  await consumer.run({
+    eachMessage: async ({ topic, message }) => {
+      try {
+        const payload = JSON.parse(message.value?.toString() ?? '{}');
+        logger.debug({ groupId, topic }, 'Consumer processing event');
+        await eachMessage(topic, payload);
+      } catch (err) {
+        // Move failed event to DLQ per EC-21
+        logger.error({ err, groupId, topic }, 'Consumer message processing failed — moving to DLQ');
         try {
           const payload = JSON.parse(message.value?.toString() ?? '{}');
-          logger.debug({ groupId, topic }, 'Consumer processing event');
-          await eachMessage(topic, payload);
-        } catch (err) {
-          logger.error({ err, groupId, topic }, 'Consumer message processing failed');
+          await moveToDlq(installId, topic, payload, (err as Error).message, 3);
+        } catch (dlqErr) {
+          logger.error({ err: dlqErr, groupId, topic }, 'Failed to move consumer message to DLQ');
         }
-      },
-    });
+      }
+    },
+  });
 
-    consumers.set(groupId, { consumer, topics, isRunning: true });
-    logger.info({ groupId, topics }, 'Consumer group started');
-  } catch (err) {
-    // Clean up placeholder on failure
-    consumers.delete(groupId);
-    logger.error({ err, groupId }, 'Failed to create consumer group');
-    throw err;
-  }
+  consumers.set(groupId, { consumer, topics, isRunning: true });
+  logger.info({ groupId, topics }, 'Consumer group started');
 }
 
 // EC-14: Commit offsets before pause to prevent event replay on reactivation

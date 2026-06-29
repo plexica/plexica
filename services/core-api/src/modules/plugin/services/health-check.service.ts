@@ -30,22 +30,23 @@ export function onHealthChange(handler: HealthChangeHandler): void {
   listeners.add(handler);
 }
 
+export function removeHealthChangeHandler(handler: HealthChangeHandler): void {
+  listeners.delete(handler);
+}
+
 function cbKey(installId: string): string {
   return `${CB_PREFIX}${installId}`;
 }
 
 /**
  * Returns the current circuit state for a plugin installation.
+ * safeParse() never throws (handles null and parse errors internally).
  */
 export async function getCircuitState(installId: string): Promise<CircuitState> {
   const raw = await redis.get(cbKey(installId));
   if (!raw) return 'closed';
-  try {
   const state = safeParse(raw, { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() });
-    return state.state;
-  } catch {
-    return 'closed';
-  }
+  return state.state;
 }
 
 /**

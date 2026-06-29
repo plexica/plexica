@@ -1,7 +1,7 @@
 // plugin-registry.test.ts
 // Integration tests — Plugin registry CRUD (Spec 004, Phase 1).
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
 import { adminCatalogRoutes } from '../modules/plugin/routes/admin-catalog.routes.js';
@@ -12,8 +12,6 @@ import { createTestServer, makeFullStub, isDbReachable } from './helpers/server.
 
 import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
-
-const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 
 let server: FastifyInstance;
 
@@ -36,6 +34,12 @@ const validManifest = {
 };
 
 beforeAll(async () => {
+  // Fail hard if DB is not reachable — no silent skips (Constitution Rule 2)
+  const dbReachable = await isDbReachable();
+  if (!dbReachable) {
+    throw new Error('Database is not reachable — tests cannot run. Ensure PostgreSQL is running and DATABASE_URL is configured.');
+  }
+
   server = await createTestServer();
   server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
   await server.register(adminCatalogRoutes);
@@ -52,7 +56,7 @@ afterEach(async () => {
 });
 
 describe('Plugin Registry — CRUD', () => {
-  skipIfNoDb('POST /api/v1/admin/plugins/register — creates a plugin', async () => {
+  it('POST /api/v1/admin/plugins/register — creates a plugin', async () => {
     const res = await server.inject({
       method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: validManifest.slug, name: validManifest.name,
@@ -63,7 +67,7 @@ describe('Plugin Registry — CRUD', () => {
     expect(JSON.parse(res.payload).slug).toBe('test-crm');
   });
 
-  skipIfNoDb('POST register — rejects duplicate slug', async () => {
+  it('POST register — rejects duplicate slug', async () => {
     await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-crm', name: 'Test CRM', registryUrl: 'https://registry.example.com',
         imageName: 'test-crm', imageTag: '1.0.0', manifest: validManifest } });
@@ -73,7 +77,7 @@ describe('Plugin Registry — CRUD', () => {
     expect(res.statusCode).toBe(409);
   });
 
-  skipIfNoDb('GET /api/v1/admin/plugins — lists plugins', async () => {
+  it('GET /api/v1/admin/plugins — lists plugins', async () => {
     await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-plugin-a', name: 'Plugin A', registryUrl: 'https://registry.example.com',
         imageName: 'test-plugin-a', imageTag: '1.0.0',
@@ -83,7 +87,7 @@ describe('Plugin Registry — CRUD', () => {
     expect(JSON.parse(res.payload).data.length).toBeGreaterThanOrEqual(1);
   });
 
-  skipIfNoDb('POST publish/unpublish flow', async () => {
+  it('POST publish/unpublish flow', async () => {
     await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-pub', name: 'Pub Test', registryUrl: 'https://registry.example.com',
         imageName: 'test-pub', imageTag: '1.0.0',
@@ -98,7 +102,7 @@ describe('Plugin Registry — CRUD', () => {
     expect(JSON.parse(unpub.payload).status).toBe('unpublished');
   });
 
-  skipIfNoDb('GET versions — returns version history in single query', async () => {
+  it('GET versions — returns version history in single query', async () => {
     await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-versions', name: 'Versions', registryUrl: 'https://registry.example.com',
         imageName: 'test-versions', imageTag: '1.0.0',
@@ -108,7 +112,7 @@ describe('Plugin Registry — CRUD', () => {
     expect(JSON.parse(res.payload)).toBeInstanceOf(Array);
   });
 
-  skipIfNoDb('POST publish — returns 404 for non-existent plugin', async () => {
+  it('POST publish — returns 404 for non-existent plugin', async () => {
     const res = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/non-existent/publish' });
     expect(res.statusCode).toBe(404);
   });

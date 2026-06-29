@@ -23,7 +23,21 @@ export interface ContainerStatus {
   port?: number;
 }
 
-// undefinedIfMissing intentionally removed — it was dead code.
+// Track plugin ports per installId (set at container creation, used in status lookups)
+const pluginPorts = new Map<string, number>();
+
+// Store port for later use by getContainerStatus
+function setPluginPort(installId: string, port: number): void {
+  pluginPorts.set(installId, port);
+}
+
+function getPluginPort(installId: string): number | undefined {
+  return pluginPorts.get(installId);
+}
+
+export function clearPluginPort(installId: string): void {
+  pluginPorts.delete(installId);
+}
 
 export interface ContainerManager {
   startContainer(installId: string, manifest: Manifest): Promise<ContainerInfo>;
@@ -83,6 +97,9 @@ export class DockerContainerManager implements ContainerManager {
     const portBinding = inspect.NetworkSettings.Ports?.[`${manifest.hosting.port}/tcp`]?.[0];
     const port = portBinding ? parseInt(portBinding.HostPort, 10) : manifest.hosting.port;
 
+    // Store the port for later use by getContainerStatus
+    setPluginPort(installId, port);
+
     return {
       containerId: container.id,
       port,
@@ -100,6 +117,8 @@ export class DockerContainerManager implements ContainerManager {
       if (!msg.includes('already stopped') && !msg.includes('not found')) {
         throw err;
       }
+    } finally {
+      clearPluginPort(installId);
     }
   }
 
@@ -112,7 +131,10 @@ export class DockerContainerManager implements ContainerManager {
       const health: HealthStatus =
         inspect.State.Health?.Status === 'healthy' ? 'healthy' : state === 'running' ? 'degraded' : 'unreachable';
 
-      const portBinding = inspect.NetworkSettings.Ports?.[`3000/tcp`]?.[0];
+      // Use dynamically stored port (set at container creation from manifest)
+      // Falls back to hardcoded 3000 for backward compatibility
+      const port = getPluginPort(installId) ?? 3000;
+      const portBinding = inspect.NetworkSettings.Ports?.[`${port}/tcp`]?.[0];
 
       const status: ContainerStatus = { state, health };
       if (inspect.State.StartedAt) status.startedAt = new Date(inspect.State.StartedAt);
@@ -136,6 +158,11 @@ export class DockerContainerManager implements ContainerManager {
   }
 }
 
+// Clean up port tracking on container stop
+export function clearPluginPort(installId: string): void {
+  pluginPorts.delete(installId);
+}
+
 /**
  * Factory — returns the correct strategy based on hosting type.
  */
@@ -152,21 +179,31 @@ export function createContainerManager(hostingType: string): ContainerManager {
 class KubernetesContainerManager implements ContainerManager {
   async startContainer(_installId: string, _manifest: Manifest): Promise<ContainerInfo> {
     throw new PluginInstallError(
-      'Kubernetes container manager is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI, or deploy in a Kubernetes cluster.'
+      'Kubernetes hosting is not available in this environment. ' +
+        'Use hosting.type = "sidecar" for dev/CI. ' +
+        'Kubernetes support requires deployment in a Kubernetes cluster.'
     );
   }
 
   async stopContainer(_installId: string): Promise<void> {
-    throw new Error('Kubernetes container manager not available');
+    throw new PluginInstallError(
+      'Kubernetes hosting is not available in this environment. ' +
+        'Use hosting.type = "sidecar" for dev/CI.'
+    );
   }
 
   async getContainerStatus(_installId: string): Promise<ContainerStatus> {
-    throw new Error('Kubernetes container manager not available');
+    throw new PluginInstallError(
+      'Kubernetes hosting is not available in this environment. ' +
+        'Use hosting.type = "sidecar" for dev/CI.'
+    );
   }
 
   async restartContainer(_installId: string): Promise<void> {
-    throw new Error('Kubernetes container manager not available');
+    throw new PluginInstallError(
+      'Kubernetes hosting is not available in this environment. ' +
+        'Use hosting.type = "sidecar" for dev/CI.'
+    );
   }
 }
 

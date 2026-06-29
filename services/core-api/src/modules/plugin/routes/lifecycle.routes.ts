@@ -43,6 +43,7 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
     const manifest = manifestSchema.parse(plugin.manifest);
 
     // Single transaction: check + install (prevents TOCTOU race)
+    // Status set to 'installing' — container and consumer setup happens after.
     const install = await withTenantDb(async (tx: any) => {
       const existing = await tx.pluginInstallation.findUnique({
         where: { pluginId_tenantSlug: { pluginId: plugin.id as string, tenantSlug: ctx.slug } },
@@ -66,25 +67,25 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      // Mark active only after container and consumer are confirmed
-      await tx.pluginInstallation.update({ where: { id: installation.id }, data: { status: 'active' } });
       return installation;
     }, ctx);
 
     // Start container + create consumer (best-effort, but logged)
+    // Status is 'installing' during this phase — concurrent reads see non-active
     let degraded = false;
     try {
       const mgr = createContainerManager('sidecar');
+      const hostingPort = (manifest.hosting as any)?.port ?? 3000;
       await mgr.startContainer(install.id, {
         slug, name: slug, version: plugin.version as string, description: '', author: '',
         categories: ['plugin'],
-        hosting: { type: 'sidecar' as const, image: `${registryUrl}/${imageName}:${imageTag}`, port: 3000 },
+        hosting: { type: 'sidecar' as const, image: `${registryUrl}/${imageName}:${imageTag}`, port: hostingPort },
         declaredTables: [],
         ui: { remoteEntry: 'remoteEntry.js', extensionPoints: [] },
         events: { subscribes: [] },
       });
     } catch (err: any) {
-      logger.warn({ err: err.message, installId: install.id }, 'Container start failed — plugin marked active but backend may be unreachable');
+      logger.warn({ err: err.message, installId: install.id }, 'Container start failed — plugin will be degraded');
       degraded = true;
     }
 
@@ -99,15 +100,16 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    if (degraded) {
-      await withTenantDb(async (tx: any) => {
-        await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: 'degraded' } });
-      }, ctx).catch(() => {});
-    }
+    // Now update to 'active' or 'degraded' — only after infrastructure is set up
+    const finalStatus = degraded ? 'degraded' : 'active';
+    await withTenantDb(async (tx: any) => {
+      await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: finalStatus } });
+    }, ctx).catch(() => {});
 
+    // Use retry-aware emit: let the lib handle retries, log any final failure
     emitEvent(Topics.plugin('installed'), { installId: install.id, slug })
       .catch((err: any) => logger.warn({ err: err.message, installId: install.id }, 'Failed to emit install event'));
-    return { status: degraded ? 'degraded' : 'active', installId: install.id, slug };
+    return { status: finalStatus, installId: install.id, slug };
   });
 
   // ── POST /api/v1/plugins/:installId/deactivate ────────────────────────────
@@ -160,10 +162,8 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
       if (inst.tenantSlug !== ctx.slug) throw new PluginNotFoundError(`Installation ${installId}`);
       if (inst.status === 'uninstalled') throw new PluginValidationError('Already uninstalled');
 
-      const mgr = createContainerManager(inst.hostingType);
-      await mgr.stopContainer(installId);
-      await deleteConsumerGroup(installId, inst.tenantSlug);
-      await resetBreaker(installId);
+      // Step 1: DB cleanup FIRST (within transaction) — ensures consistency
+      // If any DB operation fails, nothing else has happened yet
 
       // Fix #1: DROP only tables with valid slug-prefixed names
       const pluginId = inst.pluginId;
@@ -172,10 +172,20 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
       ) as { slug: string } | null;
       const expectedPrefix = pluginRecord ? `${pluginRecord.slug}_` : '';
 
+      // SQL injection prevention: validate table names against strict regex
+      const SAFE_TABLE_REGEX = /^[a-z][a-z0-9_]{1,63}$/;
+
       for (const log of inst.migrationLogs ?? []) {
         if (log.status === 'applied') {
           // Fix #1: Only drop tables that start with the expected plugin slug prefix
           const tableName = log.migrationName;
+
+          // SQL injection prevention: reject table names that don't match safe pattern
+          if (!SAFE_TABLE_REGEX.test(tableName)) {
+            logger.warn({ tableName, expectedPrefix }, 'Skipping DROP — invalid table name format (possible injection)');
+            continue;
+          }
+
           if (!tableName.startsWith(expectedPrefix)) {
             logger.warn({ tableName, expectedPrefix }, 'Skipping DROP — table name does not match plugin prefix');
             continue;
@@ -190,8 +200,29 @@ export async function lifecycleRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
+      // Delete visibility entries before status update
       await tx.pluginWorkspaceVisibility.deleteMany({ where: { installId } });
       await tx.pluginInstallation.update({ where: { id: installId }, data: { status: 'uninstalled' } });
+
+      // Step 2: Infrastructure cleanup AFTER DB (best-effort — no throw)
+      // At this point the DB state is consistent; infra cleanup is best-effort
+      try {
+        const mgr = createContainerManager(inst.hostingType);
+        await mgr.stopContainer(installId);
+      } catch (err: unknown) {
+        logger.warn({ err: (err as Error).message, installId }, 'Container stop failed during uninstall (best-effort)');
+      }
+      try {
+        await deleteConsumerGroup(installId, inst.tenantSlug);
+      } catch (err: unknown) {
+        logger.warn({ err: (err as Error).message, installId }, 'Consumer group deletion failed during uninstall (best-effort)');
+      }
+      try {
+        await resetBreaker(installId);
+      } catch (err: unknown) {
+        logger.warn({ err: (err as Error).message, installId }, 'Circuit breaker reset failed during uninstall (best-effort)');
+      }
+
       return { status: 'uninstalled', installId };
     }, ctx);
   });

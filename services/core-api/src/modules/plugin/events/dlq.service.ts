@@ -1,12 +1,15 @@
 // events/dlq.service.ts
 // Dead Letter Queue management — Kafka topic + DB table (per ADR-016).
+// Writes to Kafka DLQ topic (Tier 1, streaming) and directly to DB (Tier 2, fallback).
+// The dlq-consumer reads from the Kafka topic as the primary DB population path.
 
 import { emitEvent, Topics } from '../../../lib/kafka.js';
 import { logger } from '../../../lib/logger.js';
 
 /**
  * Moves a failed event to the Dead Letter Queue.
- * Writes to Kafka DLQ topic (streaming) + DB table (for management UI).
+ * Tier 1: Kafka DLQ topic (streaming, durable — consumed by dlq-consumer).
+ * Tier 2: Direct DB write (fallback — ensures management UI is populated even if dlq-consumer lags).
  */
 export async function moveToDlq(
   installId: string,
@@ -29,8 +32,24 @@ export async function moveToDlq(
     logger.error({ err, installId, eventType }, 'Failed to move event to DLQ topic');
   }
 
-  // Tier 2: DB table (for management UI) — populated by dlq-consumer
-  logger.warn({ installId, eventType, errorMessage, retryCount }, 'Event moved to DLQ');
+  // Tier 2: Direct DB write (fallback — dlq-consumer also reads from Kafka as primary path)
+  try {
+    const { prisma } = await import('../../../lib/database.js');
+    await prisma.deadLetterQueue.create({
+      data: {
+        eventType,
+        payload: payload as Record<string, unknown>,
+        pluginId: installId,
+        errorMessage,
+        retryCount,
+        status: 'pending',
+        failedAt: new Date(),
+      },
+    });
+    logger.info({ installId, eventType }, 'DLQ entry persisted directly to DB');
+  } catch (err) {
+    logger.error({ err, installId, eventType }, 'Failed to persist DLQ entry directly to DB');
+  }
 }
 
 /**

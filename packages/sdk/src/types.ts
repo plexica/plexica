@@ -5,7 +5,8 @@ export interface PluginConfig {
   pluginId: string;
   tenantId: string;
   workspaceId?: string;
-  kafkaBrokers: string;
+  /** @deprecated No longer required. SDK no longer connects to Kafka directly. Use apiUrl instead. */
+  kafkaBrokers?: string;
   apiUrl: string;
   accessToken?: string;  // Bearer token for API auth
   // Context headers injected by the platform

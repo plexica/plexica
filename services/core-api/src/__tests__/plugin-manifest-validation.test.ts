@@ -10,7 +10,6 @@ import { createTestServer, makeFullStub, isDbReachable } from './helpers/server.
 import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
 
-const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 let server: FastifyInstance;
 
 const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
@@ -34,6 +33,12 @@ function registerPayload(slug: string, manifest: Record<string, unknown>) {
 }
 
 beforeAll(async () => {
+  // Fail hard if DB is not reachable — no silent skips (Constitution Rule 2)
+  const dbReachable = await isDbReachable();
+  if (!dbReachable) {
+    throw new Error('Database is not reachable — tests cannot run. Ensure PostgreSQL is running and DATABASE_URL is configured.');
+  }
+
   server = await createTestServer();
   server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
   await server.register(adminCatalogRoutes);
@@ -43,7 +48,7 @@ beforeAll(async () => {
 afterAll(async () => { await server.close(); });
 
 describe('Manifest Validation — Business Rules', () => {
-  skipIfNoDb('rejects action with core namespace prefix', async () => {
+  it('rejects action with core namespace prefix', async () => {
     const res = await server.inject(registerPayload('test-bad-ns', {
       ...baseManifest, slug: 'test-bad-ns',
       actions: [{ action: 'workspace:create:test', label: 'Bad', defaultRole: 'member' }],
@@ -52,7 +57,7 @@ describe('Manifest Validation — Business Rules', () => {
     expect(JSON.parse(res.payload).message).toContain('namespace');
   });
 
-  skipIfNoDb('rejects table without plugin slug prefix', async () => {
+  it('rejects table without plugin slug prefix', async () => {
     const res = await server.inject(registerPayload('test-bad-tbl', {
       ...baseManifest, slug: 'test-bad-tbl',
       declaredTables: [{ name: 'contacts', migrationFile: '001.sql' }],
@@ -61,7 +66,7 @@ describe('Manifest Validation — Business Rules', () => {
     expect(JSON.parse(res.payload).message).toContain('prefixed');
   });
 
-  skipIfNoDb('rejects 2-part action key', async () => {
+  it('rejects 2-part action key', async () => {
     const res = await server.inject(registerPayload('test-2part', {
       ...baseManifest, slug: 'test-2part',
       actions: [{ action: 'contact:create', label: 'Bad', defaultRole: 'member' }],
@@ -69,12 +74,12 @@ describe('Manifest Validation — Business Rules', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  skipIfNoDb('rejects manifest with missing required fields', async () => {
+  it('rejects manifest with missing required fields', async () => {
     const res = await server.inject(registerPayload('test-missing', { slug: 'test-missing' }));
     expect(res.statusCode).toBe(400);
   });
 
-  skipIfNoDb('rejects action where first segment != slug', async () => {
+  it('rejects action where first segment != slug', async () => {
     const res = await server.inject(registerPayload('test-wrong', {
       ...baseManifest, slug: 'test-wrong',
       actions: [{ action: 'other-plugin:contact:create', label: 'Bad', defaultRole: 'member' }],
@@ -83,7 +88,7 @@ describe('Manifest Validation — Business Rules', () => {
     expect(JSON.parse(res.payload).message).toContain('first segment');
   });
 
-  skipIfNoDb('accepts valid manifest with actions + tables', async () => {
+  it('accepts valid manifest with actions + tables', async () => {
     const res = await server.inject(registerPayload('test-valid', {
       ...baseManifest, slug: 'test-valid',
       actions: [{ action: 'test-valid:contact:create', label: 'Create', defaultRole: 'member' }],
