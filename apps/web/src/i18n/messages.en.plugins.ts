@@ -22,11 +22,18 @@ export const messagesPlugins = {
   'marketplace.detail.dataTables': 'Data tables',
   'marketplace.detail.events': 'Events',
   'marketplace.categories.all': 'All',
+  'marketplace.categoryFilter': 'Filter by category',
   'marketplace.categories.sales': 'Sales',
   'marketplace.categories.productivity': 'Productivity',
   'marketplace.categories.analytics': 'Analytics',
   'marketplace.categories.devTools': 'Dev Tools',
+  'marketplace.categories.communication': 'Communication',
+  'marketplace.categories.automation': 'Automation',
+  'marketplace.emptyHint': 'Try adjusting your search or clearing the category filter.',
   'marketplace.installCount': '{count} installs',
+  'marketplace.permissions': 'Permissions & Actions',
+  'marketplace.dataTables': 'Data Tables',
+  'marketplace.events': 'Event Subscriptions',
 
   // Installed plugins
   'plugins.installed.title': 'Installed Plugins',

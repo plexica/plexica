@@ -1,0 +1,35 @@
+{
+  "slug": "crm",
+  "name": "CRM",
+  "version": "1.0.0",
+  "description": "Customer relationship management — manage contacts and deals across workspaces.",
+  "author": "Plexica",
+  "icon": "Contact2",
+  "categories": ["sales", "productivity"],
+  "hosting": {
+    "type": "sidecar",
+    "image": "plexica/crm-plugin:1.0.0",
+    "port": 3000,
+    "resources": { "cpu": "0.25", "memory": "128Mi" },
+    "env": []
+  },
+  "ui": {
+    "remoteEntry": "remoteEntry.js",
+    "extensionPoints": ["sidebar:admin", "workspace-panel:main"]
+  },
+  "events": {
+    "subscribes": ["plexica.workspace.created"]
+  },
+  "actions": [
+    { "key": "crm:contact:create", "label": "Create Contact", "defaultRole": "member" },
+    { "key": "crm:contact:read", "label": "View Contacts", "defaultRole": "viewer" },
+    { "key": "crm:contact:update", "label": "Edit Contact", "defaultRole": "member" },
+    { "key": "crm:contact:delete", "label": "Delete Contact", "defaultRole": "admin" },
+    { "key": "crm:deal:read", "label": "View Deals", "defaultRole": "viewer" },
+    { "key": "crm:deal:create", "label": "Create Deal", "defaultRole": "member" }
+  ],
+  "declaredTables": [
+    { "name": "crm_contacts", "description": "Contact records", "migrationFile": "migrations/001_create_contacts.sql" },
+    { "name": "crm_deals", "description": "Deal pipeline", "migrationFile": "migrations/002_create_deals.sql" }
+  ]
+}

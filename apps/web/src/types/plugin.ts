@@ -50,6 +50,10 @@ export interface PluginCatalogEntry {
   status: 'draft' | 'published' | 'unpublished';
   installCount: number;
   isInstalled: boolean;
+  rating?: number;
+  actions?: PluginAction[];
+  declaredTables?: PluginTable[];
+  declaredEvents?: string[];
 }
 
 export interface PluginInstallation {

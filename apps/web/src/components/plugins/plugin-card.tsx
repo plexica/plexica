@@ -1,9 +1,11 @@
 // plugin-card.tsx
-// Marketplace plugin card with icon, name, description, categories, and action button.
+// Marketplace plugin card with icon, name, description, categories, rating, and action button.
 
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Button } from '@plexica/ui';
 
+import { RatingStars } from './rating-stars.js';
+import { CATEGORY_LABEL_MAP } from './plugin-categories.js';
 import type { PluginCatalogEntry } from '../../types/plugin.js';
 
 interface PluginCardProps {
@@ -12,15 +14,6 @@ interface PluginCardProps {
   onInstall: (slug: string) => void;
   onShowDetail: (slug: string) => void;
 }
-
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  sales: 'marketplace.categories.sales',
-  productivity: 'marketplace.categories.productivity',
-  analytics: 'marketplace.categories.analytics',
-  'dev-tools': 'marketplace.categories.devTools',
-  e2e: 'marketplace.categories.all',
-  testing: 'marketplace.categories.all',
-};
 
 export function PluginCard({
   plugin,
@@ -35,13 +28,22 @@ export function PluginCard({
     onInstall(plugin.slug);
   }
 
+  function handleCardKeyDown(e: React.KeyboardEvent): void {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onShowDetail(plugin.slug);
+    }
+  }
+
   return (
     <div
-      className="group cursor-pointer rounded-lg border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md"
+      className="group cursor-pointer rounded-lg border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       onClick={() => onShowDetail(plugin.slug)}
-      data-testid="plugin-card"
-      role="article"
+      onKeyDown={handleCardKeyDown}
+      tabIndex={0}
+      role="button"
       aria-label={`${plugin.name} — ${plugin.description}`}
+      data-testid="plugin-card"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -57,11 +59,15 @@ export function PluginCard({
 
       <p className="mt-2 line-clamp-2 text-xs text-neutral-600">{plugin.description}</p>
 
-      <div className="mt-3 flex flex-wrap gap-1">
+      <div className="mt-2 flex items-center gap-2">
+        <RatingStars rating={plugin.rating} />
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1">
         {plugin.categories.map((cat) => (
           <span
             key={cat}
-            className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500"
+            className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500"
           >
             <FormattedMessage id={CATEGORY_LABEL_MAP[cat] ?? cat} defaultMessage={cat} />
           </span>

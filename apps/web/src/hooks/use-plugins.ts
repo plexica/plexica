@@ -19,11 +19,12 @@ import type {
 // ── Marketplace queries ──────────────────────────────────────────────────────
 
 export function usePublishedPlugins(
-  params?: { page?: number; search?: string; category?: string } | undefined
+  params?: { page?: number; pageSize?: number; search?: string; category?: string } | undefined
 ) {
   return useQuery({
     queryKey: ['plugins', 'published', params],
     queryFn: () => pluginApi.listPublished(params),
+    staleTime: 30_000, // Catalog data changes infrequently
   });
 }
 
