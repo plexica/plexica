@@ -27,6 +27,9 @@ apps/web/e2e/.e2e-plexica-theme-active
 prisma/generated/
 **/prisma/generated/
 
+# Generated (Prisma tenant client, etc.)
+generated/
+
 # IDE
 .vscode/
 .idea/
