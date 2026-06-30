@@ -5,7 +5,8 @@
 
 import { logger } from '../../../lib/logger.js';
 import { redis } from '../../../lib/redis.js';
-import type { HealthStatus } from './container-manager.service.js';
+
+import type { ContainerManager, HealthStatus } from './container-manager.service.js';
 
 const CB_PREFIX = 'plugin:cb:';
 const FAILURE_THRESHOLD = 3;
@@ -149,5 +150,49 @@ function notify(installId: string, oldStatus: HealthStatus, newStatus: HealthSta
     } catch (err) {
       logger.error({ err, installId }, 'Health change handler failed');
     }
+  }
+}
+
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startPeriodicHealthPolling(
+  containerManager: ContainerManager,
+  getInstallIds: () => string[] | Promise<string[]>,
+  intervalMs = 30_000
+): void {
+  if (pollingInterval !== null) return;
+
+  pollingInterval = setInterval(async () => {
+    try {
+      const ids = await getInstallIds();
+      await Promise.all(
+        ids.map(async (installId) => {
+          const canProbe = await shouldProbe(installId);
+          if (!canProbe) return;
+          try {
+            const status = await containerManager.getContainerStatus(installId);
+            if (status.state === 'running') {
+              await recordSuccess(installId);
+            } else {
+              await recordFailure(installId);
+            }
+          } catch {
+            await recordFailure(installId);
+          }
+        })
+      );
+    } catch (err) {
+      logger.error({ err }, 'Health polling cycle failed');
+    }
+  }, intervalMs);
+
+  logger.info({ intervalMs }, 'Periodic health polling started');
+}
+
+export function stopPeriodicHealthPolling(): void {
+  if (pollingInterval !== null) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+    logger.info('Periodic health polling stopped');
   }
 }

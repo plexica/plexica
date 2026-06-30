@@ -1,13 +1,11 @@
-import { Router, type Request, type Response } from "express";
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 
-const router = Router();
+export default async function healthRoutes(fastify: FastifyInstance) {
+  fastify.get('/health', async () => {
+    return { status: 'healthy', version: '1.0.0' };
+  });
 
-router.get("/health", (_req: Request, res: Response) => {
-  res.json({ status: "healthy", version: "1.0.0" });
-});
-
-router.get("/ready", (_req: Request, res: Response) => {
-  res.json({ status: "ready" });
-});
-
-export default router;
+  fastify.get('/ready', async () => {
+    return { status: 'ready' };
+  });
+}

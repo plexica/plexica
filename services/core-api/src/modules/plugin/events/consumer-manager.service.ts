@@ -81,25 +81,27 @@ async function createConsumerGroupInner(
   // Batch subscribe with concurrency limit (5 parallel)
   const batchSize = 5;
   for (let i = 0; i < topics.length; i += batchSize) {
+    // NOTE: fromBeginning is false. Events emitted between consumer creation and connection may be lost.
+    // This is intentional — at-least-once delivery starts from consumer activation time.
+    // For zero-loss requirements, consider checkpoint-based offset management.
     await Promise.all(topics.slice(i, i + batchSize).map((t) => consumer.subscribe({ topic: t, fromBeginning: false })));
   }
 
   await consumer.run({
     eachMessage: async ({ topic, message }) => {
-      try {
-        const payload = JSON.parse(message.value?.toString() ?? '{}');
-        logger.debug({ groupId, topic }, 'Consumer processing event');
-        await eachMessage(topic, payload);
-      } catch (err) {
-        // Move failed event to DLQ per EC-21
-        logger.error({ err, groupId, topic }, 'Consumer message processing failed — moving to DLQ');
+      let lastError: Error | null = null;
+      const payload = JSON.parse(message.value?.toString() ?? '{}');
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, [100, 500, 2000][attempt - 1]));
         try {
-          const payload = JSON.parse(message.value?.toString() ?? '{}');
-          await moveToDlq(installId, topic, payload, (err as Error).message, 3);
-        } catch (dlqErr) {
-          logger.error({ err: dlqErr, groupId, topic }, 'Failed to move consumer message to DLQ');
+          await eachMessage(topic, payload);
+          return;
+        } catch (err) {
+          lastError = err as Error;
+          logger.warn({ err, groupId, topic, attempt: attempt + 1 }, 'Consumer retry');
         }
       }
+      await moveToDlq(installId, topic, payload, lastError!.message, 3);
     },
   });
 

@@ -53,9 +53,9 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'Not found' });
     }
 
-    // Only accept localhost connections — use request.ip (actual client IP, not spoofable Host header)
-    const ip = request.ip;
-    if (ip !== '127.0.0.1' && ip !== '::1' && ip !== '::ffff:127.0.0.1') {
+    const remoteAddr = request.socket.remoteAddress;
+    const isLoopback = remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1';
+    if (!isLoopback) {
       return reply.status(403).send({ error: 'Dev registration is only available from localhost' });
     }
 

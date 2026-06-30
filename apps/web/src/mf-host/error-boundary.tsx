@@ -60,6 +60,8 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
     this.setState({ crashCount: newCount });
     if (import.meta.env.DEV) {
       console.warn(`[PluginSlot] "${this.props.pluginSlug}" crashed (${newCount}/${MAX_CRASHES}):`, error.message);
+    } else {
+      console.error('[PluginError]', { slug: this.props.pluginSlug, error: error?.message, crashCount: newCount });
     }
   }
 

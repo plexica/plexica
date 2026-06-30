@@ -1,39 +1,39 @@
-import { Router, type Request, type Response } from "express";
-import crypto from "node:crypto";
-import { dealsStore, type Deal } from "../stores.js";
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import crypto from 'node:crypto';
+import { query } from '../db.js';
+import logger from '../logger.js';
 
-const router = Router();
+export default async function eventsRoutes(fastify: FastifyInstance) {
+  fastify.post('/', async (request) => {
+    const workspaceId = request.headers['x-plexica-workspace-id'];
+    const correlationId = request.headers['x-plexica-correlation-id'];
+    const body = request.body as { type?: string };
+    const eventType = body.type;
 
-router.post("/", (req: Request, res: Response) => {
-  const workspaceId = req.headers["x-plexica-workspace-id"];
-  const correlationId = req.headers["x-plexica-correlation-id"];
-  const { type: eventType } = req.body;
+    logger.info(
+      { eventType, workspaceId, correlationId },
+      'Event received',
+    );
 
-  console.log(
-    `[event] type=${eventType ?? "unknown"} workspaceId=${workspaceId ?? "unknown"} correlationId=${correlationId ?? "unknown"}`,
-  );
+    if (
+      eventType === 'plexica.workspace.created' &&
+      typeof workspaceId === 'string'
+    ) {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
 
-  if (eventType === "plexica.workspace.created" && typeof workspaceId === "string") {
-    const now = new Date().toISOString();
-    const pipeline: Deal = {
-      id: crypto.randomUUID(),
-      workspaceId,
-      contactId: "",
-      title: "Default Pipeline",
-      value: 0,
-      stage: "new",
-      createdAt: now,
-      updatedAt: now,
-    };
+      await query(
+        `INSERT INTO crm_deals (id, workspace_id, contact_id, title, value, stage, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, workspaceId, null, 'Default Pipeline', 0, 'new', now, now],
+      );
 
-    if (!dealsStore.has(workspaceId)) {
-      dealsStore.set(workspaceId, new Map());
+      logger.info(
+        { workspaceId },
+        'Created default pipeline for workspace',
+      );
     }
-    dealsStore.get(workspaceId)!.set(pipeline.id, pipeline);
-    console.log(`[event] created default pipeline for workspace ${workspaceId}`);
-  }
 
-  res.status(200).json({ received: true });
-});
-
-export default router;
+    return { received: true };
+  });
+}

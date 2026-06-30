@@ -37,25 +37,27 @@ async function setCache(installId: string, workspaceId: string, visible: boolean
   }
 }
 
+const MAX_SCAN_KEYS = 1000;
+
 async function invalidateCache(installId?: string): Promise<void> {
   try {
-    if (installId) {
-      // Scan and delete keys matching the installId prefix
-      let cursor = '0';
-      do {
-        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${CACHE_PREFIX}${installId}:*`, 'COUNT', 100);
-        cursor = nextCursor;
-        if (keys.length > 0) await redis.del(...keys);
-      } while (cursor !== '0');
-    } else {
-      // Clear all visibility cache keys
-      let cursor = '0';
-      do {
-        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${CACHE_PREFIX}*`, 'COUNT', 100);
-        cursor = nextCursor;
-        if (keys.length > 0) await redis.del(...keys);
-      } while (cursor !== '0');
-    }
+    const pattern = installId ? `${CACHE_PREFIX}${installId}:*` : `${CACHE_PREFIX}*`;
+    let cursor = '0';
+    let totalKeys = 0;
+    const pipeline = redis.pipeline();
+
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      totalKeys += keys.length;
+      if (keys.length > 0) pipeline.del(...keys);
+      if (totalKeys >= MAX_SCAN_KEYS) {
+        logger.warn({ installId, totalKeys, maxLimit: MAX_SCAN_KEYS }, 'Visibility cache scan hit MAX_KEYS limit — remaining keys will expire via TTL');
+        break;
+      }
+    } while (cursor !== '0');
+
+    if (totalKeys > 0) await pipeline.exec();
   } catch {
     // Non-blocking — stale cache will expire via TTL
   }

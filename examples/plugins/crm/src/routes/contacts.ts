@@ -1,125 +1,143 @@
-import { Router, type Request, type Response } from "express";
-import crypto from "node:crypto";
-import { contactsStore, type Contact } from "../stores.js";
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import crypto from 'node:crypto';
+import { query, queryOne } from '../db.js';
+import type { Contact } from '../stores.js';
 
-const router = Router();
+interface ContactRow {
+  id: string;
+  workspace_id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
-function getWorkspaceId(req: Request): string {
-  const id = req.headers["x-plexica-workspace-id"];
-  if (typeof id !== "string" || !id) {
-    throw new Error("Missing X-Plexica-Workspace-Id header");
+function toContact(row: unknown): Contact {
+  const r = row as ContactRow;
+  return {
+    id: r.id,
+    workspaceId: r.workspace_id,
+    name: r.name,
+    email: r.email,
+    phone: r.phone,
+    notes: r.notes,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function getWorkspaceId(request: FastifyRequest): string {
+  const id = request.headers['x-plexica-workspace-id'];
+  if (typeof id !== 'string' || !id) {
+    throw new Error('Missing X-Plexica-Workspace-Id header');
   }
   return id;
 }
 
-function getWorkspaceStore(workspaceId: string): Map<string, Contact> {
-  if (!contactsStore.has(workspaceId)) {
-    contactsStore.set(workspaceId, new Map());
-  }
-  return contactsStore.get(workspaceId)!;
-}
+export default async function contactsRoutes(fastify: FastifyInstance) {
+  fastify.get('/', async (request) => {
+    const workspaceId = getWorkspaceId(request);
+    const rows = await query(
+      'SELECT * FROM crm_contacts WHERE workspace_id = $1 ORDER BY created_at DESC',
+      [workspaceId],
+    );
+    return rows.map(toContact);
+  });
 
-router.get("/", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    const contacts = Array.from(store.values());
-    res.json(contacts);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+  fastify.post<{
+    Body: { name: string; email?: string; phone?: string; notes?: string };
+  }>('/', async (request, reply) => {
+    const workspaceId = getWorkspaceId(request);
+    const { name, email, phone, notes } = request.body;
 
-router.post("/", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const { name, email, phone, notes } = req.body;
-
-    if (!name || typeof name !== "string") {
-      res.status(400).json({ error: "Name is required" });
-      return;
+    if (!name || typeof name !== 'string') {
+      return reply.status(400).send({ error: 'Name is required' });
     }
 
+    const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const contact: Contact = {
-      id: crypto.randomUUID(),
-      workspaceId,
-      name,
-      email: email ?? "",
-      phone: phone ?? "",
-      notes: notes ?? "",
-      createdAt: now,
-      updatedAt: now,
-    };
+    const [row] = await query(
+      `INSERT INTO crm_contacts (id, workspace_id, name, email, phone, notes, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [id, workspaceId, name, email ?? null, phone ?? null, notes ?? null, now, now],
+    );
 
-    const store = getWorkspaceStore(workspaceId);
-    store.set(contact.id, contact);
-    res.status(201).json(contact);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+    return reply.status(201).send(toContact(row));
+  });
 
-router.get("/:id", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    const contact = store.get(req.params.id!);
+  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const workspaceId = getWorkspaceId(request);
+    const row = await queryOne(
+      'SELECT * FROM crm_contacts WHERE id = $1 AND workspace_id = $2',
+      [request.params.id, workspaceId],
+    );
 
-    if (!contact) {
-      res.status(404).json({ error: "Contact not found" });
-      return;
+    if (!row) {
+      return reply.status(404).send({ error: 'Contact not found' });
     }
 
-    res.json(contact);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+    return toContact(row);
+  });
 
-router.put("/:id", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    const existing = store.get(req.params.id!);
+  fastify.put<{
+    Params: { id: string };
+    Body: { name?: string; email?: string; phone?: string; notes?: string };
+  }>('/:id', async (request, reply) => {
+    const workspaceId = getWorkspaceId(request);
+    const existing = await queryOne(
+      'SELECT * FROM crm_contacts WHERE id = $1 AND workspace_id = $2',
+      [request.params.id, workspaceId],
+    );
 
     if (!existing) {
-      res.status(404).json({ error: "Contact not found" });
-      return;
+      return reply.status(404).send({ error: 'Contact not found' });
     }
 
-    const { name, email, phone, notes } = req.body;
-    const updated: Contact = {
-      ...existing,
-      name: name ?? existing.name,
-      email: email ?? existing.email,
-      phone: phone ?? existing.phone,
-      notes: notes ?? existing.notes,
-      updatedAt: new Date().toISOString(),
-    };
+    const { name, email, phone, notes } = request.body;
+    const now = new Date().toISOString();
+    const r = existing as unknown as ContactRow;
 
-    store.set(updated.id, updated);
-    res.json(updated);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+    const [row] = await query(
+      `UPDATE crm_contacts
+       SET name = $1, email = $2, phone = $3, notes = $4, updated_at = $5
+       WHERE id = $6 AND workspace_id = $7
+       RETURNING *`,
+      [
+        name ?? r.name,
+        email !== undefined ? email : r.email,
+        phone !== undefined ? phone : r.phone,
+        notes !== undefined ? notes : r.notes,
+        now,
+        request.params.id,
+        workspaceId,
+      ],
+    );
 
-router.delete("/:id", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
+    return toContact(row);
+  });
 
-    if (!store.has(req.params.id!)) {
-      res.status(404).json({ error: "Contact not found" });
-      return;
-    }
+  fastify.delete<{ Params: { id: string } }>(
+    '/:id',
+    async (request, reply) => {
+      const workspaceId = getWorkspaceId(request);
+      const existing = await queryOne(
+        'SELECT id FROM crm_contacts WHERE id = $1 AND workspace_id = $2',
+        [request.params.id, workspaceId],
+      );
 
-    store.delete(req.params.id!);
-    res.status(204).send();
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+      if (!existing) {
+        return reply.status(404).send({ error: 'Contact not found' });
+      }
 
-export default router;
+      await query(
+        'DELETE FROM crm_contacts WHERE id = $1 AND workspace_id = $2',
+        [request.params.id, workspaceId],
+      );
+
+      return reply.status(204).send();
+    },
+  );
+}

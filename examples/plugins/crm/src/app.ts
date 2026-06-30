@@ -1,18 +1,16 @@
-import express from "express";
-import cors from "cors";
-import contactsRouter from "./routes/contacts.js";
-import dealsRouter from "./routes/deals.js";
-import eventsRouter from "./routes/events.js";
-import healthRouter from "./health.js";
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import contactsRoutes from './routes/contacts.js';
+import dealsRoutes from './routes/deals.js';
+import eventsRoutes from './routes/events.js';
+import healthRoutes from './health.js';
 
-const app = express();
+const app = Fastify();
 
-app.use(cors());
-app.use(express.json());
-
-app.use("/contacts", contactsRouter);
-app.use("/deals", dealsRouter);
-app.use("/_plexica/event", eventsRouter);
-app.use("/_plexica", healthRouter);
+await app.register(cors);
+await app.register(contactsRoutes, { prefix: '/contacts' });
+await app.register(dealsRoutes, { prefix: '/deals' });
+await app.register(eventsRoutes, { prefix: '/_plexica/event' });
+await app.register(healthRoutes, { prefix: '/_plexica' });
 
 export default app;

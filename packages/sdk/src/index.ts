@@ -114,18 +114,17 @@ export class PluginSDK {
 
   /**
    * Returns a database connection scoped to the plugin's declared tables.
-   * In the platform runtime, this returns a Prisma client restricted to
-   * the tenant schema with table-level permissions (DR-18 / AC-07).
    *
-   * Outside the platform runtime, this throws — use callApi() for data operations.
+   * **Platform runtime**: returns a PrismaClient instance restricted to the
+   * tenant schema with table-level permissions (DR-18 / AC-07, ADR-017).
+   *
+   * **Non-platform environments**: throws an error. Use `callApi()` for data
+   * operations during local development or testing.
+   *
+   * @throws {Error} if called outside the Plexica platform runtime
    */
   async getDb(): Promise<unknown> {
-    // NOTE: In the platform runtime, this would return a Prisma client scoped
-    // to the tenant schema with the plugin's declared tables.
-    // Implementation requires PostgreSQL role-based permissions (ADR-017).
-    // For now, plugins should use callApi() for data operations.
-    const { default: prisma } = await import('@prisma/client');
-    return prisma;
+    throw new Error('getDb() requires the platform runtime. Use callApi() for development.');
   }
 
   /**

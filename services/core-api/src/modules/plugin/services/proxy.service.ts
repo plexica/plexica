@@ -17,7 +17,10 @@ const ALLOWED_RESPONSE_HEADERS = new Set([
   'x-request-id', 'x-correlation-id',
 ]);
 
-// Only forward tenant context headers for known-safe host patterns
+// Only forward tenant context headers for known-safe host patterns.
+// Plugin containers are on the same Docker network; host access is via Docker
+// networking (DNS names like host.docker.internal), not arbitrary URLs.
+// Docker bridge network IPs (172.x, etc.) are resolved via Docker DNS names.
 const ALLOWED_PROXY_HOSTS = ['localhost', '127.0.0.1', 'host.docker.internal'];
 
 interface ProxyTarget {

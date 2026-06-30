@@ -2,8 +2,8 @@
 // Strategy pattern: Docker sidecar (dev/CI) + Kubernetes (prod).
 // Dev mode (§10.7) bypasses containers entirely — uses local processes.
 
-import { config } from '../../../lib/config.js';
-import { PluginInstallError, PluginBackendUnreachableError } from '../errors.js';
+import { logger } from '../../../lib/logger.js';
+import { PluginInstallError, PluginBackendUnreachableError, PluginNotFoundError } from '../errors.js';
 
 import type { Manifest } from '../schema/manifest.js';
 
@@ -23,10 +23,8 @@ export interface ContainerStatus {
   port?: number;
 }
 
-// Track plugin ports per installId (set at container creation, used in status lookups)
 const pluginPorts = new Map<string, number>();
 
-// Store port for later use by getContainerStatus
 function setPluginPort(installId: string, port: number): void {
   pluginPorts.set(installId, port);
 }
@@ -39,6 +37,7 @@ export interface ContainerManager {
   startContainer(installId: string, manifest: Manifest): Promise<ContainerInfo>;
   stopContainer(installId: string): Promise<void>;
   getContainerStatus(installId: string): Promise<ContainerStatus>;
+  getContainerUrl(installId: string): Promise<string>;
   restartContainer(installId: string): Promise<void>;
 }
 
@@ -93,26 +92,29 @@ export class DockerContainerManager implements ContainerManager {
     const portBinding = inspect.NetworkSettings.Ports?.[`${manifest.hosting.port}/tcp`]?.[0];
     const port = portBinding ? parseInt(portBinding.HostPort, 10) : manifest.hosting.port;
 
-    // Store the port for later use by getContainerStatus
     setPluginPort(installId, port);
 
-    return {
-      containerId: container.id,
-      port,
-      startedAt: new Date(),
-    };
+    try {
+      const { prisma } = await import('../../../lib/database.js');
+      await prisma.pluginContainerConfig.upsert({
+        where: { installId },
+        create: { installId, image, port },
+        update: { port },
+      });
+    } catch (err) {
+      logger.warn({ err, installId, port }, 'Failed to persist container port to DB');
+    }
+
+    return { containerId: container.id, port, startedAt: new Date() };
   }
 
   async stopContainer(installId: string): Promise<void> {
     try {
       const container = this.docker.getContainer(`plexica-plugin-${installId}`);
-      await container.stop({ t: 10 }); // 10s timeout for graceful stop
+      await container.stop({ t: 10 });
     } catch (err: unknown) {
       const msg = (err as Error)?.message ?? '';
-      // Ignore "already stopped" or "not found" errors
-      if (!msg.includes('already stopped') && !msg.includes('not found')) {
-        throw err;
-      }
+      if (!msg.includes('already stopped') && !msg.includes('not found')) throw err;
     } finally {
       clearPluginPort(installId);
     }
@@ -127,10 +129,19 @@ export class DockerContainerManager implements ContainerManager {
       const health: HealthStatus =
         inspect.State.Health?.Status === 'healthy' ? 'healthy' : state === 'running' ? 'degraded' : 'unreachable';
 
-      // Use dynamically stored port (set at container creation from manifest)
-      // Falls back to hardcoded 3000 for backward compatibility
-      const port = getPluginPort(installId) ?? 3000;
-      const portBinding = inspect.NetworkSettings.Ports?.[`${port}/tcp`]?.[0];
+      let port = getPluginPort(installId);
+      if (port === undefined) {
+        try {
+          const { prisma } = await import('../../../lib/database.js');
+          const cfg = await prisma.pluginContainerConfig.findUnique({ where: { installId }, select: { port: true } });
+          if (cfg?.port != null) {
+            port = cfg.port;
+            setPluginPort(installId, port);
+          }
+        } catch { /* DB unavailable — use fallback */ }
+      }
+      const probePort = port ?? 3000;
+      const portBinding = inspect.NetworkSettings.Ports?.[`${probePort}/tcp`]?.[0];
 
       const status: ContainerStatus = { state, health };
       if (inspect.State.StartedAt) status.startedAt = new Date(inspect.State.StartedAt);
@@ -141,68 +152,34 @@ export class DockerContainerManager implements ContainerManager {
     }
   }
 
+  async getContainerUrl(installId: string): Promise<string> {
+    const status = await this.getContainerStatus(installId);
+    if (status.state === 'not_found') throw new PluginNotFoundError(`Installation ${installId}`);
+    if (!status.port) throw new PluginNotFoundError(`Installation ${installId} has no port`);
+    return `http://localhost:${status.port}`;
+  }
+
   async restartContainer(installId: string): Promise<void> {
     try {
       const container = this.docker.getContainer(`plexica-plugin-${installId}`);
       await container.restart();
     } catch (err: unknown) {
-      const msg = (err as Error)?.message ?? '';
-      if (!msg.includes('not found')) {
+      if (!(err as Error)?.message?.includes('not found')) {
         throw new PluginBackendUnreachableError(installId);
       }
     }
   }
 }
 
-// Clean up port tracking on container stop
 export function clearPluginPort(installId: string): void {
   pluginPorts.delete(installId);
 }
 
-/**
- * Factory — returns the correct strategy based on hosting type.
- */
+import { KubernetesContainerManager } from './kubernetes-container-manager.js';
+
 export function createContainerManager(hostingType: string): ContainerManager {
-  if (hostingType === 'kubernetes') {
-    return new KubernetesContainerManager();
-  }
+  if (hostingType === 'kubernetes') return new KubernetesContainerManager();
   return new DockerContainerManager();
 }
-
-/**
- * Kubernetes implementation — placeholder for production use.
- */
-class KubernetesContainerManager implements ContainerManager {
-  async startContainer(_installId: string, _manifest: Manifest): Promise<ContainerInfo> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI. ' +
-        'Kubernetes support requires deployment in a Kubernetes cluster.'
-    );
-  }
-
-  async stopContainer(_installId: string): Promise<void> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI.'
-    );
-  }
-
-  async getContainerStatus(_installId: string): Promise<ContainerStatus> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI.'
-    );
-  }
-
-  async restartContainer(_installId: string): Promise<void> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI.'
-    );
-  }
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 import { parseMemory, parseCpu } from './container-helpers.js';

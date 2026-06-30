@@ -59,6 +59,7 @@ model PluginContainerConfig {
   installId      String    @unique @map("install_id") @db.Uuid
   type           String    @default("sidecar") @db.VarChar(16)
   image          String    @db.VarChar(512)
+  port           Int?
   imagePullSecret String?  @map("image_pull_secret")
   resourceLimits Json      @default("{}") @map("resource_limits")
   envOverrides   Json      @default("{}") @map("env_overrides")

@@ -33,16 +33,7 @@ export async function proxyRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const containerManager = createContainerManager(installation.hostingType);
-      const status = await containerManager.getContainerStatus(installId);
-
-      if (status.state === 'not_found') {
-        throw new PluginNotFoundError(`Installation ${installId}`);
-      }
-      if (status.port === undefined) {
-        throw new PluginNotFoundError(`Installation ${installId} has no port`);
-      }
-
-      return proxyRequest(request, reply, { baseUrl: `http://localhost:${status.port}`, installId });
+      return proxyRequest(request, reply, { baseUrl: await containerManager.getContainerUrl(installId), installId });
     }
   );
 }

@@ -1,7 +1,12 @@
-import app from "./app.js";
+import app from './app.js';
+import logger from './logger.js';
 
-const port = process.env["PORT"] ?? "3000";
+const port = Number(process.env['PORT']) || 3000;
 
-app.listen(port, () => {
-  console.log(`CRM plugin backend running on port ${port}`);
-});
+try {
+  await app.listen({ port, host: '0.0.0.0' });
+  logger.info({ port }, 'CRM plugin backend started');
+} catch (err) {
+  logger.error(err, 'Failed to start server');
+  process.exit(1);
+}

@@ -1,135 +1,167 @@
-import { Router, type Request, type Response } from "express";
-import crypto from "node:crypto";
-import { dealsStore, type Deal } from "../stores.js";
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import crypto from 'node:crypto';
+import { query, queryOne } from '../db.js';
+import type { Deal } from '../stores.js';
 
-const router = Router();
+interface DealRow {
+  id: string;
+  workspace_id: string;
+  contact_id: string | null;
+  title: string;
+  value: unknown;
+  stage: string;
+  created_at: string;
+  updated_at: string;
+}
 
-function getWorkspaceId(req: Request): string {
-  const id = req.headers["x-plexica-workspace-id"];
-  if (typeof id !== "string" || !id) {
-    throw new Error("Missing X-Plexica-Workspace-Id header");
+function toDeal(row: unknown): Deal {
+  const r = row as DealRow;
+  return {
+    id: r.id,
+    workspaceId: r.workspace_id,
+    contactId: r.contact_id,
+    title: r.title,
+    value: Number(r.value),
+    stage: r.stage,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function getWorkspaceId(request: FastifyRequest): string {
+  const id = request.headers['x-plexica-workspace-id'];
+  if (typeof id !== 'string' || !id) {
+    throw new Error('Missing X-Plexica-Workspace-Id header');
   }
   return id;
 }
 
-function getWorkspaceStore(workspaceId: string): Map<string, Deal> {
-  if (!dealsStore.has(workspaceId)) {
-    dealsStore.set(workspaceId, new Map());
-  }
-  return dealsStore.get(workspaceId)!;
-}
+export default async function dealsRoutes(fastify: FastifyInstance) {
+  fastify.get('/', async (request) => {
+    const workspaceId = getWorkspaceId(request);
+    const rows = await query(
+      'SELECT * FROM crm_deals WHERE workspace_id = $1 ORDER BY created_at DESC',
+      [workspaceId],
+    );
+    return rows.map(toDeal);
+  });
 
-router.get("/", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    const deals = Array.from(store.values());
-    res.json(deals);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+  fastify.post<{
+    Body: { title: string; value?: number; stage?: string; contactId?: string };
+  }>('/', async (request, reply) => {
+    const workspaceId = getWorkspaceId(request);
+    const { title, value, stage, contactId } = request.body;
 
-router.post("/", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const { title, value, stage, contactId } = req.body;
-
-    if (!title || typeof title !== "string") {
-      res.status(400).json({ error: "Title is required" });
-      return;
+    if (!title || typeof title !== 'string') {
+      return reply.status(400).send({ error: 'Title is required' });
     }
 
+    const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const deal: Deal = {
-      id: crypto.randomUUID(),
-      workspaceId,
-      contactId: contactId ?? "",
-      title,
-      value: typeof value === "number" ? value : 0,
-      stage: stage ?? "new",
-      createdAt: now,
-      updatedAt: now,
-    };
+    const [row] = await query(
+      `INSERT INTO crm_deals (id, workspace_id, contact_id, title, value, stage, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        id,
+        workspaceId,
+        contactId ?? null,
+        title,
+        value ?? 0,
+        stage ?? 'new',
+        now,
+        now,
+      ],
+    );
 
-    const store = getWorkspaceStore(workspaceId);
-    store.set(deal.id, deal);
-    res.status(201).json(deal);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+    return reply.status(201).send(toDeal(row));
+  });
 
-router.get("/:id", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    const deal = store.get(req.params.id!);
+  fastify.get('/count', async (request) => {
+    const workspaceId = getWorkspaceId(request);
+    const rows = await query(
+      'SELECT COUNT(*)::int AS count FROM crm_deals WHERE workspace_id = $1',
+      [workspaceId],
+    );
+    const countValue = rows[0] as { count: number } | undefined;
+    return { count: countValue?.count ?? 0 };
+  });
 
-    if (!deal) {
-      res.status(404).json({ error: "Deal not found" });
-      return;
+  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const workspaceId = getWorkspaceId(request);
+    const row = await queryOne(
+      'SELECT * FROM crm_deals WHERE id = $1 AND workspace_id = $2',
+      [request.params.id, workspaceId],
+    );
+
+    if (!row) {
+      return reply.status(404).send({ error: 'Deal not found' });
     }
 
-    res.json(deal);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+    return toDeal(row);
+  });
 
-router.get("/count", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    res.json({ count: store.size });
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
-
-router.put("/:id", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
-    const existing = store.get(req.params.id!);
+  fastify.put<{
+    Params: { id: string };
+    Body: {
+      title?: string;
+      value?: number;
+      stage?: string;
+      contactId?: string;
+    };
+  }>('/:id', async (request, reply) => {
+    const workspaceId = getWorkspaceId(request);
+    const existing = await queryOne(
+      'SELECT * FROM crm_deals WHERE id = $1 AND workspace_id = $2',
+      [request.params.id, workspaceId],
+    );
 
     if (!existing) {
-      res.status(404).json({ error: "Deal not found" });
-      return;
+      return reply.status(404).send({ error: 'Deal not found' });
     }
 
-    const { title, value, stage, contactId } = req.body;
-    const updated: Deal = {
-      ...existing,
-      title: title ?? existing.title,
-      value: value !== undefined ? value : existing.value,
-      stage: stage ?? existing.stage,
-      contactId: contactId ?? existing.contactId,
-      updatedAt: new Date().toISOString(),
-    };
+    const { title, value, stage, contactId } = request.body;
+    const now = new Date().toISOString();
+    const r = existing as unknown as DealRow;
 
-    store.set(updated.id, updated);
-    res.json(updated);
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+    const [row] = await query(
+      `UPDATE crm_deals
+       SET title = $1, value = $2, stage = $3, contact_id = $4, updated_at = $5
+       WHERE id = $6 AND workspace_id = $7
+       RETURNING *`,
+      [
+        title ?? r.title,
+        value !== undefined ? value : Number(r.value),
+        stage ?? r.stage,
+        contactId !== undefined ? contactId : r.contact_id,
+        now,
+        request.params.id,
+        workspaceId,
+      ],
+    );
 
-router.delete("/:id", (req: Request, res: Response) => {
-  try {
-    const workspaceId = getWorkspaceId(req);
-    const store = getWorkspaceStore(workspaceId);
+    return toDeal(row);
+  });
 
-    if (!store.has(req.params.id!)) {
-      res.status(404).json({ error: "Deal not found" });
-      return;
-    }
+  fastify.delete<{ Params: { id: string } }>(
+    '/:id',
+    async (request, reply) => {
+      const workspaceId = getWorkspaceId(request);
+      const existing = await queryOne(
+        'SELECT id FROM crm_deals WHERE id = $1 AND workspace_id = $2',
+        [request.params.id, workspaceId],
+      );
 
-    store.delete(req.params.id!);
-    res.status(204).send();
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
+      if (!existing) {
+        return reply.status(404).send({ error: 'Deal not found' });
+      }
 
-export default router;
+      await query(
+        'DELETE FROM crm_deals WHERE id = $1 AND workspace_id = $2',
+        [request.params.id, workspaceId],
+      );
+
+      return reply.status(204).send();
+    },
+  );
+}

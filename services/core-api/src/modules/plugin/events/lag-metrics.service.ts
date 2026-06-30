@@ -42,13 +42,13 @@ export function clearLagMetrics(installId: string): void {
 
 /**
  * Starts periodic lag reporting for a consumer group.
- * In a full implementation, this would use KafkaJS admin.describeConsumerGroups().
- * For Phase 4, we provide the interface for future implementation.
+ * TODO: Implement Kafka consumer lag polling using admin.describeConsumerGroups().
+ * The Prometheus gauge plexica_plugin_consumer_lag already exists — once implemented,
+ * call updateLag() with the results from each group to keep the gauge current.
  */
 export function startLagMonitoring(installId: string, intervalMs = 30_000): void {
   logger.info({ installId, intervalMs }, 'Lag monitoring started');
-  // Full implementation: poll KafkaJS admin.describeConsumerGroups() every intervalMs
-  // and call updateLag() with the results.
+  // TODO: Implement Kafka consumer lag polling with admin.describeConsumerGroups()
 }
 
 export function stopLagMonitoring(installId: string): void {

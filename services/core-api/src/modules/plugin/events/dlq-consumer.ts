@@ -12,24 +12,41 @@ const CONSUMER_GROUP_ID = 'plexica-dlq-consumer';
 let consumer: ReturnType<typeof createConsumer> | null = null;
 let isRunning = false;
 
+async function persistDlqEntry(data: {
+  eventType: string;
+  payload: unknown;
+  pluginId: string;
+  errorMessage: string;
+  retryCount: number;
+}): Promise<void> {
+  const { prisma } = await import('../../../lib/database.js');
+  await prisma.deadLetterQueue.create({
+    data: {
+      eventType: data.eventType,
+      payload: data.payload,
+      pluginId: data.pluginId,
+      errorMessage: data.errorMessage,
+      retryCount: data.retryCount,
+      status: 'pending',
+      failedAt: new Date(),
+    },
+  });
+}
+
 export async function startDlqConsumer(): Promise<void> {
   if (isRunning) return;
 
   consumer = createConsumer(CONSUMER_GROUP_ID, [DLQ_TOPIC], async (topic, payload) => {
     try {
-      const { prisma } = await import('../../../lib/database.js');
-      await prisma.deadLetterQueue.create({
-        data: {
-          eventType: (payload as Record<string, unknown>).eventType as string ?? topic,
-          payload: (payload as Record<string, unknown>).payload ?? payload,
-          pluginId: (payload as Record<string, unknown>).pluginId as string ?? 'unknown',
-          errorMessage: (payload as Record<string, unknown>).errorMessage as string ?? 'Unknown error',
-          retryCount: ((payload as Record<string, unknown>).retryCount as number) ?? 0,
-          status: 'pending',
-          failedAt: new Date(),
-        },
+      const typed = payload as Record<string, unknown>;
+      await persistDlqEntry({
+        eventType: (typed.eventType as string) ?? topic,
+        payload: typed.payload ?? payload,
+        pluginId: (typed.pluginId as string) ?? 'unknown',
+        errorMessage: (typed.errorMessage as string) ?? 'Unknown error',
+        retryCount: (typed.retryCount as number) ?? 0,
       });
-      logger.debug({ topic, eventType: payload.eventType }, 'DLQ entry persisted to DB');
+      logger.debug({ topic, eventType: typed.eventType }, 'DLQ entry persisted to DB');
     } catch (err) {
       logger.error({ err, topic }, 'Failed to persist DLQ entry to DB');
     }
@@ -42,17 +59,12 @@ export async function startDlqConsumer(): Promise<void> {
       eachMessage: async ({ topic, message }) => {
         try {
           const payload = JSON.parse(message.value?.toString() ?? '{}');
-          const { prisma } = await import('../../../lib/database.js');
-          await prisma.deadLetterQueue.create({
-            data: {
-              eventType: (payload.eventType as string) ?? topic,
-              payload: payload.payload ?? payload,
-              pluginId: (payload.pluginId as string) ?? 'unknown',
-              errorMessage: (payload.errorMessage as string) ?? 'Unknown error',
-              retryCount: (payload.retryCount as number) ?? 0,
-              status: 'pending',
-              failedAt: new Date(),
-            },
+          await persistDlqEntry({
+            eventType: (payload.eventType as string) ?? topic,
+            payload: payload.payload ?? payload,
+            pluginId: (payload.pluginId as string) ?? 'unknown',
+            errorMessage: (payload.errorMessage as string) ?? 'Unknown error',
+            retryCount: (payload.retryCount as number) ?? 0,
           });
           logger.info({ eventType: payload.eventType, pluginId: payload.pluginId }, 'DLQ event persisted to DB');
         } catch (err) {

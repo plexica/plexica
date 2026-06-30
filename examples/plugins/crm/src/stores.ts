@@ -2,9 +2,9 @@ export interface Contact {
   id: string;
   workspaceId: string;
   name: string;
-  email: string;
-  phone: string;
-  notes: string;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -12,13 +12,10 @@ export interface Contact {
 export interface Deal {
   id: string;
   workspaceId: string;
-  contactId: string;
+  contactId: string | null;
   title: string;
   value: number;
   stage: string;
   createdAt: string;
   updatedAt: string;
 }
-
-export const contactsStore = new Map<string, Map<string, Contact>>();
-export const dealsStore = new Map<string, Map<string, Deal>>();

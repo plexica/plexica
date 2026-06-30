@@ -38,7 +38,7 @@ export const manifestSchema = z.object({
   version: z.string().regex(semverRegex, 'Version must be semver (x.y.z)'),
   description: z.string().min(1).max(1000),
   author: z.string().min(1).max(255),
-  icon: z.string().optional(),
+  icon: z.string().min(1),
   categories: z.array(z.string()).default([]),
   hosting: hostingSchema,
   ui: z

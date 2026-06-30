@@ -34,6 +34,7 @@ export function PluginContextProvider({
 }): JSX.Element {
   const userProfile = useAuthStore((s) => s.userProfile);
   const tenantSlug = useAuthStore((s) => s.tenantSlug);
+  const tenantUuid = useAuthStore((s) => s.tenantUuid);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
 
   const value = useMemo<PluginContextValue>(() => {
@@ -43,14 +44,18 @@ export function PluginContextProvider({
       : userProfile?.roles.includes('member') ? 'member'
       : 'viewer';
 
+    // UUID is preferred for security (prevents tenant enumeration via slug guessing).
+    // Falls back to slug when UUID is not yet available (e.g. initial page load).
+    const tenantId = tenantUuid ?? tenantSlug ?? '';
+
     return {
-      tenantId: tenantSlug ?? '',
+      tenantId,
       userId: userProfile?.id ?? '',
       workspaceId: currentWorkspaceId,
       role,
       locale: 'en',
     };
-  }, [userProfile, tenantSlug, currentWorkspaceId]);
+  }, [userProfile, tenantSlug, tenantUuid, currentWorkspaceId]);
 
   return <PluginContext.Provider value={value}>{children}</PluginContext.Provider>;
 }

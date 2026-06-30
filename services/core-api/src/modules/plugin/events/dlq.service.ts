@@ -60,9 +60,7 @@ export async function retryDlqEntry(
   eventType: string,
   payload: Record<string, unknown>
 ): Promise<void> {
-  // Determine original topic from event type
-  const segment = eventType.split('.').slice(1).join('.');
-  const originalTopic = `plexica.${segment}`;
+  const originalTopic = eventType;
 
   await emitEvent(originalTopic, payload);
   logger.info({ eventType, originalTopic }, 'DLQ entry retried');

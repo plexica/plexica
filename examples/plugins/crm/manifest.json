@@ -21,12 +21,12 @@
     "subscribes": ["plexica.workspace.created"]
   },
   "actions": [
-    { "key": "crm:contact:create", "label": "Create Contact", "defaultRole": "member" },
-    { "key": "crm:contact:read", "label": "View Contacts", "defaultRole": "viewer" },
-    { "key": "crm:contact:update", "label": "Edit Contact", "defaultRole": "member" },
-    { "key": "crm:contact:delete", "label": "Delete Contact", "defaultRole": "admin" },
-    { "key": "crm:deal:read", "label": "View Deals", "defaultRole": "viewer" },
-    { "key": "crm:deal:create", "label": "Create Deal", "defaultRole": "member" }
+    { "action": "crm:contact:create", "label": "Create Contact", "defaultRole": "member" },
+    { "action": "crm:contact:read", "label": "View Contacts", "defaultRole": "viewer" },
+    { "action": "crm:contact:update", "label": "Edit Contact", "defaultRole": "member" },
+    { "action": "crm:contact:delete", "label": "Delete Contact", "defaultRole": "admin" },
+    { "action": "crm:deal:read", "label": "View Deals", "defaultRole": "viewer" },
+    { "action": "crm:deal:create", "label": "Create Deal", "defaultRole": "member" }
   ],
   "declaredTables": [
     { "name": "crm_contacts", "description": "Contact records", "migrationFile": "migrations/001_create_contacts.sql" },
