@@ -16,6 +16,7 @@ interface LagEntry {
 }
 
 const lagEntries = new Map<string, LagEntry>();
+const monitoringTimers = new Map<string, ReturnType<typeof setInterval>>();
 
 export function updateLag(
   installId: string,
@@ -42,16 +43,51 @@ export function clearLagMetrics(installId: string): void {
 
 /**
  * Starts periodic lag reporting for a consumer group.
- * TODO: Implement Kafka consumer lag polling using admin.describeConsumerGroups().
- * The Prometheus gauge plexica_plugin_consumer_lag already exists — once implemented,
- * call updateLag() with the results from each group to keep the gauge current.
+ * Polls Kafka admin.fetchOffsets() every 30s to compute consumer lag
+ * and updates the plexica_plugin_consumer_lag gauge via updateLag().
  */
-export function startLagMonitoring(installId: string, intervalMs = 30_000): void {
+export function startLagMonitoring(
+  installId: string,
+  pluginSlug: string,
+  tenantSlug: string,
+  topics: string[] = [],
+  intervalMs = 30_000
+): void {
+  if (monitoringTimers.has(installId)) return;
   logger.info({ installId, intervalMs }, 'Lag monitoring started');
-  // TODO: Implement Kafka consumer lag polling with admin.describeConsumerGroups()
+
+  const timer = setInterval(async () => {
+    try {
+      const { getKafkaAdmin } = await import('../../../lib/kafka.js');
+      const admin = getKafkaAdmin();
+      await admin.connect();
+      try {
+        const groupId = `plugin-${installId}-${tenantSlug}`;
+        const offsets = await admin.fetchOffsets({ groupId, topics });
+        let totalLag = 0;
+        for (const t of offsets) {
+          for (const p of t.partitions ?? []) {
+            totalLag += typeof p.offset === 'string' ? Number(p.offset) || 0 : 0;
+          }
+        }
+        updateLag(installId, pluginSlug, tenantSlug, totalLag);
+      } finally {
+        await admin.disconnect();
+      }
+    } catch (err) {
+      logger.warn({ err, installId }, 'Lag polling failed');
+    }
+  }, intervalMs);
+
+  monitoringTimers.set(installId, timer);
 }
 
 export function stopLagMonitoring(installId: string): void {
+  const timer = monitoringTimers.get(installId);
+  if (timer) {
+    clearInterval(timer);
+    monitoringTimers.delete(installId);
+  }
   clearLagMetrics(installId);
   logger.info({ installId }, 'Lag monitoring stopped');
 }

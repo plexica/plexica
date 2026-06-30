@@ -37,16 +37,6 @@ paths:
         "503":
           description: Plugin is not ready
 
-  /_plexica/ready:
-    get:
-      summary: Readiness probe (separate from liveness)
-      operationId: ready
-      responses:
-        "200":
-          description: Plugin is ready
-        "503":
-          description: Plugin is not ready (still initializing)
-
   /_plexica/event:
     post:
       summary: Receive an event from the core platform

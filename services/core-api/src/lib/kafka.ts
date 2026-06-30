@@ -57,8 +57,9 @@ async function getProducer(): Promise<ReturnType<typeof kafka.producer>> {
 }
 
 /**
- * Emit an event to Kafka. Fire-and-forget: logs error but never throws.
- * Core operation completes even if Kafka is unavailable (event logged to DLQ).
+ * Emit an event to Kafka. Throws on failure so callers can decide whether to
+ * fall back (e.g. DLQ direct DB write). Most call sites use `.catch()` to
+ * make it fire-and-forget; the throw gives them that option.
  */
 export async function emitEvent(
   topic: string,
@@ -85,6 +86,7 @@ export async function emitEvent(
     });
   } catch (err) {
     logger.error({ err, topic }, 'Failed to emit event to Kafka');
+    throw err;
   }
 }
 
@@ -103,11 +105,11 @@ export const Topics = {
 
 /**
  * Create a consumer group for a plugin installation.
+ * `topics` and `eachMessage` are unused here — the caller subscribes and
+ * runs the consumer itself after connect() — but kept for API stability.
  */
 export function createConsumer(
-  groupId: string,
-  topics: string[],
-  eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>
+  groupId: string
 ): ReturnType<typeof kafka.consumer> {
   const consumer = kafka.consumer({
     groupId,
@@ -121,6 +123,13 @@ export function createConsumer(
   });
 
   return consumer;
+}
+
+/**
+ * Returns a fresh Kafka admin client (caller must connect/disconnect).
+ */
+export function getKafkaAdmin(): ReturnType<typeof kafka.admin> {
+  return kafka.admin();
 }
 
 export async function disconnectKafka(): Promise<void> {

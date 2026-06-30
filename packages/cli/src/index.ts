@@ -1,4 +1,5 @@
 // index.ts — CLI project generator for Plexica plugins.
+// CLI uses console.log intentionally — not subject to AGENTS.md production logging rule.
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -41,7 +42,7 @@ export async function run(options: Options): Promise<void> {
     writeFileSync(fullPath, render(content, slug, name));
   }
 
-  console.log(`\n✅ Plugin "${name}" created!\n`);
+  console.log(`\n[OK] Plugin "${name}" created!\n`);
   console.log('Next steps:');
   console.log(`  cd ${slug}`);
   console.log('  pnpm install');

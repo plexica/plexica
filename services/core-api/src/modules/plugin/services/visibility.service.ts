@@ -5,6 +5,8 @@
 import { logger } from '../../../lib/logger.js';
 import { redis } from '../../../lib/redis.js';
 
+import type { Prisma } from '../../../../generated/tenant-client/index.js';
+
 interface VisibilityRecord {
   installId: string;
   workspaceId: string;
@@ -67,8 +69,11 @@ async function invalidateCache(installId?: string): Promise<void> {
  * Returns whether a plugin is visible in a workspace.
  * Resolution: Redis cache → workspace override → tenant default → enabled.
  */
+// `tx` is a TenantPrismaClient transaction client (tenant schema) — the plugin
+// visibility models (pluginWorkspaceVisibility, pluginInstallation) live in the
+// tenant schema, so we use the tenant client's Prisma.TransactionClient type.
 export async function isPluginVisible(
-  tx: { pluginInstallation: { findUnique: Function }; pluginWorkspaceVisibility: { findUnique: Function } },
+  tx: Prisma.TransactionClient,
   installId: string,
   workspaceId: string
 ): Promise<boolean> {
@@ -100,7 +105,7 @@ export { invalidateCache as clearVisibilityCache };
  * Invalidates cache so subsequent reads get fresh data.
  */
 export async function setWorkspaceVisibility(
-  tx: { pluginWorkspaceVisibility: { upsert: Function } },
+  tx: Prisma.TransactionClient,
   installId: string,
   workspaceId: string,
   isEnabled: boolean,

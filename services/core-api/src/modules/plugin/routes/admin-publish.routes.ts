@@ -1,6 +1,7 @@
 // routes/admin-publish.routes.ts
 // Super admin publish/unpublish plugin endpoints.
 
+import { z } from 'zod';
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import {
@@ -12,13 +13,16 @@ import { PluginNotFoundError, PluginValidationError } from '../errors.js';
 import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 
+const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
+const slugParamSchema = z.object({ slug: z.string().regex(SLUG_REGEX) });
+
 export async function adminPublishRoutes(fastify: FastifyInstance): Promise<void> {
   // ── POST /api/v1/admin/plugins/:slug/publish ───────────────────────────────
   fastify.post(
     '/api/v1/admin/plugins/:slug/publish',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const { slug } = request.params as { slug: string };
+      const { slug } = slugParamSchema.parse(request.params);
 
       return withCoreDb((prisma) =>
         prisma.$transaction(async (tx: PrismaClient) => {
@@ -40,7 +44,7 @@ export async function adminPublishRoutes(fastify: FastifyInstance): Promise<void
     '/api/v1/admin/plugins/:slug/unpublish',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const { slug } = request.params as { slug: string };
+      const { slug } = slugParamSchema.parse(request.params);
 
       return withCoreDb((prisma) =>
         prisma.$transaction(async (tx: PrismaClient) => {

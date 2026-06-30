@@ -1,5 +1,6 @@
 // services/registry.service.ts
 // CRUD for core.plugins + core.plugin_versions.
+// TODO: Add GIN index on categories JSONB for marketplace search performance.
 
 import type { PrismaClient } from '@prisma/client';
 import { PluginNotFoundError, PluginConflictError } from '../errors.js';

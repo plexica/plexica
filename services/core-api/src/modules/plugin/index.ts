@@ -5,7 +5,10 @@ import { adminCatalogRoutes } from './routes/admin-catalog.routes.js';
 import { adminPublishRoutes } from './routes/admin-publish.routes.js';
 import { adminVersionsRoutes } from './routes/admin-versions.routes.js';
 import { dlqRoutes } from './routes/dlq.routes.js';
+import { kafkaStatusRoutes } from './routes/kafka-status.routes.js';
 import { devPluginRoutes } from './routes/dev.routes.js';
+import { eventEmitRoutes } from './routes/events.routes.js';
+import { marketplaceRoutes } from './routes/marketplace.routes.js';
 import { proxyRoutes } from './routes/proxy.routes.js';
 import { installRoutes } from './routes/lifecycle/install.routes.js';
 import { deactivateRoutes } from './routes/lifecycle/deactivate.routes.js';
@@ -30,10 +33,13 @@ export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void>
   await fastify.register(adminPublishRoutes);
   await fastify.register(adminVersionsRoutes);
   await fastify.register(dlqRoutes);
+  await fastify.register(kafkaStatusRoutes);
 }
 
 export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(devPluginRoutes);
+  await fastify.register(eventEmitRoutes);
+  await fastify.register(marketplaceRoutes);
   await fastify.register(proxyRoutes);
   await fastify.register(installRoutes);
   await fastify.register(deactivateRoutes);

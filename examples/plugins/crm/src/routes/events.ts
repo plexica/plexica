@@ -4,11 +4,21 @@ import { query } from '../db.js';
 import logger from '../logger.js';
 
 export default async function eventsRoutes(fastify: FastifyInstance) {
-  fastify.post('/', async (request) => {
-    const workspaceId = request.headers['x-plexica-workspace-id'];
+  fastify.post('/', async (request: FastifyRequest) => {
+    const headerWorkspaceId = request.headers['x-plexica-workspace-id'];
     const correlationId = request.headers['x-plexica-correlation-id'];
-    const body = request.body as { type?: string };
+    const body = request.body as {
+      type?: string;
+      payload?: { workspaceId?: string; id?: string };
+    };
     const eventType = body.type;
+
+    // The event-dispatcher sends workspaceId in the payload, not the header.
+    // Keep the header as fallback for direct calls.
+    const workspaceId =
+      body.payload?.workspaceId ??
+      body.payload?.id ??
+      (typeof headerWorkspaceId === 'string' ? headerWorkspaceId : undefined);
 
     logger.info(
       { eventType, workspaceId, correlationId },

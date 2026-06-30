@@ -102,7 +102,8 @@ export function PluginDetailSheet({
             <Button variant="secondary" className="mt-2" onClick={onClose} type="button"><FormattedMessage id="marketplace.close" /></Button>
           </div>
         </div>
-    </div>);}
+      </div>);
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
@@ -193,7 +194,6 @@ export function PluginDetailSheet({
             </div>
           </>
         ))}
-    )}
       </div>
     </div>
   );

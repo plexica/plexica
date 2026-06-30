@@ -3,6 +3,8 @@
 
 export interface PluginConfig {
   pluginId: string;
+  /** Plugin slug — used to namespace emitted events as `plugin.<slug>.<type>`. */
+  slug: string;
   tenantId: string;
   workspaceId?: string;
   /** @deprecated No longer required. SDK no longer connects to Kafka directly. Use apiUrl instead. */

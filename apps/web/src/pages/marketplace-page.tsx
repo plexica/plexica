@@ -7,6 +7,7 @@ import { Input, Pagination, Button } from '@plexica/ui';
 import { Package, SearchX } from 'lucide-react';
 
 import { usePublishedPlugins, useInstallPlugin, usePluginDetail } from '../hooks/use-plugins.js';
+import { useAbac } from '../hooks/use-abac.js';
 import { PluginCard } from '../components/plugins/plugin-card.js';
 import { PluginDetailSheet } from '../components/plugins/plugin-detail-sheet.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
@@ -26,6 +27,7 @@ const CATEGORIES = [
 
 export function MarketplacePage(): JSX.Element {
   const intl = useIntl();
+  const canManage = useAbac();
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -94,7 +96,11 @@ export function MarketplacePage(): JSX.Element {
           <FormattedMessage id="marketplace.title" />
         </h1>
         <div className="w-full sm:w-72">
+          <label htmlFor="marketplace-search" className="sr-only">
+            <FormattedMessage id="marketplace.search" />
+          </label>
           <Input
+            id="marketplace-search"
             placeholder={intl.formatMessage({ id: 'marketplace.search' })}
             value={searchInput}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearchInput(e.target.value)}
@@ -171,6 +177,7 @@ export function MarketplacePage(): JSX.Element {
                 key={plugin.id}
                 plugin={plugin}
                 isInstalling={installingSlugs.has(plugin.slug)}
+                canManage={canManage}
                 onInstall={handleInstall}
                 onShowDetail={(slug: string) => setSelectedSlug(slug)}
               />

@@ -44,7 +44,11 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
 
   constructor(props: Props) {
     super(props);
-    const persisted = getPersistedCrashCount(props.pluginSlug);
+    // Reset crash count on full page navigation (type 0) — only carry over the
+    // persisted count for in-app SPA remounts where no browser navigation occurred.
+    const nav = (performance as unknown as { navigation?: { type: number } }).navigation;
+    const isFullNavigation = typeof performance !== 'undefined' && nav?.type === 0;
+    const persisted = isFullNavigation ? 0 : getPersistedCrashCount(props.pluginSlug);
     this.state = { hasError: false, crashCount: persisted };
   }
 
@@ -61,7 +65,7 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
     if (import.meta.env.DEV) {
       console.warn(`[PluginSlot] "${this.props.pluginSlug}" crashed (${newCount}/${MAX_CRASHES}):`, error.message);
     } else {
-      console.error('[PluginError]', { slug: this.props.pluginSlug, error: error?.message, crashCount: newCount });
+      // In production, errors should be sent to a telemetry endpoint
     }
   }
 

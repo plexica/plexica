@@ -51,6 +51,11 @@ export async function validateManifest(
 
   // Step 3: Action key namespace check
   if (manifest.actions) {
+    const keys = manifest.actions.map((a) => a.action);
+    if (new Set(keys).size !== keys.length) {
+      errors.push('Duplicate action keys detected');
+    }
+
     for (const action of manifest.actions) {
       const parts = action.action.split(':');
       if (parts.length !== 3) {

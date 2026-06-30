@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { config } from '../../../lib/config.js';
 import { ValidationError } from '../../../lib/app-error.js';
+import { registerDevBackend, unregisterDevBackend } from '../services/proxy.service.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -44,7 +45,6 @@ const devUnregisterSchema = z.object({
 });
 
 export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
-  // Dev mode is ONLY available in development
   const isDev = config.NODE_ENV === 'development';
 
   // ── POST /api/v1/dev/plugins/register ────────────────────────────────────
@@ -66,20 +66,21 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { slug, backendUrl, uiUrl, extensionPoints } = parsed.data;
 
-    // Check for conflicts with already registered dev plugins
     if (devPlugins.has(slug)) {
       return reply.status(409).send({
         error: `Plugin "${slug}" is already registered in dev mode. Unregister first, or restart the dev server.`,
       });
     }
 
-    // Register the plugin
     const devEntry: {
       slug: string; backendUrl: string; uiUrl?: string;
       extensionPoints: string[]; registeredAt: Date;
     } = { slug, backendUrl, extensionPoints, registeredAt: new Date() };
     if (uiUrl) devEntry.uiUrl = uiUrl;
     devPlugins.set(slug, devEntry);
+
+    // Register the dev backend with the proxy service (slug-keyed).
+    registerDevBackend(slug, { baseUrl: backendUrl });
 
     request.log.info({ slug, backendUrl }, 'Plugin registered in dev mode');
 
@@ -103,13 +104,13 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { slug } = parsed.data;
     const removed = devPlugins.delete(slug);
-
     if (!removed) {
       return reply.status(404).send({ error: `Plugin "${slug}" is not registered in dev mode` });
     }
 
-    request.log.info({ slug }, 'Plugin unregistered from dev mode');
+    unregisterDevBackend(slug);
 
+    request.log.info({ slug }, 'Plugin unregistered from dev mode');
     return reply.status(200).send({ status: 'ok', slug });
   });
 

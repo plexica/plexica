@@ -39,7 +39,7 @@ export function PluginContextProvider({
 
   const value = useMemo<PluginContextValue>(() => {
     const role =
-      userProfile?.roles.includes('super_admin') ? 'admin'
+      userProfile?.roles.includes('super_admin') ? 'super_admin'
       : userProfile?.roles.includes('tenant_admin') ? 'admin'
       : userProfile?.roles.includes('member') ? 'member'
       : 'viewer';

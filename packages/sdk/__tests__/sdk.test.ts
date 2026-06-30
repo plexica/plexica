@@ -1,61 +1,175 @@
-// SDK unit tests
+// SDK unit tests — match the actual PluginSDK API.
+// The SDK no longer imports kafkajs (core manages Kafka); the dead mock is gone.
+// callApi / emitEvent are HTTP-backed, so we stub global fetch per test.
 
-import { describe, expect, it, vi } from 'vitest';
-
-// Mock kafkajs — use function declaration (not arrow) so `new Kafka()` works
-vi.mock('kafkajs', () => {
-  const mockConnect = vi.fn().mockResolvedValue(undefined);
-  const mockSend = vi.fn().mockResolvedValue(undefined);
-  const mockDisconnect = vi.fn().mockResolvedValue(undefined);
-  const mockSubscribe = vi.fn().mockResolvedValue(undefined);
-  const mockRun = vi.fn().mockResolvedValue(undefined);
-
-  return {
-    Kafka: vi.fn(function MockKafka() {
-      return {
-        producer: () => ({ connect: mockConnect, send: mockSend, disconnect: mockDisconnect }),
-        consumer: () => ({ connect: mockConnect, subscribe: mockSubscribe, run: mockRun, disconnect: mockDisconnect }),
-      };
-    }),
-    logLevel: { ERROR: 4, INFO: 2, DEBUG: 1, NOTHING: 5, WARN: 3 },
-  };
-});
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { PluginSDK } = await import('../src/index.js');
 
+import type { PluginEvent } from '../src/types.js';
+
+function makeEvent(type: string, payload: unknown = {}): PluginEvent {
+  return { type, payload, timestamp: new Date().toISOString(), correlationId: crypto.randomUUID() };
+}
+
+function mockFetchOk(): ReturnType<typeof vi.fn> {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: () => Promise.resolve(''),
+  } as unknown as Response);
+}
+
 describe('PluginSDK', () => {
-  it('constructs with config', () => {
-    const sdk = new PluginSDK({ pluginId: 'test', tenantId: 't1', kafkaBrokers: 'localhost:9092', apiUrl: 'http://localhost:3001' });
-    expect(sdk).toBeDefined();
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('initialize connects to Kafka', async () => {
-    const sdk = new PluginSDK({ pluginId: 'test', tenantId: 't1', kafkaBrokers: 'localhost:9092', apiUrl: 'http://localhost:3001' });
-    await expect(sdk.initialize()).resolves.toBeUndefined();
+  function makeSdk(overrides: Record<string, unknown> = {}): InstanceType<typeof PluginSDK> {
+    return new PluginSDK({
+      pluginId: 'test',
+      slug: 'test-plugin',
+      tenantId: 't1',
+      apiUrl: 'http://localhost:3001',
+      ...overrides,
+    });
+  }
+
+  it('constructs with config and defaults apiUrl', () => {
+    const sdk = new PluginSDK({ pluginId: 'p', slug: 'p-slug', tenantId: 't1', apiUrl: '' } as Record<string, unknown>);
+    expect(sdk).toBeDefined();
+    expect(sdk.getContext().tenantId).toBe('t1');
+  });
+
+  it('onEvent stores a handler without requiring initialize()', () => {
+    const sdk = makeSdk();
+    const handler = vi.fn();
+    expect(() => sdk.onEvent('test.event', handler)).not.toThrow();
+  });
+
+  it('dispatchEvent invokes the matching registered handler', async () => {
+    const sdk = makeSdk();
+    const handler = vi.fn();
+    sdk.onEvent('test.event', handler);
+    await sdk.initialize();
+    const event = makeEvent('test.event', { x: 1 });
+    await sdk.dispatchEvent(event);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(event);
     await sdk.destroy();
   });
 
-  it('getContext returns tenant info', () => {
-    const sdk = new PluginSDK({ pluginId: 'test', tenantId: 't1', workspaceId: 'w1', kafkaBrokers: '', apiUrl: '' });
+  it('dispatchEvent rejects when not initialized', async () => {
+    const sdk = makeSdk();
+    await expect(sdk.dispatchEvent(makeEvent('x'))).rejects.toThrow('not initialized');
+  });
+
+  it('glob pattern: plexica.workspace.* matches plexica.workspace.created', async () => {
+    const sdk = makeSdk();
+    const handler = vi.fn();
+    sdk.onEvent('plexica.workspace.*', handler);
+    await sdk.initialize();
+    await sdk.dispatchEvent(makeEvent('plexica.workspace.created'));
+    expect(handler).toHaveBeenCalledTimes(1);
+    await sdk.destroy();
+  });
+
+  it('glob pattern does not match unrelated event types', async () => {
+    const sdk = makeSdk();
+    const handler = vi.fn();
+    sdk.onEvent('plexica.workspace.*', handler);
+    await sdk.initialize();
+    await sdk.dispatchEvent(makeEvent('plexica.tenant.created'));
+    expect(handler).not.toHaveBeenCalled();
+    await sdk.destroy();
+  });
+
+  it('getDb() rejects with a platform-runtime message', async () => {
+    const sdk = makeSdk();
+    await expect(sdk.getDb()).rejects.toThrow('platform runtime');
+  });
+
+  it('getContext() returns tenantId, userId, workspaceId, role', () => {
+    const sdk = makeSdk({
+      plexicaHeaders: { tenantId: 't9', userId: 'u1', workspaceId: 'w2', role: 'admin' },
+    });
+    expect(sdk.getContext()).toEqual({
+      tenantId: 't9',
+      userId: 'u1',
+      workspaceId: 'w2',
+      role: 'admin',
+    });
+  });
+
+  it('getContext() falls back to config + viewer defaults', () => {
+    const sdk = makeSdk({ workspaceId: 'w-default' });
     const ctx = sdk.getContext();
     expect(ctx.tenantId).toBe('t1');
-    expect(ctx.workspaceId).toBe('w1');
+    expect(ctx.workspaceId).toBe('w-default');
+    expect(ctx.userId).toBe('');
+    expect(ctx.role).toBe('viewer');
   });
 
-  it('onEvent throws when not initialized', () => {
-    const sdk = new PluginSDK({ pluginId: 'test', tenantId: 't1', kafkaBrokers: '', apiUrl: '' });
-    expect(() => sdk.onEvent('test.event', async () => {})).toThrow('not initialized');
-  });
-
-  it('getDb throws with helpful message', () => {
-    const sdk = new PluginSDK({ pluginId: 'test', tenantId: 't1', kafkaBrokers: '', apiUrl: '' });
-    expect(() => sdk.getDb()).toThrow('Direct database access');
-  });
-
-  it('onEvent registers handler after initialize', async () => {
-    const sdk = new PluginSDK({ pluginId: 'test', tenantId: 't1', kafkaBrokers: 'localhost:9092', apiUrl: 'http://localhost:3001' });
+  it('callApi injects X-Plexica-* context headers and Authorization', async () => {
+    const fetchMock = mockFetchOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const sdk = makeSdk({
+      accessToken: 'tok-123',
+      plexicaHeaders: {
+        tenantId: 't1', userId: 'u1', workspaceId: 'w1', role: 'admin', correlationId: 'c1',
+      },
+    });
     await sdk.initialize();
-    expect(() => sdk.onEvent('test.event', async () => {})).not.toThrow();
+    await sdk.callApi('GET', '/api/v1/plugins');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const [, init] = firstCall as [string, RequestInit];
+    const headers = (init as { headers: Record<string, string> }).headers;
+    expect(headers['X-Plexica-Tenant-Id']).toBe('t1');
+    expect(headers['X-Plexica-User-Id']).toBe('u1');
+    expect(headers['X-Plexica-Workspace-Id']).toBe('w1');
+    expect(headers['X-Plexica-User-Role']).toBe('admin');
+    expect(headers['X-Plexica-Correlation-Id']).toBe('c1');
+    expect(headers['Authorization']).toBe('Bearer tok-123');
     await sdk.destroy();
+  });
+
+  it('callApi rejects on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false, status: 500, text: () => Promise.resolve('boom'),
+    } as unknown as Response));
+    const sdk = makeSdk();
+    await sdk.initialize();
+    await expect(sdk.callApi('GET', '/x')).rejects.toThrow('500');
+    await sdk.destroy();
+  });
+
+  it('emitEvent POSTs to /api/v1/events/emit with a plugin-prefixed type', async () => {
+    const fetchMock = mockFetchOk();
+    vi.stubGlobal('fetch', fetchMock);
+    const sdk = makeSdk({ accessToken: 'tok' });
+    await sdk.initialize();
+    await sdk.emitEvent('custom.happened', { foo: 'bar' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const [url, init] = firstCall as [string, RequestInit];
+    expect(url).toBe('http://localhost:3001/api/v1/events/emit');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(init.body as string);
+    expect(body.type).toBe('plugin.test-plugin.custom.happened');
+    expect(body.payload).toEqual({ foo: 'bar' });
+    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer tok');
+    await sdk.destroy();
+  });
+
+  it('emitEvent rejects when not initialized', async () => {
+    const sdk = makeSdk();
+    await expect(sdk.emitEvent('x', {})).rejects.toThrow('not initialized');
   });
 });

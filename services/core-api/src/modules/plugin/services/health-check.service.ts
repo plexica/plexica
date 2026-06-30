@@ -116,7 +116,7 @@ export async function shouldProbe(installId: string): Promise<boolean> {
   const raw = await redis.get(cbKey(installId));
   if (!raw) return true;
 
-  const state: CircuitBreakerState = JSON.parse(raw);
+  const state = safeParse(raw, { state: 'closed', failureCount: 0, successCount: 0, lastFailureAt: null, lastTransitionAt: Date.now() });
   if (state.state === 'closed') return true;
   if (state.state === 'half-open') return true;
 

@@ -6,20 +6,18 @@ import { ValidationError } from '../../../lib/app-error.js';
 import { withTenantDb } from '../../../lib/tenant-database.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { setWorkspaceVisibility, clearVisibilityCache } from '../services/visibility.service.js';
+import { updateVisibilityListSchema } from '../schema/api.js';
 
 import type { FastifyInstance } from 'fastify';
 
-const updateVisibilitySchema = z.object({
-  workspaceId: z.string().uuid(),
-  isEnabled: z.boolean(),
-});
+const installIdParamSchema = z.object({ installId: z.string().uuid() });
 
 export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get(
     '/api/v1/plugins/:installId/visibility',
     { preHandler: [requireAbac('plugin:manage')] },
     async (request) => {
-      const { installId } = request.params as { installId: string };
+      const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
       return withTenantDb(async (tx: any) => {
@@ -42,26 +40,34 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
     }
   );
 
-  fastify.put(
+  fastify.patch(
     '/api/v1/plugins/:installId/visibility',
     { preHandler: [requireAbac('plugin:manage')] },
     async (request) => {
-      const { installId } = request.params as { installId: string };
+      const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      const parsed = updateVisibilitySchema.safeParse(request.body);
+      const parsed = updateVisibilityListSchema.safeParse(request.body);
       if (!parsed.success) {
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
       }
 
-      const { workspaceId, isEnabled } = parsed.data;
+      const updates = parsed.data;
+      const userId = request.user?.keycloakUserId ?? '';
 
-      await withTenantDb(async (tx: any) => {
-        await setWorkspaceVisibility(tx, installId, workspaceId, isEnabled, request.user.keycloakUserId);
+      const results = await withTenantDb(async (tx: any) => {
+        return tx.$transaction(async (innerTx: any) => {
+          const out: Array<{ workspaceId: string; isEnabled: boolean }> = [];
+          for (const { workspaceId, isEnabled } of updates) {
+            await setWorkspaceVisibility(innerTx, installId, workspaceId, isEnabled, userId);
+            out.push({ workspaceId, isEnabled });
+          }
+          return out;
+        });
       }, ctx);
 
       clearVisibilityCache(installId);
-      return { installId, workspaceId, isEnabled };
+      return { installId, overrides: results };
     }
   );
 }

@@ -47,3 +47,12 @@ export class PluginBackendUnreachableError extends AppError {
     super(`Plugin ${installId} backend is unreachable`);
   }
 }
+
+export class WorkspaceVerifyError extends AppError {
+  readonly statusCode = 503;
+  readonly code = 'WORKSPACE_VERIFY_FAILED';
+
+  constructor() {
+    super('Could not verify workspace access');
+  }
+}

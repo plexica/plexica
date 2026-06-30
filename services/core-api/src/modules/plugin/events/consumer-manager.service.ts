@@ -44,7 +44,8 @@ function resolvePatterns(patterns: string[]): string[] {
 
 export async function createConsumerGroup(
   installId: string, tenantSlug: string, eventPatterns: string[],
-  eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>
+  eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>,
+  pluginId?: string
 ): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
 
@@ -59,7 +60,7 @@ export async function createConsumerGroup(
   if (consumers.has(groupId)) return;
 
   // Create the promise and claim the slot before any async work
-  const createPromise = createConsumerGroupInner(groupId, installId, eventPatterns, eachMessage, tenantSlug);
+  const createPromise = createConsumerGroupInner(groupId, installId, eventPatterns, eachMessage, tenantSlug, pluginId);
   pendingConsumers.set(groupId, createPromise);
 
   try {
@@ -72,9 +73,10 @@ export async function createConsumerGroup(
 async function createConsumerGroupInner(
   groupId: string, installId: string, eventPatterns: string[],
   eachMessage: (topic: string, payload: Record<string, unknown>) => Promise<void>,
-  tenantSlug: string
+  tenantSlug: string,
+  pluginId?: string
 ): Promise<void> {
-  const consumer = createConsumer(groupId, eventPatterns, eachMessage);
+  const consumer = createConsumer(groupId);
   await consumer.connect();
 
   const topics = resolvePatterns(eventPatterns);
@@ -90,7 +92,13 @@ async function createConsumerGroupInner(
   await consumer.run({
     eachMessage: async ({ topic, message }) => {
       let lastError: Error | null = null;
-      const payload = JSON.parse(message.value?.toString() ?? '{}');
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(message.value?.toString() ?? '{}');
+      } catch {
+        await moveToDlq(installId, topic, { raw: message.value?.toString() ?? '' }, 'Malformed JSON payload', 0, pluginId);
+        return;
+      }
       for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) await new Promise(r => setTimeout(r, [100, 500, 2000][attempt - 1]));
         try {
@@ -101,7 +109,7 @@ async function createConsumerGroupInner(
           logger.warn({ err, groupId, topic, attempt: attempt + 1 }, 'Consumer retry');
         }
       }
-      await moveToDlq(installId, topic, payload, lastError!.message, 3);
+      await moveToDlq(installId, topic, payload, lastError!.message, 3, pluginId);
     },
   });
 
@@ -139,7 +147,7 @@ export async function deleteConsumerGroup(installId: string, tenantSlug: string)
 
 export async function createDevConsumerGroup(slug: string): Promise<string> {
   const groupId = `${DEV_CONSUMER_PREFIX}${slug}`;
-  const consumer = createConsumer(groupId, [], async () => {});
+  const consumer = createConsumer(groupId);
   await consumer.connect();
   consumers.set(groupId, { consumer, topics: [], isRunning: true });
   return groupId;

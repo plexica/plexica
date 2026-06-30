@@ -1,5 +1,6 @@
 // templates.ts
 // Handlebars-style templates for the CLI project generator.
+// CLI uses console.log intentionally — not subject to AGENTS.md production logging rule.
 
 export const TEMPLATES: Record<string, string> = {
   'manifest.json': `{\n  "slug": "{{slug}}",\n  "name": "{{name}}",\n  "version": "1.0.0",\n  "description": "A Plexica plugin",\n  "author": "",\n  "categories": [],\n  "hosting": {\n    "type": "sidecar",\n    "image": "{{slug}}:latest",\n    "port": 3000\n  },\n  "ui": {\n    "remoteEntry": "remoteEntry.js",\n    "extensionPoints": ["sidebar:admin"]\n  },\n  "events": {\n    "subscribes": ["plexica.workspace.*"]\n  },\n  "declaredTables": []\n}\n`,

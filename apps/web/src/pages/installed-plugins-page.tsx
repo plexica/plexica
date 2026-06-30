@@ -26,19 +26,29 @@ export function InstalledPluginsPage(): JSX.Element {
   const intl = useIntl();
   const [uninstallTarget, setUninstallTarget] = useState<PluginInstallation | null>(null);
   const [expandedVisibility, setExpandedVisibility] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<Set<string>>(new Set());
 
   const { data, isPending, isError, refetch } = useInstalledPlugins();
-  const { mutate: deactivate, isPending: isDeactivating } = useDeactivatePlugin();
-  const { mutate: reactivate, isPending: isReactivating } = useReactivatePlugin();
+  const { mutate: deactivate } = useDeactivatePlugin();
+  const { mutate: reactivate } = useReactivatePlugin();
   const { mutate: uninstall, isPending: isUninstalling } = useUninstallPlugin();
 
   const installations: PluginInstallation[] = data ?? [];
 
   function handleActivateToggle(inst: PluginInstallation): void {
+    setPendingAction((prev) => new Set(prev).add(inst.id));
+    const settle = {
+      onSettled: () =>
+        setPendingAction((prev) => {
+          const next = new Set(prev);
+          next.delete(inst.id);
+          return next;
+        }),
+    };
     if (inst.status === 'active') {
-      deactivate(inst.id);
+      deactivate(inst.id, settle);
     } else if (inst.status === 'deactivated') {
-      reactivate(inst.id);
+      reactivate(inst.id, settle);
     }
   }
 
@@ -101,7 +111,7 @@ export function InstalledPluginsPage(): JSX.Element {
                     size="sm"
                     variant="secondary"
                     onClick={() => handleActivateToggle(inst)}
-                    disabled={isDeactivating || isReactivating}
+                    disabled={pendingAction.has(inst.id)}
                   >
                     <FormattedMessage
                       id={inst.status === 'active' ? 'plugins.deactivate' : 'plugins.activate'}
@@ -121,6 +131,8 @@ export function InstalledPluginsPage(): JSX.Element {
               <div className="border-t border-neutral-100 px-4 py-2">
                 <button
                   className="text-sm text-primary-600 hover:text-primary-700"
+                  aria-expanded={expandedVisibility === inst.id}
+                  aria-controls={`visibility-panel-${inst.id}`}
                   onClick={() =>
                     setExpandedVisibility(
                       expandedVisibility === inst.id ? null : inst.id
@@ -133,7 +145,7 @@ export function InstalledPluginsPage(): JSX.Element {
 
               {/* Expandable visibility section */}
               {expandedVisibility === inst.id && (
-                <div className="border-t border-neutral-100 px-4 py-3">
+                <div id={`visibility-panel-${inst.id}`} className="border-t border-neutral-100 px-4 py-3">
                   <VisibilityEditorWrapper key={inst.id} installId={inst.id} />
                 </div>
               )}

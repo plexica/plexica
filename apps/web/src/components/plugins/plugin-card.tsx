@@ -11,6 +11,7 @@ import type { PluginCatalogEntry } from '../../types/plugin.js';
 interface PluginCardProps {
   plugin: PluginCatalogEntry;
   isInstalling: boolean;
+  canManage?: boolean;
   onInstall: (slug: string) => void;
   onShowDetail: (slug: string) => void;
 }
@@ -18,6 +19,7 @@ interface PluginCardProps {
 export function PluginCard({
   plugin,
   isInstalling,
+  canManage = true,
   onInstall,
   onShowDetail,
 }: PluginCardProps): JSX.Element {
@@ -41,7 +43,7 @@ export function PluginCard({
       onClick={() => onShowDetail(plugin.slug)}
       onKeyDown={handleCardKeyDown}
       tabIndex={0}
-      role="button"
+      role="group"
       aria-label={`${plugin.name} — ${plugin.description}`}
       data-testid="plugin-card"
     >
@@ -81,7 +83,7 @@ export function PluginCard({
         <Button
           size="sm"
           variant={plugin.isInstalled ? 'secondary' : 'primary'}
-          disabled={plugin.isInstalled || isInstalling}
+          disabled={plugin.isInstalled || isInstalling || !canManage}
           onClick={handleInstallClick}
           aria-label={
             plugin.isInstalled

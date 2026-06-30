@@ -27,6 +27,8 @@ export const updateVisibilitySchema = z.object({
   isEnabled: z.boolean(),
 });
 
+export const updateVisibilityListSchema = z.array(updateVisibilitySchema).min(1);
+
 export const installPluginResponseSchema = z.object({
   installId: z.string().uuid(),
   status: z.string(),

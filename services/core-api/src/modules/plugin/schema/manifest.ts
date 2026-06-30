@@ -32,6 +32,16 @@ export const actionSchema = z.object({
   defaultRole: z.enum(['admin', 'member', 'viewer']),
 });
 
+// CRITICAL #12 — optional mapping from HTTP method + path pattern to the
+// 3-part plugin action key used for per-action ABAC enforcement.
+// e.g. { method: 'POST', path: '/contacts', action: 'crm:contact:create' }.
+// When absent, the proxy falls back to the generic "{slug}:access" key.
+export const apiMappingSchema = z.object({
+  method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']),
+  path: z.string().min(1),
+  action: z.string().regex(/^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/, 'apiMapping action must be 3-part: slug:resource:verb'),
+});
+
 export const manifestSchema = z.object({
   slug: z.string().regex(slugRegex, 'Slug must match /^[a-z][a-z0-9-]{1,62}$/'),
   name: z.string().min(1).max(255),
@@ -53,9 +63,11 @@ export const manifestSchema = z.object({
     })
     .optional(),
   actions: z.array(actionSchema).optional(),
+  apiMappings: z.array(apiMappingSchema).optional(),
   declaredTables: z.array(declaredTableSchema).default([]),
 });
 
 export type Manifest = z.infer<typeof manifestSchema>;
 export type ManifestAction = z.infer<typeof actionSchema>;
+export type ApiMapping = z.infer<typeof apiMappingSchema>;
 export type DeclaredTable = z.infer<typeof declaredTableSchema>;

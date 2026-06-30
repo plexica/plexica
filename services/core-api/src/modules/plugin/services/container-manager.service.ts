@@ -2,8 +2,11 @@
 // Strategy pattern: Docker sidecar (dev/CI) + Kubernetes (prod).
 // Dev mode (§10.7) bypasses containers entirely — uses local processes.
 
+import Docker from 'dockerode';
 import { logger } from '../../../lib/logger.js';
 import { PluginInstallError, PluginBackendUnreachableError, PluginNotFoundError } from '../errors.js';
+import { KubernetesContainerManager } from './kubernetes-container-manager.js';
+import { parseMemory, parseCpu } from './container-helpers.js';
 
 import type { Manifest } from '../schema/manifest.js';
 
@@ -47,12 +50,9 @@ export interface ContainerManager {
  * Port allocation: OS-assigned random port via -p 0:3000.
  */
 export class DockerContainerManager implements ContainerManager {
-  private docker: import('dockerode');
+  private docker: Docker;
 
   constructor() {
-    // Lazy-import dockerode — it's a native dependency
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Docker = require('dockerode');
     this.docker = new Docker();
   }
 
@@ -175,11 +175,7 @@ export function clearPluginPort(installId: string): void {
   pluginPorts.delete(installId);
 }
 
-import { KubernetesContainerManager } from './kubernetes-container-manager.js';
-
 export function createContainerManager(hostingType: string): ContainerManager {
   if (hostingType === 'kubernetes') return new KubernetesContainerManager();
   return new DockerContainerManager();
 }
-
-import { parseMemory, parseCpu } from './container-helpers.js';

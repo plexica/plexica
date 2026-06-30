@@ -10,7 +10,7 @@ import type { PluginConfig, PluginContext, PluginEvent, EventHandler } from './t
 
 export class PluginSDK {
   private config: PluginConfig;
-  private eventQueue: Array<{ event: PluginEvent; handler: EventHandler }> = [];
+  private handlers: Array<{ pattern: string; handler: EventHandler }> = [];
   private initialized = false;
 
   constructor(config: PluginConfig) {
@@ -26,7 +26,7 @@ export class PluginSDK {
   }
 
   async destroy(): Promise<void> {
-    this.eventQueue = [];
+    this.handlers = [];
     this.initialized = false;
   }
 
@@ -36,7 +36,7 @@ export class PluginSDK {
    * The plugin backend's HTTP handler calls dispatchEvent() to invoke handlers.
    */
   onEvent(pattern: string, handler: EventHandler): void {
-    this.eventQueue.push({ event: { type: pattern, payload: {}, timestamp: '', correlationId: '' }, handler });
+    this.handlers.push({ pattern, handler });
   }
 
   /**
@@ -46,11 +46,7 @@ export class PluginSDK {
   async dispatchEvent(event: PluginEvent): Promise<void> {
     if (!this.initialized) throw new SdkNotInitializedError();
 
-    // Find handlers matching the event type or pattern
-    const matching = this.eventQueue.filter((entry) => {
-      return entry.event.type === event.type || this.matchesPattern(event.type, entry.event.type);
-    });
-
+    const matching = this.handlers.filter((entry) => this.matchesPattern(event.type, entry.pattern));
     await Promise.all(matching.map((entry) => entry.handler(event)));
   }
 
@@ -147,7 +143,7 @@ export class PluginSDK {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        type: `plugin.${this.config.pluginId}.${type}`,
+        type: `plugin.${this.config.slug}.${type}`,
         payload,
         timestamp: new Date().toISOString(),
         correlationId: crypto.randomUUID(),
