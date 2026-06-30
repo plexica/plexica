@@ -29,7 +29,7 @@
     { "action": "crm:deal:create", "label": "Create Deal", "defaultRole": "member" }
   ],
   "declaredTables": [
-    { "name": "crm_contacts", "description": "Contact records", "migrationFile": "migrations/001_create_contacts.sql" },
+    { "name": "crm_contacts", "description": "Contact records", "migrationFile": "migrations/001_create_contacts.sql", "content": "CREATE TABLE crm_contacts (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  name TEXT NOT NULL,\n  email TEXT,\n  phone TEXT,\n  company TEXT,\n  notes TEXT,\n  created_by TEXT NOT NULL,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n);\n\nCREATE INDEX idx_crm_contacts_created_by ON crm_contacts(created_by);" },
     { "name": "crm_deals", "description": "Deal pipeline", "migrationFile": "migrations/002_create_deals.sql" }
   ]
 }

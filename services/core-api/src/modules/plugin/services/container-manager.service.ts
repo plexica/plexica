@@ -67,10 +67,14 @@ export class DockerContainerManager implements ContainerManager {
       throw new PluginInstallError(`Failed to pull image "${image}". Check registry credentials.`);
     }
 
+    // Pass env vars to the container (DATABASE_URL, CORE_API_URL, etc.)
+    const env = manifest.env ? Object.entries(manifest.env).map(([k, v]) => `${k}=${v}`) : undefined;
+
     // Create and start container with random host port
     const container = await this.docker.createContainer({
       name: containerName,
       Image: image,
+      Env: env,
       ExposedPorts: { [`${manifest.hosting.port}/tcp`]: {} },
       HostConfig: {
         PortBindings: { [`${manifest.hosting.port}/tcp`]: [{ HostPort: '0' }] },

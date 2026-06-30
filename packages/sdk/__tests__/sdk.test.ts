@@ -88,9 +88,22 @@ describe('PluginSDK', () => {
     await sdk.destroy();
   });
 
-  it('getDb() rejects with a platform-runtime message', async () => {
+  it('getDb() rejects when DATABASE_URL is not set and no dbConnectionString', async () => {
     const sdk = makeSdk();
+    const orig = process.env['DATABASE_URL'];
+    delete process.env['DATABASE_URL'];
     await expect(sdk.getDb()).rejects.toThrow('platform runtime');
+    if (orig) process.env['DATABASE_URL'] = orig;
+  });
+
+  it('getDb() attempts connection when dbConnectionString is provided', async () => {
+    const sdk = makeSdk({ dbConnectionString: 'postgresql://test@localhost/test' });
+    try {
+      await sdk.getDb();
+    } catch (err: any) {
+      expect(err.message).not.toContain('platform runtime');
+    }
+    await sdk.destroy();
   });
 
   it('getContext() returns tenantId, userId, workspaceId, role', () => {

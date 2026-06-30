@@ -1,6 +1,7 @@
 // routes/lifecycle/install.routes.ts
 // Plugin install route with migration execution.
 
+import crypto from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -12,6 +13,7 @@ import { logger } from '../../../../lib/logger.js';
 import { prisma } from '../../../../lib/database.js';
 import { PluginNotFoundError, PluginValidationError, PluginConflictError, PluginInstallError } from '../../errors.js';
 import { createContainerManager } from '../../services/container-manager.service.js';
+import { dispatchEvent } from '../../events/event-dispatcher.service.js';
 import { createConsumerGroup } from '../../events/consumer-manager.service.js';
 import { createPluginRole, grantCreateOnSchema, revokeCreateOnSchema } from '../../services/db-role.service.js';
 import { manifestSchema } from '../../schema/manifest.js';
@@ -81,12 +83,16 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       await withTenantDb(async (tenantDb: any) => {
         return tenantDb.$transaction(async (tx: any) => {
           for (const table of manifest.declaredTables) {
-            const migrationPath = path.resolve(process.cwd(), 'plugins', manifest.slug, table.migrationFile);
             let sql: string;
-            try {
-              sql = await readFile(migrationPath, 'utf-8');
-            } catch (err: any) {
-              throw new PluginInstallError(`Migration file "${table.migrationFile}" not found for plugin "${manifest.slug}" at ${migrationPath}`);
+            if (table.content) {
+              sql = table.content;
+            } else {
+              const migrationPath = path.resolve(process.cwd(), 'plugins', manifest.slug, table.migrationFile);
+              try {
+                sql = await readFile(migrationPath, 'utf-8');
+              } catch (err: any) {
+                throw new PluginInstallError(`Migration file "${table.migrationFile}" not found for plugin "${manifest.slug}" — provide inline content in manifest.declaredTables[].content`);
+              }
             }
 
             const validation = validateMigrationSql(sql, manifest.slug);
@@ -143,8 +149,14 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (manifest.events?.subscribes?.length) {
       try {
-        await createConsumerGroup(install.id, ctx.slug, manifest.events.subscribes, async (topic) => {
-          logger.debug({ topic, installId: install.id }, 'Plugin received event');
+        await createConsumerGroup(install.id, ctx.slug, manifest.events.subscribes, async (topic, payload) => {
+          try {
+            const mgr = createContainerManager(hostingType);
+            const backendUrl = await mgr.getContainerUrl(install.id);
+            await dispatchEvent(backendUrl, topic, payload, crypto.randomUUID(), install.id);
+          } catch (err: any) {
+            logger.warn({ err: err.message, installId: install.id, topic }, 'Failed to forward event to plugin backend');
+          }
         }, plugin.id as string);
       } catch (err: any) {
         logger.warn({ err: err.message, installId: install.id }, 'Consumer group creation failed — plugin will not receive events');

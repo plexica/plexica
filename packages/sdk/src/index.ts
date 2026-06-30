@@ -12,6 +12,7 @@ export class PluginSDK {
   private config: PluginConfig;
   private handlers: Array<{ pattern: string; handler: EventHandler }> = [];
   private initialized = false;
+  private dbPool: unknown = null;
 
   constructor(config: PluginConfig) {
     this.config = {
@@ -28,6 +29,12 @@ export class PluginSDK {
   async destroy(): Promise<void> {
     this.handlers = [];
     this.initialized = false;
+    if (this.dbPool) {
+      try {
+        await (this.dbPool as any).end();
+      } catch { /* ignore */ }
+      this.dbPool = null;
+    }
   }
 
   /**
@@ -111,8 +118,8 @@ export class PluginSDK {
   /**
    * Returns a database connection scoped to the plugin's declared tables.
    *
-   * **Platform runtime**: returns a PrismaClient instance restricted to the
-   * tenant schema with table-level permissions (DR-18 / AC-07, ADR-017).
+   * **Platform runtime**: returns a `pg.Pool` connected via the restricted
+   * connection string from `dbConnectionString` or `DATABASE_URL` env var.
    *
    * **Non-platform environments**: throws an error. Use `callApi()` for data
    * operations during local development or testing.
@@ -120,7 +127,23 @@ export class PluginSDK {
    * @throws {Error} if called outside the Plexica platform runtime
    */
   async getDb(): Promise<unknown> {
-    throw new Error('getDb() requires the platform runtime. Use callApi() for development.');
+    if (this.dbPool) return this.dbPool;
+
+    const connectionString = this.config.dbConnectionString ?? process.env['DATABASE_URL'];
+    if (!connectionString) {
+      throw new Error('getDb() requires the platform runtime. Use callApi() for development.');
+    }
+
+    try {
+      const { Pool } = await import('pg');
+      const pool = new Pool({ connectionString, max: 5 });
+      const client = await pool.connect();
+      client.release();
+      this.dbPool = pool;
+      return pool;
+    } catch (err: any) {
+      throw new Error(`getDb() failed to connect: ${err.message}`);
+    }
   }
 
   /**

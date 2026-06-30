@@ -23,6 +23,7 @@ export const declaredTableSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/, 'Table name must be snake_case'),
   description: z.string().optional(),
   migrationFile: z.string().min(1),
+  content: z.string().optional(), // Inline SQL — preferred over filesystem read
 });
 
 export const actionSchema = z.object({

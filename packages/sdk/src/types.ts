@@ -11,6 +11,7 @@ export interface PluginConfig {
   kafkaBrokers?: string;
   apiUrl: string;
   accessToken?: string;  // Bearer token for API auth
+  dbConnectionString?: string; // Injected by platform runtime — overrides process.env.DATABASE_URL
   // Context headers injected by the platform
   plexicaHeaders?: {
     tenantId?: string;

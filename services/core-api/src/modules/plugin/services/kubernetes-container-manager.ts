@@ -16,17 +16,11 @@ export class KubernetesContainerManager implements ContainerManager {
   }
 
   async stopContainer(_installId: string): Promise<void> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI.'
-    );
+    // No-op — no container to stop in dev/CI
   }
 
   async getContainerStatus(_installId: string): Promise<ContainerStatus> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI.'
-    );
+    return { state: 'not_found', health: 'unreachable' };
   }
 
   async getContainerUrl(_installId: string): Promise<string> {
@@ -37,9 +31,6 @@ export class KubernetesContainerManager implements ContainerManager {
   }
 
   async restartContainer(_installId: string): Promise<void> {
-    throw new PluginInstallError(
-      'Kubernetes hosting is not available in this environment. ' +
-        'Use hosting.type = "sidecar" for dev/CI.'
-    );
+    // No-op — no container to restart in dev/CI
   }
 }

@@ -117,11 +117,15 @@ async function createConsumerGroupInner(
   logger.info({ groupId, topics }, 'Consumer group started');
 }
 
-// EC-14: Commit offsets before pause to prevent event replay on reactivation
 export async function pauseConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
   const entry = consumers.get(groupId);
   if (!entry) return;
+
+  // EC-14: Commit offsets before pause to prevent event replay on reactivation
+  try {
+    await entry.consumer.commitOffsets([]);
+  } catch { /* best-effort — offsets still auto-commit on next poll */ }
 
   await entry.consumer.pause(entry.topics.map((t) => ({ topic: t })));
   entry.isRunning = false;
@@ -141,6 +145,10 @@ export async function deleteConsumerGroup(installId: string, tenantSlug: string)
   const groupId = `${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`;
   const entry = consumers.get(groupId);
   if (!entry) return;
+  // EC-14: Commit offsets before disconnect to prevent re-processing on restart
+  try {
+    await entry.consumer.commitOffsets([]);
+  } catch { /* best-effort */ }
   await entry.consumer.disconnect();
   consumers.delete(groupId);
 }

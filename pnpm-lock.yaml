@@ -230,7 +230,13 @@ importers:
       kafkajs:
         specifier: ^2.2.4
         version: 2.2.4
+      pg:
+        specifier: ^8.13.0
+        version: 8.22.0
     devDependencies:
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
       typescript:
         specifier: ^5.9.0
         version: 5.9.3

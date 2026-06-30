@@ -33,8 +33,24 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 // Marker file: '1' = plexica theme active, '0' = fallback to default.
 const THEME_MARKER_PATH = path.resolve(__dirname, '.e2e-plexica-theme-active');
 
+async function waitForKeycloak(url: string, retries = 30, delayMs = 2000): Promise<void> {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) return;
+    } catch { /* not ready yet */ }
+    process.stdout.write(`[global-setup] Waiting for Keycloak at ${url} (attempt ${i}/${retries})…\n`);
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  throw new Error(`Keycloak at ${url} not ready after ${retries} retries`);
+}
+
 async function setup(): Promise<void> {
   process.stdout.write('[global-setup] Starting E2E environment provisioning…\n');
+
+  // ── 0. Wait for Keycloak readiness ────────────────────────────────────────
+  const keycloakUrl = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
+  await waitForKeycloak(keycloakUrl);
 
   // ── 1. Provision tenants ──────────────────────────────────────────────────
   provisionTenant('e2e', 'E2E', 'admin@e2e.local');

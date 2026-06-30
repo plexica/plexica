@@ -1,4 +1,5 @@
-FROM node:22-alpine AS builder
+# node:22-alpine — pinned 2026-06-30
+FROM node:22-alpine@sha256:e2b39fc78f3e7f5389e03d35e9f52e12764e4d6be0ee2a4b2100db411ec7e45b AS builder
 
 WORKDIR /app
 
@@ -10,7 +11,7 @@ COPY src/ ./src/
 
 RUN npm run build
 
-FROM node:22-alpine
+FROM node:22-alpine@sha256:e2b39fc78f3e7f5389e03d35e9f52e12764e4d6be0ee2a4b2100db411ec7e45b
 
 RUN addgroup -S plexica && adduser -S plexica -G plexica
 
