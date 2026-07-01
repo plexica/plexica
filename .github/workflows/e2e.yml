@@ -33,6 +33,9 @@ jobs:
           KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
           KC_DB_USERNAME: plexica
           KC_DB_PASSWORD: plexica
+          KC_HEALTH_ENABLED: 'true'
+          KC_HTTP_ENABLED: 'true'
+          KC_HOSTNAME_STRICT: 'false'
         options: >-
           --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
           --health-interval 15s
@@ -52,7 +55,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
       - run: pnpm --filter core-api db:migrate
       - run: pnpm --filter web exec playwright install chromium
       - run: pnpm e2e
