@@ -62,7 +62,7 @@ test.describe('Mobile sidebar drawer', () => {
 
     // Wait for the drawer animation (CSS transition) to complete before pressing Tab.
     // Without this wait, the focus manager may still be processing the open animation
-    // and Tab presses land on the wrong element (flaky "unexpected value" failures).
+    // and Tab presses land on the wrong element (flaky focus failures).
     await page.waitForTimeout(350);
 
     const closeBtn = drawer.getByRole('button', { name: 'Close navigation' });
@@ -72,21 +72,25 @@ test.describe('Mobile sidebar drawer', () => {
 
     // The drawer contains: close button + 7 nav links (Dashboard, Workspaces,
     // Users, Roles & Permissions, Settings, Audit Log, Profile).
-    // Tab 7 times to reach the last nav item (Profile).
-    for (let i = 0; i < 7; i++) {
+    // Tab individually with a small delay between presses so the browser's focus
+    // manager and the focus-trap handler can keep up. A hard-coded loop of 7
+    // rapid Tabs is flaky because the browser may coalesce or drop keystrokes
+    // when the keyboard event handler is actively modifying focus.
+    // Each press uses Playwright's auto-wait so the next press starts only after
+    // the previous focus change is settled.
+    const navItems = ['Dashboard', 'Workspaces', 'Users', 'Roles & Permissions', 'Settings', 'Audit Log', 'Profile'];
+    for (const itemName of navItems) {
       await page.keyboard.press('Tab');
+      await expect(drawer.getByRole('link', { name: itemName })).toBeFocused();
     }
-    // After 7 Tabs from close button, we should be on the last nav link (Profile)
-    const lastNavLink = drawer.getByRole('link', { name: 'Profile' });
-    await expect(lastNavLink).toBeFocused();
 
-    // Tab once more → wraps to close button (focus trap)
+    // Tab one more time → wraps to close button (focus trap)
     await page.keyboard.press('Tab');
     await expect(closeBtn).toBeFocused();
 
     // Shift+Tab from close button → wraps back to Profile (last item)
     await page.keyboard.press('Shift+Tab');
-    await expect(lastNavLink).toBeFocused();
+    await expect(drawer.getByRole('link', { name: 'Profile' })).toBeFocused();
   });
 
   test('Escape closes drawer and returns focus to the hamburger button [002-20, WCAG 2.4.3]', async ({
