@@ -70,17 +70,18 @@ test.describe('Mobile sidebar drawer', () => {
     // Close button should be focused initially
     await expect(closeBtn).toBeFocused();
 
-    // The drawer contains: close button + 7 nav links (Dashboard, Workspaces,
-    // Users, Roles & Permissions, Settings, Audit Log, Profile).
-    // Tab individually with a small delay between presses so the browser's focus
-    // manager and the focus-trap handler can keep up. A hard-coded loop of 7
-    // rapid Tabs is flaky because the browser may coalesce or drop keystrokes
-    // when the keyboard event handler is actively modifying focus.
-    // Each press uses Playwright's auto-wait so the next press starts only after
-    // the previous focus change is settled.
-    const navItems = ['Dashboard', 'Workspaces', 'Users', 'Roles & Permissions', 'Settings', 'Audit Log', 'Profile'];
+    // The drawer contains: close button + 9 nav links (Dashboard, Marketplace,
+    // Workspaces, Users, Roles, Plugins, Settings, Audit Log, Profile).
+    // Tab individually — each press uses Playwright's auto-wait so the next
+    // press starts only after the previous focus change is settled.
+    // NOTE: Keep array in sync with sidebar-nav-config.ts NAV_ITEMS.
+    const navItems = ['Dashboard', 'Marketplace', 'Workspaces', 'Users', 'Roles & Permissions', 'Plugins', 'Settings', 'Audit Log', 'Profile'];
     for (const itemName of navItems) {
       await page.keyboard.press('Tab');
+      // Small wait ensures the browser has processed the focus change from the Tab
+      // event before we assert. In CI with low-resource containers, the browser may
+      // need a tick after key dispatch to settle the activeElement.
+      await page.waitForTimeout(50);
       await expect(drawer.getByRole('link', { name: itemName })).toBeFocused();
     }
 
