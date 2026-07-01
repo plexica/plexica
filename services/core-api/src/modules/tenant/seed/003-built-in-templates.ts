@@ -5,8 +5,8 @@
 
 // TODO: Run 'pnpm db:generate' to generate tenant client types before this compiles.
  
-// @ts-ignore — generated/tenant-client does not exist until after 'pnpm db:generate'
-import type { PrismaClient } from '../../../generated/tenant-client/index.js';
+// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+import type { PrismaClient } from '../../../prisma/generated/tenant-client/index.js';
 
 export interface ChildWorkspaceDef {
   name: string;

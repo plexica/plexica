@@ -5,7 +5,8 @@
 import { logger } from '../../../lib/logger.js';
 import { redis } from '../../../lib/redis.js';
 
-import type { Prisma } from '../../../../generated/tenant-client/index.js';
+// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+import type { Prisma } from '../../../../prisma/generated/tenant-client/index.js';
 
 const CACHE_PREFIX = 'plugin:vis:';
 const CACHE_TTL_SECONDS = 60; // 60s TTL — balances freshness with performance

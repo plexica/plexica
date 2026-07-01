@@ -17,8 +17,8 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
-// @ts-ignore — generated at build time via 'pnpm db:generate'
-import { PrismaClient as TenantPrismaClient } from '../../../generated/tenant-client/index.js';
+// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { toSchemaName, toRealmName } from '../../lib/tenant-schema-helpers.js';
 
