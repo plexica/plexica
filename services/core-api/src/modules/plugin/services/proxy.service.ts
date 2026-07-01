@@ -6,8 +6,11 @@ import { Readable } from 'node:stream';
 import { ValidationError } from '../../../lib/app-error.js';
 import { logger } from '../../../lib/logger.js';
 import { PluginBackendUnreachableError, WorkspaceVerifyError } from '../errors.js';
-import { shouldProbe, recordFailure, recordSuccess } from './health-check.service.js';
 
+import { shouldProbe, recordFailure, recordSuccess } from './health-check.service.js';
+import { registerDevBackend, unregisterDevBackend, getDevBackend } from './dev-backends.js';
+
+import type { ProxyTarget } from './dev-backends.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10MB
@@ -25,24 +28,9 @@ const ALLOWED_RESPONSE_HEADERS = new Set([
 // Only forward tenant context headers for known-safe host patterns (SSRF).
 const ALLOWED_PROXY_HOSTS = ['localhost', '127.0.0.1', 'host.docker.internal'];
 
-interface ProxyTarget {
-  baseUrl: string;
-  installId: string;
-}
-
-const devBackends = new Map<string, ProxyTarget>();
-
-export function registerDevBackend(slug: string, target: { baseUrl: string; installId?: string }): void {
-  devBackends.set(slug, { baseUrl: target.baseUrl, installId: target.installId ?? slug });
-}
-
-export function unregisterDevBackend(slug: string): void {
-  devBackends.delete(slug);
-}
-
-export function getDevBackend(slug: string): ProxyTarget | undefined {
-  return devBackends.get(slug);
-}
+// Re-export dev backend helpers so existing imports from proxy.service remain valid.
+export { registerDevBackend, unregisterDevBackend, getDevBackend };
+export type { ProxyTarget };
 
 function sanitizeProxyPath(url: string): string {
   const pathSuffix = url.replace(/^\/api\/v1\/plugins\/[^/]+\/proxy/, '');
@@ -70,10 +58,14 @@ function validateTargetHost(targetUrl: string): void {
 async function verifyWorkspaceMembership(
   workspaceId: string | undefined,
   userId: string | undefined,
-  tenantContext: Record<string, unknown> | undefined
+  tenantContext: Record<string, unknown> | undefined,
+  isTenantAdmin = false,
 ): Promise<void> {
   if (!workspaceId || !userId || !tenantContext) return;
   if (workspaceId === '' || userId === '') return;
+  // Tenant admins have access to all workspaces in their tenant — bypass
+  // the per-workspace membership check (same as the ABAC preHandler).
+  if (isTenantAdmin) return;
 
   const { withTenantDb } = await import('../../../lib/tenant-database.js');
   try {
@@ -143,7 +135,8 @@ export async function proxyRequest(
   const workspaceHeader = request.headers['x-plexica-workspace-id'];
   const workspaceId = (typeof workspaceHeader === 'string' ? workspaceHeader : '') ?? '';
 
-  await verifyWorkspaceMembership(workspaceId, internalUserId, tenantContext);
+  const isTenantAdmin = request.user?.roles.includes('tenant_admin') ?? false;
+  await verifyWorkspaceMembership(workspaceId, internalUserId, tenantContext, isTenantAdmin);
 
   const headers: Record<string, string> = {
     'Content-Type': (request.headers['content-type'] as string) || 'application/json',
@@ -159,11 +152,31 @@ export async function proxyRequest(
     if (val) headers[h] = val as string;
   }
 
+  // Build the outgoing body. The proxy route registers a passthrough
+  // contentTypeParser that stores the raw body as a Buffer for ALL content
+  // types (JSON, multipart, binary, form-data). We forward that Buffer
+  // verbatim — no re-serialization — so non-JSON plugin APIs (file uploads,
+  // binary, form-data) work correctly and JSON is forwarded as-is.
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+  const isJson = headers['Content-Type']?.includes('application/json') ?? false;
+  const bodyOpts: Record<string, unknown> = {};
+  if (hasBody && request.body !== undefined) {
+    const rawBody = request.body as Buffer | string | unknown;
+    if (Buffer.isBuffer(rawBody)) {
+      bodyOpts['body'] = rawBody;
+    } else if (typeof rawBody === 'string') {
+      bodyOpts['body'] = rawBody;
+    } else if (isJson) {
+      // Fallback: if the body is a parsed object (JSON), re-serialize it.
+      bodyOpts['body'] = JSON.stringify(rawBody);
+    }
+  }
+
   try {
     const response = await fetch(targetUrl, {
       method: request.method,
       headers,
-      ...(request.method !== 'GET' && request.method !== 'HEAD' ? { body: JSON.stringify(request.body) } : {}),
+      ...bodyOpts,
       signal: AbortSignal.timeout(10_000),
     });
 
@@ -174,14 +187,20 @@ export async function proxyRequest(
       if (ALLOWED_RESPONSE_HEADERS.has(key.toLowerCase())) reply.header(key, value);
     }
 
-    // Stream the body with a byte cap. No Content-Length is forwarded: the
-    // final size is unknown up-front and includes a truncation marker when the
-    // limit is hit, so chunked transfer is always used.
+    // Buffer the response body and send it directly. The streaming approach
+    // (Readable.fromWeb) can produce empty bodies with some HTTP clients when
+    // the stream ends before the client reads it. Buffering is simpler and
+    // reliable for the 10MB max response size.
     if (response.body === null) {
       reply.send('');
       return;
     }
-    reply.send(Readable.fromWeb(limitResponseBody(response.body, MAX_RESPONSE_BYTES)));
+    const responseBuffer = Buffer.from(await response.arrayBuffer());
+    if (responseBuffer.length > MAX_RESPONSE_BYTES) {
+      reply.send(responseBuffer.subarray(0, MAX_RESPONSE_BYTES) + TRUNCATION_MARKER);
+    } else {
+      reply.send(responseBuffer);
+    }
   } catch (err) {
     await recordFailure(target.installId);
     const message = (err as Error).message;

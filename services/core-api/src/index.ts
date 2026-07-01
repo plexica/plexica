@@ -32,7 +32,8 @@ import { userManagementRoutes } from './modules/user-management/routes.js';
 import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
-import { pluginAdminRoutes, pluginTenantRoutes } from './modules/plugin/index.js';
+import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modules/plugin/index.js';
+import { pluginEventAuth } from './middleware/plugin-event-auth.js';
 import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
@@ -104,6 +105,16 @@ await server.register(invitationPublicRoutes);
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
   await adminScope.register(pluginAdminRoutes);
+});
+
+// Plugin event-emission route — dual-auth scope. Plugin backends use an
+// X-Plugin-Service-Token (no JWT); user-initiated emissions use a Bearer JWT.
+// Registered OUTSIDE the tenantScope because authMiddleware would reject
+// service-token requests (no Authorization header) with 401 before the
+// handler runs. pluginEventAuth handles both paths.
+await server.register(async (eventScope) => {
+  eventScope.addHook('preHandler', pluginEventAuth);
+  await eventScope.register(pluginEventRoutes);
 });
 
 // ---------------------------------------------------------------------------

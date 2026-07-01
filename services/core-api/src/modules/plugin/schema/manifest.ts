@@ -1,6 +1,8 @@
 // schema/manifest.ts
 // Zod schema for full plugin manifest validation (DR-15).
 
+import path from 'node:path';
+
 import { z } from 'zod';
 
 const slugRegex = /^[a-z][a-z0-9-]{1,62}$/;
@@ -22,7 +24,11 @@ export const hostingSchema = z.object({
 export const declaredTableSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/, 'Table name must be snake_case'),
   description: z.string().optional(),
-  migrationFile: z.string().min(1),
+  // Reject path traversal: no absolute paths, no ".." components, no null bytes.
+  migrationFile: z.string().min(1).refine(
+    (v) => !v.includes('\0') && !v.includes('..') && !path.isAbsolute(v),
+    'migrationFile must be a relative path without ".." or null bytes',
+  ),
   content: z.string().optional(), // Inline SQL — preferred over filesystem read
 });
 

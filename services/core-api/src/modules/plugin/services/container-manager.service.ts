@@ -3,8 +3,9 @@
 // Dev mode (§10.7) bypasses containers entirely — uses local processes.
 
 import Docker from 'dockerode';
-import { logger } from '../../../lib/logger.js';
+
 import { PluginInstallError, PluginBackendUnreachableError, PluginNotFoundError } from '../errors.js';
+
 import { KubernetesContainerManager } from './kubernetes-container-manager.js';
 import { parseMemory, parseCpu } from './container-helpers.js';
 
@@ -39,6 +40,9 @@ function getPluginPort(installId: string): number | undefined {
 export interface ContainerManager {
   startContainer(installId: string, manifest: Manifest): Promise<ContainerInfo>;
   stopContainer(installId: string): Promise<void>;
+  /** Stops and removes the container so its name is freed for re-install.
+   *  Idempotent — no error if the container is already gone. */
+  removeContainer(installId: string): Promise<void>;
   getContainerStatus(installId: string): Promise<ContainerStatus>;
   getContainerUrl(installId: string): Promise<string>;
   restartContainer(installId: string): Promise<void>;
@@ -97,18 +101,9 @@ export class DockerContainerManager implements ContainerManager {
     const port = portBinding ? parseInt(portBinding.HostPort, 10) : manifest.hosting.port;
 
     setPluginPort(installId, port);
-
-    try {
-      const { prisma } = await import('../../../lib/database.js');
-      await prisma.pluginContainerConfig.upsert({
-        where: { installId },
-        create: { installId, image, port },
-        update: { port },
-      });
-    } catch (err) {
-      logger.warn({ err, installId, port }, 'Failed to persist container port to DB');
-    }
-
+    // plugin_container_config is a TENANT-schema table; the container manager
+    // has no tenant context. Port + env persistence is owned by the install
+    // route. Port recovery after a restart works via Docker inspect below.
     return { containerId: container.id, port, startedAt: new Date() };
   }
 
@@ -124,6 +119,24 @@ export class DockerContainerManager implements ContainerManager {
     }
   }
 
+  async removeContainer(installId: string): Promise<void> {
+    const container = this.docker.getContainer(`plexica-plugin-${installId}`);
+    try {
+      await container.stop({ t: 5 });
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? '';
+      if (!msg.includes('already stopped') && !msg.includes('not found')) throw err;
+    }
+    try {
+      await container.remove({ force: true, v: true });
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? '';
+      if (!msg.includes('not found') && !msg.includes('No such')) throw err;
+    } finally {
+      clearPluginPort(installId);
+    }
+  }
+
   async getContainerStatus(installId: string): Promise<ContainerStatus> {
     try {
       const container = this.docker.getContainer(`plexica-plugin-${installId}`);
@@ -134,22 +147,26 @@ export class DockerContainerManager implements ContainerManager {
         inspect.State.Health?.Status === 'healthy' ? 'healthy' : state === 'running' ? 'degraded' : 'unreachable';
 
       let port = getPluginPort(installId);
-      if (port === undefined) {
-        try {
-          const { prisma } = await import('../../../lib/database.js');
-          const cfg = await prisma.pluginContainerConfig.findUnique({ where: { installId }, select: { port: true } });
-          if (cfg?.port != null) {
-            port = cfg.port;
+      // Port recovery after restart: Docker inspect records the host port
+      // binding keyed by the container's exposed port. Without the manifest we
+      // don't know the exposed port key, so iterate over all port bindings and
+      // pick the first HostPort. The previous core-prisma DB fallback was
+      // broken (pluginContainerConfig is a tenant-schema model) and removed.
+      const portBindings = inspect.NetworkSettings.Ports;
+      if (port === undefined && portBindings) {
+        for (const [, bindings] of Object.entries(portBindings)) {
+          const hostPort = bindings?.[0]?.HostPort;
+          if (hostPort) {
+            port = parseInt(hostPort, 10);
             setPluginPort(installId, port);
+            break;
           }
-        } catch { /* DB unavailable — use fallback */ }
+        }
       }
-      const probePort = port ?? 3000;
-      const portBinding = inspect.NetworkSettings.Ports?.[`${probePort}/tcp`]?.[0];
 
       const status: ContainerStatus = { state, health };
       if (inspect.State.StartedAt) status.startedAt = new Date(inspect.State.StartedAt);
-      if (portBinding) status.port = parseInt(portBinding.HostPort, 10);
+      if (port !== undefined) status.port = port;
       return status;
     } catch {
       return { state: 'not_found', health: 'unreachable' };

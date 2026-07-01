@@ -8,8 +8,12 @@
 // CREATE TABLE ... AS SELECT subqueries. Migrations are additionally executed
 // under SET ROLE plugin_{installId} so PostgreSQL enforces scope at runtime.
 
-import { Parser } from 'node-sql-parser';
+// node-sql-parser is a CommonJS module — under Node ESM (tsx/.ts files) named
+// imports are not exposed, so import the default and destructure to obtain Parser.
+import nodeSqlParser from 'node-sql-parser';
 import { z } from 'zod';
+
+const { Parser } = nodeSqlParser;
 
 const parser = new Parser();
 const PARSE_OPT = { database: 'postgresql' as const };
@@ -130,4 +134,24 @@ export function validateMigrationSql(sql: string, slug: string): MigrationValida
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Splits a multi-statement SQL string into individual statements.
+ *
+ * Prisma's `$executeRawUnsafe` executes ONLY the first statement of a
+ * multi-statement string. For plugin migrations (CREATE TABLE + CREATE INDEX
+ * ...), this silently drops every statement after the first — including the
+ * workspace-isolation index. Since `validateMigrationSql` already guarantees
+ * only CREATE TABLE / CREATE INDEX / ALTER TABLE (no INSERT/string literals
+ * containing semicolons), splitting on the statement terminator `;` is safe.
+ *
+ * Returns trimmed, non-empty statements WITHOUT the trailing semicolon —
+ * callers re-append it before execution.
+ */
+export function splitSqlStatements(sql: string): string[] {
+  return sql
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !s.startsWith('--'));
 }

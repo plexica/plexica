@@ -47,18 +47,27 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
       );
       const pluginMap = new Map(plugins.map((p: any) => [p.id as string, p]));
 
-      return installations.map((inst: any) => ({
-        ...inst,
-        pluginName: pluginMap.get(inst.pluginId)?.name ?? null,
-        pluginSlug: pluginMap.get(inst.pluginId)?.slug ?? null,
-      }));
+      return installations.map((inst: any) => {
+        const plugin = pluginMap.get(inst.pluginId as string);
+        return {
+          ...inst,
+          // Frontend PluginInstallation type uses `name`/`slug`; raw E2E
+          // assertions (ac-04) use `pluginName`/`pluginSlug` — expose both.
+          name: plugin?.name ?? null,
+          slug: plugin?.slug ?? null,
+          pluginName: plugin?.name ?? null,
+          pluginSlug: plugin?.slug ?? null,
+        };
+      });
     }
   );
 
   // ── GET /api/v1/plugins ────────────────────────────────────────────────────
+  // Read-only catalog browsing — available to any authenticated tenant member
+  // (viewers can browse; the frontend disables the install button for non-admins
+  // via useAbac). Install/uninstall still require plugin:manage.
   fastify.get(
     '/api/v1/plugins',
-    { preHandler: [requireAbac('plugin:manage')] },
     async (request) => {
       const parsed = listQuerySchema.safeParse(request.query);
       if (!parsed.success) {
@@ -96,7 +105,6 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
   // ── GET /api/v1/plugins/:slug ──────────────────────────────────────────────
   fastify.get(
     '/api/v1/plugins/:slug',
-    { preHandler: [requireAbac('plugin:manage')] },
     async (request) => {
       const { slug } = z.object({ slug: z.string().regex(SLUG_REGEX) }).parse(request.params);
 

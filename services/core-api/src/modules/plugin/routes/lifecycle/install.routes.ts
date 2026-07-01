@@ -2,28 +2,41 @@
 // Plugin install route with migration execution.
 
 import crypto from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+
 import { z } from 'zod';
+
 import { withCoreDb, withTenantDb } from '../../../../lib/tenant-database.js';
 import { emitEvent, Topics } from '../../../../lib/kafka.js';
 import { requireAbac } from '../../../../middleware/abac.js';
 import { ValidationError } from '../../../../lib/app-error.js';
 import { logger } from '../../../../lib/logger.js';
-import { prisma } from '../../../../lib/database.js';
-import { PluginNotFoundError, PluginValidationError, PluginConflictError, PluginInstallError } from '../../errors.js';
+import { PluginNotFoundError, PluginValidationError, PluginConflictError } from '../../errors.js';
 import { createContainerManager } from '../../services/container-manager.service.js';
 import { dispatchEvent } from '../../events/event-dispatcher.service.js';
 import { createConsumerGroup } from '../../events/consumer-manager.service.js';
-import { createPluginRole, grantCreateOnSchema, revokeCreateOnSchema } from '../../services/db-role.service.js';
+import { createPluginRole, grantCreateOnSchema, revokeCreateOnSchema, dropPluginRole, grantTablePrivileges } from '../../services/db-role.service.js';
+import { runPluginMigrations } from '../../services/migration-executor.js';
+import { generateServiceToken } from '../../services/service-token.js';
 import { manifestSchema } from '../../schema/manifest.js';
-import { validateMigrationSql } from '../../schema/migrations.js';
 
 import type { FastifyInstance } from 'fastify';
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 const IMAGE_NAME_REGEX = /^[a-z0-9][a-z0-9._/-]{0,126}[a-z0-9]$/;
 const SEMVER_REGEX = /^\d+\.\d+\.\d+$/;
+
+/** Terminal statuses that allow re-install over an existing record (A4/EC-29). */
+const REINSTALLABLE_STATUSES = new Set(['failed', 'uninstalled']);
+
+/**
+ * Pure helper: decides whether an existing installation record blocks
+ * re-install. Only active/degraded/deactivated/installing records occupy the
+ * (pluginId, tenantSlug) slot legitimately. `failed`/`uninstalled` are
+ * terminal and must allow a fresh install. Extracted for unit testing.
+ */
+export function blocksReInstall(status: string): boolean {
+  return !REINSTALLABLE_STATUSES.has(status);
+}
 
 export async function installRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post('/api/v1/plugins/:slug/install', { preHandler: [requireAbac('plugin:manage')] }, async (request) => {
@@ -55,7 +68,23 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       const existing = await tx.pluginInstallation.findUnique({
         where: { pluginId_tenantSlug: { pluginId: plugin.id as string, tenantSlug: ctx.slug } },
       });
-      if (existing) throw new PluginConflictError(`Plugin "${slug}" is already installed`);
+      // A4/EC-29: a prior `failed` or `uninstalled` install must NOT block
+      // re-install. Only active/degraded/deactivated/installing records block.
+      if (existing && blocksReInstall(existing.status)) {
+        throw new PluginConflictError(`Plugin "${slug}" is already installed`);
+      }
+      if (existing) {
+        // Re-install over a terminal record: drop the old restricted DB role
+        // and remove any leftover container (best-effort) so startContainer
+        // doesn't 409 on a stale stopped container with the same name.
+        try { await dropPluginRole(existing.id, ctx.slug); } catch { /* best-effort */ }
+        try { await createContainerManager(existing.hostingType).removeContainer(existing.id); } catch { /* best-effort */ }
+        const updated = await tx.pluginInstallation.update({
+          where: { id: existing.id },
+          data: { status: 'installing', version: plugin.version as string, hostingType, installedBy: userId, installedAt: new Date() },
+        });
+        return updated;
+      }
 
       const installation = await tx.pluginInstallation.create({
         data: { pluginId: plugin.id as string, tenantSlug: ctx.slug, version: plugin.version as string, status: 'installing', hostingType, installedBy: userId },
@@ -66,12 +95,15 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
 
     // CRITICAL #1 — provision a restricted DB role for the plugin container.
     const role = await createPluginRole(install.id, ctx.slug, manifest.declaredTables);
-    // Persist the encrypted connection string at rest in plugin_container_config.
-    await (prisma as any).pluginContainerConfig.upsert({
-      where: { installId: install.id },
-      create: { installId: install.id, image: imageRef, port: 0, envOverrides: role.encryptedEnvOverrides },
-      update: { envOverrides: role.encryptedEnvOverrides },
-    }).catch((err: any) => {
+    // Persist the encrypted connection string at rest in plugin_container_config
+    // (a TENANT-schema table — must use withTenantDb, not the core prisma client).
+    await withTenantDb(async (tx: any) => {
+      await tx.pluginContainerConfig.upsert({
+        where: { installId: install.id },
+        create: { installId: install.id, image: imageRef, port: 0, envOverrides: role.encryptedEnvOverrides },
+        update: { envOverrides: role.encryptedEnvOverrides },
+      });
+    }, ctx).catch((err: any) => {
       logger.warn({ err: err?.message, installId: install.id }, 'Failed to persist encrypted plugin env overrides');
     });
 
@@ -82,52 +114,37 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     try {
       await withTenantDb(async (tenantDb: any) => {
         return tenantDb.$transaction(async (tx: any) => {
-          for (const table of manifest.declaredTables) {
-            let sql: string;
-            if (table.content) {
-              sql = table.content;
-            } else {
-              const migrationPath = path.resolve(process.cwd(), 'plugins', manifest.slug, table.migrationFile);
-              try {
-                sql = await readFile(migrationPath, 'utf-8');
-              } catch (err: any) {
-                throw new PluginInstallError(`Migration file "${table.migrationFile}" not found for plugin "${manifest.slug}" — provide inline content in manifest.declaredTables[].content`);
-              }
-            }
-
-            const validation = validateMigrationSql(sql, manifest.slug);
-            if (!validation.valid) {
-              throw new PluginValidationError(`Migration "${table.migrationFile}" failed validation: ${validation.errors.join('; ')}`);
-            }
-
-            try {
-              await tx.$executeRawUnsafe(`SET ROLE ${role.roleName}`);
-              try {
-                await tx.$executeRawUnsafe(sql);
-              } finally {
-                await tx.$executeRawUnsafe('RESET ROLE');
-              }
-            } catch (err: any) {
-              throw new PluginInstallError(`Failed to execute migration "${table.migrationFile}": ${err.message}`);
-            }
-
-            await tx.pluginMigrationStatus.create({
-              data: { installId: install.id, migrationName: table.name, status: 'applied', appliedAt: new Date() },
-            });
-          }
-
-          for (const a of manifest.actions ?? []) {
-            await tx.actionRegistry.create({
-              data: { pluginId: plugin.id as string, actionKey: a.action, labelI18nKey: a.action.replace(/:/g, '.'), defaultRole: a.defaultRole },
-            });
-          }
+          await runPluginMigrations({ tx, manifest, role, installId: install.id, pluginId: plugin.id as string });
         });
       }, ctx);
+    } catch (migrationErr) {
+      // A4: a failed migration must NOT leave an orphaned `installing` record —
+      // it would block re-install (409 "already installed") and violate EC-3/EC-29.
+      // Mark the install `failed` best-effort and drop the provisioned role.
+      logger.error({ err: (migrationErr as Error).message, installId: install.id }, 'Plugin migration failed — marking install failed');
+      await withTenantDb(async (tx: any) => {
+        await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: 'failed' } });
+      }, ctx).catch((e: any) => logger.error({ err: e?.message, installId: install.id }, 'Failed to mark install as failed'));
+      try { await revokeCreateOnSchema(install.id, ctx.slug); } catch { /* best-effort */ }
+      // Drop the orphaned restricted DB role (best-effort) so its password
+      // doesn't leak — the failed install will be re-installed with a fresh role.
+      try { await dropPluginRole(install.id, ctx.slug); } catch { /* best-effort */ }
+      throw migrationErr;
     } finally {
-      await revokeCreateOnSchema(install.id, ctx.slug);
+      try { await revokeCreateOnSchema(install.id, ctx.slug); } catch { /* best-effort if not already revoked */ }
     }
 
     let degraded = false;
+
+    // Grant DML on the now-created plugin tables to the restricted role. This
+    // MUST run after runPluginMigrations — granting before table creation throws.
+    try {
+      await grantTablePrivileges(install.id, ctx.slug, manifest.declaredTables);
+    } catch (err: unknown) {
+      logger.warn({ err: (err as Error).message, installId: install.id }, 'Failed to grant DML on plugin tables — plugin may not be able to read/write its tables');
+      degraded = true;
+    }
+
     try {
       const mgr = createContainerManager(hostingType);
       const hostingPort = (manifest.hosting as any)?.port ?? 3000;
@@ -140,7 +157,14 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
         declaredTables: [],
         ui: { remoteEntry: 'remoteEntry.js', extensionPoints: [] },
         events: { subscribes: [] },
-        env: { DATABASE_URL: role.connectionString, CORE_API_URL: 'http://localhost:3001' },
+        env: {
+          DATABASE_URL: role.connectionString,
+          CORE_API_URL: 'http://localhost:3001',
+          // A5: service-account token so the plugin backend can emit events
+          // via POST /api/v1/events/emit without a user JWT.
+          PLEXICA_SERVICE_TOKEN: generateServiceToken(install.id, ctx.slug),
+          PLEXICA_INSTALL_ID: install.id,
+        },
       } as any);
     } catch (err: any) {
       logger.warn({ err: err.message, installId: install.id }, 'Container start failed — plugin will be degraded');

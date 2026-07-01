@@ -195,3 +195,49 @@ export async function upsertUser(token: string, realm: string, user: KeycloakUse
 
 // Re-export theme helpers so global-setup.ts can import from one place.
 export { setRealmPlexicaTheme } from './keycloak-theme-helpers.js';
+
+/**
+ * Ensures the `super_admin` role exists in the given realm and is assigned
+ * to the specified user. Idempotent — safe to call on every global-setup.
+ * Required by DLQ E2E tests (ac-06) that hit super-admin-only API endpoints.
+ */
+export async function ensureSuperAdminForUser(
+  token: string,
+  realm: string,
+  username: string,
+): Promise<void> {
+  // 1. Create the super_admin role if it doesn't exist (409 = already exists).
+  const createRoleRes = await adminFetch(token, `/admin/realms/${realm}/roles`, 'POST', {
+    name: 'super_admin',
+    description: 'Super administrator — cross-tenant access (E2E)',
+  });
+  if (!createRoleRes.ok && createRoleRes.status !== 409) {
+    process.stderr.write(
+      `[global-setup] Warning: could not create super_admin role in ${realm}: ${createRoleRes.status}\n`
+    );
+    return;
+  }
+
+  // 2. Find the user.
+  const lookupRes = await adminFetch(
+    token,
+    `/admin/realms/${realm}/users?username=${encodeURIComponent(username)}&exact=true`,
+    'GET'
+  );
+  if (!lookupRes.ok) {
+    process.stderr.write(
+      `[global-setup] Warning: could not look up user ${username} in ${realm}: ${lookupRes.status}\n`
+    );
+    return;
+  }
+  const users = (await lookupRes.json()) as Array<{ id: string }>;
+  const userId = users[0]?.id;
+  if (userId === undefined) {
+    process.stderr.write(`[global-setup] Warning: user ${username} not found in ${realm}\n`);
+    return;
+  }
+
+  // 3. Assign the super_admin role to the user (idempotent).
+  await assignRealmRoles(token, realm, userId, ['super_admin']);
+  process.stdout.write(`[global-setup] super_admin role assigned to ${username} in ${realm}.\n`);
+}

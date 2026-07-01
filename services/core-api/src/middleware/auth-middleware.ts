@@ -83,11 +83,19 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
   const expectedIssuer = `${config.KEYCLOAK_URL}/realms/${realm}`;
 
   // H-4: validate audience to reject tokens issued for other Keycloak clients.
-  const { payload } = await jwtVerify(token, jwks, {
+  // Exception: master-realm tokens (super admin via admin-cli) don't have the
+  // plexica-web audience — they're issued for admin-cli. The master realm is
+  // Keycloak's built-in admin realm, and only the super_admin role is accepted
+  // for super-admin endpoints (see require-super-admin.ts).
+  const verifyOptions: Parameters<typeof jwtVerify>[2] = {
     algorithms: ['RS256'],
     issuer: expectedIssuer,
-    audience: config.KEYCLOAK_CLIENT_ID,
-  });
+  };
+  if (realm !== config.KEYCLOAK_MASTER_REALM) {
+    verifyOptions.audience = config.KEYCLOAK_CLIENT_ID;
+  }
+
+  const { payload } = await jwtVerify(token, jwks, verifyOptions);
 
   const sub = String(payload['sub'] ?? '');
   return {

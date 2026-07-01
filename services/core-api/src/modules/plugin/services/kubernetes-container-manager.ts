@@ -19,6 +19,10 @@ export class KubernetesContainerManager implements ContainerManager {
     // No-op — no container to stop in dev/CI
   }
 
+  async removeContainer(_installId: string): Promise<void> {
+    // No-op — Kubernetes deletes pods via the deployment controller.
+  }
+
   async getContainerStatus(_installId: string): Promise<ContainerStatus> {
     return { state: 'not_found', health: 'unreachable' };
   }

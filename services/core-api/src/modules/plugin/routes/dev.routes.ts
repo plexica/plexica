@@ -4,9 +4,11 @@
 // (no container build needed). See Plan §10.7.
 
 import { z } from 'zod';
+
 import { config } from '../../../lib/config.js';
 import { ValidationError } from '../../../lib/app-error.js';
 import { registerDevBackend, unregisterDevBackend } from '../services/proxy.service.js';
+import { createDevConsumerGroup, deleteDevConsumerGroup } from '../events/consumer-manager.service.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -16,6 +18,9 @@ const devPlugins = new Map<string, {
   backendUrl: string;
   uiUrl?: string;
   extensionPoints: string[];
+  actions: Array<{ action: string; defaultRole: string }>;
+  events: string[];
+  consumerGroupId?: string;
   registeredAt: Date;
 }>();
 
@@ -64,7 +69,7 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
     }
 
-    const { slug, backendUrl, uiUrl, extensionPoints } = parsed.data;
+    const { slug, backendUrl, uiUrl, extensionPoints, actions, events } = parsed.data;
 
     if (devPlugins.has(slug)) {
       return reply.status(409).send({
@@ -74,15 +79,34 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
 
     const devEntry: {
       slug: string; backendUrl: string; uiUrl?: string;
-      extensionPoints: string[]; registeredAt: Date;
-    } = { slug, backendUrl, extensionPoints, registeredAt: new Date() };
+      extensionPoints: string[];
+      actions: Array<{ action: string; defaultRole: string }>;
+      events: string[];
+      consumerGroupId?: string;
+      registeredAt: Date;
+    } = { slug, backendUrl, extensionPoints, actions: actions ?? [], events: events?.subscribes ?? [], registeredAt: new Date() };
     if (uiUrl) devEntry.uiUrl = uiUrl;
+
+    // Plan §10.7 step 5: register temporary plugin actions so dev ABAC
+    // evaluation works. Actions are held in-memory only (no tenant-schema
+    // write) — dev mode is localhost-only and ephemeral.
+    // Plan §10.7 step 6: create a dev Kafka consumer group when the plugin
+    // declares event subscriptions, so dev-mode plugins receive events.
+    if (devEntry.events.length > 0) {
+      try {
+        devEntry.consumerGroupId = await createDevConsumerGroup(slug);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        request.log.warn({ err: msg, slug }, 'Failed to create dev consumer group — plugin will not receive events');
+      }
+    }
+
     devPlugins.set(slug, devEntry);
 
     // Register the dev backend with the proxy service (slug-keyed).
     registerDevBackend(slug, { baseUrl: backendUrl });
 
-    request.log.info({ slug, backendUrl }, 'Plugin registered in dev mode');
+    request.log.info({ slug, backendUrl, actionCount: devEntry.actions.length, hasConsumer: !!devEntry.consumerGroupId }, 'Plugin registered in dev mode');
 
     return reply.status(200).send({
       status: 'ok',
@@ -103,12 +127,24 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const { slug } = parsed.data;
-    const removed = devPlugins.delete(slug);
+    const removed = devPlugins.get(slug);
     if (!removed) {
       return reply.status(404).send({ error: `Plugin "${slug}" is not registered in dev mode` });
     }
+    devPlugins.delete(slug);
 
     unregisterDevBackend(slug);
+
+    // Plan §10.7 teardown: clean up the dev Kafka consumer group if one was
+    // created during registration.
+    if (removed.consumerGroupId) {
+      try {
+        await deleteDevConsumerGroup(slug);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        request.log.warn({ err: msg, slug }, 'Failed to delete dev consumer group during unregister');
+      }
+    }
 
     request.log.info({ slug }, 'Plugin unregistered from dev mode');
     return reply.status(200).send({ status: 'ok', slug });
@@ -126,9 +162,13 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
         backendUrl: string;
         uiUrl?: string;
         extensionPoints: string[];
+        actions: Array<{ action: string; defaultRole: string }>;
+        events: string[];
+        consumerGroupId?: string;
         registeredAt: Date;
-      } = { slug: p.slug, backendUrl: p.backendUrl, extensionPoints: p.extensionPoints, registeredAt: p.registeredAt };
+      } = { slug: p.slug, backendUrl: p.backendUrl, extensionPoints: p.extensionPoints, actions: p.actions, events: p.events, registeredAt: p.registeredAt };
       if (p.uiUrl) entry.uiUrl = p.uiUrl;
+      if (p.consumerGroupId) entry.consumerGroupId = p.consumerGroupId;
       return entry;
     });
 

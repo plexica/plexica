@@ -2,6 +2,7 @@
 // Plugin deactivate route.
 
 import { z } from 'zod';
+
 import { withTenantDb } from '../../../../lib/tenant-database.js';
 import { requireAbac } from '../../../../middleware/abac.js';
 import { PluginNotFoundError, PluginValidationError } from '../../errors.js';
@@ -28,13 +29,11 @@ export async function deactivateRoutes(fastify: FastifyInstance): Promise<void> 
       await pauseConsumerGroup(installId, inst.tenantSlug);
       await tx.pluginInstallation.update({ where: { id: installId }, data: { status: 'deactivated' } });
 
-      // Disable all workspace visibility, preserving is_override for restoration on reactivation.
-      await tx.pluginWorkspaceVisibility.updateMany({
-        where: { installId, isEnabled: true },
-        data: { isEnabled: false },
-      });
-
-      clearVisibilityCache(installId);
+      // AC-03: per-workspace overrides are PRESERVED across deactivate/reactivate.
+      // We do NOT mutate pluginWorkspaceVisibility.isEnabled here — the visibility
+      // resolver (visibility.service.ts) returns false while status === 'deactivated',
+      // and original override values remain intact for restoration on reactivation.
+      await clearVisibilityCache(installId);
       return { status: 'deactivated', installId };
     }, ctx);
   });

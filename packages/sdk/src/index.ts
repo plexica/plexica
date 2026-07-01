@@ -19,6 +19,12 @@ export class PluginSDK {
       ...config,
       apiUrl: config.apiUrl ?? process.env['CORE_API_URL'] ?? 'http://localhost:3001',
     };
+    // Auto-populate platform-injected env vars without violating
+    // exactOptionalPropertyTypes (only assign when defined).
+    const svcToken = config.serviceToken ?? process.env['PLEXICA_SERVICE_TOKEN'];
+    const instId = config.installId ?? process.env['PLEXICA_INSTALL_ID'];
+    if (svcToken) this.config.serviceToken = svcToken;
+    if (instId) this.config.installId = instId;
   }
 
   async initialize(): Promise<void> {
@@ -158,7 +164,11 @@ export class PluginSDK {
       'Content-Type': 'application/json',
     };
 
-    if (this.config.accessToken) {
+    // A5: prefer the platform-injected service token (plugin-backend path).
+    // Fall back to a user access token if present (user-initiated path).
+    if (this.config.serviceToken) {
+      headers['X-Plugin-Service-Token'] = this.config.serviceToken;
+    } else if (this.config.accessToken) {
       headers['Authorization'] = `Bearer ${this.config.accessToken}`;
     }
 

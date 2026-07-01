@@ -74,3 +74,23 @@ export async function getPluginActionOverride(
 
   return (override?.requiredRole as WorkspaceRole | null) ?? null;
 }
+
+/**
+ * Returns the defaultRole for a plugin action from the tenant's
+ * action_registry, or null if the action is not registered. Used by the engine
+ * when a plugin action key (e.g. `crm:access`, `crm:contact:read`) is not in
+ * the static POLICY_MAP — plugin actions are dynamic, seeded at install time.
+ */
+export async function getPluginActionDefaultRole(
+  ctx: AbacContext,
+  tenantDb: unknown
+): Promise<WorkspaceRole | null> {
+  if (ctx.pluginActionKey === undefined) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tenant-schema PrismaClient, type-erased pending prisma generate
+  const db = tenantDb as any;
+  const action = await db.actionRegistry.findFirst({
+    where: { actionKey: ctx.pluginActionKey },
+    select: { defaultRole: true },
+  });
+  return (action?.defaultRole as WorkspaceRole | null) ?? null;
+}

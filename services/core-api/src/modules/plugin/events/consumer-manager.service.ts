@@ -3,6 +3,7 @@
 
 import { createConsumer } from '../../../lib/kafka.js';
 import { logger } from '../../../lib/logger.js';
+
 import { moveToDlq } from './dlq.service.js';
 
 interface ConsumerEntry {
@@ -159,6 +160,18 @@ export async function createDevConsumerGroup(slug: string): Promise<string> {
   await consumer.connect();
   consumers.set(groupId, { consumer, topics: [], isRunning: true });
   return groupId;
+}
+
+export async function deleteDevConsumerGroup(slug: string): Promise<void> {
+  const groupId = `${DEV_CONSUMER_PREFIX}${slug}`;
+  const entry = consumers.get(groupId);
+  if (!entry) return;
+  try {
+    await entry.consumer.disconnect();
+  } catch {
+    /* best-effort */
+  }
+  consumers.delete(groupId);
 }
 
 export function getActiveConsumerGroups(): string[] {

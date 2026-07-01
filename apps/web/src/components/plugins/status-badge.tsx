@@ -14,6 +14,10 @@ const STATUS_CONFIG: Record<
   { color: string; labelId: string }
 > = {
   active: { color: 'bg-success-base/10 text-success-base', labelId: 'plugins.status.active' },
+  degraded: {
+    color: 'bg-warning-base/10 text-warning-base',
+    labelId: 'plugins.status.degraded',
+  },
   deactivated: {
     color: 'bg-neutral-100 text-neutral-500',
     labelId: 'plugins.status.deactivated',
@@ -30,7 +34,10 @@ const STATUS_CONFIG: Record<
 };
 
 export function StatusBadge({ status }: StatusBadgeProps): JSX.Element {
-  const config = STATUS_CONFIG[status];
+  const config = STATUS_CONFIG[status] ?? {
+    color: 'bg-neutral-100 text-neutral-500',
+    labelId: 'plugins.status.deactivated',
+  };
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${config.color}`}

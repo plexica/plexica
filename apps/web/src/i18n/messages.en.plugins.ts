@@ -41,6 +41,7 @@ export const messagesPlugins = {
   'plugins.installed.loading': 'Loading installed plugins...',
   'plugins.installed.error': 'Failed to load installed plugins.',
   'plugins.status.active': 'Active',
+  'plugins.status.degraded': 'Degraded',
   'plugins.status.deactivated': 'Deactivated',
   'plugins.status.unreachable': 'Unreachable',
   'plugins.status.updating': 'Updating',

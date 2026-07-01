@@ -59,7 +59,8 @@ export async function resolveTenant(): Promise<TenantInfo> {
 
   // NEW-H-3: realm is not returned by the API (prevents enumeration of internal realm names).
   // Derive it from slug using the same convention as the backend toRealmName() helper.
-  const realm = `plexica-${slug}`;
+  // Special case: the 'admin' slug maps to the Keycloak master realm (super-admin).
+  const realm = slug === 'admin' ? 'master' : `plexica-${slug}`;
 
   return { slug, realm };
 }

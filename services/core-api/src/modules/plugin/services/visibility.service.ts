@@ -81,7 +81,17 @@ export async function isPluginVisible(
   const cached = await getCached(installId, workspaceId);
   if (cached !== null) return cached;
 
-  // Check workspace override
+  // Resolve the installation once — needed for both status check and tenant
+  // default. A deactivated/uninstalled plugin is never visible regardless of
+  // override rows (AC-03: overrides are preserved across deactivate/reactivate,
+  // so we must NOT mutate isEnabled on lifecycle transitions).
+  const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
+  if (!installation || (installation.status !== 'active' && installation.status !== 'degraded')) {
+    await setCache(installId, workspaceId, false);
+    return false;
+  }
+
+  // Check workspace override (preserved across deactivate/reactivate)
   const override = await tx.pluginWorkspaceVisibility.findUnique({
     where: { installId_workspaceId: { installId, workspaceId } },
   });
@@ -92,8 +102,7 @@ export async function isPluginVisible(
   }
 
   // Fall back to tenant default
-  const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
-  const visible = installation?.tenantDefaultVisibility === 'enabled';
+  const visible = installation.tenantDefaultVisibility === 'enabled';
   await setCache(installId, workspaceId, visible);
   return visible;
 }

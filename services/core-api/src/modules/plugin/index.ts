@@ -18,6 +18,9 @@ import { visibilityRoutes } from './routes/visibility.routes.js';
 import { startPeriodicHealthPolling } from './services/health-check.service.js';
 import { createContainerManager } from './services/container-manager.service.js';
 import { getActiveConsumerGroups, CONSUMER_GROUP_PREFIX } from './events/consumer-manager.service.js';
+import { registerDevBackend } from './services/dev-backends.js';
+import { config } from '../../lib/config.js';
+import { logger } from '../../lib/logger.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -36,9 +39,17 @@ export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void>
   await fastify.register(kafkaStatusRoutes);
 }
 
+/**
+ * Plugin event-emission route — registered in its OWN scope (not inside the
+ * authenticated tenantScope) because plugin backends authenticate with an
+ * X-Plugin-Service-Token (no user JWT). See middleware/plugin-event-auth.ts.
+ */
+export async function pluginEventRoutes(fastify: FastifyInstance): Promise<void> {
+  await fastify.register(eventEmitRoutes);
+}
+
 export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(devPluginRoutes);
-  await fastify.register(eventEmitRoutes);
   await fastify.register(marketplaceRoutes);
   await fastify.register(proxyRoutes);
   await fastify.register(installRoutes);
@@ -52,4 +63,19 @@ export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void
     () => extractInstallIds(getActiveConsumerGroups()),
     30_000,
   );
+
+  // Dev mode: auto-register locally-running CRM backend if reachable.
+  // The CRM example plugin runs on port 4000 (see examples/plugins/crm).
+  if (config.NODE_ENV === 'development') {
+    try {
+      const res = await fetch('http://localhost:4000/contacts', {
+        signal: AbortSignal.timeout(2000),
+        headers: { 'X-Plexica-Workspace-Id': 'probe' },
+      });
+      registerDevBackend('crm', { baseUrl: 'http://localhost:4000' });
+      logger.info('Auto-registered CRM dev backend at http://localhost:4000');
+    } catch {
+      // CRM backend not running — container-based installs will handle routing.
+    }
+  }
 }

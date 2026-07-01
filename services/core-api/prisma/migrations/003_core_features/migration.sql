@@ -247,3 +247,92 @@ CREATE TABLE IF NOT EXISTS workspace_role_action (
   CONSTRAINT workspace_role_action_workspace_fk FOREIGN KEY (workspace_id)
     REFERENCES workspace(id) ON DELETE CASCADE
 );
+
+-- ---------------------------------------------------------------------------
+-- 11. plugin_installations
+-- Tracks a plugin installed in a tenant. plugin_id references core.plugins.id
+-- (cross-schema, FK intentionally omitted). One row per (plugin, tenant).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS plugin_installations (
+  id                          UUID          NOT NULL DEFAULT gen_random_uuid(),
+  plugin_id                   UUID          NOT NULL,
+  tenant_slug                 VARCHAR(63)   NOT NULL,
+  version                     VARCHAR(32)   NOT NULL DEFAULT '',
+  status                      VARCHAR(16)   NOT NULL DEFAULT 'installing',
+  hosting_type                VARCHAR(16)   NOT NULL DEFAULT 'sidecar',
+  container_id                VARCHAR(255),
+  k8s_pod_name                VARCHAR(255),
+  tenant_default_visibility   VARCHAR(16)   NOT NULL DEFAULT 'enabled',
+  installed_by                UUID          NOT NULL,
+  installed_at                TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  updated_at                  TIMESTAMPTZ   NOT NULL DEFAULT now(),
+
+  CONSTRAINT plugin_installations_pkey         PRIMARY KEY (id),
+  CONSTRAINT plugin_installations_plugin_tenant_unique UNIQUE (plugin_id, tenant_slug),
+  CONSTRAINT plugin_installations_status_check CHECK (status IN ('installing','active','degraded','deactivated','uninstalled','failed')),
+  CONSTRAINT plugin_installations_hosting_check CHECK (hosting_type IN ('sidecar','kubernetes')),
+  CONSTRAINT plugin_installations_visibility_check CHECK (tenant_default_visibility IN ('enabled','disabled'))
+);
+CREATE INDEX IF NOT EXISTS idx_plugin_installations_status ON plugin_installations (status);
+
+-- ---------------------------------------------------------------------------
+-- 12. plugin_migration_status
+-- Per-install record of each declared-table migration applied (or failed).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS plugin_migration_status (
+  id              UUID          NOT NULL DEFAULT gen_random_uuid(),
+  install_id      UUID          NOT NULL,
+  migration_name  VARCHAR(255)  NOT NULL,
+  status          VARCHAR(16)   NOT NULL DEFAULT 'pending',
+  applied_at      TIMESTAMPTZ,
+  error_message   TEXT,
+
+  CONSTRAINT plugin_migration_status_pkey           PRIMARY KEY (id),
+  CONSTRAINT plugin_migration_status_install_name_unique UNIQUE (install_id, migration_name),
+  CONSTRAINT plugin_migration_status_install_fk FOREIGN KEY (install_id)
+    REFERENCES plugin_installations(id) ON DELETE CASCADE
+);
+
+-- ---------------------------------------------------------------------------
+-- 13. plugin_workspace_visibility
+-- Per-workspace enable/disable + override flag for an installed plugin.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS plugin_workspace_visibility (
+  id            UUID          NOT NULL DEFAULT gen_random_uuid(),
+  install_id    UUID          NOT NULL,
+  workspace_id  UUID          NOT NULL,
+  is_enabled    BOOLEAN       NOT NULL DEFAULT true,
+  is_override   BOOLEAN       NOT NULL DEFAULT false,
+  updated_by    UUID,
+  updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+
+  CONSTRAINT plugin_workspace_visibility_pkey           PRIMARY KEY (id),
+  CONSTRAINT plugin_workspace_visibility_install_ws_unique UNIQUE (install_id, workspace_id),
+  CONSTRAINT plugin_workspace_visibility_install_fk FOREIGN KEY (install_id)
+    REFERENCES plugin_installations(id) ON DELETE CASCADE,
+  CONSTRAINT plugin_workspace_visibility_workspace_fk FOREIGN KEY (workspace_id)
+    REFERENCES workspace(id) ON DELETE CASCADE
+);
+
+-- ---------------------------------------------------------------------------
+-- 14. plugin_container_config
+-- Runtime container image + resource/health config for a sidecar/k8s install.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS plugin_container_config (
+  id                   UUID          NOT NULL DEFAULT gen_random_uuid(),
+  install_id           UUID          NOT NULL,
+  type                 VARCHAR(16)   NOT NULL DEFAULT 'sidecar',
+  image                VARCHAR(512)  NOT NULL,
+  port                 INTEGER,
+  image_pull_secret    VARCHAR(255),
+  resource_limits      JSONB         NOT NULL DEFAULT '{}'::jsonb,
+  env_overrides        JSONB         NOT NULL DEFAULT '{}'::jsonb,
+  health_status        VARCHAR(16)   NOT NULL DEFAULT 'healthy',
+  last_health_check_at TIMESTAMPTZ,
+
+  CONSTRAINT plugin_container_config_pkey      PRIMARY KEY (id),
+  CONSTRAINT plugin_container_config_install_unique UNIQUE (install_id),
+  CONSTRAINT plugin_container_config_install_fk FOREIGN KEY (install_id)
+    REFERENCES plugin_installations(id) ON DELETE CASCADE,
+  CONSTRAINT plugin_container_config_type_check CHECK (type IN ('sidecar','kubernetes'))
+);

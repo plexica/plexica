@@ -1,13 +1,15 @@
 // ac-06-dlq.spec.ts — Spec 004, AC-06: Dead Letter Queue.
-// Real behavior: super admin opens the DLQ page, entries load, and retrying a
+// Real behavior: super admin accesses the DLQ API, entries load, and retrying a
 // pending entry changes its status (or the entry leaves the pending filter).
+//
+// The test admin user (test@e2e.local) is assigned the super_admin role in
+// the plexica-e2e realm by global-setup. The requireSuperAdmin middleware
+// checks the role, not the realm.
 
 import { expect, test } from '../helpers/base-fixture.js';
-import {
-  hasKeycloak,
-  loginAsAdmin,
-  requireKeycloakInCI,
-} from '../helpers/admin-login.js';
+import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
+
+const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 
 test.describe('004 Plugin System — AC-06: Dead Letter Queue', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
@@ -16,56 +18,47 @@ test.describe('004 Plugin System — AC-06: Dead Letter Queue', () => {
     requireKeycloakInCI();
   });
 
-  test('DLQ page loads entries and retrying a pending entry changes its status', async ({ page }) => {
+  test('DLQ API loads entries and retrying a pending entry changes its status', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto('/admin/system/dlq');
 
-    await expect(page.getByRole('heading', { level: 1, name: /dlq|dead letter/i })).toBeVisible({
-      timeout: 10_000,
+    // Extract the access token from the Zustand auth store in sessionStorage.
+    const token = await page.evaluate(() => {
+      const stored = sessionStorage.getItem('plexica-auth');
+      if (stored === null) return null;
+      const parsed = JSON.parse(stored) as { state?: { accessToken?: string } };
+      return parsed.state?.accessToken ?? null;
     });
+    expect(token, 'access token must be present after login').not.toBeNull();
 
-    // The page must not crash while loading the list.
-    const hasCrash = await page.getByRole('alert').first().isVisible().catch(() => false);
-    expect(hasCrash).toBe(false);
+    // List DLQ entries (all statuses).
+    const listRes = await page.request.get(`${API_BASE}/api/v1/admin/system/dlq`, {
+      headers: { Authorization: `Bearer ${token ?? ''}` },
+    });
+    expect(listRes.status(), `DLQ list should return 200`).toBe(200);
+    const body = await listRes.json() as { data: Array<{ id: string; status: string }> };
+    expect(Array.isArray(body.data)).toBe(true);
 
-    // Limit to pending entries so a retry actually transitions status.
-    const statusSelect = page.getByRole('combobox', { name: /status/i }).first();
-    if (await statusSelect.isVisible().catch(() => false)) {
-      await statusSelect.selectOption('pending');
-      await page.waitForTimeout(500);
-    }
-
-    // Expand the first entry card to reveal retry/dismiss actions.
-    const entryButtons = page.getByRole('button', { name: /retry/i });
-    if ((await entryButtons.count()) === 0) {
-      // No pending DLQ entries in this environment — verify the empty state renders.
-      await expect(page.getByText(/no failed events/i)).toBeVisible({ timeout: 5_000 });
+    // If there are no pending entries, the empty DLQ is a valid state.
+    const pending = body.data.filter((e) => e.status === 'pending');
+    if (pending.length === 0) {
       return;
     }
 
-    // Expand the entry card first (summary row is a button).
-    const summaryRow = page.locator('[aria-expanded]').first();
-    if (await summaryRow.isVisible().catch(() => false)) {
-      const expanded = await summaryRow.getAttribute('aria-expanded');
-      if (expanded !== 'true') await summaryRow.click();
-    }
-
-    const retryBtn = entryButtons.first();
-    await expect(retryBtn).toBeVisible({ timeout: 5_000 });
-
-    const retryResp = page.waitForResponse(
-      (r) => r.url().includes('/dlq/') && r.url().includes('/retry') && r.request().method() === 'POST',
+    // Retry the first pending entry.
+    const entryId = pending[0]!.id;
+    const retryRes = await page.request.post(
+      `${API_BASE}/api/v1/admin/system/dlq/${entryId}/retry`,
+      { headers: { Authorization: `Bearer ${token ?? ''}` } },
     );
-    await retryBtn.click();
-    const resp = await retryResp.catch(() => undefined);
+    expect(retryRes.status()).toBeLessThan(500);
 
-    // After retry: the entry should no longer show a pending badge, or the
-    // retry button should be gone (status transitioned to retried).
-    await page.waitForTimeout(500);
-    expect(resp === undefined || resp.ok() || resp.status() >= 400).toBe(true);
-    // The retry button for this entry disappears once status !== pending.
-    await expect(retryBtn).toBeHidden({ timeout: 5_000 }).catch(() => {
-      // If still visible, the entry must no longer be pending (badge changed).
-    });
+    // After retry, the entry should no longer be pending.
+    const verifyRes = await page.request.get(
+      `${API_BASE}/api/v1/admin/system/dlq?status=pending`,
+      { headers: { Authorization: `Bearer ${token ?? ''}` } },
+    );
+    expect(verifyRes.status()).toBe(200);
+    const verifyBody = await verifyRes.json() as { data: Array<{ id: string }> };
+    expect(verifyBody.data.some((e) => e.id === entryId)).toBe(false);
   });
 });

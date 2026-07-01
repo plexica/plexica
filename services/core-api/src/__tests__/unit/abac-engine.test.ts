@@ -21,11 +21,12 @@ vi.mock('../../lib/config.js', () => ({
 vi.mock('../../modules/abac/engine-helpers.js', () => ({
   getMembership: vi.fn(),
   getPluginActionOverride: vi.fn(),
+  getPluginActionDefaultRole: vi.fn(),
   membershipCacheKey: vi.fn(),
 }));
 
 import { evaluate } from '../../modules/abac/engine.js';
-import { getMembership, getPluginActionOverride } from '../../modules/abac/engine-helpers.js';
+import { getMembership, getPluginActionOverride, getPluginActionDefaultRole } from '../../modules/abac/engine-helpers.js';
 import { CORE_POLICIES, TENANT_LEVEL_ACTIONS } from '../../modules/abac/policies.js';
 
 import type { AbacContext } from '../../modules/abac/types.js';
@@ -37,6 +38,7 @@ import type { CachedMembership } from '../../modules/abac/engine-helpers.js';
 
 const mockGetMembership = vi.mocked(getMembership);
 const mockGetPluginOverride = vi.mocked(getPluginActionOverride);
+const mockGetPluginDefaultRole = vi.mocked(getPluginActionDefaultRole);
 
 // Dummy redis & tenantDb — never actually called thanks to mocks
 const fakeRedis = {} as Parameters<typeof evaluate>[2];
@@ -66,8 +68,10 @@ const nonMember: CachedMembership = { role: null, isTenantAdmin: false };
 beforeEach(() => {
   mockGetMembership.mockReset();
   mockGetPluginOverride.mockReset();
-  // Default: no plugin override
+  mockGetPluginDefaultRole.mockReset();
+  // Default: no plugin override, no registered default role
   mockGetPluginOverride.mockResolvedValue(null);
+  mockGetPluginDefaultRole.mockResolvedValue(null);
 });
 
 // ===========================================================================
@@ -179,6 +183,53 @@ describe('ABAC evaluate() — unknown action', () => {
     const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
     expect(decision.decision).toBe('deny');
     expect(decision.reason).toContain('unknown action');
+  });
+
+  it('denies an unknown action with no pluginActionKey (no fallback)', async () => {
+    mockGetMembership.mockResolvedValue(memberOf('admin'));
+    // foo:bar is not in POLICY_MAP, not in TENANT_LEVEL_ACTIONS, no pluginActionKey
+    const ctx = makeCtx('foo:bar', { isTenantAdmin: false });
+    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
+    expect(decision.decision).toBe('deny');
+    expect(decision.reason).toContain('unknown action');
+  });
+});
+
+describe('ABAC evaluate() — plugin action default-role fallback (A2)', () => {
+  it('uses action_registry defaultRole when POLICY_MAP misses + pluginActionKey set', async () => {
+    // crm:access is not in POLICY_MAP; action_registry says defaultRole=member
+    mockGetMembership.mockResolvedValue(memberOf('member'));
+    mockGetPluginDefaultRole.mockResolvedValue('member');
+    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
+    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
+    expect(decision.decision).toBe('allow');
+    expect(mockGetPluginDefaultRole).toHaveBeenCalledWith(ctx, fakeTenantDb);
+  });
+
+  it('denies viewer when registered defaultRole is member', async () => {
+    mockGetMembership.mockResolvedValue(memberOf('viewer'));
+    mockGetPluginDefaultRole.mockResolvedValue('member');
+    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
+    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
+    expect(decision.decision).toBe('deny');
+  });
+
+  it('falls back to viewer when action not in POLICY_MAP and not in action_registry', async () => {
+    // No registry entry → viewer fallback → member allowed, viewer allowed
+    mockGetMembership.mockResolvedValue(memberOf('viewer'));
+    mockGetPluginDefaultRole.mockResolvedValue(null);
+    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
+    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
+    expect(decision.decision).toBe('allow');
+  });
+
+  it('denies non-members even with viewer fallback', async () => {
+    mockGetMembership.mockResolvedValue(nonMember);
+    mockGetPluginDefaultRole.mockResolvedValue(null);
+    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
+    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
+    expect(decision.decision).toBe('deny');
+    expect(decision.reason).toContain('not a workspace member');
   });
 });
 

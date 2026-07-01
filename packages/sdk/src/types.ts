@@ -11,6 +11,12 @@ export interface PluginConfig {
   kafkaBrokers?: string;
   apiUrl: string;
   accessToken?: string;  // Bearer token for API auth
+  /** Service-account token injected by the platform as PLEXICA_SERVICE_TOKEN.
+   *  Lets the plugin backend emit events without a user JWT. Auto-populated
+   *  from the env var if not set explicitly. */
+  serviceToken?: string;
+  /** Installation ID injected by the platform as PLEXICA_INSTALL_ID. */
+  installId?: string;
   dbConnectionString?: string; // Injected by platform runtime — overrides process.env.DATABASE_URL
   // Context headers injected by the platform
   plexicaHeaders?: {

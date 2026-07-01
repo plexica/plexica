@@ -58,4 +58,11 @@ export const TENANT_LEVEL_ACTIONS = new Set([
   'audit:read',
   'role:read',
   'plugin-action:manage',
+  // Plugin lifecycle & marketplace management — tenant admin only (EC-30).
+  // Without this entry, requireAbac('plugin:manage') falls through to the
+  // "allow non-admin" branch for routes whose param is :slug/:installId (no
+  // workspaceId) — a privilege escalation letting any tenant member install /
+  // uninstall / destroy plugin data.
+  'plugin:manage',
+  'plugin:access',
 ]);

@@ -19,6 +19,7 @@ import type { DeclaredTable } from '../schema/manifest.js';
 
 const PG_IDENT = /^[a-z0-9_]+$/;
 const TABLE_NAME = /^[a-z][a-z0-9_]{1,63}$/;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface PluginRole {
   roleName: string;
@@ -97,14 +98,20 @@ export async function createPluginRole(
   tenantSlug: string,
   declaredTables: DeclaredTable[],
 ): Promise<PluginRole> {
-  if (!PG_IDENT.test(installId)) {
-    throw new PluginInstallError(`Invalid installId for role name: "${installId}"`);
+  // installId is a UUID (contains hyphens). We transform it into a valid
+  // PostgreSQL identifier by replacing hyphens with underscores, then validate
+  // the RESULTING role name — not the raw UUID — against PG_IDENT.
+  if (!UUID_REGEX.test(installId)) {
+    throw new PluginInstallError(`Invalid installId (expected UUID): "${installId}"`);
+  }
+  const roleName = `plugin_${installId.replace(/-/g, '_')}`;
+  if (!PG_IDENT.test(roleName)) {
+    throw new PluginInstallError(`Invalid role name derived from installId: "${roleName}"`);
   }
   if (!declaredTables.every((t) => TABLE_NAME.test(t.name))) {
     throw new PluginInstallError('Invalid declared table name — must be snake_case');
   }
 
-  const roleName = `plugin_${installId.replace(/-/g, '_')}`;
   const schemaName = toSchemaName(tenantSlug);
   const password = randomPassword();
 
@@ -113,11 +120,10 @@ export async function createPluginRole(
     `GRANT USAGE ON SCHEMA ${quoteIdent(schemaName)} TO ${quoteIdent(roleName)}`,
     `REVOKE ALL ON SCHEMA core FROM ${quoteIdent(roleName)}`,
   ];
-  for (const t of declaredTables) {
-    stmts.push(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${quoteIdent(schemaName)}.${quoteIdent(t.name)} TO ${quoteIdent(roleName)}`,
-    );
-  }
+  // NOTE: DML grants on declared tables are deferred to grantTablePrivileges(),
+  // which must run AFTER runPluginMigrations() creates the tables. Granting here
+  // would fail (relation does not exist) and leave the install stuck at
+  // `installing`. See install.routes.ts for the post-migration grant call.
 
   try {
     for (const sql of stmts) {
@@ -126,6 +132,7 @@ export async function createPluginRole(
   } catch (err: any) {
     // Best-effort cleanup of a half-created role before surfacing the error.
     try {
+      await prisma.$executeRawUnsafe(`REVOKE ALL ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`);
       await prisma.$executeRawUnsafe(`DROP ROLE IF EXISTS ${quoteIdent(roleName)}`);
     } catch {
       /* ignore */
@@ -142,6 +149,30 @@ export async function createPluginRole(
     connectionString,
     encryptedEnvOverrides: { DATABASE_URL: encrypt(connectionString) },
   };
+}
+
+/**
+ * Grants DML (SELECT/INSERT/UPDATE/DELETE) on the plugin's declared tables to
+ * the restricted role. MUST be called AFTER runPluginMigrations() has created
+ * the tables — granting on non-existent tables throws and would leave the
+ * install stuck. Idempotent per table (GRANT is a no-op if already granted).
+ */
+export async function grantTablePrivileges(
+  installId: string,
+  tenantSlug: string,
+  declaredTables: DeclaredTable[],
+): Promise<void> {
+  const roleName = `plugin_${installId.replace(/-/g, '_')}`;
+  const schemaName = toSchemaName(tenantSlug);
+  if (!declaredTables.every((t) => TABLE_NAME.test(t.name))) {
+    throw new PluginInstallError('Invalid declared table name — must be snake_case');
+  }
+  for (const t of declaredTables) {
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${quoteIdent(schemaName)}.${quoteIdent(t.name)} TO ${quoteIdent(roleName)}`,
+    );
+  }
+  logger.info({ roleName, schemaName, tableCount: declaredTables.length }, 'Granted DML on plugin tables to restricted role');
 }
 
 /**

@@ -12,7 +12,7 @@ import {
   type AbacDecision,
   type WorkspaceRole,
 } from './types.js';
-import { getMembership, getPluginActionOverride } from './engine-helpers.js';
+import { getMembership, getPluginActionOverride, getPluginActionDefaultRole } from './engine-helpers.js';
 
 import type { Redis } from 'ioredis';
 
@@ -55,8 +55,19 @@ export async function evaluate(
   // 3. Look up required role from static policy
   let requiredRole: WorkspaceRole | undefined = POLICY_MAP.get(ctx.action);
   if (requiredRole === undefined) {
-    logger.warn({ action: ctx.action }, 'Unknown ABAC action — denying by default');
-    return { allowed: false, reason: 'unknown action', decision: 'deny' };
+    // Plugin actions (e.g. `crm:access`, `crm:contact:read`) are dynamic — they
+    // are not in the static POLICY_MAP. When pluginActionKey is set, look up the
+    // defaultRole from the tenant's action_registry. If the action isn't
+    // registered either, default to `viewer` (baseline workspace-member access
+    // to an installed plugin — per-action restrictions are enforced by the
+    // plugin backend via X-Plexica-User-Role and by 3-part action overrides).
+    if (ctx.pluginActionKey !== undefined) {
+      const registered = await getPluginActionDefaultRole(ctx, tenantDb);
+      requiredRole = registered ?? 'viewer';
+    } else {
+      logger.warn({ action: ctx.action }, 'Unknown ABAC action — denying by default');
+      return { allowed: false, reason: 'unknown action', decision: 'deny' };
+    }
   }
 
   // 4. Check for plugin action role override

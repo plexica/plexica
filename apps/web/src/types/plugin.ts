@@ -73,6 +73,7 @@ export interface PluginInstallation {
 export type PluginInstallStatus =
   | 'installing'
   | 'active'
+  | 'degraded'
   | 'deactivated'
   | 'uninstalled'
   | 'failed';

@@ -2,6 +2,7 @@
 // Plugin reactivate route — supports reactivation from 'deactivated' and 'degraded'.
 
 import { z } from 'zod';
+
 import { withTenantDb } from '../../../../lib/tenant-database.js';
 import { requireAbac } from '../../../../middleware/abac.js';
 import { PluginNotFoundError, PluginValidationError } from '../../errors.js';
@@ -31,14 +32,11 @@ export async function reactivateRoutes(fastify: FastifyInstance): Promise<void> 
       await resumeConsumerGroup(installId, inst.tenantSlug);
       await tx.pluginInstallation.update({ where: { id: installId }, data: { status: 'active' } });
 
-      // Restore workspace visibility for entries that had overrides (re-enable
-      // previously overridden workspaces; non-overridden fall back to tenant default).
-      await tx.pluginWorkspaceVisibility.updateMany({
-        where: { installId, isOverride: true },
-        data: { isEnabled: true },
-      });
-
-      clearVisibilityCache(installId);
+      // AC-03: overrides were preserved during deactivate (we did not touch
+      // pluginWorkspaceVisibility.isEnabled). Nothing to restore — the
+      // visibility resolver honours the original override values now that
+      // status is back to 'active'.
+      await clearVisibilityCache(installId);
       return { status: 'active', installId };
     }, ctx);
   });
