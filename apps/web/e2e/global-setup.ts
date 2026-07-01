@@ -25,23 +25,51 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
-import { getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
-import { provisionTenant, migrateTenantSchemas } from './tenant-provisioning-helpers.js';
+import { getAdminToken, upsertUser, setRealmPlexicaTheme, ensureSuperAdminForUser } from './keycloak-admin-client.js';
+import { provisionTenant, migrateTenantSchemas, seedPluginCatalog } from './tenant-provisioning-helpers.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 // Marker file: '1' = plexica theme active, '0' = fallback to default.
 const THEME_MARKER_PATH = path.resolve(__dirname, '.e2e-plexica-theme-active');
 
+async function waitForKeycloak(url: string, retries = 30, delayMs = 2000): Promise<void> {
+  // Keycloak 26+ does not expose /health on the main port (8080) — the Quarkus
+  // management interface lives on port 9000 and is often firewalled in dev.
+  // The most reliable readiness signal on 8080 is the master realm endpoint,
+  // which returns 200 only once the server is fully booted and serving.
+  const probeUrl = `${url}/realms/master`;
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const res = await fetch(probeUrl, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) return;
+    } catch { /* not ready yet */ }
+    process.stdout.write(`[global-setup] Waiting for Keycloak at ${url} (attempt ${i}/${retries})…\n`);
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  throw new Error(`Keycloak at ${url} not ready after ${retries} retries`);
+}
+
 async function setup(): Promise<void> {
   process.stdout.write('[global-setup] Starting E2E environment provisioning…\n');
+
+  // ── 0. Wait for Keycloak readiness ────────────────────────────────────────
+  const keycloakUrl = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
+  await waitForKeycloak(keycloakUrl);
 
   // ── 1. Provision tenants ──────────────────────────────────────────────────
   provisionTenant('e2e', 'E2E', 'admin@e2e.local');
   provisionTenant('e2e-b', 'E2E-B', 'admin@e2e-b.local');
+  // The 'admin' slug maps to the master realm (super-admin login) — provision
+  // it so tenant resolution returns exists:true. The create-tenant CLI creates
+  // a plexica-admin realm, but the frontend resolver overrides to 'master'.
+  provisionTenant('admin', 'Super Admin', 'admin@plexica.local');
 
   // ── 1b. Apply tenant DDL migrations ──────────────────────────────────────
   migrateTenantSchemas();
+
+  // ── 1c. Seed the plugin catalog (CRM) so the marketplace has real data ──
+  seedPluginCatalog();
 
   // ── 2. Add test users via Keycloak Admin REST API ─────────────────────────
   process.stdout.write('[global-setup] Obtaining Keycloak admin token…\n');
@@ -63,6 +91,8 @@ async function setup(): Promise<void> {
   );
 
   // Tenant admin (used by most E2E tests — workspace CRUD, audit log, etc.)
+  // Must be upserted BEFORE ensureSuperAdminForUser so the user exists when
+  // the role is assigned (ensureSuperAdminForUser does a user lookup).
   await upsertUser(token, REALM_A, {
     username: 'test@e2e.local',
     email: 'test@e2e.local',
@@ -71,6 +101,11 @@ async function setup(): Promise<void> {
     password: 'PlexicaE2e!1',
     realmRoles: ['tenant_admin'],
   });
+
+  // Ensure super_admin role for DLQ E2E tests (ac-06). The test admin user
+  // gets super_admin in the tenant realm — the requireSuperAdmin middleware
+  // checks the role, not the realm (see require-super-admin.ts).
+  await ensureSuperAdminForUser(token, REALM_A, 'test@e2e.local');
 
   // Member-role user (used by rbac-permissions.spec.ts — no tenant_admin role).
   await upsertUser(token, REALM_A, {

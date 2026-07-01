@@ -17,6 +17,7 @@ import type { AuthState, UserProfile } from '../types/auth.js';
 
 interface AuthStore extends AuthState {
   tenantSlug: string | null;
+  tenantUuid: string | null;
   realm: string | null;
 
   // Actions
@@ -26,7 +27,7 @@ interface AuthStore extends AuthState {
   refresh: () => Promise<void>;
   setSessionExpired: () => void;
   dismissExpired: () => void;
-  setTenantContext: (slug: string, realm: string) => void;
+  setTenantContext: (slug: string, realm: string, uuid?: string) => void;
 }
 
 // L-1: decode base64url (JWT uses - and _ instead of + and /) and handle
@@ -64,10 +65,11 @@ export const useAuthStore = create<AuthStore>()(
       status: 'unauthenticated',
       isAuthenticated: false,
       tenantSlug: null,
+      tenantUuid: null,
       realm: null,
 
-      setTenantContext: (slug: string, realm: string) => {
-        set({ tenantSlug: slug, realm });
+      setTenantContext: (slug: string, realm: string, uuid?: string) => {
+        set({ tenantSlug: slug, tenantUuid: uuid ?? null, realm });
       },
 
       login: async () => {
@@ -99,10 +101,8 @@ export const useAuthStore = create<AuthStore>()(
           isAuthenticated: false,
         });
 
-        // Full page reload so the app re-initialises cleanly.
-        // tenantSlug stays in sessionStorage (not cleared) so the root loader
-        // fast-path resolves the tenant on the next load.
-        const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+          // Full page reload with tenant param preserved from sessionStorage
+          const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
         window.location.href = `/${tenantParam}`;
       },
 
@@ -164,17 +164,11 @@ export const useAuthStore = create<AuthStore>()(
         idToken: state.idToken,
         userProfile: state.userProfile,
         tenantSlug: state.tenantSlug,
+        tenantUuid: state.tenantUuid,
         realm: state.realm,
       }),
-      // L-03: on rehydration, derive transient fields from persisted tokens.
-      // `status` and `isAuthenticated` are not persisted (they would go stale).
-      // Without this, a page reload leaves the store in `status: 'unauthenticated'`
-      // even when valid tokens exist, which triggers a spurious Keycloak redirect.
-      //
-      // M-6 fix: also verify the access token has not expired before marking the
-      // session as authenticated. An expired token in sessionStorage (e.g. the
-      // browser was suspended for > 60s) must not restore `status: 'authenticated'`
-      // — that would allow stale tokens to bypass the refresh-on-401 guard.
+      // L-03/M-6: derive transient fields from persisted tokens on rehydration.
+      // Verify access token hasn't expired before marking as authenticated.
       onRehydrateStorage: () => (state) => {
         if (state !== undefined && state.accessToken !== null) {
           const parts = state.accessToken.split('.');

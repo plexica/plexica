@@ -1,0 +1,98 @@
+openapi: "3.1.0"
+info:
+  title: Plexica Plugin Backend Contract
+  version: "1.0.0"
+  description: |
+    Every Plexica plugin backend MUST implement these three endpoints.
+    The core platform communicates with plugin backends via HTTP.
+    Plugins written in any language (TypeScript, Rust, Python, Go) must
+    implement these endpoints to be compatible.
+
+servers:
+  - url: http://localhost:{port}
+    variables:
+      port:
+        default: "4002"
+        description: Plugin backend port (configured in manifest.json)
+
+paths:
+  /_plexica/health:
+    get:
+      summary: Liveness and readiness probe
+      operationId: health
+      responses:
+        "200":
+          description: Plugin is healthy and ready to accept requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                  version:
+                    type: string
+                    description: Plugin version
+        "503":
+          description: Plugin is not ready
+
+  /_plexica/event:
+    post:
+      summary: Receive an event from the core platform
+      operationId: receiveEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, payload, timestamp, correlationId]
+              properties:
+                type:
+                  type: string
+                  example: plexica.workspace.created
+                payload:
+                  type: object
+                timestamp:
+                  type: string
+                  format: date-time
+                correlationId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Event acknowledged and processed
+        "500":
+          description: Event processing failed — core will retry
+
+x-plexica-headers:
+  description: >
+    Headers injected by the core platform on every proxied API call.
+    Plugin backends receive these headers automatically.
+  headers:
+    X-Plexica-Tenant-Id:
+      schema:
+        type: string
+        format: uuid
+      description: Tenant UUID
+    X-Plexica-User-Id:
+      schema:
+        type: string
+        format: uuid
+      description: User UUID
+    X-Plexica-Workspace-Id:
+      schema:
+        type: string
+        format: uuid
+      description: Workspace UUID (empty string if not in workspace context)
+    X-Plexica-User-Role:
+      schema:
+        type: string
+        enum: [admin, member, viewer]
+      description: User's role in the current workspace
+    X-Plexica-Correlation-Id:
+      schema:
+        type: string
+        format: uuid
+      description: Correlation ID for request tracing

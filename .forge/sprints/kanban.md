@@ -43,7 +43,7 @@ Allow 1 week buffer after Sprint 4 before starting Sprint 5.
 Sprint 1:  [✓] Done        (2026-03-31 → 2026-04-01)  39/39 tasks done  109/109 pts  — Spec 001
 Sprint 2:  [✓] Done        (2026-04-01 → 2026-04-03)  68/68 tasks done  219/219 pts  — Spec 002
 Sprint 3:  [✓] Done        (2026-04-08 → 2026-06-19) 134/134 tasks done  322/322 pts  — Spec 003
-Sprint 4:  [ ] Not Started  — Spec 004
+Sprint 4:  [✓] Done        (2026-06-26 → 2026-06-29)  30/30 features done  004-01 → 004-30  — Spec 004 (Plugin System)
 Sprint 5:  [ ] Not Started  — Spec 005
 Sprint 6:  [ ] Not Started  — Spec 006
 Sprint 7:  [ ] Not Started  — Spec 007

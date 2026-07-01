@@ -81,3 +81,26 @@ export function migrateTenantSchemas(): void {
   }
   process.stdout.write('[global-setup] Tenant schema migrations applied.\n');
 }
+
+/**
+ * Seeds the example plugin catalog (CRM) into core.plugins as published, so the
+ * marketplace renders cards and the install/E2E flow has real data. Idempotent.
+ */
+export function seedPluginCatalog(): void {
+  process.stdout.write('[global-setup] Seeding plugin catalog…\n');
+  const result = spawnSync(TSX_BIN, ['src/cli/seed-plugins.ts'], {
+    cwd: CORE_API_DIR,
+    env: process.env,
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  if (result.error !== undefined) {
+    throw new Error(`Plugin seed failed to spawn: ${String(result.error)}`);
+  }
+  if (result.status !== 0) {
+    process.stderr.write(`[global-setup] Seed stdout: ${result.stdout}\n`);
+    process.stderr.write(`[global-setup] Seed stderr: ${result.stderr}\n`);
+    throw new Error(`Plugin seed failed (exit ${String(result.status)})`);
+  }
+  process.stdout.write('[global-setup] Plugin catalog seeded.\n');
+}

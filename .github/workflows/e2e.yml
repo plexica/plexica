@@ -1,0 +1,72 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'services/core-api/**'
+      - 'packages/**'
+      - 'examples/plugins/**'
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports: [5432:5432]
+        env: { POSTGRES_USER: plexica, POSTGRES_PASSWORD: plexica, POSTGRES_DB: plexica }
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      keycloak:
+        image: quay.io/keycloak/keycloak:26.0
+        ports: [8080:8080]
+        cmd: "start-dev"
+        env:
+          KC_BOOTSTRAP_ADMIN_USERNAME: admin
+          KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+          KC_DB: postgres
+          KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+          KC_DB_USERNAME: plexica
+          KC_DB_PASSWORD: plexica
+          KC_HEALTH_ENABLED: 'true'
+          KC_HTTP_ENABLED: 'true'
+          KC_HOSTNAME_STRICT: 'false'
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
+          --health-interval 15s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+      - run: pnpm --filter core-api db:migrate
+      - run: pnpm --filter web exec playwright install chromium
+      - run: pnpm e2e
+        env:
+          PLAYWRIGHT_KEYCLOAK_URL: http://localhost:8080
+          PLAYWRIGHT_KEYCLOAK_USER: admin
+          PLAYWRIGHT_KEYCLOAK_PASS: admin
+          PLAYWRIGHT_TENANT_SLUG: test-tenant
+          CI: true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/

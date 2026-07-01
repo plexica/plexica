@@ -4,8 +4,8 @@
 
 // TODO: Run 'pnpm db:generate' to generate tenant client types before Step 4 compiles.
 
-// @ts-ignore — generated/tenant-client does not exist until after 'pnpm db:generate'
-import { PrismaClient as TenantPrismaClient } from '../../../generated/tenant-client/index.js';
+// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { ProvisioningFailedError } from '../../lib/app-error.js';

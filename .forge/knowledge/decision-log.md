@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: April 2026 (Spec 003 test phase complete — ID-010 through ID-013 added)
+**Last Updated**: 2026-06-26 (Spec 004 plan phase — ADR-013 through ADR-020 added)
 
 ---
 
@@ -63,6 +63,21 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 | TD-001     | `ErrorFallback` component has no error-reporting integration (Sentry or equivalent). Errors caught by React error boundaries are silently discarded — no stack trace is forwarded to an error tracking service. The `_error` prop is intentionally not displayed to users (avoids leaking implementation details) but must be forwarded to error tracking before production.           | All frontend exceptions invisible in production; regression detection blind.       | Medium   | Pre-production            |
 | ~~TD-002~~ | ~~`POST /api/admin/tenants` has no rate limiting.~~ **Resolved**: ADR-012 accepted; implementation tracked as a follow-up task.                                                                                                                                                                                                                                                        | —                                                                                  | —        | **Resolved** (April 2026) |
 | TD-003     | `as any` sprawl throughout backend modules (`tenantDb as any`, DB model casts). Type-erased by design pending `prisma generate` with tenant schema client. Tracked to ensure the pattern is replaced once Prisma generates proper types for the tenant schema client. Every intentional `as any` site is tagged with `// eslint-disable-next-line @typescript-eslint/no-explicit-any`. | Type safety gaps may hide contract mismatches between service layer and DB schema. | Low      | Post Prisma generate      |
+
+---
+
+### Plugin System ADRs (Spec 004)
+
+| ADR | Title | Date | Status | Decision |
+| --- | ----- | ---- | ------ | -------- |
+| 013 | Container Hosting Model | 2026-06-26 | Accepted | Docker sidecar (dev/CI) + K8s (prod) via Strategy pattern. Dev mode bypasses containers entirely (§10.7). |
+| 014 | Hybrid UI Delivery Model | 2026-06-26 | Accepted | MinIO for MF static assets in production; Vite dev server in development. |
+| 015 | Plugin Action Extension in ABAC | 2026-06-26 | Accepted | 3-part action keys with structural dispatch in ABAC engine. |
+| 016 | Two-Tier Dead Letter Queue | 2026-06-26 | Accepted | Kafka DLQ topic + PostgreSQL `core.dead_letter_queue` table. |
+| 017 | Plugin DB Access Restriction | 2026-06-26 | Accepted | PostgreSQL role-level restrictions — GRANT only on declared tables. |
+| 018 | Two-Level Plugin Visibility | 2026-06-26 | Accepted | Tenant default (`enabled`) + per-workspace override. |
+| 019 | Plugin SDK & OpenAPI Architecture | 2026-06-26 | Accepted | Single `PluginSDK` class + OpenAPI 3.1 contract. |
+| 020 | Plugin Reinstall = Update Flow | 2026-06-26 | Accepted | Reinstall = update with additive-only schema changes. |
 
 ---
 

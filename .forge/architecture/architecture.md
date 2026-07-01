@@ -216,10 +216,12 @@ support it.
                         TENANT SCHEMA (tenant_{slug})
   +===============================================================+
   |                                                                |
-  |  users (1)-----<(N) user_roles (N)>------(1) roles            |
-  |    |                                          |                |
-  |    | id, keycloak_user_id,        id, name, description,       |
-  |    | email, display_name         is_custom, permissions         |
+  |  user_profile                                                |
+  |    |                                                           |
+  |    | id (PK), keycloak_user_id (UNIQUE),                       |
+  |    | email, display_name, avatar_url,                          |
+  |    | timezone, language, notification_prefs,                   |
+  |    | deleted_at (soft-delete)                                  |
   |    |                                                           |
   |    +-----<(N) workspace_members (N)>-----(1) workspaces        |
   |                |                              |                |
@@ -231,12 +233,18 @@ support it.
   |                                               |                |
   |                                    +----------+----------+     |
   |                                    |                     |     |
-  |                            plugin_installations    abac_policies|
+  |                            plugin_installations    action_registry|
   |                              |                         |       |
-  |                              | plugin_id (FK core),    | workspace_id,|
-  |                              | status, config          | subject, action,|
-  |                              |                         | conditions     |
-  |                              |                                  |
+  |                              | plugin_id (FK core),    | action_key (3-part|
+  |                              | status, config          | for plugins),      |
+  |                              |                         | default_role,      |
+  |                              |                         | plugin_id (FK)     |
+  |                              |                         |                    |
+  |                              |                  workspace_role_action|
+  |                              |                         |                    |
+  |                              |                  workspace_id, action_key,|
+  |                              |                         | required_role,     |
+  |                                                            is_override|
   |                     plugin_workspace_visibility                 |
   |                       | plugin_installation_id,                 |
   |                       | workspace_id, enabled                    |
@@ -302,37 +310,21 @@ support it.
 | value      | JSONB        | NOT NULL                |       |
 | updated_at | TIMESTAMPTZ  | NOT NULL, DEFAULT now() |       |
 
-#### `tenant_{slug}.users`
+#### `tenant_{slug}.user_profile`
 
-| Column           | Type         | Constraints                | Notes                       |
-| ---------------- | ------------ | -------------------------- | --------------------------- |
-| id               | UUID         | PK                         |                             |
-| keycloak_user_id | VARCHAR(255) | UNIQUE, NOT NULL           | Maps to Keycloak subject    |
-| email            | VARCHAR(255) | NOT NULL                   |                             |
-| display_name     | VARCHAR(255) |                            |                             |
-| avatar_url       | TEXT         |                            | From Keycloak picture claim |
-| status           | ENUM         | NOT NULL, DEFAULT 'active' | active, invited, disabled   |
-| created_at       | TIMESTAMPTZ  | NOT NULL, DEFAULT now()    |                             |
+| Column            | Type         | Constraints                | Notes                              |
+| ----------------- | ------------ | -------------------------- | ---------------------------------- |
+| user_id           | UUID         | PK                         | Maps to Keycloak subject (sub)     |
+| email             | VARCHAR(255) | NOT NULL                   |                                    |
+| display_name      | VARCHAR(255) |                            |                                    |
+| avatar_url        | TEXT         |                            | From Keycloak picture claim        |
+| timezone          | VARCHAR(63)  |                            | IANA timezone (e.g., Europe/Rome)  |
+| language          | VARCHAR(10)  | DEFAULT 'en'               | ISO 639-1 code                     |
+| notification_prefs| JSONB        | DEFAULT '{}'               | Per-channel notification settings  |
+| deleted_at        | TIMESTAMPTZ  |                            | Soft-delete for GDPR compliance    |
+| created_at        | TIMESTAMPTZ  | NOT NULL, DEFAULT now()    |                                    |
 
-#### `tenant_{slug}.roles`
-
-| Column      | Type        | Constraints             | Notes                              |
-| ----------- | ----------- | ----------------------- | ---------------------------------- |
-| id          | UUID        | PK                      |                                    |
-| name        | VARCHAR(63) | UNIQUE, NOT NULL        | e.g., tenant_admin, member, viewer |
-| description | TEXT        |                         |                                    |
-| is_custom   | BOOLEAN     | NOT NULL, DEFAULT false | Predefined vs tenant-created       |
-| permissions | JSONB       | NOT NULL, DEFAULT '[]'  | Array of permission strings        |
-| created_at  | TIMESTAMPTZ | NOT NULL, DEFAULT now() |                                    |
-
-#### `tenant_{slug}.user_roles`
-
-| Column  | Type | Constraints             | Notes              |
-| ------- | ---- | ----------------------- | ------------------ |
-| id      | UUID | PK                      |                    |
-| user_id | UUID | FK → users.id, NOT NULL |                    |
-| role_id | UUID | FK → roles.id, NOT NULL |                    |
-| UNIQUE  |      | (user_id, role_id)      | No duplicate roles |
+_Replaces the `users` table from the original architecture ERD with a richer model per Spec 003 DR-10. User identity (keycloak_user_id) is derived from the JWT subject claim — the `user_id` field serves as both PK and keycloak mapping._
 
 #### `tenant_{slug}.workspaces`
 
@@ -354,8 +346,8 @@ support it.
 | ------------ | ----------- | ---------------------------- | ------------------------------- |
 | id           | UUID        | PK                           |                                 |
 | workspace_id | UUID        | FK → workspaces.id, NOT NULL |                                 |
-| user_id      | UUID        | FK → users.id, NOT NULL      |                                 |
-| role         | VARCHAR(32) | NOT NULL                     | workspace_admin, editor, viewer |
+| user_id      | UUID        | FK → user_profile.user_id, NOT NULL |                              |
+| role         | VARCHAR(32) | NOT NULL                     | admin, member, viewer (CHECK constraint) |
 | created_at   | TIMESTAMPTZ | NOT NULL, DEFAULT now()      |                                 |
 | UNIQUE       |             | (workspace_id, user_id)      |                                 |
 
@@ -380,25 +372,39 @@ support it.
 | enabled                | BOOLEAN | NOT NULL, DEFAULT true                 |       |
 | UNIQUE                 |         | (plugin_installation_id, workspace_id) |       |
 
-#### `tenant_{slug}.abac_policies`
+#### `tenant_{slug}.action_registry`
 
-| Column       | Type        | Constraints                  | Notes                      |
-| ------------ | ----------- | ---------------------------- | -------------------------- |
-| id           | UUID        | PK                           |                            |
-| workspace_id | UUID        | FK → workspaces.id, NOT NULL | Scope of this policy       |
-| subject_type | VARCHAR(32) | NOT NULL                     | user, role                 |
-| subject_id   | UUID        | NOT NULL                     | user_id or role_id         |
-| action       | VARCHAR(32) | NOT NULL                     | read, write, delete, admin |
-| effect       | ENUM        | NOT NULL                     | allow, deny                |
-| conditions   | JSONB       | DEFAULT '{}'                 | Additional ABAC conditions |
-| created_at   | TIMESTAMPTZ | NOT NULL, DEFAULT now()      |                            |
+| Column       | Type        | Constraints                       | Notes                                |
+| ------------ | ----------- | --------------------------------- | ------------------------------------ |
+| id           | UUID        | PK                                |                                      |
+| action_key   | VARCHAR(63) | UNIQUE, NOT NULL                  | 2-part core (`workspace:create`) or 3-part plugin (`crm:contact:create`) |
+| label        | VARCHAR(255)| NOT NULL                          | i18n key for human-readable label    |
+| description  | TEXT        |                                   | What this action allows              |
+| default_role | VARCHAR(32) | NOT NULL                          | admin, member, viewer                |
+| plugin_id    | UUID        | FK → core.plugins.id, NULLABLE    | NULL for core actions, FK for plugin actions |
+| created_at   | TIMESTAMPTZ | NOT NULL, DEFAULT now()           |                                      |
+
+#### `tenant_{slug}.workspace_role_action`
+
+| Column         | Type        | Constraints                  | Notes                                |
+| -------------- | ----------- | ---------------------------- | ------------------------------------ |
+| id             | UUID        | PK                           |                                      |
+| workspace_id   | UUID        | FK → workspaces.id, NOT NULL | Scope of this override               |
+| action_key     | VARCHAR(63) | NOT NULL                     | References action_registry.action_key |
+| required_role  | VARCHAR(32) | NOT NULL                     | Override: admin, member, viewer      |
+| is_override    | BOOLEAN     | NOT NULL, DEFAULT true       | True = workspace admin explicitly set this |
+| updated_by     | UUID        |                              | user_id who made the change          |
+| updated_at     | TIMESTAMPTZ | NOT NULL, DEFAULT now()      |                                      |
+| UNIQUE         |             | (workspace_id, action_key)   | One override per workspace per action |
+
+_Replaces the `abac_policies` table from the original architecture ERD. The action_registry + workspace_role_action model is simpler and maps directly to ABAC evaluation: look up the action, check for workspace override, fall back to default_role._
 
 #### `tenant_{slug}.notifications`
 
 | Column     | Type         | Constraints             | Notes                          |
 | ---------- | ------------ | ----------------------- | ------------------------------ |
 | id         | UUID         | PK                      |                                |
-| user_id    | UUID         | FK → users.id, NOT NULL |                                |
+| user_id    | UUID         | FK → user_profile.user_id, NOT NULL |                              |
 | type       | VARCHAR(63)  | NOT NULL                | e.g., workspace_invite, plugin |
 | title      | VARCHAR(255) | NOT NULL                | i18n key or resolved text      |
 | body       | TEXT         |                         |                                |
@@ -434,8 +440,8 @@ support it.
 | Table                | Index                                 | Purpose                           |
 | -------------------- | ------------------------------------- | --------------------------------- |
 | tenants              | UNIQUE(slug)                          | Tenant lookup by slug             |
-| users                | UNIQUE(keycloak_user_id)              | JWT subject → user mapping        |
-| users                | INDEX(email)                          | User search                       |
+| user_profile         | UNIQUE(user_id)                       | JWT subject (sub) → user mapping  |
+| user_profile         | INDEX(email)                          | User search                       |
 | workspaces           | UNIQUE(slug)                          | Workspace lookup by slug          |
 | workspaces           | INDEX(parent_id)                      | Hierarchy traversal               |
 | workspaces           | INDEX(materialized_path)              | Path-based subtree queries        |
@@ -649,7 +655,7 @@ Two layers, cleanly separated:
 
 **Layer 2 — ABAC Tree-Walk (Workspace Permissions)** (ADR-003):
 
-- `workspace_admin` > `editor` > `viewer`
+- `admin` > `member` > `viewer`
 - Inheritance: role at parent workspace grants at least that role in all descendants.
 - Tree-walk: On resource access, walk from resource's workspace to tenant root, collecting roles. Most-permissive wins.
 - Cache: Materialized workspace tree + user role map cached in Redis. Invalidated via Kafka events on role changes.

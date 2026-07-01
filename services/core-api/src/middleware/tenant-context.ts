@@ -83,7 +83,13 @@ function extractSlug(request: FastifyRequest): string | null {
   return null;
 }
 
-async function resolveTenant(slug: string): Promise<TenantContext | null> {
+/**
+ * Resolves a TenantContext from a slug (with 60s in-memory cache).
+ * Exported so the plugin event-emission route can resolve tenant context from
+ * a verified service token (plugin backends have no JWT → no realm → the
+ * normal tenantContextMiddleware cannot run for them).
+ */
+export async function resolveTenant(slug: string): Promise<TenantContext | null> {
   const cached = tenantCache.get(slug);
   if (cached !== undefined && Date.now() < cached.expiresAt) {
     return cached.context;

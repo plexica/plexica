@@ -17,11 +17,12 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
-// @ts-ignore — generated at build time via 'pnpm db:generate'
-import { PrismaClient as TenantPrismaClient } from '../../../generated/tenant-client/index.js';
+// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { toSchemaName, toRealmName } from '../../lib/tenant-schema-helpers.js';
 
+import type { Prisma } from '@prisma/client';
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,7 +70,7 @@ async function applyTenantMigrations(schemaName: string): Promise<void> {
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // schemaName contains only [a-z0-9_] — safe for $executeRawUnsafe (ID-001 pattern)
       await tx.$executeRawUnsafe(`SET LOCAL search_path TO "${schemaName}",public`);
       for (const stmt of statements) {
@@ -89,7 +90,7 @@ export async function seedTenant(slug: string): Promise<SeedTenantResult> {
 
   let tenant = await prisma.tenant.findUnique({ where: { slug } });
   if (tenant === null) {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const created = await tx.tenant.create({
         data: { slug, name: slug, status: 'active' },
       });

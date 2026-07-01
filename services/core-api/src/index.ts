@@ -11,6 +11,7 @@ import Fastify from 'fastify';
 
 import { config } from './lib/config.js';
 import { disconnectDatabase } from './lib/database.js';
+import { disconnectKafka } from './lib/kafka.js';
 import { logger } from './lib/logger.js';
 import { redis, disconnectRedis } from './lib/redis.js';
 import {
@@ -31,6 +32,10 @@ import { userManagementRoutes } from './modules/user-management/routes.js';
 import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
+import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modules/plugin/index.js';
+import { pluginEventAuth } from './middleware/plugin-event-auth.js';
+import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
+import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -97,6 +102,24 @@ await server.register(tenantRoutes);
 // Public invitation accept endpoint — tenant context required but no auth
 await server.register(invitationPublicRoutes);
 
+// Super admin plugin management routes — auth-only scope (no tenant context)
+await server.register(async (adminScope) => {
+  adminScope.addHook('preHandler', authMiddleware);
+  adminScope.addHook('preHandler', rateLimitMiddleware(30, 60000));
+  await adminScope.register(pluginAdminRoutes);
+});
+
+// Plugin event-emission route — dual-auth scope. Plugin backends use an
+// X-Plugin-Service-Token (no JWT); user-initiated emissions use a Bearer JWT.
+// Registered OUTSIDE the tenantScope because authMiddleware would reject
+// service-token requests (no Authorization header) with 401 before the
+// handler runs. pluginEventAuth handles both paths.
+await server.register(async (eventScope) => {
+  eventScope.addHook('preHandler', pluginEventAuth);
+  eventScope.addHook('preHandler', rateLimitMiddleware(100, 60000));
+  await eventScope.register(pluginEventRoutes);
+});
+
 // ---------------------------------------------------------------------------
 // Authenticated + tenant-scoped routes
 // ---------------------------------------------------------------------------
@@ -112,6 +135,7 @@ await server.register(async (tenantScope) => {
   await tenantScope.register(userProfileRoutes);
   await tenantScope.register(tenantSettingsRoutes);
   await tenantScope.register(auditLogRoutes);
+  await tenantScope.register(pluginTenantRoutes);
 });
 
 // ---------------------------------------------------------------------------
@@ -120,8 +144,10 @@ await server.register(async (tenantScope) => {
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Shutdown signal received — closing server');
   await server.close();
+  await stopDlqConsumer();
   await disconnectDatabase();
   await disconnectRedis();
+  await disconnectKafka();
   logger.info('Server closed gracefully');
   process.exit(0);
 }
@@ -134,6 +160,11 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 // ---------------------------------------------------------------------------
 async function start(): Promise<void> {
   try {
+    // Start DLQ consumer (reads from Kafka DLQ topic → populates DB table)
+    startDlqConsumer().catch((err) =>
+      logger.error({ err }, 'DLQ consumer failed to start — DLQ management UI will be empty')
+    );
+
     await server.listen({ port: config.PORT, host: '0.0.0.0' });
   } catch (err) {
     logger.error({ err }, 'Server failed to start');

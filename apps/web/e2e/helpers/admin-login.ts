@@ -69,6 +69,25 @@ export async function loginAsViewer(page: Page): Promise<void> {
   });
 }
 
+// Super-admin credentials — the Keycloak master realm admin user.
+// Used by DLQ E2E tests (ac-06) that hit super-admin-only API endpoints.
+export const SUPER_ADMIN_USERNAME = process.env['PLAYWRIGHT_SUPER_ADMIN_USER'] ?? 'admin';
+export const SUPER_ADMIN_PASSWORD = process.env['PLAYWRIGHT_SUPER_ADMIN_PASS'] ?? 'changeme';
+export const SUPER_ADMIN_TENANT_SLUG = 'admin'; // maps to 'master' realm in tenant-resolver
+
+/**
+ * Logs in as the super admin (master realm) and waits for /dashboard.
+ * The 'admin' slug is a special case in the tenant-resolver that maps to the
+ * Keycloak master realm instead of the usual plexica-{slug} convention.
+ */
+export async function loginAsSuperAdmin(page: Page): Promise<void> {
+  await loginViaKeycloak(page, {
+    tenantSlug: SUPER_ADMIN_TENANT_SLUG,
+    username: SUPER_ADMIN_USERNAME,
+    password: SUPER_ADMIN_PASSWORD,
+  });
+}
+
 /**
  * Generates a unique name with a timestamp suffix.
  * Prevents test pollution between runs.

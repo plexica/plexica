@@ -16,11 +16,11 @@ Use **Attribute-Based Access Control (ABAC) with tree-walk inheritance**. When c
 
 Key implementation details:
 
-- Authorization boundary: Keycloak owns authentication + tenant-level roles (`super_admin`, `tenant_admin`, `member`). The core backend owns workspace-level ABAC (`workspace_admin`, `editor`, `viewer`).
+- Authorization boundary: Keycloak owns authentication + tenant-level roles (`super_admin`, `tenant_admin`). The core backend owns workspace-level ABAC (`admin`, `member`, `viewer`).
 - The tree-walk is implemented as a core service (`WorkspaceAuthorizationService`), invoked by route-level middleware.
 - The workspace tree and user role assignments are cached in Redis with event-driven invalidation via Kafka.
 - Maximum workspace nesting depth is capped at 10 levels to bound authorization query time.
-- Role hierarchy: `workspace_admin` > `editor` > `viewer`. A role at a parent workspace grants at least that role in all descendants.
+- Role hierarchy: `admin` > `member` > `viewer`. A role at a parent workspace grants at least that role in all descendants.
 
 ## Consequences
 

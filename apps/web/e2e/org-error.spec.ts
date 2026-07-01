@@ -27,7 +27,7 @@ test.describe('Organization error pages', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/organization|which/i);
     // Should show address example
-    await expect(page.locator('body')).toContainText(/plexica\.io/i);
+    await expect(page.locator('body')).toContainText('plexica.io');
   });
 
   test('error page does not expose valid tenant slugs', async ({ page }) => {

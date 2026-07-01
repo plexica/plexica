@@ -37,6 +37,8 @@ export const messagesAuthNav = {
 
   // Navigation
   'nav.dashboard': 'Dashboard',
+  'nav.marketplace': 'Marketplace',
+  'nav.plugins': 'Plugins',
   'nav.toggle': 'Toggle sidebar',
   'nav.search': 'Search',
   'nav.skipToContent': 'Skip to main content',

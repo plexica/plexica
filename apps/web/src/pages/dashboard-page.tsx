@@ -9,6 +9,7 @@ import { useCurrentUser } from '../hooks/use-current-user.js';
 import { useDashboardStats } from '../hooks/use-dashboard-stats.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
+import { DashboardWidgetSlot } from '../mf-host/extension-slots/dashboard-widget-slot.js';
 
 // ─── StatCard ────────────────────────────────────────────────────────────────
 // Independent per-card states: loading, error (with retry), value, or unavailable.
@@ -107,6 +108,9 @@ export function DashboardPage(): JSX.Element {
         <StatCard labelId="dashboard.stats.plugins" value={undefined} isUnavailable />
         <StatCard labelId="dashboard.stats.storage" value={undefined} isUnavailable />
       </div>
+
+      {/* Plugin widget extension point — dashboard-widget:grid slot */}
+      <DashboardWidgetSlot pluginEntries={[]} />
 
       {/* Recent Activity */}
       <section aria-label="Recent activity">

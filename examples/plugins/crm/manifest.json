@@ -1,0 +1,35 @@
+{
+  "slug": "crm",
+  "name": "CRM",
+  "version": "1.0.0",
+  "description": "Customer relationship management — manage contacts and deals across workspaces.",
+  "author": "Plexica",
+  "icon": "Contact2",
+  "categories": ["sales", "productivity"],
+  "hosting": {
+    "type": "sidecar",
+    "image": "plexica/crm-plugin:1.0.0",
+    "port": 3000,
+    "resources": { "cpu": "0.25", "memory": "128Mi" },
+    "env": []
+  },
+  "ui": {
+    "remoteEntry": "remoteEntry.js",
+    "extensionPoints": ["sidebar:admin", "workspace-panel:main"]
+  },
+  "events": {
+    "subscribes": ["plexica.workspace.created"]
+  },
+  "actions": [
+    { "action": "crm:contact:create", "label": "Create Contact", "defaultRole": "member" },
+    { "action": "crm:contact:read", "label": "View Contacts", "defaultRole": "viewer" },
+    { "action": "crm:contact:update", "label": "Edit Contact", "defaultRole": "member" },
+    { "action": "crm:contact:delete", "label": "Delete Contact", "defaultRole": "admin" },
+    { "action": "crm:deal:read", "label": "View Deals", "defaultRole": "viewer" },
+    { "action": "crm:deal:create", "label": "Create Deal", "defaultRole": "member" }
+  ],
+  "declaredTables": [
+    { "name": "crm_contacts", "description": "Contact records", "migrationFile": "migrations/001_create_contacts.sql", "content": "CREATE TABLE crm_contacts (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  workspace_id UUID NOT NULL,\n  name TEXT NOT NULL,\n  email TEXT,\n  phone TEXT,\n  company TEXT,\n  notes TEXT,\n  created_by UUID,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n);\n\nCREATE INDEX idx_crm_contacts_workspace_id ON crm_contacts(workspace_id);\n\nCREATE INDEX idx_crm_contacts_name ON crm_contacts(name);" },
+    { "name": "crm_deals", "description": "Deal pipeline", "migrationFile": "migrations/002_create_deals.sql", "content": "CREATE TABLE crm_deals (\n  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n  workspace_id UUID NOT NULL,\n  contact_id UUID REFERENCES crm_contacts(id) ON DELETE SET NULL,\n  title VARCHAR(255) NOT NULL,\n  value DECIMAL(12, 2) DEFAULT 0,\n  stage VARCHAR(64) NOT NULL DEFAULT 'new',\n  created_by UUID,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n);\n\nCREATE INDEX idx_crm_deals_workspace_id ON crm_deals(workspace_id);\n\nCREATE INDEX idx_crm_deals_stage ON crm_deals(stage);\n\nCREATE INDEX idx_crm_deals_contact_id ON crm_deals(contact_id);" }
+  ]
+}

@@ -1,0 +1,67 @@
+// audit-action-models.prisma
+// AuditLog, AbacDecisionLog, ActionRegistry, WorkspaceRoleAction
+
+model AuditLog {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId     String    @map("actor_id") @db.Uuid
+  actionType  String    @map("action_type") @db.VarChar(63)
+  targetType  String    @map("target_type") @db.VarChar(63)
+  targetId    String?   @map("target_id") @db.Uuid
+  beforeValue Json?     @map("before_value")
+  afterValue  Json?     @map("after_value")
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@index([actionType])
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt, actionType])
+  @@map("audit_log")
+}
+
+model AbacDecisionLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  resourceType   String   @map("resource_type") @db.VarChar(63)
+  resourceId     String?  @map("resource_id") @db.Uuid
+  action         String   @db.VarChar(63)
+  decision       String   @db.VarChar(8)
+  rulesEvaluated Json     @default("[]") @map("rules_evaluated")
+  logLevel       String   @default("info") @map("log_level") @db.VarChar(8)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt, userId, action, decision])
+  @@index([createdAt])
+  @@map("abac_decision_log")
+}
+
+model ActionRegistry {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pluginId     String?  @map("plugin_id") @db.Uuid
+  actionKey    String   @map("action_key") @db.VarChar(255)
+  labelI18nKey String   @map("label_i18n_key") @db.VarChar(255)
+  description  String?
+  defaultRole  String   @default("admin") @map("default_role") @db.VarChar(32)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([pluginId, actionKey])
+  @@index([actionKey])
+  @@map("action_registry")
+}
+
+model WorkspaceRoleAction {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  pluginId     String   @map("plugin_id") @db.Uuid
+  actionKey    String   @map("action_key") @db.VarChar(255)
+  requiredRole String   @map("required_role") @db.VarChar(32)
+  isOverridden Boolean  @default(false) @map("is_overridden")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, pluginId, actionKey])
+  @@map("workspace_role_action")
+}

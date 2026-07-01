@@ -1,0 +1,14 @@
+// _schema.prisma
+// Entry point for tenant schema — reads all .prisma files in this directory.
+// Generator output: ../generated/tenant-client
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/tenant-client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

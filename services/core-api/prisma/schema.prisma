@@ -5,6 +5,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -49,5 +50,74 @@ model TenantConfig {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("tenant_configs")
+  @@schema("core")
+}
+
+// ── Plugin System (Spec 004) ──────────────────────────────────────────────────
+// Global plugin registry. One row per unique plugin.
+model Plugin {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique @db.VarChar(63)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  version     String   @db.VarChar(32)
+  author      String   @db.VarChar(255)
+  iconUrl     String?  @map("icon_url")
+  categories  Json     @default("[]")
+  manifest    Json     @default("{}")
+  // Registry status: draft (unpublished), published (available in marketplace), unpublished
+  status      String   @default("draft") @db.VarChar(16)
+
+  registryUrl    String  @map("registry_url") @db.VarChar(512)
+  imageName      String  @map("image_name") @db.VarChar(255)
+  imageTag       String  @map("image_tag") @db.VarChar(64)
+  imageDigest    String? @map("image_digest") @db.VarChar(128)
+  pullPolicy     String  @default("IfNotPresent") @map("pull_policy") @db.VarChar(16)
+
+  registryCredentialsSecret String? @map("registry_credentials_secret")
+
+  // Keycloak user ID of the super admin who registered the plugin.
+  // Stored as VarChar (Keycloak sub claim format) — differs from tenant user_id (UUID).
+  createdByKeycloakId String @map("created_by_keycloak_id") @db.VarChar(255)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  versions PluginVersion[]
+
+  @@index([status])
+  @@map("plugins")
+  @@schema("core")
+}
+
+// Version history for update tracking (ADR-020 — Reinstall = Update).
+model PluginVersion {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pluginId  String   @map("plugin_id") @db.Uuid
+  version   String   @db.VarChar(32)
+  manifest  Json     @default("{}")
+  imageDigest String? @map("image_digest") @db.VarChar(128)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([pluginId, version])
+  @@map("plugin_versions")
+  @@schema("core")
+}
+
+// Dead Letter Queue — stores failed plugin events for super admin management.
+model DeadLetterQueue {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventType    String   @map("event_type") @db.VarChar(255)
+  payload      Json     @default("{}")
+  pluginId     String?  @map("plugin_id")
+  errorMessage String?  @map("error_message")
+  retryCount   Int      @default(0) @map("retry_count")
+  status       String   @default("pending") @db.VarChar(16)
+  failedAt     DateTime @default(now()) @map("failed_at") @db.Timestamptz
+  resolvedAt   DateTime? @map("resolved_at") @db.Timestamptz
+
+  @@index([status, failedAt])
+  @@map("dead_letter_queue")
   @@schema("core")
 }
