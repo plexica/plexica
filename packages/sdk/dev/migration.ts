@@ -17,6 +17,6 @@ export async function applyMigrations(
 const args = process.argv.slice(2);
 const tenantFlag = args.find((a) => a.startsWith('--tenant='));
 if (tenantFlag) {
-  const tenant = tenantFlag.split('=')[1];
+  const tenant = tenantFlag.split('=')[1] ?? '';
   await applyMigrations(tenant, './migrations');
 }

@@ -63,7 +63,7 @@ export function PluginCard({
       <p className="mt-2 line-clamp-2 text-xs text-neutral-600">{plugin.description}</p>
 
       <div className="mt-2 flex items-center gap-2">
-        <RatingStars rating={plugin.rating} />
+        <RatingStars rating={plugin.rating as number} />
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1">

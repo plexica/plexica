@@ -40,7 +40,8 @@ describe('PluginSDK', () => {
   }
 
   it('constructs with config and defaults apiUrl', () => {
-    const sdk = new PluginSDK({ pluginId: 'p', slug: 'p-slug', tenantId: 't1', apiUrl: '' } as Record<string, unknown>);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sdk = new PluginSDK({ pluginId: 'p', slug: 'p-slug', tenantId: 't1', apiUrl: '' } as any);
     expect(sdk).toBeDefined();
     expect(sdk.getContext().tenantId).toBe('t1');
   });

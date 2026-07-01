@@ -155,7 +155,7 @@ export function PluginDetailSheet({
             </div>
 
             <p className="mb-4 text-sm text-neutral-600">{plugin.description}</p>
-            <div className="mb-3"><RatingStars rating={plugin.rating} /></div>
+            <div className="mb-3"><RatingStars rating={plugin.rating as number} /></div>
 
             <div className="mb-4 flex flex-wrap gap-1">
               {plugin.categories.map((cat) => (
