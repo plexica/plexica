@@ -25,7 +25,7 @@ jobs:
       keycloak:
         image: quay.io/keycloak/keycloak:26.0
         ports: [8080:8080]
-        cmd: ["start-dev"]
+        cmd: "start-dev"
         env:
           KC_BOOTSTRAP_ADMIN_USERNAME: admin
           KC_BOOTSTRAP_ADMIN_PASSWORD: admin
