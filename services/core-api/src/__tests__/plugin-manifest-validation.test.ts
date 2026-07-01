@@ -19,7 +19,7 @@ const mockTenantContext: TenantContext = {
 };
 
 const baseManifest = {
-  name: 'Test', version: '1.0.0', description: 'test', author: 'Test',
+  name: 'Test', version: '1.0.0', description: 'test', author: 'Test', icon: 'test',
   hosting: { type: 'sidecar' as const, image: 'test/test:1.0.0', port: 3000 },
   declaredTables: [], events: { subscribes: [] },
 };
@@ -53,8 +53,8 @@ describe('Manifest Validation — Business Rules', () => {
       ...baseManifest, slug: 'test-bad-ns',
       actions: [{ action: 'workspace:create:test', label: 'Bad', defaultRole: 'member' }],
     }));
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload).message).toContain('namespace');
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.payload).error.message).toContain('namespace');
   });
 
   it('rejects table without plugin slug prefix', async () => {
@@ -62,8 +62,8 @@ describe('Manifest Validation — Business Rules', () => {
       ...baseManifest, slug: 'test-bad-tbl',
       declaredTables: [{ name: 'contacts', migrationFile: '001.sql' }],
     }));
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload).message).toContain('prefixed');
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.payload).error.message).toContain('prefixed');
   });
 
   it('rejects 2-part action key', async () => {
@@ -71,12 +71,12 @@ describe('Manifest Validation — Business Rules', () => {
       ...baseManifest, slug: 'test-2part',
       actions: [{ action: 'contact:create', label: 'Bad', defaultRole: 'member' }],
     }));
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(422);
   });
 
   it('rejects manifest with missing required fields', async () => {
     const res = await server.inject(registerPayload('test-missing', { slug: 'test-missing' }));
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(422);
   });
 
   it('rejects action where first segment != slug', async () => {
@@ -84,8 +84,8 @@ describe('Manifest Validation — Business Rules', () => {
       ...baseManifest, slug: 'test-wrong',
       actions: [{ action: 'other-plugin:contact:create', label: 'Bad', defaultRole: 'member' }],
     }));
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload).message).toContain('first segment');
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.payload).error.message).toContain('first segment');
   });
 
   it('accepts valid manifest with actions + tables', async () => {

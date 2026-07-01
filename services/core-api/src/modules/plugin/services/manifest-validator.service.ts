@@ -77,9 +77,12 @@ export async function validateManifest(
   }
 
   // Step 4: Declared table naming convention
+  // Slugs use kebab-case (e.g. "my-plugin") but table names use snake_case,
+  // so we normalize the prefix by replacing hyphens with underscores.
+  const tablePrefix = `${manifest.slug.replace(/-/g, '_')}_`;
   for (const table of manifest.declaredTables) {
-    if (!table.name.startsWith(`${manifest.slug}_`)) {
-      errors.push(`Table "${table.name}" must be prefixed with "${manifest.slug}_"`);
+    if (!table.name.startsWith(tablePrefix)) {
+      errors.push(`Table "${table.name}" must be prefixed with "${tablePrefix}"`);
     }
   }
 

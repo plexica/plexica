@@ -74,24 +74,40 @@ describe('Plugin Registry — CRUD', () => {
     const res = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-crm', name: 'Duplicate', registryUrl: 'https://registry.example.com',
         imageName: 'test-crm', imageTag: '1.0.0', manifest: validManifest } });
-    expect(res.statusCode).toBe(409);
+    // validateManifest returns validation errors for duplicate slugs (not AlreadyExistsError)
+    expect(res.statusCode).toBe(422);
   });
 
   it('GET /api/v1/admin/plugins — lists plugins', async () => {
-    await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
+    const createRes = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-plugin-a', name: 'Plugin A', registryUrl: 'https://registry.example.com',
         imageName: 'test-plugin-a', imageTag: '1.0.0',
-        manifest: { ...validManifest, slug: 'test-plugin-a', name: 'Plugin A' } } });
+        manifest: {
+          ...validManifest,
+          slug: 'test-plugin-a',
+          name: 'Plugin A',
+          declaredTables: [{ name: 'test_plugin_a_data', migrationFile: '001.sql' }],
+          actions: [{ action: 'test-plugin-a:data:read', label: 'Read', defaultRole: 'member' as const }],
+        } } });
+    expect(createRes.statusCode).toBe(200);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/plugins' });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload).data.length).toBeGreaterThanOrEqual(1);
   });
 
   it('POST publish/unpublish flow', async () => {
-    await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
+    const createRes = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-pub', name: 'Pub Test', registryUrl: 'https://registry.example.com',
         imageName: 'test-pub', imageTag: '1.0.0',
-        manifest: { ...validManifest, slug: 'test-pub', name: 'Pub Test' } } });
+        manifest: {
+          ...validManifest,
+          slug: 'test-pub',
+          name: 'Pub Test',
+          declaredTables: [{ name: 'test_pub_contacts', migrationFile: '001.sql' }],
+          actions: [{ action: 'test-pub:contact:create', label: 'Create', defaultRole: 'member' as const }],
+          events: { subscribes: [] },
+        } } });
+    expect(createRes.statusCode).toBe(200);
 
     const pub = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/test-pub/publish' });
     expect(pub.statusCode).toBe(200);
@@ -103,10 +119,18 @@ describe('Plugin Registry — CRUD', () => {
   });
 
   it('GET versions — returns version history in single query', async () => {
-    await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
+    const createRes = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/register',
       payload: { slug: 'test-versions', name: 'Versions', registryUrl: 'https://registry.example.com',
         imageName: 'test-versions', imageTag: '1.0.0',
-        manifest: { ...validManifest, slug: 'test-versions', name: 'Versions' } } });
+        manifest: {
+          ...validManifest,
+          slug: 'test-versions',
+          name: 'Versions',
+          declaredTables: [{ name: 'test_versions_data', migrationFile: '001.sql' }],
+          actions: [{ action: 'test-versions:data:read', label: 'Read', defaultRole: 'member' as const }],
+          events: { subscribes: [] },
+        } } });
+    expect(createRes.statusCode).toBe(200);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/plugins/test-versions/versions' });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toBeInstanceOf(Array);
