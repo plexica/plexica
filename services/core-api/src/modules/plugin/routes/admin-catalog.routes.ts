@@ -2,14 +2,14 @@
 // Super admin catalog: list + register plugins.
 
 import { z } from 'zod';
+
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { ValidationError } from '../../../lib/app-error.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { registerPluginSchema } from '../schema/api.js';
-import { createPlugin, listPlugins, findPluginBySlug } from '../services/registry.service.js';
+import { createPlugin, listPlugins } from '../services/registry.service.js';
 import { validateManifest } from '../services/manifest-validator.service.js';
 
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import type { PluginListOptions, PluginRecord } from '../services/registry.service.js';
 
@@ -57,7 +57,8 @@ export async function adminCatalogRoutes(fastify: FastifyInstance): Promise<void
 
       // Single withCoreDb call with Prisma transaction to prevent TOCTOU race
       const result: PluginRecord = await withCoreDb((prisma) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const validation = await validateManifest(tx, input.manifest);
           if (!validation.valid) {
             throw new ValidationError(validation.errors.join('; '));

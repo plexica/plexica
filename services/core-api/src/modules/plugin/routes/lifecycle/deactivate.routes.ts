@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 
-import { withTenantDb } from '../../../../lib/tenant-database.js';
+import { withTenantDb, type TenantPrismaClient } from '../../../../lib/tenant-database.js';
 import { requireAbac } from '../../../../middleware/abac.js';
 import { PluginNotFoundError, PluginValidationError } from '../../errors.js';
 import { pauseConsumerGroup } from '../../events/consumer-manager.service.js';
@@ -18,7 +18,7 @@ export async function deactivateRoutes(fastify: FastifyInstance): Promise<void> 
     const { installId } = z.object({ installId: uuidSchema }).parse(request.params);
     const ctx = request.tenantContext;
 
-    return withTenantDb(async (tx: any) => {
+    return withTenantDb(async (tx: TenantPrismaClient) => {
       const inst = await tx.pluginInstallation.findUnique({ where: { id: installId } });
       if (!inst) throw new PluginNotFoundError(`Installation ${installId}`);
       if (inst.tenantSlug !== ctx.slug) throw new PluginNotFoundError(`Installation ${installId}`);

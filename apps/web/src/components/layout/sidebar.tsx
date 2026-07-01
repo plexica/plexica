@@ -8,9 +8,10 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useIntl } from 'react-intl';
 
-import { SidebarNavItem } from './sidebar-nav-item.js';
-import { NAV_ITEMS } from './sidebar-nav-config.js';
 import { SidebarSlot } from '../../mf-host/extension-slots/sidebar-slot.js';
+
+import { NAV_ITEMS } from './sidebar-nav-config.js';
+import { SidebarNavItem } from './sidebar-nav-item.js';
 
 interface SidebarProps {
   isOpen: boolean;

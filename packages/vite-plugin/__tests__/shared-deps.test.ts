@@ -1,6 +1,7 @@
 // shared-deps.test.ts
 
 import { describe, expect, it } from 'vitest';
+
 import { SHARED_DEPS } from '../src/shared-deps.js';
 
 describe('SHARED_DEPS', () => {
@@ -23,19 +24,19 @@ describe('SHARED_DEPS', () => {
   });
 
   it('all deps are singleton=true', () => {
-    for (const [key, value] of Object.entries(SHARED_DEPS)) {
+    for (const [, value] of Object.entries(SHARED_DEPS)) {
       expect(value.singleton).toBe(true);
     }
   });
 
   it('all deps specify requiredVersion', () => {
-    for (const [key, value] of Object.entries(SHARED_DEPS)) {
+    for (const [, value] of Object.entries(SHARED_DEPS)) {
       expect(value.requiredVersion).toBeDefined();
     }
   });
 
   it('all deps have eager=false', () => {
-    for (const [key, value] of Object.entries(SHARED_DEPS)) {
+    for (const [, value] of Object.entries(SHARED_DEPS)) {
       expect(value.eager).toBe(false);
     }
   });

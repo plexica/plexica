@@ -1,7 +1,7 @@
 // services/proxy.service.ts
 // HTTP proxy to plugin backends with security controls.
 
-import { Readable } from 'node:stream';
+
 
 import { ValidationError } from '../../../lib/app-error.js';
 import { logger } from '../../../lib/logger.js';
@@ -12,6 +12,8 @@ import { registerDevBackend, unregisterDevBackend, getDevBackend } from './dev-b
 
 import type { ProxyTarget } from './dev-backends.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
+import type { TenantContext } from '../../../lib/tenant-context-store.js';
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10MB
 const TRUNCATION_MARKER = '\n… (truncated: response exceeded max size)\n';
@@ -58,7 +60,7 @@ function validateTargetHost(targetUrl: string): void {
 async function verifyWorkspaceMembership(
   workspaceId: string | undefined,
   userId: string | undefined,
-  tenantContext: Record<string, unknown> | undefined,
+  tenantContext: TenantContext | undefined,
   isTenantAdmin = false,
 ): Promise<void> {
   if (!workspaceId || !userId || !tenantContext) return;
@@ -69,13 +71,13 @@ async function verifyWorkspaceMembership(
 
   const { withTenantDb } = await import('../../../lib/tenant-database.js');
   try {
-    await withTenantDb(async (tx: any) => {
+    await withTenantDb(async (tx: TenantPrismaClient) => {
       const member = await tx.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId, userId } },
         select: { id: true },
       });
       if (!member) throw new ValidationError('User is not a member of the specified workspace');
-    }, { slug: (tenantContext as any).slug, schemaName: (tenantContext as any).schemaName } as any);
+    }, tenantContext as TenantContext);
   } catch (err) {
     if (err instanceof ValidationError) throw err;
     logger.error(
@@ -84,39 +86,6 @@ async function verifyWorkspaceMembership(
     );
     throw new WorkspaceVerifyError();
   }
-}
-
-/**
- * Wraps the upstream body in a TransformStream that counts bytes (HIGH #14).
- * Aborts at maxBytes, appends a truncation marker, and cancels the source so a
- * malicious plugin cannot exhaust memory with an unbounded response. Byte
- * accounting uses Buffer.byteLength (not string.length) for correctness.
- */
-function limitResponseBody(
-  body: ReadableStream<Uint8Array>,
-  maxBytes: number,
-): ReadableStream<Uint8Array> {
-  let received = 0;
-  let truncated = false;
-  return body.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        if (truncated) return;
-        received += Buffer.byteLength(chunk);
-        if (received <= maxBytes) {
-          controller.enqueue(chunk);
-          return;
-        }
-        const over = received - maxBytes;
-        const allowed = chunk.subarray(0, chunk.byteLength - over);
-        if (allowed.byteLength > 0) controller.enqueue(allowed);
-        truncated = true;
-        controller.enqueue(Buffer.from(TRUNCATION_MARKER, 'utf8'));
-        // Stop reading from the plugin — frees the upstream connection.
-        controller.terminate();
-      },
-    }),
-  );
 }
 
 export async function proxyRequest(
@@ -129,7 +98,7 @@ export async function proxyRequest(
   const targetUrl = `${target.baseUrl}${pathSuffix}`;
   validateTargetHost(targetUrl);
 
-  const tenantContext = (request as any).tenantContext;
+  const tenantContext = (request as FastifyRequest & { tenantContext: TenantContext }).tenantContext;
   const internalUserId = request.user?.id ?? '';
   const keycloakUserId = request.user?.keycloakUserId ?? '';
   const workspaceHeader = request.headers['x-plexica-workspace-id'];
@@ -143,7 +112,7 @@ export async function proxyRequest(
     'X-Plexica-Tenant-Id': tenantContext?.tenantId ?? '',
     'X-Plexica-User-Id': keycloakUserId,
     'X-Plexica-Workspace-Id': workspaceId,
-    'X-Plexica-User-Role': ((request.user as any)?.roles?.[0]) ?? '',
+    'X-Plexica-User-Role': ((request.user as { roles?: string[] })?.roles?.[0]) ?? '',
     'X-Plexica-Correlation-Id': crypto.randomUUID(),
   };
 

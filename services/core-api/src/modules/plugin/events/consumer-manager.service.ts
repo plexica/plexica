@@ -110,7 +110,7 @@ async function createConsumerGroupInner(
           logger.warn({ err, groupId, topic, attempt: attempt + 1 }, 'Consumer retry');
         }
       }
-      await moveToDlq(installId, topic, payload, lastError!.message, 3, pluginId);
+      await moveToDlq(installId, topic, payload, lastError?.message ?? 'Unknown error', 3, pluginId);
     },
   });
 

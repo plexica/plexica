@@ -2,6 +2,7 @@
 // Super admin publish/unpublish plugin endpoints.
 
 import { z } from 'zod';
+
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import {
@@ -10,7 +11,6 @@ import {
 } from '../services/registry.service.js';
 import { PluginNotFoundError, PluginValidationError } from '../errors.js';
 
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
@@ -25,7 +25,8 @@ export async function adminPublishRoutes(fastify: FastifyInstance): Promise<void
       const { slug } = slugParamSchema.parse(request.params);
 
       return withCoreDb((prisma) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const plugin = await findPluginBySlug(tx, slug);
           if (!plugin) throw new PluginNotFoundError(slug);
           if (plugin.status === 'published') {
@@ -47,7 +48,8 @@ export async function adminPublishRoutes(fastify: FastifyInstance): Promise<void
       const { slug } = slugParamSchema.parse(request.params);
 
       return withCoreDb((prisma) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const plugin = await findPluginBySlug(tx, slug);
           if (!plugin) throw new PluginNotFoundError(slug);
           if (plugin.status !== 'published') {

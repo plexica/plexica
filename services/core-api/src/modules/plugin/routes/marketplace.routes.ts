@@ -3,13 +3,14 @@
 // Fills the gaps left by the frontend plugin-api client.
 
 import { z } from 'zod';
+
 import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { PluginNotFoundError } from '../errors.js';
 import { manifestSchema } from '../schema/manifest.js';
 
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
+import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 
@@ -29,7 +30,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     async (request) => {
       const ctx = request.tenantContext;
 
-      const installations = await withTenantDb(async (tx: any) => {
+      const installations = await withTenantDb(async (tx: TenantPrismaClient) => {
         return tx.pluginInstallation.findMany({
           where: { tenantSlug: ctx.slug, status: { not: 'uninstalled' } },
           orderBy: { installedAt: 'desc' },
@@ -38,16 +39,16 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
 
       if (installations.length === 0) return [];
 
-      const pluginIds: string[] = Array.from(new Set(installations.map((i: any) => i.pluginId as string)));
-      const plugins = await withCoreDb((prisma: PrismaClient) =>
+      const pluginIds: string[] = Array.from(new Set(installations.map((i: Record<string, unknown>) => i.pluginId as string)));
+      const plugins = await withCoreDb((prisma) =>
         prisma.plugin.findMany({
           where: { id: { in: pluginIds } },
           select: { id: true, slug: true, name: true, version: true },
         })
       );
-      const pluginMap = new Map(plugins.map((p: any) => [p.id as string, p]));
+      const pluginMap = new Map(plugins.map((p: Record<string, unknown>) => [p.id as string, p]));
 
-      return installations.map((inst: any) => {
+      return installations.map((inst: Record<string, unknown>) => {
         const plugin = pluginMap.get(inst.pluginId as string);
         return {
           ...inst,
@@ -79,7 +80,8 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
       if (search) where.slug = { contains: search, mode: 'insensitive' };
       if (category) where.categories = { has: category };
 
-      return withCoreDb((prisma: PrismaClient) =>
+      return withCoreDb((prisma) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (prisma as any).$transaction(async (tx: any) => {
           const [data, total] = await Promise.all([
             tx.plugin.findMany({
@@ -108,13 +110,13 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     async (request) => {
       const { slug } = z.object({ slug: z.string().regex(SLUG_REGEX) }).parse(request.params);
 
-      const plugin = await withCoreDb((prisma: PrismaClient) =>
+      const plugin = await withCoreDb((prisma) =>
         prisma.plugin.findUnique({ where: { slug } })
       );
 
       if (!plugin || plugin.status !== 'published') throw new PluginNotFoundError(slug);
 
-      const manifest = manifestSchema.safeParse(plugin.manifest as Record<string, unknown>);
+      const manifest = manifestSchema.safeParse(plugin.manifest as unknown);
       return {
         ...plugin,
         actions: manifest.success ? (manifest.data.actions ?? []) : [],

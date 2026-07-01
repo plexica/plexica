@@ -1,9 +1,9 @@
 // marketplace-page.tsx
 // Tenant admin marketplace: browse, search, filter by category, and install plugins.
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { Input, Pagination, Button } from '@plexica/ui';
+import { Input, Pagination } from '@plexica/ui';
 import { Package, SearchX } from 'lucide-react';
 
 import { usePublishedPlugins, useInstallPlugin, usePluginDetail } from '../hooks/use-plugins.js';

@@ -3,6 +3,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+
 import { TEMPLATES, render } from './templates.js';
 
 interface Options { force: boolean; name: string | null }
@@ -10,10 +11,12 @@ interface Options { force: boolean; name: string | null }
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 
 function toSlug(name: string): string {
-  return name.toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 62);
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+/, '')
+    .substring(0, 62)
+    .replace(/-+$/, '');
 }
 
 export async function run(options: Options): Promise<void> {
@@ -33,6 +36,7 @@ export async function run(options: Options): Promise<void> {
     );
   }
 
+  // eslint-disable-next-line no-console
   console.log(`Creating plugin "${name}" (slug: ${slug})...`);
 
   for (const [filePath, content] of Object.entries(TEMPLATES)) {
@@ -42,10 +46,16 @@ export async function run(options: Options): Promise<void> {
     writeFileSync(fullPath, render(content, slug, name));
   }
 
+  // eslint-disable-next-line no-console
   console.log(`\n[OK] Plugin "${name}" created!\n`);
+  // eslint-disable-next-line no-console
   console.log('Next steps:');
+  // eslint-disable-next-line no-console
   console.log(`  cd ${slug}`);
+  // eslint-disable-next-line no-console
   console.log('  pnpm install');
+  // eslint-disable-next-line no-console
   console.log('  pnpm dev        # Dev mode (UI + backend + registration)');
+  // eslint-disable-next-line no-console
   console.log('  pnpm build      # Production build');
 }

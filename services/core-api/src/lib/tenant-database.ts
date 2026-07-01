@@ -22,11 +22,12 @@
 // The AsyncLocalStorage fallback (getTenantContext) is preserved for
 // non-Fastify call sites (e.g. CLI scripts, standalone utilities).
 
+import { PrismaClient } from '@prisma/client';
+
 // @ts-ignore — generated at build time via 'pnpm db:generate'
 import { PrismaClient as TenantPrismaClient } from '../../generated/tenant-client/index.js';
-import { PrismaClient } from '@prisma/client';
-import { prisma as coreDb } from './database.js';
 
+import { prisma as coreDb } from './database.js';
 import { getTenantContext } from './tenant-context-store.js';
 
 import type { TenantContext } from './tenant-context-store.js';

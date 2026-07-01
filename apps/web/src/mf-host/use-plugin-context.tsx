@@ -2,6 +2,7 @@
 // React hook + provider that gives plugin MF components access to shell context.
 
 import { createContext, useContext, useMemo } from 'react';
+
 import { useAuthStore } from '../stores/auth-store.js';
 import { useWorkspaceStore } from '../stores/workspace-store.js';
 

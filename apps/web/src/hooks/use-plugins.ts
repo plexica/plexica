@@ -6,14 +6,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pluginApi } from '../services/plugin-api.js';
 
 import type {
-  PluginCatalogEntry,
-  PluginInstallation,
   PluginRegisterPayload,
-  PluginVisibilityEntry,
   PluginVisibilityUpdate,
-  DeadLetterEntry,
-  MarketplaceListResponse,
-  DlqListResponse,
 } from '../types/plugin.js';
 
 // ── Marketplace queries ──────────────────────────────────────────────────────

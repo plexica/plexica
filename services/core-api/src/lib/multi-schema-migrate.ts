@@ -20,6 +20,7 @@ import { dirname } from 'node:path';
 
 import { prisma } from './database.js';
 import { logger } from './logger.js';
+
 import type { Prisma } from '@prisma/client';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

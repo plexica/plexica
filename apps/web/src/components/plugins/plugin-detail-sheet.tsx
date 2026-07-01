@@ -8,10 +8,12 @@ import { Button } from '@plexica/ui';
 import { X, Shield, Database, Radio, ShoppingBag, AlertCircle } from 'lucide-react';
 
 import { useFocusTrap } from '../../hooks/use-focus-trap.js';
-import { RatingStars } from './rating-stars.js';
-import { CATEGORY_LABEL_MAP } from './plugin-categories.js';
-import type { PluginCatalogEntry, PluginAction, PluginTable } from '../../types/plugin.js';
 import { SkeletonLoader } from '../feedback/skeleton-loader.js';
+
+import { CATEGORY_LABEL_MAP } from './plugin-categories.js';
+import { RatingStars } from './rating-stars.js';
+
+import type { PluginCatalogEntry, PluginAction, PluginTable } from '../../types/plugin.js';
 
 interface DetailSheetProps {
   plugin: PluginCatalogEntry | undefined;

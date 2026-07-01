@@ -2,15 +2,14 @@
 // Super admin DLQ management routes — list, retry, dismiss.
 
 import { z } from 'zod';
+
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { retryDlqEntry } from '../events/dlq.service.js';
 import { PluginNotFoundError } from '../errors.js';
-
-import type { PrismaClient } from '@prisma/client';
-import type { FastifyInstance } from 'fastify';
-
 import { ValidationError } from '../../../lib/app-error.js';
+
+import type { FastifyInstance } from 'fastify';
 
 const DlqPageSizeMax = 100;
 
@@ -37,8 +36,9 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
       if (status) where.status = status;
       if (pluginId) where.pluginId = pluginId;
 
-      return withCoreDb((prisma: PrismaClient) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+      return withCoreDb((prisma) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const [data, total] = await Promise.all([
             tx.deadLetterQueue.findMany({
               where,
@@ -65,8 +65,9 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
       if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
       const { id } = parsed.data;
 
-      return withCoreDb((prisma: PrismaClient) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+      return withCoreDb((prisma) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const entry = await tx.deadLetterQueue.findUnique({ where: { id } });
           if (!entry) throw new PluginNotFoundError(`DLQ entry ${id}`);
 
@@ -94,8 +95,9 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
       if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
       const { id } = parsed.data;
 
-      return withCoreDb((prisma: PrismaClient) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+      return withCoreDb((prisma) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const entry = await tx.deadLetterQueue.findUnique({ where: { id } });
           if (!entry) throw new PluginNotFoundError(`DLQ entry ${id}`);
 

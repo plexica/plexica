@@ -3,6 +3,7 @@
 // On exhaustion: moves event to DLQ per AC-06.
 
 import { logger } from '../../../lib/logger.js';
+
 import { moveToDlq } from './dlq.service.js';
 
 const RETRY_DELAYS: Record<number, number> = { 0: 100, 1: 500, 2: 2_000 };

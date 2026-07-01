@@ -82,7 +82,7 @@ export async function persistDlqEntryDedup(
   await prisma.deadLetterQueue.create({
     data: {
       eventType: data.eventType,
-      payload: data.payload as any,
+      payload: data.payload as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       pluginId: data.pluginId,
       errorMessage: data.errorMessage,
       retryCount: data.retryCount,

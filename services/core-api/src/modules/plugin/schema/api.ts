@@ -2,6 +2,7 @@
 // Zod schemas for plugin API endpoint inputs.
 
 import { z } from 'zod';
+
 import { manifestSchema } from './manifest.js';
 
 export const registerPluginSchema = z.object({

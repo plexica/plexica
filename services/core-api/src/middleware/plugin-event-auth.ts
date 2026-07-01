@@ -27,9 +27,9 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 
 export async function pluginEventAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const serviceToken = request.headers['x-plugin-service-token'];
+  const authHeader = request.headers.authorization;
 
   if (typeof serviceToken === 'string' && serviceToken.length > 0) {
-    // Plugin-backend path.
     const payload = verifyServiceToken(serviceToken);
     if (!payload) {
       throw new ForbiddenError('Invalid plugin service token');
@@ -38,18 +38,13 @@ export async function pluginEventAuth(request: FastifyRequest, reply: FastifyRep
     if (!tenantCtx) {
       throw new ForbiddenError(`Unknown tenant "${payload.tenantSlug}" in service token`);
     }
-    // Stamp the tenant context so withTenantDb() works in the handler. The
-    // handler re-verifies the installId belongs to this tenant + the event
-    // slug matches — this middleware only establishes identity + tenancy.
     request.tenantContext = tenantCtx;
     enterWithTenant(tenantCtx);
     return;
   }
 
-  // User-initiated path — requires a Bearer JWT.
-  const authHeader = request.headers.authorization;
-  if (authHeader === undefined || !authHeader.startsWith('Bearer ')) {
-    throw new UnauthorizedError('Missing Authorization header or X-Plugin-Service-Token');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new UnauthorizedError('Missing valid Authorization header or X-Plugin-Service-Token');
   }
   await authMiddleware(request, reply);
   await tenantContextMiddleware(request, reply);

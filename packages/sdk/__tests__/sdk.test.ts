@@ -100,8 +100,8 @@ describe('PluginSDK', () => {
     const sdk = makeSdk({ dbConnectionString: 'postgresql://test@localhost/test' });
     try {
       await sdk.getDb();
-    } catch (err: any) {
-      expect(err.message).not.toContain('platform runtime');
+    } catch (err: unknown) {
+      expect((err as Error).message).not.toContain('platform runtime');
     }
     await sdk.destroy();
   });

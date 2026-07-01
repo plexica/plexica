@@ -45,7 +45,9 @@ test.describe('004 Plugin System — AC-06: Dead Letter Queue', () => {
     }
 
     // Retry the first pending entry.
-    const entryId = pending[0]!.id;
+    const entry = pending[0];
+    if (!entry) return;
+    const entryId = entry.id;
     const retryRes = await page.request.post(
       `${API_BASE}/api/v1/admin/system/dlq/${entryId}/retry`,
       { headers: { Authorization: `Bearer ${token ?? ''}` } },

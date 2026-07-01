@@ -2,6 +2,7 @@
 // Shared component rendering plugin components inside Suspense + error boundaries.
 
 import { createElement, Suspense, useMemo } from 'react';
+
 import { PluginSlotErrorBoundary } from '../error-boundary.js';
 import { loadPluginComponent } from '../plugin-loader.js';
 import { PluginContextProvider } from '../use-plugin-context.js';

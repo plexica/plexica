@@ -34,6 +34,7 @@ import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
 import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modules/plugin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
+import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
 import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
@@ -104,6 +105,7 @@ await server.register(invitationPublicRoutes);
 // Super admin plugin management routes — auth-only scope (no tenant context)
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
+  adminScope.addHook('preHandler', rateLimitMiddleware(30, 60000));
   await adminScope.register(pluginAdminRoutes);
 });
 
@@ -114,6 +116,7 @@ await server.register(async (adminScope) => {
 // handler runs. pluginEventAuth handles both paths.
 await server.register(async (eventScope) => {
   eventScope.addHook('preHandler', pluginEventAuth);
+  eventScope.addHook('preHandler', rateLimitMiddleware(100, 60000));
   await eventScope.register(pluginEventRoutes);
 });
 

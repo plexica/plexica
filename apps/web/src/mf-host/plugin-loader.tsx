@@ -3,6 +3,7 @@
 // Fetches remoteEntry.js from MinIO in production, or from dev server in dev.
 
 import { createElement, lazy, Suspense } from 'react';
+
 import type { ComponentType, LazyExoticComponent } from 'react';
 
 const remoteCache = new Map<string, LazyExoticComponent<ComponentType<Record<string, unknown>>>>();
@@ -41,8 +42,9 @@ export function loadPluginComponent(
 ): LazyExoticComponent<ComponentType<Record<string, unknown>>> {
   const cacheKey = `${remoteEntryUrl}#${remoteName}`;
 
-  if (remoteCache.has(cacheKey)) {
-    return remoteCache.get(cacheKey)!;
+  const cached = remoteCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
   }
 
   const LazyComponent = lazy<ComponentType<Record<string, unknown>>>(async () => {

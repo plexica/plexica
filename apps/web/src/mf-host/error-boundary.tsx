@@ -2,8 +2,10 @@
 // Per-slot React error boundary for plugin MF components.
 
 import { Component, createRef } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
+
 import { PluginUnavailable } from './plugin-unavailable.js';
+
+import type { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -57,12 +59,13 @@ export class PluginSlotErrorBoundary extends Component<Props, State> {
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+  componentDidCatch(error: Error, _errorInfo: ErrorInfo): void {
     // Track crash count in sessionStorage (survives navigation)
     const newCount = this.state.crashCount + 1;
     setPersistedCrashCount(this.props.pluginSlug, newCount);
     this.setState({ crashCount: newCount });
     if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
       console.warn(`[PluginSlot] "${this.props.pluginSlug}" crashed (${newCount}/${MAX_CRASHES}):`, error.message);
     } else {
       // In production, errors should be sent to a telemetry endpoint

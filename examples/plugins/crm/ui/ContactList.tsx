@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIntl } from 'react-intl';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, ConfirmDialog } from '@plexica/ui';
 
-import type { Contact, ContactFormData } from './types';
 import { fetchContacts, createContact, updateContact, deleteContact } from './api';
 import { ContactForm } from './ContactForm';
+
+import type { Contact, ContactFormData } from './types';
 
 function SkeletonRows(): React.JSX.Element {
   return (

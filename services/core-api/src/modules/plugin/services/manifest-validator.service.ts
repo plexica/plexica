@@ -1,9 +1,11 @@
 // services/manifest-validator.service.ts
 // Full manifest validation: Zod parse + business rules.
 
-import type { PrismaClient } from '@prisma/client';
 import { manifestSchema, type Manifest } from '../schema/manifest.js';
+
 import { findPluginBySlug } from './registry.service.js';
+
+import type { PrismaClient } from '@prisma/client';
 
 export interface ValidationResult {
   valid: boolean;

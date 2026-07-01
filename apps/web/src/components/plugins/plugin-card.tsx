@@ -6,6 +6,7 @@ import { Button } from '@plexica/ui';
 
 import { RatingStars } from './rating-stars.js';
 import { CATEGORY_LABEL_MAP } from './plugin-categories.js';
+
 import type { PluginCatalogEntry } from '../../types/plugin.js';
 
 interface PluginCardProps {

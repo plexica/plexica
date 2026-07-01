@@ -46,9 +46,8 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
   const m = parsed.data;
 
   const imageRef = m.hosting.image;
-  const [imageName, imageTag] = imageRef.includes(':')
-    ? imageRef.split(':')
-    : [imageRef, 'latest'];
+  const imageName = (imageRef.includes(':') ? imageRef.split(':')[0] : imageRef) ?? '';
+  const imageTag = imageRef.includes(':') ? imageRef.split(':')[1] ?? 'latest' : 'latest';
 
   // icon in manifest is a Lucide icon name; store it as the icon_url field.
   const iconUrl = m.icon ?? '';
@@ -62,7 +61,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
       author: m.author,
       iconUrl,
       categories: m.categories,
-      manifest: manifest as Record<string, unknown>,
+      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'published',
       registryUrl,
       imageName,
@@ -76,7 +75,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
       author: m.author,
       iconUrl,
       categories: m.categories,
-      manifest: manifest as Record<string, unknown>,
+      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'published',
       registryUrl,
       imageName,
@@ -89,11 +88,11 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
   // Record the version snapshot (idempotent on [pluginId, version]).
   await prisma.pluginVersion.upsert({
     where: { pluginId_version: { pluginId: plugin.id, version: m.version } },
-    update: { manifest: manifest as Record<string, unknown> },
+    update: { manifest: manifest as any }, // eslint-disable-line @typescript-eslint/no-explicit-any
     create: {
       pluginId: plugin.id,
       version: m.version,
-      manifest: manifest as Record<string, unknown>,
+      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     },
   });
 

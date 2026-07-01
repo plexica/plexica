@@ -6,7 +6,9 @@ export async function applyMigrations(
   tenantSlug: string,
   migrationsDir: string
 ): Promise<{ applied: string[]; errors: string[] }> {
+  // eslint-disable-next-line no-console
   console.log(`[dev] Would apply migrations to tenant "${tenantSlug}" from ${migrationsDir}`);
+  // eslint-disable-next-line no-console
   console.log('[dev] Migration helper is a stub — run migrations manually via SQL');
   return { applied: [], errors: [] };
 }

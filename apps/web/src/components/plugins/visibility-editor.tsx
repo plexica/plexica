@@ -3,7 +3,7 @@
 // Shows per-workspace overrides with toggle switches.
 
 import { useState } from 'react';
-import { FormattedMessage, useIntl } from 'react-intl';
+import { FormattedMessage } from 'react-intl';
 import { Button, ToggleSwitch } from '@plexica/ui';
 
 import { SkeletonLoader } from '../feedback/skeleton-loader.js';
@@ -28,7 +28,6 @@ export function VisibilityEditor({
   refetch,
   onSave,
 }: VisibilityEditorProps): JSX.Element {
-  const intl = useIntl();
   const [localUpdates, setLocalUpdates] = useState<PluginVisibilityUpdate[]>([]);
 
   const entries = data ?? [];

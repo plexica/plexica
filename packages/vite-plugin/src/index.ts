@@ -4,7 +4,9 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+
 import federation from '@originjs/vite-plugin-federation';
+
 import { generateMfConfig } from './mf-config-generator.js';
 import { SHARED_DEPS } from './shared-deps.js';
 import { devServerRegistration } from './dev-server-registration.js';

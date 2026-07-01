@@ -71,6 +71,7 @@ export const manifestSchema = z.object({
     .optional(),
   actions: z.array(actionSchema).optional(),
   apiMappings: z.array(apiMappingSchema).optional(),
+  env: z.record(z.string()).optional(),
   declaredTables: z.array(declaredTableSchema).default([]),
 });
 

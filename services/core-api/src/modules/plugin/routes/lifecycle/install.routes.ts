@@ -20,6 +20,8 @@ import { generateServiceToken } from '../../services/service-token.js';
 import { manifestSchema } from '../../schema/manifest.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { PrismaClient } from '@prisma/client';
+import type { TenantPrismaClient } from '../../../../lib/tenant-database.js';
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 const IMAGE_NAME_REGEX = /^[a-z0-9][a-z0-9._/-]{0,126}[a-z0-9]$/;
@@ -45,7 +47,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     const userId = request.user?.keycloakUserId;
     if (!userId) throw new ValidationError('User identity required');
 
-    const plugin = await withCoreDb(async (prisma: any) =>
+    const plugin = await withCoreDb(async (prisma: PrismaClient) =>
       prisma.plugin.findUnique({ where: { slug } })
     ) as Record<string, unknown> | null;
 
@@ -64,7 +66,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     const imageRef = `${registryHost}/${imageName}:${imageTag}`;
     const hostingType = manifest.hosting.type;
 
-    const install = await withTenantDb(async (tx: any) => {
+    const install = await withTenantDb(async (tx: TenantPrismaClient) => {
       const existing = await tx.pluginInstallation.findUnique({
         where: { pluginId_tenantSlug: { pluginId: plugin.id as string, tenantSlug: ctx.slug } },
       });
@@ -97,14 +99,14 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     const role = await createPluginRole(install.id, ctx.slug, manifest.declaredTables);
     // Persist the encrypted connection string at rest in plugin_container_config
     // (a TENANT-schema table — must use withTenantDb, not the core prisma client).
-    await withTenantDb(async (tx: any) => {
+    await withTenantDb(async (tx: TenantPrismaClient) => {
       await tx.pluginContainerConfig.upsert({
         where: { installId: install.id },
         create: { installId: install.id, image: imageRef, port: 0, envOverrides: role.encryptedEnvOverrides },
         update: { envOverrides: role.encryptedEnvOverrides },
       });
-    }, ctx).catch((err: any) => {
-      logger.warn({ err: err?.message, installId: install.id }, 'Failed to persist encrypted plugin env overrides');
+    }, ctx).catch((err: unknown) => {
+      logger.warn({ err: (err as Error)?.message, installId: install.id }, 'Failed to persist encrypted plugin env overrides');
     });
 
     // CRITICAL #2 — run declared migrations under SET ROLE plugin_{installId}
@@ -112,8 +114,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
     // tenant schema only for the duration of the migration loop.
     await grantCreateOnSchema(install.id, ctx.slug);
     try {
-      await withTenantDb(async (tenantDb: any) => {
-        return tenantDb.$transaction(async (tx: any) => {
+      await withTenantDb(async (tenantDb) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (tenantDb as any).$transaction(async (tx: any) => {
           await runPluginMigrations({ tx, manifest, role, installId: install.id, pluginId: plugin.id as string });
         });
       }, ctx);
@@ -122,9 +125,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       // it would block re-install (409 "already installed") and violate EC-3/EC-29.
       // Mark the install `failed` best-effort and drop the provisioned role.
       logger.error({ err: (migrationErr as Error).message, installId: install.id }, 'Plugin migration failed — marking install failed');
-      await withTenantDb(async (tx: any) => {
+      await withTenantDb(async (tx) => {
         await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: 'failed' } });
-      }, ctx).catch((e: any) => logger.error({ err: e?.message, installId: install.id }, 'Failed to mark install as failed'));
+      }, ctx).catch((e: unknown) => logger.error({ err: (e as Error)?.message, installId: install.id }, 'Failed to mark install as failed'));
       try { await revokeCreateOnSchema(install.id, ctx.slug); } catch { /* best-effort */ }
       // Drop the orphaned restricted DB role (best-effort) so its password
       // doesn't leak — the failed install will be re-installed with a fresh role.
@@ -147,7 +150,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
 
     try {
       const mgr = createContainerManager(hostingType);
-      const hostingPort = (manifest.hosting as any)?.port ?? 3000;
+      const hostingPort = (manifest.hosting as { port?: number })?.port ?? 3000;
       // CRITICAL #1 — pass the restricted role's connection string, NOT the
       // platform DATABASE_URL. The container can only touch its declared tables.
       await mgr.startContainer(install.id, {
@@ -165,9 +168,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
           PLEXICA_SERVICE_TOKEN: generateServiceToken(install.id, ctx.slug),
           PLEXICA_INSTALL_ID: install.id,
         },
-      } as any);
-    } catch (err: any) {
-      logger.warn({ err: err.message, installId: install.id }, 'Container start failed — plugin will be degraded');
+      } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+    } catch (err: unknown) {
+      logger.warn({ err: (err as Error).message, installId: install.id }, 'Container start failed — plugin will be degraded');
       degraded = true;
     }
 
@@ -178,25 +181,25 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
             const mgr = createContainerManager(hostingType);
             const backendUrl = await mgr.getContainerUrl(install.id);
             await dispatchEvent(backendUrl, topic, payload, crypto.randomUUID(), install.id);
-          } catch (err: any) {
-            logger.warn({ err: err.message, installId: install.id, topic }, 'Failed to forward event to plugin backend');
+          } catch (err: unknown) {
+            logger.warn({ err: (err as Error).message, installId: install.id, topic }, 'Failed to forward event to plugin backend');
           }
         }, plugin.id as string);
-      } catch (err: any) {
-        logger.warn({ err: err.message, installId: install.id }, 'Consumer group creation failed — plugin will not receive events');
+      } catch (err: unknown) {
+        logger.warn({ err: (err as Error).message, installId: install.id }, 'Consumer group creation failed — plugin will not receive events');
         degraded = true;
       }
     }
 
     const finalStatus = degraded ? 'degraded' : 'active';
-    await withTenantDb(async (tx: any) => {
+    await withTenantDb(async (tx: TenantPrismaClient) => {
       await tx.pluginInstallation.update({ where: { id: install.id }, data: { status: finalStatus } });
-    }, ctx).catch((err: any) => {
-      logger.error({ err: err?.message ?? err, installId: install.id, finalStatus }, 'Failed to persist final install status');
+    }, ctx).catch((err: unknown) => {
+      logger.error({ err: (err as Error)?.message ?? err, installId: install.id, finalStatus }, 'Failed to persist final install status');
     });
 
     emitEvent(Topics.plugin('installed'), { installId: install.id, slug })
-      .catch((err: any) => logger.warn({ err: err.message, installId: install.id }, 'Failed to emit install event'));
+      .catch((err: unknown) => logger.warn({ err: (err as Error).message, installId: install.id }, 'Failed to emit install event'));
     return { status: finalStatus, installId: install.id, slug };
   });
 }

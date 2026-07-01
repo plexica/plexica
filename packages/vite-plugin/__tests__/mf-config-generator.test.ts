@@ -1,6 +1,7 @@
 // mf-config-generator.test.ts
 
 import { describe, expect, it } from 'vitest';
+
 import { generateMfConfig } from '../src/mf-config-generator.js';
 import { SHARED_DEPS } from '../src/shared-deps.js';
 

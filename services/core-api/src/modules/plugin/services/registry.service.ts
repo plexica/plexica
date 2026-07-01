@@ -59,7 +59,7 @@ export async function createPlugin(
       author: data.manifest.author,
       iconUrl: data.manifest.icon ?? null,
       categories: data.manifest.categories,
-      manifest: data.manifest as unknown as Record<string, unknown>,
+      manifest: data.manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'draft',
       registryUrl: data.registryUrl,
       imageName: data.imageName,
@@ -142,7 +142,7 @@ export async function addPluginVersion(
     data: {
       pluginId,
       version,
-      manifest: manifest as unknown as Record<string, unknown>,
+      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       imageDigest: imageDigest ?? null,
     },
   });

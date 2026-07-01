@@ -3,6 +3,7 @@
 // Only active in development mode.
 
 import { WebSocket } from 'ws';
+
 import type { Plugin } from 'vite';
 
 export interface DevServerRegistrationOptions {

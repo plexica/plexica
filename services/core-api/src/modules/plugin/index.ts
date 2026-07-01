@@ -1,6 +1,9 @@
 // index.ts
 // Plugin module Fastify plugin — registers all plugin route groups.
 
+import { config } from '../../lib/config.js';
+import { logger } from '../../lib/logger.js';
+
 import { adminCatalogRoutes } from './routes/admin-catalog.routes.js';
 import { adminPublishRoutes } from './routes/admin-publish.routes.js';
 import { adminVersionsRoutes } from './routes/admin-versions.routes.js';
@@ -19,8 +22,6 @@ import { startPeriodicHealthPolling } from './services/health-check.service.js';
 import { createContainerManager } from './services/container-manager.service.js';
 import { getActiveConsumerGroups, CONSUMER_GROUP_PREFIX } from './events/consumer-manager.service.js';
 import { registerDevBackend } from './services/dev-backends.js';
-import { config } from '../../lib/config.js';
-import { logger } from '../../lib/logger.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -68,7 +69,7 @@ export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void
   // The CRM example plugin runs on port 4000 (see examples/plugins/crm).
   if (config.NODE_ENV === 'development') {
     try {
-      const res = await fetch('http://localhost:4000/contacts', {
+      await fetch('http://localhost:4000/contacts', {
         signal: AbortSignal.timeout(2000),
         headers: { 'X-Plexica-Workspace-Id': 'probe' },
       });

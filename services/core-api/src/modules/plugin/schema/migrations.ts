@@ -76,8 +76,8 @@ export function validateMigrationSql(sql: string, slug: string): MigrationValida
   let parsed: { ast: ParsedAst | ParsedAst[]; tableList: string[] };
   try {
     parsed = parser.parse(sql, PARSE_OPT) as { ast: ParsedAst | ParsedAst[]; tableList: string[] };
-  } catch (err: any) {
-    return { valid: false, errors: [`SQL parse error: ${err?.message ?? err}`] };
+  } catch (err: unknown) {
+    return { valid: false, errors: [`SQL parse error: ${(err as Error)?.message ?? err}`] };
   }
 
   const stmts: ParsedAst[] = Array.isArray(parsed.ast) ? parsed.ast : [parsed.ast];

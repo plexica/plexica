@@ -2,12 +2,12 @@
 // Super admin plugin version history routes.
 
 import { z } from 'zod';
+
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { findPluginBySlug, listPluginVersions } from '../services/registry.service.js';
 import { PluginNotFoundError } from '../errors.js';
 
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
@@ -22,8 +22,9 @@ export async function adminVersionsRoutes(fastify: FastifyInstance): Promise<voi
       const { slug } = slugParamSchema.parse(request.params);
 
       // Single withCoreDb call — N+1 prevention
-      return withCoreDb((prisma: PrismaClient) =>
-        prisma.$transaction(async (tx: PrismaClient) => {
+      return withCoreDb((prisma) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (prisma as any).$transaction(async (tx: any) => {
           const plugin = await findPluginBySlug(tx, slug);
           if (!plugin) throw new PluginNotFoundError(slug);
           return listPluginVersions(tx, plugin.id);

@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+
 import contactsRoutes from './routes/contacts.js';
 import dealsRoutes from './routes/deals.js';
 import eventsRoutes from './routes/events.js';

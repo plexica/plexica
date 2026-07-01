@@ -6,6 +6,7 @@
 
 import { createConsumer } from '../../../lib/kafka.js';
 import { logger } from '../../../lib/logger.js';
+
 import { persistDlqEntryDedup } from './dlq.service.js';
 
 const DLQ_TOPIC = 'plexica.plugin.dlq';

@@ -25,6 +25,7 @@ jobs:
       keycloak:
         image: quay.io/keycloak/keycloak:26.0
         ports: [8080:8080]
+        cmd: ["start-dev"]
         env:
           KC_BOOTSTRAP_ADMIN_USERNAME: admin
           KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -33,7 +34,7 @@ jobs:
           KC_DB_USERNAME: plexica
           KC_DB_PASSWORD: plexica
         options: >-
-          --health-cmd "curl -f http://localhost:8080/health || exit 1"
+          --health-cmd "curl -f http://localhost:8080/health/ready || exit 1"
           --health-interval 15s
           --health-timeout 5s
           --health-retries 10

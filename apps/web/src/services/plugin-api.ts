@@ -11,7 +11,6 @@ import type {
   PluginRegisterResponse,
   PluginVisibilityEntry,
   PluginVisibilityUpdate,
-  DeadLetterEntry,
   DlqListResponse,
   InstallProgress,
 } from '../types/plugin.js';

@@ -1,6 +1,8 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
 import crypto from 'node:crypto';
+
 import { query, queryOne } from '../db.js';
+
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Contact } from '../stores.js';
 
 interface ContactRow {

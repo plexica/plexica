@@ -3,6 +3,7 @@
 // Provides fire-and-forget emit and consumer lifecycle management.
 
 import { Kafka, logLevel } from 'kafkajs';
+
 import { config } from './config.js';
 import { logger } from './logger.js';
 
@@ -20,7 +21,7 @@ let producer: ReturnType<typeof kafka.producer> | null = null;
 let connectingProducer: Promise<ReturnType<typeof kafka.producer>> | null = null;
 
 // Eager connection: start connecting immediately (non-blocking — resolves in background)
-const producerReady = (async function connectProducer(): Promise<void> {
+void (async function connectProducer(): Promise<void> {
   try {
     const p = kafka.producer({ allowAutoTopicCreation: true });
     producer = p;

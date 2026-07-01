@@ -21,8 +21,8 @@ import { dirname, resolve } from 'path';
 import { PrismaClient as TenantPrismaClient } from '../../../generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { toSchemaName, toRealmName } from '../../lib/tenant-schema-helpers.js';
-import type { Prisma } from '@prisma/client';
 
+import type { Prisma } from '@prisma/client';
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

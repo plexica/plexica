@@ -12,6 +12,7 @@ import { setWorkspaceVisibility, clearVisibilityCache } from '../services/visibi
 import { updateVisibilityListSchema } from '../schema/api.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
 import type { AbacContext } from '../../../modules/abac/types.js';
 
 const installIdParamSchema = z.object({ installId: z.string().uuid() });
@@ -24,7 +25,7 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (tx: any) => {
+      return withTenantDb(async (tx: TenantPrismaClient) => {
         const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
         if (!installation) return { installId, tenantDefault: 'enabled', overrides: [] };
 
@@ -35,7 +36,7 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
         return {
           installId,
           tenantDefault: installation.tenantDefaultVisibility,
-          overrides: overrides.map((o: any) => ({
+          overrides: overrides.map((o: Record<string, unknown>) => ({
             workspaceId: o.workspaceId,
             isEnabled: o.isEnabled,
           })),
@@ -81,8 +82,9 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
         }
       }
 
-      const results = await withTenantDb(async (tx: any) => {
-        return tx.$transaction(async (innerTx: any) => {
+      const results = await withTenantDb(async (tx: TenantPrismaClient) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (tx as any).$transaction(async (innerTx: TenantPrismaClient) => {
           const out: Array<{ workspaceId: string; isEnabled: boolean }> = [];
           for (const { workspaceId, isEnabled } of updates) {
             await setWorkspaceVisibility(innerTx, installId, workspaceId, isEnabled, userId);

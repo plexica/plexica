@@ -10,6 +10,9 @@ import { evaluate } from '../../../modules/abac/engine.js';
 import { redis } from '../../../lib/redis.js';
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { PrismaClient } from '@prisma/client';
+import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
+import type { TenantContext } from '../../../lib/tenant-context-store.js';
 import type { AbacContext } from '../../../modules/abac/types.js';
 
 // CRITICAL #12 — in-memory cache of installId → plugin slug. The slug never
@@ -17,17 +20,17 @@ import type { AbacContext } from '../../../modules/abac/types.js';
 // DB round-trip on every proxied request. Re-resolved on cache miss.
 const slugByInstallId = new Map<string, string>();
 
-async function resolvePluginSlug(installId: string, tenantCtx: unknown): Promise<string> {
+async function resolvePluginSlug(installId: string, tenantCtx: TenantContext): Promise<string> {
   const cached = slugByInstallId.get(installId);
   if (cached) return cached;
 
-  const installation = await withTenantDb(async (tx: any) => {
+  const installation = await withTenantDb(async (tx: TenantPrismaClient) => {
     return tx.pluginInstallation.findUnique({ where: { id: installId }, select: { pluginId: true } });
-  }, tenantCtx as any);
+  }, tenantCtx);
 
   if (!installation) throw new PluginNotFoundError(`Installation ${installId}`);
 
-  const plugin = await withCoreDb(async (db: any) =>
+  const plugin = await withCoreDb(async (db: PrismaClient) =>
     db.plugin.findUnique({ where: { id: installation.pluginId }, select: { slug: true } }),
   );
   if (!plugin) throw new PluginNotFoundError(`Installation ${installId}`);
@@ -122,7 +125,7 @@ export async function proxyRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const ctx = request.tenantContext;
-      const installation = await withTenantDb(async (tx: any) => {
+      const installation = await withTenantDb(async (tx: TenantPrismaClient) => {
         return tx.pluginInstallation.findUnique({ where: { id: installId }, select: { hostingType: true } });
       }, ctx);
 

@@ -19,11 +19,15 @@ export interface DevUnregistrationConfig {
  * Registers a plugin backend with the core API in dev mode.
  * Calls POST /api/v1/dev/plugins/register.
  */
+function trimTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
 export async function registerBackend(
   coreApiUrl: string,
   config: DevRegistrationConfig
 ): Promise<Response> {
-  return fetch(`${coreApiUrl.replace(/\/+$/, '')}/api/v1/dev/plugins/register`, {
+  return fetch(`${trimTrailingSlash(coreApiUrl)}/api/v1/dev/plugins/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
@@ -38,7 +42,7 @@ export async function unregisterBackend(
   coreApiUrl: string,
   config: DevUnregistrationConfig
 ): Promise<Response> {
-  return fetch(`${coreApiUrl.replace(/\/+$/, '')}/api/v1/dev/plugins/unregister`, {
+  return fetch(`${trimTrailingSlash(coreApiUrl)}/api/v1/dev/plugins/unregister`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),

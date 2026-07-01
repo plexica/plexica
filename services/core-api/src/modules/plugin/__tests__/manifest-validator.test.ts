@@ -8,6 +8,7 @@ import { validateManifest } from '../services/manifest-validator.service.js';
 
 // Minimal stub PrismaClient — validateManifest only touches plugin.findUnique
 // via findPluginBySlug(). Returning null means "no slug conflict".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeStubPrisma(): any {
   return { plugin: { findUnique: async () => null } };
 }

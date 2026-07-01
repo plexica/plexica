@@ -7,13 +7,6 @@ import { redis } from '../../../lib/redis.js';
 
 import type { Prisma } from '../../../../generated/tenant-client/index.js';
 
-interface VisibilityRecord {
-  installId: string;
-  workspaceId: string;
-  isEnabled: boolean;
-  isOverride: boolean;
-}
-
 const CACHE_PREFIX = 'plugin:vis:';
 const CACHE_TTL_SECONDS = 60; // 60s TTL — balances freshness with performance
 

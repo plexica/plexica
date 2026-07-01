@@ -3,15 +3,13 @@
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { Button, Pagination, Select } from '@plexica/ui';
+import { Pagination, Select } from '@plexica/ui';
 import { AlertTriangle } from 'lucide-react';
 
 import { useDlqEntries, useRetryDlq, useDismissDlq } from '../hooks/use-plugins.js';
 import { DlqEntryCard } from '../components/plugins/dlq-entry-card.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { PageError } from '../components/feedback/page-error.js';
-
-const PAGE_SIZE = 20;
 
 export function AdminDlqPage(): JSX.Element {
   const intl = useIntl();

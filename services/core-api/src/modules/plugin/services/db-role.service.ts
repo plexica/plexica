@@ -129,7 +129,7 @@ export async function createPluginRole(
     for (const sql of stmts) {
       await prisma.$executeRawUnsafe(sql);
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Best-effort cleanup of a half-created role before surfacing the error.
     try {
       await prisma.$executeRawUnsafe(`REVOKE ALL ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`);
@@ -137,7 +137,7 @@ export async function createPluginRole(
     } catch {
       /* ignore */
     }
-    throw new PluginInstallError(`Failed to create restricted plugin DB role: ${err?.message ?? err}`);
+    throw new PluginInstallError(`Failed to create restricted plugin DB role: ${(err as Error)?.message ?? err}`);
   }
 
   const connectionString = buildConnectionString(roleName, password, schemaName);
@@ -198,8 +198,8 @@ export async function revokeCreateOnSchema(installId: string, tenantSlug: string
   const schemaName = toSchemaName(tenantSlug);
   await prisma.$executeRawUnsafe(
     `REVOKE CREATE ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`,
-  ).catch((err: any) => {
-    logger.warn({ err: err?.message, roleName }, 'Failed to revoke CREATE on schema from plugin role');
+  ).catch((err: unknown) => {
+    logger.warn({ err: (err as Error)?.message, roleName }, 'Failed to revoke CREATE on schema from plugin role');
   });
 }
 

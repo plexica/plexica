@@ -37,7 +37,7 @@ export class PluginSDK {
     this.initialized = false;
     if (this.dbPool) {
       try {
-        await (this.dbPool as any).end();
+        await (this.dbPool as { end: () => Promise<void> }).end();
       } catch { /* ignore */ }
       this.dbPool = null;
     }
@@ -147,8 +147,8 @@ export class PluginSDK {
       client.release();
       this.dbPool = pool;
       return pool;
-    } catch (err: any) {
-      throw new Error(`getDb() failed to connect: ${err.message}`);
+    } catch (err: unknown) {
+      throw new Error(`getDb() failed to connect: ${(err as Error).message}`);
     }
   }
 

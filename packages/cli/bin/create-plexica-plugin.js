@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // CLI entry point for create-plexica-plugin.
+/* global process, console */
 
 import { run } from '../src/index.js';
 
@@ -11,7 +12,7 @@ const options = {
   name: args.find((a) => !a.startsWith('--')) ?? null,
 };
 
-run(options).catch((err: Error) => {
+run(options).catch((err) => {
   console.error('Error:', err.message);
   process.exit(1);
 });

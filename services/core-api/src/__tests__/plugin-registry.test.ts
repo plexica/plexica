@@ -1,7 +1,7 @@
 // plugin-registry.test.ts
 // Integration tests — Plugin registry CRUD (Spec 004, Phase 1).
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
 import { adminCatalogRoutes } from '../modules/plugin/routes/admin-catalog.routes.js';

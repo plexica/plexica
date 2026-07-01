@@ -1,7 +1,9 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
 import crypto from 'node:crypto';
+
 import { query } from '../db.js';
 import logger from '../logger.js';
+
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 export default async function eventsRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request: FastifyRequest) => {
