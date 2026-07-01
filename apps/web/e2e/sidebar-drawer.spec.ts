@@ -60,6 +60,11 @@ test.describe('Mobile sidebar drawer', () => {
     const drawer = page.locator('#sidebar-drawer');
     await expect(drawer).toBeVisible();
 
+    // Wait for the drawer animation (CSS transition) to complete before pressing Tab.
+    // Without this wait, the focus manager may still be processing the open animation
+    // and Tab presses land on the wrong element (flaky "unexpected value" failures).
+    await page.waitForTimeout(350);
+
     const closeBtn = drawer.getByRole('button', { name: 'Close navigation' });
 
     // Close button should be focused initially

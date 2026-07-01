@@ -90,12 +90,9 @@ async function setup(): Promise<void> {
     `[global-setup] Plexica theme active: ${String(plexicaThemeActive)} (marker written).\n`
   );
 
-  // Ensure super_admin role for DLQ E2E tests (ac-06). The test admin user
-  // gets super_admin in the tenant realm — the requireSuperAdmin middleware
-  // checks the role, not the realm (see require-super-admin.ts).
-  await ensureSuperAdminForUser(token, REALM_A, 'test@e2e.local');
-
   // Tenant admin (used by most E2E tests — workspace CRUD, audit log, etc.)
+  // Must be upserted BEFORE ensureSuperAdminForUser so the user exists when
+  // the role is assigned (ensureSuperAdminForUser does a user lookup).
   await upsertUser(token, REALM_A, {
     username: 'test@e2e.local',
     email: 'test@e2e.local',
@@ -104,6 +101,11 @@ async function setup(): Promise<void> {
     password: 'PlexicaE2e!1',
     realmRoles: ['tenant_admin'],
   });
+
+  // Ensure super_admin role for DLQ E2E tests (ac-06). The test admin user
+  // gets super_admin in the tenant realm — the requireSuperAdmin middleware
+  // checks the role, not the realm (see require-super-admin.ts).
+  await ensureSuperAdminForUser(token, REALM_A, 'test@e2e.local');
 
   // Member-role user (used by rbac-permissions.spec.ts — no tenant_admin role).
   await upsertUser(token, REALM_A, {
