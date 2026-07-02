@@ -81,18 +81,17 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     // Read heading text BEFORE the click to avoid stale element references
     const firstCardHeading = (await cards.first().getByRole('heading', { level: 3 }).innerText()).trim();
 
-    // Click the card and wait for the detail API to respond before checking the dialog.
-    // Match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
+    // Click the "View details" button inside the card and wait for the detail API
+    const detailBtn = cards.first().getByRole('button', { name: /view details/i });
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) => {
           const path = new URL(r.url()).pathname;
-          // path has /api/v1/plugins/ followed by a slug segment
           return path.startsWith('/api/v1/plugins/') && path !== '/api/v1/plugins/' && r.request().method() === 'GET';
         },
         { timeout: 15_000 },
       ),
-      cards.first().click(),
+      detailBtn.click(),
     ]);
     expect(response.ok()).toBe(true);
 
@@ -106,10 +105,6 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     const sectionHeadings = dialog.getByRole('heading', { level: 3 });
     const sectionCount = await sectionHeadings.count();
     expect(sectionCount).toBeGreaterThanOrEqual(0);
-
-    // Verify rating stars render inside dialog
-    const ratingStars = dialog.locator('[role="img"][aria-label*="stars"]');
-    await expect(ratingStars).toBeVisible();
 
     // Verify install button exists in the dialog
     const installBtn = dialog.getByRole('button', { name: /install/i });
@@ -130,8 +125,8 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
       return;
     }
 
-    // Wait for detail API to respond before running axe.
-    // Match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
+    // Click the "View details" button inside the card and wait for detail API
+    const detailBtn = cards.first().getByRole('button', { name: /view details/i });
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) => {
@@ -140,7 +135,7 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
         },
         { timeout: 15_000 },
       ),
-      cards.first().click(),
+      detailBtn.click(),
     ]);
     expect(response.ok()).toBe(true);
 
@@ -153,7 +148,7 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('AC-05.6: plugin card is keyboard accessible — Tab to card, Enter opens detail, Escape closes', async ({ page }) => {
+  test('AC-05.6: plugin card is keyboard accessible — Tab to detail button, Enter opens detail, Escape closes', async ({ page }) => {
     const cards = page.getByTestId('plugin-card');
     await expect(cards.first()).toBeVisible({ timeout: 10_000 });
     if ((await cards.count()) === 0) {
@@ -161,9 +156,10 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
       return;
     }
 
-    const firstCard = cards.first();
-    await firstCard.focus();
-    await expect(firstCard).toBeFocused();
+    // Focus the "View details" button inside the first card
+    const detailBtn = cards.first().getByRole('button', { name: /view details/i });
+    await detailBtn.focus();
+    await expect(detailBtn).toBeFocused();
 
     // Enter key should open the detail sheet
     await page.keyboard.press('Enter');

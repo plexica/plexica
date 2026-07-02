@@ -23,7 +23,7 @@ export function PermissionsSummary({ actions }: { actions: PluginAction[] }): JS
       {actions.map((a) => (
         <li key={a.key} className="flex items-center justify-between text-xs text-neutral-600">
           <span>{a.label}</span>
-          <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs text-neutral-500">
+          <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs text-neutral-600">
             {a.defaultRole}
           </span>
         </li>

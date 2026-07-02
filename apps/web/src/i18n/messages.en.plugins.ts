@@ -36,6 +36,7 @@ export const messagesPlugins = {
   'marketplace.dataTables': 'Data Tables',
   'marketplace.events': 'Event Subscriptions',
   'marketplace.close': 'Close',
+  'marketplace.viewDetails': 'View details for {name}',
 
   // Installed plugins
   'plugins.installed.title': 'Installed Plugins',
