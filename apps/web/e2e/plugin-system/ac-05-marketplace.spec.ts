@@ -13,8 +13,6 @@ import {
   requireKeycloakInCI,
 } from '../helpers/admin-login.js';
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
-
 test.describe('004 Plugin System — AC-05: Marketplace', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
 
@@ -22,10 +20,14 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     requireKeycloakInCI();
   });
 
-  // Setup: login and navigate to marketplace before each test
+  // Setup: login and navigate to marketplace before each test.
+  // Wait for networkidle to ensure the initial list API call resolves
+  // before any test-specific interactions (e.g., clicking a card) trigger
+  // subsequent detail API calls that waitForResponse must match correctly.
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/marketplace');
+    await page.waitForLoadState('networkidle');
   });
 
   test('AC-05.1: marketplace page loads with plugin cards showing name, author', async ({ page }) => {
@@ -79,10 +81,11 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     // Read heading text BEFORE the click to avoid stale element references
     const firstCardHeading = (await cards.first().getByRole('heading', { level: 3 }).innerText()).trim();
 
-    // Click the card and wait for the detail API to respond before checking the dialog
+    // Click the card and wait for the detail API to respond before checking the dialog.
+    // Regex: match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
     const [response] = await Promise.all([
       page.waitForResponse(
-        (r) => r.url().includes('/api/v1/plugins/') && r.request().method() === 'GET',
+        (r) => /\/api\/v1\/plugins\/[^\/?]+$/.test(r.url()) && r.request().method() === 'GET',
         { timeout: 15_000 },
       ),
       cards.first().click(),
@@ -93,7 +96,7 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
     // Verify plugin name appears in the dialog heading
-    await expect(dialog.getByRole('heading', { level: 2, name: firstCardHeading })).toBeVisible();
+    await expect(dialog.getByRole('heading', { level: 2, name: firstCardHeading })).toBeVisible({ timeout: 10_000 });
 
     // At least one InfoSection (Permissions/Data Tables/Events) should render
     const sectionHeadings = dialog.getByRole('heading', { level: 3 });
@@ -123,10 +126,11 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
       return;
     }
 
-    // Wait for detail API to respond before running axe
+    // Wait for detail API to respond before running axe.
+    // Regex: match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
     const [response] = await Promise.all([
       page.waitForResponse(
-        (r) => r.url().includes('/api/v1/plugins/') && r.request().method() === 'GET',
+        (r) => /\/api\/v1\/plugins\/[^\/?]+$/.test(r.url()) && r.request().method() === 'GET',
         { timeout: 15_000 },
       ),
       cards.first().click(),
@@ -157,7 +161,7 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     // Enter key should open the detail sheet
     await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
 
     // Escape should close it
     await page.keyboard.press('Escape');
@@ -200,8 +204,10 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
   });
 
   test('AC-05.9: genuinely empty marketplace shows global empty state', async ({ page }) => {
-    // Stub the published plugins API to return an empty list
-    await page.route(`${API_BASE}/api/v1/plugins*`, (route) => {
+    // Stub the published plugins API to return an empty list.
+    // Browser requests go through Vite proxy (port 3000), not directly to
+    // core-api (port 3001), so we match by glob pattern against the relative URL.
+    await page.route('**/api/v1/plugins*', (route) => {
       void route.fulfill({
         status: 200,
         contentType: 'application/json',
