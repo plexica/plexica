@@ -82,10 +82,14 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     const firstCardHeading = (await cards.first().getByRole('heading', { level: 3 }).innerText()).trim();
 
     // Click the card and wait for the detail API to respond before checking the dialog.
-    // Regex: match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
+    // Match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
     const [response] = await Promise.all([
       page.waitForResponse(
-        (r) => /\/api\/v1\/plugins\/[^\/?]+$/.test(r.url()) && r.request().method() === 'GET',
+        (r) => {
+          const path = new URL(r.url()).pathname;
+          // path has /api/v1/plugins/ followed by a slug segment
+          return path.startsWith('/api/v1/plugins/') && path !== '/api/v1/plugins/' && r.request().method() === 'GET';
+        },
         { timeout: 15_000 },
       ),
       cards.first().click(),
@@ -127,10 +131,13 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     }
 
     // Wait for detail API to respond before running axe.
-    // Regex: match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
+    // Match /api/v1/plugins/{slug} (detail) but NOT /api/v1/plugins (list).
     const [response] = await Promise.all([
       page.waitForResponse(
-        (r) => /\/api\/v1\/plugins\/[^\/?]+$/.test(r.url()) && r.request().method() === 'GET',
+        (r) => {
+          const path = new URL(r.url()).pathname;
+          return path.startsWith('/api/v1/plugins/') && path !== '/api/v1/plugins/' && r.request().method() === 'GET';
+        },
         { timeout: 15_000 },
       ),
       cards.first().click(),
