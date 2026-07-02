@@ -37,8 +37,8 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     const name = (await firstCard.getByRole('heading', { level: 3 }).innerText()).trim();
     expect(name.length).toBeGreaterThan(0);
 
-    // Author must be present
-    await expect(firstCard.getByText(/^@/).or(firstCard.locator('p.text-xs'))).toBeVisible();
+    // Author must be present (h3 ~ p targets the sibling paragraph directly under heading)
+    await expect(firstCard.locator('h3 ~ p.text-xs')).toBeVisible();
 
     // Rating stars must render (role="img" with aria-label)
     const ratingStars = firstCard.locator('[role="img"][aria-label*="stars"]');
@@ -84,9 +84,9 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
 
-    // Verify plugin name appears in the dialog heading
+    // Verify plugin name appears in the dialog heading (allow 10s for CI — skeleton → content)
     const cardHeading = (await cards.first().getByRole('heading', { level: 3 }).innerText()).trim();
-    await expect(dialog.getByRole('heading', { level: 2, name: cardHeading })).toBeVisible();
+    await expect(dialog.getByRole('heading', { level: 2, name: cardHeading })).toBeVisible({ timeout: 10_000 });
 
     // At least one InfoSection (Permissions/Data Tables/Events) should render
     const sectionHeadings = dialog.getByRole('heading', { level: 3 });

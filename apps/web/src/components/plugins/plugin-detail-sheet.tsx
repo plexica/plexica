@@ -119,7 +119,7 @@ export function PluginDetailSheet({
 
             <div className="mb-4 flex flex-wrap gap-1">
               {plugin.categories.map((cat) => (
-                <span key={cat} className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
+                <span key={cat} className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
                   <FormattedMessage id={CATEGORY_LABEL_MAP[cat] ?? cat} defaultMessage={cat} />
                 </span>
               ))}

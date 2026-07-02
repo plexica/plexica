@@ -70,7 +70,7 @@ export function PluginCard({
         {plugin.categories.map((cat) => (
           <span
             key={cat}
-            className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500"
+            className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600"
           >
             <FormattedMessage id={CATEGORY_LABEL_MAP[cat] ?? cat} defaultMessage={cat} />
           </span>
@@ -78,7 +78,7 @@ export function PluginCard({
       </div>
 
       <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3">
-        <span className="text-xs text-neutral-400">
+        <span className="text-xs text-neutral-500">
           <FormattedMessage id="marketplace.installCount" values={{ count: plugin.installCount }} />
         </span>
         <Button

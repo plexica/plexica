@@ -38,7 +38,7 @@ export function DataTablesSummary({ tables }: { tables: PluginTable[] }): JSX.El
       {tables.map((t) => (
         <li key={t.name} className="flex items-center justify-between text-xs text-neutral-600">
           <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-xs">{t.name}</code>
-          <span className="text-neutral-400">{t.description}</span>
+          <span className="text-neutral-500">{t.description}</span>
         </li>
       ))}
     </ul>
