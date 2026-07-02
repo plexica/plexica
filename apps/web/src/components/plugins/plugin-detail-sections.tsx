@@ -49,7 +49,7 @@ export function EventsSummary({ events }: { events: string[] }): JSX.Element {
   return (
     <div className="flex flex-wrap gap-1">
       {events.map((e) => (
-        <span key={e} className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-mono text-neutral-500">
+        <span key={e} className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs font-mono text-neutral-600">
           {e}
         </span>
       ))}
