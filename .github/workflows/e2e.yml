@@ -1,6 +1,13 @@
 name: E2E Tests
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'services/core-api/**'
+      - 'packages/**'
+      - 'examples/plugins/**'
   pull_request:
     paths:
       - 'apps/web/**'
