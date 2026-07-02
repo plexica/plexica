@@ -3,7 +3,6 @@
 // (Constitution Rule 4). Used by plugin-detail-sheet.tsx.
 
 import type { ReactNode } from 'react';
-
 import type { PluginAction, PluginTable } from '../../types/plugin.js';
 
 export function InfoSection({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }): JSX.Element {
