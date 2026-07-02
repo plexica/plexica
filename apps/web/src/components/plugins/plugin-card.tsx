@@ -44,7 +44,7 @@ export function PluginCard({
       onClick={() => onShowDetail(plugin.slug)}
       onKeyDown={handleCardKeyDown}
       tabIndex={0}
-      role="group"
+      role="button"
       aria-label={`${plugin.name} — ${plugin.description}`}
       data-testid="plugin-card"
     >

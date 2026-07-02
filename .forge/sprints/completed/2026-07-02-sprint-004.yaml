@@ -1,0 +1,400 @@
+version: 1
+sprint_number: 4
+sprint_goal: 'Deliver full Spec 004 Plugin System: core registry & manifest validation, container lifecycle (Docker sidecar), Module Federation Vite preset + shell hosting, Kafka event system with DLQ, backend proxy with auth injection, workspace visibility, CLI scaffolding + SDK, CRM example plugin, marketplace UI + install flow, and full integration + E2E test suite.'
+start_date: '2026-06-26'
+end_date: '2026-07-02'
+actual_velocity: 30
+velocity_target: 30
+kanban_phase: 'Phase 3'
+spec_id: '004-plugin-system'
+spec_path: '.forge/specs/004-plugin-system/spec.md'
+plan_path: '.forge/specs/004-plugin-system/plan.md'
+tasks_path: '.forge/specs/004-plugin-system/tasks.md'
+
+stories:
+  # ── Phase 1 — Core Infrastructure (5 days) ────────────────────────
+  - id: '004-01'
+    title: 'Plugin registry CRUD + admin catalog routes + database migrations'
+    phase: 'Phase 1 — Core Infrastructure'
+    status: done
+    points: 1
+
+  - id: '004-02'
+    title: 'Manifest Zod schema validation + validator service'
+    phase: 'Phase 1 — Core Infrastructure'
+    status: done
+    points: 1
+
+  - id: '004-03'
+    title: 'Install flow orchestrator (lifecycle service, DB access, migration runner)'
+    phase: 'Phase 1 — Core Infrastructure'
+    status: done
+    points: 1
+
+  - id: '004-18'
+    title: 'Dead letter queue (DB table, Kafka consumer, management routes, TTL cleanup)'
+    phase: 'Phase 1 — Core Infrastructure'
+    status: done
+    points: 1
+
+  - id: '004-06'
+    title: 'Workspace visibility data model (tenant_scoped tables + migration)'
+    phase: 'Phase 1 — Core Infrastructure'
+    status: done
+    points: 1
+
+  - id: '004-20'
+    title: 'Plugin container config data model'
+    phase: 'Phase 1 — Core Infrastructure'
+    status: done
+    points: 1
+
+  # ── Phase 2 — Container Lifecycle (3 days) ────────────────────────
+  - id: '004-22'
+    title: 'Container manager (Docker sidecar + Kubernetes placeholder) + health check with circuit breaker'
+    phase: 'Phase 2 — Container Lifecycle'
+    status: done
+    points: 1
+
+  - id: 'DM-03'
+    title: 'Dev mode registration endpoint'
+    phase: 'Phase 2 — Container Lifecycle'
+    status: done
+    points: 1
+
+  # ── Phase 3 — MF Vite Preset + Shell (7 days) ─────────────────────
+  - id: '004-07'
+    title: '@plexica/vite-plugin package + MF config generator + shared deps'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  - id: '004-09'
+    title: 'Shared MF dependency configuration'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  - id: '004-13'
+    title: 'Dev server WebSocket registration + shell dev watcher'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  - id: '004-08'
+    title: 'Plugin loader component + MF host integration into shell layout'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  - id: '004-10'
+    title: 'Plugin context hook (tenant/user/workspace/theme propagation)'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  - id: '004-11'
+    title: 'Extension slots (sidebar, workspace-panel, dashboard-widget)'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  - id: '004-12'
+    title: 'Error boundary component + unavailable/degraded fallbacks'
+    phase: 'Phase 3 — MF Vite Preset + Shell'
+    status: done
+    points: 1
+
+  # ── Phase 4 — Kafka Events (5 days) ───────────────────────────────
+  - id: '004-14'
+    title: 'Core event emission (Kafka producer, workspace/user/tenant/plugin events)'
+    phase: 'Phase 4 — Kafka Events'
+    status: done
+    points: 1
+
+  - id: '004-15'
+    title: 'Consumer manager + event dispatcher'
+    phase: 'Phase 4 — Kafka Events'
+    status: done
+    points: 1
+
+  - id: '004-17'
+    title: 'Consumer group lifecycle (create/delete/pause/resume)'
+    phase: 'Phase 4 — Kafka Events'
+    status: done
+    points: 1
+
+  - id: '004-19'
+    title: 'Consumer lag Prometheus metrics'
+    phase: 'Phase 4 — Kafka Events'
+    status: done
+    points: 1
+
+  # ── Phase 5 — Proxy + Visibility (3 days) ─────────────────────────
+  - id: '004-20'
+    title: 'Proxy service + routes (@fastify/http-proxy, container routing)'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  - id: '004-21'
+    title: 'Auth header injection (X-Plexica-* headers via proxy)'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  - id: '004-04'
+    title: 'Lifecycle routes (deactivate/reactivate/uninstall)'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  - id: '004-05'
+    title: 'Workspace visibility service (tenant default + workspace override)'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  - id: '004-06'
+    title: 'Workspace visibility routes'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  - id: 'DM-01'
+    title: 'Install flow: configure DB access + register plugin actions'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  - id: 'DM-02'
+    title: 'Install flow: register plugin actions in action_registry'
+    phase: 'Phase 5 — Proxy + Visibility'
+    status: done
+    points: 1
+
+  # ── Phase 6 — CLI + SDK + Dev Mode (3 days) ───────────────────────
+  - id: '004-30'
+    title: '@plexica/sdk package (PluginSDK class, types, errors, OpenAPI contract)'
+    phase: 'Phase 6 — CLI + SDK + Dev Mode'
+    status: done
+    points: 1
+
+  - id: 'DM-01'
+    title: '@plexica/sdk/dev module (registerBackend, unregisterBackend, dev migration)'
+    phase: 'Phase 6 — CLI + SDK + Dev Mode'
+    status: done
+    points: 1
+
+  - id: '004-29'
+    title: '@plexica/create-plugin CLI (project generator, Handlebars templates, tests)'
+    phase: 'Phase 6 — CLI + SDK + Dev Mode'
+    status: done
+    points: 1
+
+  # ── Phase 7 — CRM Example Plugin (5 days) ─────────────────────────
+  - id: '004-23'
+    title: 'CRM plugin project structure + frontend MF remote components'
+    phase: 'Phase 7 — CRM Example Plugin'
+    status: done
+    points: 1
+
+  - id: '004-24'
+    title: 'CRM plugin backend (Fastify, CRUD routes, event handler)'
+    phase: 'Phase 7 — CRM Example Plugin'
+    status: done
+    points: 1
+
+  - id: '004-25'
+    title: 'CRM plugin migrations (crm_contacts, crm_deals tables)'
+    phase: 'Phase 7 — CRM Example Plugin'
+    status: done
+    points: 1
+
+  - id: '004-26'
+    title: 'CRM event handler (create pipeline on workspace.created)'
+    phase: 'Phase 7 — CRM Example Plugin'
+    status: done
+    points: 1
+
+  - id: '004-27'
+    title: 'Cross-workspace isolation verification'
+    phase: 'Phase 7 — CRM Example Plugin'
+    status: done
+    points: 1
+
+  # ── Phase 8 — Marketplace UI (2 days) ─────────────────────────────
+  - id: '004-28'
+    title: 'Marketplace UI (grid, search, categories, PluginCard, PluginDetailSheet, InstallButton, installed plugins page, PluginActions, UninstallDialog, WorkspaceVisibilityEditor, PluginPermissionsSection, TanStack Query hooks)'
+    phase: 'Phase 8 — Marketplace UI'
+    status: done
+    points: 1
+
+  # ── Buffer: E2E + Integration + Polish (3 days) ──────────────────
+  - id: 'E2E-01'
+    title: 'Super admin plugin lifecycle E2E (register → list → publish → verify)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-02'
+    title: 'Manifest validation E2E (invalid manifest → error messages)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-03'
+    title: 'Plugin install flow E2E (marketplace → install → progress → active badge)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-04'
+    title: 'Plugin activate/deactivate E2E (toggle UI visibility)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-05'
+    title: 'Plugin uninstall E2E (confirmation dialog, data loss warning, removal)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-06'
+    title: 'Workspace visibility E2E (disable → hidden → enable → visible)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-07'
+    title: 'Shell MF loading E2E (remoteEntry fetch, error boundary fallback)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-08'
+    title: 'DLQ management E2E (view, retry, dismiss)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-09'
+    title: 'Core event emission E2E (workspace.created → Kafka → CRM consumer)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-10'
+    title: 'Plugin proxy E2E (API call through proxy, auth headers, 503 on unreachable)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-11'
+    title: 'Auth context propagation E2E (X-Plexica-* header values)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-12'
+    title: 'CRM plugin full workflow E2E (install → create contact → edit → delete → cross-workspace isolation)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-13'
+    title: 'Plugin custom events E2E (plugin.crm.contact.created → cross-plugin handler)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-14'
+    title: 'Marketplace UI E2E (cards, search, filter, detail sheet, empty state)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'E2E-15'
+    title: 'Dev mode registration E2E (register → UI appears → proxy works → unregister)'
+    phase: 'Buffer — E2E Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-01'
+    title: 'Registry integration tests (CRUD, slug uniqueness, version tracking)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-02'
+    title: 'Manifest validation integration tests (valid/invalid manifests, slug conflicts)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-03'
+    title: 'Install flow integration tests (orchestration, container, migration, consumer)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-04'
+    title: 'Proxy integration tests (routing, auth headers, 503 handling)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-05'
+    title: 'Health check integration tests (circuit breaker state machine)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-06'
+    title: 'Event emission integration tests (real Kafka, fire-and-forget)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-07'
+    title: 'DLQ integration tests (3 retries → Kafka DLQ → DB → retry → dismiss)'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-08'
+    title: 'Cross-workspace isolation integration tests'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'INT-09'
+    title: 'Dev mode registration integration tests'
+    phase: 'Buffer — Integration Tests'
+    status: done
+    points: 1
+
+  - id: 'PQ-01'
+    title: 'WCAG 2.1 AA accessibility audit (axe-core, 0 violations target)'
+    phase: 'Buffer — Polish & Quality'
+    status: done
+    points: 1
+
+  - id: 'PQ-02'
+    title: 'Performance baseline measurement (validation < 50ms, proxy < 100ms, install < 10s)'
+    phase: 'Buffer — Polish & Quality'
+    status: done
+    points: 1
+
+  - id: 'PQ-03'
+    title: '/forge-review adversarial review (dual-model, address HIGH findings)'
+    phase: 'Buffer — Polish & Quality'
+    status: done
+    points: 1
+
+  - id: 'PQ-04'
+    title: 'Update decision log with Spec 004 implementation decisions'
+    phase: 'Buffer — Polish & Quality'
+    status: done
+    points: 1

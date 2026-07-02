@@ -1,0 +1,66 @@
+version: 1
+sprint_number: 5
+sprint_goal: 'Deliver Spec 005 — Super Admin Panel: dedicated super admin application with platform dashboard, tenant lifecycle management (provision/suspend/reactivate/delete/GDPR), plugin catalog management, system health monitoring, Kafka status + DLQ visibility, and filterable system logs.'
+start_date: '2026-07-02'
+end_date: null  # set on close
+kanban_phase: 'Phase 4'
+spec_id: '005-super-admin'
+spec_path: '.forge/specs/005-super-admin/spec.md'
+plan_path: null  # to be created by /forge-plan
+tasks_path: null  # to be created by /forge-tasks
+
+stories:
+  - id: '005-01'
+    title: 'Dashboard with platform metrics'
+    status: pending
+    points: 1
+
+  - id: '005-02'
+    title: 'Tenant list with search and filters'
+    status: pending
+    points: 1
+
+  - id: '005-03'
+    title: 'Tenant detail (info, users, plugins, audit)'
+    status: pending
+    points: 1
+
+  - id: '005-04'
+    title: 'Tenant provisioning wizard'
+    status: pending
+    points: 1
+
+  - id: '005-05'
+    title: 'Tenant suspension'
+    status: pending
+    points: 1
+
+  - id: '005-06'
+    title: 'Tenant reactivation'
+    status: pending
+    points: 1
+
+  - id: '005-07'
+    title: 'Tenant deletion (GDPR — schema, realm, bucket)'
+    status: pending
+    points: 1
+
+  - id: '005-08'
+    title: 'Plugin catalog management'
+    status: pending
+    points: 1
+
+  - id: '005-09'
+    title: 'System health check'
+    status: pending
+    points: 1
+
+  - id: '005-10'
+    title: 'Filterable system logs'
+    status: pending
+    points: 1
+
+  - id: '005-11'
+    title: 'Kafka status (consumer lag, DLQ size)'
+    status: pending
+    points: 1

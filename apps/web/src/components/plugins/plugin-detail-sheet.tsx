@@ -1,19 +1,28 @@
 // plugin-detail-sheet.tsx
 // Slide-in sheet showing full plugin details: description, permissions, data tables, events.
 // WCAG 2.1 AA: focus trap on open, Escape to close, focus on close button first.
+//
+// Sub-components (InfoSection, PermissionsSummary, DataTablesSummary, EventsSummary)
+// extracted to plugin-detail-sections.tsx to stay under 200 lines (Constitution Rule 4).
 
-import { useRef, type ReactNode } from 'react';
+import { useRef } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Button } from '@plexica/ui';
-import { X, Shield, Database, Radio, ShoppingBag, AlertCircle } from 'lucide-react';
+import { X, Database, Radio, Shield, ShoppingBag, AlertCircle } from 'lucide-react';
 
 import { useFocusTrap } from '../../hooks/use-focus-trap.js';
 import { SkeletonLoader } from '../feedback/skeleton-loader.js';
 
 import { CATEGORY_LABEL_MAP } from './plugin-categories.js';
 import { RatingStars } from './rating-stars.js';
+import {
+  DataTablesSummary,
+  EventsSummary,
+  InfoSection,
+  PermissionsSummary,
+} from './plugin-detail-sections.js';
 
-import type { PluginCatalogEntry, PluginAction, PluginTable } from '../../types/plugin.js';
+import type { PluginCatalogEntry } from '../../types/plugin.js';
 
 interface DetailSheetProps {
   plugin: PluginCatalogEntry | undefined;
@@ -23,58 +32,6 @@ interface DetailSheetProps {
   onClose: () => void;
   onInstall: (slug: string) => void;
   onRetry?: () => void;
-}
-
-function InfoSection({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }): JSX.Element {
-  return (
-    <div className="mb-4 rounded-lg border border-neutral-200 p-3">
-      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-700">
-        {icon}
-        <span>{title}</span>
-      </h3>
-      {children}
-    </div>
-  );
-}
-
-function PermissionsSummary({ actions }: { actions: PluginAction[] }): JSX.Element {
-  return (
-    <ul className="space-y-1">
-      {actions.map((a) => (
-        <li key={a.key} className="flex items-center justify-between text-xs text-neutral-600">
-          <span>{a.label}</span>
-          <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] text-neutral-500">
-            {a.defaultRole}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function DataTablesSummary({ tables }: { tables: PluginTable[] }): JSX.Element {
-  return (
-    <ul className="space-y-1">
-      {tables.map((t) => (
-        <li key={t.name} className="flex items-center justify-between text-xs text-neutral-600">
-          <code className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-[11px]">{t.name}</code>
-          <span className="text-neutral-400">{t.description}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function EventsSummary({ events }: { events: string[] }): JSX.Element {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {events.map((e) => (
-        <span key={e} className="rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] font-mono text-neutral-500">
-          {e}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 export function PluginDetailSheet({
@@ -92,15 +49,18 @@ export function PluginDetailSheet({
 
   if (!isOpen) return null;
 
+  const headingId = 'plugin-detail-heading';
+
   // Guard: plugin is null after loading → show error
   if (!isPending && !isError && !plugin) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
         <div className="fixed inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-        <div ref={sheetRef} className="relative z-50 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-busy="false" aria-label={intl.formatMessage({ id: 'marketplace.detail.title' })}>
+        <div ref={sheetRef} className="relative z-50 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-busy="false" aria-labelledby={headingId}>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <AlertCircle className="mb-3 h-10 w-10 text-red-400" aria-hidden="true" />
-            <p className="text-sm text-neutral-600"><FormattedMessage id="marketplace.error" /></p>
+            <h2 id={headingId} className="sr-only text-sm text-neutral-600"><FormattedMessage id="marketplace.error" /></h2>
+            <p className="text-sm text-neutral-600" aria-hidden="true"><FormattedMessage id="marketplace.error" /></p>
             <Button variant="secondary" className="mt-2" onClick={onClose} type="button"><FormattedMessage id="marketplace.close" /></Button>
           </div>
         </div>
@@ -115,7 +75,7 @@ export function PluginDetailSheet({
         role="dialog"
         aria-modal="true"
         aria-busy={isPending ? true : false}
-        aria-label={intl.formatMessage({ id: 'marketplace.detail.title' })}
+        aria-labelledby={headingId}
       >
         {isPending && !isError ? (
           <div className="space-y-4">
@@ -145,7 +105,7 @@ export function PluginDetailSheet({
                   <span className="text-sm font-bold">{plugin.name.charAt(0)}</span>
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-neutral-900">{plugin.name}</h2>
+                  <h2 id={headingId} className="text-lg font-semibold text-neutral-900">{plugin.name}</h2>
                   <p className="text-sm text-neutral-500">{plugin.author} &middot; v{plugin.version}</p>
                 </div>
               </div>

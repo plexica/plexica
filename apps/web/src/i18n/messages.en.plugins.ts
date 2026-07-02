@@ -11,6 +11,7 @@ export const messagesPlugins = {
   'marketplace.title': 'Marketplace',
   'marketplace.search': 'Search plugins...',
   'marketplace.empty': 'No plugins available in the marketplace yet. Check back later.',
+  'marketplace.emptyFiltered': 'No plugins match your search or filter.',
   'marketplace.loading': 'Loading plugins...',
   'marketplace.error': 'Failed to load marketplace.',
   'marketplace.install': 'Install',
@@ -34,6 +35,7 @@ export const messagesPlugins = {
   'marketplace.permissions': 'Permissions & Actions',
   'marketplace.dataTables': 'Data Tables',
   'marketplace.events': 'Event Subscriptions',
+  'marketplace.close': 'Close',
 
   // Installed plugins
   'plugins.installed.title': 'Installed Plugins',
@@ -100,5 +102,4 @@ export const messagesPlugins = {
   'admin.dlq.status.pending': 'Pending',
   'admin.dlq.status.retried': 'Retried',
   'admin.dlq.status.dismissed': 'Dismissed',
-  'marketplace.close': 'Close',
 } as const;

@@ -2,7 +2,7 @@
 
 > Lightweight kanban. No ceremonies. Ship features, track progress, adjust scope.
 
-**Status**: Sprint 3 DONE — Sprint 4 NEXT
+**Status**: Sprint 4 DONE — Sprint 5 NEXT
 **Timeline**: 14-18 weeks remaining (~4 months), 1 developer full-time
 **WIP Limit**: 2 features in progress max per developer
 
@@ -32,8 +32,8 @@ One sprint per spec. Each spec delivers a self-contained, shippable increment.
 | Sprint 6 | 006  | 3-4   | Cross-Cutting: notifications (SSE), i18n (IT/EN), user profile, observability        |
 | Sprint 7 | 007  | 2-3   | Consolidation: E2E suite, perf audit, security hardening, docs, release candidate    |
 
-**Risk buffer**: Sprint 4 (Plugin System) carries the highest complexity.
-Allow 1 week buffer after Sprint 4 before starting Sprint 5.
+**Risk buffer**: Sprint 5 (Super Admin) is simpler than Sprint 4 — single-page admin UI, existing data models, no new infra.
+Sprint 6 (Cross-Cutting) and Sprint 7 (Consolidation) are lower-risk.
 
 ---
 
@@ -43,7 +43,7 @@ Allow 1 week buffer after Sprint 4 before starting Sprint 5.
 Sprint 1:  [✓] Done        (2026-03-31 → 2026-04-01)  39/39 tasks done  109/109 pts  — Spec 001
 Sprint 2:  [✓] Done        (2026-04-01 → 2026-04-03)  68/68 tasks done  219/219 pts  — Spec 002
 Sprint 3:  [✓] Done        (2026-04-08 → 2026-06-19) 134/134 tasks done  322/322 pts  — Spec 003
-Sprint 4:  [✓] Done        (2026-06-26 → 2026-06-29)  30/30 features done  004-01 → 004-30  — Spec 004 (Plugin System)
+Sprint 4:  [✓] Done        (2026-06-26 → 2026-07-02)  30/30 features done  004-01 → 004-30  — Spec 004 (Plugin System)
 Sprint 5:  [ ] Not Started  — Spec 005
 Sprint 6:  [ ] Not Started  — Spec 006
 Sprint 7:  [ ] Not Started  — Spec 007

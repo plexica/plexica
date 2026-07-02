@@ -1,5 +1,4 @@
-// marketplace-page.tsx
-// Tenant admin marketplace: browse, search, filter by category, and install plugins.
+// marketplace-page.tsx — browse, search, filter by category, and install plugins.
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -54,9 +53,9 @@ export function MarketplacePage(): JSX.Element {
   }, [page, debouncedSearch, selectedCategory]);
 
   const { data, isPending, isError, refetch } = usePublishedPlugins(queryParams);
-
-  const detailSlug = selectedSlug ?? '';
-  const { data: detailData, isPending: detailPending, isError: detailIsError, refetch: detailRefetch } = usePluginDetail(detailSlug);
+  // Note: hook called unconditionally (React Rules of Hooks).
+  // Guarded internally by `enabled: slug.length > 0` — no request fires when null.
+  const { data: detailData, isPending: detailPending, isError: detailIsError, refetch: detailRefetch } = usePluginDetail(selectedSlug ?? '');
   const { mutate: installPlugin } = useInstallPlugin();
 
   const plugins = data?.data ?? [];
@@ -90,7 +89,7 @@ export function MarketplacePage(): JSX.Element {
 
   return (
     <div className="space-y-6 p-6">
-      {/* Header with title and search */}
+      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-neutral-900">
           <FormattedMessage id="marketplace.title" />
@@ -108,8 +107,7 @@ export function MarketplacePage(): JSX.Element {
           />
         </div>
       </div>
-
-      {/* Category filter chips */}
+      {/* Category chips */}
       <div className="flex flex-wrap gap-2" role="group" aria-label={intl.formatMessage({ id: 'marketplace.categoryFilter' })}>
         {CATEGORIES.map((cat) => {
           const isActive = selectedCategory === cat.id;
@@ -130,18 +128,15 @@ export function MarketplacePage(): JSX.Element {
           );
         })}
       </div>
-
-      {/* Live region for loading — always in DOM */}
+      {/* Live region */}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {isPending ? <FormattedMessage id="marketplace.loading" /> : ''}
       </div>
-      {/* Install error */}
       {installError !== null && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
           <FormattedMessage id="marketplace.installFailed" />
         </div>
       )}
-      {/* Loading */}
       {isPending && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-busy="true">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -149,26 +144,29 @@ export function MarketplacePage(): JSX.Element {
           ))}
         </div>
       )}
-      {/* Error */}
       {isError && <PageError onRetry={() => void refetch()} />}
-      {/* Empty */}
       {!isPending && !isError && plugins.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          {debouncedSearch.length > 0 ? (
-            <SearchX className="mb-4 h-12 w-12 text-neutral-300" />
+          {debouncedSearch.length > 0 || selectedCategory.length > 0 ? (
+            <>
+              <SearchX className="mb-4 h-12 w-12 text-neutral-300" />
+              <h3 className="text-lg font-medium text-neutral-600">
+                <FormattedMessage id="marketplace.emptyFiltered" />
+              </h3>
+              <p className="mt-1 text-sm text-neutral-400">
+                <FormattedMessage id="marketplace.emptyHint" />
+              </p>
+            </>
           ) : (
-            <Package className="mb-4 h-12 w-12 text-neutral-300" />
+            <>
+              <Package className="mb-4 h-12 w-12 text-neutral-300" />
+              <h3 className="text-lg font-medium text-neutral-600">
+                <FormattedMessage id="marketplace.empty" />
+              </h3>
+            </>
           )}
-          <h3 className="text-lg font-medium text-neutral-600">
-            <FormattedMessage id="marketplace.empty" />
-          </h3>
-          <p className="mt-1 text-sm text-neutral-400">
-            <FormattedMessage id="marketplace.emptyHint" />
-          </p>
         </div>
       )}
-
-      {/* Plugin grid */}
       {!isPending && !isError && plugins.length > 0 && (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -183,7 +181,6 @@ export function MarketplacePage(): JSX.Element {
               />
             ))}
           </div>
-
           {totalPages > 1 && (
             <div className="flex justify-center">
               <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
@@ -191,7 +188,5 @@ export function MarketplacePage(): JSX.Element {
           )}
         </>
       )}
-
-      {/* Detail sheet */}
       <PluginDetailSheet plugin={detailData} isOpen={selectedSlug !== null} isPending={detailPending} isError={detailIsError} onClose={handleCloseDetail} onInstall={handleInstall} onRetry={handleRetryDetail} />
     </div>);}
