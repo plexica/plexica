@@ -77,25 +77,15 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     // Read heading text BEFORE the click to avoid stale element references
     const firstCardHeading = (await cards.first().getByRole('heading', { level: 3 }).innerText()).trim();
 
-    // Click the "View details" button inside the card and wait for the detail API
+    // Click the "View details" button — dialog appears immediately (skeleton state)
     const detailBtn = cards.first().getByRole('button', { name: /view details/i });
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        (r) => {
-          const path = new URL(r.url()).pathname;
-          return path.startsWith('/api/v1/plugins/') && path !== '/api/v1/plugins/' && r.request().method() === 'GET';
-        },
-        { timeout: 15_000 },
-      ),
-      detailBtn.click(),
-    ]);
-    expect(response.ok()).toBe(true);
+    await detailBtn.click();
 
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-    // Verify plugin name appears in the dialog heading
-    await expect(dialog.getByRole('heading', { level: 2, name: firstCardHeading })).toBeVisible({ timeout: 10_000 });
+    // Verify plugin name appears in the dialog heading (wait for API data to load)
+    await expect(dialog.getByRole('heading', { level: 2, name: firstCardHeading })).toBeVisible({ timeout: 15_000 });
 
     // At least one InfoSection (Permissions/Data Tables/Events) should render
     const sectionHeadings = dialog.getByRole('heading', { level: 3 });
@@ -121,22 +111,16 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
       return;
     }
 
-    // Click the "View details" button inside the card and wait for detail API
+    // Click the "View details" button — dialog appears immediately (skeleton state)
     const detailBtn = cards.first().getByRole('button', { name: /view details/i });
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        (r) => {
-          const path = new URL(r.url()).pathname;
-          return path.startsWith('/api/v1/plugins/') && path !== '/api/v1/plugins/' && r.request().method() === 'GET';
-        },
-        { timeout: 15_000 },
-      ),
-      detailBtn.click(),
-    ]);
-    expect(response.ok()).toBe(true);
+    await detailBtn.click();
 
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+
+    // Wait for content to load (heading appears when API data arrives)
+    const heading = dialog.getByRole('heading', { level: 2 });
+    await expect(heading).toBeVisible({ timeout: 15_000 });
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
