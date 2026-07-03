@@ -21,13 +21,9 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
   });
 
   // Setup: login and navigate to marketplace before each test.
-  // Wait for networkidle to ensure the initial list API call resolves
-  // before any test-specific interactions (e.g., clicking a card) trigger
-  // subsequent detail API calls that waitForResponse must match correctly.
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/marketplace');
-    await page.waitForLoadState('networkidle');
   });
 
   test('AC-05.1: marketplace page loads with plugin cards showing name, author', async ({ page }) => {
