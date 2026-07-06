@@ -11,7 +11,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
+    "@hookform/resolvers": "^5.4.0",
     "@originjs/vite-plugin-federation": "^1.4.1",
     "@plexica/ui": "workspace:*",
     "@radix-ui/react-avatar": "latest",
