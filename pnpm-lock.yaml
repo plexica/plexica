@@ -207,7 +207,7 @@ importers:
         version: 5.2.8
       keycloakify:
         specifier: ^11
-        version: 11.15.10
+        version: 11.15.11
       react:
         specifier: ^19
         version: 19.2.7
@@ -3480,8 +3480,8 @@ packages:
     resolution: {integrity: sha512-j/YeapB1vfPT2iOIUn/vxdyKEuhuY2PxMBvf5JWux6iSaukAccrMtXEY/Lb7OvavDhOWME589bpLrEdnVHjfjA==}
     engines: {node: '>=14.0.0'}
 
-  keycloakify@11.15.10:
-    resolution: {integrity: sha512-r8f3Os0XCMMOqS7NtjVyy0hJD1CwVjQeBk4FTfvOaJ5codFvBM9loSa5e2lUG/Ju93a5p04nkMxHylU5B8433w==}
+  keycloakify@11.15.11:
+    resolution: {integrity: sha512-owrnvNVW8Kf0AzLYHzYy4U624NhyLp5vYBryoY5yNYOUo/Xud4r4jniTYvXXZeJjLzHpvJfco1iRPX5qmbnK+g==}
     hasBin: true
 
   keyv@4.5.4:
@@ -7964,7 +7964,7 @@ snapshots:
 
   kafkajs@2.2.4: {}
 
-  keycloakify@11.15.10:
+  keycloakify@11.15.11:
     dependencies:
       tsafe: 1.8.12
 
