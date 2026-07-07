@@ -57,9 +57,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with: { node-version: 22 }
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
@@ -72,7 +72,7 @@ jobs:
           PLAYWRIGHT_KEYCLOAK_PASS: admin
           PLAYWRIGHT_TENANT_SLUG: test-tenant
           CI: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
