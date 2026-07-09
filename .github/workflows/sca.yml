@@ -19,7 +19,7 @@ on:
 jobs:
   sca:
     name: Software Composition Analysis
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
     permissions:
       contents: read

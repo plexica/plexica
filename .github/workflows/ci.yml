@@ -44,7 +44,7 @@ env:
 jobs:
   ci:
     name: Build, Test, and Validate
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 90
     permissions:
       contents: read # Minimum required for checkout; all other permissions denied
