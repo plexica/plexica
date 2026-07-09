@@ -58,9 +58,13 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v4
+      # Node.js BEFORE pnpm — self-hosted runner needs modern Node for pnpm setup
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
       - run: pnpm --filter core-api db:migrate
