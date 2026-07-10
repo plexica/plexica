@@ -43,14 +43,20 @@ inputs:
 runs:
   using: composite
   steps:
-    # ── Docker image cache ───────────────────────────────────────────────────
+    # ── Docker image cache (GitHub-hosted runners only) ──────────────────────
     # Images are pinned to SHA256 digests in docker-compose.yml.
     # Cache key is the hash of that file — invalidated only when digests change.
     # restore-keys allows a partial cache hit on a stale tar (avoids full re-pull).
     # On cache hit: docker load (~5s).  On cache miss: pull + save for next run.
+    #
+    # NOTE: on self-hosted runners, Docker's local layer cache persists between
+    # runs, so the tar cache is unnecessary. Moreover, actions/cache@v5 extracts
+    # tar entries using paths relative to the workspace, which fails when the
+    # cache path is /tmp/… (../../../../../tmp cannot be resolved with the
+    # runner's permissions). We skip caching on self-hosted runners entirely.
     - name: Cache Docker images
       id: docker-cache
-      if: inputs.phase == 'start' || inputs.phase == 'full'
+      if: (inputs.phase == 'start' || inputs.phase == 'full') && runner.environment != 'self-hosted'
       uses: actions/cache@v5
       with:
         path: /tmp/docker-images
@@ -63,12 +69,12 @@ runs:
       run: docker load -i /tmp/docker-images/images.tar
 
     - name: Pull Docker images
-      if: (inputs.phase == 'start' || inputs.phase == 'full') && steps.docker-cache.outputs.cache-hit != 'true'
+      if: (inputs.phase == 'start' || inputs.phase == 'full') && (runner.environment == 'self-hosted' || steps.docker-cache.outputs.cache-hit != 'true')
       shell: bash
       run: docker compose -f docker-compose.yml -f docker-compose.ci.yml pull
 
     - name: Save Docker images to cache
-      if: (inputs.phase == 'start' || inputs.phase == 'full') && steps.docker-cache.outputs.cache-hit != 'true'
+      if: (inputs.phase == 'start' || inputs.phase == 'full') && runner.environment != 'self-hosted' && steps.docker-cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
         mkdir -p /tmp/docker-images
