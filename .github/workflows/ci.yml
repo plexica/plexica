@@ -158,6 +158,20 @@ jobs:
       # Downloading Playwright-managed Chromium has repeatedly hung after the
       # archive reached 100%, so CI uses the preinstalled system browser
       # instead of downloading another Chromium bundle.
+
+      # Self-hosted runner: kill leftover processes on Playwright ports (3000, 3001).
+      # Previous runs or unrelated services may leave orphan processes that block
+      # Playwright from starting its own webServer instances.
+      - name: Clean up ports for Playwright
+        run: |
+          for port in 3000 3001; do
+            pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+            if [ -n "$pid" ]; then
+              echo "Killing process $pid on port $port"
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+          done
+
       - name: Verify preinstalled Chrome
         run: google-chrome --version
 
@@ -198,3 +212,16 @@ jobs:
       - name: Tear down infrastructure services
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
+
+      - name: Clean up orphan processes
+        if: always()
+        run: |
+          # Kill any leftover node/vite/playwright processes from the workspace
+          pkill -f "node.*plexica" 2>/dev/null || true
+          for port in 3000 3001; do
+            pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+            if [ -n "$pid" ]; then
+              echo "Killing process $pid on port $port"
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+          done
