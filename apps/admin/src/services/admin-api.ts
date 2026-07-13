@@ -1,87 +1,107 @@
 // admin-api.ts
 // Typed Admin API methods. All calls target /api/v1/admin/* endpoints.
-// Stubs return empty/placeholder shapes — filled per feature in subsequent
-// sprint cards. Every method goes through apiClient for auth + 401 handling.
+// Methods go through apiClient for auth + 401 handling.
+// Implemented endpoints match the backend route ownership table (plan §3.4).
 
 import { apiClient } from './api-client.js';
 
 import type {
+  AuditLogResponse,
   DashboardMetrics,
-  HealthStatus,
+  HealthResponse,
   KafkaStatus,
   LogEntry,
   Plugin,
-  ProvisionRequest,
-  TenantDetail,
-  TenantSummary,
+  TenantListResponse,
 } from '../types/admin-types.js';
 
 const ADMIN_PREFIX = '/api/v1/admin';
 
-// ── Dashboard ───────────────────────────────────────────────────────────────
+// ── Dashboard (S5-B00 — to be implemented) ─────────────────────────────────
 
 export function getDashboardMetrics(): Promise<DashboardMetrics> {
   return apiClient.get<DashboardMetrics>(`${ADMIN_PREFIX}/dashboard/metrics`);
 }
 
-// ── Tenants ─────────────────────────────────────────────────────────────────
+// ── Tenants (S5-200: list, S5-300: detail, S5-400: provision, S5-500: lifecycle) ──
 
-export function listTenants(): Promise<TenantSummary[]> {
-  return apiClient.get<TenantSummary[]>(`${ADMIN_PREFIX}/tenants`);
+export interface ListTenantsParams {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
 }
 
-export function getTenant(id: string): Promise<TenantDetail> {
-  return apiClient.get<TenantDetail>(`${ADMIN_PREFIX}/tenants/${id}`);
+export function listTenants(params: ListTenantsParams = {}): Promise<TenantListResponse> {
+  const query = new URLSearchParams();
+  if (params.search !== undefined) query.set('search', params.search);
+  if (params.status !== undefined) query.set('status', params.status);
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.pageSize !== undefined) query.set('pageSize', String(params.pageSize));
+  const qs = query.toString();
+  return apiClient.get<TenantListResponse>(`${ADMIN_PREFIX}/tenants${qs !== '' ? `?${qs}` : ''}`);
 }
 
-export function provisionTenant(req: ProvisionRequest): Promise<TenantDetail> {
-  return apiClient.post<TenantDetail>(`${ADMIN_PREFIX}/tenants`, req);
+export function getTenant(id: string): Promise<unknown> {
+  return apiClient.get<unknown>(`${ADMIN_PREFIX}/tenants/${id}`);
 }
 
-export function suspendTenant(id: string): Promise<void> {
-  return apiClient.post<void>(`${ADMIN_PREFIX}/tenants/${id}/suspend`);
+export function provisionTenant(req: { slug: string; name: string; adminEmail: string }): Promise<unknown> {
+  return apiClient.post<unknown>(`${ADMIN_PREFIX}/tenants`, req);
 }
 
-export function activateTenant(id: string): Promise<void> {
-  return apiClient.post<void>(`${ADMIN_PREFIX}/tenants/${id}/activate`);
+export function suspendTenant(id: string, version: number): Promise<unknown> {
+  return apiClient.post<unknown>(`${ADMIN_PREFIX}/tenants/${id}/suspend`, { version });
 }
 
-export function deprovisionTenant(id: string): Promise<void> {
-  return apiClient.delete<void>(`${ADMIN_PREFIX}/tenants/${id}`);
+export function reactivateTenant(id: string, version: number): Promise<unknown> {
+  return apiClient.post<unknown>(`${ADMIN_PREFIX}/tenants/${id}/reactivate`, { version });
 }
 
-// ── Plugins ─────────────────────────────────────────────────────────────────
+export function deleteTenant(id: string, confirmSlug: string): Promise<unknown> {
+  return apiClient.delete<unknown>(`${ADMIN_PREFIX}/tenants/${id}`, { body: { confirmSlug } });
+}
+
+// ── Plugin catalog (S5-800: review, S5-801: publish/unpublish) ─────────────
 
 export function listPlugins(): Promise<Plugin[]> {
   return apiClient.get<Plugin[]>(`${ADMIN_PREFIX}/plugins`);
 }
 
-export function publishPlugin(id: string): Promise<Plugin> {
-  return apiClient.post<Plugin>(`${ADMIN_PREFIX}/plugins/${id}/publish`);
+export function reviewPlugin(slug: string, decision: 'approve' | 'reject', notes?: string): Promise<unknown> {
+  return apiClient.post<unknown>(`${ADMIN_PREFIX}/plugins/${slug}/review`, { decision, notes });
 }
 
-export function deprecatePlugin(id: string): Promise<Plugin> {
-  return apiClient.post<Plugin>(`${ADMIN_PREFIX}/plugins/${id}/deprecate`);
+// ── Health (S5-100: implemented) ───────────────────────────────────────────
+
+export function getHealth(): Promise<HealthResponse> {
+  return apiClient.get<HealthResponse>(`${ADMIN_PREFIX}/health`);
 }
 
-// ── Health ──────────────────────────────────────────────────────────────────
+// ── Audit log (S5-301: service implemented, route pending) ─────────────────
 
-export function getHealth(): Promise<HealthStatus> {
-  return apiClient.get<HealthStatus>(`${ADMIN_PREFIX}/health`);
+export function getAuditLog(params: { action?: string; tenantId?: string; page?: number } = {}): Promise<AuditLogResponse> {
+  const query = new URLSearchParams();
+  if (params.action !== undefined) query.set('action', params.action);
+  if (params.tenantId !== undefined) query.set('tenantId', params.tenantId);
+  if (params.page !== undefined) query.set('page', String(params.page));
+  const qs = query.toString();
+  return apiClient.get<AuditLogResponse>(`${ADMIN_PREFIX}/audit-logs${qs !== '' ? `?${qs}` : ''}`);
 }
 
-// ── Logs ────────────────────────────────────────────────────────────────────
+// ── System logs (S5-A00 — to be implemented, Loki query proxy) ──────────────
 
-export function getLogs(limit = 100): Promise<LogEntry[]> {
-  return apiClient.get<LogEntry[]>(`${ADMIN_PREFIX}/logs?limit=${limit}`);
+export function getLogs(params: { tenant?: string; level?: string; limit?: number } = {}): Promise<{ data: LogEntry[] }> {
+  const query = new URLSearchParams();
+  if (params.tenant !== undefined) query.set('tenant', params.tenant);
+  if (params.level !== undefined) query.set('level', params.level);
+  if (params.limit !== undefined) query.set('limit', String(params.limit));
+  const qs = query.toString();
+  return apiClient.get<{ data: LogEntry[] }>(`${ADMIN_PREFIX}/logs${qs !== '' ? `?${qs}` : ''}`);
 }
 
-// ── Kafka ───────────────────────────────────────────────────────────────────
+// ── Kafka status (S5-900 — to be implemented) ──────────────────────────────
 
 export function getKafkaStatus(): Promise<KafkaStatus> {
   return apiClient.get<KafkaStatus>(`${ADMIN_PREFIX}/kafka/status`);
-}
-
-export function replayDlqMessages(topic: string, count: number): Promise<void> {
-  return apiClient.post<void>(`${ADMIN_PREFIX}/kafka/dlq/replay`, { topic, count });
 }

@@ -17,7 +17,7 @@ export async function tenantListRoutes(
   fastify: FastifyInstance
 ): Promise<void> {
   fastify.get(
-    '/api/v1/admin/tenants',
+    '/tenants',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
       const parsed = TenantListQuerySchema.safeParse(request.query);

@@ -8,11 +8,12 @@ import { IntlProvider } from 'react-intl';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 
+import '@plexica/ui/tokens';
+
 import { messages } from './i18n/messages.en.js';
 import { router } from './router.js';
 import { SessionExpiredHandler } from './components/auth/session-expired-handler.js';
 
-import '@plexica/ui/tokens';
 import './styles/globals.css';
 
 const queryClient = new QueryClient({

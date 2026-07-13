@@ -4,7 +4,7 @@
 
 | Field   | Value                          |
 | ------- | ------------------------------ |
-| Status  | Draft                          |
+| Status  | Approved                        |
 | Author  | Plexica Team                   |
 | Date    | 2026-03-01                     |
 | Track   | Feature                        |

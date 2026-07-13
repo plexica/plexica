@@ -151,7 +151,7 @@ model TenantDeletionStep {
   lastError String?  @map("last_error") @db.Text
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant Tenant @relation(fields: [tenantId], references: [id]) // ADR-022: RESTRICT — saga records are compliance artifacts
+  tenant Tenant @relation(fields: [tenantId], references: [id]) // ADR-022: NO ACTION (default) — prevents parent deletion, equivalent to RESTRICT
 
   @@unique([tenantId, step])
   @@index([status, updatedAt])
