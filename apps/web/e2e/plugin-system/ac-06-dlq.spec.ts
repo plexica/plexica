@@ -2,12 +2,11 @@
 // Real behavior: super admin accesses the DLQ API, entries load, and retrying a
 // pending entry changes its status (or the entry leaves the pending filter).
 //
-// The test admin user (test@e2e.local) is assigned the super_admin role in
-// the plexica-e2e realm by global-setup. The requireSuperAdmin middleware
-// checks the role, not the realm.
+// The DLQ endpoints require a master-realm super admin token. The test logs
+// in via loginAsSuperAdmin() which uses the Keycloak master realm (slug 'admin').
 
 import { expect, test } from '../helpers/base-fixture.js';
-import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
+import { hasKeycloak, loginAsSuperAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
 
 const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 
@@ -19,7 +18,7 @@ test.describe('004 Plugin System — AC-06: Dead Letter Queue', () => {
   });
 
   test('DLQ API loads entries and retrying a pending entry changes its status', async ({ page }) => {
-    await loginAsAdmin(page);
+    await loginAsSuperAdmin(page);
 
     // Extract the access token from the Zustand auth store in sessionStorage.
     const token = await page.evaluate(() => {
