@@ -33,6 +33,7 @@ import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
 import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modules/plugin/index.js';
+import { adminRoutes } from './modules/admin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
 import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
 import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
@@ -102,11 +103,14 @@ await server.register(tenantRoutes);
 // Public invitation accept endpoint — tenant context required but no auth
 await server.register(invitationPublicRoutes);
 
-// Super admin plugin management routes — auth-only scope (no tenant context)
+// Super admin plugin management routes — auth-only scope (no tenant context).
+// Also hosts the new admin module (/api/v1/admin/* — Spec 005) which applies
+// requireSuperAdmin per route group inside the module plugin itself.
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
   adminScope.addHook('preHandler', rateLimitMiddleware(30, 60000));
   await adminScope.register(pluginAdminRoutes);
+  await adminScope.register(adminRoutes);
 });
 
 // Plugin event-emission route — dual-auth scope. Plugin backends use an
