@@ -119,3 +119,11 @@ export async function uploadLogo(
 export async function getPresignedReadUrl(bucketName: string, objectKey: string): Promise<string> {
   return minio.presignedGetObject(bucketName, objectKey, 3600);
 }
+
+/**
+ * Lightweight connectivity probe — lists buckets.
+ * Used by the admin health checker. Throws on unreachable / auth failure.
+ */
+export async function pingMinio(): Promise<void> {
+  await minio.listBuckets();
+}

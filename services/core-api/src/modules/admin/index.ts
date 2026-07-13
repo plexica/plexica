@@ -17,6 +17,8 @@
 // explicitly — keeping the security boundary visible at the route level.
 
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
+import { healthRoutes } from './routes/health.routes.js';
+import { tenantListRoutes } from './routes/tenant-list.routes.js';
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
@@ -27,11 +29,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     async (adminScope) => {
       adminScope.addHook('preHandler', requireSuperAdmin);
 
-      // Route groups will be registered here as they are implemented:
+      // Route groups registered as they are implemented:
+      await adminScope.register(tenantListRoutes);
+      await adminScope.register(healthRoutes);
       // await adminScope.register(dashboardRoutes);
       // await adminScope.register(tenantLifecycleRoutes);
       // await adminScope.register(pluginCatalogRoutes);
-      // await adminScope.register(healthRoutes);
       // await adminScope.register(logsRoutes);
       // await adminScope.register(kafkaStatusRoutes);
     },
