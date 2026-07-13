@@ -17,6 +17,7 @@ datasource db {
 enum TenantStatus {
   active
   suspended
+  pending_deletion
   deleted
 
   @@schema("core")
@@ -32,7 +33,12 @@ model Tenant {
 
   minioBucket String? @unique @map("minio_bucket") @db.VarChar(255)
 
-  config TenantConfig?
+  // Optimistic locking for concurrent admin actions (ADR-022 Decision 4).
+  // Incremented on every status transition (suspend, reactivate, delete).
+  version Int @default(1)
+
+  config        TenantConfig?
+  deletionSteps TenantDeletionStep[]
 
   @@index([status])
   @@map("tenants")
@@ -65,8 +71,16 @@ model Plugin {
   iconUrl     String?  @map("icon_url")
   categories  Json     @default("[]")
   manifest    Json     @default("{}")
-  // Registry status: draft (unpublished), published (available in marketplace), unpublished
+  // Registry status: draft (unpublished), published (available in marketplace),
+  // unpublished (withdrawn before installs), deprecated (withdrawn after installs,
+  // existing installs keep working). ADR-022 Decision 5.
   status      String   @default("draft") @db.VarChar(16)
+  // Review queue (ADR-022 Decision 5) — independent of status.
+  // Workflow: draft → pending → approved/rejected → published.
+  reviewStatus String    @default("none") @map("review_status") @db.VarChar(16)
+  reviewNotes  String?   @map("review_notes") @db.Text
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz
+  reviewedBy   String?   @map("reviewed_by") @db.VarChar(255)
 
   registryUrl    String  @map("registry_url") @db.VarChar(512)
   imageName      String  @map("image_name") @db.VarChar(255)
@@ -119,5 +133,49 @@ model DeadLetterQueue {
 
   @@index([status, failedAt])
   @@map("dead_letter_queue")
+  @@schema("core")
+}
+
+// ── Super Admin (Spec 005, ADR-022) ───────────────────────────────────────────
+
+// GDPR deletion saga — tracks per-step state for the three-step tenant
+// deletion process (schema drop, realm delete, bucket delete).
+// Forward-only: no auto-rollback. Failed steps retry with backoff.
+// ADR-022 Decision 1.
+model TenantDeletionStep {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  step      String   @db.VarChar(32) // schema_drop, realm_delete, bucket_delete
+  status    String   @default("pending") @db.VarChar(16) // pending, in_progress, done, failed
+  attempts  Int      @default(0)
+  lastError String?  @map("last_error") @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, step])
+  @@index([status, updatedAt])
+  @@map("tenant_deletion_steps")
+  @@schema("core")
+}
+
+// Platform-level audit log for super-admin actions. Distinct from per-tenant
+// audit_logs (Spec 003) — lives in core schema, survives tenant deletion.
+// ADR-022 Decision 2.
+model PlatformAuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId      String   @map("actor_id") @db.VarChar(255) // Keycloak master realm sub
+  action       String   @db.VarChar(64) // tenant.provision, tenant.suspend, plugin.publish, ...
+  resourceType String   @map("resource_type") @db.VarChar(64)
+  resourceId   String?  @map("resource_id") @db.Uuid
+  tenantId     String?  @map("tenant_id") @db.Uuid
+  metadata     Json     @default("{}") @db.JsonB
+  ipAddress    String?  @map("ip_address") @db.VarChar(45) // INET stored as string
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("platform_audit_log")
   @@schema("core")
 }
