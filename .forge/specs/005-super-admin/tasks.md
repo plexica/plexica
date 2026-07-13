@@ -82,7 +82,7 @@ Task IDs use a numeric scheme:
   - Migration creates `core.tenant_deletion_steps` with columns + CHECK constraints + UNIQUE(tenant_id, step) + index on (status, updated_at) per ADR-022 Decision 1 SQL DDL
   - Migration creates `core.platform_audit_log` with columns + 3 indexes (actor_id, action, tenant_id) per ADR-022 Decision 2 SQL DDL
   - Migration adds `version INTEGER NOT NULL DEFAULT 1` to `core.tenants` per ADR-022 Decision 4
-  - Migration adds `pending_deletion` to `TenantStatus` enum + updates `core.tenants.status` CHECK constraint
+  - Migration adds `pending_deletion` to the `TenantStatus` native enum (ALTER TYPE)
   - Migration adds `review_status`, `review_notes`, `reviewed_at`, `reviewed_by` columns to `core.plugins` with CHECK constraint (`none`, `pending`, `approved`, `rejected`) per ADR-022 Decision 5
   - Migration updates `core.plugins.status` CHECK constraint to allow `deprecated` alongside `draft`, `published`, `unpublished`
   - **Backfill (N-2 fix)**: `UPDATE core.plugins SET review_status = 'approved' WHERE status = 'published' AND review_status = 'none';`

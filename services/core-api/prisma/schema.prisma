@@ -149,9 +149,9 @@ model TenantDeletionStep {
   status    String   @default("pending") @db.VarChar(16) // pending, in_progress, done, failed
   attempts  Int      @default(0)
   lastError String?  @map("last_error") @db.Text
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id]) // ADR-022: RESTRICT — saga records are compliance artifacts
 
   @@unique([tenantId, step])
   @@index([status, updatedAt])
@@ -170,12 +170,13 @@ model PlatformAuditLog {
   resourceId   String?  @map("resource_id") @db.Uuid
   tenantId     String?  @map("tenant_id") @db.Uuid
   metadata     Json     @default("{}") @db.JsonB
-  ipAddress    String?  @map("ip_address") @db.VarChar(45) // INET stored as string
+  ipAddress    String?  @map("ip_address") @db.Inet
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([actorId, createdAt])
   @@index([action, createdAt])
   @@index([tenantId, createdAt])
+  @@index([createdAt])
   @@map("platform_audit_log")
   @@schema("core")
 }
