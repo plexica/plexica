@@ -261,3 +261,49 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # Loki — log aggregation (ADR-022 Decision 3)
+  # Single binary, single node in dev. Purpose-built for log storage.
+  loki:
+    image: grafana/loki@sha256:2c6e298f55e48e3bc7ed70a4f6ff57b70ce3e5e9a30ffc97c34e601451ac9c1f
+    # grafana/loki:3.5.x — pinned 2026-07-13
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - '${LOKI_PORT:-3100}:3100'
+    volumes:
+      - ./infra/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3100/ready || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Grafana — dashboards for Prometheus metrics + Loki logs (ADR-022 Decision 3)
+  # Mapped to host port 3001 to avoid conflict with web app (3000).
+  grafana:
+    image: grafana/grafana@sha256:f69cb8c6e93f5e8d6f10c25a5fa0a77a3bb0175c4f7c1a5a9f4b3f3f9e6c0a3b
+    # grafana/grafana:11.6.x — pinned 2026-07-13
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    ports:
+      - '${GRAFANA_PORT:-3001}:3000'
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3000/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
