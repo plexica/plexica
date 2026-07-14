@@ -17,9 +17,13 @@
 // explicitly — keeping the security boundary visible at the route level.
 
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
-import { healthRoutes } from './routes/health.routes.js';
 import { tenantListRoutes } from './routes/tenant-list.routes.js';
+import { tenantDetailRoutes } from './routes/tenant-detail.routes.js';
+import { tenantProvisionRoutes } from './routes/tenant-provision.routes.js';
 import { pluginCatalogRoutes } from './routes/plugin-catalog.routes.js';
+import { healthRoutes } from './routes/health.routes.js';
+import { auditLogRoutes } from './routes/audit-log.routes.js';
+import { kafkaStatusRoutes } from './routes/kafka-status.routes.js';
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
@@ -30,14 +34,14 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     async (adminScope) => {
       adminScope.addHook('preHandler', requireSuperAdmin);
 
-      // Route groups registered as they are implemented:
+      // Route groups — order per route ownership table (plan §3.4).
       await adminScope.register(tenantListRoutes);
-      await adminScope.register(healthRoutes);
+      await adminScope.register(tenantDetailRoutes);
+      await adminScope.register(tenantProvisionRoutes);
       await adminScope.register(pluginCatalogRoutes);
-      // await adminScope.register(dashboardRoutes);
-      // await adminScope.register(tenantLifecycleRoutes);
-      // await adminScope.register(logsRoutes);
-      // await adminScope.register(kafkaStatusRoutes);
+      await adminScope.register(healthRoutes);
+      await adminScope.register(auditLogRoutes);
+      await adminScope.register(kafkaStatusRoutes);
     },
     { prefix: ADMIN_PREFIX }
   );
