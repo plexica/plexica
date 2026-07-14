@@ -46,6 +46,16 @@ export class ValidationError extends AppError {
   }
 }
 
+// S5-702: type-to-confirm deletion — confirmSlug must match tenant slug exactly.
+export class ConfirmationRequiredError extends AppError {
+  readonly statusCode = 422;
+  readonly code = 'CONFIRMATION_REQUIRED';
+
+  constructor(message = 'Confirmation slug does not match tenant slug') {
+    super(message);
+  }
+}
+
 export class AlreadyExistsError extends AppError {
   readonly statusCode = 409;
   readonly code = 'ALREADY_EXISTS';

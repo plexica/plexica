@@ -54,3 +54,22 @@ export async function updateRealmConfig(
 
   logger.debug({ realm, patch }, 'Keycloak realm config updated');
 }
+
+/**
+ * Enables or disables a Keycloak realm by toggling the top-level `enabled`
+ * flag via PUT /admin/realms/{realm}. Keycloak merges partial
+ * RealmRepresentation payloads for scalar fields, so a single-field patch is
+ * sufficient. Disabling a realm blocks all new logins / token issuance for its
+ * users; existing sessions remain until they expire or are explicitly revoked.
+ */
+export async function setRealmEnabled(realm: string, enabled: boolean): Promise<void> {
+  const res = await adminRequest(`/admin/realms/${realm}`, 'PUT', { enabled });
+
+  if (!res.ok) {
+    throw new KeycloakError(
+      `Failed to ${enabled ? 'enable' : 'disable'} realm ${realm}: ${res.status}`
+    );
+  }
+
+  logger.info({ realm, enabled }, 'Keycloak realm enabled flag updated');
+}
