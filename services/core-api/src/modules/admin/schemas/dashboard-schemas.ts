@@ -19,8 +19,8 @@ export const DashboardMetricsSchema = z.object({
   pendingDeletionCount: z.number().int().min(0),
   pluginCount: z.number().int().min(0),
   activePluginCount: z.number().int().min(0),
-  totalUsers: z.number().int().min(0),
-  workspaceCount: z.number().int().min(0),
+  totalUsers: z.number().int().min(0).nullable(),
+  workspaceCount: z.number().int().min(0).nullable(),
   dlqDepth: z.number().int().min(0),
   healthStatus: HealthStatusEnum,
 });

@@ -37,6 +37,8 @@ import { adminRoutes } from './modules/admin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
 import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
 import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
+import { startupSweep } from './modules/admin/services/deletion-saga.service.js';
+import { prisma } from './lib/database.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -167,6 +169,12 @@ async function start(): Promise<void> {
     // Start DLQ consumer (reads from Kafka DLQ topic → populates DB table)
     startDlqConsumer().catch((err) =>
       logger.error({ err }, 'DLQ consumer failed to start — DLQ management UI will be empty')
+    );
+
+    // Crash recovery: reset stale in_progress deletion saga steps to pending
+    // so they can be resumed (ADR-022 Decision 1 — forward-only saga).
+    void startupSweep(prisma).catch((err) =>
+      logger.error({ err }, 'Deletion saga startup sweep failed — stale in_progress steps may need manual recovery')
     );
 
     await server.listen({ port: config.PORT, host: '0.0.0.0' });

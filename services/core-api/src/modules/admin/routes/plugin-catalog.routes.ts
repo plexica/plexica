@@ -19,6 +19,7 @@ import {
   ReviewResponseSchema,
 } from '../schemas/plugin-catalog-schemas.js';
 import { PluginNotFoundError } from '../../plugin/errors.js';
+import { ValidationError } from '../../../lib/app-error.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -40,6 +41,13 @@ export async function pluginCatalogRoutes(
       const response = await withCoreDb(async (prisma) => {
         const plugin = await prisma.plugin.findUnique({ where: { slug } });
         if (!plugin) throw new PluginNotFoundError(slug);
+
+        // ADR-022 D5: review only acts on plugins submitted for review
+        if (plugin.reviewStatus !== 'pending') {
+          throw new ValidationError(
+            `Plugin reviewStatus is '${plugin.reviewStatus}', must be 'pending' to review`
+          );
+        }
 
         const updated = await prisma.plugin.update({
           where: { slug },

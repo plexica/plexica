@@ -131,10 +131,15 @@ export async function runSagaSteps(prisma: PrismaClient, tenantId: string): Prom
     if (!ok) return;
   }
 
-  await prisma.tenant.update({
-    where: { id: tenantId },
+  // Mark tenant as deleted — guard against concurrent executors winning
+  const result = await prisma.tenant.updateMany({
+    where: { id: tenantId, status: 'pending_deletion' },
     data: { status: 'deleted', version: { increment: 1 } },
   });
+  if (result.count === 0) {
+    logger.info({ tenantId }, 'Tenant already marked deleted by another executor — skipping');
+    return;
+  }
   await writeAuditEntry(prisma, {
     actorId: SYSTEM_ACTOR_ID,
     action: 'tenant.delete',

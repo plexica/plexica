@@ -63,7 +63,7 @@ export async function provisionTenantWithAudit(
     action: 'tenant.provision',
     resourceType: 'tenant',
     resourceId: result.tenantId,
-    metadata: { slug, name, adminEmail },
+    metadata: { slug, name }, // NO PII — adminEmail excluded (Security §6)
   });
 
   logger.info({ tenantId: result.tenantId, slug, actorId }, 'Tenant provisioned + audit logged');

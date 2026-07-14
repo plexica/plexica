@@ -41,11 +41,11 @@ function deriveHealthStatus(statuses: HealthStatus[]): HealthStatus {
   );
 }
 
-async function readRedisInt(key: string): Promise<number> {
+async function readRedisIntOrNull(key: string): Promise<number | null> {
   const raw = await redis.get(key);
-  if (raw === null) return 0;
+  if (raw === null) return null; // key not populated yet — null signals "unavailable"
   const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 export async function getDashboardMetrics(
@@ -70,8 +70,8 @@ export async function getDashboardMetrics(
     prisma.plugin.count(),
     prisma.plugin.count({ where: { status: 'published' } }),
     prisma.deadLetterQueue.count({ where: { status: 'pending' } }),
-    readRedisInt(USER_COUNT_KEY),
-    readRedisInt(WORKSPACE_COUNT_KEY),
+    readRedisIntOrNull(USER_COUNT_KEY),
+    readRedisIntOrNull(WORKSPACE_COUNT_KEY),
     checkHealth(),
   ]);
 

@@ -30,7 +30,7 @@ const TenantDeleteParamsSchema = z.object({
 
 const TenantDeleteBodySchema = z.object({
   confirmSlug: z.string().min(1).max(255),
-  version: z.number().int().min(0),
+  version: z.number().int().min(1),
 });
 
 export async function tenantDeleteRoutes(

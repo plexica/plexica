@@ -65,7 +65,9 @@ export async function deleteBucket(bucketName: string): Promise<void> {
     return;
   }
 
-  // Remove all objects before deleting the bucket
+  // Remove all objects before deleting the bucket.
+  // MinIO removeObjects accepts max 1000 entries per call — batch to avoid
+  // silent truncation on large buckets (GDPR full erasure requirement).
   const objectsList: string[] = [];
   await new Promise<void>((resolve, reject) => {
     const stream = minio.listObjects(bucketName, '', true);
@@ -76,8 +78,10 @@ export async function deleteBucket(bucketName: string): Promise<void> {
     stream.on('error', reject);
   });
 
-  if (objectsList.length > 0) {
-    await minio.removeObjects(bucketName, objectsList);
+  const BATCH_SIZE = 1000;
+  for (let i = 0; i < objectsList.length; i += BATCH_SIZE) {
+    const batch = objectsList.slice(i, i + BATCH_SIZE);
+    await minio.removeObjects(bucketName, batch);
   }
 
   await minio.removeBucket(bucketName);
