@@ -17,6 +17,7 @@
 // explicitly — keeping the security boundary visible at the route level.
 
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
+import { dashboardRoutes } from './routes/dashboard.routes.js';
 import { tenantListRoutes } from './routes/tenant-list.routes.js';
 import { tenantDetailRoutes } from './routes/tenant-detail.routes.js';
 import { tenantProvisionRoutes } from './routes/tenant-provision.routes.js';
@@ -26,6 +27,8 @@ import { auditLogRoutes } from './routes/audit-log.routes.js';
 import { kafkaStatusRoutes } from './routes/kafka-status.routes.js';
 import { tenantDeleteRoutes } from './routes/tenant-delete.routes.js';
 import { deletionStatusRoutes } from './routes/deletion-status.routes.js';
+import { tenantSuspendRoutes } from './routes/tenant-suspend.routes.js';
+import { tenantReactivateRoutes } from './routes/tenant-reactivate.routes.js';
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
@@ -37,6 +40,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       adminScope.addHook('preHandler', requireSuperAdmin);
 
       // Route groups — order per route ownership table (plan §3.4).
+      await adminScope.register(dashboardRoutes);
       await adminScope.register(tenantListRoutes);
       await adminScope.register(tenantDetailRoutes);
       await adminScope.register(tenantProvisionRoutes);
@@ -46,6 +50,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       await adminScope.register(kafkaStatusRoutes);
       await adminScope.register(tenantDeleteRoutes);
       await adminScope.register(deletionStatusRoutes);
+      await adminScope.register(tenantSuspendRoutes);
+      await adminScope.register(tenantReactivateRoutes);
     },
     { prefix: ADMIN_PREFIX }
   );
