@@ -34,12 +34,15 @@ export async function pluginEventAuth(request: FastifyRequest, reply: FastifyRep
     if (!payload) {
       throw new ForbiddenError('Invalid plugin service token');
     }
-    const tenantCtx = await resolveTenant(payload.tenantSlug);
-    if (!tenantCtx) {
-      throw new ForbiddenError(`Unknown tenant "${payload.tenantSlug}" in service token`);
+    const resolved = await resolveTenant(payload.tenantSlug);
+    // ADR-022 Decision 1: only active tenants may emit events. suspended /
+    // pending_deletion / deleted / unknown are all rejected uniformly here
+    // (service-token holders are not end-users, so a generic 403 is fine).
+    if (resolved?.status !== 'active') {
+      throw new ForbiddenError(`Unknown or inactive tenant "${payload.tenantSlug}" in service token`);
     }
-    request.tenantContext = tenantCtx;
-    enterWithTenant(tenantCtx);
+    request.tenantContext = resolved.context;
+    enterWithTenant(resolved.context);
     return;
   }
 

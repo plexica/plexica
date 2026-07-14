@@ -92,11 +92,39 @@ export class KeycloakError extends AppError {
   }
 }
 
+// ADR-022 Decision 1: non-admin requests to inactive (non-deleted) tenants are
+// rejected with a specific 403 code. Distinct from INVALID_TENANT_CONTEXT (400)
+// which is reserved for unknown / deleted tenants to prevent enumeration.
+export class TenantSuspendedError extends AppError {
+  readonly statusCode = 403;
+  readonly code = 'TENANT_SUSPENDED';
+  constructor(message = 'Tenant is suspended') {
+    super(message);
+  }
+}
+
+export class TenantPendingDeletionError extends AppError {
+  readonly statusCode = 403;
+  readonly code = 'TENANT_PENDING_DELETION';
+  constructor(message = 'Tenant is pending deletion') {
+    super(message);
+  }
+}
+
 export type TenantConflictType =
   | 'tenant_slug_exists'
   | 'schema_exists'
   | 'realm_exists'
   | 'bucket_exists';
+
+export class ConflictError extends AppError {
+  readonly statusCode = 409;
+  readonly code = 'CONFLICT';
+
+  constructor(message = 'Version mismatch') {
+    super(message);
+  }
+}
 
 export class TenantConflictError extends AppError {
   readonly statusCode = 409;
