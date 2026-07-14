@@ -32,6 +32,14 @@ function createMinioClient(): MinioClient {
 const minio = createMinioClient();
 
 /**
+ * Checks whether a MinIO bucket exists.
+ * Used by tenant provisioning conflict detection before attempting creation.
+ */
+export async function bucketExists(bucketName: string): Promise<boolean> {
+  return minio.bucketExists(bucketName);
+}
+
+/**
  * Creates a new private bucket for a tenant.
  * Idempotent — succeeds if bucket already exists.
  */

@@ -92,6 +92,23 @@ export class KeycloakError extends AppError {
   }
 }
 
+export type TenantConflictType =
+  | 'tenant_slug_exists'
+  | 'schema_exists'
+  | 'realm_exists'
+  | 'bucket_exists';
+
+export class TenantConflictError extends AppError {
+  readonly statusCode = 409;
+  readonly code = 'CONFLICT';
+  readonly conflictType: TenantConflictType;
+
+  constructor(conflictType: TenantConflictType, message: string) {
+    super(message);
+    this.conflictType = conflictType;
+  }
+}
+
 // Re-export all domain errors for backwards compatibility.
 // Consumers import from this single entrypoint.
 export {
