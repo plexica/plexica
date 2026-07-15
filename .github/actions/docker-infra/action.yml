@@ -43,6 +43,29 @@ inputs:
 runs:
   using: composite
   steps:
+    # ── Pre-start cleanup ────────────────────────────────────────────────────
+    # On self-hosted runners, previous CI runs or the dev stack may leave
+    # containers running that occupy CI ports (5432, 6379, 8080, 9000, etc.)
+    # Tear down any existing plexica-ci stack and any other container using
+    # these ports to ensure a clean start.
+    - name: Clean up conflicting containers
+      if: inputs.phase == 'start' || inputs.phase == 'full'
+      shell: bash
+      run: |
+        # 1. Tear down any lingering CI stack from a previous run
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml down --remove-orphans 2>/dev/null || true
+        
+        # 2. Kill any container occupying CI-required host ports (5432, 6379,
+        #    8080, 9000, 19092, 1025, 3100, 3301, 9644, 8025)
+        for PORT in 5432 6379 8080 9000 19092 1025 3100 3301 9644 8025; do
+          CONTAINER=$(docker ps -q --filter "publish=$PORT" 2>/dev/null || true)
+          if [ -n "$CONTAINER" ]; then
+            echo "Stopping container $CONTAINER (occupies port $PORT)"
+            docker stop "$CONTAINER" 2>/dev/null || true
+            docker rm "$CONTAINER" 2>/dev/null || true
+          fi
+        done
+
     # ── Docker image cache (GitHub-hosted runners only) ──────────────────────
     # Images are pinned to SHA256 digests in docker-compose.yml.
     # Cache key is the hash of that file — invalidated only when digests change.
