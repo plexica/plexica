@@ -208,89 +208,48 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Ensure plexica-admin client is configured correctly.
-  //   The keycloak-init script in docker-compose creates this client from
-  //   admin-client-realm.json, but we hit it directly to be certain the
-  //   settings are correct (public + directAccessGrants + CORS origins).
+  // Step 4: Ensure plexica-admin client is configured correctly and has
+  //   fullScopeAllowed: true so its tokens include realm roles.
   process.stdout.write('[admin global-setup] Ensuring plexica-admin client config…\n');
   try {
     const lookupRes = await adminFetch(
       adminToken, '/admin/realms/master/clients?clientId=plexica-admin', 'GET'
     );
     if (!lookupRes.ok) {
-      process.stderr.write(
-        `[admin global-setup] plexica-admin lookup failed: ${lookupRes.status}\n`
-      );
+      process.stderr.write(`plexica-admin lookup failed: ${lookupRes.status}\n`);
     } else {
-      const clients = (await lookupRes.json()) as Array<{ id: string; clientId: string }>;
-      process.stdout.write(
-        `[admin global-setup] plexica-admin lookup returned ${clients.length} results\n`
-      );
+      const clients = (await lookupRes.json()) as Array<{ id: string }>;
       const clientUuid = clients[0]?.id;
       if (clientUuid === undefined) {
-        process.stderr.write('[admin global-setup] plexica-admin client not found - will create\n');
         // Create the client if it doesn't exist
         await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
-          clientId: 'plexica-admin',
-          protocol: 'openid-connect',
-          publicClient: true,
-          directAccessGrantsEnabled: true,
-          standardFlowEnabled: false,
-          redirectUris: ['http://localhost:3002/*'],
-          webOrigins: ['http://localhost:3002'],
+          clientId: 'plexica-admin', protocol: 'openid-connect',
+          publicClient: true, directAccessGrantsEnabled: true,
+          standardFlowEnabled: false, fullScopeAllowed: true,
+          redirectUris: ['http://localhost:3002/*'], webOrigins: ['http://localhost:3002'],
         });
-        process.stdout.write('[admin global-setup] plexica-admin client created via API.\n');
       } else {
-        await adminFetch(
-          adminToken,
-          `/admin/realms/master/clients/${clientUuid}`,
-          'PUT',
-          {
-            publicClient: true,
-            directAccessGrantsEnabled: true,
-            standardFlowEnabled: false,
-            webOrigins: ['http://localhost:3002'],
-            redirectUris: ['http://localhost:3002/*'],
-          },
-        );
-        process.stdout.write('[admin global-setup] plexica-admin client updated.\n');
+        await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
+          publicClient: true, directAccessGrantsEnabled: true,
+          standardFlowEnabled: false, fullScopeAllowed: true,
+          webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
+        });
       }
+      process.stdout.write('[admin global-setup] plexica-admin client configured with fullScopeAllowed.\n');
     }
   } catch (e) {
     process.stderr.write(`[admin global-setup] Warning: could not configure plexica-admin: ${String(e)}\n`);
   }
 
-  // Step 5: Create `e2e-admin-api` client with fullScopeAllowed: true.
-  //   This is the ONLY configuration we found where the token includes
-  //   realm_access.roles (including super_admin) for the Keycloak master
-  //   realm. The fullScopeAllowed: true setting causes the token to carry
-  //   all realm roles. It also injects all realm client IDs as audience
-  //   values, but jose v6 does NOT validate audience when the audience
-  //   option is not provided (which is the case for master realm tokens).
-  process.stdout.write('[admin global-setup] Creating e2e-admin-api client with fullScopeAllowed: true\n');
-  try {
-    await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
-      clientId: 'e2e-admin-api',
-      protocol: 'openid-connect',
-      publicClient: true,
-      standardFlowEnabled: false,
-      directAccessGrantsEnabled: true,
-      fullScopeAllowed: true,
-      redirectUris: [],
-      webOrigins: [],
-    });
-  } catch {
-    // 409 is OK — client already exists
-  }
-
-  // Step 5: Get a fresh API token via e2e-admin-api client.
-  process.stdout.write('[admin global-setup] Obtaining fresh API token via e2e-admin-api…\n');
+  // Step 5: Get the API token via plexica-admin client (which now has
+  //   fullScopeAllowed: true and includes super_admin in realm_access.roles).
+  process.stdout.write('[admin global-setup] Obtaining API token via plexica-admin…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'e2e-admin-api',
+      client_id: 'plexica-admin',
       username: ADMIN_USER,
       password: ADMIN_PASSWORD,
     }).toString(),
