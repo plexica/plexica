@@ -60,7 +60,7 @@ export function LogsPage(): JSX.Element {
     applied !== null,
   );
 
-  const entries = data?.data ?? [];
+  const entries = data?.logs ?? [];
   const hasSearched = applied !== null;
   const isTruncated = hasSearched && entries.length >= applied.limit;
 

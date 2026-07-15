@@ -7,7 +7,7 @@ import { listPlugins, reviewPlugin } from '../services/admin-api.js';
 import type { Plugin } from '../types/admin-types.js';
 
 export function usePluginList() {
-  return useQuery<Plugin[]>({
+  return useQuery<{ data: Plugin[], total: number, page: number, pageSize: number }>({
     queryKey: ['admin', 'plugins'] as const,
     queryFn: () => listPlugins(),
     staleTime: 30_000,

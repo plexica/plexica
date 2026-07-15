@@ -17,6 +17,7 @@ interface DeleteDialogProps {
   tenantId: string;
   tenantName: string;
   slug: string;
+  version: number;
   /** Called after the deletion saga is accepted (202) — caller shows the panel. */
   onDeleted?: () => void;
 }
@@ -27,6 +28,7 @@ export function DeleteDialog({
   tenantId,
   tenantName,
   slug,
+  version,
   onDeleted,
 }: DeleteDialogProps): JSX.Element {
   const intl = useIntl();
@@ -44,7 +46,7 @@ export function DeleteDialog({
 
   function handleConfirm(): void {
     mutate(
-      { id: tenantId, confirmSlug: slug },
+      { id: tenantId, confirmSlug: slug, version },
       {
         onSuccess: () => {
           onDeleted?.();

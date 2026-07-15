@@ -75,7 +75,7 @@ export function useReactivateTenant(): UseReactivateTenantResult {
 // ── Delete (S5-704) ─────────────────────────────────────────────────────────
 
 export interface UseDeleteTenantResult {
-  mutate: (input: { id: string; confirmSlug: string }, options?: MutateOptions<unknown, ApiError, { id: string; confirmSlug: string }>) => void;
+  mutate: (input: { id: string; confirmSlug: string; version: number }, options?: MutateOptions<unknown, ApiError, { id: string; confirmSlug: string; version: number }>) => void;
   isPending: boolean;
   error: ApiError | null;
   reset: () => void;
@@ -83,8 +83,8 @@ export interface UseDeleteTenantResult {
 
 export function useDeleteTenant(): UseDeleteTenantResult {
   const queryClient = useQueryClient();
-  const mutation = useMutation<unknown, ApiError, { id: string; confirmSlug: string }>({
-    mutationFn: ({ id, confirmSlug }) => deleteTenant(id, confirmSlug),
+  const mutation = useMutation<unknown, ApiError, { id: string; confirmSlug: string; version: number }>({
+    mutationFn: ({ id, confirmSlug, version }) => deleteTenant(id, confirmSlug, version),
     onSuccess: (_data, variables) => invalidateTenantQueries(variables.id, queryClient),
   });
   return {

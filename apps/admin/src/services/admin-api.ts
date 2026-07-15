@@ -62,8 +62,8 @@ export function reactivateTenant(id: string, version: number): Promise<unknown> 
   return apiClient.post<unknown>(`${ADMIN_PREFIX}/tenants/${id}/reactivate`, { version });
 }
 
-export function deleteTenant(id: string, confirmSlug: string): Promise<unknown> {
-  return apiClient.delete<unknown>(`${ADMIN_PREFIX}/tenants/${id}`, { body: { confirmSlug } });
+export function deleteTenant(id: string, confirmSlug: string, version: number): Promise<unknown> {
+  return apiClient.delete<unknown>(`${ADMIN_PREFIX}/tenants/${id}`, { body: { confirmSlug, version } });
 }
 
 // ── Tenant deletion saga (S5-704) ──────────────────────────────────────────
@@ -78,8 +78,8 @@ export function retryDeletionStep(stepId: string): Promise<DeletionRetryResponse
 
 // ── Plugin catalog (S5-800: review, S5-801: publish/unpublish) ─────────────
 
-export function listPlugins(): Promise<Plugin[]> {
-  return apiClient.get<Plugin[]>(`${ADMIN_PREFIX}/plugins`);
+export function listPlugins(): Promise<{ data: Plugin[], total: number, page: number, pageSize: number }> {
+  return apiClient.get<{ data: Plugin[], total: number, page: number, pageSize: number }>(`${ADMIN_PREFIX}/plugins`);
 }
 
 export function reviewPlugin(slug: string, decision: 'approve' | 'reject', notes?: string): Promise<unknown> {
@@ -105,17 +105,17 @@ export function getAuditLog(params: { action?: string; tenantId?: string; page?:
 
 // ── System logs (S5-A00 — to be implemented, Loki query proxy) ──────────────
 
-export function getLogs(params: { tenant?: string; level?: string; limit?: number } = {}): Promise<{ data: LogEntry[] }> {
+export function getLogs(params: { tenant?: string; level?: string; limit?: number } = {}): Promise<{ logs: LogEntry[], total: number }> {
   const query = new URLSearchParams();
   if (params.tenant !== undefined) query.set('tenant', params.tenant);
   if (params.level !== undefined) query.set('level', params.level);
   if (params.limit !== undefined) query.set('limit', String(params.limit));
   const qs = query.toString();
-  return apiClient.get<{ data: LogEntry[] }>(`${ADMIN_PREFIX}/logs${qs !== '' ? `?${qs}` : ''}`);
+  return apiClient.get<{ logs: LogEntry[], total: number }>(`${ADMIN_PREFIX}/logs${qs !== '' ? `?${qs}` : ''}`);
 }
 
 // ── Kafka status (S5-900 — to be implemented) ──────────────────────────────
 
 export function getKafkaStatus(): Promise<KafkaStatus> {
-  return apiClient.get<KafkaStatus>(`${ADMIN_PREFIX}/kafka/status`);
+  return apiClient.get<KafkaStatus>(`${ADMIN_PREFIX}/system/kafka`);
 }

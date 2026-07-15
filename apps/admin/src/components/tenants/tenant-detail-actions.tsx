@@ -104,6 +104,7 @@ export function TenantDetailActions({
         tenantId={tenantId}
         tenantName={tenantName}
         slug={slug}
+        version={version}
       />
     </section>
   );

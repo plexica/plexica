@@ -29,7 +29,7 @@ export function PluginsPage(): JSX.Element {
   const { data, isLoading, isFetching, isError, refetch } = usePluginList();
   const reviewMutation = useReviewPlugin();
 
-  const allPlugins = data ?? [];
+  const allPlugins = data?.data ?? [];
   const filteredPlugins =
     reviewFilter === 'all'
       ? allPlugins

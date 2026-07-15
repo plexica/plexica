@@ -16,7 +16,8 @@ export interface LogsQueryParams {
 }
 
 export interface LogsResult {
-  data: LogEntry[];
+  logs: LogEntry[];
+  total: number;
 }
 
 export function useLogs(params: LogsQueryParams, enabled: boolean) {

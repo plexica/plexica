@@ -45,9 +45,12 @@ export async function countPluginInstallationsBatch(
 
   if (schemaNames.length === 0) return result;
 
-  // Parameterised IN list: $1..$N for pluginIds. Schema names are regex-
-  // validated and non-user-controlled; plugin_id values are bound parameters.
-  const inList = pluginIds.map((_, i) => `$${i + 1}`).join(', ');
+  // Parameterised IN list: $1..$N for pluginIds, cast to ::uuid so Postgres
+  // resolves the operator (plugin_id is uuid; bound params arrive as text and
+  // `uuid = text` raises 42883 "operator does not exist" without the cast).
+  // Schema names are regex-validated and non-user-controlled; plugin_id values
+  // are bound parameters.
+  const inList = pluginIds.map((_, i) => `$${i + 1}::uuid`).join(', ');
   const unions = schemaNames
     .map(
       (s) =>
