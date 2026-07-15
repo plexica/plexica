@@ -258,8 +258,9 @@ async function setup(): Promise<void> {
   // Step 4: Create (or skip) a dedicated `e2e-admin-api` client in master realm.
   //   We cannot use `admin-cli` tokens because they don't include
   //   `realm_access.roles` (even with fullScopeAllowed: true). A custom public
-  //   client with directAccessGrantsEnabled: true includes realm roles by
-  //   default through Keycloak's "roles" client scope protocol mappers.
+  //   client with fullScopeAllowed: true includes realm roles but injects all
+  //   realm client IDs as audiences. We fix this by adding an audience protocol
+  //   mapper restricted to just the client's own ID.
   process.stdout.write('[admin global-setup] Creating e2e-admin-api client…\n');
   const createRes = await adminFetch(
     adminToken, '/admin/realms/master/clients', 'POST', {
@@ -268,17 +269,8 @@ async function setup(): Promise<void> {
       publicClient: true,
       standardFlowEnabled: false,
       directAccessGrantsEnabled: true,
-      // fullScopeAllowed: true is required so the token includes all realm
-      // roles (including super_admin) in realm_access.roles. Without it,
-      // the token has roles=[] even for users with realm-level roles.
-      // We mitigate the spurious-audience side effect of fullScopeAllowed
-      // by setting access.token.claim.audience to the client's own ID,
-      // preventing Keycloak from injecting audiences for ALL realm clients.
       fullScopeAllowed: true,
       redirectUris: [],
-      attributes: {
-        'access.token.claim.audience': 'e2e-admin-api',
-      },
       webOrigins: [],
     },
   );
@@ -290,10 +282,41 @@ async function setup(): Promise<void> {
     );
   }
 
-  // Step 5: Get a fresh API token via e2e-admin-api client.
-  //   This token should include realm_access.roles: ["super_admin"] because
-  //   it's a public client with directAccessGrantsEnabled: true and
-  //   fullScopeAllowed: true.
+  // Step 5: Add an audience protocol mapper to e2e-admin-api so its tokens
+  //   only include aud=e2e-admin-api, not all realm client IDs.
+  try {
+    const lookupRes = await adminFetch(
+      adminToken, '/admin/realms/master/clients?clientId=e2e-admin-api', 'GET'
+    );
+    if (lookupRes.ok) {
+      const clients = (await lookupRes.json()) as Array<{ id: string }>;
+      const clientUuid = clients[0]?.id;
+      if (clientUuid !== undefined) {
+        const mapperRes = await adminFetch(
+          adminToken,
+          `/admin/realms/master/clients/${clientUuid}/protocol-mappers/models`,
+          'POST',
+          {
+            name: 'audience',
+            protocol: 'openid-connect',
+            protocolMapper: 'oidc-audience-mapper',
+            config: {
+              'included.client.audience': 'e2e-admin-api',
+              'id.token.claim': 'false',
+              'access.token.claim': 'true',
+            },
+          },
+        );
+        if (mapperRes.ok || mapperRes.status === 409) {
+          process.stdout.write('[admin global-setup] Audience mapper added to e2e-admin-api.\n');
+        }
+      }
+    }
+  } catch (e) {
+    process.stderr.write(`[admin global-setup] Warning: could not add audience mapper: ${String(e)}\n`);
+  }
+
+  // Step 6: Get a fresh API token via e2e-admin-api.
   process.stdout.write('[admin global-setup] Obtaining fresh API token via e2e-admin-api…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
@@ -323,7 +346,7 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] DEBUG: failed to decode JWT: ${String(e)}\n`);
   }
 
-  // Step 6: Provision the E2E tenant for test data.
+  // Step 7: Provision the E2E tenant for test data.
   provisionE2eTenant();
 
   process.stdout.write('[admin global-setup] Admin E2E provisioning complete.\n');
