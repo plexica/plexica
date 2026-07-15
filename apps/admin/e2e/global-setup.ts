@@ -217,10 +217,30 @@ async function setup(): Promise<void> {
     const lookupRes = await adminFetch(
       adminToken, '/admin/realms/master/clients?clientId=plexica-admin', 'GET'
     );
-    if (lookupRes.ok) {
-      const clients = (await lookupRes.json()) as Array<{ id: string }>;
+    if (!lookupRes.ok) {
+      process.stderr.write(
+        `[admin global-setup] plexica-admin lookup failed: ${lookupRes.status}\n`
+      );
+    } else {
+      const clients = (await lookupRes.json()) as Array<{ id: string; clientId: string }>;
+      process.stdout.write(
+        `[admin global-setup] plexica-admin lookup returned ${clients.length} results\n`
+      );
       const clientUuid = clients[0]?.id;
-      if (clientUuid !== undefined) {
+      if (clientUuid === undefined) {
+        process.stderr.write('[admin global-setup] plexica-admin client not found - will create\n');
+        // Create the client if it doesn't exist
+        await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
+          clientId: 'plexica-admin',
+          protocol: 'openid-connect',
+          publicClient: true,
+          directAccessGrantsEnabled: true,
+          standardFlowEnabled: false,
+          redirectUris: ['http://localhost:3002/*'],
+          webOrigins: ['http://localhost:3002'],
+        });
+        process.stdout.write('[admin global-setup] plexica-admin client created via API.\n');
+      } else {
         await adminFetch(
           adminToken,
           `/admin/realms/master/clients/${clientUuid}`,
@@ -237,7 +257,7 @@ async function setup(): Promise<void> {
       }
     }
   } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not update plexica-admin: ${String(e)}\n`);
+    process.stderr.write(`[admin global-setup] Warning: could not configure plexica-admin: ${String(e)}\n`);
   }
 
   // Step 5: Create `e2e-admin-api` client with fullScopeAllowed: true.
