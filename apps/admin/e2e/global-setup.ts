@@ -256,11 +256,9 @@ async function setup(): Promise<void> {
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
   // Step 4: Create (or skip) a dedicated `e2e-admin-api` client in master realm.
-  //   We cannot use `admin-cli` tokens because they don't include
-  //   `realm_access.roles` (even with fullScopeAllowed: true). A custom public
-  //   client with fullScopeAllowed: true includes realm roles but injects all
-  //   realm client IDs as audiences. We fix this by adding an audience protocol
-  //   mapper restricted to just the client's own ID.
+  //   admin-cli tokens don't include realm_access.roles. Custom clients with
+  //   fullScopeAllowed: false + explicit "roles" default scope bring realm
+  //   roles without bloated audience.
   process.stdout.write('[admin global-setup] Creating e2e-admin-api client…\n');
   const createRes = await adminFetch(
     adminToken, '/admin/realms/master/clients', 'POST', {
@@ -269,51 +267,58 @@ async function setup(): Promise<void> {
       publicClient: true,
       standardFlowEnabled: false,
       directAccessGrantsEnabled: true,
-      fullScopeAllowed: true,
+      fullScopeAllowed: false,
       redirectUris: [],
       webOrigins: [],
     },
   );
-  if (createRes.ok || createRes.status === 409) {
-    process.stdout.write('[admin global-setup] e2e-admin-api client ready.\n');
-  } else {
+  if (!createRes.ok && createRes.status !== 409) {
     process.stderr.write(
       `[admin global-setup] Warning: could not create e2e-admin-api client: ${createRes.status}\n`
     );
+  } else {
+    process.stdout.write('[admin global-setup] e2e-admin-api client ready.\n');
   }
 
-  // Step 5: Add an audience protocol mapper to e2e-admin-api so its tokens
-  //   only include aud=e2e-admin-api, not all realm client IDs.
+  // Step 5: Look up the e2e-admin-api client UUID, then find the "roles"
+  //   default client scope and associate it as a default scope for our client.
+  //   The default "roles" scope maps the user's realm roles to the
+  //   realm_access.roles claim on the access token.
   try {
     const lookupRes = await adminFetch(
       adminToken, '/admin/realms/master/clients?clientId=e2e-admin-api', 'GET'
     );
-    if (lookupRes.ok) {
+    if (!lookupRes.ok) {
+      process.stderr.write('[admin global-setup] Warning: could not look up e2e-admin-api client.\n');
+    } else {
       const clients = (await lookupRes.json()) as Array<{ id: string }>;
       const clientUuid = clients[0]?.id;
-      if (clientUuid !== undefined) {
-        const mapperRes = await adminFetch(
-          adminToken,
-          `/admin/realms/master/clients/${clientUuid}/protocol-mappers/models`,
-          'POST',
-          {
-            name: 'audience',
-            protocol: 'openid-connect',
-            protocolMapper: 'oidc-audience-mapper',
-            config: {
-              'included.client.audience': 'e2e-admin-api',
-              'id.token.claim': 'false',
-              'access.token.claim': 'true',
-            },
-          },
+      if (clientUuid === undefined) {
+        process.stderr.write('[admin global-setup] Warning: e2e-admin-api UUID not found.\n');
+      } else {
+        // Find "roles" default client scope.
+        const scopesRes = await adminFetch(
+          adminToken, '/admin/realms/master/default-default-client-scopes', 'GET'
         );
-        if (mapperRes.ok || mapperRes.status === 409) {
-          process.stdout.write('[admin global-setup] Audience mapper added to e2e-admin-api.\n');
+        if (scopesRes.ok) {
+          const scopes = (await scopesRes.json()) as Array<{ id: string; name: string }>;
+          const rolesScope = scopes.find((s) => s.name === 'roles');
+          if (rolesScope !== undefined) {
+            // Associate "roles" scope as a default client scope for our client.
+            const linkRes = await adminFetch(
+              adminToken,
+              `/admin/realms/master/clients/${clientUuid}/default-client-scopes/${rolesScope.id}`,
+              'PUT',
+            );
+            if (linkRes.ok || linkRes.status === 204) {
+              process.stdout.write('[admin global-setup] roles scope linked to e2e-admin-api.\n');
+            }
+          }
         }
       }
     }
   } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not add audience mapper: ${String(e)}\n`);
+    process.stderr.write(`[admin global-setup] Warning: could not configure roles scope: ${String(e)}\n`);
   }
 
   // Step 6: Get a fresh API token via e2e-admin-api.
