@@ -255,82 +255,43 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Create a dedicated `e2e-admin-api` client in master realm.
-  //   admin-cli tokens don't include realm_access.roles. A custom client
-  //   with directAccessGrantsEnabled: true and fullScopeAllowed: true does
-  //   include realm roles, but also injects all client IDs as audience values.
-  //   We add a realm_roles protocol mapper to include realm roles WITHOUT
-  //   fullScopeAllowed (avoiding the audience bloat).
-  process.stdout.write('[admin global-setup] Creating e2e-admin-api client…\n');
-  const createRes = await adminFetch(
-    adminToken, '/admin/realms/master/clients', 'POST', {
-      clientId: 'e2e-admin-api',
-      protocol: 'openid-connect',
-      publicClient: true,
-      standardFlowEnabled: false,
-      directAccessGrantsEnabled: true,
-      fullScopeAllowed: false,
-      redirectUris: [],
-      webOrigins: [],
-    },
-  );
-  if (!createRes.ok && createRes.status !== 409) {
-    process.stderr.write(
-      `[admin global-setup] Warning: could not create e2e-admin-api client: ${createRes.status}\n`
-    );
-  } else {
-    process.stdout.write('[admin global-setup] e2e-admin-api client ready.\n');
-  }
-
-  // Step 5: Add a realm roles protocol mapper to e2e-admin-api so tokens
-  //   include realm_access.roles (the super_admin role) without the bloated
-  //   audience that fullScopeAllowed: true causes.
-  //   Keycloak supports dotted claim names to create nested JSON structures,
-  //   so claim.name: 'realm_access.roles' produces the nested claim that the
-  //   auth middleware reads (payload['realm_access'].roles).
+  // Step 4: Enable directAccessGrants on Keycloak's built-in `account`
+  //   client in the master realm. The account client already has the proper
+  //   protocol mappers (including realm roles mapper via the "roles" default
+  //   client scope), so its tokens include realm_access.roles.
+  //   NOTE: We tried creating custom clients, but none produced tokens that
+  //   both pass JWT verification AND include super_admin in the role list.
+  //   The built-in account client has the right mappers out of the box.
+  process.stdout.write('[admin global-setup] Enabling directAccessGrants on account client…\n');
   try {
     const lookupRes = await adminFetch(
-      adminToken, '/admin/realms/master/clients?clientId=e2e-admin-api', 'GET'
+      adminToken, '/admin/realms/master/clients?clientId=account', 'GET'
     );
     if (lookupRes.ok) {
       const clients = (await lookupRes.json()) as Array<{ id: string }>;
-      const clientUuid = clients[0]?.id;
-      if (clientUuid !== undefined) {
-        const mapperRes = await adminFetch(
+      const accountUuid = clients[0]?.id;
+      if (accountUuid !== undefined) {
+        await adminFetch(
           adminToken,
-          `/admin/realms/master/clients/${clientUuid}/protocol-mappers/models`,
-          'POST',
-          {
-            name: 'realm roles',
-            protocol: 'openid-connect',
-            protocolMapper: 'oidc-realm-role-mapper',
-            config: {
-              'realm.role.prefix': '',
-              'multivalued': 'true',
-              'claim.name': 'realm_access.roles',
-              'jsonType.label': 'String',
-              'access.token.claim': 'true',
-              'id.token.claim': 'true',
-            },
-          },
+          `/admin/realms/master/clients/${accountUuid}`,
+          'PUT',
+          { directAccessGrantsEnabled: true },
         );
-        if (mapperRes.ok || mapperRes.status === 409) {
-          process.stdout.write('[admin global-setup] Realm roles mapper added.\n');
-        }
+        process.stdout.write('[admin global-setup] account client directAccessGrants enabled.\n');
       }
     }
   } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not add realm roles mapper: ${String(e)}\n`);
+    process.stderr.write(`[admin global-setup] Warning: could not configure account client: ${String(e)}\n`);
   }
 
-  // Step 6: Get a fresh API token via e2e-admin-api.
-  process.stdout.write('[admin global-setup] Obtaining fresh API token via e2e-admin-api…\n');
+  // Step 5: Get a fresh API token via the account client.
+  process.stdout.write('[admin global-setup] Obtaining fresh API token via account client…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'e2e-admin-api',
+      client_id: 'account',
       username: ADMIN_USER,
       password: ADMIN_PASSWORD,
     }).toString(),
