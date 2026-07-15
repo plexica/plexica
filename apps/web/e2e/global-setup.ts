@@ -25,7 +25,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
-import { ensureSuperAdminForUser, getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
+import { ensurePlexicaWebClientInMasterRealm, ensureSuperAdminForUser, getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
 import { provisionTenant, migrateTenantSchemas, seedPluginCatalog } from './tenant-provisioning-helpers.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -144,11 +144,15 @@ async function setup(): Promise<void> {
     realmRoles: ['tenant_admin'],
   });
 
-  // ── 3. Ensure super_admin role exists in the master realm ────────────────
-  // Required by DLQ E2E tests (ac-06) which obtain a super-admin token via
-  // the admin-cli client. The middleware (require-super-admin.ts) checks that
-  // the token carries the 'super_admin' role AND is from the master realm.
+  // ── 3. Set up master realm for super admin E2E tests ──────────────────────
+  // The DLQ test (ac-06) hits super-admin-only API endpoints. It needs a
+  // super admin token from the master realm with realm_access.roles including
+  // 'super_admin'. This requires:
+  //   (a) The 'plexica-web' client to exist in the master realm (it's created
+  //       by createRealm for tenant realms, but the master realm doesn't get it)
+  //   (b) The 'super_admin' role to exist and be assigned to the admin user
   const masterAdminUsername = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
+  await ensurePlexicaWebClientInMasterRealm(token);
   await ensureSuperAdminForUser(token, 'master', masterAdminUsername);
 
   process.stdout.write('[global-setup] E2E environment provisioning complete.\n');

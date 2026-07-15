@@ -19,7 +19,10 @@ const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'chang
 
 /**
  * Obtains a Keycloak access token for the master-realm admin user.
- * Uses the admin-cli client (always available in the master realm).
+ * Uses the plexica-web client (created in the master realm by global-setup)
+ * which includes realm_access.roles in the token. The admin-cli client
+ * does not include realm roles, so it cannot be used with the
+ * require-super-admin middleware.
  */
 async function getSuperAdminToken(): Promise<string> {
   const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
@@ -27,7 +30,7 @@ async function getSuperAdminToken(): Promise<string> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'admin-cli',
+      client_id: 'plexica-web',
       username: KEYCLOAK_ADMIN_USER,
       password: KEYCLOAK_ADMIN_PASSWORD,
     }).toString(),
