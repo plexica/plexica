@@ -208,7 +208,39 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Create `e2e-admin-api` client with fullScopeAllowed: true.
+  // Step 4: Ensure plexica-admin client is configured correctly.
+  //   The keycloak-init script in docker-compose creates this client from
+  //   admin-client-realm.json, but we hit it directly to be certain the
+  //   settings are correct (public + directAccessGrants + CORS origins).
+  process.stdout.write('[admin global-setup] Ensuring plexica-admin client config…\n');
+  try {
+    const lookupRes = await adminFetch(
+      adminToken, '/admin/realms/master/clients?clientId=plexica-admin', 'GET'
+    );
+    if (lookupRes.ok) {
+      const clients = (await lookupRes.json()) as Array<{ id: string }>;
+      const clientUuid = clients[0]?.id;
+      if (clientUuid !== undefined) {
+        await adminFetch(
+          adminToken,
+          `/admin/realms/master/clients/${clientUuid}`,
+          'PUT',
+          {
+            publicClient: true,
+            directAccessGrantsEnabled: true,
+            standardFlowEnabled: false,
+            webOrigins: ['http://localhost:3002'],
+            redirectUris: ['http://localhost:3002/*'],
+          },
+        );
+        process.stdout.write('[admin global-setup] plexica-admin client updated.\n');
+      }
+    }
+  } catch (e) {
+    process.stderr.write(`[admin global-setup] Warning: could not update plexica-admin: ${String(e)}\n`);
+  }
+
+  // Step 5: Create `e2e-admin-api` client with fullScopeAllowed: true.
   //   This is the ONLY configuration we found where the token includes
   //   realm_access.roles (including super_admin) for the Keycloak master
   //   realm. The fullScopeAllowed: true setting causes the token to carry
