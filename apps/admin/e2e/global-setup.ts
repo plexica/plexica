@@ -83,30 +83,6 @@ async function getKeycloakAdminToken(): Promise<string> {
   return data.access_token;
 }
 
-/**
- * Gets a role-bearing token via the `plexica-web` public client (which has
- * `directAccessGrantsEnabled: true`). Unlike `admin-cli`, this client returns
- * `realm_access.roles` in the JWT, including the `super_admin` role.
- * This token is used as the PLAYWRIGHT_ADMIN_API_TOKEN for admin API calls.
- */
-async function getPlexicaWebToken(): Promise<string> {
-  const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'plexica-web',
-      username: ADMIN_USER,
-      password: ADMIN_PASSWORD,
-    }).toString(),
-  });
-  if (!res.ok) {
-    throw new Error(`plexica-web token fetch failed: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
-}
-
 async function adminFetch(
   token: string,
   apiPath: string,
@@ -280,12 +256,23 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Get a role-bearing token via plexica-web client.
-  //   This token includes realm_access.roles: ["super_admin"] in its JWT,
-  //   which is required by the requireSuperAdmin middleware.
-  process.stdout.write('[admin global-setup] Obtaining role-bearing API token via plexica-web…\n');
-  const apiToken = await getPlexicaWebToken();
+  // Step 4: Get a fresh API token via admin-cli (the user now has the
+  //   super_admin realm-level role, so the JWT should include
+  //   realm_access.roles: ["super_admin"]).
+  process.stdout.write('[admin global-setup] Obtaining fresh API token…\n');
+  const apiToken = await getKeycloakAdminToken();
   process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = apiToken;
+
+  // DEBUG: decode the JWT to verify its contents.
+  try {
+    const parts = apiToken.split('.');
+    const payload = JSON.parse(Buffer.from(parts[1] ?? '', 'base64url').toString('utf8'));
+    process.stdout.write(
+      `[admin global-setup] DEBUG: token iss=${String(payload['iss'])} aud=${JSON.stringify(payload['aud'])} realm=${String(payload['iss'] ?? '').match(/\/realms\/([^/]+)$/)?.[1] ?? 'unknown'} roles=${JSON.stringify((payload['realm_access'] as { roles?: string[] } | undefined)?.roles ?? [])}\n`
+    );
+  } catch (e) {
+    process.stderr.write(`[admin global-setup] DEBUG: failed to decode JWT: ${String(e)}\n`);
+  }
 
   // Step 5: Provision the E2E tenant for test data.
   provisionE2eTenant();
