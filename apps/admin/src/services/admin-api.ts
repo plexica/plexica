@@ -12,6 +12,8 @@ import type {
   KafkaStatus,
   LogEntry,
   Plugin,
+  ProvisionResult,
+  TenantDetail,
   TenantListResponse,
 } from '../types/admin-types.js';
 
@@ -42,12 +44,12 @@ export function listTenants(params: ListTenantsParams = {}): Promise<TenantListR
   return apiClient.get<TenantListResponse>(`${ADMIN_PREFIX}/tenants${qs !== '' ? `?${qs}` : ''}`);
 }
 
-export function getTenant(id: string): Promise<unknown> {
-  return apiClient.get<unknown>(`${ADMIN_PREFIX}/tenants/${id}`);
+export function getTenant(id: string): Promise<TenantDetail> {
+  return apiClient.get<TenantDetail>(`${ADMIN_PREFIX}/tenants/${id}`);
 }
 
-export function provisionTenant(req: { slug: string; name: string; adminEmail: string }): Promise<unknown> {
-  return apiClient.post<unknown>(`${ADMIN_PREFIX}/tenants`, req);
+export function provisionTenant(req: { slug: string; name: string; adminEmail: string }): Promise<ProvisionResult> {
+  return apiClient.post<ProvisionResult>(`${ADMIN_PREFIX}/tenants`, req);
 }
 
 export function suspendTenant(id: string, version: number): Promise<unknown> {

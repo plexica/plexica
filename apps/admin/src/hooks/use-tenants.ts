@@ -1,11 +1,13 @@
-// use-tenants.ts — TanStack Query hook for the tenant list.
+// use-tenants.ts — TanStack Query hooks for tenant data + provisioning (S5-403).
 // Search input is debounced 300ms before triggering a refetch.
 
 import { useEffect, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { listTenants, type ListTenantsParams } from '../services/admin-api.js';
-import type { TenantListResponse } from '../types/admin-types.js';
+import { getTenant, listTenants, provisionTenant, type ListTenantsParams } from '../services/admin-api.js';
+import { ApiError } from '../services/api-client.js';
+
+import type { ProvisionResult, TenantConflictType, TenantDetail, TenantListResponse } from '../types/admin-types.js';
 
 export interface UseTenantListParams {
   search: string;
@@ -48,4 +50,63 @@ export function useTenantList(params: UseTenantListParams): UseTenantListResult 
   });
 
   return { data, isLoading, isFetching, isError };
+}
+
+export function useTenantDetail(id: string) {
+  return useQuery<TenantDetail>({
+    queryKey: ['admin', 'tenant', id] as const,
+    queryFn: () => getTenant(id),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export interface ProvisionTenantError {
+  conflictType: TenantConflictType | null;
+  message: string;
+}
+
+export interface UseProvisionTenantResult {
+  mutate: (input: { slug: string; name: string; adminEmail: string }) => void;
+  isPending: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  data: ProvisionResult | undefined;
+  error: ProvisionTenantError | null;
+  reset: () => void;
+}
+
+export function useProvisionTenant(): UseProvisionTenantResult {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation<
+    ProvisionResult,
+    ApiError,
+    { slug: string; name: string; adminEmail: string }
+  >({
+    mutationFn: (input) => provisionTenant(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] });
+    },
+  });
+
+  const error: ProvisionTenantError | null = mutation.isError && mutation.error instanceof ApiError
+    ? {
+        conflictType:
+          (mutation.error.conflictType as TenantConflictType | undefined) ?? null,
+        message: mutation.error.message,
+      }
+    : mutation.isError
+      ? { conflictType: null, message: (mutation.error as Error)?.message ?? 'Provisioning failed' }
+      : null;
+
+  return {
+    mutate: mutation.mutate,
+    isPending: mutation.isPending,
+    isSuccess: mutation.isSuccess,
+    isError: mutation.isError,
+    data: mutation.data,
+    error,
+    reset: mutation.reset,
+  };
 }

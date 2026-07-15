@@ -22,6 +22,48 @@ export interface TenantListResponse {
   pageSize: number;
 }
 
+// ── Tenant provisioning (S5-403 — mirrors ProvisioningResult backend type) ─
+
+export type TenantConflictType =
+  | 'tenant_slug_exists'
+  | 'schema_exists'
+  | 'realm_exists'
+  | 'bucket_exists';
+
+export interface ProvisionResult {
+  tenantId: string;
+  slug: string;
+  schemaName: string;
+  realmName: string;
+  minioBucket: string;
+  tempPassword: string;
+}
+
+// ── Tenant detail (mirrors tenant-detail.service.ts TenantDetailResponse) ──
+
+export interface TenantDetailPluginInstallation {
+  pluginSlug: string;
+  status: string;
+  installedAt: string;
+}
+
+export interface TenantDetail {
+  tenant: {
+    id: string;
+    slug: string;
+    name: string;
+    status: TenantStatus;
+    version: number;
+    createdAt: string;
+    updatedAt: string;
+    minioBucket: string | null;
+  };
+  userCount: number;
+  workspaceCount: number;
+  pluginInstallations: TenantDetailPluginInstallation[];
+  recentAudit: AuditEntry[];
+}
+
 // ── Health types (mirrors health-schemas.ts) ──────────────────────────────
 
 export type HealthStatusEnum = 'healthy' | 'degraded' | 'down';
@@ -66,14 +108,22 @@ export interface AuditLogResponse {
   pageSize: number;
 }
 
-// ── Dashboard metrics (S5-B00 — to be implemented) ────────────────────────
+// ── Dashboard metrics (S5-B00 — mirrors dashboard-schemas.ts) ────────────
+//
+// totalUsers and workspaceCount are cross-schema aggregates sourced from
+// Redis. They are nullable: null means the aggregator job has not populated
+// the keys yet — the UI must show "Unavailable", NOT 0 (MED-3 review fix).
 
 export interface DashboardMetrics {
   tenantCount: number;
   activeTenantCount: number;
+  suspendedTenantCount: number;
+  pendingDeletionCount: number;
   pluginCount: number;
-  installedPluginCount: number;
-  totalUsers: number;
+  activePluginCount: number;
+  totalUsers: number | null;
+  workspaceCount: number | null;
+  dlqDepth: number;
   healthStatus: HealthStatusEnum;
 }
 

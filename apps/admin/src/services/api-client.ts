@@ -28,6 +28,31 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+export interface ApiErrorBody {
+  code?: string;
+  message?: string;
+  conflictType?: string;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly conflictType: string | undefined;
+
+  constructor(status: number, body: ApiErrorBody) {
+    super(body.message ?? `Request failed: ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = body.code ?? 'UNKNOWN';
+    this.conflictType = body.conflictType;
+  }
+}
+
+async function readErrorBody(response: Response): Promise<ApiErrorBody> {
+  const body = (await response.json().catch(() => ({}))) as { error?: ApiErrorBody };
+  return body.error ?? {};
+}
+
 async function buildHeaders(
   extra?: Record<string, string>,
   hasBody = false
@@ -69,23 +94,15 @@ async function request<T>(method: string, path: string, options?: RequestOptions
       });
       if (!retryResponse.ok) {
         // Refresh succeeded but the API returned a non-401 error — not a session
-        // expiry. Throw a normal error so callers can handle the HTTP status.
-        const errBody = (await retryResponse.json().catch(() => ({}))) as {
-          error?: { message?: string };
-        };
-        throw new Error(
-          errBody.error?.message ?? `Request failed after token refresh: ${retryResponse.status}`
-        );
+        // expiry. Throw an ApiError so callers can inspect status/code.
+        throw new ApiError(retryResponse.status, await readErrorBody(retryResponse));
       }
       if (retryResponse.status === 204) {
         return undefined as T;
       }
       return retryResponse.json() as Promise<T>;
     } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message.startsWith('Request failed after token refresh')
-      ) {
+      if (err instanceof ApiError) {
         throw err;
       }
       store.setSessionExpired();
@@ -94,10 +111,7 @@ async function request<T>(method: string, path: string, options?: RequestOptions
   }
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => ({}))) as {
-      error?: { message?: string };
-    };
-    throw new Error(errorBody.error?.message ?? `Request failed: ${response.status}`);
+    throw new ApiError(response.status, await readErrorBody(response));
   }
 
   if (response.status === 204) {

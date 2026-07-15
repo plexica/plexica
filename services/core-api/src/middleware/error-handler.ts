@@ -9,7 +9,7 @@
 // applies to routes registered within that scope. Calling configureErrorHandler
 // on the root instance makes the handler apply to the entire application.
 
-import { AppError } from '../lib/app-error.js';
+import { AppError, TenantConflictError } from '../lib/app-error.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -45,7 +45,11 @@ export function configureErrorHandler(fastify: AnyFastifyInstance): void {
           'Application error'
         );
         return reply.status(error.statusCode).send({
-          error: { code: error.code, message: error.message },
+          error: {
+            code: error.code,
+            message: error.message,
+            ...(error instanceof TenantConflictError && { conflictType: error.conflictType }),
+          },
         });
       }
 
