@@ -38,6 +38,22 @@ export function requireKeycloakInCI(): void {
  * Returns void — the page is authenticated via sessionStorage after redirect.
  */
 export async function loginAsAdmin(page: Page): Promise<void> {
+  // Log Keycloak token requests for debugging CORS / connectivity issues.
+  await page.route('**/realms/**/token', async (route) => {
+    const response = await route.fetch();
+    process.stdout.write(
+      `[loginAsAdmin] Keycloak token response: ${String(response.status())} ${await response.text().catch(() => '')}\n`
+    );
+  });
+  // Log all keycloak admin API requests for debugging auth issues.
+  await page.route('**/api/v1/admin/**', async (route) => {
+    const response = await route.fetch();
+    const text = await response.text().catch(() => '');
+    process.stdout.write(
+      `[loginAsAdmin] Admin API ${route.request().method()} ${route.request().url()}: ${String(response.status())} ${text.slice(0, 200)}\n`
+    );
+  });
+
   await page.goto('/login');
   await page.fill('#username', SUPER_ADMIN_USERNAME);
   await page.fill('#password', SUPER_ADMIN_PASSWORD);
