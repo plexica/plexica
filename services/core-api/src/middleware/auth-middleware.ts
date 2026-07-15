@@ -139,7 +139,11 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
       invalidate(realm);
       try {
         request.user = await verifyToken(token, realm);
-      } catch {
+      } catch (retryErr) {
+        logger.error(
+          { realm, errName: (retryErr as Error).constructor?.name, errMsg: (retryErr as Error).message },
+          'JWT verification failed — retry also failed'
+        );
         throw new UnauthorizedError('Token verification failed');
       }
     } else {
