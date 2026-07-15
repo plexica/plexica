@@ -25,7 +25,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
-import { getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
+import { ensureSuperAdminForUser, getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
 import { provisionTenant, migrateTenantSchemas, seedPluginCatalog } from './tenant-provisioning-helpers.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -143,6 +143,13 @@ async function setup(): Promise<void> {
     password: 'PlexicaE2e!1',
     realmRoles: ['tenant_admin'],
   });
+
+  // ── 3. Ensure super_admin role exists in the master realm ────────────────
+  // Required by DLQ E2E tests (ac-06) which obtain a super-admin token via
+  // the admin-cli client. The middleware (require-super-admin.ts) checks that
+  // the token carries the 'super_admin' role AND is from the master realm.
+  const masterAdminUsername = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
+  await ensureSuperAdminForUser(token, 'master', masterAdminUsername);
 
   process.stdout.write('[global-setup] E2E environment provisioning complete.\n');
 }
