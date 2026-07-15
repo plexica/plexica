@@ -208,44 +208,37 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Enable directAccessGrants on the built-in `account` client.
-  //   The account client has proper protocol mappers (via default scopes)
-  //   and its tokens include realm_access.roles when the user has roles.
-  process.stdout.write('[admin global-setup] Enabling directAccessGrants on account client…\n');
+  // Step 4: Create `e2e-admin-api` client with fullScopeAllowed: true.
+  //   This is the ONLY configuration we found where the token includes
+  //   realm_access.roles (including super_admin) for the Keycloak master
+  //   realm. The fullScopeAllowed: true setting causes the token to carry
+  //   all realm roles. It also injects all realm client IDs as audience
+  //   values, but jose v6 does NOT validate audience when the audience
+  //   option is not provided (which is the case for master realm tokens).
+  process.stdout.write('[admin global-setup] Creating e2e-admin-api client with fullScopeAllowed: true\n');
   try {
-    const lookupRes = await adminFetch(
-      adminToken, '/admin/realms/master/clients?clientId=account', 'GET'
-    );
-    if (lookupRes.ok) {
-      const clients = (await lookupRes.json()) as Array<{ id: string }>;
-      const accountUuid = clients[0]?.id;
-      if (accountUuid !== undefined) {
-        await adminFetch(
-          adminToken,
-          `/admin/realms/master/clients/${accountUuid}`,
-          'PUT',
-          { directAccessGrantsEnabled: true },
-        );
-        process.stdout.write('[admin global-setup] account client directAccessGrants enabled.\n');
-      }
-    }
-  } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not configure account client: ${String(e)}\n`);
+    await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
+      clientId: 'e2e-admin-api',
+      protocol: 'openid-connect',
+      publicClient: true,
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: true,
+      fullScopeAllowed: true,
+      redirectUris: [],
+      webOrigins: [],
+    });
+  } catch {
+    // 409 is OK — client already exists
   }
 
-  // Step 5: Get a fresh API token via the account client.
-  //   NOTE: We tried admin-cli tokens (no realm_access.roles), custom clients
-  //   with fullScopeAllowed: true (roles present but JWT verification fails
-  //   due to audience bloat in jose v6), and custom clients without
-  //   fullScopeAllowed (no roles). The built-in account client with
-  //   directAccessGrants enabled should include roles via its default scopes.
-  process.stdout.write('[admin global-setup] Obtaining fresh API token via account client…\n');
+  // Step 5: Get a fresh API token via e2e-admin-api client.
+  process.stdout.write('[admin global-setup] Obtaining fresh API token via e2e-admin-api…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'account',
+      client_id: 'e2e-admin-api',
       username: ADMIN_USER,
       password: ADMIN_PASSWORD,
     }).toString(),
