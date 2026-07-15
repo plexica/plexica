@@ -11,6 +11,13 @@
 // typed so setup/cleanup code in afterAll can read tenantId/version/slugs
 // without casting. Every method throws on non-2xx so failures surface fast.
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TOKEN_FILE = path.resolve(__dirname, '../e2e-auth-token.json');
+
 const CORE_API_BASE = process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
 const ADMIN_API_BASE = `${CORE_API_BASE}/api/v1/admin`;
 
@@ -140,7 +147,16 @@ export interface AdminApiClient {
  * If no token is provided, falls back to the one provisioned by global-setup.
  */
 export function adminApi(token?: string): AdminApiClient {
-  const bearer = token ?? process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] ?? '';
+  // Fallback chain: explicit token → process.env → file (from global-setup).
+  let bearer = token ?? process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] ?? '';
+  if (bearer.length === 0) {
+    try {
+      const data = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8')) as { token: string };
+      bearer = data.token;
+    } catch {
+      /* file not found or invalid */
+    }
+  }
   if (bearer.length === 0) {
     throw new Error(
       'adminApi: no bearer token available — pass one or set PLAYWRIGHT_ADMIN_API_TOKEN.'

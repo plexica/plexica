@@ -5,23 +5,20 @@
 // Responsibilities:
 //   1. Wait for Keycloak readiness (master realm endpoint).
 //   2. Call Keycloak admin REST API to ensure:
-//      a. The `e2e-admin-api` dedicated public client exists in the master realm
-//         (directAccessGrantsEnabled + fullScopeAllowed for role-bearing tokens).
-//      b. The `super_admin` realm-level role exists in the master realm.
-//      c. The admin user is assigned the `super_admin` role.
-//   3. Obtain a token via `e2e-admin-api` client (includes realm_access.roles
-//      with `super_admin`). Store it as PLAYWRIGHT_ADMIN_API_TOKEN.
-//   4. Also ensure `plexica-web` client exists (for the web E2E suite that
-//      runs before admin tests in the same CI job).
-//   5. Provision a dedicated E2E tenant via the core-api CLI.
+//      a. The admin user is assigned the `super_admin` realm-level role.
+//      b. The `plexica-web` OIDC public client exists in the master realm.
+//      c. The built-in `account` client has directAccessGrantsEnabled.
+//   3. Obtain a token via the `account` client (which includes
+//      realm_access.roles because it has the "roles" default client scope).
+//      Store it as PLAYWRIGHT_ADMIN_API_TOKEN for test workers.
+//   4. Provision a dedicated E2E tenant via the core-api CLI.
 //
-// NOTE: We use a dedicated `e2e-admin-api` client (not `admin-cli`) because
-// `admin-cli` does not include `realm_access.roles` in its tokens even when
-// users have realm roles assigned (a Keycloak built-in behavior). Custom
-// public clients with directAccessGrantsEnabled + fullScopeAllowed include
-// realm roles through Keycloak's default "roles" client scope mappers.
+// NOTE: process.env mutations from globalSetup DO propagate to Playwright
+// test workers, but we use a file-based fallback (e2e-auth-token.json) for
+// robustness across process boundaries.
 
 import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
@@ -34,6 +31,9 @@ const ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
 const TENANT_SLUG = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG'] ?? 'e2e-admin';
 const TENANT_NAME = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_NAME'] ?? 'E2E Admin';
 const TENANT_EMAIL = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL'] ?? 'admin@e2e-admin.local';
+
+// File path for token sharing across processes.
+const TOKEN_FILE = path.resolve(__dirname, 'e2e-auth-token.json');
 
 // Absolute path to the core-api source root (monorepo layout).
 const CORE_API_DIR = path.resolve(__dirname, '../../../services/core-api');
@@ -58,12 +58,6 @@ async function waitForKeycloak(retries = 30, delayMs = 2000): Promise<void> {
   throw new Error(`Keycloak at ${KEYCLOAK_URL} not ready after ${retries} retries`);
 }
 
-/**
- * Gets a Keycloak admin token via the built-in `admin-cli` client.
- * This token is used ONLY for Keycloak admin REST API calls (creating clients,
- * roles, assigning roles). It is NOT used as a bearer token for core-api
- * admin endpoints because `admin-cli` tokens lack `realm_access.roles`.
- */
 async function getKeycloakAdminToken(): Promise<string> {
   const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
@@ -100,8 +94,6 @@ async function adminFetch(
 
 /**
  * Ensures the `plexica-web` OIDC public client exists in the master realm.
- * This client must have `directAccessGrantsEnabled: true` so that password
- * grant tokens include `realm_access.roles`. Idempotent: 409 is success.
  */
 async function ensurePlexicaWebClient(token: string): Promise<void> {
   const res = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
@@ -123,18 +115,13 @@ async function ensurePlexicaWebClient(token: string): Promise<void> {
 }
 
 /**
- * Creates the `super_admin` realm-level role in the given realm (idempotent)
- * and assigns it to the specified user. The requireSuperAdmin middleware
- * checks `user.roles.includes('super_admin')`, which reads from the JWT's
- * `realm_access.roles` claim. This only works if the user has a realm-level
- * role, not a client-level role.
+ * Creates the `super_admin` realm-level role and assigns it to the user.
  */
 async function ensureSuperAdminForUser(
   adminToken: string,
   realm: string,
   username: string,
 ): Promise<void> {
-  // 1. Create the super_admin realm role if it doesn't exist.
   const createRoleRes = await adminFetch(
     adminToken,
     `/admin/realms/${realm}/roles`,
@@ -142,46 +129,28 @@ async function ensureSuperAdminForUser(
     { name: 'super_admin', description: 'Super administrator — full platform access' },
   );
   if (!createRoleRes.ok && createRoleRes.status !== 409) {
-    process.stderr.write(
-      `[admin global-setup] Warning: could not create super_admin role in ${realm}: ${createRoleRes.status}\n`
-    );
+    process.stderr.write(`Warning: could not create super_admin role in ${realm}: ${createRoleRes.status}\n`);
     return;
   }
 
-  // 2. Find the user.
   const lookupRes = await adminFetch(
     adminToken,
     `/admin/realms/${realm}/users?username=${encodeURIComponent(username)}&exact=true`,
     'GET',
   );
-  if (!lookupRes.ok) {
-    process.stderr.write(
-      `[admin global-setup] Warning: could not look up user ${username} in ${realm}: ${lookupRes.status}\n`
-    );
-    return;
-  }
+  if (!lookupRes.ok) return;
   const users = (await lookupRes.json()) as Array<{ id: string }>;
   const userId = users[0]?.id;
-  if (userId === undefined) {
-    process.stderr.write(`[admin global-setup] Warning: user ${username} not found in ${realm}\n`);
-    return;
-  }
+  if (userId === undefined) return;
 
-  // 3. Resolve the role representation for the role-mapping POST.
   const roleRes = await adminFetch(
     adminToken,
     `/admin/realms/${realm}/roles/super_admin`,
     'GET',
   );
-  if (!roleRes.ok) {
-    process.stderr.write(
-      `[admin global-setup] Warning: super_admin role not found after creation: ${roleRes.status}\n`
-    );
-    return;
-  }
+  if (!roleRes.ok) return;
   const role = (await roleRes.json()) as { id: string; name: string };
 
-  // 4. Assign the super_admin role to the user (idempotent).
   const mapRes = await adminFetch(
     adminToken,
     `/admin/realms/${realm}/users/${userId}/role-mappings/realm`,
@@ -189,26 +158,14 @@ async function ensureSuperAdminForUser(
     [{ id: role.id, name: role.name }],
   );
   if (mapRes.ok || mapRes.status === 204) {
-    process.stdout.write(
-      `[admin global-setup] super_admin role assigned to ${username} in ${realm}.\n`
-    );
-  } else {
-    process.stderr.write(
-      `[admin global-setup] Warning: could not assign super_admin to ${username}: ${mapRes.status}\n`
-    );
+    process.stdout.write(`[admin global-setup] super_admin role assigned to ${username} in ${realm}.\n`);
   }
 }
 
 // ---- Tenant provisioning ---------------------------------------------------
 
-/**
- * Provisions the E2E tenant via the core-api CLI. Idempotent — 409 / unique
- * constraint violations are treated as success so re-runs are safe.
- */
 function provisionE2eTenant(): void {
-  process.stdout.write(
-    `[admin global-setup] Provisioning E2E tenant (slug: ${TENANT_SLUG})…\n`
-  );
+  process.stdout.write(`[admin global-setup] Provisioning E2E tenant (slug: ${TENANT_SLUG})…\n`);
   const result = spawnSync(
     TSX_BIN,
     ['src/cli/create-tenant.ts', '--slug', TENANT_SLUG, '--name', TENANT_NAME, '--admin-email', TENANT_EMAIL],
@@ -224,11 +181,8 @@ function provisionE2eTenant(): void {
     return;
   }
   if (
-    stderr.includes('already exists') ||
-    stderr.includes('P2002') ||
-    stderr.includes('unique constraint') ||
-    stdout.includes('already exists') ||
-    stdout.includes('P2002')
+    stderr.includes('already exists') || stderr.includes('P2002') ||
+    stderr.includes('unique constraint') || stdout.includes('already exists') || stdout.includes('P2002')
   ) {
     process.stdout.write(`[admin global-setup] Tenant ${TENANT_SLUG} already exists — skipping.\n`);
     return;
@@ -242,10 +196,9 @@ function provisionE2eTenant(): void {
 
 async function setup(): Promise<void> {
   process.stdout.write('[admin global-setup] Starting admin E2E provisioning…\n');
-
   await waitForKeycloak();
 
-  // Step 1: Get a Keycloak admin token (via admin-cli) for Keycloak admin API calls.
+  // Step 1: Get a Keycloak admin token (via admin-cli) for admin API calls.
   process.stdout.write('[admin global-setup] Obtaining Keycloak admin token…\n');
   const adminToken = await getKeycloakAdminToken();
 
@@ -255,13 +208,9 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Enable directAccessGrants on Keycloak's built-in `account`
-  //   client in the master realm. The account client already has the proper
-  //   protocol mappers (including realm roles mapper via the "roles" default
-  //   client scope), so its tokens include realm_access.roles.
-  //   NOTE: We tried creating custom clients, but none produced tokens that
-  //   both pass JWT verification AND include super_admin in the role list.
-  //   The built-in account client has the right mappers out of the box.
+  // Step 4: Enable directAccessGrants on the built-in `account` client.
+  //   The account client has proper protocol mappers (via default scopes)
+  //   and its tokens include realm_access.roles when the user has roles.
   process.stdout.write('[admin global-setup] Enabling directAccessGrants on account client…\n');
   try {
     const lookupRes = await adminFetch(
@@ -285,6 +234,11 @@ async function setup(): Promise<void> {
   }
 
   // Step 5: Get a fresh API token via the account client.
+  //   NOTE: We tried admin-cli tokens (no realm_access.roles), custom clients
+  //   with fullScopeAllowed: true (roles present but JWT verification fails
+  //   due to audience bloat in jose v6), and custom clients without
+  //   fullScopeAllowed (no roles). The built-in account client with
+  //   directAccessGrants enabled should include roles via its default scopes.
   process.stdout.write('[admin global-setup] Obtaining fresh API token via account client…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
@@ -301,9 +255,13 @@ async function setup(): Promise<void> {
   }
   const apiData = (await apiRes.json()) as { access_token: string };
   const apiToken = apiData.access_token;
-  process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = apiToken;
 
-  // DEBUG: decode the JWT to verify its contents.
+  // Set token for test workers via process.env AND persist to file.
+  process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = apiToken;
+  fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token: apiToken }), 'utf8');
+  process.stdout.write(`[admin global-setup] Token persisted to ${TOKEN_FILE}\n`);
+
+  // DEBUG: decode and log the JWT payload.
   try {
     const parts = apiToken.split('.');
     const payload = JSON.parse(Buffer.from(parts[1] ?? '', 'base64url').toString('utf8'));
@@ -314,9 +272,8 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] DEBUG: failed to decode JWT: ${String(e)}\n`);
   }
 
-  // Step 7: Provision the E2E tenant for test data.
+  // Step 6: Provision the E2E tenant for test data.
   provisionE2eTenant();
-
   process.stdout.write('[admin global-setup] Admin E2E provisioning complete.\n');
 }
 
