@@ -5,22 +5,21 @@
 // Responsibilities:
 //   1. Wait for Keycloak readiness (master realm endpoint).
 //   2. Call Keycloak admin REST API to ensure:
-//      a. The `plexica-web` OIDC public client exists in the master realm
-//         (directAccessGrantsEnabled: true so password grant returns roles).
+//      a. The `e2e-admin-api` dedicated public client exists in the master realm
+//         (directAccessGrantsEnabled + fullScopeAllowed for role-bearing tokens).
 //      b. The `super_admin` realm-level role exists in the master realm.
 //      c. The admin user is assigned the `super_admin` role.
-//   3. Obtain a token via `plexica-web` client (which includes realm_access.roles
-//      with `super_admin`). Store it as PLAYWRIGHT_ADMIN_API_TOKEN for test
-//      workers (and api-client.ts).
-//   4. Provision a dedicated E2E tenant via the core-api CLI so admin
-//      tenant-lifecycle / list / detail tests have stable data. Idempotent.
+//   3. Obtain a token via `e2e-admin-api` client (includes realm_access.roles
+//      with `super_admin`). Store it as PLAYWRIGHT_ADMIN_API_TOKEN.
+//   4. Also ensure `plexica-web` client exists (for the web E2E suite that
+//      runs before admin tests in the same CI job).
+//   5. Provision a dedicated E2E tenant via the core-api CLI.
 //
-// NOTE: We use `plexica-web` (not `admin-cli`) for the API bearer token because
-// `admin-cli` does not include `realm_access.roles` in its tokens. The
-// requireSuperAdmin middleware checks `user.roles.includes('super_admin')`, so
-// we need a token whose JWT contains `realm_access.roles: ["super_admin"]`.
-// `plexica-web` is a public client with directAccessGrantsEnabled: true, which
-// returns full realm role information.
+// NOTE: We use a dedicated `e2e-admin-api` client (not `admin-cli`) because
+// `admin-cli` does not include `realm_access.roles` in its tokens even when
+// users have realm roles assigned (a Keycloak built-in behavior). Custom
+// public clients with directAccessGrantsEnabled + fullScopeAllowed include
+// realm roles through Keycloak's default "roles" client scope mappers.
 
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
@@ -256,37 +255,52 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Configure admin-cli client to include realm roles in tokens.
-  //   admin-cli (Keycloak built-in) does NOT include realm_access.roles by
-  //   default. Enable fullScopeAllowed so tokens carry realm-level roles.
-  process.stdout.write('[admin global-setup] Enabling realm roles in admin-cli client…\n');
-  try {
-    const clientsRes = await adminFetch(
-      adminToken, '/admin/realms/master/clients?clientId=admin-cli', 'GET'
+  // Step 4: Create (or skip) a dedicated `e2e-admin-api` client in master realm.
+  //   We cannot use `admin-cli` tokens because they don't include
+  //   `realm_access.roles` (even with fullScopeAllowed: true). A custom public
+  //   client with directAccessGrantsEnabled: true includes realm roles by
+  //   default through Keycloak's "roles" client scope protocol mappers.
+  process.stdout.write('[admin global-setup] Creating e2e-admin-api client…\n');
+  const createRes = await adminFetch(
+    adminToken, '/admin/realms/master/clients', 'POST', {
+      clientId: 'e2e-admin-api',
+      protocol: 'openid-connect',
+      publicClient: true,
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: true,
+      fullScopeAllowed: true,
+      redirectUris: [],
+      webOrigins: [],
+    },
+  );
+  if (createRes.ok || createRes.status === 409) {
+    process.stdout.write('[admin global-setup] e2e-admin-api client ready.\n');
+  } else {
+    process.stderr.write(
+      `[admin global-setup] Warning: could not create e2e-admin-api client: ${createRes.status}\n`
     );
-    if (clientsRes.ok) {
-      const clients = (await clientsRes.json()) as Array<{ id: string }>;
-      const adminCliUuid = clients[0]?.id;
-      if (adminCliUuid !== undefined) {
-        await adminFetch(
-          adminToken,
-          `/admin/realms/master/clients/${adminCliUuid}`,
-          'PUT',
-          { fullScopeAllowed: true }
-        );
-        process.stdout.write('[admin global-setup] admin-cli fullScopeAllowed set to true.\n');
-      }
-    }
-  } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not configure admin-cli: ${String(e)}\n`);
   }
 
-  // Step 5: Get a fresh API token via admin-cli (the user now has the
-  //   super_admin realm-level role, and admin-cli is configured to include
-  //   realm roles in tokens, so the JWT should contain
-  //   realm_access.roles: ["super_admin"]).
-  process.stdout.write('[admin global-setup] Obtaining fresh API token…\n');
-  const apiToken = await getKeycloakAdminToken();
+  // Step 5: Get a fresh API token via e2e-admin-api client.
+  //   This token should include realm_access.roles: ["super_admin"] because
+  //   it's a public client with directAccessGrantsEnabled: true and
+  //   fullScopeAllowed: true.
+  process.stdout.write('[admin global-setup] Obtaining fresh API token via e2e-admin-api…\n');
+  const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'e2e-admin-api',
+      username: ADMIN_USER,
+      password: ADMIN_PASSWORD,
+    }).toString(),
+  });
+  if (!apiRes.ok) {
+    throw new Error(`API token fetch failed: ${apiRes.status} ${await apiRes.text()}`);
+  }
+  const apiData = (await apiRes.json()) as { access_token: string };
+  const apiToken = apiData.access_token;
   process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = apiToken;
 
   // DEBUG: decode the JWT to verify its contents.
