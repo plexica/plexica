@@ -108,11 +108,6 @@ export default defineConfig({
       timeout: 30_000,
       env: {
         PLAYWRIGHT_KEYCLOAK_URL: keycloakUrl,
-        // VITE_KEYCLOAK_URL: empty string = same-origin requests proxied
-        // through the Vite dev server (avoids CORS from localhost:3002 to
-        // localhost:8080 on the Keycloak token endpoint, which does not
-        // set CORS headers).
-        VITE_KEYCLOAK_URL: '',
       },
     },
   ],

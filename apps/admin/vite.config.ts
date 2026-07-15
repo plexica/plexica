@@ -15,10 +15,6 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
-      '/realms': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
     },
   },
   preview: {
