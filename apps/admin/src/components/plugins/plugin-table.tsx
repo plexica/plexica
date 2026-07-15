@@ -1,7 +1,6 @@
 // plugin-table.tsx — Plugin catalog table + loading skeleton (S5-803).
 
 import { FormattedMessage } from 'react-intl';
-
 import {
   Table,
   TableBody,
@@ -11,8 +10,9 @@ import {
   TableRow,
 } from '@plexica/ui';
 
-import type { Plugin } from '../../types/admin-types.js';
 import { PluginStatusBadge, ReviewStatusBadge } from './plugin-status-badge.js';
+
+import type { Plugin } from '../../types/admin-types.js';
 
 interface PluginTableProps {
   plugins: Plugin[];

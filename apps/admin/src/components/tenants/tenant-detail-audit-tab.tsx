@@ -2,10 +2,10 @@
 // Fetches the platform audit log filtered by tenantId via useAuditLog hook.
 
 import { FormattedMessage, useIntl } from 'react-intl';
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
 
 import { useAuditLog } from '../../hooks/use-audit-log.js';
+
 import type { AuditAction, AuditEntry } from '../../types/admin-types.js';
 
 interface TenantDetailAuditTabProps {

@@ -3,8 +3,8 @@
 
 import { FormattedMessage } from 'react-intl';
 import { Users, Workflow } from 'lucide-react';
-import type { ReactNode } from 'react';
 
+import type { ReactNode } from 'react';
 import type { TenantDetail } from '../../types/admin-types.js';
 
 interface TenantDetailUsersTabProps {

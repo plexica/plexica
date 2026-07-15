@@ -3,7 +3,6 @@
 
 import { FormattedMessage } from 'react-intl';
 import { AlertTriangle, CheckCircle, Pause, XCircle, type LucideIcon } from 'lucide-react';
-
 import { cn } from '@plexica/ui';
 
 import type { TenantStatus } from '../../types/admin-types.js';

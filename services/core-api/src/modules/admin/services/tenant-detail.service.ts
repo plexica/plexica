@@ -11,11 +11,13 @@
 // tables (user_profile, workspaces, plugin_installations) are read via
 // $queryRawUnsafe with a validated, non-user-controlled schema identifier.
 
-import type { PrismaClient, Prisma } from '@prisma/client';
 
 import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 import { NotFoundError } from '../../../lib/app-error.js';
+
 import { queryAuditLog } from './audit-log.service.js';
+
+import type { PrismaClient, Prisma } from '@prisma/client';
 import type { AuditEntry } from '../schemas/audit-schemas.js';
 
 // Schema names produced by toSchemaName() are `tenant_<slug-with-underscores>`.
@@ -33,8 +35,6 @@ const TENANT_SELECT = {
   updatedAt: true,
   minioBucket: true,
 } as const satisfies Prisma.TenantSelect;
-
-type TenantRow = Prisma.TenantGetPayload<{ select: typeof TENANT_SELECT }>;
 
 export interface TenantDetailPluginInstallation {
   pluginSlug: string;

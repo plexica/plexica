@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { healthRoutes } from '../../modules/admin/routes/health.routes.js';
-
 import { createTestServer, makeFullStub, isDbReachable } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';

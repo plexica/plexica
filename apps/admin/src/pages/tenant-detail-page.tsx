@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { ChevronLeft } from 'lucide-react';
-
 import { Tabs } from '@plexica/ui';
 
 import { TenantDetailActions } from '../components/tenants/tenant-detail-actions.js';

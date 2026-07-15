@@ -12,7 +12,6 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-
 import { cn } from '@plexica/ui';
 
 import type { PluginStatus, ReviewStatus } from '../../types/admin-types.js';

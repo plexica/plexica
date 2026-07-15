@@ -5,8 +5,9 @@
 // DLQ counts come from core.dead_letter_queue grouped by plugin_id (ADR-016).
 // Warnings surface threshold breaches so the admin UI can flag them visually.
 
-import type { PrismaClient } from '@prisma/client';
 import { getLagMetrics } from '../../plugin/events/lag-metrics.service.js';
+
+import type { PrismaClient } from '@prisma/client';
 import type {
   ConsumerLag,
   DlqSize,

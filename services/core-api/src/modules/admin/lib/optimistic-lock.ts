@@ -11,9 +11,10 @@
 //   4. If 1 row affected → run the caller's mutation inside the same tx.
 //   5. Return { result, newVersion: expectedVersion + 1 }.
 
+import { ConflictError } from '../../../lib/app-error.js';
+
 import type { PrismaClient, Prisma } from '@prisma/client';
 
-import { ConflictError } from '../../../lib/app-error.js';
 
 export interface OptimisticLockResult<T> {
   result: T;

@@ -11,7 +11,6 @@ import { deleteRealm } from '../../lib/keycloak-admin.js';
 import { toSchemaName } from '../../lib/tenant-schema-helpers.js';
 import { provisionTenant } from '../../modules/tenant/tenant-provisioning.js';
 import { tenantSuspendRoutes } from '../../modules/admin/routes/tenant-suspend.routes.js';
-
 import {
   createTestServer,
   isDbReachable,

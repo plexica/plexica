@@ -2,10 +2,10 @@
 // Renders tenant metadata in a definition list (<dl>) with a status badge.
 
 import { FormattedMessage } from 'react-intl';
-import type { ReactNode } from 'react';
 
 import { TenantStatusBadge } from './tenant-status-badge.js';
 
+import type { ReactNode } from 'react';
 import type { TenantDetail } from '../../types/admin-types.js';
 
 interface TenantDetailInfoTabProps {

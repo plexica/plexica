@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '../../lib/database.js';
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { tenantListRoutes } from '../../modules/admin/routes/tenant-list.routes.js';
-
 import { createTestServer, makeFullStub, isDbReachable } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -25,7 +24,6 @@ const ADMIN_PREFIX = '/api/v1/admin';
 const SLUG_PREFIX = 'test-adm-tl';
 
 let server: FastifyInstance;
-let seededIds: string[] = [];
 
 beforeAll(async () => {
   const dbReachable = await isDbReachable();
@@ -36,7 +34,7 @@ beforeAll(async () => {
   }
 
   // Seed 3 tenants with distinct names/slugs/statuses.
-  const created = await Promise.all([
+  await Promise.all([
     prisma.tenant.create({
       data: { slug: `${SLUG_PREFIX}-alpha`, name: 'Admin List Alpha', status: 'active' },
     }),
@@ -47,7 +45,6 @@ beforeAll(async () => {
       data: { slug: `${SLUG_PREFIX}-gamma`, name: 'Admin List Gamma', status: 'active' },
     }),
   ]);
-  seededIds = created.map((t) => t.id);
 
   server = await createTestServer();
   server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));

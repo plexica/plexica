@@ -4,12 +4,12 @@
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Loader2, RefreshCw } from 'lucide-react';
-
 import { Select } from '@plexica/ui';
 
 import { PluginReviewDialog } from '../components/plugins/plugin-review-dialog.js';
 import { PluginTable, PluginTableSkeleton } from '../components/plugins/plugin-table.js';
 import { usePluginList, useReviewPlugin } from '../hooks/use-plugins.js';
+
 import type { Plugin, ReviewStatus } from '../types/admin-types.js';
 
 const REVIEW_FILTERS = [

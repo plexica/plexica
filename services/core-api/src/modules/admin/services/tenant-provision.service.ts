@@ -6,15 +6,17 @@
 // The actual schema/realm/bucket/seed orchestration is REUSED from
 // tenant-provisioning.ts — this module only wraps it with checks + audit.
 
-import type { PrismaClient } from '@prisma/client';
 
 import { provisionTenant, type ProvisioningResult } from '../../tenant/tenant-provisioning.js';
-import { writeAuditEntry } from './audit-log.service.js';
 import { TenantConflictError, type TenantConflictType } from '../../../lib/app-error.js';
 import { toSchemaName, toRealmName } from '../../../lib/tenant-schema-helpers.js';
 import { realmExists } from '../../../lib/keycloak-admin.js';
 import { bucketExists } from '../../../lib/minio-client.js';
 import { logger } from '../../../lib/logger.js';
+
+import { writeAuditEntry } from './audit-log.service.js';
+
+import type { PrismaClient } from '@prisma/client';
 
 export interface ProvisionWithAuditParams {
   slug: string;

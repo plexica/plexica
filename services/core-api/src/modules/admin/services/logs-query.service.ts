@@ -12,9 +12,10 @@
 // (W-6 fix). A timeout surfaces as 503 LOG_QUERY_TIMEOUT so the admin UI can
 // distinguish "Loki down" from "Loki slow".
 
-import type { PrismaClient } from '@prisma/client';
 import { config } from '../../../lib/config.js';
 import { ServiceUnavailableError } from '../../../lib/app-error.js';
+
+import type { PrismaClient } from '@prisma/client';
 import type { LogEntry } from '../schemas/logs-schemas.js';
 
 const LOKI_TIMEOUT_MS = 5_000;

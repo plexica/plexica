@@ -4,10 +4,8 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { prisma } from '../../lib/database.js';
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { tenantDetailRoutes } from '../../modules/admin/routes/tenant-detail.routes.js';
-
 import { createTestServer, makeFullStub, isDbReachable } from '../helpers/server.helpers.js';
 import {
   seedTenant,

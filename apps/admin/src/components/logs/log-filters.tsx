@@ -5,7 +5,6 @@
 
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Search } from 'lucide-react';
-
 import { Button, Input, Select } from '@plexica/ui';
 
 export type LogLevelFilter = 'all' | 'debug' | 'info' | 'warn' | 'error';

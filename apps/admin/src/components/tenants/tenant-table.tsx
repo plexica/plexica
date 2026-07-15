@@ -1,7 +1,6 @@
 // tenant-table.tsx — Tenant list table + loading skeleton (S5-203).
 
 import { FormattedMessage } from 'react-intl';
-
 import {
   Table,
   TableBody,
@@ -11,8 +10,9 @@ import {
   TableRow,
 } from '@plexica/ui';
 
-import type { TenantListItem, TenantStatus } from '../../types/admin-types.js';
 import { TenantStatusBadge } from './tenant-status-badge.js';
+
+import type { TenantListItem, TenantStatus } from '../../types/admin-types.js';
 
 interface TenantTableProps {
   tenants: TenantListItem[];

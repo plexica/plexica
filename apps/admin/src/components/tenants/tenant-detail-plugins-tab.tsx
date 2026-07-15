@@ -3,7 +3,6 @@
 
 import { FormattedMessage } from 'react-intl';
 import { Puzzle } from 'lucide-react';
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
 
 import type { TenantDetail, TenantDetailPluginInstallation } from '../../types/admin-types.js';

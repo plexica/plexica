@@ -1,14 +1,9 @@
 // deletion-saga.service.ts
 // Forward-only GDPR deletion saga orchestrator (S5-700 / ADR-022 Decision 1).
-// startDeletionSaga: optimistic-locks tenant into pending_deletion, creates the
-// 3 saga step rows, writes an audit entry, and launches the background executor
-// via setImmediate — the HTTP 202 response is returned immediately.
-// runSagaSteps: processes steps sequentially (schema_drop → realm_delete →
-// bucket_delete) with retry + backoff (see deletion-step-executor.ts). When all
-// 3 are done, the tenant is marked deleted and an audit entry is written.
+// startDeletionSaga: optimistic-locks tenant → pending_deletion, creates 3 saga
+// step rows, writes audit entry, launches background executor via setImmediate.
+// runSagaSteps: sequential schema_drop → realm_delete → bucket_delete with retry.
 // Forward-only: no auto-rollback — failed steps stay failed for manual retry.
-
-import type { PrismaClient, TenantDeletionStep } from '@prisma/client';
 
 import { logger } from '../../../lib/logger.js';
 import {
@@ -16,12 +11,15 @@ import {
   ValidationError,
   VersionConflictError,
 } from '../../../lib/app-error.js';
+
 import { writeAuditEntry } from './audit-log.service.js';
 import {
   STEP_ORDER,
   executeStepWithRetry,
   type DeletionStepName,
 } from './deletion-step-executor.js';
+
+import type { PrismaClient, TenantDeletionStep } from '@prisma/client';
 
 const STARTABLE_STATUSES = new Set(['active', 'suspended']);
 const STUCK_STEP_TIMEOUT_MS = 5 * 60 * 1000;

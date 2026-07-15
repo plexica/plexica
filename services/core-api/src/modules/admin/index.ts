@@ -17,6 +17,7 @@
 // explicitly — keeping the security boundary visible at the route level.
 
 import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
+
 import { dashboardRoutes } from './routes/dashboard.routes.js';
 import { tenantListRoutes } from './routes/tenant-list.routes.js';
 import { tenantDetailRoutes } from './routes/tenant-detail.routes.js';

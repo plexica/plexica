@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { FormattedMessage, useIntl } from 'react-intl';
-
 import {
   Button,
   DialogContent,

@@ -13,15 +13,17 @@
 //
 // Security §6: metadata carries structural data only — no PII.
 
-import type { PrismaClient, Prisma } from '@prisma/client';
 
 import { withOptimisticLock } from '../lib/optimistic-lock.js';
-import { writeAuditEntry } from './audit-log.service.js';
 import { ConflictError } from '../../../lib/app-error.js';
 import { setRealmEnabled } from '../../../lib/keycloak-admin-realm.js';
 import { toRealmName } from '../../../lib/tenant-schema-helpers.js';
 import { clearTenantCache } from '../../../middleware/tenant-context.js';
 import { logger } from '../../../lib/logger.js';
+
+import { writeAuditEntry } from './audit-log.service.js';
+
+import type { PrismaClient, Prisma } from '@prisma/client';
 
 export interface TenantStatusChangeResult {
   id: string;

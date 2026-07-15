@@ -5,7 +5,6 @@
 
 import { FormattedMessage } from 'react-intl';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
 
 import type { KafkaConsumerLag } from '../../types/admin-types.js';

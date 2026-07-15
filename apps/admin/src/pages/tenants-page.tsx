@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Loader2 } from 'lucide-react';
-
 import { Input, Pagination, Select } from '@plexica/ui';
 
 import { TenantTable, TenantTableSkeleton } from '../components/tenants/tenant-table.js';

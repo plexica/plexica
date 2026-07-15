@@ -4,10 +4,11 @@
 // once dropped, the data is gone (GDPR erasure). Throws on failure so the
 // saga executor records the error and retries with backoff.
 
-import type { PrismaClient } from '@prisma/client';
 
 import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 import { logger } from '../../../lib/logger.js';
+
+import type { PrismaClient } from '@prisma/client';
 
 // Defence-in-depth: validate the derived schema name matches the exact shape
 // produced by toSchemaName before interpolating into DDL. PostgreSQL schema

@@ -9,9 +9,10 @@
 // "Active" = status <> 'uninstalled'. Uninstalled plugins are terminal and must
 // NOT count toward the deprecated-vs-unpublished decision (ADR-022 Decision 5).
 
+import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
+
 import type { PrismaClient } from '@prisma/client';
 
-import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 
 // toSchemaName() produces `tenant_<slug-with-underscores>`. Re-validate as
 // defence-in-depth (slug comes from DB, not user input).

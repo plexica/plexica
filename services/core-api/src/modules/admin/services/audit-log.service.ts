@@ -5,7 +5,6 @@
 // schema so it survives tenant deletion. metadata is JSONB structural data
 // only — NO PII (Security §6). actorId is the Keycloak master realm sub.
 
-import type { PrismaClient, Prisma } from '@prisma/client';
 import {
   WriteAuditEntrySchema,
   type AuditEntry,
@@ -13,6 +12,8 @@ import {
   type AuditQuery,
   type WriteAuditEntry,
 } from '../schemas/audit-schemas.js';
+
+import type { PrismaClient, Prisma } from '@prisma/client';
 
 const AUDIT_SELECT = {
   id: true,

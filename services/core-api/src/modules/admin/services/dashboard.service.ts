@@ -14,11 +14,12 @@
 // values fall back to 0. The aggregator job is tracked separately in the
 // plan and is a hard prerequisite for accurate cross-schema totals.
 
-import type { PrismaClient } from '@prisma/client';
 
 import { redis } from '../../../lib/redis.js';
+
 import { checkHealth } from './health-checker.service.js';
 
+import type { PrismaClient } from '@prisma/client';
 import type { DashboardMetrics } from '../schemas/dashboard-schemas.js';
 import type { HealthStatus } from '../schemas/health-schemas.js';
 

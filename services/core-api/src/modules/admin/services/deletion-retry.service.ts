@@ -4,12 +4,14 @@
 // re-launches the background executor for the tenant. The executor re-runs
 // from the first non-done step, so a successful retry cascades to later steps.
 
-import type { PrismaClient, TenantDeletionStep } from '@prisma/client';
 
 import { logger } from '../../../lib/logger.js';
 import { NotFoundError, ValidationError } from '../../../lib/app-error.js';
+
 import { writeAuditEntry } from './audit-log.service.js';
 import { runSagaSteps } from './deletion-saga.service.js';
+
+import type { PrismaClient, TenantDeletionStep } from '@prisma/client';
 
 /**
  * Resets a failed deletion step to pending and re-launches the saga executor.

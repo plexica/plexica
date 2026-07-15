@@ -4,12 +4,14 @@
 // (Rule 4). The executor sets a step to in_progress, attempts the handler up
 // to MAX_ATTEMPTS times with exponential backoff, and records done/failed.
 
-import type { PrismaClient, TenantDeletionStep } from '@prisma/client';
 
 import { logger } from '../../../lib/logger.js';
+
 import { executeSchemaDrop } from './deletion-step-schema-drop.js';
 import { executeRealmDelete } from './deletion-step-realm-delete.js';
 import { executeBucketDelete } from './deletion-step-bucket-delete.js';
+
+import type { PrismaClient, TenantDeletionStep } from '@prisma/client';
 
 export const STEP_ORDER = ['schema_drop', 'realm_delete', 'bucket_delete'] as const;
 export type DeletionStepName = (typeof STEP_ORDER)[number];
