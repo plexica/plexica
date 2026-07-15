@@ -4,15 +4,23 @@
 // Runs ONCE before any test worker starts (and before webServers start).
 // Responsibilities:
 //   1. Wait for Keycloak readiness (master realm endpoint).
-//   2. Obtain a super-admin token from the Keycloak master realm via the
-//      `admin-cli` direct password grant. Store it in process.env so test
-//      workers (and api-client.ts) can read it.
-//   3. Provision a dedicated E2E tenant via the core-api CLI so admin
+//   2. Call Keycloak admin REST API to ensure:
+//      a. The `plexica-web` OIDC public client exists in the master realm
+//         (directAccessGrantsEnabled: true so password grant returns roles).
+//      b. The `super_admin` realm-level role exists in the master realm.
+//      c. The admin user is assigned the `super_admin` role.
+//   3. Obtain a token via `plexica-web` client (which includes realm_access.roles
+//      with `super_admin`). Store it as PLAYWRIGHT_ADMIN_API_TOKEN for test
+//      workers (and api-client.ts).
+//   4. Provision a dedicated E2E tenant via the core-api CLI so admin
 //      tenant-lifecycle / list / detail tests have stable data. Idempotent.
 //
-// The admin app authenticates against the master realm (no tenant realm), so
-// no per-tenant Keycloak user provisioning is needed here — the master realm
-// admin user is provisioned by the Keycloak container bootstrap.
+// NOTE: We use `plexica-web` (not `admin-cli`) for the API bearer token because
+// `admin-cli` does not include `realm_access.roles` in its tokens. The
+// requireSuperAdmin middleware checks `user.roles.includes('super_admin')`, so
+// we need a token whose JWT contains `realm_access.roles: ["super_admin"]`.
+// `plexica-web` is a public client with directAccessGrantsEnabled: true, which
+// returns full realm role information.
 
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
@@ -32,10 +40,9 @@ const TENANT_EMAIL = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL'] ?? 'admin@
 const CORE_API_DIR = path.resolve(__dirname, '../../../services/core-api');
 const TSX_BIN = path.resolve(CORE_API_DIR, 'node_modules/.bin/tsx');
 
+// ---- Helpers ---------------------------------------------------------------
+
 async function waitForKeycloak(retries = 30, delayMs = 2000): Promise<void> {
-  // Keycloak 26+ does not expose /health on the main port (8080). The most
-  // reliable readiness signal on 8080 is the master realm endpoint, which
-  // returns 200 only once the server is fully booted and serving.
   const probeUrl = `${KEYCLOAK_URL}/realms/master`;
   for (let i = 1; i <= retries; i++) {
     try {
@@ -52,7 +59,13 @@ async function waitForKeycloak(retries = 30, delayMs = 2000): Promise<void> {
   throw new Error(`Keycloak at ${KEYCLOAK_URL} not ready after ${retries} retries`);
 }
 
-async function getMasterAdminToken(): Promise<string> {
+/**
+ * Gets a Keycloak admin token via the built-in `admin-cli` client.
+ * This token is used ONLY for Keycloak admin REST API calls (creating clients,
+ * roles, assigning roles). It is NOT used as a bearer token for core-api
+ * admin endpoints because `admin-cli` tokens lack `realm_access.roles`.
+ */
+async function getKeycloakAdminToken(): Promise<string> {
   const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -64,11 +77,154 @@ async function getMasterAdminToken(): Promise<string> {
     }).toString(),
   });
   if (!res.ok) {
-    throw new Error(`Master realm admin token fetch failed: ${res.status} ${await res.text()}`);
+    throw new Error(`Keycloak admin token fetch failed: ${res.status} ${await res.text()}`);
   }
   const data = (await res.json()) as { access_token: string };
   return data.access_token;
 }
+
+/**
+ * Gets a role-bearing token via the `plexica-web` public client (which has
+ * `directAccessGrantsEnabled: true`). Unlike `admin-cli`, this client returns
+ * `realm_access.roles` in the JWT, including the `super_admin` role.
+ * This token is used as the PLAYWRIGHT_ADMIN_API_TOKEN for admin API calls.
+ */
+async function getPlexicaWebToken(): Promise<string> {
+  const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'plexica-web',
+      username: ADMIN_USER,
+      password: ADMIN_PASSWORD,
+    }).toString(),
+  });
+  if (!res.ok) {
+    throw new Error(`plexica-web token fetch failed: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { access_token: string };
+  return data.access_token;
+}
+
+async function adminFetch(
+  token: string,
+  apiPath: string,
+  method: string,
+  body?: unknown
+): Promise<Response> {
+  return fetch(`${KEYCLOAK_URL}${apiPath}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+/**
+ * Ensures the `plexica-web` OIDC public client exists in the master realm.
+ * This client must have `directAccessGrantsEnabled: true` so that password
+ * grant tokens include `realm_access.roles`. Idempotent: 409 is success.
+ */
+async function ensurePlexicaWebClient(token: string): Promise<void> {
+  const res = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
+    clientId: 'plexica-web',
+    protocol: 'openid-connect',
+    publicClient: true,
+    standardFlowEnabled: true,
+    directAccessGrantsEnabled: true,
+    redirectUris: ['http://localhost:3000/*'],
+    webOrigins: ['http://localhost:3000'],
+  });
+  if (res.ok || res.status === 409) {
+    process.stdout.write('[admin global-setup] plexica-web client ensured in master realm.\n');
+  } else {
+    process.stderr.write(
+      `[admin global-setup] Warning: could not create plexica-web client in master realm: ${res.status}\n`
+    );
+  }
+}
+
+/**
+ * Creates the `super_admin` realm-level role in the given realm (idempotent)
+ * and assigns it to the specified user. The requireSuperAdmin middleware
+ * checks `user.roles.includes('super_admin')`, which reads from the JWT's
+ * `realm_access.roles` claim. This only works if the user has a realm-level
+ * role, not a client-level role.
+ */
+async function ensureSuperAdminForUser(
+  adminToken: string,
+  realm: string,
+  username: string,
+): Promise<void> {
+  // 1. Create the super_admin realm role if it doesn't exist.
+  const createRoleRes = await adminFetch(
+    adminToken,
+    `/admin/realms/${realm}/roles`,
+    'POST',
+    { name: 'super_admin', description: 'Super administrator — full platform access' },
+  );
+  if (!createRoleRes.ok && createRoleRes.status !== 409) {
+    process.stderr.write(
+      `[admin global-setup] Warning: could not create super_admin role in ${realm}: ${createRoleRes.status}\n`
+    );
+    return;
+  }
+
+  // 2. Find the user.
+  const lookupRes = await adminFetch(
+    adminToken,
+    `/admin/realms/${realm}/users?username=${encodeURIComponent(username)}&exact=true`,
+    'GET',
+  );
+  if (!lookupRes.ok) {
+    process.stderr.write(
+      `[admin global-setup] Warning: could not look up user ${username} in ${realm}: ${lookupRes.status}\n`
+    );
+    return;
+  }
+  const users = (await lookupRes.json()) as Array<{ id: string }>;
+  const userId = users[0]?.id;
+  if (userId === undefined) {
+    process.stderr.write(`[admin global-setup] Warning: user ${username} not found in ${realm}\n`);
+    return;
+  }
+
+  // 3. Resolve the role representation for the role-mapping POST.
+  const roleRes = await adminFetch(
+    adminToken,
+    `/admin/realms/${realm}/roles/super_admin`,
+    'GET',
+  );
+  if (!roleRes.ok) {
+    process.stderr.write(
+      `[admin global-setup] Warning: super_admin role not found after creation: ${roleRes.status}\n`
+    );
+    return;
+  }
+  const role = (await roleRes.json()) as { id: string; name: string };
+
+  // 4. Assign the super_admin role to the user (idempotent).
+  const mapRes = await adminFetch(
+    adminToken,
+    `/admin/realms/${realm}/users/${userId}/role-mappings/realm`,
+    'POST',
+    [{ id: role.id, name: role.name }],
+  );
+  if (mapRes.ok || mapRes.status === 204) {
+    process.stdout.write(
+      `[admin global-setup] super_admin role assigned to ${username} in ${realm}.\n`
+    );
+  } else {
+    process.stderr.write(
+      `[admin global-setup] Warning: could not assign super_admin to ${username}: ${mapRes.status}\n`
+    );
+  }
+}
+
+// ---- Tenant provisioning ---------------------------------------------------
 
 /**
  * Provisions the E2E tenant via the core-api CLI. Idempotent — 409 / unique
@@ -107,17 +263,31 @@ function provisionE2eTenant(): void {
   throw new Error(`Tenant provisioning failed for ${TENANT_SLUG} (exit ${String(result.status)})`);
 }
 
+// ---- Setup entry point -----------------------------------------------------
+
 async function setup(): Promise<void> {
   process.stdout.write('[admin global-setup] Starting admin E2E provisioning…\n');
 
   await waitForKeycloak();
 
-  process.stdout.write('[admin global-setup] Obtaining master realm super-admin token…\n');
-  const token = await getMasterAdminToken();
-  // Expose the token to test workers via process.env. api-client.ts reads this
-  // as the default bearer token when no explicit token is passed.
-  process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = token;
+  // Step 1: Get a Keycloak admin token (via admin-cli) for Keycloak admin API calls.
+  process.stdout.write('[admin global-setup] Obtaining Keycloak admin token…\n');
+  const adminToken = await getKeycloakAdminToken();
 
+  // Step 2: Ensure plexica-web client exists in master realm.
+  await ensurePlexicaWebClient(adminToken);
+
+  // Step 3: Ensure the admin user has the super_admin realm-level role.
+  await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
+
+  // Step 4: Get a role-bearing token via plexica-web client.
+  //   This token includes realm_access.roles: ["super_admin"] in its JWT,
+  //   which is required by the requireSuperAdmin middleware.
+  process.stdout.write('[admin global-setup] Obtaining role-bearing API token via plexica-web…\n');
+  const apiToken = await getPlexicaWebToken();
+  process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = apiToken;
+
+  // Step 5: Provision the E2E tenant for test data.
   provisionE2eTenant();
 
   process.stdout.write('[admin global-setup] Admin E2E provisioning complete.\n');

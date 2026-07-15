@@ -1,10 +1,10 @@
 {
   "clientId": "plexica-admin",
   "name": "Plexica Admin App",
-  "description": "Confidential client for the super-admin app. Uses direct password grant against the master realm — no browser flow.",
+  "description": "Public client for the super-admin app. Uses direct password grant against the master realm — no browser flow.",
   "enabled": true,
   "protocol": "openid-connect",
-  "publicClient": false,
+  "publicClient": true,
   "standardFlowEnabled": false,
   "implicitFlowEnabled": false,
   "directAccessGrantsEnabled": true,
@@ -12,8 +12,8 @@
   "authorizationServicesEnabled": false,
   "bearerOnly": false,
   "frontchannelLogout": false,
-  "redirectUris": [],
-  "webOrigins": [],
+  "redirectUris": ["http://localhost:3002/*"],
+  "webOrigins": ["http://localhost:3002"],
   "attributes": {
     "access.token.lifespan": "300",
     "client_credentials.use_refresh_token": "false",
