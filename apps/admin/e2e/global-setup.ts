@@ -241,16 +241,15 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] Warning: could not configure plexica-admin: ${String(e)}\n`);
   }
 
-  // Step 5: Get the API token via admin-cli (passes JWT verification).
-  //   We add the "roles" scope so the token includes realm roles.
-  process.stdout.write('[admin global-setup] Obtaining API token via admin-cli with roles scope…\n');
+  // Step 5: Get the API token via plexica-admin client (which has
+  //   fullScopeAllowed: true from the step above, so token includes roles).
+  process.stdout.write('[admin global-setup] Obtaining API token via plexica-admin…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'admin-cli',
-      scope: 'roles',
+      client_id: 'plexica-admin',
       username: ADMIN_USER,
       password: ADMIN_PASSWORD,
     }).toString(),
