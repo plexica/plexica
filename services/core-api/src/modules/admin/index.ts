@@ -25,6 +25,7 @@ import { pluginCatalogRoutes } from './routes/plugin-catalog.routes.js';
 import { healthRoutes } from './routes/health.routes.js';
 import { auditLogRoutes } from './routes/audit-log.routes.js';
 import { kafkaStatusRoutes } from './routes/kafka-status.routes.js';
+import { logsRoutes } from './routes/logs.routes.js';
 import { tenantDeleteRoutes } from './routes/tenant-delete.routes.js';
 import { deletionStatusRoutes } from './routes/deletion-status.routes.js';
 import { tenantSuspendRoutes } from './routes/tenant-suspend.routes.js';
@@ -48,6 +49,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       await adminScope.register(healthRoutes);
       await adminScope.register(auditLogRoutes);
       await adminScope.register(kafkaStatusRoutes);
+      await adminScope.register(logsRoutes);
       await adminScope.register(tenantDeleteRoutes);
       await adminScope.register(deletionStatusRoutes);
       await adminScope.register(tenantSuspendRoutes);

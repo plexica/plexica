@@ -94,6 +94,23 @@ export class NotFoundError extends AppError {
   }
 }
 
+// Loki / external log aggregation backend not configured or unreachable.
+// Used by logs-query.service (Spec 005, S5-A00). `code` is parameterized so
+// the service can distinguish SERVICE_UNAVAILABLE from LOG_QUERY_TIMEOUT
+// while sharing the same 503 status and error shape.
+export class ServiceUnavailableError extends AppError {
+  readonly statusCode = 503;
+  readonly code: string;
+
+  constructor(
+    message = 'Service unavailable',
+    code = 'SERVICE_UNAVAILABLE'
+  ) {
+    super(message);
+    this.code = code;
+  }
+}
+
 export class KeycloakError extends AppError {
   readonly statusCode = 502;
   readonly code = 'KEYCLOAK_ERROR';

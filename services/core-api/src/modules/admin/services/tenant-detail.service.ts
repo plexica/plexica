@@ -101,7 +101,7 @@ export async function getTenantDetail(
       `SELECT COUNT(*)::int AS count FROM "${schemaName}".user_profile`
     ),
     prisma.$queryRawUnsafe<CountRow[]>(
-      `SELECT COUNT(*)::int AS count FROM "${schemaName}".workspaces`
+      `SELECT COUNT(*)::int AS count FROM "${schemaName}".workspace`
     ),
     prisma.$queryRawUnsafe<PluginInstallRow[]>(
       `SELECT plugin_slug, status, installed_at FROM "${schemaName}".plugin_installations LIMIT 50`
