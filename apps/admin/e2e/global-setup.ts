@@ -255,10 +255,6 @@ async function setup(): Promise<void> {
       password: ADMIN_PASSWORD,
     }).toString(),
   });
-      username: ADMIN_USER,
-      password: ADMIN_PASSWORD,
-    }).toString(),
-  });
   if (!apiRes.ok) {
     throw new Error(`API token fetch failed: ${apiRes.status} ${await apiRes.text()}`);
   }
