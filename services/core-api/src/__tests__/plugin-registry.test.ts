@@ -109,6 +109,12 @@ describe('Plugin Registry — CRUD', () => {
         } } });
     expect(createRes.statusCode).toBe(200);
 
+    // ADR-022 Decision 5: plugin must be approved before publishing.
+    await prisma.plugin.update({
+      where: { slug: 'test-pub' },
+      data: { reviewStatus: 'approved' },
+    });
+
     const pub = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/test-pub/publish' });
     expect(pub.statusCode).toBe(200);
     expect(JSON.parse(pub.payload).status).toBe('published');

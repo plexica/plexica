@@ -55,6 +55,7 @@ describe('PostgreSQL smoke test', () => {
       ORDER BY e.enumsortorder
     `;
     const values = result.map((r: { enumlabel: string }) => r.enumlabel);
-    expect(values).toEqual(['active', 'suspended', 'deleted']);
+    // ADR-022 Decision 1: 'pending_deletion' added for forward-only deletion saga.
+    expect(values).toEqual(['active', 'suspended', 'pending_deletion', 'deleted']);
   });
 });

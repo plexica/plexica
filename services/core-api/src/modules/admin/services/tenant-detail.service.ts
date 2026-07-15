@@ -104,7 +104,7 @@ export async function getTenantDetail(
       `SELECT COUNT(*)::int AS count FROM "${schemaName}".workspace`
     ),
     prisma.$queryRawUnsafe<PluginInstallRow[]>(
-      `SELECT plugin_slug, status, installed_at FROM "${schemaName}".plugin_installations LIMIT 50`
+      `SELECT p.slug AS plugin_slug, pi.status, pi.installed_at FROM "${schemaName}".plugin_installations pi JOIN core.plugins p ON p.id = pi.plugin_id LIMIT 50`
     ),
     queryAuditLog(prisma, { tenantId: id, page: 1, pageSize: 10 }),
   ]);
