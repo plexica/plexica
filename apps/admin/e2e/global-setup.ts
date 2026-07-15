@@ -268,13 +268,17 @@ async function setup(): Promise<void> {
       publicClient: true,
       standardFlowEnabled: false,
       directAccessGrantsEnabled: true,
-      // fullScopeAllowed: false (default) is fine — Keycloak's default "roles"
-      // client scope still maps the user's realm roles to realm_access.roles
-      // in the JWT. We avoid fullScopeAllowed: true because it injects
-      // audiences for all existing clients into the token, which may confuse
-      // the JWT verifier.
-      fullScopeAllowed: false,
+      // fullScopeAllowed: true is required so the token includes all realm
+      // roles (including super_admin) in realm_access.roles. Without it,
+      // the token has roles=[] even for users with realm-level roles.
+      // We mitigate the spurious-audience side effect of fullScopeAllowed
+      // by setting access.token.claim.audience to the client's own ID,
+      // preventing Keycloak from injecting audiences for ALL realm clients.
+      fullScopeAllowed: true,
       redirectUris: [],
+      attributes: {
+        'access.token.claim.audience': 'e2e-admin-api',
+      },
       webOrigins: [],
     },
   );
