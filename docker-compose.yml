@@ -150,6 +150,32 @@ services:
           /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none && \
           echo "keycloak-init: sslRequired=none applied to realm: $$realm"
         done
+
+        # S5-C04: provision the plexica-admin client in the master realm.
+        # The admin app (apps/admin) uses direct password grant against master;
+        # no browser/PKCE flow. Idempotent — skip if the client already exists.
+        if ! /opt/keycloak/bin/kcadm.sh get clients -r master \
+            --fields clientId -q clientId=plexica-admin 2>/dev/null \
+            | grep -q '"clientId"'; then
+          /opt/keycloak/bin/kcadm.sh create clients -r master \
+            -f /opt/keycloak/data/import/admin-client-realm.json && \
+          echo "keycloak-init: plexica-admin client created in master realm"
+        else
+          echo "keycloak-init: plexica-admin client already exists — skipping"
+        fi
+
+        # Ensure the super_admin realm role exists in master so it can be
+        # assigned to master-realm users (require-super-admin middleware checks
+        # for this role + master realm origin — H-03).
+        if ! /opt/keycloak/bin/kcadm.sh get roles -r master --fields name 2>/dev/null \
+            | grep -q '"super_admin"'; then
+          /opt/keycloak/bin/kcadm.sh create roles -r master \
+            -s name=super_admin \
+            -s 'description=Super administrator with full platform access' && \
+          echo "keycloak-init: super_admin role created in master realm"
+        else
+          echo "keycloak-init: super_admin role already exists — skipping"
+        fi
     restart: 'no'
     deploy:
       resources:
