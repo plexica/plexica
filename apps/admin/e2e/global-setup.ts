@@ -268,7 +268,12 @@ async function setup(): Promise<void> {
       publicClient: true,
       standardFlowEnabled: false,
       directAccessGrantsEnabled: true,
-      fullScopeAllowed: true,
+      // fullScopeAllowed: false (default) is fine — Keycloak's default "roles"
+      // client scope still maps the user's realm roles to realm_access.roles
+      // in the JWT. We avoid fullScopeAllowed: true because it injects
+      // audiences for all existing clients into the token, which may confuse
+      // the JWT verifier.
+      fullScopeAllowed: false,
       redirectUris: [],
       webOrigins: [],
     },
