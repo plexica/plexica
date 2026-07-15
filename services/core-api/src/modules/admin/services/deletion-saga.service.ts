@@ -116,7 +116,21 @@ export async function runSagaSteps(prisma: PrismaClient, tenantId: string): Prom
 
   for (const stepName of STEP_ORDER) {
     const step = allSteps.find((s) => s.step === stepName);
-    if (step === undefined) continue;
+    if (step === undefined) {
+      logger.error(
+        { tenantId, step: stepName },
+        'Deletion saga halted — missing step row. Manual intervention required.'
+      );
+      await writeAuditEntry(prisma, {
+        actorId: SYSTEM_ACTOR_ID,
+        action: 'tenant.delete',
+        resourceType: 'tenant',
+        resourceId: tenantId,
+        tenantId,
+        metadata: { slug: tenant.slug, phase: 'step_missing', missingStep: stepName },
+      });
+      return;
+    }
     if (step.status === 'done') continue;
     if (step.status === 'failed' || step.status === 'in_progress') {
       logger.info(

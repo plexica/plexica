@@ -291,8 +291,8 @@ services:
   # Loki — log aggregation (ADR-022 Decision 3)
   # Single binary, single node in dev. Purpose-built for log storage.
   loki:
-    image: grafana/loki@sha256:2c6e298f55e48e3bc7ed70a4f6ff57b70ce3e5e9a30ffc97c34e601451ac9c1f
-    # grafana/loki:3.5.x — pinned 2026-07-13
+    image: grafana/loki@sha256:4c431d2e6b9b38718694b31c5d56be7c80dc69c513215fde1aeb5b02cd4e2665
+    # grafana/loki:3.5.0 — pinned 2026-07-15
     command: -config.file=/etc/loki/local-config.yaml
     ports:
       - '${LOKI_PORT:-3100}:3100'
@@ -312,8 +312,8 @@ services:
   # Grafana — dashboards for Prometheus metrics + Loki logs (ADR-022 Decision 3)
   # Mapped to host port 3001 to avoid conflict with web app (3000).
   grafana:
-    image: grafana/grafana@sha256:f69cb8c6e93f5e8d6f10c25a5fa0a77a3bb0175c4f7c1a5a9f4b3f3f9e6c0a3b
-    # grafana/grafana:11.6.x — pinned 2026-07-13
+    image: grafana/grafana@sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb
+    # grafana/grafana:11.6.0 — pinned 2026-07-15
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
