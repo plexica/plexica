@@ -231,25 +231,30 @@ async function setup(): Promise<void> {
       } else {
         await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
           publicClient: true, directAccessGrantsEnabled: true,
-          standardFlowEnabled: false, fullScopeAllowed: true,
+          standardFlowEnabled: false,
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
         });
       }
-      process.stdout.write('[admin global-setup] plexica-admin client configured with fullScopeAllowed.\n');
+      process.stdout.write('[admin global-setup] plexica-admin client configured.\n');
     }
   } catch (e) {
     process.stderr.write(`[admin global-setup] Warning: could not configure plexica-admin: ${String(e)}\n`);
   }
 
-  // Step 5: Get the API token via plexica-admin client (which now has
-  //   fullScopeAllowed: true and includes super_admin in realm_access.roles).
-  process.stdout.write('[admin global-setup] Obtaining API token via plexica-admin…\n');
+  // Step 5: Get the API token via admin-cli (passes JWT verification).
+  //   We add the "roles" scope so the token includes realm roles.
+  process.stdout.write('[admin global-setup] Obtaining API token via admin-cli with roles scope…\n');
   const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'plexica-admin',
+      client_id: 'admin-cli',
+      scope: 'roles',
+      username: ADMIN_USER,
+      password: ADMIN_PASSWORD,
+    }).toString(),
+  });
       username: ADMIN_USER,
       password: ADMIN_PASSWORD,
     }).toString(),
