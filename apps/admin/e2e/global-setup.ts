@@ -256,8 +256,34 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Get a fresh API token via admin-cli (the user now has the
-  //   super_admin realm-level role, so the JWT should include
+  // Step 4: Configure admin-cli client to include realm roles in tokens.
+  //   admin-cli (Keycloak built-in) does NOT include realm_access.roles by
+  //   default. Enable fullScopeAllowed so tokens carry realm-level roles.
+  process.stdout.write('[admin global-setup] Enabling realm roles in admin-cli client…\n');
+  try {
+    const clientsRes = await adminFetch(
+      adminToken, '/admin/realms/master/clients?clientId=admin-cli', 'GET'
+    );
+    if (clientsRes.ok) {
+      const clients = (await clientsRes.json()) as Array<{ id: string }>;
+      const adminCliUuid = clients[0]?.id;
+      if (adminCliUuid !== undefined) {
+        await adminFetch(
+          adminToken,
+          `/admin/realms/master/clients/${adminCliUuid}`,
+          'PUT',
+          { fullScopeAllowed: true }
+        );
+        process.stdout.write('[admin global-setup] admin-cli fullScopeAllowed set to true.\n');
+      }
+    }
+  } catch (e) {
+    process.stderr.write(`[admin global-setup] Warning: could not configure admin-cli: ${String(e)}\n`);
+  }
+
+  // Step 5: Get a fresh API token via admin-cli (the user now has the
+  //   super_admin realm-level role, and admin-cli is configured to include
+  //   realm roles in tokens, so the JWT should contain
   //   realm_access.roles: ["super_admin"]).
   process.stdout.write('[admin global-setup] Obtaining fresh API token…\n');
   const apiToken = await getKeycloakAdminToken();
@@ -274,7 +300,7 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] DEBUG: failed to decode JWT: ${String(e)}\n`);
   }
 
-  // Step 5: Provision the E2E tenant for test data.
+  // Step 6: Provision the E2E tenant for test data.
   provisionE2eTenant();
 
   process.stdout.write('[admin global-setup] Admin E2E provisioning complete.\n');
