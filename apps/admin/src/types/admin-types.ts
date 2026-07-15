@@ -158,6 +158,30 @@ export interface LogEntry {
   meta?: Record<string, unknown>;
 }
 
+// ── Tenant deletion saga (S5-704 — mirrors deletion-status.routes.ts) ──────
+
+export type DeletionStepName = 'schema_drop' | 'realm_delete' | 'bucket_delete';
+export type DeletionStepStatus = 'pending' | 'in_progress' | 'done' | 'failed';
+
+export interface TenantDeletionStepResponse {
+  id: string;
+  step: DeletionStepName;
+  status: DeletionStepStatus;
+  attempts: number;
+  lastError: string | null;
+  updatedAt: string;
+}
+
+export interface DeletionStatusResponse {
+  steps: TenantDeletionStepResponse[];
+}
+
+export interface DeletionRetryResponse {
+  step: DeletionStepName;
+  status: DeletionStepStatus;
+  attempts: number;
+}
+
 // ── Kafka status (S5-900 — to be implemented) ─────────────────────────────
 
 export interface KafkaConsumerLag {

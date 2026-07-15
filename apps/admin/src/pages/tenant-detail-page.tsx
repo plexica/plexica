@@ -122,7 +122,13 @@ export function TenantDetailPage(): JSX.Element {
 
       <Tabs tabs={tabs} value={tab} onValueChange={handleTabChange} />
 
-      <TenantDetailActions status={t.status} tenantName={t.name} />
+      <TenantDetailActions
+        tenantId={t.id}
+        status={t.status}
+        tenantName={t.name}
+        slug={t.slug}
+        version={t.version}
+      />
     </div>
   );
 }

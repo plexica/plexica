@@ -3,9 +3,13 @@
 // Domain-split to stay under 200 lines per file (Constitution Rule 4).
 
 import { dashboardMessages } from './messages.en.dashboard.js';
+import { lifecycleMessages } from './messages.en.lifecycle.js';
+import { logsMessages } from './messages.en.logs.js';
 
 export const messages = {
   ...dashboardMessages,
+  ...lifecycleMessages,
+  ...logsMessages,
 
   'admin.app.name': 'Plexica Admin',
   'admin.app.tagline': 'Platform control plane',

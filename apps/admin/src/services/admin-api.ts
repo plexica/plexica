@@ -8,6 +8,8 @@ import { apiClient } from './api-client.js';
 import type {
   AuditLogResponse,
   DashboardMetrics,
+  DeletionRetryResponse,
+  DeletionStatusResponse,
   HealthResponse,
   KafkaStatus,
   LogEntry,
@@ -62,6 +64,16 @@ export function reactivateTenant(id: string, version: number): Promise<unknown> 
 
 export function deleteTenant(id: string, confirmSlug: string): Promise<unknown> {
   return apiClient.delete<unknown>(`${ADMIN_PREFIX}/tenants/${id}`, { body: { confirmSlug } });
+}
+
+// ── Tenant deletion saga (S5-704) ──────────────────────────────────────────
+
+export function getDeletionStatus(id: string): Promise<DeletionStatusResponse> {
+  return apiClient.get<DeletionStatusResponse>(`${ADMIN_PREFIX}/tenants/${id}/deletion-status`);
+}
+
+export function retryDeletionStep(stepId: string): Promise<DeletionRetryResponse> {
+  return apiClient.post<DeletionRetryResponse>(`${ADMIN_PREFIX}/deletions/${stepId}/retry`, {});
 }
 
 // ── Plugin catalog (S5-800: review, S5-801: publish/unpublish) ─────────────
