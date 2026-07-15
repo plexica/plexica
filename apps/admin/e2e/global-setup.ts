@@ -255,10 +255,12 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Create (or skip) a dedicated `e2e-admin-api` client in master realm.
-  //   admin-cli tokens don't include realm_access.roles. Custom clients with
-  //   fullScopeAllowed: false + explicit "roles" default scope bring realm
-  //   roles without bloated audience.
+  // Step 4: Create a dedicated `e2e-admin-api` client in master realm.
+  //   admin-cli tokens don't include realm_access.roles. A custom client
+  //   with directAccessGrantsEnabled: true and fullScopeAllowed: true does
+  //   include realm roles, but also injects all client IDs as audience values.
+  //   We add a realm_roles protocol mapper to include realm roles WITHOUT
+  //   fullScopeAllowed (avoiding the audience bloat).
   process.stdout.write('[admin global-setup] Creating e2e-admin-api client…\n');
   const createRes = await adminFetch(
     adminToken, '/admin/realms/master/clients', 'POST', {
@@ -280,45 +282,45 @@ async function setup(): Promise<void> {
     process.stdout.write('[admin global-setup] e2e-admin-api client ready.\n');
   }
 
-  // Step 5: Look up the e2e-admin-api client UUID, then find the "roles"
-  //   default client scope and associate it as a default scope for our client.
-  //   The default "roles" scope maps the user's realm roles to the
-  //   realm_access.roles claim on the access token.
+  // Step 5: Add a realm roles protocol mapper to e2e-admin-api so tokens
+  //   include realm_access.roles (the super_admin role) without the bloated
+  //   audience that fullScopeAllowed: true causes.
+  //   Keycloak supports dotted claim names to create nested JSON structures,
+  //   so claim.name: 'realm_access.roles' produces the nested claim that the
+  //   auth middleware reads (payload['realm_access'].roles).
   try {
     const lookupRes = await adminFetch(
       adminToken, '/admin/realms/master/clients?clientId=e2e-admin-api', 'GET'
     );
-    if (!lookupRes.ok) {
-      process.stderr.write('[admin global-setup] Warning: could not look up e2e-admin-api client.\n');
-    } else {
+    if (lookupRes.ok) {
       const clients = (await lookupRes.json()) as Array<{ id: string }>;
       const clientUuid = clients[0]?.id;
-      if (clientUuid === undefined) {
-        process.stderr.write('[admin global-setup] Warning: e2e-admin-api UUID not found.\n');
-      } else {
-        // Find "roles" default client scope.
-        const scopesRes = await adminFetch(
-          adminToken, '/admin/realms/master/default-default-client-scopes', 'GET'
+      if (clientUuid !== undefined) {
+        const mapperRes = await adminFetch(
+          adminToken,
+          `/admin/realms/master/clients/${clientUuid}/protocol-mappers/models`,
+          'POST',
+          {
+            name: 'realm roles',
+            protocol: 'openid-connect',
+            protocolMapper: 'oidc-realm-role-mapper',
+            config: {
+              'realm.role.prefix': '',
+              'multivalued': 'true',
+              'claim.name': 'realm_access.roles',
+              'jsonType.label': 'String',
+              'access.token.claim': 'true',
+              'id.token.claim': 'true',
+            },
+          },
         );
-        if (scopesRes.ok) {
-          const scopes = (await scopesRes.json()) as Array<{ id: string; name: string }>;
-          const rolesScope = scopes.find((s) => s.name === 'roles');
-          if (rolesScope !== undefined) {
-            // Associate "roles" scope as a default client scope for our client.
-            const linkRes = await adminFetch(
-              adminToken,
-              `/admin/realms/master/clients/${clientUuid}/default-client-scopes/${rolesScope.id}`,
-              'PUT',
-            );
-            if (linkRes.ok || linkRes.status === 204) {
-              process.stdout.write('[admin global-setup] roles scope linked to e2e-admin-api.\n');
-            }
-          }
+        if (mapperRes.ok || mapperRes.status === 409) {
+          process.stdout.write('[admin global-setup] Realm roles mapper added.\n');
         }
       }
     }
   } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not configure roles scope: ${String(e)}\n`);
+    process.stderr.write(`[admin global-setup] Warning: could not add realm roles mapper: ${String(e)}\n`);
   }
 
   // Step 6: Get a fresh API token via e2e-admin-api.
