@@ -240,6 +240,24 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] Warning: could not configure plexica-admin: ${String(e)}\n`);
   }
 
+  // Step 4.5: Raise the master realm's access token TTL to 24h.
+  //   Default is 5 min (300s) which is too short for E2E — the token is
+  //   obtained once by globalSetup and shared across all test specs via
+  //   process.env. A 5-min TTL causes JWTExpired on later specs.
+  process.stdout.write('[admin global-setup] Setting master realm accessTokenLifespan to 86400s…\n');
+  try {
+    const realmRes = await adminFetch(adminToken, '/admin/realms/master', 'PUT', {
+      accessTokenLifespan: 86400,
+    });
+    if (!realmRes.ok) {
+      process.stderr.write(`[admin global-setup] Warning: realm update failed: ${realmRes.status}\n`);
+    } else {
+      process.stdout.write('[admin global-setup] Master realm accessTokenLifespan set to 86400s.\n');
+    }
+  } catch (e) {
+    process.stderr.write(`[admin global-setup] Warning: could not update realm: ${String(e)}\n`);
+  }
+
   // Step 5: Get the API token via plexica-admin client (which has
   //   fullScopeAllowed: true from the step above, so token includes roles).
   process.stdout.write('[admin global-setup] Obtaining API token via plexica-admin…\n');
