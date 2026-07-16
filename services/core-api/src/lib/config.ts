@@ -55,6 +55,12 @@ const configSchema = z.object({
   // Increase for E2E / load-test environments where a single IP fires many requests.
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
 
+  // Admin scope rate limit — max requests per time window (default 30).
+  // The admin scope uses a separate in-memory rate limiter (see index.ts).
+  // Must be higher in CI/E2E where a single test suite fires many admin API
+  // requests from the same IP in a short window.
+  ADMIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(30),
+
   // Resolve endpoint rate limit — max requests per minute per IP (default 30).
   // Set higher (e.g. 1000) in dev/E2E to prevent flaky tests from shared budget.
   RATE_LIMIT_RESOLVE_MAX: z.coerce.number().int().min(1).default(30),

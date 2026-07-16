@@ -201,6 +201,7 @@ jobs:
           # causing 429s. 1000 req/min is still a meaningful guard against
           # runaway loops while allowing all tests to complete.
           RATE_LIMIT_MAX: '1000'
+          ADMIN_RATE_LIMIT_MAX: '1000'
           # Infra vars — forwarded so the core-api webServer subprocess (started
           # by Playwright) can connect to all services. These are also set at the
           # job level (env:) but explicit forwarding ensures subprocess inheritance.
@@ -249,6 +250,7 @@ jobs:
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
           CI: 'true'
           RATE_LIMIT_MAX: '1000'
+          ADMIN_RATE_LIMIT_MAX: '1000'
           DATABASE_URL: ${{ env.DATABASE_URL }}
           KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
           KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}

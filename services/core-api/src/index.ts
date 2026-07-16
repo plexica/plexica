@@ -111,7 +111,7 @@ await server.register(invitationPublicRoutes);
 // requireSuperAdmin per route group inside the module plugin itself.
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
-  adminScope.addHook('preHandler', rateLimitMiddleware(30, 60000));
+  adminScope.addHook('preHandler', rateLimitMiddleware(config.ADMIN_RATE_LIMIT_MAX, 60000));
   await adminScope.register(pluginAdminRoutes);
   await adminScope.register(adminRoutes);
 });

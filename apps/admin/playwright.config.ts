@@ -98,6 +98,8 @@ export default defineConfig({
         MINIO_ACCESS_KEY: process.env['MINIO_ACCESS_KEY'] ?? 'minioadmin',
         MINIO_SECRET_KEY: process.env['MINIO_SECRET_KEY'] ?? 'changeme',
         KAFKA_BROKERS: process.env['KAFKA_BROKERS'] ?? 'localhost:19092',
+        RATE_LIMIT_MAX: process.env['RATE_LIMIT_MAX'] ?? '100',
+        ADMIN_RATE_LIMIT_MAX: process.env['ADMIN_RATE_LIMIT_MAX'] ?? '30',
       },
     },
     {

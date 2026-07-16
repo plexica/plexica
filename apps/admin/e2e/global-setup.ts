@@ -226,7 +226,7 @@ async function setup(): Promise<void> {
       } else {
         await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
           publicClient: true, directAccessGrantsEnabled: true,
-          standardFlowEnabled: false,
+          standardFlowEnabled: false, fullScopeAllowed: true,
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
         });
       }
