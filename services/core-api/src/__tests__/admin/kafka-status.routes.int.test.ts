@@ -91,40 +91,34 @@ afterEach(() => {
 });
 
 describe('Kafka Status — GET /api/v1/admin/system/kafka', () => {
-  it('returns consumer lag + DLQ sizes with the expected shape', async () => {
+  it('returns brokers, consumerLags and dlqDepth with the expected shape', async () => {
     updateLag(INSTALL_ID, PLUGIN_SLUG, 'acme', 50);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body.consumers).toBeInstanceOf(Array);
-    expect(body.dlqSizes).toBeInstanceOf(Array);
-    expect(body.warnings).toBeInstanceOf(Array);
-    expect(typeof body.totalLag).toBe('number');
+    expect(body.brokers).toBeInstanceOf(Array);
+    expect(body.consumerLags).toBeInstanceOf(Array);
+    expect(typeof body.dlqDepth).toBe('number');
   });
 
-  it('totalLag is the sum of all consumer lag entries', async () => {
+  it('consumerLags contain pluginSlug, consumerGroup and lag per entry', async () => {
     updateLag(INSTALL_ID, PLUGIN_SLUG, 'acme', 120);
     updateLag(INSTALL_ID_2, PLUGIN_SLUG, 'globex', 80);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     const body = JSON.parse(res.payload);
-    const lags = body.consumers.map((c: { lag: number }) => c.lag);
-    expect(body.totalLag).toBe(lags.reduce((a: number, b: number) => a + b, 0));
-    expect(body.totalLag).toBeGreaterThanOrEqual(200);
+    expect(body.consumerLags.length).toBe(2);
+    for (const entry of body.consumerLags) {
+      expect(typeof entry.pluginSlug).toBe('string');
+      expect(typeof entry.consumerGroup).toBe('string');
+      expect(typeof entry.lag).toBe('number');
+      expect(entry.lag).toBeGreaterThanOrEqual(0);
+    }
   });
 
-  it('DLQ sizes group pending entries by plugin slug', async () => {
+  it('dlqDepth counts pending DLQ entries across all plugins', async () => {
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     const body = JSON.parse(res.payload);
-    const entry = body.dlqSizes.find((d: { pluginSlug: string }) => d.pluginSlug === PLUGIN_SLUG);
-    expect(entry).toBeDefined();
-    expect(entry.count).toBe(3); // 3 pending, 1 resolved excluded
-  });
-
-  it('surfaces a warning when consumer lag exceeds the threshold', async () => {
-    updateLag(INSTALL_ID, PLUGIN_SLUG, 'acme', 1500);
-    const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
-    const body = JSON.parse(res.payload);
-    expect(body.warnings.length).toBeGreaterThan(0);
-    expect(body.warnings.some((w: string) => w.includes('1500'))).toBe(true);
+    // 3 pending DLQ entries seeded for PLUGIN_SLUG + 1 resolved (excluded)
+    expect(body.dlqDepth).toBe(3);
   });
 });
