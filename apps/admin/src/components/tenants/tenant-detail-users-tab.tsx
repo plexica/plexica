@@ -19,15 +19,15 @@ interface CountCardProps {
 
 function CountCard({ icon, labelId, value }: CountCardProps): JSX.Element {
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-5">
+    <dl className="rounded-lg border border-neutral-200 bg-white p-5">
       <div className="flex items-center gap-2 text-neutral-500">
         <span className="text-neutral-400" aria-hidden="true">{icon}</span>
-        <span className="text-sm font-medium">
+        <dt className="text-sm font-medium">
           <FormattedMessage id={labelId} />
-        </span>
+        </dt>
       </div>
-      <p className="mt-2 text-3xl font-bold text-neutral-900">{value}</p>
-    </div>
+      <dd className="mt-2 text-3xl font-bold text-neutral-900">{value}</dd>
+    </dl>
   );
 }
 
