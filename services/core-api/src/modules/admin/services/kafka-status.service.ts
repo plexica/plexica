@@ -10,9 +10,6 @@ import { getLagMetrics } from '../../plugin/events/lag-metrics.service.js';
 
 import type { PrismaClient } from '@prisma/client';
 
-const LAG_WARNING_THRESHOLD = 1000;
-const DLQ_WARNING_THRESHOLD = 100;
-
 interface DlqGroupRow {
   pluginId: string | null;
   count: number;
