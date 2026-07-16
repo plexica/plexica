@@ -227,6 +227,7 @@ async function setup(): Promise<void> {
         await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
           publicClient: true, directAccessGrantsEnabled: true,
           standardFlowEnabled: false, fullScopeAllowed: true,
+          attributes: { 'access.token.lifespan': '3600' },
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
         });
       }
