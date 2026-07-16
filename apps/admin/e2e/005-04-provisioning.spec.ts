@@ -47,8 +47,10 @@ test.describe('005-04 Provisioning wizard', () => {
 
     // Step 2 — review summary shows the derived schema/realm/bucket names.
     await expect(page.getByRole('heading', { level: 2, name: 'Review before provisioning' })).toBeVisible();
-    await expect(page.getByText(`tenant_${slug}`, { exact: true })).toBeVisible();
-    await expect(page.getByText(`plexica-${slug}`, { exact: true })).toBeVisible();
+    // Drop exact:true — the value is followed by a hint in parentheses
+    // (e.g. "tenant_xxx(new PostgreSQL schema)") rendered by SummaryRow.
+    await expect(page.getByText(`tenant_${slug}`)).toBeVisible();
+    await expect(page.getByText(`plexica-${slug}`)).toBeVisible();
     await page.getByRole('button', { name: 'Provision', exact: true }).click();
 
     // Step 3 — success: heading + a temporary password rendered in <code>.

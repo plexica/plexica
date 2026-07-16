@@ -158,6 +158,11 @@ services:
           | grep '"realm"' | sed 's/.*: "\(.*\)".*/\1/'); do
           /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none && \
           echo "keycloak-init: sslRequired=none applied to realm: $$realm"
+          # Raise access token TTL to 24h for dev/E2E (default is 5 min).
+          # CI E2E tests run for ~2+ minutes and share one token across all
+          # specs — a 5-min TTL causes JWTExpired on later tests.
+          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s 'accessTokenLifespan=86400' && \
+          echo "keycloak-init: accessTokenLifespan=86400s applied to realm: $$realm"
         done
 
         # S5-C04: provision the plexica-admin client in the master realm.

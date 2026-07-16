@@ -224,12 +224,15 @@ async function setup(): Promise<void> {
           redirectUris: ['http://localhost:3002/*'], webOrigins: ['http://localhost:3002'],
         });
       } else {
-        await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
+        const putRes = await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
           publicClient: true, directAccessGrantsEnabled: true,
           standardFlowEnabled: false, fullScopeAllowed: true,
           attributes: { 'access.token.lifespan': '3600' },
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
         });
+        if (!putRes.ok) {
+          process.stderr.write(`[admin global-setup] Warning: plexica-admin client PUT failed: ${putRes.status}\n`);
+        }
       }
       process.stdout.write('[admin global-setup] plexica-admin client configured.\n');
     }
