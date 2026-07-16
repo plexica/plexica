@@ -14,11 +14,9 @@
 //   4. Provision a dedicated E2E tenant via the core-api CLI.
 //
 // NOTE: process.env mutations from globalSetup DO propagate to Playwright
-// test workers, but we use a file-based fallback (e2e-auth-token.json) for
-// robustness across process boundaries.
+// test workers automatically — no file-based fallback needed.
 
 import { spawnSync } from 'node:child_process';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
@@ -31,9 +29,6 @@ const ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
 const TENANT_SLUG = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG'] ?? 'e2e-admin';
 const TENANT_NAME = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_NAME'] ?? 'E2E Admin';
 const TENANT_EMAIL = process.env['PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL'] ?? 'admin@e2e-admin.local';
-
-// File path for token sharing across processes.
-const TOKEN_FILE = path.resolve(__dirname, 'e2e-auth-token.json');
 
 // Absolute path to the core-api source root (monorepo layout).
 const CORE_API_DIR = path.resolve(__dirname, '../../../services/core-api');
@@ -260,10 +255,9 @@ async function setup(): Promise<void> {
   const apiData = (await apiRes.json()) as { access_token: string };
   const apiToken = apiData.access_token;
 
-  // Set token for test workers via process.env AND persist to file.
+  // Set token for test workers via process.env. Playwright propagates env
+  // mutations from globalSetup to worker processes automatically.
   process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] = apiToken;
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify({ token: apiToken }), 'utf8');
-  process.stdout.write(`[admin global-setup] Token persisted to ${TOKEN_FILE}\n`);
 
   // DEBUG: decode and log the JWT payload.
   try {
