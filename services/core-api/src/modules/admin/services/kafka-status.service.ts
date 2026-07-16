@@ -3,16 +3,12 @@
 //
 // Reuses the in-memory lag-metrics service (Spec 004) — no new Kafka client.
 // DLQ counts come from core.dead_letter_queue grouped by plugin_id (ADR-016).
-// Warnings surface threshold breaches so the admin UI can flag them visually.
+// Returns the shape the frontend KafkaPage expects: { brokers, consumerLags, dlqDepth }.
 
+import { config } from '../../../lib/config.js';
 import { getLagMetrics } from '../../plugin/events/lag-metrics.service.js';
 
 import type { PrismaClient } from '@prisma/client';
-import type {
-  ConsumerLag,
-  DlqSize,
-  KafkaStatusResponse,
-} from '../schemas/kafka-schemas.js';
 
 const LAG_WARNING_THRESHOLD = 1000;
 const DLQ_WARNING_THRESHOLD = 100;
@@ -22,19 +18,36 @@ interface DlqGroupRow {
   count: number;
 }
 
+interface KafkaConsumerLag {
+  pluginSlug: string;
+  consumerGroup: string;
+  lag: number;
+}
+
+interface KafkaStatusResponse {
+  brokers: string[];
+  consumerLags: KafkaConsumerLag[];
+  dlqDepth: number;
+}
+
 export async function getKafkaStatus(
   prisma: PrismaClient
 ): Promise<KafkaStatusResponse> {
   const lagMetrics = getLagMetrics();
 
-  const consumers: ConsumerLag[] = lagMetrics.map((entry) => ({
-    pluginSlug: entry.pluginSlug,
-    tenantSlug: entry.tenantSlug,
-    lag: entry.lag,
-    topic: `plexica.plugin.${entry.pluginSlug}`,
-  }));
+  const consumerLags: KafkaConsumerLag[] = lagMetrics.map((entry) => {
+    // Derive the consumer group name from plugin + tenant info.
+    // Active consumer groups follow the pattern: plexica.plugin.<pluginSlug>-<tenantSlug>
+    const consumerGroup = entry.tenantSlug != null
+      ? `plexica.plugin.${entry.pluginSlug}-${entry.tenantSlug}`
+      : `plexica.plugin.${entry.pluginSlug}`;
 
-  const totalLag = consumers.reduce((sum, c) => sum + c.lag, 0);
+    return {
+      pluginSlug: entry.pluginSlug,
+      consumerGroup,
+      lag: entry.lag,
+    };
+  });
 
   const dlqGroups: DlqGroupRow[] = await prisma.deadLetterQueue.groupBy({
     by: ['pluginId'],
@@ -43,10 +56,18 @@ export async function getKafkaStatus(
   }).then((rows) => rows.map((r) => ({ pluginId: r.pluginId, count: r._count._all })));
 
   const dlqSizes = await resolveDlqSizes(prisma, dlqGroups);
+  const dlqDepth = dlqSizes.reduce((sum, d) => sum + d.count, 0);
 
-  const warnings = buildWarnings(consumers, dlqSizes, totalLag);
+  return {
+    brokers: config.KAFKA_BROKERS.split(',').map((s) => s.trim()),
+    consumerLags,
+    dlqDepth,
+  };
+}
 
-  return { consumers, totalLag, dlqSizes, warnings };
+interface DlqSize {
+  pluginSlug: string;
+  count: number;
 }
 
 async function resolveDlqSizes(
@@ -70,34 +91,7 @@ async function resolveDlqSizes(
     .map((g) => {
       const slug = slugById.get(g.pluginId);
       if (!slug) return null;
-      return { pluginSlug: slug, count: g.count } satisfies DlqSize;
+      return { pluginSlug: slug, count: g.count };
     })
     .filter((row): row is DlqSize => row !== null);
-}
-
-function buildWarnings(
-  consumers: ConsumerLag[],
-  dlqSizes: DlqSize[],
-  totalLag: number
-): string[] {
-  const warnings: string[] = [];
-
-  for (const c of consumers) {
-    if (c.lag > LAG_WARNING_THRESHOLD) {
-      warnings.push(
-        `Consumer lag for plugin "${c.pluginSlug}" (tenant ${c.tenantSlug ?? '-'}) exceeds ${LAG_WARNING_THRESHOLD} messages: ${c.lag}`
-      );
-    }
-  }
-  if (totalLag > LAG_WARNING_THRESHOLD) {
-    warnings.push(`Total consumer lag exceeds ${LAG_WARNING_THRESHOLD} messages: ${totalLag}`);
-  }
-  for (const d of dlqSizes) {
-    if (d.count > DLQ_WARNING_THRESHOLD) {
-      warnings.push(
-        `DLQ for plugin "${d.pluginSlug}" exceeds ${DLQ_WARNING_THRESHOLD} pending messages: ${d.count}`
-      );
-    }
-  }
-  return warnings;
 }

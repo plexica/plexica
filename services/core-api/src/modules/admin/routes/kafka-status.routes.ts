@@ -9,7 +9,6 @@
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
-import { KafkaStatusResponseSchema } from '../schemas/kafka-schemas.js';
 import { getKafkaStatus } from '../services/kafka-status.service.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -21,11 +20,6 @@ export async function kafkaStatusRoutes(
   fastify.get(
     '/system/kafka',
     { preHandler: [requireSuperAdmin] },
-    async () => {
-      const result = await withCoreDb((prisma) => getKafkaStatus(prisma));
-      // Validate the outgoing payload — guarantees the response shape is
-      // always well-formed and strips any unexpected fields.
-      return KafkaStatusResponseSchema.parse(result);
-    }
+    async () => withCoreDb((prisma) => getKafkaStatus(prisma))
   );
 }
