@@ -3,6 +3,11 @@
 // with type-to-confirm → watch the deletion panel → poll until all 3 steps are
 // done → verify the tenant row is `deleted` and the saga steps are all `done`.
 // The test is its own cleanup: the provisioned tenant is permanently erased.
+//
+// NOTE: per-test timeout is 120s because the deletion saga can take 60-90s to
+// complete (Keycloak realm deletion is slow). Playwright's default 30s is too
+// short. Tenant is provisioned INSIDE the test (not in beforeAll) so retries
+// get a fresh tenant — avoids 500 errors from re-visiting a deleted tenant.
 
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
@@ -12,18 +17,17 @@ test.describe('005-07 Tenant deletion saga', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak');
   test.beforeAll(() => requireKeycloakInCI());
 
-  const slug = `e2e-del-${Date.now()}`;
-  const name = `E2E Delete ${Date.now()}`;
-  const adminEmail = `admin@${slug}.local`;
-  let tenantId = '';
-
-  test.beforeAll(async () => {
-    const result = await adminApi().provisionTenant({ slug, name, adminEmail });
-    tenantId = result.tenantId;
-  });
-
   test('deleting a tenant erases schema/realm/bucket and marks it deleted', async ({ page }) => {
+    test.setTimeout(120_000);
+
+    const slug = `e2e-del-${Date.now()}`;
+    const name = `E2E Delete ${Date.now()}`;
+    const adminEmail = `admin@${slug}.local`;
+
     const api = adminApi();
+    const result = await api.provisionTenant({ slug, name, adminEmail });
+    const tenantId = result.tenantId;
+
     await loginAsAdmin(page);
     await page.goto(`/tenants/${tenantId}`);
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({
