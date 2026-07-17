@@ -101,18 +101,29 @@ describe('Kafka Status — GET /api/v1/admin/system/kafka', () => {
     expect(typeof body.dlqDepth).toBe('number');
   });
 
-  it('consumerLags contain pluginSlug, consumerGroup and lag per entry', async () => {
+  it('consumerLags contain the correct pluginSlug, consumerGroup and lag values', async () => {
     updateLag(INSTALL_ID, PLUGIN_SLUG, 'acme', 120);
     updateLag(INSTALL_ID_2, PLUGIN_SLUG, 'globex', 80);
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     const body = JSON.parse(res.payload);
-    expect(body.consumerLags.length).toBe(2);
-    for (const entry of body.consumerLags) {
-      expect(typeof entry.pluginSlug).toBe('string');
-      expect(typeof entry.consumerGroup).toBe('string');
-      expect(typeof entry.lag).toBe('number');
-      expect(entry.lag).toBeGreaterThanOrEqual(0);
-    }
+    expect(body.consumerLags).toHaveLength(2);
+
+    // Order-independent matching via consumerGroup (distinguishes acme vs globex).
+    const byGroup = new Map<string, { pluginSlug: string; consumerGroup: string; lag: number }>(
+      body.consumerLags.map(
+        (c: { pluginSlug: string; consumerGroup: string; lag: number }) => [c.consumerGroup, c] as const
+      )
+    );
+
+    const acme = byGroup.get(`plexica.plugin.${PLUGIN_SLUG}-acme`);
+    expect(acme).toBeDefined();
+    expect(acme!.pluginSlug).toBe(PLUGIN_SLUG);
+    expect(acme!.lag).toBe(120);
+
+    const globex = byGroup.get(`plexica.plugin.${PLUGIN_SLUG}-globex`);
+    expect(globex).toBeDefined();
+    expect(globex!.pluginSlug).toBe(PLUGIN_SLUG);
+    expect(globex!.lag).toBe(80);
   });
 
   it('dlqDepth counts pending DLQ entries across all plugins', async () => {

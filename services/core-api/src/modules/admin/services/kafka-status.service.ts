@@ -52,8 +52,10 @@ export async function getKafkaStatus(
     _count: { _all: true },
   }).then((rows) => rows.map((r) => ({ pluginId: r.pluginId, count: r._count._all })));
 
-  const dlqSizes = await resolveDlqSizes(prisma, dlqGroups);
-  const dlqDepth = dlqSizes.reduce((sum, d) => sum + d.count, 0);
+  // Sum all pending DLQ rows directly — including null pluginId entries.
+  // resolveDlqSizes (called below) may drop rows with missing plugins, so
+  // dlqDepth must use the raw group sums for an accurate total count.
+  const dlqDepth = dlqGroups.reduce((sum, g) => sum + g.count, 0);
 
   return {
     brokers: config.KAFKA_BROKERS.split(',').map((s) => s.trim()),
@@ -62,33 +64,7 @@ export async function getKafkaStatus(
   };
 }
 
-interface DlqSize {
-  pluginSlug: string;
-  count: number;
-}
-
-async function resolveDlqSizes(
-  prisma: PrismaClient,
-  groups: DlqGroupRow[]
-): Promise<DlqSize[]> {
-  const withPluginId = groups.filter((g): g is { pluginId: string; count: number } =>
-    g.pluginId !== null
-  );
-  if (withPluginId.length === 0) return [];
-
-  const pluginIds = withPluginId.map((g) => g.pluginId);
-  const plugins = await prisma.plugin.findMany({
-    where: { id: { in: pluginIds } },
-    select: { id: true, slug: true },
-  });
-
-  const slugById = new Map(plugins.map((p) => [p.id, p.slug]));
-
-  return withPluginId
-    .map((g) => {
-      const slug = slugById.get(g.pluginId);
-      if (!slug) return null;
-      return { pluginSlug: slug, count: g.count };
-    })
-    .filter((row): row is DlqSize => row !== null);
-}
+// resolveDlqSizes was previously used to map plugin IDs to slugs for
+// per-plugin DLQ breakdown. dlqDepth now sums raw group counts directly
+// so that null-pluginId DLQ entries are included in the total. If per-plugin
+// breakdown is needed later, re-add resolveDlqSizes with the raw sum.

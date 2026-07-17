@@ -217,27 +217,31 @@ async function setup(): Promise<void> {
       const clientUuid = clients[0]?.id;
       if (clientUuid === undefined) {
         // Create the client if it doesn't exist
-        await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
+        const postRes = await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
           clientId: 'plexica-admin', protocol: 'openid-connect',
           publicClient: true, directAccessGrantsEnabled: true,
           standardFlowEnabled: false, fullScopeAllowed: true,
+          attributes: { 'access.token.lifespan': '86400' },
           redirectUris: ['http://localhost:3002/*'], webOrigins: ['http://localhost:3002'],
         });
+        if (!postRes.ok && postRes.status !== 409) {
+          throw new Error(`plexica-admin client creation failed: ${postRes.status}`);
+        }
       } else {
         const putRes = await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
           publicClient: true, directAccessGrantsEnabled: true,
           standardFlowEnabled: false, fullScopeAllowed: true,
-          attributes: { 'access.token.lifespan': '3600' },
+          attributes: { 'access.token.lifespan': '86400' },
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
         });
         if (!putRes.ok) {
-          process.stderr.write(`[admin global-setup] Warning: plexica-admin client PUT failed: ${putRes.status}\n`);
+          throw new Error(`plexica-admin client update failed: ${putRes.status}`);
         }
       }
       process.stdout.write('[admin global-setup] plexica-admin client configured.\n');
     }
   } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not configure plexica-admin: ${String(e)}\n`);
+    throw new Error(`plexica-admin configuration failed: ${String(e)}`);
   }
 
   // Step 4.5: Raise the master realm's access token TTL to 24h.

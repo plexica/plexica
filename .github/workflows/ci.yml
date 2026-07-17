@@ -148,8 +148,12 @@ jobs:
           keycloak-admin-password: changeme
 
       # ── 8. Migrate ────────────────────────────────────────────────────────────
+      # Use prisma db push (idempotent) instead of migrate deploy because the
+      # self-hosted runner's PostgreSQL volume may persist between CI runs.
+      # migrate deploy requires a clean slate (P3005), while db push handles
+      # existing tables gracefully.
       - name: Apply database migrations
-        run: pnpm --filter core-api db:migrate
+        run: pnpm --filter core-api exec prisma db push
         working-directory: ${{ github.workspace }}
 
       # ── 9. Unit + Integration tests ───────────────────────────────────────────
