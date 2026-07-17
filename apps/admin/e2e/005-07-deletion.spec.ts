@@ -25,6 +25,9 @@ test.describe('005-07 Tenant deletion saga', () => {
   test.skip(true, 'Deletion saga too slow for CI (~5+ min) — tested manually');
   test.beforeAll(() => requireKeycloakInCI());
 
+  test('deleting a tenant erases schema/realm/bucket and marks it deleted', async ({ page }) => {
+    test.setTimeout(300_000);
+
     const slug = `e2e-del-${Date.now()}`;
     const name = `E2E Delete ${Date.now()}`;
     const adminEmail = `admin@${slug}.local`;
