@@ -111,6 +111,8 @@ async function ensurePlexicaWebClient(token: string): Promise<void> {
 
 /**
  * Creates the `super_admin` realm-level role and assigns it to the user.
+ * Throws on any unexpected failure so global setup aborts immediately.
+ * Accepts 409 (role already exists) as a successful no-op.
  */
 async function ensureSuperAdminForUser(
   adminToken: string,
@@ -124,8 +126,7 @@ async function ensureSuperAdminForUser(
     { name: 'super_admin', description: 'Super administrator — full platform access' },
   );
   if (!createRoleRes.ok && createRoleRes.status !== 409) {
-    process.stderr.write(`Warning: could not create super_admin role in ${realm}: ${createRoleRes.status}\n`);
-    return;
+    throw new Error(`Failed to create super_admin role in ${realm}: HTTP ${createRoleRes.status} ${await createRoleRes.text().catch(() => '')}`);
   }
 
   const lookupRes = await adminFetch(
@@ -133,17 +134,23 @@ async function ensureSuperAdminForUser(
     `/admin/realms/${realm}/users?username=${encodeURIComponent(username)}&exact=true`,
     'GET',
   );
-  if (!lookupRes.ok) return;
+  if (!lookupRes.ok) {
+    throw new Error(`Failed to look up user ${username} in ${realm}: HTTP ${lookupRes.status} ${await lookupRes.text().catch(() => '')}`);
+  }
   const users = (await lookupRes.json()) as Array<{ id: string }>;
   const userId = users[0]?.id;
-  if (userId === undefined) return;
+  if (userId === undefined) {
+    throw new Error(`User ${username} not found in ${realm}`);
+  }
 
   const roleRes = await adminFetch(
     adminToken,
     `/admin/realms/${realm}/roles/super_admin`,
     'GET',
   );
-  if (!roleRes.ok) return;
+  if (!roleRes.ok) {
+    throw new Error(`Failed to look up super_admin role in ${realm}: HTTP ${roleRes.status} ${await roleRes.text().catch(() => '')}`);
+  }
   const role = (await roleRes.json()) as { id: string; name: string };
 
   const mapRes = await adminFetch(
@@ -152,9 +159,10 @@ async function ensureSuperAdminForUser(
     'POST',
     [{ id: role.id, name: role.name }],
   );
-  if (mapRes.ok || mapRes.status === 204) {
-    process.stdout.write(`[admin global-setup] super_admin role assigned to ${username} in ${realm}.\n`);
+  if (!mapRes.ok && mapRes.status !== 204) {
+    throw new Error(`Failed to assign super_admin role to ${username} in ${realm}: HTTP ${mapRes.status} ${await mapRes.text().catch(() => '')}`);
   }
+  process.stdout.write(`[admin global-setup] super_admin role assigned to ${username} in ${realm}.\n`);
 }
 
 // ---- Tenant provisioning ---------------------------------------------------

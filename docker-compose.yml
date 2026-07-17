@@ -139,8 +139,11 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
     entrypoint:
       - /bin/bash
-      - -c
+      - -euc
       - |
+        # Fail fast on any unexpected error.
+        set -Eeo pipefail
+
         /opt/keycloak/bin/kcadm.sh config credentials \
           --server http://keycloak:8080 \
           --realm master \
@@ -156,12 +159,12 @@ services:
         # prevent this — both the master realm and any tenant realm already provisioned.
         for realm in $$(/opt/keycloak/bin/kcadm.sh get realms --fields realm \
           | grep '"realm"' | sed 's/.*: "\(.*\)".*/\1/'); do
-          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none && \
+          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none
           echo "keycloak-init: sslRequired=none applied to realm: $$realm"
           # Raise access token TTL to 24h for dev/E2E (default is 5 min).
           # CI E2E tests run for ~2+ minutes and share one token across all
           # specs — a 5-min TTL causes JWTExpired on later tests.
-          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s 'accessTokenLifespan=86400' && \
+          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s 'accessTokenLifespan=86400'
           echo "keycloak-init: accessTokenLifespan=86400s applied to realm: $$realm"
         done
 
@@ -170,27 +173,39 @@ services:
         # no browser/PKCE flow. Idempotent — skip if the client already exists.
         # NOTE: admin-client-realm.json is mounted at /opt/keycloak/data/ (not
         # under data/import/) to avoid --import-realm parsing it as a realm.
-        if ! /opt/keycloak/bin/kcadm.sh get clients -r master \
-            --fields clientId -q clientId=plexica-admin 2>/dev/null \
-            | grep -q '"clientId"'; then
+        # Capture lookup exit code separately: kcadm.sh returning 1 = not found,
+        # other codes = real error (fail immediately).
+        lookup_exit=0
+        /opt/keycloak/bin/kcadm.sh get clients -r master \
+            --fields clientId -q clientId=plexica-admin 2>&1 \
+            | grep -q '"clientId"' || lookup_exit=$$?
+        if [ "$$lookup_exit" -eq 0 ]; then
+          echo "keycloak-init: plexica-admin client already exists — skipping"
+        elif [ "$$lookup_exit" -eq 1 ]; then
           /opt/keycloak/bin/kcadm.sh create clients -r master \
-            -f /opt/keycloak/data/admin-client-realm.json && \
+            -f /opt/keycloak/data/admin-client-realm.json
           echo "keycloak-init: plexica-admin client created in master realm"
         else
-          echo "keycloak-init: plexica-admin client already exists — skipping"
+          echo "keycloak-init: ERROR: plexica-admin lookup failed (exit $$lookup_exit)" >&2
+          exit "$$lookup_exit"
         fi
 
         # Ensure the super_admin realm role exists in master so it can be
         # assigned to master-realm users (require-super-admin middleware checks
         # for this role + master realm origin — H-03).
-        if ! /opt/keycloak/bin/kcadm.sh get roles -r master --fields name 2>/dev/null \
-            | grep -q '"super_admin"'; then
+        lookup_exit=0
+        /opt/keycloak/bin/kcadm.sh get roles -r master --fields name 2>&1 \
+          | grep -q '"super_admin"' || lookup_exit=$$?
+        if [ "$$lookup_exit" -eq 0 ]; then
+          echo "keycloak-init: super_admin role already exists — skipping"
+        elif [ "$$lookup_exit" -eq 1 ]; then
           /opt/keycloak/bin/kcadm.sh create roles -r master \
             -s name=super_admin \
-            -s 'description=Super administrator with full platform access' && \
+            -s 'description=Super administrator with full platform access'
           echo "keycloak-init: super_admin role created in master realm"
         else
-          echo "keycloak-init: super_admin role already exists — skipping"
+          echo "keycloak-init: ERROR: super_admin role lookup failed (exit $$lookup_exit)" >&2
+          exit "$$lookup_exit"
         fi
     restart: 'no'
     deploy:
@@ -331,6 +346,9 @@ services:
     image: grafana/grafana@sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb
     # grafana/grafana:11.6.0 — pinned 2026-07-15
     environment:
+      # DEV ONLY overrides — Grafana is exposed on localhost only and is never
+      # accessible from outside the Docker host. Override via GRAFANA_ADMIN_USER
+      # and GRAFANA_ADMIN_PASSWORD env vars in production-like deployments.
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
       GF_AUTH_ANONYMOUS_ENABLED: 'false'

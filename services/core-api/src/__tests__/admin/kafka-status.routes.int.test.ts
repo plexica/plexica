@@ -25,7 +25,9 @@ const mockTenantContext: TenantContext = {
 
 let server: FastifyInstance;
 let pluginId: string;
+let pluginId2: string;
 const PLUGIN_SLUG = 'test-kafka-plugin';
+const PLUGIN_SLUG_2 = 'test-kafka-plugin-2';
 const INSTALL_ID = 'test-kafka-install-1';
 const INSTALL_ID_2 = 'test-kafka-install-2';
 
@@ -69,6 +71,38 @@ beforeAll(async () => {
     data: { eventType: 'plexica.plugin.test', payload: {}, pluginId, status: 'resolved' },
   });
 
+  // Second plugin with its own DLQ entries (exercises cross-plugin aggregation).
+  const row2 = await prisma.plugin.create({
+    data: {
+      slug: PLUGIN_SLUG_2,
+      name: PLUGIN_SLUG_2,
+      version: '1.0.0',
+      author: 'Test',
+      categories: [],
+      manifest: {},
+      status: 'published',
+      registryUrl: 'https://registry.example.com',
+      imageName: PLUGIN_SLUG_2,
+      imageTag: '1.0.0',
+      createdByKeycloakId: SUPER_ADMIN_ACTOR,
+    },
+    select: { id: true },
+  });
+  pluginId2 = row2.id;
+
+  // Seed 2 pending DLQ entries for the second plugin.
+  for (let i = 0; i < 2; i++) {
+    await prisma.deadLetterQueue.create({
+      data: {
+        eventType: 'plexica.plugin.test',
+        payload: { idx: i },
+        pluginId: pluginId2,
+        errorMessage: 'boom',
+        status: 'pending',
+      },
+    });
+  }
+
   server = await createTestServer();
   server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
   await server.register(kafkaStatusRoutes, { prefix: '/api/v1/admin' });
@@ -82,6 +116,10 @@ afterAll(async () => {
   if (pluginId) {
     await prisma.deadLetterQueue.deleteMany({ where: { pluginId } });
     await prisma.plugin.deleteMany({ where: { slug: PLUGIN_SLUG } });
+  }
+  if (pluginId2) {
+    await prisma.deadLetterQueue.deleteMany({ where: { pluginId: pluginId2 } });
+    await prisma.plugin.deleteMany({ where: { slug: PLUGIN_SLUG_2 } });
   }
 });
 
@@ -126,10 +164,10 @@ describe('Kafka Status — GET /api/v1/admin/system/kafka', () => {
     expect(globex!.lag).toBe(80);
   });
 
-  it('dlqDepth counts pending DLQ entries across all plugins', async () => {
+  it('dlqDepth aggregates pending DLQ entries across all plugins', async () => {
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     const body = JSON.parse(res.payload);
-    // 3 pending DLQ entries seeded for PLUGIN_SLUG + 1 resolved (excluded)
-    expect(body.dlqDepth).toBe(3);
+    // 3 from first plugin + 2 from second = 5 pending; 1 resolved excluded
+    expect(body.dlqDepth).toBe(5);
   });
 });

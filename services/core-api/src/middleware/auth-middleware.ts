@@ -144,18 +144,18 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
           { realm, errName: (retryErr as Error).constructor?.name, errMsg: (retryErr as Error).message },
           'JWT verification failed — retry also failed'
         );
-        throw new UnauthorizedError(
-          `Token verification failed — ${(retryErr as Error).constructor?.name ?? 'Unknown'}: ${(retryErr as Error).message}`
-        );
+        // Internal details (errName, errMsg) are logged above,
+        // but the client-facing response is deliberately generic.
+        throw new UnauthorizedError('Token verification failed');
       }
     } else {
       logger.error(
         { realm, errName: (err as Error).constructor?.name, errMsg: (err as Error).message },
         'JWT verification failed — non-signature error'
       );
-      throw new UnauthorizedError(
-        `Token verification failed — ${(err as Error).constructor?.name ?? 'Unknown'}: ${(err as Error).message}`
-      );
+      // Internal details (errName, errMsg) are logged above,
+      // but the client-facing response is deliberately generic.
+      throw new UnauthorizedError('Token verification failed');
     }
   }
 }
