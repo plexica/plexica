@@ -4,10 +4,11 @@
 // done → verify the tenant row is `deleted` and the saga steps are all `done`.
 // The test is its own cleanup: the provisioned tenant is permanently erased.
 //
-// NOTE: per-test timeout is 120s because the deletion saga can take 60-90s to
-// complete (Keycloak realm deletion is slow). Playwright's default 30s is too
-// short. Tenant is provisioned INSIDE the test (not in beforeAll) so retries
-// get a fresh tenant — avoids 500 errors from re-visiting a deleted tenant.
+// NOTE: per-test timeout is 300s (5 min) because the deletion saga's 3 steps
+// (schema drop, realm delete, bucket delete) each take ~30-60s. Keycloak realm
+// deletion is particularly slow. Playwright's default 30s is far too short.
+// Tenant is provisioned INSIDE the test (not in beforeAll) so retries get a
+// fresh tenant — avoids 500 errors from re-visiting a partially deleted tenant.
 
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
@@ -18,7 +19,7 @@ test.describe('005-07 Tenant deletion saga', () => {
   test.beforeAll(() => requireKeycloakInCI());
 
   test('deleting a tenant erases schema/realm/bucket and marks it deleted', async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(300_000);
 
     const slug = `e2e-del-${Date.now()}`;
     const name = `E2E Delete ${Date.now()}`;
