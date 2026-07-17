@@ -46,7 +46,9 @@ test.describe('005-07 Tenant deletion saga', () => {
 
     // The deletion saga started (202) → the DeletionStatusPanel replaces the
     // action buttons and shows the 3 steps. Wait for the completion notice.
-    await expect(page.getByText(/Deletion complete/)).toBeVisible({ timeout: 90_000 });
+    // Allow up to 240s: each of the 3 steps (schema drop, realm delete, bucket
+    // delete) typically takes 30-60s. Keycloak realm deletion is the slowest.
+    await expect(page.getByText(/Deletion complete/)).toBeVisible({ timeout: 240_000 });
 
     // Source-of-truth checks via the admin API.
     const detail = await api.getTenantDetail(tenantId);
