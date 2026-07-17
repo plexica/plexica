@@ -56,8 +56,8 @@ describe('PostgreSQL smoke test', () => {
     `;
     const values = result.map((r: { enumlabel: string }) => r.enumlabel);
     // ADR-022 Decision 1: 'pending_deletion' added for forward-only deletion saga.
-    // PostgreSQL ALTER TYPE ... ADD VALUE appends new values at the end (by
-    // enumsortorder), so the order is: active → suspended → deleted → pending_deletion.
-    expect(values).toEqual(['active', 'suspended', 'deleted', 'pending_deletion']);
+    // CI uses prisma db push (idempotent), which creates the enum from the Prisma
+    // schema order: active → suspended → pending_deletion → deleted.
+    expect(values).toEqual(['active', 'suspended', 'pending_deletion', 'deleted']);
   });
 });
