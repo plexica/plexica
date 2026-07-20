@@ -30,6 +30,15 @@ export class PluginValidationError extends AppError {
   }
 }
 
+export class PluginReviewRequiredError extends AppError {
+  readonly statusCode = 403;
+  readonly code = 'REVIEW_REQUIRED';
+
+  constructor() {
+    super('Plugin must be approved before publishing');
+  }
+}
+
 export class PluginInstallError extends AppError {
   readonly statusCode = 500;
   readonly code = 'PLUGIN_INSTALL_ERROR';

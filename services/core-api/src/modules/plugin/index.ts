@@ -8,7 +8,6 @@ import { adminCatalogRoutes } from './routes/admin-catalog.routes.js';
 import { adminPublishRoutes } from './routes/admin-publish.routes.js';
 import { adminVersionsRoutes } from './routes/admin-versions.routes.js';
 import { dlqRoutes } from './routes/dlq.routes.js';
-import { kafkaStatusRoutes } from './routes/kafka-status.routes.js';
 import { devPluginRoutes } from './routes/dev.routes.js';
 import { eventEmitRoutes } from './routes/events.routes.js';
 import { marketplaceRoutes } from './routes/marketplace.routes.js';
@@ -37,7 +36,6 @@ export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void>
   await fastify.register(adminPublishRoutes);
   await fastify.register(adminVersionsRoutes);
   await fastify.register(dlqRoutes);
-  await fastify.register(kafkaStatusRoutes);
 }
 
 /**

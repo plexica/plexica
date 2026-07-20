@@ -43,6 +43,36 @@ inputs:
 runs:
   using: composite
   steps:
+    # ── Pre-start cleanup ────────────────────────────────────────────────────
+    # On self-hosted runners, previous CI runs or the dev stack may leave
+    # containers running that occupy CI ports (5432, 6379, 8080, 9000, etc.).
+    # Tear down existing plexica-ci and plexica-dev compose projects that may
+    # be holding these ports. Uses Docker Compose-project labels so we never
+    # touch unrelated containers on this shared runner.
+    - name: Clean up conflicting containers
+      if: inputs.phase == 'start' || inputs.phase == 'full'
+      shell: bash
+      run: |
+        # 1. Tear down any lingering CI stack from a previous run
+        docker compose -f docker-compose.yml -f docker-compose.ci.yml down --remove-orphans 2>/dev/null || true
+        
+        # 2. Kill only Plexica-owned containers occupying CI-required host ports
+        #    (5432, 6379, 8080, 9000, 19092, 1025, 3100, 3301, 9644, 8025).
+        #    Filter by Compose project labels so we never touch unrelated
+        #    containers on this shared self-hosted runner.
+        for PORT in 5432 6379 8080 9000 19092 1025 3100 3301 9644 8025; do
+          for PROJECT in plexica-ci plexica-dev; do
+            CONTAINER=$(docker ps -q \
+              --filter "label=com.docker.compose.project=$PROJECT" \
+              --filter "publish=$PORT" 2>/dev/null || true)
+            if [ -n "$CONTAINER" ]; then
+              echo "Stopping container $CONTAINER (project $PROJECT on port $PORT)"
+              docker stop "$CONTAINER" 2>/dev/null || true
+              docker rm "$CONTAINER" 2>/dev/null || true
+            fi
+          done
+        done
+
     # ── Docker image cache (GitHub-hosted runners only) ──────────────────────
     # Images are pinned to SHA256 digests in docker-compose.yml.
     # Cache key is the hash of that file — invalidated only when digests change.

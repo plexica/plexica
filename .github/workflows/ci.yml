@@ -110,15 +110,28 @@ jobs:
         run: pnpm lint
 
       # ── 5. Typecheck ──────────────────────────────────────────────────────────
+      # Runs `tsc --noEmit` across all workspaces (admin-unit-int / S5-C10
+      # is covered here — @plexica/admin typecheck runs as part of the
+      # recursive `pnpm -r run typecheck`). The admin app has no Vitest
+      # suite yet (only Playwright E2E), so typecheck is its static gate.
       - name: Typecheck
         run: pnpm typecheck
 
       # ── 6. Build ──────────────────────────────────────────────────────────────
+      # Builds ALL workspace packages in topological order (admin-build is
+      # covered here — @plexica/admin is part of the recursive build), excluding:
+      #   - root (plexica) — its "build" script re-triggers full recursive build
+      #   - CRM example — pre-existing dependency issues not related to core
       - name: Build
-        # Build all packages in topological order, excluding:
-        #   - root (plexica) — its "build" script re-triggers full recursive build
-        #   - CRM example — pre-existing dependency issues not related to core
         run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+
+      # ── 6b. Admin build verification ──────────────────────────────────────────
+      # Explicit admin app build check (S5-C10). The recursive build above
+      # already produces dist/, but this step gives a named, grep-able signal
+      # in CI logs and fails fast with a clear message if the admin bundle
+      # breaks independently of other packages.
+      - name: Admin app build (S5-C10)
+        run: pnpm --filter @plexica/admin build
 
       # ── 7. Infra wait ─────────────────────────────────────────────────────────
       # Block until all services report healthy. If Docker is already ready
@@ -135,8 +148,12 @@ jobs:
           keycloak-admin-password: changeme
 
       # ── 8. Migrate ────────────────────────────────────────────────────────────
+      # Use prisma db push (idempotent) instead of migrate deploy because the
+      # self-hosted runner's PostgreSQL volume may persist between CI runs.
+      # migrate deploy requires a clean slate (P3005), while db push handles
+      # existing tables gracefully.
       - name: Apply database migrations
-        run: pnpm --filter core-api db:migrate
+        run: pnpm --filter core-api exec prisma db push
         working-directory: ${{ github.workspace }}
 
       # ── 9. Unit + Integration tests ───────────────────────────────────────────
@@ -159,12 +176,13 @@ jobs:
       # archive reached 100%, so CI uses the preinstalled system browser
       # instead of downloading another Chromium bundle.
 
-      # Self-hosted runner: kill leftover processes on Playwright ports (3000, 3001).
-      # Previous runs or unrelated services may leave orphan processes that block
-      # Playwright from starting its own webServer instances.
+      # Self-hosted runner: kill leftover processes on Playwright ports (3000,
+      # 3001, 3002). Previous runs or unrelated services may leave orphan
+      # processes that block Playwright from starting its own webServer
+      # instances.
       - name: Clean up ports for Playwright
         run: |
-          for port in 3000 3001; do
+          for port in 3000 3001 3002; do
             pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
             if [ -n "$pid" ]; then
               echo "Killing process $pid on port $port"
@@ -187,6 +205,7 @@ jobs:
           # causing 429s. 1000 req/min is still a meaningful guard against
           # runaway loops while allowing all tests to complete.
           RATE_LIMIT_MAX: '1000'
+          ADMIN_RATE_LIMIT_MAX: '1000'
           # Infra vars — forwarded so the core-api webServer subprocess (started
           # by Playwright) can connect to all services. These are also set at the
           # job level (env:) but explicit forwarding ensures subprocess inheritance.
@@ -208,6 +227,52 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
+      # ── 10b. Admin E2E (S5-C10) ────────────────────────────────────────────────
+      # Runs the 11 admin app Playwright spec files (dashboard, tenant list,
+      # detail, provisioning, suspend/reactivate, deletion, plugin catalog,
+      # health, logs, kafka status). Shares the same Docker infra stack
+      # already warmed up for web E2E — no additional services needed.
+      # The admin Playwright config (apps/admin/playwright.config.ts) starts
+      # its own webServers: core-api on :3001 and the admin Vite app on :3002.
+
+      # Kill leftover processes on the admin port (3002) plus core-api (3001)
+      # which the web E2E webServer may have left bound.
+      - name: Clean up ports for admin Playwright
+        run: |
+          for port in 3001 3002; do
+            pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+            if [ -n "$pid" ]; then
+              echo "Killing process $pid on port $port"
+              kill -9 "$pid" 2>/dev/null || true
+            fi
+          done
+
+      - name: Run admin Playwright E2E tests
+        run: pnpm --filter @plexica/admin e2e
+        env:
+          PLAYWRIGHT_ADMIN_BASE_URL: http://localhost:3002
+          PLAYWRIGHT_BROWSER_CHANNEL: chrome
+          CI: 'true'
+          RATE_LIMIT_MAX: '1000'
+          ADMIN_RATE_LIMIT_MAX: '1000'
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
+          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
+          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
+          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
+
+      - name: Upload admin Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: admin-playwright-report
+          path: apps/admin/playwright-report/
+          retention-days: 7
+
       # ── 11. Teardown ──────────────────────────────────────────────────────────
       - name: Tear down infrastructure services
         if: always()
@@ -218,7 +283,7 @@ jobs:
         run: |
           # Kill any leftover node/vite/playwright processes from the workspace
           pkill -f "node.*plexica" 2>/dev/null || true
-          for port in 3000 3001; do
+          for port in 3000 3001 3002; do
             pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
             if [ -n "$pid" ]; then
               echo "Killing process $pid on port $port"

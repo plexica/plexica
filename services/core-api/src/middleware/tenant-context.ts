@@ -2,26 +2,26 @@
 // Fastify preHandler middleware — resolves tenant from request header/subdomain.
 // Sets tenant context in AsyncLocalStorage for access throughout the request lifecycle.
 //
-// Decision log ID-001: $queryRawUnsafe intentional — slug is regex-validated.
-// Decision log ID-002: single error code prevents tenant enumeration.
-// H-1 fix: uses enterWithTenant() (AsyncLocalStorage.enterWith) so getTenantContext()
-//          and withTenantDb() work in route handlers without param drilling. The
-//          previous prisma.$queryRawUnsafe('SET search_path') was unreliable under
-//          connection pool concurrency and has been removed; route handlers must use
-//          withTenantDb() for all tenant-specific data access.
-// H-2 fix: verifies request.user.realm matches the resolved tenant's realm.
-// H-3 fix: X-Tenant-Slug header is only accepted in non-production environments.
-// M-9 fix: periodic cache eviction prevents unbounded memory growth.
+// ID-001: $queryRawUnsafe intentional — slug is regex-validated.
+// ID-002: single error code for unknown/deleted prevents tenant enumeration.
+// H-1: enterWithTenant() (AsyncLocalStorage.enterWith) so getTenantContext()
+//      and withTenantDb() work in route handlers without param drilling.
+// H-2: verifies request.user.realm matches the resolved tenant's realm.
+// H-3: X-Tenant-Slug header is only accepted in non-production environments.
+// M-9: periodic cache eviction prevents unbounded memory growth.
+// ADR-022 Decision 1: reject non-admin requests for suspended / pending_deletion
+//      tenants with 403; deleted stays 400 INVALID_TENANT_CONTEXT (anti-enumeration).
 //
-// M-01 (withTenantDb enforcement):
-//   All tenant-scoped database access MUST use withTenantDb() (from lib/tenant-schema.ts).
-//   This middleware sets the context via AsyncLocalStorage; withTenantDb() reads it and
-//   executes SET search_path before each tenant query. Any code that uses `prisma` directly
-//   (without withTenantDb) will operate on the public/core schema — an invisible data routing
-//   bug. There is intentionally no lint rule for this yet; it is enforced by code review.
-//   See: services/core-api/src/lib/tenant-schema.ts → withTenantDb()
+// M-01: all tenant-scoped DB access MUST use withTenantDb() (lib/tenant-schema.ts).
+//   This middleware sets AsyncLocalStorage context; withTenantDb() reads it and
+//   executes SET search_path before each tenant query.
 
-import { InvalidTenantContextError, NotFoundError } from '../lib/app-error.js';
+import {
+  InvalidTenantContextError,
+  NotFoundError,
+  TenantSuspendedError,
+  TenantPendingDeletionError,
+} from '../lib/app-error.js';
 import { prisma } from '../lib/database.js';
 import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
@@ -31,7 +31,7 @@ import { toRealmName, toSchemaName } from '../lib/tenant-schema-helpers.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
-// In-memory tenant cache — 60 second TTL
+// In-memory tenant cache — 60 second TTL (active tenants only).
 interface TenantCacheEntry {
   context: TenantContext;
   expiresAt: number;
@@ -40,8 +40,7 @@ interface TenantCacheEntry {
 const tenantCache = new Map<string, TenantCacheEntry>();
 const CACHE_TTL_MS = 60_000;
 
-// NEW-L-3: Exported for test use — allows clearing the cache between test cases
-// to prevent inter-test contamination without module re-imports.
+// NEW-L-3: Exported for test use — clears cache between test cases.
 export function clearTenantCache(): void {
   tenantCache.clear();
 }
@@ -63,7 +62,6 @@ if (typeof pruneTimer.unref === 'function') {
 
 function extractSlug(request: FastifyRequest): string | null {
   // H-3: Only accept X-Tenant-Slug override in non-production environments.
-  // In production, tenant identity MUST come from the verified subdomain.
   if (config.NODE_ENV !== 'production') {
     const headerSlug = request.headers['x-tenant-slug'];
     if (typeof headerSlug === 'string' && headerSlug.length > 0) {
@@ -71,11 +69,10 @@ function extractSlug(request: FastifyRequest): string | null {
     }
   }
 
-  // Production (and fallback): parse subdomain from Host header
+  // Production (and fallback): parse subdomain from Host header.
   const host = request.headers.host ?? '';
   const hostWithoutPort = host.split(':')[0] ?? '';
   const parts = hostWithoutPort.split('.');
-  // subdomain.domain.tld requires at least 3 parts
   if (parts.length >= 3 && parts[0] !== undefined) {
     return parts[0];
   }
@@ -84,15 +81,20 @@ function extractSlug(request: FastifyRequest): string | null {
 }
 
 /**
- * Resolves a TenantContext from a slug (with 60s in-memory cache).
- * Exported so the plugin event-emission route can resolve tenant context from
- * a verified service token (plugin backends have no JWT → no realm → the
- * normal tenantContextMiddleware cannot run for them).
+ * Resolves tenant state from a slug (60s in-memory cache for active tenants).
+ * Exported for the plugin event-emission route (service-token path). Returns
+ * null for unknown / `deleted` (ID-002 anti-enumeration) or `{ status, context:
+ * null }` for `suspended` / `pending_deletion` so callers can reject with 403.
  */
-export async function resolveTenant(slug: string): Promise<TenantContext | null> {
+export type ResolvedTenant =
+  | { status: 'active'; context: TenantContext }
+  | { status: 'suspended'; context: null }
+  | { status: 'pending_deletion'; context: null };
+
+export async function resolveTenant(slug: string): Promise<ResolvedTenant | null> {
   const cached = tenantCache.get(slug);
   if (cached !== undefined && Date.now() < cached.expiresAt) {
-    return cached.context;
+    return { status: 'active', context: cached.context };
   }
 
   const tenant = await prisma.tenant.findUnique({
@@ -100,9 +102,16 @@ export async function resolveTenant(slug: string): Promise<TenantContext | null>
     select: { id: true, slug: true, status: true },
   });
 
-  if (tenant === null || tenant.status !== 'active') {
-    tenantCache.delete(slug); // Ensure stale cache is removed
+  // ID-002: unknown OR deleted → null (same generic 400, no enumeration leak).
+  if (tenant === null || tenant.status === 'deleted') {
+    tenantCache.delete(slug);
     return null;
+  }
+
+  // Suspended / pending_deletion: surface status (no cache — may change).
+  if (tenant.status !== 'active') {
+    tenantCache.delete(slug);
+    return { status: tenant.status, context: null };
   }
 
   const context: TenantContext = {
@@ -113,7 +122,7 @@ export async function resolveTenant(slug: string): Promise<TenantContext | null>
   };
 
   tenantCache.set(slug, { context, expiresAt: Date.now() + CACHE_TTL_MS });
-  return context;
+  return { status: 'active', context };
 }
 
 export async function tenantContextMiddleware(
@@ -129,67 +138,58 @@ export async function tenantContextMiddleware(
 
   const slug = extractSlug(request);
 
-  // EC-01: missing tenant identifier — ID-002: use generic error code
+  // EC-01: missing tenant identifier — ID-002: generic error code.
   if (slug === null) {
     throw new InvalidTenantContextError();
   }
 
-  // M-1: use the canonical SLUG_REGEX from tenant-schema-helpers (max 51 chars,
+  // M-1: canonical SLUG_REGEX from tenant-schema-helpers (max 51 chars,
   // no trailing hyphens) — same regex used at provisioning time.
   if (!SLUG_REGEX.test(slug)) {
     throw new InvalidTenantContextError();
   }
 
   // P4-M-1: Check user presence BEFORE the tenant DB lookup to eliminate an
-  // enumeration oracle. With this check after the DB lookup (prior ordering),
-  // an unauthenticated caller with a valid-format existing slug got 404 while a
-  // non-existing slug got 400 — a discrepancy that reveals which slugs are
-  // registered. With this guard here, all no-auth requests return 404 before any
-  // DB call, regardless of whether the slug exists.
+  // enumeration oracle — all no-auth requests return 404 before any DB call.
   const userRealm = request.user?.realm;
   if (userRealm === undefined) {
     logger.debug('Missing auth before tenant lookup — rejecting (P4-M-1)');
     throw new NotFoundError();
   }
 
-  const context = await resolveTenant(slug);
+  const resolved = await resolveTenant(slug);
 
-  // EC-02: unknown or inactive tenant — ID-002: same generic error code
-  if (context === null) {
-    logger.debug({ slug }, 'Tenant not found or inactive');
+  // EC-02: unknown or deleted tenant — ID-002: same generic error code as EC-01.
+  if (resolved === null) {
+    logger.debug({ slug }, 'Tenant not found or deleted');
     throw new InvalidTenantContextError();
   }
 
+  const expectedRealm = toRealmName(slug);
+
   // H-2: Verify the JWT realm matches the tenant's realm to prevent cross-realm
-  // access. A user authenticated in plexica-alpha must not access tenant_beta.
-  // Returns 404 per AC-2 to avoid exposing which tenants/realms are valid.
-  // Note: userRealm is guaranteed non-undefined here (null guard above).
-  if (userRealm !== context.realmName) {
+  // access. Returns 404 per AC-2 (anti-enumeration). Checked BEFORE the status
+  // 403 so a wrong-realm caller cannot learn a slug's suspended / pending_deletion state.
+  if (userRealm !== expectedRealm) {
     logger.debug(
-      { tokenRealm: userRealm, tenantRealm: context.realmName },
+      { tokenRealm: userRealm, tenantRealm: expectedRealm },
       'Realm mismatch — rejecting request (H-2)'
     );
     throw new NotFoundError();
   }
 
-  // H-1: Wire AsyncLocalStorage so getTenantContext() and withTenantDb() work
-  // in route handlers without explicit parameter passing.
-  // enterWithTenant() uses AsyncLocalStorage.enterWith() which persists through
-  // all subsequent async operations in the current execution tree.
-  //
-  // M-04 (enterWith vs runWithTenant): storage.run(context, fn) is normally
-  // preferred because it scopes context to a callback boundary. However,
-  // Fastify's preHandler hook does NOT wrap route handlers in a callback — it
-  // runs async, then Fastify calls the route handler separately. storage.run()
-  // would lose the context before the handler executes. enterWith() is therefore
-  // the correct API here: it sets context for the entire remaining async execution
-  // tree of the request (which is isolated per-request in Node.js's async_hooks).
-  // The risk of context leaking to unrelated requests does not apply — each
-  // Fastify request runs in its own async execution context.
-  enterWithTenant(context);
+  // ADR-022 Decision 1: reject non-admin requests for inactive tenants with 403.
+  if (resolved.status === 'suspended') {
+    throw new TenantSuspendedError();
+  }
+  if (resolved.status === 'pending_deletion') {
+    throw new TenantPendingDeletionError();
+  }
 
-  // Also set on request for direct access without going through ALS.
-  request.tenantContext = context;
+  // H-1: Wire AsyncLocalStorage so getTenantContext() and withTenantDb() work
+  // in route handlers. enterWith() sets context for the remaining async tree.
+  enterWithTenant(resolved.context);
+  request.tenantContext = resolved.context;
 }
 
 // Fastify type augmentation

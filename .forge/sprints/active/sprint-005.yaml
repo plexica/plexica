@@ -6,8 +6,8 @@ end_date: null  # set on close
 kanban_phase: 'Phase 4'
 spec_id: '005-super-admin'
 spec_path: '.forge/specs/005-super-admin/spec.md'
-plan_path: null  # to be created by /forge-plan
-tasks_path: null  # to be created by /forge-tasks
+plan_path: '.forge/specs/005-super-admin/plan.md'
+tasks_path: '.forge/specs/005-super-admin/tasks.md'
 
 stories:
   - id: '005-01'

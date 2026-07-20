@@ -46,6 +46,16 @@ export class ValidationError extends AppError {
   }
 }
 
+// S5-702: type-to-confirm deletion — confirmSlug must match tenant slug exactly.
+export class ConfirmationRequiredError extends AppError {
+  readonly statusCode = 422;
+  readonly code = 'CONFIRMATION_REQUIRED';
+
+  constructor(message = 'Confirmation slug does not match tenant slug') {
+    super(message);
+  }
+}
+
 export class AlreadyExistsError extends AppError {
   readonly statusCode = 409;
   readonly code = 'ALREADY_EXISTS';
@@ -84,11 +94,73 @@ export class NotFoundError extends AppError {
   }
 }
 
+// Loki / external log aggregation backend not configured or unreachable.
+// Used by logs-query.service (Spec 005, S5-A00). `code` is parameterized so
+// the service can distinguish SERVICE_UNAVAILABLE from LOG_QUERY_TIMEOUT
+// while sharing the same 503 status and error shape.
+export class ServiceUnavailableError extends AppError {
+  readonly statusCode = 503;
+  readonly code: string;
+
+  constructor(
+    message = 'Service unavailable',
+    code = 'SERVICE_UNAVAILABLE'
+  ) {
+    super(message);
+    this.code = code;
+  }
+}
+
 export class KeycloakError extends AppError {
   readonly statusCode = 502;
   readonly code = 'KEYCLOAK_ERROR';
   constructor(message = 'Keycloak service error') {
     super(message);
+  }
+}
+
+// ADR-022 Decision 1: non-admin requests to inactive (non-deleted) tenants are
+// rejected with a specific 403 code. Distinct from INVALID_TENANT_CONTEXT (400)
+// which is reserved for unknown / deleted tenants to prevent enumeration.
+export class TenantSuspendedError extends AppError {
+  readonly statusCode = 403;
+  readonly code = 'TENANT_SUSPENDED';
+  constructor(message = 'Tenant is suspended') {
+    super(message);
+  }
+}
+
+export class TenantPendingDeletionError extends AppError {
+  readonly statusCode = 403;
+  readonly code = 'TENANT_PENDING_DELETION';
+  constructor(message = 'Tenant is pending deletion') {
+    super(message);
+  }
+}
+
+export type TenantConflictType =
+  | 'tenant_slug_exists'
+  | 'schema_exists'
+  | 'realm_exists'
+  | 'bucket_exists';
+
+export class ConflictError extends AppError {
+  readonly statusCode = 409;
+  readonly code = 'CONFLICT';
+
+  constructor(message = 'Version mismatch') {
+    super(message);
+  }
+}
+
+export class TenantConflictError extends AppError {
+  readonly statusCode = 409;
+  readonly code = 'CONFLICT';
+  readonly conflictType: TenantConflictType;
+
+  constructor(conflictType: TenantConflictType, message: string) {
+    super(message);
+    this.conflictType = conflictType;
   }
 }
 

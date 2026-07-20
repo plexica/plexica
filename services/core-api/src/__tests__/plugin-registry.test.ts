@@ -17,7 +17,7 @@ let server: FastifyInstance;
 
 const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
 const mockTenantContext: TenantContext = {
-  slug: 'system', schemaName: 'core', realmName: 'plexica-master',
+  slug: 'system', schemaName: 'core', realmName: 'master',
   tenantId: '00000000-0000-0000-0000-000000000000',
 };
 
@@ -108,6 +108,12 @@ describe('Plugin Registry — CRUD', () => {
           events: { subscribes: [] },
         } } });
     expect(createRes.statusCode).toBe(200);
+
+    // ADR-022 Decision 5: plugin must be approved before publishing.
+    await prisma.plugin.update({
+      where: { slug: 'test-pub' },
+      data: { reviewStatus: 'approved' },
+    });
 
     const pub = await server.inject({ method: 'POST', url: '/api/v1/admin/plugins/test-pub/publish' });
     expect(pub.statusCode).toBe(200);

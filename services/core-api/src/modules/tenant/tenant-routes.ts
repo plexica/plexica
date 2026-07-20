@@ -1,44 +1,24 @@
 // tenant-routes.ts
-// Tenant API routes: resolve (public), create tenant (super_admin), migrate all (super_admin).
-// Admin routes use auth-only scope — no tenant context middleware (Decision log ID-003).
+// Tenant API routes: resolve (public), migrate all (super_admin).
+// Tenant provisioning (POST /api/admin/tenants) moved to the admin module
+// (modules/admin/routes/tenant-provision.routes.ts) per plan §3.4 route
+// ownership move. Admin routes use auth-only scope — no tenant context
+// middleware (Decision log ID-003).
 //
-// H-03 fix: requireSuperAdmin now enforces that the token was issued by the Keycloak
-// master realm. A tenant admin cannot escalate to super_admin by creating a role with
-// the same name in their own realm.
-
-import { z } from 'zod';
+// H-03 fix: requireSuperAdmin (shared middleware) enforces that the token was
+// issued by the Keycloak master realm. A tenant admin cannot escalate to
+// super_admin by creating a role with the same name in their own realm.
 
 import { authMiddleware } from '../../middleware/auth-middleware.js';
-import { TenantRequiredError, ValidationError, UnauthorizedError } from '../../lib/app-error.js';
+import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
+import { TenantRequiredError } from '../../lib/app-error.js';
 import { rateLimitKey } from '../../lib/rate-limit-key.js';
 import { config } from '../../lib/config.js';
 import { prisma } from '../../lib/database.js';
-import { slugSchema, SLUG_REGEX } from '../../lib/tenant-schema-helpers.js';
+import { SLUG_REGEX } from '../../lib/tenant-schema-helpers.js';
 import { migrateAll } from '../../lib/multi-schema-migrate.js';
 
-import { provisionTenant } from './tenant-provisioning.js';
-
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-
-// L-2: Use the canonical slugSchema from tenant-schema-helpers so that route
-// validation is consistent with provisioning validation (same regex, same limits).
-const createTenantBody = z.object({
-  slug: slugSchema,
-  name: z.string().min(1).max(255),
-  adminEmail: z.string().email(),
-});
-
-// H-03 fix: enforces that the token was issued by the Keycloak master realm.
-// A tenant admin who creates a 'super_admin' role in their own realm cannot
-// call admin routes — only tokens from KEYCLOAK_MASTER_REALM are accepted.
-function requireSuperAdmin(roles: string[], realm: string): void {
-  if (realm !== config.KEYCLOAK_MASTER_REALM) {
-    throw new UnauthorizedError('super_admin endpoints require a master realm token');
-  }
-  if (!roles.includes('super_admin')) {
-    throw new UnauthorizedError('super_admin role required');
-  }
-}
 
 const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // ---------------------------------------------------------------------------
@@ -90,40 +70,11 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   // ---------------------------------------------------------------------------
   // ADMIN SCOPE: auth required, no tenant context (ID-003)
+  // Tenant provisioning (POST /api/admin/tenants) now lives in the admin
+  // module under /api/v1/admin/tenants (S5-401). Only migrate-all remains here.
   // ---------------------------------------------------------------------------
   await fastify.register(async (adminScope) => {
     adminScope.addHook('preHandler', authMiddleware);
-
-    // POST /api/admin/tenants — provision a new tenant
-    // ADR-012: 5 req/min override (stricter than global 100 req/min default).
-    // hook:'preHandler' ensures keyGenerator runs AFTER authMiddleware has
-    // populated request.user, enabling per-user rate-limit keying (HIGH-2 fix).
-    adminScope.post(
-      '/api/admin/tenants',
-      {
-        config: {
-          rateLimit: {
-            max: 5,
-            timeWindow: '1 minute',
-            hook: 'preHandler',
-            keyGenerator: rateLimitKey,
-          },
-        },
-      },
-      async (request, reply) => {
-        requireSuperAdmin(request.user.roles, request.user.realm);
-
-        const parseResult = createTenantBody.safeParse(request.body);
-        if (!parseResult.success) {
-          throw new ValidationError(parseResult.error.issues.map((i) => i.message).join(', '));
-        }
-
-        const { slug, name, adminEmail } = parseResult.data;
-        const result = await provisionTenant({ slug, name, adminEmail });
-
-        return reply.status(201).send(result);
-      }
-    );
 
     // POST /api/admin/tenants/migrate-all — run migrations for all tenants
     // ADR-012: 2 req/5 min override — DDL-heavy operation, strict throttle.
@@ -131,6 +82,7 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     adminScope.post(
       '/api/admin/tenants/migrate-all',
       {
+        preHandler: [requireSuperAdmin],
         config: {
           rateLimit: {
             max: 2,
@@ -141,8 +93,6 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         },
       },
       async (_request, reply) => {
-        requireSuperAdmin(_request.user.roles, _request.user.realm);
-
         const report = await migrateAll();
         const status = report.failed > 0 ? 207 : 200;
         return reply.status(status).send(report);
