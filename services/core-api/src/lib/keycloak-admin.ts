@@ -155,6 +155,18 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
   return { tempPassword };
 }
 
+/**
+ * Checks whether a Keycloak realm exists.
+ * Uses the admin REST API: GET /admin/realms/{realm} returns 200 if present,
+ * 404 if absent. Any other status is treated as a Keycloak service error.
+ */
+export async function realmExists(realmName: string): Promise<boolean> {
+  const res = await adminRequest(`/admin/realms/${realmName}`, 'GET');
+  if (res.ok) return true;
+  if (res.status === 404) return false;
+  throw new Error(`Failed to check realm ${realmName}: ${res.status}`);
+}
+
 export async function deleteRealm(realmName: string): Promise<void> {
   const res = await adminRequest(`/admin/realms/${realmName}`, 'DELETE');
   if (!res.ok && res.status !== 404) {

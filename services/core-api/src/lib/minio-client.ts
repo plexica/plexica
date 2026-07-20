@@ -32,6 +32,14 @@ function createMinioClient(): MinioClient {
 const minio = createMinioClient();
 
 /**
+ * Checks whether a MinIO bucket exists.
+ * Used by tenant provisioning conflict detection before attempting creation.
+ */
+export async function bucketExists(bucketName: string): Promise<boolean> {
+  return minio.bucketExists(bucketName);
+}
+
+/**
  * Creates a new private bucket for a tenant.
  * Idempotent — succeeds if bucket already exists.
  */
@@ -57,7 +65,9 @@ export async function deleteBucket(bucketName: string): Promise<void> {
     return;
   }
 
-  // Remove all objects before deleting the bucket
+  // Remove all objects before deleting the bucket.
+  // MinIO removeObjects accepts max 1000 entries per call — batch to avoid
+  // silent truncation on large buckets (GDPR full erasure requirement).
   const objectsList: string[] = [];
   await new Promise<void>((resolve, reject) => {
     const stream = minio.listObjects(bucketName, '', true);
@@ -68,8 +78,10 @@ export async function deleteBucket(bucketName: string): Promise<void> {
     stream.on('error', reject);
   });
 
-  if (objectsList.length > 0) {
-    await minio.removeObjects(bucketName, objectsList);
+  const BATCH_SIZE = 1000;
+  for (let i = 0; i < objectsList.length; i += BATCH_SIZE) {
+    const batch = objectsList.slice(i, i + BATCH_SIZE);
+    await minio.removeObjects(bucketName, batch);
   }
 
   await minio.removeBucket(bucketName);
@@ -118,4 +130,12 @@ export async function uploadLogo(
  */
 export async function getPresignedReadUrl(bucketName: string, objectKey: string): Promise<string> {
   return minio.presignedGetObject(bucketName, objectKey, 3600);
+}
+
+/**
+ * Lightweight connectivity probe — lists buckets.
+ * Used by the admin health checker. Throws on unreachable / auth failure.
+ */
+export async function pingMinio(): Promise<void> {
+  await minio.listBuckets();
 }

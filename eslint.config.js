@@ -85,4 +85,11 @@ export default [
     },
   },
   ...storybook.configs['flat/recommended'],
+  // Test files — allow non-null assertions (common in test assertions with mocks)
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx', '**/e2e/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
 ];

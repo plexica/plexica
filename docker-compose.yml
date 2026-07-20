@@ -86,7 +86,12 @@ services:
       # It is used only by the healthcheck inside the container.
       # NOTE: host port 9000 is already taken by MinIO — do not expose 9000 here.
     volumes:
-      - ./infra/keycloak:/opt/keycloak/data/import:ro
+      # ADR-022 S5-C04: mount realm-export.json only — NOT the whole directory.
+      # admin-client-realm.json is mounted separately (outside data/import/) to
+      # prevent --import-realm from misinterpreting it as a realm definition
+      # (it's a client representation — causes Keycloak startup crash).
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./infra/keycloak/admin-client-realm.json:/opt/keycloak/data/admin-client-realm.json:ro
       - ./infra/keycloak/providers:/opt/keycloak/providers:ro
     deploy:
       resources:
@@ -125,13 +130,20 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
+    volumes:
+      # Mount the admin client definition so kcadm.sh -f can read it.
+      # NOT mounted under data/import/ to avoid --import-realm auto-import.
+      - ./infra/keycloak/admin-client-realm.json:/opt/keycloak/data/admin-client-realm.json:ro
     environment:
       KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
     entrypoint:
       - /bin/bash
-      - -c
+      - -euc
       - |
+        # Fail fast on any unexpected error.
+        set -Eeo pipefail
+
         /opt/keycloak/bin/kcadm.sh config credentials \
           --server http://keycloak:8080 \
           --realm master \
@@ -147,9 +159,54 @@ services:
         # prevent this — both the master realm and any tenant realm already provisioned.
         for realm in $$(/opt/keycloak/bin/kcadm.sh get realms --fields realm \
           | grep '"realm"' | sed 's/.*: "\(.*\)".*/\1/'); do
-          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none && \
+          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s sslRequired=none
           echo "keycloak-init: sslRequired=none applied to realm: $$realm"
+          # Raise access token TTL to 24h for dev/E2E (default is 5 min).
+          # CI E2E tests run for ~2+ minutes and share one token across all
+          # specs — a 5-min TTL causes JWTExpired on later tests.
+          /opt/keycloak/bin/kcadm.sh update "realms/$$realm" -s 'accessTokenLifespan=86400'
+          echo "keycloak-init: accessTokenLifespan=86400s applied to realm: $$realm"
         done
+
+        # S5-C04: provision the plexica-admin client in the master realm.
+        # The admin app (apps/admin) uses direct password grant against master;
+        # no browser/PKCE flow. Idempotent — skip if the client already exists.
+        # NOTE: admin-client-realm.json is mounted at /opt/keycloak/data/ (not
+        # under data/import/) to avoid --import-realm parsing it as a realm.
+        # Capture lookup exit code separately: kcadm.sh returning 1 = not found,
+        # other codes = real error (fail immediately).
+        lookup_exit=0
+        /opt/keycloak/bin/kcadm.sh get clients -r master \
+            --fields clientId -q clientId=plexica-admin 2>&1 \
+            | grep -q '"clientId"' || lookup_exit=$$?
+        if [ "$$lookup_exit" -eq 0 ]; then
+          echo "keycloak-init: plexica-admin client already exists — skipping"
+        elif [ "$$lookup_exit" -eq 1 ]; then
+          /opt/keycloak/bin/kcadm.sh create clients -r master \
+            -f /opt/keycloak/data/admin-client-realm.json
+          echo "keycloak-init: plexica-admin client created in master realm"
+        else
+          echo "keycloak-init: ERROR: plexica-admin lookup failed (exit $$lookup_exit)" >&2
+          exit "$$lookup_exit"
+        fi
+
+        # Ensure the super_admin realm role exists in master so it can be
+        # assigned to master-realm users (require-super-admin middleware checks
+        # for this role + master realm origin — H-03).
+        lookup_exit=0
+        /opt/keycloak/bin/kcadm.sh get roles -r master --fields name 2>&1 \
+          | grep -q '"super_admin"' || lookup_exit=$$?
+        if [ "$$lookup_exit" -eq 0 ]; then
+          echo "keycloak-init: super_admin role already exists — skipping"
+        elif [ "$$lookup_exit" -eq 1 ]; then
+          /opt/keycloak/bin/kcadm.sh create roles -r master \
+            -s name=super_admin \
+            -s 'description=Super administrator with full platform access'
+          echo "keycloak-init: super_admin role created in master realm"
+        else
+          echo "keycloak-init: ERROR: super_admin role lookup failed (exit $$lookup_exit)" >&2
+          exit "$$lookup_exit"
+        fi
     restart: 'no'
     deploy:
       resources:
@@ -261,3 +318,52 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  # Loki — log aggregation (ADR-022 Decision 3)
+  # Single binary, single node in dev. Purpose-built for log storage.
+  loki:
+    image: grafana/loki@sha256:4c431d2e6b9b38718694b31c5d56be7c80dc69c513215fde1aeb5b02cd4e2665
+    # grafana/loki:3.5.0 — pinned 2026-07-15
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - '${LOKI_PORT:-3100}:3100'
+    volumes:
+      - ./infra/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3100/ready || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Grafana — dashboards for Prometheus metrics + Loki logs (ADR-022 Decision 3)
+  # Mapped to host port 3001 to avoid conflict with web app (3000).
+  grafana:
+    image: grafana/grafana@sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb
+    # grafana/grafana:11.6.0 — pinned 2026-07-15
+    environment:
+      # DEV ONLY overrides — Grafana is exposed on localhost only and is never
+      # accessible from outside the Docker host. Override via GRAFANA_ADMIN_USER
+      # and GRAFANA_ADMIN_PASSWORD env vars in production-like deployments.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    ports:
+      - '${GRAFANA_PORT:-3301}:3000'
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:3000/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s

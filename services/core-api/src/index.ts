@@ -33,9 +33,13 @@ import { userProfileRoutes } from './modules/user-profile/routes.js';
 import { tenantSettingsRoutes } from './modules/tenant-settings/routes.js';
 import { auditLogRoutes } from './modules/audit-log/routes.js';
 import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modules/plugin/index.js';
+import { adminRoutes } from './modules/admin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
 import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
 import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
+import { startupSweep } from './modules/admin/services/deletion-saga.service.js';
+import { startMetricsAggregator } from './modules/admin/services/metrics-aggregator.service.js';
+import { prisma } from './lib/database.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -102,11 +106,14 @@ await server.register(tenantRoutes);
 // Public invitation accept endpoint — tenant context required but no auth
 await server.register(invitationPublicRoutes);
 
-// Super admin plugin management routes — auth-only scope (no tenant context)
+// Super admin plugin management routes — auth-only scope (no tenant context).
+// Also hosts the new admin module (/api/v1/admin/* — Spec 005) which applies
+// requireSuperAdmin per route group inside the module plugin itself.
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
-  adminScope.addHook('preHandler', rateLimitMiddleware(30, 60000));
+  adminScope.addHook('preHandler', rateLimitMiddleware(config.ADMIN_RATE_LIMIT_MAX, 60000));
   await adminScope.register(pluginAdminRoutes);
+  await adminScope.register(adminRoutes);
 });
 
 // Plugin event-emission route — dual-auth scope. Plugin backends use an
@@ -164,6 +171,17 @@ async function start(): Promise<void> {
     startDlqConsumer().catch((err) =>
       logger.error({ err }, 'DLQ consumer failed to start — DLQ management UI will be empty')
     );
+
+    // Crash recovery: reset stale in_progress deletion saga steps to pending
+    // so they can be resumed (ADR-022 Decision 1 — forward-only saga).
+    void startupSweep(prisma).catch((err) =>
+      logger.error({ err }, 'Deletion saga startup sweep failed — stale in_progress steps may need manual recovery')
+    );
+
+    // Scheduled job: aggregate user/workspace counts across tenant schemas
+    // into Redis (5-minute interval). Dashboard reads the cached totals.
+    // Errors within each tick are caught and logged inside the aggregator.
+    startMetricsAggregator();
 
     await server.listen({ port: config.PORT, host: '0.0.0.0' });
   } catch (err) {

@@ -241,3 +241,66 @@ export async function ensureSuperAdminForUser(
   await assignRealmRoles(token, realm, userId, ['super_admin']);
   process.stdout.write(`[global-setup] super_admin role assigned to ${username} in ${realm}.\n`);
 }
+
+/**
+ * Ensures the `plexica-web` OIDC client exists in the master realm.
+ * Required for DLQ E2E tests (ac-06) which log in through the frontend
+ * (the frontend resolves the 'admin' slug to the Keycloak master realm).
+ * The master realm does not have this client by default — only tenant realms
+ * (created via createRealm) receive it.
+ *
+ * Idempotent: 409 (already exists) is treated as success.
+ */
+export async function ensurePlexicaWebClientInMasterRealm(token: string): Promise<void> {
+  const redirectUris = ['http://localhost:3000/*'];
+  const webOrigins = ['http://localhost:3000'];
+
+  const res = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
+    clientId: 'plexica-web',
+    protocol: 'openid-connect',
+    publicClient: true,
+    standardFlowEnabled: true,
+    directAccessGrantsEnabled: true,
+    redirectUris,
+    webOrigins,
+    attributes: {
+      'post.logout.redirect.uris': '+',
+    },
+  });
+
+  if (res.ok) {
+    process.stdout.write('[global-setup] plexica-web client created in master realm.\n');
+    return;
+  }
+
+  if (res.status === 409) {
+    // Client already exists — look it up and reconcile its configuration.
+    const lookupRes = await adminFetch(
+      token, '/admin/realms/master/clients?clientId=plexica-web', 'GET'
+    );
+    if (!lookupRes.ok) {
+      throw new Error(`Failed to find plexica-web client in master realm: HTTP ${lookupRes.status}`);
+    }
+    const clients = (await lookupRes.json()) as Array<{ id: string }>;
+    const clientUuid = clients[0]?.id;
+    if (clientUuid === undefined) {
+      throw new Error('plexica-web client not found in master realm (409 reported but lookup returned empty)');
+    }
+    const putRes = await adminFetch(token, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
+      clientId: 'plexica-web',
+      publicClient: true,
+      standardFlowEnabled: true,
+      directAccessGrantsEnabled: true,
+      redirectUris,
+      webOrigins,
+      attributes: { 'post.logout.redirect.uris': '+' },
+    });
+    if (!putRes.ok) {
+      throw new Error(`Failed to update plexica-web client in master realm: HTTP ${putRes.status}`);
+    }
+    process.stdout.write('[global-setup] plexica-web client reconciled in master realm.\n');
+    return;
+  }
+
+  throw new Error(`Failed to create plexica-web client in master realm: HTTP ${res.status}`);
+}
