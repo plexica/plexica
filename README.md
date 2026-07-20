@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/plexica/plexica)
+
 # Plexica v2
 
 Multi-tenant SaaS platform. Each tenant runs in an isolated PostgreSQL schema,
