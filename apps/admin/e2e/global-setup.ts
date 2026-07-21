@@ -228,7 +228,7 @@ async function setup(): Promise<void> {
         const postRes = await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
           clientId: 'plexica-admin', protocol: 'openid-connect',
           publicClient: true, directAccessGrantsEnabled: true,
-          standardFlowEnabled: false, fullScopeAllowed: true,
+          standardFlowEnabled: true, fullScopeAllowed: true,
           attributes: { 'access.token.lifespan': '86400' },
           redirectUris: ['http://localhost:3002/*'], webOrigins: ['http://localhost:3002'],
         });
@@ -238,7 +238,7 @@ async function setup(): Promise<void> {
       } else {
         const putRes = await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
           publicClient: true, directAccessGrantsEnabled: true,
-          standardFlowEnabled: false, fullScopeAllowed: true,
+          standardFlowEnabled: true, fullScopeAllowed: true,
           attributes: { 'access.token.lifespan': '86400' },
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
         });

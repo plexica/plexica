@@ -14,13 +14,13 @@ export interface AdminUserProfile extends BaseUserProfile {
 }
 
 export interface TokenResponse extends BaseTokenResponse {
-  // Admin uses password grant (for now) — no id_token required.
-  // After PKCE migration, id_token will be available via optional field.
+  /** PKCE flow returns an id_token. Required after PKCE migration. */
+  id_token: string;
 }
 
 export interface AuthState extends BaseAuthState<AdminUserProfile> {
-  // Admin app has no tenant context.
-  // After PKCE migration, add idToken.
+  /** ID token from the PKCE flow. */
+  idToken: string | null;
 }
 
 export type { AuthStatus };

@@ -26,10 +26,10 @@ export const messages = {
 
   'admin.login.title': 'Plexica Admin',
   'admin.login.subtitle': 'Sign in with your platform administrator credentials',
-  'admin.login.username': 'Username',
-  'admin.login.password': 'Password',
-  'admin.login.submit': 'Sign in',
-  'admin.login.error': 'Invalid credentials',
+  'admin.login.redirecting': 'Redirecting to login…',
+  'admin.login.redirect': 'Redirecting to Keycloak…',
+  'admin.login.backToLogin': 'Back to login',
+  'admin.login.submit': 'Sign in with Keycloak',
   'admin.login.signingIn': 'Signing in…',
   'admin.logout': 'Sign out',
 

@@ -1,90 +1,48 @@
 // login-page.tsx
-// Admin login form — direct password grant against the Keycloak master realm.
-// No PKCE browser flow: the admin app is an internal tool.
+// Admin login page — redirects to Keycloak PKCE login.
+// After PKCE migration, the login form is replaced by a redirect to Keycloak's
+// own login page, which supports MFA, SSO, and social login.
+// The /callback route handles the redirect back to the app.
 
-import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { FormattedMessage, useIntl } from 'react-intl';
+import { useEffect } from 'react';
+import { useIntl, FormattedMessage } from 'react-intl';
 
 import { useAuthStore } from '../stores/auth-store.js';
 
 export function LoginPage(): JSX.Element {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const login = useAuthStore((s) => s.login);
   const status = useAuthStore((s) => s.status);
-  const navigate = useNavigate();
   const intl = useIntl();
 
-  const submitting = status === 'authenticating';
-
-  async function handleSubmit(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    setError(null);
-    try {
-      await login(username, password);
-      void navigate({ to: '/dashboard' });
-    } catch {
-      setError(intl.formatMessage({ id: 'admin.login.error' }));
+  useEffect(() => {
+    // Auto-redirect to Keycloak on mount.
+    // The login action generates a PKCE challenge, stores state in
+    // sessionStorage, and redirects the browser to Keycloak.
+    if (status === 'unauthenticated') {
+      void login();
     }
-  }
+  }, []); // intentionally empty — runs once on mount only
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-md">
+      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-md text-center">
         <h1 className="text-xl font-bold text-neutral-900">
           <FormattedMessage id="admin.login.title" />
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          <FormattedMessage id="admin.login.subtitle" />
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-neutral-700">
-              <FormattedMessage id="admin.login.username" />
-            </label>
-            <input
-              id="username"
-              type="text"
-              autoComplete="username"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
-              <FormattedMessage id="admin.login.password" />
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-          </div>
-
-          {error !== null && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
-            </p>
+        <p className="mt-4 text-sm text-neutral-500">
+          {status === 'authenticating' ? (
+            <FormattedMessage id="admin.login.redirecting" defaultMessage="Redirecting to login…" />
+          ) : (
+            <FormattedMessage id="admin.login.redirect" defaultMessage="Redirecting to Keycloak…" />
           )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
-          >
-            <FormattedMessage id={submitting ? 'admin.login.signingIn' : 'admin.login.submit'} />
-          </button>
-        </form>
+        </p>
+        <button
+          type="button"
+          onClick={() => void login()}
+          className="mt-6 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+        >
+          <FormattedMessage id="admin.login.submit" />
+        </button>
       </div>
     </div>
   );

@@ -1,13 +1,9 @@
 // auth-guard.tsx
 // Route guard for the admin app.
 // Uses useSilentRefresh from @plexica/auth for the shared silent-refresh pattern.
-// Unlike apps/web (which redirects to Keycloak PKCE flow), the admin app uses
-// a password-grant login form served at /login.
-//
-// After PKCE migration, this will redirect to Keycloak instead of /login.
+// When unauthenticated with no refresh token, redirects to Keycloak PKCE login.
 
 import { useCallback } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 
 import { useSilentRefresh } from '@plexica/auth/use-silent-refresh';
 
@@ -23,11 +19,11 @@ export function AuthGuard({ children }: AuthGuardProps): JSX.Element | null {
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const refresh = useAuthStore((s) => s.refresh);
   const setSessionExpired = useAuthStore((s) => s.setSessionExpired);
-  const navigate = useNavigate();
+  const login = useAuthStore((s) => s.login);
 
   const onUnauthenticated = useCallback(() => {
-    void navigate({ to: '/login' });
-  }, [navigate]);
+    void login();
+  }, [login]);
 
   const { isAuthenticated: guarded } = useSilentRefresh(
     { status, isAuthenticated, refreshToken, refresh, setSessionExpired },
