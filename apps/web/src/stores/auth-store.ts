@@ -1,25 +1,22 @@
 // auth-store.ts
-// Single Zustand store for authentication state.
-// Handles login, logout, PKCE callback, token refresh, and session expiry.
-// Tokens are persisted in sessionStorage (cleared on browser close).
+// Single Zustand store for the tenant web app authentication state.
+// Handles PKCE login, token refresh, session expiry, and tenant context.
+//
+// Uses shared utilities from @plexica/auth:
+//   - decodeBase64Url, extractBaseProfile, isTokenValid from @plexica/auth/jwt
+//   - rehydrateStatus, partializeAuthState from @plexica/auth/auth-store
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-import {
-  exchangeCode,
-  getLoginUrl,
-  refreshTokens,
-  revokeSession,
-} from '../services/keycloak-auth.js';
+import { extractBaseProfile, decodeAccessToken, isTokenValid } from '@plexica/auth/jwt';
+import { rehydrateStatus, partializeAuthState } from '@plexica/auth/auth-store';
 
-import type { AuthState, UserProfile } from '../types/auth.js';
+import { keycloakClient, REDIRECT_URI } from '../services/keycloak-auth.js';
+
+import type { UserProfile, AuthState } from '../types/auth.js';
 
 interface AuthStore extends AuthState {
-  tenantSlug: string | null;
-  tenantUuid: string | null;
-  realm: string | null;
-
   // Actions
   login: () => Promise<void>;
   logout: () => Promise<void>;
@@ -30,29 +27,19 @@ interface AuthStore extends AuthState {
   setTenantContext: (slug: string, realm: string, uuid?: string) => void;
 }
 
-// L-1: decode base64url (JWT uses - and _ instead of + and /) and handle
-// UTF-8 encoded characters (e.g. non-ASCII names). atob() alone handles neither.
-function decodeBase64Url(input: string): unknown {
-  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-  const binaryStr = atob(base64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return JSON.parse(new TextDecoder().decode(bytes));
-}
-
 function decodeUserProfile(accessToken: string, realm: string): UserProfile {
-  const parts = accessToken.split('.');
-  const payload = decodeBase64Url(parts[1] ?? '') as Record<string, unknown>;
-  return {
-    id: String(payload['sub'] ?? ''),
-    email: String(payload['email'] ?? ''),
-    firstName: String(payload['given_name'] ?? ''),
-    lastName: String(payload['family_name'] ?? ''),
+  const base = extractBaseProfile(accessToken);
+  const roles = base.roles;
+  const result: UserProfile = {
+    ...base,
     realm,
-    roles: (payload['realm_access'] as { roles?: string[] } | undefined)?.roles ?? [],
   };
+  if (roles.includes('tenant_admin')) {
+    result.tenantRole = 'tenant_admin';
+  } else if (roles.includes('member')) {
+    result.tenantRole = 'member';
+  }
+  return result;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -78,18 +65,15 @@ export const useAuthStore = create<AuthStore>()(
         set({ status: 'authenticating' });
         const state = crypto.randomUUID();
         sessionStorage.setItem('auth_state', state);
-        const url = await getLoginUrl(realm, state);
+        const url = await keycloakClient.getLoginUrl(realm, state, REDIRECT_URI);
         window.location.href = url;
       },
 
       logout: async () => {
         const { refreshToken, realm, tenantSlug } = get();
 
-        // Backchannel logout: revoke the Keycloak session server-side before
-        // clearing local state. No browser redirect to Keycloak is needed,
-        // which avoids all redirect-URI validation issues entirely.
         if (refreshToken !== null && realm !== null) {
-          await revokeSession(realm, refreshToken);
+          await keycloakClient.revokeSession(refreshToken, realm);
         }
 
         set({
@@ -101,8 +85,7 @@ export const useAuthStore = create<AuthStore>()(
           isAuthenticated: false,
         });
 
-          // Full page reload with tenant param preserved from sessionStorage
-          const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
+        const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
         window.location.href = `/${tenantParam}`;
       },
 
@@ -116,7 +99,7 @@ export const useAuthStore = create<AuthStore>()(
         const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
         if (codeVerifier === null) throw new Error('PKCE verifier missing');
 
-        const tokens = await exchangeCode(code, realm, codeVerifier);
+        const tokens = await keycloakClient.exchangeCode(code, realm, codeVerifier, REDIRECT_URI);
         const userProfile = decodeUserProfile(tokens.access_token, realm);
 
         sessionStorage.removeItem('pkce_code_verifier');
@@ -125,7 +108,7 @@ export const useAuthStore = create<AuthStore>()(
         set({
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
-          idToken: tokens.id_token,
+          idToken: tokens.id_token ?? null,
           userProfile,
           status: 'authenticated',
           isAuthenticated: true,
@@ -135,12 +118,12 @@ export const useAuthStore = create<AuthStore>()(
       refresh: async () => {
         const { refreshToken, realm } = get();
         if (refreshToken === null || realm === null) throw new Error('Cannot refresh');
-        const tokens = await refreshTokens(refreshToken, realm);
+        const tokens = await keycloakClient.refreshTokens(refreshToken, realm);
         const userProfile = decodeUserProfile(tokens.access_token, realm);
         set({
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
-          idToken: tokens.id_token,
+          idToken: tokens.id_token ?? null,
           userProfile,
           status: 'authenticated',
           isAuthenticated: true,
@@ -159,36 +142,19 @@ export const useAuthStore = create<AuthStore>()(
       name: 'plexica-auth',
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
+        ...partializeAuthState(state),
         idToken: state.idToken,
-        userProfile: state.userProfile,
         tenantSlug: state.tenantSlug,
         tenantUuid: state.tenantUuid,
         realm: state.realm,
       }),
-      // L-03/M-6: derive transient fields from persisted tokens on rehydration.
-      // Verify access token hasn't expired before marking as authenticated.
+      // Derive transient fields from persisted tokens on rehydration.
       onRehydrateStorage: () => (state) => {
-        if (state !== undefined && state.accessToken !== null) {
-          const parts = state.accessToken.split('.');
-          const payloadPart = parts[1];
-          if (payloadPart !== undefined) {
-            try {
-              const payload = decodeBase64Url(payloadPart) as Record<string, unknown>;
-              const exp = typeof payload['exp'] === 'number' ? payload['exp'] : 0;
-              if (exp > Date.now() / 1000) {
-                state.status = 'authenticated';
-                state.isAuthenticated = true;
-              }
-              // If exp <= now, leave status as 'unauthenticated' — the app will
-              // redirect to Keycloak for a fresh login or attempt a silent refresh.
-            } catch {
-              // Malformed token payload — leave as unauthenticated.
-            }
-          }
+        if (state !== undefined) {
+          state.status = rehydrateStatus(state.accessToken);
+          state.isAuthenticated = isTokenValid(state.accessToken ?? '');
         }
       },
-    }
-  )
+    },
+  ),
 );
