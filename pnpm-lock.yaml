@@ -11,6 +11,7 @@ overrides:
   fast-xml-builder: 1.1.7
   fast-xml-parser: 5.7.0
   '@babel/core': 7.29.6
+  protobufjs: 7.6.5
   ws: 8.21.0
 
 importers:
@@ -4246,8 +4247,8 @@ packages:
   process-warning@5.0.0:
     resolution: {integrity: sha512-a39t9ApHNx2L4+HBnQKqxxHNs1r7KF+Intd8Q/g1bUh6q0WIp9voPXJ/x0j+ZL45KF1pJd9+q2jLIRMfvEshkA==}
 
-  protobufjs@7.6.4:
-    resolution: {integrity: sha512-RJJPTTpvFfHcWLkIa2JFWK4XvtSzS0yEWDmunqHXli1h3JlkbcQZXDZdcWxv+JK3Xsl5/UFDPZ0iGm7DAengYw==}
+  protobufjs@7.6.5:
+    resolution: {integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==}
     engines: {node: '>=12.0.0'}
 
   pump@3.0.4:
@@ -5631,14 +5632,14 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       yargs: 17.7.3
 
   '@grpc/proto-loader@0.8.1':
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       yargs: 17.7.3
 
   '@hookform/resolvers@5.4.0(react-hook-form@7.82.0(react@19.2.7))':
@@ -7599,7 +7600,7 @@ snapshots:
       '@grpc/grpc-js': 1.14.4
       '@grpc/proto-loader': 0.7.15
       docker-modem: 5.0.7
-      protobufjs: 7.6.4
+      protobufjs: 7.6.5
       tar-fs: 2.1.4
     transitivePeerDependencies:
       - supports-color
@@ -8905,7 +8906,7 @@ snapshots:
 
   process-warning@5.0.0: {}
 
-  protobufjs@7.6.4:
+  protobufjs@7.6.5:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
