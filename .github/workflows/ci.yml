@@ -2,6 +2,11 @@
 # Runs on every PR targeting main.
 # Constitution Rule 2: all stages must pass; failure blocks merge.
 #
+# Dependabot: CI does NOT auto-run. A guard step fails fast with a message
+# to trigger manually via `workflow_dispatch`. The PR stays blocked until a
+# human triggers and passes CI manually. This avoids wasted runs on every
+# Dependabot commit and double runs on merge to main.
+#
 # Stages (optimized order — Docker warms up in parallel with lint/build):
 #   1. Setup        — checkout, Node, pnpm cache
 #   2. Install      — pnpm install
@@ -23,6 +28,8 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
+    description: Manually trigger CI (used for Dependabot PRs)
 
 env:
   # Use CI-friendly defaults pointing to Docker service names
@@ -50,6 +57,33 @@ jobs:
       contents: read # Minimum required for checkout; all other permissions denied
 
     steps:
+      # ── 0. Dependabot guard ────────────────────────────────────────────────────
+      # Dependabot PRs skip full CI by design. This guard fails fast with a clear
+      # message telling the human to trigger CI manually via workflow_dispatch.
+      # The ❌ status blocks merge until CI passes (required check).
+      #
+      # This also prevents wasted CI runs on `push` to main after a Dependabot
+      # PR is merged (auto-merge by Dependabot), avoiding the double-run problem.
+      #
+      # To trigger: gh workflow run ci.yml --ref <branch-name>
+      - name: ⏭️  Manual CI required for Dependabot PRs
+        if: github.actor == 'dependabot[bot]'
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo "::notice title=Dependabot ::Full CI skipped — must be triggered manually"
+          echo ""
+          echo "  ╔══════════════════════════════════════════════════════════╗"
+          echo "  ║  Dependabot PR detected — full CI is NOT auto-run.     ║"
+          echo "  ║                                                         ║"
+          echo "  ║  Trigger CI manually:                                   ║"
+          echo "  ║    gh workflow run ci.yml --ref ${BRANCH}               ║"
+          echo "  ║                                                         ║"
+          echo "  ║  Or via GitHub UI: Actions → CI → Run workflow          ║"
+          echo "  ╚══════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "This check must pass before the PR can merge."
+          exit 1
+
       # ── 1. Setup ──────────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v7
