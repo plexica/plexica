@@ -4,8 +4,6 @@
 // Apps provide their own token source, refresh function, and optional extra headers
 // (e.g. X-Tenant-Slug for the web app).
 
-import type { BaseUserProfile } from './types.js';
-
 export interface ApiClientConfig {
   /** Base URL for API requests. Empty string for same-origin (dev proxy). */
   baseUrl?: string;

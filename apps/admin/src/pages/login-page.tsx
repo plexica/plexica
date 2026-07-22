@@ -5,14 +5,13 @@
 // The /callback route handles the redirect back to the app.
 
 import { useEffect } from 'react';
-import { useIntl, FormattedMessage } from 'react-intl';
+import { FormattedMessage } from 'react-intl';
 
 import { useAuthStore } from '../stores/auth-store.js';
 
 export function LoginPage(): JSX.Element {
   const login = useAuthStore((s) => s.login);
   const status = useAuthStore((s) => s.status);
-  const intl = useIntl();
 
   useEffect(() => {
     // Auto-redirect to Keycloak on mount.

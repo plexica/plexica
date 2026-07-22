@@ -6,8 +6,9 @@
 
 import { type StateCreator } from 'zustand';
 
+import { isTokenValid } from './jwt.js';
+
 import type { AuthStatus, BaseUserProfile, TokenResponse } from './types.js';
-import { extractBaseProfile, isTokenValid } from './jwt.js';
 
 // ---------------------------------------------------------------------------
 // Rehydration helper — same pattern in all apps
