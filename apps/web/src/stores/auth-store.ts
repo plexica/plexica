@@ -150,7 +150,7 @@ export const useAuthStore = create<AuthStore>()(
       // Derive transient fields from persisted tokens on rehydration.
       onRehydrateStorage: () => (state) => {
         if (state !== undefined) {
-          state.status = rehydrateStatus(state.accessToken);
+          state.status = rehydrateStatus(state.accessToken, state.status);
           state.isAuthenticated = isTokenValid(state.accessToken ?? '');
         }
       },

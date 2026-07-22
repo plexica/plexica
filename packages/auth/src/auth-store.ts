@@ -19,15 +19,29 @@ import type { AuthStatus, BaseUserProfile, TokenResponse } from './types.js';
  * Derives transient fields (status, isAuthenticated) from persisted tokens
  * by checking the JWT exp claim on page reload.
  *
+ * When accessToken is null, the persisted status is preserved.
+ * This is critical for the 'expired' status: when a user's session expires,
+ * the status is set to 'expired' and persisted with null tokens. On page
+ * reload, rehydration must preserve 'expired' so the SessionExpiredHandler
+ * can show the toast before redirecting to Keycloak.
+ *
  * Usage:
  *   onRehydrateStorage: () => (state) => {
  *     if (state === undefined) return;
- *     (state as Record<string, unknown>).status = rehydrateStatus(state.accessToken);
- *     (state as Record<string, unknown>).isAuthenticated = isTokenValid(state.accessToken ?? '');
+ *     state.status = rehydrateStatus(state.accessToken, state.status);
+ *     state.isAuthenticated = isTokenValid(state.accessToken ?? '');
  *   }
  */
-export function rehydrateStatus(accessToken: string | null): AuthStatus {
-  if (accessToken === null) return 'unauthenticated';
+export function rehydrateStatus(
+  accessToken: string | null,
+  persistedStatus?: AuthStatus,
+): AuthStatus {
+  if (accessToken === null) {
+    // Preserve the persisted status (e.g. 'expired') so SessionExpiredHandler
+    // can show the toast. Only fall back to 'unauthenticated' if no status
+    // was persisted (first load).
+    return persistedStatus ?? 'unauthenticated';
+  }
   return isTokenValid(accessToken) ? 'authenticated' : 'unauthenticated';
 }
 

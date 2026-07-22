@@ -2,14 +2,10 @@
 // Super admin → /plugins → plugin table → filter by review status → review a
 // pending plugin (approve). Asserts the review status changes after the action.
 //
-// NOTE: this spec surfaces two pre-existing integration gaps that must be
-// resolved for it to pass against a live stack:
-//   1. services/admin-api.ts listPlugins() types the response as Plugin[] but
-//      the backend returns a paged { data, total, page, pageSize } object — the
-//      PluginsPage calls .filter() on the object and crashes during render.
-//   2. There is no flow that sets a plugin's reviewStatus to 'pending', so the
-//      review action has no deterministic seed data. The review test skips when
-//      no pending plugin is available via the API.
+// Prerequisites (resolved in admin E2E global-setup):
+//   - Plugin catalog is seeded with at least one plugin that has
+//     reviewStatus='pending' (seed-plugins.ts sets the first seed plugin
+//     to 'pending' to provide deterministic E2E data).
 
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';

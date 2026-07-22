@@ -125,7 +125,7 @@ export const useAuthStore = create<AuthStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state !== undefined) {
-          state.status = rehydrateStatus(state.accessToken);
+          state.status = rehydrateStatus(state.accessToken, state.status);
           state.isAuthenticated = isTokenValid(state.accessToken ?? '');
         }
       },

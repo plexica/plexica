@@ -290,6 +290,31 @@ function provisionE2eTenant(): void {
   throw new Error(`Tenant provisioning failed for ${TENANT_SLUG} (exit ${String(result.status)})`);
 }
 
+/**
+ * Seeds the plugin catalog by calling the seed-plugins CLI.
+ * Idempotent — re-runs upsert the existing plugins with updated data.
+ */
+function seedPluginCatalog(): void {
+  process.stdout.write('[admin global-setup] Seeding plugin catalog…\n');
+  const result = spawnSync(
+    TSX_BIN,
+    ['src/cli/seed-plugins.ts'],
+    { cwd: CORE_API_DIR, env: process.env, encoding: 'utf8', timeout: 60_000 }
+  );
+  if (result.error !== undefined) {
+    throw new Error(`Failed to spawn seed-plugins CLI: ${String(result.error)}`);
+  }
+  const stdout = result.stdout ?? '';
+  const stderr = result.stderr ?? '';
+  if (result.status === 0) {
+    process.stdout.write(`[admin global-setup] Plugin catalog seeded.\n`);
+    return;
+  }
+  process.stderr.write(`[admin global-setup] stdout: ${stdout}\n`);
+  process.stderr.write(`[admin global-setup] stderr: ${stderr}\n`);
+  throw new Error(`Plugin seeding failed (exit ${String(result.status)})`);
+}
+
 // ---- Setup entry point -----------------------------------------------------
 
 async function setup(): Promise<void> {
@@ -397,6 +422,12 @@ async function setup(): Promise<void> {
 
   // Step 6: Provision the E2E tenant for test data.
   provisionE2eTenant();
+
+  // Step 7: Seed the plugin catalog so the catalog page has data and the
+  //   review test finds a plugin with reviewStatus='pending'.
+  //   Idempotent — re-runs upsert the existing plugins.
+  seedPluginCatalog();
+
   process.stdout.write('[admin global-setup] Admin E2E provisioning complete.\n');
 }
 

@@ -34,7 +34,7 @@ const SEED_PLUGINS: SeedPlugin[] = [
 // route level (plugin:manage), not by this column.
 const SEED_CREATOR_KEYCLOAK_ID = '00000000-0000-0000-0000-000000000000';
 
-async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<string> {
+async function upsertPlugin(manifestPath: string, registryUrl: string, index: number): Promise<string> {
   const absPath = path.resolve(MONOREPO_ROOT, manifestPath);
   const raw = await readFile(absPath, 'utf-8');
   const manifest = JSON.parse(raw) as Record<string, unknown>;
@@ -52,6 +52,10 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
   // icon in manifest is a Lucide icon name; store it as the icon_url field.
   const iconUrl = m.icon ?? '';
 
+  // First seeded plugin gets reviewStatus='pending' so the review E2E test has
+  // deterministic data. Subsequent plugins get 'none'.
+  const reviewStatus = index === 0 ? 'pending' : 'none';
+
   const plugin = await prisma.plugin.upsert({
     where: { slug: m.slug },
     update: {
@@ -63,6 +67,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
       categories: m.categories,
       manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'published',
+      reviewStatus,
       registryUrl,
       imageName,
       imageTag,
@@ -77,6 +82,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
       categories: m.categories,
       manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'published',
+      reviewStatus,
       registryUrl,
       imageName,
       imageTag,
@@ -102,8 +108,9 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
 async function main(): Promise<void> {
   process.stdout.write('Seeding plugin catalog…\n');
   let count = 0;
-  for (const seed of SEED_PLUGINS) {
-    const id = await upsertPlugin(seed.manifestPath, seed.registryUrl);
+  for (let i = 0; i < SEED_PLUGINS.length; i++) {
+    const seed = SEED_PLUGINS[i];
+    const id = await upsertPlugin(seed.manifestPath, seed.registryUrl, i);
     process.stdout.write(`  ✓ seeded plugin (id: ${id})\n`);
     count++;
   }
