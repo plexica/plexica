@@ -273,9 +273,40 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] Warning: could not update realm: ${String(e)}\n`);
   }
 
+  // Step 4.75: Ensure the admin-cli client includes realm roles in tokens.
+  //   By default, admin-cli has fullScopeAllowed: false, which means its
+  //   tokens exclude realm_access.roles. We need fullScopeAllowed: true so
+  //   the PLAYWRIGHT_ADMIN_API_TOKEN passes the requireSuperAdmin middleware.
+  process.stdout.write('[admin global-setup] Ensuring admin-cli fullScopeAllowed=true…\n');
+  try {
+    const lookupRes = await adminFetch(
+      adminToken, '/admin/realms/master/clients?clientId=admin-cli', 'GET'
+    );
+    if (!lookupRes.ok) {
+      process.stderr.write(`admin-cli lookup failed: ${lookupRes.status}\n`);
+    } else {
+      const clients = (await lookupRes.json()) as Array<{ id: string }>;
+      const adminCliUuid = clients[0]?.id;
+      if (adminCliUuid !== undefined) {
+        const putRes = await adminFetch(
+          adminToken, `/admin/realms/master/clients/${adminCliUuid}`, 'PUT',
+          { fullScopeAllowed: true },
+        );
+        if (!putRes.ok) {
+          process.stderr.write(`admin-cli update failed: ${putRes.status}\n`);
+        } else {
+          process.stdout.write('[admin global-setup] admin-cli fullScopeAllowed set to true.\n');
+        }
+      }
+    }
+  } catch (e) {
+    process.stderr.write(`[admin global-setup] Warning: could not configure admin-cli: ${String(e)}\n`);
+  }
+
   // Step 5: Get the API token via admin-cli (built-in Keycloak client with
-  //   direct grant always enabled). The admin user already has the super_admin
-  //   realm role assigned (Step 3), so this token includes realm_access.roles.
+  //   direct grant always enabled and fullScopeAllowed=true from Step 4.75).
+  //   The admin user already has the super_admin realm role assigned (Step 3),
+  //   so this token includes realm_access.roles.
   process.stdout.write('[admin global-setup] Obtaining API token via admin-cli…\n');
   const apiToken = await getKeycloakAdminToken();
 

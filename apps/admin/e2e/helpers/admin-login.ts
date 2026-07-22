@@ -40,7 +40,10 @@ export function requireKeycloakInCI(): void {
  */
 export async function loginAsAdmin(page: Page): Promise<void> {
   await page.goto('/');
-  await page.waitForURL(/\/realms\//);
+  // Wait for the Keycloak login form to appear after the PKCE redirect.
+  // Using waitForSelector instead of waitForURL because the URL navigation
+  // can race with React's useEffect-based login redirect in Strict Mode.
+  await page.waitForSelector('input[name="username"]');
   await page.fill('input[name="username"]', SUPER_ADMIN_USERNAME);
   await page.fill('input[name="password"]', SUPER_ADMIN_PASSWORD);
   await page.click('input[type="submit"], button[type="submit"]');
