@@ -1,11 +1,11 @@
 # ADR-023: Admin App Authentication — Migrate from Password Grant to PKCE Authorization Code Flow
 
-**Status**: Proposed
-**Date**: 2026-07-21
+**Status**: Accepted
+**Date**: 2026-07-22
 **Driver**: Admin app authentication security hardening (Constitution Art. 5 — auth change)
 **Amends**: Spec 005 Plan decision D-3 ("admin auth uses password grant, not PKCE")
 **Extends**: ADR-002 (Keycloak multi-realm), ADR-010 (Keycloakify), ADR-011 (Keycloak Admin API Integration)
-**Deciders**: TBD
+**Deciders**: Project lead (via Forge orchestration)
 
 ## Context
 
