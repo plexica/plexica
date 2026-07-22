@@ -4,7 +4,6 @@
 // When unauthenticated with no refresh token, redirects to Keycloak PKCE login.
 
 import { useCallback } from 'react';
-
 import { useSilentRefresh } from '@plexica/auth/use-silent-refresh';
 
 import { useAuthStore } from '../../stores/auth-store.js';

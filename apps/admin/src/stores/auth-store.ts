@@ -9,7 +9,6 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-
 import { extractBaseProfile, isTokenValid } from '@plexica/auth/jwt';
 import { rehydrateStatus, partializeAuthState } from '@plexica/auth/auth-store';
 

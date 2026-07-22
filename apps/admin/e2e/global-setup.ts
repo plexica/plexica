@@ -7,10 +7,13 @@
 //   2. Call Keycloak admin REST API to ensure:
 //      a. The admin user is assigned the `super_admin` realm-level role.
 //      b. The `plexica-web` OIDC public client exists in the master realm.
-//   3. Obtain a token via `admin-cli` (built-in Keycloak client with direct
-//      grant always enabled). The admin user already has the super_admin realm
-//      role assigned, so this token includes realm_access.roles.
-//      Store it as PLAYWRIGHT_ADMIN_API_TOKEN for test workers.
+//      c. The `e2e-api` confidential client exists (direct access grant +
+//         full scope allowed) for issuing API tokens with realm roles.
+//   3. Obtain an API token via the `e2e-api` client and store it as
+//      PLAYWRIGHT_ADMIN_API_TOKEN for test workers.
+//      Note: the built-in `admin-cli` client does NOT include realm roles in
+//      tokens — this is Keycloak master-realm behavior specific to the system
+//      client. A dedicated e2e-api client is used instead.
 //   4. Provision a dedicated E2E tenant via the core-api CLI.
 //
 // NOTE: process.env mutations from globalSetup DO propagate to Playwright
@@ -71,6 +74,30 @@ async function getKeycloakAdminToken(): Promise<string> {
   return data.access_token;
 }
 
+/**
+ * Obtains a password-grant token via the e2e-api client.
+ * Unlike admin-cli, e2e-api has fullScopeAllowed: true and its tokens
+ * include realm_access.roles (including super_admin).
+ */
+async function getE2eApiToken(secret: string): Promise<string> {
+  const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'e2e-api',
+      client_secret: secret,
+      username: ADMIN_USER,
+      password: ADMIN_PASSWORD,
+    }).toString(),
+  });
+  if (!res.ok) {
+    throw new Error(`e2e-api token fetch failed: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { access_token: string };
+  return data.access_token;
+}
+
 async function adminFetch(
   token: string,
   apiPath: string,
@@ -90,7 +117,7 @@ async function adminFetch(
 /**
  * Ensures the `plexica-web` OIDC public client exists in the master realm.
  * directAccessGrantsEnabled is false: password grant removed from plexica-web
- * (ADR-023 Phase C). DLQ tests use admin-cli directly.
+ * (ADR-023 Phase C). DLQ tests use e2e-api client directly.
  */
 async function ensurePlexicaWebClient(token: string): Promise<void> {
   const res = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
@@ -109,6 +136,72 @@ async function ensurePlexicaWebClient(token: string): Promise<void> {
       `[admin global-setup] Warning: could not create plexica-web client in master realm: ${res.status}\n`
     );
   }
+}
+
+/**
+ * Ensures the `e2e-api` confidential client exists in the master realm.
+ * This client has directAccessGrantsEnabled + fullScopeAllowed = true,
+ * which allows it to issue tokens with realm roles via password grant.
+ *
+ * The admin-cli client (Keycloak built-in) does NOT include realm roles in
+ * tokens even with fullScopeAllowed=true — this is Keycloak master realm
+ * behavior specific to the system client. The e2e-api client provides a
+ * clean workaround for E2E API authentication.
+ *
+ * The client secret is set to a fixed value so we can configure it
+ * declaratively.
+ */
+async function ensureE2eApiClient(token: string): Promise<string> {
+  const clientId = 'e2e-api';
+  const clientSecret = 'e2e-api-secret';
+
+  // Look up existing client.
+  const lookupRes = await adminFetch(
+    token, `/admin/realms/master/clients?clientId=${clientId}`, 'GET',
+  );
+  if (!lookupRes.ok) {
+    throw new Error(`e2e-api client lookup failed: ${lookupRes.status}`);
+  }
+  const clients = (await lookupRes.json()) as Array<{ id: string }>;
+  const existingId = clients[0]?.id;
+
+  if (existingId !== undefined) {
+    // Update existing client.
+    const putRes = await adminFetch(
+      token, `/admin/realms/master/clients/${existingId}`, 'PUT', {
+        clientId,
+        protocol: 'openid-connect',
+        secret: clientSecret,
+        publicClient: false,
+        standardFlowEnabled: false,
+        directAccessGrantsEnabled: true,
+        fullScopeAllowed: true,
+        serviceAccountsEnabled: false,
+      },
+    );
+    if (!putRes.ok) {
+      throw new Error(`e2e-api client update failed: ${putRes.status}`);
+    }
+    process.stdout.write('[admin global-setup] e2e-api client updated.\n');
+  } else {
+    const postRes = await adminFetch(
+      token, '/admin/realms/master/clients', 'POST', {
+        clientId,
+        protocol: 'openid-connect',
+        secret: clientSecret,
+        publicClient: false,
+        standardFlowEnabled: false,
+        directAccessGrantsEnabled: true,
+        fullScopeAllowed: true,
+        serviceAccountsEnabled: false,
+      },
+    );
+    if (!postRes.ok && postRes.status !== 409) {
+      throw new Error(`e2e-api client creation failed: ${postRes.status}`);
+    }
+    process.stdout.write('[admin global-setup] e2e-api client created.\n');
+  }
+  return clientSecret;
 }
 
 /**
@@ -273,42 +366,19 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] Warning: could not update realm: ${String(e)}\n`);
   }
 
-  // Step 4.75: Ensure the admin-cli client includes realm roles in tokens.
-  //   By default, admin-cli has fullScopeAllowed: false, which means its
-  //   tokens exclude realm_access.roles. We need fullScopeAllowed: true so
-  //   the PLAYWRIGHT_ADMIN_API_TOKEN passes the requireSuperAdmin middleware.
-  process.stdout.write('[admin global-setup] Ensuring admin-cli fullScopeAllowed=true…\n');
-  try {
-    const lookupRes = await adminFetch(
-      adminToken, '/admin/realms/master/clients?clientId=admin-cli', 'GET'
-    );
-    if (!lookupRes.ok) {
-      process.stderr.write(`admin-cli lookup failed: ${lookupRes.status}\n`);
-    } else {
-      const clients = (await lookupRes.json()) as Array<{ id: string }>;
-      const adminCliUuid = clients[0]?.id;
-      if (adminCliUuid !== undefined) {
-        const putRes = await adminFetch(
-          adminToken, `/admin/realms/master/clients/${adminCliUuid}`, 'PUT',
-          { fullScopeAllowed: true },
-        );
-        if (!putRes.ok) {
-          process.stderr.write(`admin-cli update failed: ${putRes.status}\n`);
-        } else {
-          process.stdout.write('[admin global-setup] admin-cli fullScopeAllowed set to true.\n');
-        }
-      }
-    }
-  } catch (e) {
-    process.stderr.write(`[admin global-setup] Warning: could not configure admin-cli: ${String(e)}\n`);
-  }
+  // Step 4.75: Ensure the e2e-api client exists for API token generation.
+  //   admin-cli is a Keycloak system client that never includes realm roles in
+  //   tokens, even with fullScopeAllowed: true. We create a dedicated confidential
+  //   client with direct access grant + full scope for E2E API testing.
+  process.stdout.write('[admin global-setup] Ensuring e2e-api client exists…\n');
+  const e2eApiSecret = await ensureE2eApiClient(adminToken);
 
-  // Step 5: Get the API token via admin-cli (built-in Keycloak client with
-  //   direct grant always enabled and fullScopeAllowed=true from Step 4.75).
-  //   The admin user already has the super_admin realm role assigned (Step 3),
-  //   so this token includes realm_access.roles.
-  process.stdout.write('[admin global-setup] Obtaining API token via admin-cli…\n');
-  const apiToken = await getKeycloakAdminToken();
+  // Step 5: Get the API token via the e2e-api client.
+  //   Unlike admin-cli, e2e-api has fullScopeAllowed: true and its tokens
+  //   include realm_access.roles (including super_admin). The admin user
+  //   already has the super_admin realm role assigned (Step 3).
+  process.stdout.write('[admin global-setup] Obtaining API token via e2e-api…\n');
+  const apiToken = await getE2eApiToken(e2eApiSecret);
 
   // Set token for test workers via process.env. Playwright propagates env
   // mutations from globalSetup to worker processes automatically.

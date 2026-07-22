@@ -25,7 +25,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
-import { ensurePlexicaWebClientInMasterRealm, ensureSuperAdminForUser, getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
+import { ensureE2eApiClient, ensurePlexicaWebClientInMasterRealm, ensureSuperAdminForUser, getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
 import { provisionTenant, migrateTenantSchemas, seedPluginCatalog } from './tenant-provisioning-helpers.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -154,6 +154,12 @@ async function setup(): Promise<void> {
   const masterAdminUsername = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
   await ensurePlexicaWebClientInMasterRealm(token);
   await ensureSuperAdminForUser(token, 'master', masterAdminUsername);
+
+  // (c) The 'e2e-api' client is a confidential client with
+  //     directAccessGrantsEnabled + fullScopeAllowed = true. Unlike admin-cli
+  //     (the built-in Keycloak master-realm system client), it includes realm
+  //     roles in tokens — needed for super-admin API tests (ac-06 DLQ, etc.).
+  await ensureE2eApiClient(token);
 
   process.stdout.write('[global-setup] E2E environment provisioning complete.\n');
 }

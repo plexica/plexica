@@ -2,9 +2,10 @@
 // Real behavior: super admin accesses the DLQ API, entries load, and retrying a
 // pending entry changes its status (or the entry leaves the pending filter).
 //
-// This test obtains a master-realm super admin token via the built-in admin-cli
-// client (which always has direct grant enabled and includes realm_access.roles
-// because the admin user has the super_admin role assigned in the master realm).
+// This test obtains a master-realm super admin token via the e2e-api client
+// (a dedicated confidential client with direct access grant enabled and
+// fullScopeAllowed=true — created in global-setup). Unlike the built-in
+// admin-cli client, e2e-api includes realm_access.roles in tokens.
 //
 // This test is purely API-driven — it does not interact with the frontend UI, so
 // there is no need to log in through the browser.
@@ -16,12 +17,15 @@ const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] ?? process.env['PLAYWRIGHT_KEYC
 const KEYCLOAK_ADMIN_USER = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
 const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
 
+const E2E_API_SECRET = 'e2e-api-secret';
+
 /**
  * Obtains a Keycloak access token for the master-realm admin user.
- * Uses the built-in admin-cli client (always has direct grant enabled).
- * The admin user has the super_admin role assigned in the master realm
- * (by global-setup), so the token includes realm_access.roles and passes
- * the require-super-admin middleware — proven by admin E2E usage.
+ * Uses the e2e-api client (dedicated confidential client with
+ * directAccessGrantsEnabled + fullScopeAllowed = true, created in
+ * global-setup). Unlike admin-cli (the built-in Keycloak master-realm
+ * system client), e2e-api tokens include realm_access.roles — required
+ * for the require-super-admin middleware.
  */
 async function getSuperAdminToken(): Promise<string> {
   const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
@@ -29,7 +33,8 @@ async function getSuperAdminToken(): Promise<string> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'admin-cli',
+      client_id: 'e2e-api',
+      client_secret: E2E_API_SECRET,
       username: KEYCLOAK_ADMIN_USER,
       password: KEYCLOAK_ADMIN_PASSWORD,
     }).toString(),

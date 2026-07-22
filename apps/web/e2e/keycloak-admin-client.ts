@@ -193,6 +193,103 @@ export async function upsertUser(token: string, realm: string, user: KeycloakUse
   }
 }
 
+/**
+ * Ensures the `e2e-api` confidential client exists in the master realm.
+ * This client has directAccessGrantsEnabled + fullScopeAllowed = true,
+ * which allows it to issue tokens with realm roles via password grant.
+ *
+ * The admin-cli client (Keycloak built-in) does NOT include realm roles in
+ * tokens even with fullScopeAllowed=true — this is Keycloak master realm
+ * behavior specific to the system client. The e2e-api client provides a
+ * clean workaround for E2E API authentication.
+ *
+ * Idempotent: safe to call on every global-setup.
+ * Returns the client secret.
+ */
+export async function ensureE2eApiClient(token: string): Promise<string> {
+  const clientId = 'e2e-api';
+  const clientSecret = 'e2e-api-secret';
+
+  const lookupRes = await adminFetch(
+    token, `/admin/realms/master/clients?clientId=${clientId}`, 'GET',
+  );
+  if (!lookupRes.ok) {
+    throw new Error(`e2e-api client lookup failed: ${lookupRes.status}`);
+  }
+  const clients = (await lookupRes.json()) as Array<{ id: string }>;
+  const existingId = clients[0]?.id;
+
+  if (existingId !== undefined) {
+    // Update existing client.
+    const putRes = await adminFetch(
+      token, `/admin/realms/master/clients/${existingId}`, 'PUT', {
+        clientId,
+        protocol: 'openid-connect',
+        secret: clientSecret,
+        publicClient: false,
+        standardFlowEnabled: false,
+        directAccessGrantsEnabled: true,
+        fullScopeAllowed: true,
+        serviceAccountsEnabled: false,
+      },
+    );
+    if (!putRes.ok) {
+      throw new Error(`e2e-api client update failed: ${putRes.status}`);
+    }
+    process.stdout.write('[global-setup] e2e-api client updated.\n');
+  } else {
+    const postRes = await adminFetch(
+      token, '/admin/realms/master/clients', 'POST', {
+        clientId,
+        protocol: 'openid-connect',
+        secret: clientSecret,
+        publicClient: false,
+        standardFlowEnabled: false,
+        directAccessGrantsEnabled: true,
+        fullScopeAllowed: true,
+        serviceAccountsEnabled: false,
+      },
+    );
+    if (!postRes.ok && postRes.status !== 409) {
+      throw new Error(`e2e-api client creation failed: ${postRes.status}`);
+    }
+    process.stdout.write('[global-setup] e2e-api client created.\n');
+  }
+  return clientSecret;
+}
+
+/**
+ * Obtains a password-grant token via the e2e-api client in the master realm.
+ * Unlike admin-cli, e2e-api has fullScopeAllowed: true and its tokens
+ * include realm_access.roles (including super_admin).
+ *
+ * The caller should have created/ensured the e2e-api client first
+ * (via ensureE2eApiClient) before calling this function.
+ */
+export async function getE2eApiToken(
+  keycloakUrl: string,
+  secret: string,
+  username: string,
+  password: string,
+): Promise<string> {
+  const res = await fetch(`${keycloakUrl}/realms/master/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'e2e-api',
+      client_secret: secret,
+      username,
+      password,
+    }).toString(),
+  });
+  if (!res.ok) {
+    throw new Error(`e2e-api token fetch failed: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { access_token: string };
+  return data.access_token;
+}
+
 // Re-export theme helpers so global-setup.ts can import from one place.
 export { setRealmPlexicaTheme } from './keycloak-theme-helpers.js';
 
