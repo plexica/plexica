@@ -245,12 +245,12 @@ CLI tool invoked via `pnpm` script, not an HTTP endpoint.
 
 ### 4.8 Playwright E2E Smoke Test
 
-- **Purpose**: Verify the login page renders — the only user-interactive surface in Phase 0.
+- **Purpose**: Verify the secure sign-in entry point — the only user-interactive surface in Phase 0.
 - **Location**: `apps/web/e2e/`
 - **Responsibilities**:
   - Navigate to `http://localhost:3000`
-  - Verify the login page renders (Keycloak login form or redirect)
-  - Assert key elements are visible (login form, email input, password input, submit button)
+  - Verify redirect to Keycloak using Authorization Code + PKCE S256
+  - Assert Plexica renders no credentials and the exact callback is registered
 - **Dependencies**: Docker Compose stack running, `apps/web` dev server running
 
 ---
@@ -551,10 +551,11 @@ empty workspace.
 **Tasks**:
 
 1. [ ] Configure Vite with React plugin and `@plexica/ui` consumption
-2. [ ] Create minimal App component that renders a login page placeholder
+2. [ ] Create sign-in entry; current behavior redirects to Keycloak with PKCE
 3. [ ] Verify `pnpm --filter web dev` starts and page renders
 
-**Verification**: `http://localhost:3000` shows a page with login UI elements.
+**Verification**: `http://localhost:3000` reaches Keycloak and returns through
+the exact callback; Plexica renders no credential fields (ADR-023).
 
 **Estimated effort**: 2-3 hours
 

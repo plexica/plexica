@@ -2,14 +2,15 @@
 // Admin API helper for E2E test assertions + setup/cleanup.
 //
 // Wraps the /api/v1/admin/* endpoints exposed by core-api. All endpoints
-// require a master-realm super_admin bearer token. The default token is read
-// from process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] (set by global-setup.ts); an
-// explicit token can be passed for cases where a test freshly logs in.
+// require a master-realm super_admin bearer token. Without an explicit browser
+// token, each request obtains a fresh token from the ephemeral E2E client.
 //
 // Read methods (assertions) return `unknown` so callers assert on the shape
 // they expect. Lifecycle methods (provision/suspend/reactivate/delete) are
 // typed so setup/cleanup code in afterAll can read tenantId/version/slugs
 // without casting. Every method throws on non-2xx so failures surface fast.
+
+import { getE2eApiToken } from '../../../../e2e/keycloak/ephemeral-client.js';
 
 const CORE_API_BASE = process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
 const ADMIN_API_BASE = `${CORE_API_BASE}/api/v1/admin`;
@@ -91,15 +92,16 @@ export interface PluginListResponse {
 }
 
 async function req(
-  token: string,
+  token: string | undefined,
   method: string,
   path: string,
   body?: unknown
 ): Promise<unknown> {
+  const bearer = token ?? (await getE2eApiToken());
   const res = await fetch(`${ADMIN_API_BASE}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${bearer}`,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -121,11 +123,15 @@ export interface AdminApiClient {
   getDashboardMetrics(): Promise<unknown>;
   getKafkaStatus(): Promise<unknown>;
   getAuditLog(): Promise<unknown>;
-  getLogs(): Promise<unknown>;
+  getLogs(params?: { tenant?: string; level?: string; limit?: number }): Promise<unknown>;
   // Lifecycle endpoints (setup/cleanup).
   findTenantBySlug(slug: string): Promise<TenantRow | undefined>;
   getTenantDetail(id: string): Promise<TenantDetailResponse>;
-  provisionTenant(input: { slug: string; name: string; adminEmail: string }): Promise<ProvisionResult>;
+  provisionTenant(input: {
+    slug: string;
+    name: string;
+    adminEmail: string;
+  }): Promise<ProvisionResult>;
   suspendTenant(id: string, version: number): Promise<unknown>;
   reactivateTenant(id: string, version: number): Promise<unknown>;
   deleteTenant(id: string, confirmSlug: string, version: number): Promise<unknown>;
@@ -137,18 +143,10 @@ export interface AdminApiClient {
 
 /**
  * Builds an admin API client bound to the given bearer token.
- * If no token is provided, reads from PLAYWRIGHT_ADMIN_API_TOKEN env var
- * (set by global-setup.ts and propagated to worker processes by Playwright).
+ * If no token is provided, obtains a fresh narrow-scope E2E token per request.
  */
 export function adminApi(token?: string): AdminApiClient {
-  // Fallback chain: explicit token → process.env (set by global-setup.ts).
-  const bearer = token ?? process.env['PLAYWRIGHT_ADMIN_API_TOKEN'] ?? '';
-  if (bearer.length === 0) {
-    throw new Error(
-      'adminApi: no bearer token available — pass one or set PLAYWRIGHT_ADMIN_API_TOKEN.'
-    );
-  }
-  const get = (path: string): Promise<unknown> => req(bearer, 'GET', path);
+  const get = (path: string): Promise<unknown> => req(token, 'GET', path);
 
   return {
     getHealth: () => get('/health'),
@@ -157,7 +155,14 @@ export function adminApi(token?: string): AdminApiClient {
     getDashboardMetrics: () => get('/dashboard/metrics'),
     getKafkaStatus: () => get('/system/kafka'),
     getAuditLog: () => get('/audit-logs'),
-    getLogs: () => get('/logs'),
+    getLogs: (params = {}) => {
+      const query = new URLSearchParams();
+      if (params.tenant !== undefined) query.set('tenant', params.tenant);
+      if (params.level !== undefined) query.set('level', params.level);
+      if (params.limit !== undefined) query.set('limit', String(params.limit));
+      const suffix = query.size > 0 ? `?${query.toString()}` : '';
+      return get(`/logs${suffix}`);
+    },
 
     findTenantBySlug: async (slug: string) => {
       const list = (await get(
@@ -167,24 +172,23 @@ export function adminApi(token?: string): AdminApiClient {
     },
     getTenantDetail: (id: string) =>
       get(`/tenants/${encodeURIComponent(id)}`) as Promise<TenantDetailResponse>,
-    provisionTenant: (input) =>
-      req(bearer, 'POST', '/tenants', input) as Promise<ProvisionResult>,
-    suspendTenant: (id, version) => req(bearer, 'POST', `/tenants/${id}/suspend`, { version }),
-    reactivateTenant: (id, version) => req(bearer, 'POST', `/tenants/${id}/reactivate`, { version }),
+    provisionTenant: (input) => req(token, 'POST', '/tenants', input) as Promise<ProvisionResult>,
+    suspendTenant: (id, version) => req(token, 'POST', `/tenants/${id}/suspend`, { version }),
+    reactivateTenant: (id, version) => req(token, 'POST', `/tenants/${id}/reactivate`, { version }),
     deleteTenant: (id, confirmSlug, version) =>
-      req(bearer, 'DELETE', `/tenants/${id}`, { confirmSlug, version }),
+      req(token, 'DELETE', `/tenants/${id}`, { confirmSlug, version }),
     getDeletionStatus: (id) =>
       get(`/tenants/${id}/deletion-status`) as Promise<DeletionStatusResponse>,
     listPlugins: () => get('/plugins') as Promise<PluginListResponse>,
     reviewPlugin: (slug, decision, notes) =>
-      req(bearer, 'POST', `/plugins/${encodeURIComponent(slug)}/review`, {
+      req(token, 'POST', `/plugins/${encodeURIComponent(slug)}/review`, {
         decision,
         ...(notes !== undefined ? { notes } : {}),
       }),
     ensureActive: async (id: string) => {
       const detail = await (get(`/tenants/${id}`) as Promise<TenantDetailResponse>);
       if (detail.tenant.status === 'suspended') {
-        await req(bearer, 'POST', `/tenants/${id}/reactivate`, {
+        await req(token, 'POST', `/tenants/${id}/reactivate`, {
           version: detail.tenant.version,
         });
       }

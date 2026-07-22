@@ -151,7 +151,10 @@ benefit does not justify the cost when the raw API client already exists.
 
 The existing `KEYCLOAK_ADMIN_USER` / `KEYCLOAK_ADMIN_PASSWORD` credentials
 authenticate against the master realm's `admin-cli` client. These credentials
-have global admin access by default. For FR-022 operations, the backend must:
+have global admin access by default. This is control-plane authentication for
+the Keycloak Admin REST API only; it must not authenticate either browser app
+or issue Plexica API tokens for E2E tests (ADR-023). For FR-022 operations, the
+backend must:
 
 - Validate that the calling user is a `tenant_admin` for the target tenant
   (ABAC enforcement)

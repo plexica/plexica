@@ -5,36 +5,47 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
 import { FormattedMessage } from 'react-intl';
+import { z } from 'zod';
 
 import { useAuthStore } from '../stores/auth-store.js';
 
 export function AuthCallbackPage(): JSX.Element {
   const navigate = useNavigate();
   const handleCallback = useAuthStore((s) => s.handleCallback);
-  const [error, setError] = useState<string | null>(null);
+  const [errorId, setErrorId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
+    const parsed = z
+      .object({
+        code: z.string().min(1).max(4096),
+        state: z.string().min(1).max(512),
+      })
+      .safeParse({ code: params.get('code'), state: params.get('state') });
 
-    if (code === null || state === null) {
-      setError('Missing authorization code or state parameter.');
+    if (!parsed.success) {
+      setErrorId('admin.login.callbackInvalid');
       return;
     }
 
-    void handleCallback(code, state)
-      .then(() => navigate({ to: '/dashboard' }))
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Authentication failed');
+    let active = true;
+    void handleCallback(parsed.data.code, parsed.data.state)
+      .then(() => {
+        if (active) void navigate({ to: '/dashboard' });
+      })
+      .catch(() => {
+        if (active) setErrorId('admin.login.callbackFailed');
       });
-  }, []); // intentionally empty — runs once on mount only
+    return () => {
+      active = false;
+    };
+  }, [handleCallback, navigate]);
 
-  if (error !== null) {
+  if (errorId !== null) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p role="alert" className="text-red-600">
-          {error}
+        <p role="alert" aria-live="assertive" className="text-red-600">
+          <FormattedMessage id={errorId} />
         </p>
         <Link to="/login" className="text-neutral-600 underline">
           <FormattedMessage id="admin.login.backToLogin" defaultMessage="Back to login" />
@@ -45,7 +56,7 @@ export function AuthCallbackPage(): JSX.Element {
 
   return (
     <main className="flex min-h-screen items-center justify-center" aria-busy="true">
-      <p className="text-neutral-600">
+      <p role="status" aria-live="polite" className="text-neutral-600">
         <FormattedMessage id="admin.login.signingIn" defaultMessage="Signing in…" />
       </p>
     </main>

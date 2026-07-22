@@ -18,7 +18,7 @@
 //
 // - `types.ts`      — AuthStatus, TokenResponse, BaseUserProfile, AuthState<T>
 // - `jwt.ts`         — decodeBase64Url, decodeAccessToken, extractBaseProfile, isTokenValid
-// - `keycloak-client.ts` — createKeycloakClient() factory (PKCE + password grant)
+// - `keycloak-client.ts` — createKeycloakClient() browser PKCE factory
 // - `api-client.ts`  — createApiClient() factory (auto-auth, 401 refresh, error handling)
 // - `auth-store.ts`  — createAuthBaseSlice(), rehydrateStatus(), partializeAuthState()
 // - `use-silent-refresh.ts` — useSilentRefresh() hook

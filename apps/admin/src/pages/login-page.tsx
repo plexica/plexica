@@ -4,7 +4,7 @@
 // own login page, which supports MFA, SSO, and social login.
 // The /callback route handles the redirect back to the app.
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
 
 import { useAuthStore } from '../stores/auth-store.js';
@@ -12,15 +12,20 @@ import { useAuthStore } from '../stores/auth-store.js';
 export function LoginPage(): JSX.Element {
   const login = useAuthStore((s) => s.login);
   const status = useAuthStore((s) => s.status);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    // Auto-redirect to Keycloak on mount.
-    // The login action generates a PKCE challenge, stores state in
-    // sessionStorage, and redirects the browser to Keycloak.
-    if (status === 'unauthenticated') {
-      void login();
-    }
-  }, []); // intentionally empty — runs once on mount only
+    void login().catch(() => {
+      setHasError(true);
+    });
+  }, [login]);
+
+  function startLogin(): void {
+    setHasError(false);
+    void login().catch(() => {
+      setHasError(true);
+    });
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
@@ -28,8 +33,14 @@ export function LoginPage(): JSX.Element {
         <h1 className="text-xl font-bold text-neutral-900">
           <FormattedMessage id="admin.login.title" />
         </h1>
-        <p className="mt-4 text-sm text-neutral-500">
-          {status === 'authenticating' ? (
+        <p
+          role={hasError ? 'alert' : 'status'}
+          aria-live={hasError ? 'assertive' : 'polite'}
+          className={hasError ? 'mt-4 text-sm text-red-600' : 'mt-4 text-sm text-neutral-500'}
+        >
+          {hasError ? (
+            <FormattedMessage id="admin.login.startFailed" />
+          ) : status === 'authenticating' ? (
             <FormattedMessage id="admin.login.redirecting" defaultMessage="Redirecting to login…" />
           ) : (
             <FormattedMessage id="admin.login.redirect" defaultMessage="Redirecting to Keycloak…" />
@@ -37,10 +48,11 @@ export function LoginPage(): JSX.Element {
         </p>
         <button
           type="button"
-          onClick={() => void login()}
-          className="mt-6 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+          onClick={startLogin}
+          disabled={status === 'authenticating'}
+          className="mt-6 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <FormattedMessage id="admin.login.submit" />
+          <FormattedMessage id={hasError ? 'admin.login.retry' : 'admin.login.submit'} />
         </button>
       </div>
     </div>

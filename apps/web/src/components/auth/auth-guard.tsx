@@ -21,7 +21,7 @@ export function AuthGuard({ children }: AuthGuardProps): JSX.Element | null {
   const login = useAuthStore((s) => s.login);
 
   const onUnauthenticated = useCallback(() => {
-    void login();
+    void login().catch(() => undefined);
   }, [login]);
 
   const { isAuthenticated: guarded } = useSilentRefresh(

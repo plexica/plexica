@@ -1,44 +1,7 @@
 // keycloak-admin-client.ts
-// Keycloak Admin REST API helpers used by global-setup.ts.
-// Exports: getAdminToken, adminFetch, upsertUser, setRealmPlexicaTheme (re-export).
+// Keycloak user provisioning helpers used by global-setup.ts.
 
-export const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
-const KEYCLOAK_ADMIN_USER = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
-const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
-
-export async function getAdminToken(): Promise<string> {
-  const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'admin-cli',
-      username: KEYCLOAK_ADMIN_USER,
-      password: KEYCLOAK_ADMIN_PASSWORD,
-    }).toString(),
-  });
-  if (!res.ok) {
-    throw new Error(`Keycloak admin token fetch failed: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
-}
-
-export async function adminFetch(
-  token: string,
-  apiPath: string,
-  method: string,
-  body?: unknown
-): Promise<Response> {
-  return fetch(`${KEYCLOAK_URL}${apiPath}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-}
+import { adminFetch } from '../../../e2e/keycloak/admin-api.js';
 
 export interface KeycloakUser {
   username: string;
@@ -66,10 +29,7 @@ async function assignRealmRoles(
   for (const roleName of roleNames) {
     const res = await adminFetch(token, `/admin/realms/${realm}/roles/${roleName}`, 'GET');
     if (!res.ok) {
-      process.stderr.write(
-        `[global-setup] Warning: role '${roleName}' not found in realm ${realm} (${String(res.status)})\n`
-      );
-      continue;
+      throw new Error(`Role '${roleName}' not found in realm ${realm}: HTTP ${res.status}`);
     }
     const role = (await res.json()) as { id: string; name: string };
     roleRepresentations.push({ id: role.id, name: role.name });
@@ -83,9 +43,7 @@ async function assignRealmRoles(
     roleRepresentations
   );
   if (!mapRes.ok && mapRes.status !== 204) {
-    process.stderr.write(
-      `[global-setup] Warning: could not assign roles to user ${userId}: ${String(mapRes.status)}\n`
-    );
+    throw new Error(`Could not assign roles to user ${userId}: HTTP ${mapRes.status}`);
   }
 }
 
@@ -181,9 +139,7 @@ export async function upsertUser(token: string, realm: string, user: KeycloakUse
       profileUpdate
     );
     if (!updateRes.ok) {
-      process.stderr.write(
-        `[global-setup] Warning: could not update profile for ${user.username}: ${updateRes.status}\n`
-      );
+      throw new Error(`Could not update profile for ${user.username}: HTTP ${updateRes.status}`);
     }
   }
 
@@ -193,213 +149,5 @@ export async function upsertUser(token: string, realm: string, user: KeycloakUse
   }
 }
 
-/**
- * Ensures the `e2e-api` confidential client exists in the master realm.
- * This client has directAccessGrantsEnabled + fullScopeAllowed = true,
- * which allows it to issue tokens with realm roles via password grant.
- *
- * The admin-cli client (Keycloak built-in) does NOT include realm roles in
- * tokens even with fullScopeAllowed=true — this is Keycloak master realm
- * behavior specific to the system client. The e2e-api client provides a
- * clean workaround for E2E API authentication.
- *
- * Idempotent: safe to call on every global-setup.
- * Returns the client secret.
- */
-export async function ensureE2eApiClient(token: string): Promise<string> {
-  const clientId = 'e2e-api';
-  const clientSecret = 'e2e-api-secret';
-
-  const lookupRes = await adminFetch(
-    token, `/admin/realms/master/clients?clientId=${clientId}`, 'GET',
-  );
-  if (!lookupRes.ok) {
-    throw new Error(`e2e-api client lookup failed: ${lookupRes.status}`);
-  }
-  const clients = (await lookupRes.json()) as Array<{ id: string }>;
-  const existingId = clients[0]?.id;
-
-  if (existingId !== undefined) {
-    // Update existing client.
-    const putRes = await adminFetch(
-      token, `/admin/realms/master/clients/${existingId}`, 'PUT', {
-        clientId,
-        protocol: 'openid-connect',
-        secret: clientSecret,
-        publicClient: false,
-        standardFlowEnabled: false,
-        directAccessGrantsEnabled: true,
-        fullScopeAllowed: true,
-        serviceAccountsEnabled: false,
-      },
-    );
-    if (!putRes.ok) {
-      throw new Error(`e2e-api client update failed: ${putRes.status}`);
-    }
-    process.stdout.write('[global-setup] e2e-api client updated.\n');
-  } else {
-    const postRes = await adminFetch(
-      token, '/admin/realms/master/clients', 'POST', {
-        clientId,
-        protocol: 'openid-connect',
-        secret: clientSecret,
-        publicClient: false,
-        standardFlowEnabled: false,
-        directAccessGrantsEnabled: true,
-        fullScopeAllowed: true,
-        serviceAccountsEnabled: false,
-      },
-    );
-    if (!postRes.ok && postRes.status !== 409) {
-      throw new Error(`e2e-api client creation failed: ${postRes.status}`);
-    }
-    process.stdout.write('[global-setup] e2e-api client created.\n');
-  }
-  return clientSecret;
-}
-
-/**
- * Obtains a password-grant token via the e2e-api client in the master realm.
- * Unlike admin-cli, e2e-api has fullScopeAllowed: true and its tokens
- * include realm_access.roles (including super_admin).
- *
- * The caller should have created/ensured the e2e-api client first
- * (via ensureE2eApiClient) before calling this function.
- */
-export async function getE2eApiToken(
-  keycloakUrl: string,
-  secret: string,
-  username: string,
-  password: string,
-): Promise<string> {
-  const res = await fetch(`${keycloakUrl}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'e2e-api',
-      client_secret: secret,
-      username,
-      password,
-    }).toString(),
-  });
-  if (!res.ok) {
-    throw new Error(`e2e-api token fetch failed: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
-}
-
 // Re-export theme helpers so global-setup.ts can import from one place.
 export { setRealmPlexicaTheme } from './keycloak-theme-helpers.js';
-
-/**
- * Ensures the `super_admin` role exists in the given realm and is assigned
- * to the specified user. Idempotent — safe to call on every global-setup.
- * Required by DLQ E2E tests (ac-06) that hit super-admin-only API endpoints.
- */
-export async function ensureSuperAdminForUser(
-  token: string,
-  realm: string,
-  username: string,
-): Promise<void> {
-  // 1. Create the super_admin role if it doesn't exist (409 = already exists).
-  const createRoleRes = await adminFetch(token, `/admin/realms/${realm}/roles`, 'POST', {
-    name: 'super_admin',
-    description: 'Super administrator — cross-tenant access (E2E)',
-  });
-  if (!createRoleRes.ok && createRoleRes.status !== 409) {
-    process.stderr.write(
-      `[global-setup] Warning: could not create super_admin role in ${realm}: ${createRoleRes.status}\n`
-    );
-    return;
-  }
-
-  // 2. Find the user.
-  const lookupRes = await adminFetch(
-    token,
-    `/admin/realms/${realm}/users?username=${encodeURIComponent(username)}&exact=true`,
-    'GET'
-  );
-  if (!lookupRes.ok) {
-    process.stderr.write(
-      `[global-setup] Warning: could not look up user ${username} in ${realm}: ${lookupRes.status}\n`
-    );
-    return;
-  }
-  const users = (await lookupRes.json()) as Array<{ id: string }>;
-  const userId = users[0]?.id;
-  if (userId === undefined) {
-    process.stderr.write(`[global-setup] Warning: user ${username} not found in ${realm}\n`);
-    return;
-  }
-
-  // 3. Assign the super_admin role to the user (idempotent).
-  await assignRealmRoles(token, realm, userId, ['super_admin']);
-  process.stdout.write(`[global-setup] super_admin role assigned to ${username} in ${realm}.\n`);
-}
-
-/**
- * Ensures the `plexica-web` OIDC client exists in the master realm.
- * The master realm does not have this client by default — only tenant realms
- * (created via createRealm) receive it.
- *
- * directAccessGrantsEnabled is false: the password grant has been removed
- * from plexica-web (ADR-023 Phase C). DLQ E2E tests (ac-06) use admin-cli
- * instead of plexica-web for token acquisition.
- *
- * Idempotent: 409 (already exists) is treated as success.
- */
-export async function ensurePlexicaWebClientInMasterRealm(token: string): Promise<void> {
-  const redirectUris = ['http://localhost:3000/*'];
-  const webOrigins = ['http://localhost:3000'];
-
-  const res = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
-    clientId: 'plexica-web',
-    protocol: 'openid-connect',
-    publicClient: true,
-    standardFlowEnabled: true,
-    directAccessGrantsEnabled: false,
-    redirectUris,
-    webOrigins,
-    attributes: {
-      'post.logout.redirect.uris': '+',
-    },
-  });
-
-  if (res.ok) {
-    process.stdout.write('[global-setup] plexica-web client created in master realm.\n');
-    return;
-  }
-
-  if (res.status === 409) {
-    // Client already exists — look it up and reconcile its configuration.
-    const lookupRes = await adminFetch(
-      token, '/admin/realms/master/clients?clientId=plexica-web', 'GET'
-    );
-    if (!lookupRes.ok) {
-      throw new Error(`Failed to find plexica-web client in master realm: HTTP ${lookupRes.status}`);
-    }
-    const clients = (await lookupRes.json()) as Array<{ id: string }>;
-    const clientUuid = clients[0]?.id;
-    if (clientUuid === undefined) {
-      throw new Error('plexica-web client not found in master realm (409 reported but lookup returned empty)');
-    }
-    const putRes = await adminFetch(token, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
-      clientId: 'plexica-web',
-      publicClient: true,
-      standardFlowEnabled: true,
-      directAccessGrantsEnabled: false,
-      redirectUris,
-      webOrigins,
-      attributes: { 'post.logout.redirect.uris': '+' },
-    });
-    if (!putRes.ok) {
-      throw new Error(`Failed to update plexica-web client in master realm: HTTP ${putRes.status}`);
-    }
-    process.stdout.write('[global-setup] plexica-web client reconciled in master realm.\n');
-    return;
-  }
-
-  throw new Error(`Failed to create plexica-web client in master realm: HTTP ${res.status}`);
-}

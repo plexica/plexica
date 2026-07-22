@@ -25,37 +25,28 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
-import { ensureE2eApiClient, ensurePlexicaWebClientInMasterRealm, ensureSuperAdminForUser, getAdminToken, upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
-import { provisionTenant, migrateTenantSchemas, seedPluginCatalog } from './tenant-provisioning-helpers.js';
+import { getAdminToken, waitForKeycloak } from '../../../e2e/keycloak/admin-api.js';
+import { createEphemeralE2eClient } from '../../../e2e/keycloak/ephemeral-client.js';
+import { ensureSuperAdminForUser } from '../../../e2e/keycloak/realm-role.js';
+import { ensureCrmMarketplaceFixture } from '../../../e2e/fixtures/core-fixtures.js';
+
+import { upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
+import {
+  provisionTenant,
+  migrateTenantSchemas,
+  seedPluginCatalog,
+} from './tenant-provisioning-helpers.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 // Marker file: '1' = plexica theme active, '0' = fallback to default.
 const THEME_MARKER_PATH = path.resolve(__dirname, '.e2e-plexica-theme-active');
 
-async function waitForKeycloak(url: string, retries = 30, delayMs = 2000): Promise<void> {
-  // Keycloak 26+ does not expose /health on the main port (8080) — the Quarkus
-  // management interface lives on port 9000 and is often firewalled in dev.
-  // The most reliable readiness signal on 8080 is the master realm endpoint,
-  // which returns 200 only once the server is fully booted and serving.
-  const probeUrl = `${url}/realms/master`;
-  for (let i = 1; i <= retries; i++) {
-    try {
-      const res = await fetch(probeUrl, { signal: AbortSignal.timeout(5000) });
-      if (res.ok) return;
-    } catch { /* not ready yet */ }
-    process.stdout.write(`[global-setup] Waiting for Keycloak at ${url} (attempt ${i}/${retries})…\n`);
-    await new Promise((r) => setTimeout(r, delayMs));
-  }
-  throw new Error(`Keycloak at ${url} not ready after ${retries} retries`);
-}
-
 async function setup(): Promise<void> {
   process.stdout.write('[global-setup] Starting E2E environment provisioning…\n');
 
   // ── 0. Wait for Keycloak readiness ────────────────────────────────────────
-  const keycloakUrl = process.env['KEYCLOAK_URL'] ?? 'http://localhost:8080';
-  await waitForKeycloak(keycloakUrl);
+  await waitForKeycloak();
 
   // ── 1. Provision tenants ──────────────────────────────────────────────────
   provisionTenant('e2e', 'E2E', 'admin@e2e.local');
@@ -70,6 +61,7 @@ async function setup(): Promise<void> {
 
   // ── 1c. Seed the plugin catalog (CRM) so the marketplace has real data ──
   seedPluginCatalog();
+  await ensureCrmMarketplaceFixture();
 
   // ── 2. Add test users via Keycloak Admin REST API ─────────────────────────
   process.stdout.write('[global-setup] Obtaining Keycloak admin token…\n');
@@ -148,18 +140,10 @@ async function setup(): Promise<void> {
   // The DLQ test (ac-06) hits super-admin-only API endpoints. It needs a
   // super admin token from the master realm with realm_access.roles including
   // 'super_admin'. This requires:
-  //   (a) The 'plexica-web' client to exist in the master realm (it's created
-  //       by createRealm for tenant realms, but the master realm doesn't get it)
-  //   (b) The 'super_admin' role to exist and be assigned to the admin user
+  // The helper client is random, E2E-only, and scoped to this one realm role.
   const masterAdminUsername = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
-  await ensurePlexicaWebClientInMasterRealm(token);
-  await ensureSuperAdminForUser(token, 'master', masterAdminUsername);
-
-  // (c) The 'e2e-api' client is a confidential client with
-  //     directAccessGrantsEnabled + fullScopeAllowed = true. Unlike admin-cli
-  //     (the built-in Keycloak master-realm system client), it includes realm
-  //     roles in tokens — needed for super-admin API tests (ac-06 DLQ, etc.).
-  await ensureE2eApiClient(token);
+  const superAdminRole = await ensureSuperAdminForUser(token, masterAdminUsername);
+  await createEphemeralE2eClient(token, 'web', superAdminRole);
 
   process.stdout.write('[global-setup] E2E environment provisioning complete.\n');
 }

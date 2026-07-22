@@ -56,6 +56,10 @@ export function useTenantDetail(id: string) {
   return useQuery<TenantDetail>({
     queryKey: ['admin', 'tenant', id] as const,
     queryFn: () => getTenant(id),
+    enabled: (query) => {
+      const status = query.state.data?.tenant.status;
+      return id !== '' && status !== 'pending_deletion' && status !== 'deleted';
+    },
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });

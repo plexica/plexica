@@ -2,6 +2,8 @@
 // Page object helpers for workspace operations (E2E-01 through E2E-12).
 // All locators use accessible roles/labels per the project convention.
 
+import { waitForRouteContent } from './route-content.js';
+
 import type { Page } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +49,9 @@ export async function fillCreateWorkspaceForm(
  */
 export async function openCreateWorkspaceDialog(page: Page): Promise<void> {
   await page.goto('/workspaces');
-  await page.getByRole('button', { name: /new workspace|create workspace/i }).first().click();
+  const createButton = page.getByRole('button', { name: /new workspace|create workspace/i }).first();
+  await waitForRouteContent(page, createButton, 'Workspace list');
+  await createButton.click();
 }
 
 /**

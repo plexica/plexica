@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-06-26 (Spec 004 plan phase — ADR-013 through ADR-020 added)
+**Last Updated**: 2026-07-22 (ADR-023 accepted)
 
 ---
 
@@ -28,7 +28,7 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 | ADR-010 | Keycloakify for Keycloak Custom Theme                        | Accepted | April 2026 |
 | ADR-011 | Keycloak Admin API Integration for Tenant Auth Configuration | Accepted | April 2026 |
 | ADR-012 | Rate Limiting via @fastify/rate-limit                        | Accepted | April 2026 |
-| ADR-023 | Admin App PKCE Authentication Migration                      | Proposed | July 2026  |
+| ADR-023 | Admin App PKCE Authentication Migration                      | Accepted | July 2026  |
 
 ---
 

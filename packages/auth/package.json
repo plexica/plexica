@@ -12,10 +12,13 @@
     "./keycloak-client": "./src/keycloak-client.ts",
     "./api-client": "./src/api-client.ts",
     "./auth-store": "./src/auth-store.ts",
+    "./auth-flow": "./src/auth-flow.ts",
+    "./pkce": "./src/pkce.ts",
     "./use-silent-refresh": "./src/use-silent-refresh.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm --dir ../sdk exec vitest run --root ../auth"
   },
   "peerDependencies": {
     "react": "^19.2.7",

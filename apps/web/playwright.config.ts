@@ -7,10 +7,8 @@
 //   CI         — env vars come from the GitHub Actions job-level `env:` block.
 //                dotenv.config() silently no-ops (no .env file in CI workspace).
 //
-// PLAYWRIGHT_* defaults are set here (in the main process) so they are inherited
-// by test worker processes. Setting them only in globalSetup is insufficient —
-// globalSetup runs in a separate context whose process.env mutations do not
-// propagate to workers.
+// Stable PLAYWRIGHT_* defaults are set during config evaluation. Per-run secrets
+// are generated later by global setup and propagated to worker environments.
 
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -36,7 +34,9 @@ function setDefault(key: string, value: string): void {
 }
 
 setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX', '30');
+setDefault('PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX', '10000');
 setDefault('PLAYWRIGHT_TENANT_SLUG', 'e2e');
 setDefault('PLAYWRIGHT_KEYCLOAK_USER', 'test@e2e.local');
 setDefault('PLAYWRIGHT_KEYCLOAK_PASS', 'PlexicaE2e!1');
@@ -52,12 +52,22 @@ setDefault('PLAYWRIGHT_FORCE_PROFILE_PASS', 'ForceProfile!1');
 
 const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
 const playwrightBrowserChannel = process.env['PLAYWRIGHT_BROWSER_CHANNEL'];
+const databaseUrl =
+  process.env['DATABASE_URL'] ?? 'postgresql://plexica:changeme@localhost:5432/plexica';
+const crmDatabaseUrl = new URL(databaseUrl);
+const crmTenantSlug = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'e2e';
+if (!/^[a-z][a-z0-9-]{1,62}$/.test(crmTenantSlug)) {
+  throw new Error(`Invalid PLAYWRIGHT_TENANT_SLUG: ${crmTenantSlug}`);
+}
+const crmTenantSchema = `tenant_${crmTenantSlug.replace(/-/g, '_')}`;
+crmDatabaseUrl.searchParams.set('options', `-c search_path=${crmTenantSchema}`);
 
 // ── Core-api webServer command ─────────────────────────────────────────────────
 // CI: after `pnpm build`, start the compiled output directly (no tsx / dotenv wrapper).
 // Local: use the dev script (which loads .env via dotenv-cli and runs tsx watch).
 const isCi = process.env['CI'] !== undefined;
 const coreApiCommand = isCi ? 'pnpm --filter core-api start' : 'pnpm --filter core-api dev';
+const crmCommand = 'pnpm --filter @plexica/plugin-crm dev:backend';
 
 export default defineConfig({
   testDir: './e2e',
@@ -69,6 +79,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
 
   globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
 
   use: {
     baseURL: process.env['PLAYWRIGHT_BASE_URL'] ?? 'http://localhost:3000',
@@ -91,11 +102,21 @@ export default defineConfig({
       },
     },
   ],
-  // Two webServers: core-api (backend) and Vite frontend.
+  // Three webServers: CRM fixture backend, core-api, and Vite frontend.
   // Playwright starts them in array order and waits for each URL to respond.
   // globalSetup runs BEFORE webServers start, so tenant provisioning (which
   // calls the CLI directly) does not need the HTTP server to be up.
   webServer: [
+    {
+      command: crmCommand,
+      url: 'http://localhost:4000/_plexica/health',
+      reuseExistingServer: !isCi,
+      timeout: 60_000,
+      env: {
+        PORT: '4000',
+        DATABASE_URL: crmDatabaseUrl.toString(),
+      },
+    },
     {
       // Core-api backend — required for tenant resolution and auth
       command: coreApiCommand,
@@ -104,9 +125,8 @@ export default defineConfig({
       timeout: 60_000,
       env: {
         // Forward all infra env vars so core-api can connect to services
-        NODE_ENV: process.env['NODE_ENV'] ?? 'test',
-        DATABASE_URL:
-          process.env['DATABASE_URL'] ?? 'postgresql://plexica:changeme@localhost:5432/plexica',
+        NODE_ENV: 'development',
+        DATABASE_URL: databaseUrl,
         KEYCLOAK_URL: keycloakUrl,
         KEYCLOAK_ADMIN_USER: process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin',
         KEYCLOAK_ADMIN_PASSWORD: process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme',
@@ -115,8 +135,14 @@ export default defineConfig({
         MINIO_ACCESS_KEY: process.env['MINIO_ACCESS_KEY'] ?? 'minioadmin',
         MINIO_SECRET_KEY: process.env['MINIO_SECRET_KEY'] ?? 'changeme',
         KAFKA_BROKERS: process.env['KAFKA_BROKERS'] ?? 'localhost:19092',
-        RATE_LIMIT_MAX: process.env['RATE_LIMIT_MAX'] ?? '100',
-        ADMIN_RATE_LIMIT_MAX: process.env['ADMIN_RATE_LIMIT_MAX'] ?? '200',
+        // Feature tests use isolated proxy IPs, while this high global ceiling
+        // prevents unrelated direct API setup calls sharing one CI socket from
+        // exhausting the generic budget. Resolve keeps its dedicated limit.
+        RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
+        ADMIN_RATE_LIMIT_MAX: process.env['PLAYWRIGHT_GENERAL_RATE_LIMIT_MAX'] ?? '10000',
+        RATE_LIMIT_RESOLVE_MAX:
+          process.env['PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX'] ?? '30',
+        TRUST_PROXY: '1',
       },
     },
     {

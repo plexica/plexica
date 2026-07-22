@@ -166,11 +166,8 @@ runs:
         fi
         echo "redpanda-init completed successfully."
 
-        # One-shot container: configure Keycloak master realm for E2E tests.
-        # Creates the plexica-admin client, super_admin role, sets token TTL to
-        # 24h, and sslRequired=none on all realms (dev/E2E only — safe because
-        # CI stack is on a private Docker network).
-        # Idempotent: skips if client/role already exist.
+        # One-shot container: reconcile the PKCE-only plexica-admin client and
+        # super_admin role. It preserves Keycloak's production-like token TTL.
         docker compose -f docker-compose.yml -f docker-compose.ci.yml \
           up -d keycloak-init
         EXIT_CODE=$(docker wait plexica-ci-keycloak-init-1)

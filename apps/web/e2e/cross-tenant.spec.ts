@@ -3,18 +3,21 @@
 // Attempts to access tenant B resources while authenticated as tenant A.
 
 import { expect, test } from './helpers/base-fixture.js';
+import { createWorkspaceFixture, getBrowserToken } from './helpers/plugin-fixtures.js';
+import { loginViaKeycloak } from './helpers/keycloak-login.js';
 
-const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const TENANT_A_SLUG = process.env['PLAYWRIGHT_TENANT_A_SLUG'] ?? 'tenant-a';
 const TENANT_B_SLUG = process.env['PLAYWRIGHT_TENANT_B_SLUG'] ?? 'tenant-b';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
 const KEYCLOAK_PASSWORD = process.env['PLAYWRIGHT_KEYCLOAK_PASS'] ?? '';
 const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 
-const hasKeycloak = KEYCLOAK_URL.length > 0 && KEYCLOAK_USERNAME.length > 0;
-
 test.describe('Cross-tenant isolation (NFR-04)', () => {
-  test.skip(!hasKeycloak, 'Requires live Keycloak and two seeded tenants');
+  test.beforeAll(() => {
+    if (KEYCLOAK_USERNAME === '' || KEYCLOAK_PASSWORD === '') {
+      throw new Error('Cross-tenant E2E requires seeded Keycloak credentials');
+    }
+  });
 
   test('authenticated in tenant A, API call with tenant B slug returns 404 (H-2 realm mismatch)', async ({
     page,
@@ -73,18 +76,39 @@ test.describe('Cross-tenant isolation (NFR-04)', () => {
     expect(bodyText).not.toContain(`tenant_${TENANT_B_SLUG.replace(/-/g, '_')}`);
   });
 
-  // P4-L-1: Resource-level isolation — attempt to read a tenant B resource ID as tenant A.
-  // Implement once Workspace or resource CRUD routes exist (AC-2 full coverage).
-  // Expected: GET /api/workspaces/:id using tenant B resource ID + tenant A auth → 404.
-  //
-  // P5-M-1 fix: test.skip() at describe-scope (outside a test callback) is a no-op in
-  // Playwright — it skips nothing and the gap is invisible in CI reports. Wrapped in a
-  // named test so the skip is properly recorded in the test run output.
-  test('reading tenant B resource as tenant A returns 404 (AC-2)', async () => {
-    test.skip(
-      true,
-      'TODO [AC-2 / Spec 003]: implement once workspace/resource CRUD routes exist (Spec 003) — ' +
-        'reading tenant B resource as tenant A must return 404'
+  test('reading tenant B resource as tenant A returns 404 (AC-2)', async ({ page, context }) => {
+    await page.setExtraHTTPHeaders({ 'X-Tenant-Slug': TENANT_B_SLUG });
+    await loginViaKeycloak(page, {
+      tenantSlug: TENANT_B_SLUG,
+      username: KEYCLOAK_USERNAME,
+      password: KEYCLOAK_PASSWORD,
+    });
+    const tokenB = await getBrowserToken(page);
+    const workspaceName = `tenant-b-private-${Date.now()}`;
+    const workspaceB = await createWorkspaceFixture(
+      page,
+      tokenB,
+      workspaceName,
+      TENANT_B_SLUG
     );
+
+    await context.clearCookies();
+    await page.evaluate(() => sessionStorage.clear());
+    await page.setExtraHTTPHeaders({ 'X-Tenant-Slug': TENANT_A_SLUG });
+    await loginViaKeycloak(page, {
+      tenantSlug: TENANT_A_SLUG,
+      username: KEYCLOAK_USERNAME,
+      password: KEYCLOAK_PASSWORD,
+    });
+    const tokenA = await getBrowserToken(page);
+    const response = await page.request.get(`${API_BASE}/api/v1/workspaces/${workspaceB}`, {
+      headers: {
+        Authorization: `Bearer ${tokenA}`,
+        'X-Tenant-Slug': TENANT_A_SLUG,
+      },
+    });
+
+    expect(response.status()).toBe(404);
+    expect(await response.text()).not.toContain(workspaceName);
   });
 });

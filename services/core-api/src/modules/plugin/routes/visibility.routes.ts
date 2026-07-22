@@ -27,20 +27,29 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
 
       return withTenantDb(async (tx: TenantPrismaClient) => {
         const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
-        if (!installation) return { installId, tenantDefault: 'enabled', overrides: [] };
+        if (!installation) return [];
 
-        const overrides = await tx.pluginWorkspaceVisibility.findMany({
-          where: { installId, isOverride: true },
+        const [workspaces, overrides] = await Promise.all([
+          tx.workspace.findMany({
+            where: { status: 'active' },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' },
+          }),
+          tx.pluginWorkspaceVisibility.findMany({ where: { installId, isOverride: true } }),
+        ]);
+        const overrideByWorkspace = new Map(overrides.map((item) => [item.workspaceId, item]));
+        const defaultEnabled = installation.tenantDefaultVisibility === 'enabled';
+
+        return workspaces.map((workspace) => {
+          const override = overrideByWorkspace.get(workspace.id);
+          return {
+            workspaceId: workspace.id,
+            workspaceName: workspace.name,
+            isEnabled: override?.isEnabled ?? defaultEnabled,
+            isOverride: override !== undefined,
+            updatedAt: override?.updatedAt ?? null,
+          };
         });
-
-        return {
-          installId,
-          tenantDefault: installation.tenantDefaultVisibility,
-          overrides: overrides.map((o: Record<string, unknown>) => ({
-            workspaceId: o.workspaceId,
-            isEnabled: o.isEnabled,
-          })),
-        };
       }, ctx);
     }
   );

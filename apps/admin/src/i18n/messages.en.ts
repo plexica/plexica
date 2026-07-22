@@ -30,6 +30,10 @@ export const messages = {
   'admin.login.redirect': 'Redirecting to Keycloak…',
   'admin.login.backToLogin': 'Back to login',
   'admin.login.submit': 'Sign in with Keycloak',
+  'admin.login.retry': 'Try again',
+  'admin.login.startFailed': 'Sign-in could not be started. Please try again.',
+  'admin.login.callbackInvalid': 'The sign-in response is invalid. Please start again.',
+  'admin.login.callbackFailed': 'Sign-in could not be completed. Please try again.',
   'admin.login.signingIn': 'Signing in…',
   'admin.logout': 'Sign out',
 

@@ -3010,8 +3010,11 @@ no Keycloak.
 **Realm configuration**:
 
 - RS256 signing (real tokens — no HS256, no test tokens)
-- Password grant enabled for test automation
-- Client `plexica-web` with redirect URIs for localhost
+- Browser E2E uses the real `plexica-web` PKCE S256 redirect/callback; direct
+  grants remain disabled on application clients (ADR-023)
+- API setup/assertions use a guarded, run-scoped, minimally mapped confidential
+  helper with a runtime-random secret and mandatory teardown; not `admin-cli`
+- `plexica-web` uses exact localhost callback/logout URIs, never wildcards
 
 #### Database Seed Data
 

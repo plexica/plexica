@@ -1,7 +1,9 @@
 // use-tenant-lifecycle.ts — TanStack Query hooks for tenant lifecycle actions
 // (S5-503 suspend, S5-603 reactivate, S5-704 delete + deletion saga status).
-// Mutations invalidate tenant detail + list so the UI reflects the new state.
+// Non-destructive mutations refetch tenant detail. Deletion instead updates the
+// cached detail because its backing tenant resources are intentionally erased.
 
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient, type MutateOptions } from '@tanstack/react-query';
 
 import {
@@ -13,7 +15,11 @@ import {
 } from '../services/admin-api.js';
 import { ApiError } from '../services/api-client.js';
 
-import type { DeletionStatusResponse } from '../types/admin-types.js';
+import type {
+  DeletionStatusResponse,
+  TenantDetail,
+  TenantStatus,
+} from '../types/admin-types.js';
 
 const TENANT_LIST_KEY = ['admin', 'tenants'] as const;
 
@@ -21,9 +27,25 @@ function tenantDetailKey(id: string): readonly unknown[] {
   return ['admin', 'tenant', id] as const;
 }
 
-function invalidateTenantQueries(id: string, queryClient: ReturnType<typeof useQueryClient>): void {
+function invalidateTenantList(queryClient: ReturnType<typeof useQueryClient>): void {
   void queryClient.invalidateQueries({ queryKey: TENANT_LIST_KEY });
-  void queryClient.invalidateQueries({ queryKey: tenantDetailKey(id) });
+}
+
+function invalidateTenantQueries(id: string, queryClient: ReturnType<typeof useQueryClient>): void {
+  invalidateTenantList(queryClient);
+  void queryClient.invalidateQueries({ queryKey: tenantDetailKey(id), exact: true });
+}
+
+function setCachedTenantStatus(
+  queryClient: ReturnType<typeof useQueryClient>,
+  tenantId: string,
+  status: TenantStatus
+): void {
+  queryClient.setQueryData<TenantDetail>(tenantDetailKey(tenantId), (current) =>
+    current === undefined
+      ? current
+      : { ...current, tenant: { ...current.tenant, status } }
+  );
 }
 
 // ── Suspend (S5-503) ────────────────────────────────────────────────────────
@@ -85,7 +107,11 @@ export function useDeleteTenant(): UseDeleteTenantResult {
   const queryClient = useQueryClient();
   const mutation = useMutation<unknown, ApiError, { id: string; confirmSlug: string; version: number }>({
     mutationFn: ({ id, confirmSlug, version }) => deleteTenant(id, confirmSlug, version),
-    onSuccess: (_data, variables) => invalidateTenantQueries(variables.id, queryClient),
+    onSuccess: async (_data, variables) => {
+      await queryClient.cancelQueries({ queryKey: tenantDetailKey(variables.id), exact: true });
+      setCachedTenantStatus(queryClient, variables.id, 'pending_deletion');
+      invalidateTenantList(queryClient);
+    },
   });
   return {
     mutate: mutation.mutate,
@@ -117,12 +143,24 @@ export interface UseDeletionStatusResult {
 }
 
 export function useDeletionStatus(tenantId: string): UseDeletionStatusResult {
+  const queryClient = useQueryClient();
   const query = useQuery<DeletionStatusResponse, ApiError>({
     queryKey: ['admin', 'tenant', tenantId, 'deletion-status'] as const,
     queryFn: () => getDeletionStatus(tenantId),
     refetchInterval: (query) => (isPolling(query.state.data) ? 5000 : false),
     enabled: tenantId !== '',
   });
+  const completed =
+    query.data !== undefined &&
+    query.data.steps.length > 0 &&
+    query.data.steps.every((step) => step.status === 'done');
+
+  useEffect(() => {
+    if (!completed) return;
+    setCachedTenantStatus(queryClient, tenantId, 'deleted');
+    invalidateTenantList(queryClient);
+  }, [completed, queryClient, tenantId]);
+
   return {
     data: query.data,
     isLoading: query.isLoading,

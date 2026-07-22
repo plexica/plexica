@@ -22,7 +22,7 @@ export function SessionExpiredHandler(): JSX.Element | null {
     // notification mechanism. The role="alert" banner below already provides
     // the correct accessible notification to screen readers and users.
     const timer = setTimeout(() => {
-      void login();
+      void login().catch(() => undefined);
     }, REDIRECT_DELAY_MS);
 
     return () => {

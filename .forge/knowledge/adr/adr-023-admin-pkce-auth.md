@@ -1,223 +1,181 @@
-# ADR-023: Admin App Authentication — Migrate from Password Grant to PKCE Authorization Code Flow
+# ADR-023: Admin Browser Authentication with PKCE
 
 **Status**: Accepted
 **Date**: 2026-07-22
-**Driver**: Admin app authentication security hardening (Constitution Art. 5 — auth change)
-**Amends**: Spec 005 Plan decision D-3 ("admin auth uses password grant, not PKCE")
-**Extends**: ADR-002 (Keycloak multi-realm), ADR-010 (Keycloakify), ADR-011 (Keycloak Admin API Integration)
-**Deciders**: Project lead (via Forge orchestration)
+**Amends**: Spec 005 Plan D-3
+**Extends**: ADR-002, ADR-010, ADR-011
 
 ## Context
 
-The Plexica admin app (`apps/admin`) authenticates super-admins against the
-Keycloak master realm using **OAuth 2.0 Resource Owner Password Credentials
-Grant** (password grant). This was chosen during Spec 005 (Super Admin Panel)
-with the explicit justification: *"The admin app uses password grant (not PKCE
-browser flow) because it's an internal tool, not a public-facing tenant app"
-* (Spec 005 Plan §5.5, D-3).
+Spec 005 originally selected Resource Owner Password Credentials (password
+grant) for the browser-based admin app. That exposes credentials to SPA code,
+cannot participate correctly in MFA or federated SSO, and diverges from the
+tenant web app. OAuth 2.1 removes this grant.
 
-Since that decision was made, three factors motivate revisiting it:
-
-1. **OAuth 2.1 deprecation**: The password grant is removed entirely from
-   OAuth 2.1 (RFC 6749bis). Several major identity providers (Auth0, Okta)
-   have already disabled it for new tenants. While Keycloak continues to
-   support it, this is a declining standard that creates migration risk.
-
-2. **MFA and SSO incompatibility**: The password grant cannot participate in
-   challenge-based authentication flows. If the master realm is configured
-   with MFA (TOTP, WebAuthn), SAML federation, or social identity providers,
-   the password grant simply bypasses them — the token is issued against the
-   password alone, not the full authentication policy. This creates a weaker
-   security posture for the most privileged accounts in the system.
-
-3. **Pattern inconsistency**: The tenant web app (`apps/web`) uses the
-   **PKCE authorization code flow** (ADR-010), the OAuth 2.1 best practice
-   for browser-based public clients. The admin app uses a different, weaker
-   flow for the same browser-based client type. Constitution Rule 3 ("one
-   pattern per operation type") applies to frontend patterns; while the admin
-   is a different *context*, using two different OAuth flows for the same
-   client type (browser SPA) introduces unnecessary divergence.
-
-Additionally, the password grant has operational limitations documented
-during the Spec 005 implementation:
-
-- No periodic token refresh timer — sessions can expire mid-use
-- Credentials are visible to client-side JavaScript
-- No "remember me" across browser sessions (sessionStorage, lost on tab close)
-- Client-side JWT decoding for user profile (no dedicated `/me` endpoint)
+E2E suites also need real, role-bearing tokens for API setup and assertions.
+Keycloak's system administration client is not an application-auth client and
+must not be reused for Plexica API tokens. Test automation must not weaken the
+public clients or introduce a known secret in source control.
 
 ## Decision
 
-Migrate the admin app from the **OAuth 2.0 Resource Owner Password Credentials
-Grant** to the **Authorization Code Flow with PKCE (S256)**, using the same
-pattern already proven in `apps/web`.
+### 1. Browser flow
 
-### Flow
+Both `apps/admin` and `apps/web` use OIDC Authorization Code Flow with PKCE.
+The admin app uses the public `plexica-admin` client in the master realm.
 
-```
-Admin App (browser)                  Keycloak Master Realm
-       │                                      │
-       │  (1) GET /auth?                     │
-       │      response_type=code              │
-       │      code_challenge_method=S256      │
-       │      code_challenge=<SHA-256 hash>   │
-       │      state=<anti-CSRF UUID>          │
-       │─────────────────────────────────────>│
-       │                                      │
-       │  (2) User authenticates              │
-       │     (password, MFA, SAML,            │
-       │      WebAuthn, social login…)        │
-       │<─────────────────────────────────────│
-       │      Redirect to /callback           │
-       │      ?code=<authz_code>              │
-       │      &state=<original UUID>          │
-       │                                      │
-       │  (3) POST /token                    │
-       │      grant_type=authorization_code   │
-       │      code=<authz_code>               │
-       │      code_verifier=<original secret> │
-       │─────────────────────────────────────>│
-       │<─────────────────────────────────────│
-       │      access_token + refresh_token    │
-       │      + id_token                      │
-```
+1. `/login` starts a single-flight redirect to Keycloak; Plexica renders no
+   username or password fields.
+2. Generate a high-entropy verifier, compute
+   `BASE64URL(SHA-256(ASCII(verifier)))`, and send
+   `code_challenge_method=S256`, `scope=openid profile email`, and a random
+   anti-CSRF `state`.
+3. Store one-time verifier data in `sessionStorage`, keyed by `state`, and
+   never in `localStorage`. Reject unknown/replayed state at `/callback`.
+4. Exchange the code using the same exact `redirect_uri` and the matching
+   `code_verifier`; remove one-time PKCE data after success or terminal error.
+5. Keycloak must enforce S256 with client attribute
+   `pkce.code.challenge.method: "S256"`; client-side S256 generation alone is
+   insufficient.
 
-### Keycloak Client Configuration
+The callback validates `code`, `state`, and OAuth error parameters before
+exchange. It shows localized loading/error recovery and redirects a successful
+login to `/dashboard`.
 
-The existing `plexica-admin` client in the Keycloak master realm gains:
+### 2. Exact client settings and URIs
 
-```typescript
+`plexica-admin` has these explicit settings:
+
+```json
 {
-  publicClient: true,
-  fullScopeAllowed: true,
-  standardFlowEnabled: true,
-  directAccessGrantsEnabled: false,
-  attributes: { 'access.token.lifespan': '86400' },
-  redirectUris: [
-    'http://localhost:3002/*',     // dev
-    'https://admin.plexica.app/*', // prod
-  ],
-  webOrigins: [
-    'http://localhost:3002',       // dev
-    'https://admin.plexica.app',   // prod
-  ],
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "authorizationServicesEnabled": false,
+  "fullScopeAllowed": false,
+  "redirectUris": ["http://localhost:3002/callback"],
+  "webOrigins": ["http://localhost:3002"],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "http://localhost:3002/login"
+  }
 }
 ```
 
-**Migration completed**: `directAccessGrantsEnabled` was kept `true` during the
-transition so that existing E2E tests and scripts using direct password grant
-could continue to work. Once all E2E tests were migrated to the PKCE browser
-redirect flow, `directAccessGrantsEnabled` was set to `false` and removed from
-the client configuration. E2E tests now use browser redirect for authentication
-and `admin-cli` for API token acquisition in global setup.
+Attach only standard OIDC scopes and the explicit `super_admin` realm-role
+mapping. Do not restore broad full-scope access.
 
-### Frontend Changes
+| Environment | Callback URI                         | Post-logout URI                   |
+| ----------- | ------------------------------------ | --------------------------------- |
+| Local/CI    | `http://localhost:3002/callback`     | `http://localhost:3002/login`     |
+| Production  | `https://admin.plexica.app/callback` | `https://admin.plexica.app/login` |
 
-| File | Change |
-|---|---|
-| `apps/admin/src/services/keycloak-auth.ts` | Add `getLoginUrl()`, `exchangeCode()`, PKCE verifier/challenge generators. Keep `refreshTokens()`, `revokeSession()` (now with realm param). |
-| `apps/admin/src/stores/auth-store.ts` | Add `handleCallback(code, state)` action. Change `login()` to redirect to Keycloak (not POST to `/token`). Add `id_token` to persisted state. |
-| `apps/admin/src/components/auth/auth-guard.tsx` | Call `store.login()` instead of `navigate({ to: '/login' })` when unauthenticated and no refresh token. |
-| `apps/admin/src/pages/login-page.tsx` | Convert from username/password form to redirect page. Options: (a) automatic redirect with spinner, (b) "Sign in with Keycloak" button. |
-| `apps/admin/src/pages/auth-callback-page.tsx` | **New** — handle Keycloak redirect at `/callback`, exchange code for tokens, navigate to `/dashboard`. |
-| `apps/admin/src/router-shell.tsx` | Add `/callback` route (public, unguarded). |
-| `apps/admin/src/types/auth.ts` | Add `id_token: string` to `TokenResponse` and `AuthState`. |
-| `apps/admin/e2e/global-setup.ts` | Update `plexica-admin` client: `standardFlowEnabled: true`, add `redirectUris`, `webOrigins`. |
-| `apps/admin/e2e/helpers/admin-login.ts` | Handle Keycloak redirect flow instead of login-form fill. |
+Staging/review deployments derive both values from that environment's exact
+HTTPS admin origin. Wildcards such as `/*` are forbidden. Production accepts
+only production values, never localhost or review-app values.
 
-### What Does NOT Change
+### 3. Session, expiry, and logout
 
-| Component | Reason |
-|---|---|
-| **Backend** (`auth-middleware.ts`, `require-super-admin.ts`) | Already validates RS256 tokens via JWKS; already skips audience check for master realm tokens. No backend changes needed. |
-| **`api-client.ts`** | Auto-refresh on 401 pattern remains identical. Already uses lazy `getAuthStore()` to break circular dependency. |
-| **`session-expired-handler.tsx`** | Session expiry logic is unchanged. |
-| **`AuthState` type** | Compatible — only adds `id_token` field. |
-| **Env variables** | Reuses existing `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_ADMIN_CLIENT_ID`, `VITE_KEYCLOAK_MASTER_REALM`. |
+The single Zustand auth store persists the access token, refresh token, ID
+token, profile, and expiry status in `sessionStorage` only. The ID token is
+required across reloads for OIDC RP-Initiated Logout. Tokens, credentials, and
+PKCE material are never logged.
+
+When refresh fails, clear all tokens, preserve `expired` long enough to announce
+a localized session-expired notice, then redirect to `/login` for fresh PKCE.
+Do not render protected content or an application password form.
+
+User-initiated logout clears local auth state and query caches, then redirects
+the browser to the master-realm OIDC logout endpoint with `client_id`,
+`id_token_hint`, and the exact registered `post_logout_redirect_uri`. Keycloak
+terminates the current SSO session and returns to `/login`. Best-effort XHR
+refresh-token revocation is not the primary logout path.
+
+### 4. E2E-only API token helper
+
+Browser login tests always exercise real PKCE. API setup/assertion code may use
+a dedicated ephemeral confidential helper client:
+
+- create a unique client per run; enable direct grants only there, never on
+  `plexica-admin` or `plexica-web`;
+- set `fullScopeAllowed: false` and attach only required scopes/role mappings;
+- generate a random secret at runtime with no committed/default fallback and
+  never log it;
+- refuse setup without an explicit E2E flag and a local/CI test target; refuse
+  known production realms/origins;
+- delete the helper in global teardown/finally, including failed runs.
+
+The helper obtains real RS256 user tokens. It is not `admin-cli`, and its tokens
+are not used for browser login. Bootstrap credentials may call the Keycloak
+Admin REST API only to create/delete the helper; that control-plane token is
+never sent to Plexica APIs.
+
+## Implementation and Validation Status
+
+The decision is accepted. PR #77 remediation is still in progress; this ADR
+does not assert that every code/config item is implemented. Before merge,
+validate:
+
+- Keycloak rejects authorization without PKCE and rejects `plain`;
+- each environment export has only its exact callback/logout URIs and public
+  clients keep direct grants explicitly disabled;
+- callback state is single-use and safe under repeated/concurrent login starts;
+- reload preserves the ID token and session-expired UX;
+- logout ends the current Keycloak SSO session and returns to the registered URI;
+- the E2E helper is guarded, scoped, secret-randomized, and removed after runs;
+- PKCE login, callback failure, expiry, and logout pass real-stack E2E.
 
 ## Consequences
 
 ### Positive
 
-- **MFA and SSO compatible**: Super-admin accounts can now use TOTP, WebAuthn,
-  SAML federation, or social login configured on the master realm — the PKCE
-  flow participates in whatever authentication policy Keycloak enforces,
-  instead of bypassing it with a password-only grant.
-- **OAuth 2.1 compliant**: Aligns with the current security standard. No
-  migration risk if Keycloak deprecates the password grant in a future version.
-- **Credential isolation**: The admin's password is never seen by the admin
-  app JavaScript — it is entered directly into Keycloak's own login page.
-  This eliminates an entire class of XSS-based credential theft.
-- **Pattern consistency with tenant app**: Both `apps/web` and `apps/admin`
-  now use the same PKCE authorization code flow, reducing architectural
-  divergence (Constitution Rule 3).
-- **Automatic `id_token`**: The PKCE flow returns an `id_token` (OIDC),
-  enabling proper logout with `id_token_hint` and post-logout redirect URI
-  (currently the admin app only does best-effort backchannel logout).
+- Super-admin login supports MFA, WebAuthn, federation, and SSO.
+- Browser code never receives the user's password.
+- Both SPAs use one browser-auth pattern; public clients cannot use ROPC.
+- E2E API tokens remain real without a permanent test backdoor.
 
 ### Negative
 
-- **UX regression**: Super-admins are redirected to the Keycloak login page
-  instead of logging in via an inline form in the Plexica admin UI. This is a
-  visual context switch and may be perceived as less polished. Mitigated by a
-  branded Keycloak login theme (ADR-010 Keycloakify).
-- **E2E test complexity**: The login helper must now handle the Keycloak
-  redirect flow (navigate → wait for Keycloak → fill Keycloak form → wait for
-  callback → wait for dashboard) instead of a simple form fill. Mitigated by
-  reusing the pattern already established in `apps/web` E2E tests. During a
-  transition period, `directAccessGrantsEnabled: true` was kept so E2E tests
-  could gradually migrate — it has since been removed.
-- **Redirect URI management**: Keycloak validates the `redirect_uri` parameter
-  against the configured whitelist. Adding new environments (staging, review
-  apps) requires updating the client config. This is already a known pattern
-  from the tenant web app.
+- Login changes visual context to Keycloak; ADR-010 branding mitigates this.
+- Exact URI registration adds deployment work per environment.
+- E2E setup must provision and reliably tear down an ephemeral client.
 
 ### Neutral
 
-- **`id_token` added to state**: The auth store now persists an additional
-  JWT. This is ~1KB additional data in sessionStorage — negligible impact.
-- **Callback page**: A new page at `/callback` that is publicly accessible.
-  It must be excluded from the `AuthGuard` (already the pattern in `apps/web`).
-- **PKCE session storage**: Two additional items (`pkce_code_verifier`,
-  `auth_state`) are stored in sessionStorage during the login flow and removed
-  after callback. Same pattern as `apps/web`.
+- The admin app adds public `/callback` and persists an ID token in tab-scoped
+  storage for logout.
 
 ## Alternatives Considered
 
-| Alternative | Description | Pros | Cons | Verdict |
-|---|---|---|---|---|
-| **Keep password grant, improve it** | Add periodic refresh timer, localStorage opt-in, `/api/v1/admin/me` endpoint | Minimum effort; no UX change; no E2E rewrite | Still OAuth 2.1 non-compliant; no MFA; credentials still in JS; deprecated standard | Rejected — kicks the can down the road |
-| **BFF (Backend-for-Frontend) pattern** | Login goes to core API, which exchanges credentials server-side. Session managed via HttpOnly cookie. | Credentials never reach browser; full session control; no OAuth flow in frontend | New auth module in core API; stateful sessions (Redis); larger blast radius; over-engineered for an internal tool | Rejected — YAGNI per lessons-learned §Architecture (v1 over-engineering) |
-| **Client Credentials Grant (machine-to-machine)** | Admin app gets a client secret, uses `grant_type=client_credentials` | No user credentials; simple flow | No user context — cannot audit *which* super admin performed an action | Rejected — auditability is a requirement (ADR-022 Decision 2) |
-| **Keep password grant + add API key bypass for E2E** | Fix the operational issues but keep password grant for UI | Solves E2E pain; minimal change | Still misses MFA, OAuth 2.1, credential isolation | Rejected — partial fix that doesn't address security concerns |
-| **Device Authorization Grant (device flow)** | User authenticates on another device by entering a code | Good for CLI/automation | Wrong paradigm for a browser SPA; adds UX friction | Rejected — wrong flow type |
+| Alternative                    | Decision                                                   |
+| ------------------------------ | ---------------------------------------------------------- |
+| Keep password grant            | Rejected: no MFA/SSO, credentials in SPA, obsolete flow.   |
+| BFF with HttpOnly session      | Deferred: stronger isolation but new session architecture. |
+| Client credentials for browser | Rejected: unsafe secret and no user audit context.         |
+| Permanent broad E2E client     | Rejected: durable credential and excess privilege.         |
 
-## Constitution Compliance
+## Rollback
 
-| Article | Status | Notes |
-|---|---|---|
-| Rule 3: One pattern per operation type | **COMPLIANT** | Both `apps/web` and `apps/admin` now use PKCE authorization code flow for browser-based authentication. |
-| Rule 5: ADR for significant decisions | **COMPLIANT** | This ADR documents an authentication flow change (Constitution Art. 5 "auth changes") and amends the Spec 005 Plan decision D-3. |
-| Security §1: Tenant isolation | **COMPLIANT** | No change to tenant isolation. Admin still authenticates against the master realm. The PKCE flow has no impact on schema-per-tenant. |
-| Security §2: Authentication | **IMPROVED** | All admin endpoints continue to require `requireSuperAdmin` enforcement. The PKCE flow now supports MFA, SSO, and WebAuthn for super-admin accounts — a strict improvement over password-only auth. |
-| Security §3: SQL injection | **COMPLIANT** | No SQL changes. All token validation remains in the backend via jose JWKS verification. |
-| Security §5: Secrets | **COMPLIANT** | No new secrets. `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_ADMIN_CLIENT_ID`, `VITE_KEYCLOAK_MASTER_REALM` are already env vars. |
-| Architecture: Auth | **COMPLIANT** | ADR-002 (Keycloak multi-realm) is unchanged — admin still authenticates against the master realm. ADR-010 (Keycloakify) login theme applies to the new redirect flow. |
+Restore the last known-good PKCE-capable admin release with matching exact URI
+configuration. Do not re-enable password grant on public clients. Delete
+orphaned E2E helpers, clear browser session storage, and verify RP logout before
+reopening access.
+
+## Constitution Alignment
+
+| Article                  | Status    | Rationale                                         |
+| ------------------------ | --------- | ------------------------------------------------- |
+| Rule 1 / Testing         | Compliant | Requires real-stack PKCE, expiry, and logout E2E. |
+| Rule 3 / One pattern     | Compliant | Both browser SPAs use PKCE S256.                  |
+| Rule 5 / ADR             | Compliant | Records a significant authentication change.      |
+| Security: authentication | Improved  | MFA, state, and PKCE protect privileged login.    |
+| Security: secrets        | Compliant | No public or known E2E secret is committed.       |
 
 ## Related Decisions
 
-- **ADR-002: Keycloak Multi-Realm** — Establishes the master realm for super-admin
-  authentication. Amended by this ADR: the admin app now uses PKCE instead of
-  password grant for the master realm authentication flow.
-- **ADR-010: Keycloakify for Keycloak Custom Theme** — Provides the branded
-  Keycloak login theme that super-admins will see after the PKCE redirect.
-  Without a themed login page, the redirect would show default Keycloak
-  branding, creating a disjointed UX.
-- **ADR-011: Keycloak Admin API Integration** — Used by `global-setup.ts` to
-  configure the `plexica-admin` client. The `standardFlowEnabled`,
-  `redirectUris`, and `webOrigins` fields are added to the existing client
-  configuration.
-- **Spec 005 Plan decision D-3** — Explicitly chose password grant over PKCE.
-  This ADR formally amends that decision.
-- **ADR-001: Schema-per-Tenant** — Unchanged. Admin auth is realm-scoped, not
-  schema-scoped.
+- ADR-002: master realm and `plexica-admin` client.
+- ADR-010: branded Keycloak-hosted login.
+- ADR-011: Keycloak Admin REST API is control-plane only.
+- Spec 005 Plan D-3: superseded by this ADR.

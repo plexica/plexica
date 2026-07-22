@@ -1,23 +1,8 @@
-// api-client.ts
-// Shared fetch wrapper factory for API calls with automatic auth token injection
-// and 401-driven token refresh.
-// Apps provide their own token source, refresh function, and optional extra headers
-// (e.g. X-Tenant-Slug for the web app).
-
 export interface ApiClientConfig {
-  /** Base URL for API requests. Empty string for same-origin (dev proxy). */
   baseUrl?: string;
-
-  /** Get the current auth state (access token + refresh token). */
   getTokens: () => { accessToken: string | null; refreshToken: string | null };
-
-  /** Attempt to refresh the access token. Throws if refresh fails. */
   refreshTokens: () => Promise<void>;
-
-  /** Called when token refresh fails (session expired). */
   onSessionExpired: () => void;
-
-  /** Optional additional headers for every request (e.g. X-Tenant-Slug). */
   extraHeaders?: () => Record<string, string>;
 }
 
@@ -26,12 +11,18 @@ export interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+interface ErrorBody {
+  code?: string;
+  message?: string;
+  conflictType?: string;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly conflictType: string | undefined;
 
-  constructor(status: number, body: { code?: string; message?: string; conflictType?: string }) {
+  constructor(status: number, body: ErrorBody) {
     super(body.message ?? `Request failed: ${status}`);
     this.name = 'ApiError';
     this.status = status;
@@ -42,108 +33,103 @@ export class ApiError extends Error {
 
 export function createApiClient(config: ApiClientConfig) {
   const { baseUrl = '', getTokens, refreshTokens, onSessionExpired, extraHeaders } = config;
+  let refreshFlight: Promise<void> | null = null;
+  let expirationNotified = false;
 
-  async function buildHeaders(
-    optionsHeaders?: Record<string, string>,
-    hasBody = false,
-  ): Promise<Record<string, string>> {
-    const { accessToken } = getTokens();
+  function expireSession(): Error {
+    if (!expirationNotified) {
+      expirationNotified = true;
+      onSessionExpired();
+    }
+    return new Error('Session expired');
+  }
+
+  function refreshOnce(): Promise<void> {
+    if (refreshFlight !== null) return refreshFlight;
+    if (expirationNotified) return Promise.reject(new Error('Session expired'));
+    const promise = refreshTokens().catch(() => {
+      throw expireSession();
+    });
+    refreshFlight = promise;
+    void promise
+      .finally(() => {
+        if (refreshFlight === promise) refreshFlight = null;
+      })
+      .catch(() => undefined);
+    return promise;
+  }
+
+  function buildHeaders(optionsHeaders?: Record<string, string>, hasBody = false) {
     const headers: Record<string, string> = {
-      'Content-Type': hasBody ? 'application/json' : '',
-      ...(extraHeaders !== undefined ? extraHeaders() : {}),
+      ...(extraHeaders?.() ?? {}),
       ...optionsHeaders,
     };
-
-    // Remove empty Content-Type header if no body
-    if (!hasBody && headers['Content-Type'] === '') {
-      delete headers['Content-Type'];
-    }
-
-    if (accessToken !== null) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-
+    if (hasBody) headers['Content-Type'] = 'application/json';
+    const { accessToken } = getTokens();
+    if (accessToken !== null) headers['Authorization'] = `Bearer ${accessToken}`;
     return headers;
   }
 
-  async function readErrorBody(response: Response): Promise<{ code?: string; message?: string; conflictType?: string }> {
+  async function readErrorBody(response: Response): Promise<ErrorBody> {
     try {
-      const body = (await response.json()) as { error?: { code?: string; message?: string; conflictType?: string } };
-      return body.error ?? {};
+      const value: unknown = await response.json();
+      if (typeof value !== 'object' || value === null || !('error' in value)) return {};
+      const error = value.error;
+      if (typeof error !== 'object' || error === null) return {};
+      const fields = error as Record<string, unknown>;
+      return {
+        ...(typeof fields['code'] === 'string' ? { code: fields['code'] } : {}),
+        ...(typeof fields['message'] === 'string' ? { message: fields['message'] } : {}),
+        ...(typeof fields['conflictType'] === 'string'
+          ? { conflictType: fields['conflictType'] }
+          : {}),
+      };
     } catch {
       return {};
     }
   }
 
-  async function request<T>(
-    method: string,
-    path: string,
-    options?: RequestOptions,
-  ): Promise<T> {
+  async function parseResponse<T>(response: Response): Promise<T> {
+    if (response.status === 204) return undefined as T;
+    return response.json() as Promise<T>;
+  }
+
+  async function request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
     const url = `${baseUrl}${path}`;
     const hasBody = options?.body !== undefined;
-    const headers = await buildHeaders(options?.headers, hasBody);
-
+    const body = hasBody ? JSON.stringify(options.body) : undefined;
     const response = await fetch(url, {
       method,
-      headers,
-      ...(hasBody ? { body: JSON.stringify(options.body) } : {}),
+      headers: buildHeaders(options?.headers, hasBody),
+      ...(body !== undefined ? { body } : {}),
     });
 
     if (response.status === 401) {
-      try {
-        await refreshTokens();
-        const retryHeaders = await buildHeaders(options?.headers, hasBody);
-        const retryResponse = await fetch(url, {
-          method,
-          headers: retryHeaders,
-          ...(hasBody ? { body: JSON.stringify(options.body) } : {}),
-        });
-
-        if (!retryResponse.ok) {
-          // Refresh succeeded but the API returned a non-401 error — throw ApiError
-          // so callers can inspect status and code.
-          throw new ApiError(retryResponse.status, await readErrorBody(retryResponse));
-        }
-
-        if (retryResponse.status === 204) {
-          return undefined as T;
-        }
-
-        return retryResponse.json() as Promise<T>;
-      } catch (err) {
-        if (err instanceof ApiError) {
-          throw err;
-        }
-        // Refresh failed — session truly expired.
-        onSessionExpired();
-        throw new Error('Session expired');
+      await refreshOnce();
+      const retryResponse = await fetch(url, {
+        method,
+        headers: buildHeaders(options?.headers, hasBody),
+        ...(body !== undefined ? { body } : {}),
+      });
+      if (retryResponse.status === 401) throw expireSession();
+      if (!retryResponse.ok) {
+        throw new ApiError(retryResponse.status, await readErrorBody(retryResponse));
       }
+      return parseResponse<T>(retryResponse);
     }
 
-    if (!response.ok) {
-      throw new ApiError(response.status, await readErrorBody(response));
-    }
-
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return response.json() as Promise<T>;
+    if (!response.ok) throw new ApiError(response.status, await readErrorBody(response));
+    return parseResponse<T>(response);
   }
 
   return {
     get: <T>(path: string, options?: Omit<RequestOptions, 'body'>) =>
       request<T>('GET', path, options),
-
     post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
       request<T>('POST', path, { ...options, body }),
-
     patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
       request<T>('PATCH', path, { ...options, body }),
-
-    delete: <T>(path: string, options?: RequestOptions) =>
-      request<T>('DELETE', path, options),
+    delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, options),
   };
 }
 

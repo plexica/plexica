@@ -5,10 +5,8 @@
 //   Local dev  — dotenv.config() reads ../../.env (monorepo root). No-ops if absent.
 //   CI         — env vars come from the GitHub Actions job-level `env:` block.
 //
-// PLAYWRIGHT_* defaults are set here (in the main process) so they are inherited
-// by test worker processes. Setting them only in globalSetup is insufficient —
-// globalSetup runs in a separate context whose process.env mutations do not
-// propagate to workers.
+// Stable PLAYWRIGHT_* defaults are set during config evaluation. Per-run secrets
+// are generated later by global setup and propagated to worker environments.
 
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,11 +30,13 @@ function setDefault(key: string, value: string): void {
 }
 
 setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
+setDefault('PLAYWRIGHT_E2E', 'true');
 setDefault('PLAYWRIGHT_SUPER_ADMIN_USER', 'admin');
 setDefault('PLAYWRIGHT_SUPER_ADMIN_PASS', 'changeme');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_SLUG', 'e2e-admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_NAME', 'E2E Admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL', 'admin@e2e-admin.local');
+setDefault('PLAYWRIGHT_LOKI_URL', 'http://localhost:3100');
 
 const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
 const playwrightBrowserChannel = process.env['PLAYWRIGHT_BROWSER_CHANNEL'];
@@ -57,6 +57,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
 
   globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
 
   use: {
     baseURL: process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? 'http://localhost:3002',
@@ -98,6 +99,7 @@ export default defineConfig({
         MINIO_ACCESS_KEY: process.env['MINIO_ACCESS_KEY'] ?? 'minioadmin',
         MINIO_SECRET_KEY: process.env['MINIO_SECRET_KEY'] ?? 'changeme',
         KAFKA_BROKERS: process.env['KAFKA_BROKERS'] ?? 'localhost:19092',
+        LOKI_URL: process.env['PLAYWRIGHT_LOKI_URL'] ?? 'http://localhost:3100',
         RATE_LIMIT_MAX: process.env['RATE_LIMIT_MAX'] ?? '100',
         ADMIN_RATE_LIMIT_MAX: process.env['ADMIN_RATE_LIMIT_MAX'] ?? '200',
       },

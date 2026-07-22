@@ -4,65 +4,98 @@
 // done → verify the tenant row is `deleted` and the saga steps are all `done`.
 // The test is its own cleanup: the provisioned tenant is permanently erased.
 //
-// NOTE: per-test timeout is 300s (5 min) because the deletion saga's 3 steps
-// (schema drop, realm delete, bucket delete) each take ~30-60s. Keycloak realm
-// deletion is particularly slow. Playwright's default 30s is far too short.
+// NOTE: the bounded 7-minute saga wait covers the slow self-hosted CI Keycloak
+// while still failing with the exact incomplete/failed step state.
 // Tenant is provisioned INSIDE the test (not in beforeAll) so retries get a
 // fresh tenant — avoids 500 errors from re-visiting a partially deleted tenant.
 
+import { randomUUID } from 'node:crypto';
+
 import { expect, test } from './helpers/base-fixture.js';
-import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
+import { loginAsAdmin, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi } from './helpers/api-client.js';
 
+import type { AdminApiClient, DeletionStatusResponse } from './helpers/api-client.js';
+
+const SAGA_TIMEOUT_MS = 420_000;
+
+async function waitForCompletedSaga(
+  api: AdminApiClient,
+  tenantId: string
+): Promise<DeletionStatusResponse> {
+  const deadline = Date.now() + SAGA_TIMEOUT_MS;
+  let latest: DeletionStatusResponse = { steps: [] };
+  while (Date.now() < deadline) {
+    latest = await api.getDeletionStatus(tenantId);
+    const failed = latest.steps.find((step) => step.status === 'failed');
+    if (failed !== undefined) {
+      throw new Error(
+        `Deletion step ${failed.step} failed after ${String(failed.attempts)} attempts: ` +
+          (failed.lastError ?? 'no error reported')
+      );
+    }
+    if (latest.steps.length === 3 && latest.steps.every((step) => step.status === 'done')) {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  throw new Error(`Deletion saga timed out. Last state: ${JSON.stringify(latest.steps)}`);
+}
+
 test.describe('005-07 Tenant deletion saga', () => {
-  test.skip(!hasKeycloak, 'Requires live Keycloak');
-  // SKIPPED: the 3-step deletion saga (schema drop, realm delete, bucket delete)
-  // takes 5+ minutes in CI because Keycloak realm deletion is very slow on the
-  // self-hosted runner. The 240s assertion and 300s test timeouts both fire
-  // before the saga completes. This is an infrastructure-speed limitation, not
-  // a code bug. Tested manually in dev (takes ~90s locally).
-  // TODO: re-enable when CI runner has faster Keycloak or saga is optimized.
-  test.skip(true, 'Deletion saga too slow for CI (~5+ min) — tested manually');
   test.beforeAll(() => requireKeycloakInCI());
 
-  test('deleting a tenant erases schema/realm/bucket and marks it deleted', async ({ page }) => {
-    test.setTimeout(300_000);
+  test(
+    'deleting a tenant erases schema/realm/bucket and marks it deleted',
+    async ({ page }) => {
+      test.setTimeout(480_000);
 
-    const slug = `e2e-del-${Date.now()}`;
-    const name = `E2E Delete ${Date.now()}`;
-    const adminEmail = `admin@${slug}.local`;
+      const suffix = randomUUID().slice(0, 8);
+      const slug = `e2e-del-${suffix}`;
+      const name = `E2E Delete ${suffix}`;
+      const adminEmail = `admin@${slug}.local`;
 
-    const api = adminApi();
-    const result = await api.provisionTenant({ slug, name, adminEmail });
-    const tenantId = result.tenantId;
+      const api = adminApi();
+      const result = await api.provisionTenant({ slug, name, adminEmail });
+      const tenantId = result.tenantId;
 
-    await loginAsAdmin(page);
-    await page.goto(`/tenants/${tenantId}`);
-    await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({
-      timeout: 15_000,
-    });
+      await loginAsAdmin(page);
+      await page.goto(`/tenants/${tenantId}`);
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({
+        timeout: 15_000,
+      });
 
-    // Open the type-to-confirm delete dialog.
-    await page.getByRole('button', { name: `Delete ${name}` }).click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
+      // Open the type-to-confirm delete dialog.
+      await page.getByRole('button', { name: `Delete ${name}` }).click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
 
-    // Type the slug exactly to arm the destructive confirm button.
-    await page.getByLabel(/Type the tenant slug/i).fill(slug);
-    await dialog.getByRole('button', { name: 'Delete Permanently' }).click();
+      // Type the slug exactly to arm the destructive confirm button.
+      await page.getByLabel(/Type the tenant slug/i).fill(slug);
+      await dialog.getByRole('button', { name: 'Delete Permanently' }).click();
 
-    // The deletion saga started (202) → the DeletionStatusPanel replaces the
-    // action buttons and shows the 3 steps. Wait for the completion notice.
-    // Allow up to 240s: each of the 3 steps (schema drop, realm delete, bucket
-    // delete) typically takes 30-60s. Keycloak realm deletion is the slowest.
-    await expect(page.getByText(/Deletion complete/)).toBeVisible({ timeout: 240_000 });
+      const deletionPanel = page.getByRole('region', {
+        name: `Deletion in progress — ${name}`,
+      });
+      await expect(deletionPanel).toBeVisible({ timeout: 15_000 });
 
-    // Source-of-truth checks via the admin API.
-    const detail = await api.getTenantDetail(tenantId);
-    expect(detail.tenant.status).toBe('deleted');
+      const status = await waitForCompletedSaga(api, tenantId);
+      await expect(deletionPanel.getByText(/Deletion complete/)).toBeVisible({
+        timeout: 15_000,
+      });
+      const tenantInformation = page.getByRole('region', { name: 'Tenant information' });
+      await expect(tenantInformation.getByText('Deleted', { exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
 
-    const status = await api.getDeletionStatus(tenantId);
-    expect(status.steps.length).toBe(3);
-    expect(status.steps.every((s) => s.status === 'done')).toBe(true);
-  });
+      // Source-of-truth checks via the admin API.
+      const deletedTenant = await api.findTenantBySlug(slug);
+      expect(deletedTenant).toMatchObject({ id: tenantId, slug, status: 'deleted' });
+      expect(status.steps).toEqual([
+        expect.objectContaining({ step: 'schema_drop', status: 'done' }),
+        expect.objectContaining({ step: 'realm_delete', status: 'done' }),
+        expect.objectContaining({ step: 'bucket_delete', status: 'done' }),
+      ]);
+    }
+  );
 });

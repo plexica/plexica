@@ -2,10 +2,9 @@
 // E2E test: verify that @fastify/rate-limit enforces limits on the public
 // GET /api/tenants/resolve endpoint (IP-keyed — ADR-012).
 //
-// The rate limit is configurable via PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX
-// (default 30). In dev/E2E with RATE_LIMIT_RESOLVE_MAX=1000, send 1001
-// requests; in CI (default 30), send 31. This prevents flaky failures
-// when the shared rate-limit budget is consumed across test runs.
+// Each test uses a unique trusted-proxy IP, so the full suite cannot consume
+// its bucket before this spec starts. Unit/integration tests independently
+// cover limiter internals; this full-stack spec keeps exact boundary behavior.
 //
 // Uses the Playwright `request` fixture to send raw HTTP requests directly
 // to the API, bypassing the browser/UI layer. This is the appropriate pattern
@@ -13,27 +12,32 @@
 // with user-observable behaviour has an E2E test — rate limiting is
 // user-observable as HTTP 429).
 //
-// Skipped when PLAYWRIGHT_API_URL is not set.
+import { createHash } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 
-const API_URL = process.env['PLAYWRIGHT_API_URL'] ?? '';
-const hasApi = API_URL.length > 0;
+const API_URL = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 
-// Resolve endpoint rate limit: configurable via env var (default 30).
-// In dev mode with RATE_LIMIT_RESOLVE_MAX=1000, the test sends 1001 requests.
+// Resolve endpoint boundary is shared with the core-api E2E configuration.
 const RESOLVE_MAX = Number(process.env['PLAYWRIGHT_RATE_LIMIT_RESOLVE_MAX'] ?? 30);
 const TEST_COUNT = RESOLVE_MAX + 1;
 
-test.describe('Rate limit — GET /api/tenants/resolve', () => {
-  test.skip(!hasApi, 'Requires PLAYWRIGHT_API_URL pointing to a running core-api instance');
+function isolatedRateLimitHeaders(testId: string, retry: number): Record<string, string> {
+  const runId = process.env['PLAYWRIGHT_E2E_KEYCLOAK_CLIENT_UUID'] ?? String(process.pid);
+  const bytes = createHash('sha256').update(`${runId}:rate:${testId}:${String(retry)}`).digest();
+  return {
+    'X-Forwarded-For': `10.${bytes[0] ?? 0}.${bytes[1] ?? 0}.${(bytes[2] ?? 0) || 1}`,
+  };
+}
 
-  test('returns 429 after exceeding the rate limit', async ({ request }) => {
+test.describe('Rate limit — GET /api/tenants/resolve', () => {
+  test('returns 429 after exceeding the rate limit', async ({ request }, testInfo) => {
     const url = `${API_URL}/api/tenants/resolve?slug=nonexistent-tenant-e2e-test`;
+    const headers = isolatedRateLimitHeaders(testInfo.testId, testInfo.retry);
     const results: number[] = [];
 
     for (let i = 0; i < TEST_COUNT; i++) {
-      const res = await request.get(url);
+      const res = await request.get(url, { headers });
       results.push(res.status());
     }
 
@@ -43,12 +47,13 @@ test.describe('Rate limit — GET /api/tenants/resolve', () => {
     expect(results[results.length - 1]).toBe(429);
   });
 
-  test('429 response has RATE_LIMIT_EXCEEDED error envelope', async ({ request }) => {
+  test('429 response has RATE_LIMIT_EXCEEDED error envelope', async ({ request }, testInfo) => {
     const url = `${API_URL}/api/tenants/resolve?slug=nonexistent-tenant-e2e-test-envelope`;
+    const headers = isolatedRateLimitHeaders(testInfo.testId, testInfo.retry);
     let lastRes: Awaited<ReturnType<typeof request.get>> | undefined;
 
     for (let i = 0; i < TEST_COUNT; i++) {
-      lastRes = await request.get(url);
+      lastRes = await request.get(url, { headers });
     }
 
     expect(lastRes).toBeDefined();
@@ -59,12 +64,13 @@ test.describe('Rate limit — GET /api/tenants/resolve', () => {
     expect(typeof body.error?.retryAfter).toBe('string');
   });
 
-  test('429 response includes Retry-After header', async ({ request }) => {
+  test('429 response includes Retry-After header', async ({ request }, testInfo) => {
     const url = `${API_URL}/api/tenants/resolve?slug=nonexistent-tenant-e2e-test-header`;
+    const headers = isolatedRateLimitHeaders(testInfo.testId, testInfo.retry);
     let lastRes: Awaited<ReturnType<typeof request.get>> | undefined;
 
     for (let i = 0; i < TEST_COUNT; i++) {
-      lastRes = await request.get(url);
+      lastRes = await request.get(url, { headers });
     }
 
     expect(lastRes).toBeDefined();

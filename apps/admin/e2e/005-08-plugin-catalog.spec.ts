@@ -3,17 +3,37 @@
 // pending plugin (approve). Asserts the review status changes after the action.
 //
 // Prerequisites (resolved in admin E2E global-setup):
-//   - Plugin catalog is seeded with at least one plugin that has
-//     reviewStatus='pending' (seed-plugins.ts sets the first seed plugin
-//     to 'pending' to provide deterministic E2E data).
+//   - CRM remains the published + approved marketplace fixture.
+//   - A separate draft plugin is reset to reviewStatus='pending' around every
+//     test, so retries never depend on a previous review decision.
+
+import {
+  CRM_MARKETPLACE_SLUG,
+  REVIEW_PLUGIN_FIXTURE,
+  resetPluginReviewFixture,
+} from '../../../e2e/fixtures/core-fixtures.js';
 
 import { expect, test } from './helpers/base-fixture.js';
-import { loginAsAdmin, hasKeycloak, requireKeycloakInCI } from './helpers/admin-login.js';
+import { loginAsAdmin, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi, type PluginRow } from './helpers/api-client.js';
 
 test.describe('005-08 Plugin catalog', () => {
-  test.skip(!hasKeycloak, 'Requires live Keycloak');
   test.beforeAll(() => requireKeycloakInCI());
+  test.beforeEach(() => resetPluginReviewFixture());
+  test.afterEach(() => resetPluginReviewFixture());
+
+  test('lifecycle fixtures keep CRM installable and review data isolated', async () => {
+    const list = await adminApi().listPlugins();
+    const crm = list.data.find((plugin) => plugin.slug === CRM_MARKETPLACE_SLUG);
+    const review = list.data.find((plugin) => plugin.slug === REVIEW_PLUGIN_FIXTURE.slug);
+
+    expect(crm).toMatchObject({ status: 'published', reviewStatus: 'approved' });
+    expect(review).toMatchObject({
+      status: 'draft',
+      reviewStatus: 'pending',
+      installedCount: 0,
+    });
+  });
 
   test('plugin table renders catalog rows', async ({ page }) => {
     await loginAsAdmin(page);
@@ -44,13 +64,10 @@ test.describe('005-08 Plugin catalog', () => {
   test('approving a pending plugin changes its review status', async ({ page }) => {
     const api = adminApi();
     const list = await api.listPlugins();
-    const pending = list.data.find((p) => p.reviewStatus === 'pending') as PluginRow | undefined;
-    // Global-setup seeds the first plugin with reviewStatus='pending', so a
-    // missing pending plugin means seed-plugins failed silently. Fail hard
-    // rather than skip — a green CI must mean the test actually ran.
-    expect(pending, 'No pending plugin — seed-plugins may have failed').toBeDefined();
-    // At this point pending is guaranteed by the assertion above. TypeScript
-    // doesn't narrow via expect(), so the non-null assertion is needed.
+    const pending = list.data.find(
+      (plugin) => plugin.slug === REVIEW_PLUGIN_FIXTURE.slug
+    ) as PluginRow | undefined;
+    expect(pending).toMatchObject({ status: 'draft', reviewStatus: 'pending' });
     const plugin = pending!;
 
     await loginAsAdmin(page);
@@ -71,6 +88,12 @@ test.describe('005-08 Plugin catalog', () => {
     // Source-of-truth check via the API.
     const after = await api.listPlugins();
     const updated = after.data.find((p) => p.slug === plugin.slug) as PluginRow | undefined;
-    expect(updated?.reviewStatus).toBe('approved');
+    const crm = after.data.find((p) => p.slug === CRM_MARKETPLACE_SLUG);
+    expect(updated).toMatchObject({
+      status: 'draft',
+      reviewStatus: 'approved',
+      installedCount: 0,
+    });
+    expect(crm).toMatchObject({ status: 'published', reviewStatus: 'approved' });
   });
 });

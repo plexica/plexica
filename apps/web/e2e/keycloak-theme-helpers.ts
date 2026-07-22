@@ -7,7 +7,7 @@
 // setRealmPlexicaTheme probes the login page after setting the theme and
 // falls back to '' so login-dependent E2E tests always have a working page.
 
-import { adminFetch, KEYCLOAK_URL } from './keycloak-admin-client.js';
+import { adminFetch, getKeycloakUrl } from '../../../e2e/keycloak/admin-api.js';
 
 /**
  * Probes the login page render for a realm. Returns false if Keycloak returns
@@ -15,7 +15,7 @@ import { adminFetch, KEYCLOAK_URL } from './keycloak-admin-client.js';
  */
 async function isLoginPageRendering(realm: string): Promise<boolean> {
   const loginUrl =
-    `${KEYCLOAK_URL}/realms/${realm}/protocol/openid-connect/auth` +
+    `${getKeycloakUrl()}/realms/${realm}/protocol/openid-connect/auth` +
     `?client_id=probe&response_type=code&scope=openid&redirect_uri=http://localhost`;
   try {
     const res = await fetch(loginUrl, { method: 'GET', redirect: 'follow' });

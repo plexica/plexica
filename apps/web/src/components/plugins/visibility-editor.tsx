@@ -2,7 +2,7 @@
 // Workspace visibility toggles for a single installed plugin.
 // Shows per-workspace overrides with toggle switches.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
 import { Button, ToggleSwitch } from '@plexica/ui';
 
@@ -33,6 +33,21 @@ export function VisibilityEditor({
   const entries = data ?? [];
   const currentUpdates = localUpdates;
 
+  // Keep optimistic switch values visible until the invalidated visibility
+  // query confirms that every submitted update was persisted. Clearing on
+  // click previously exposed stale query data between PATCH and refetch,
+  // making a second user toggle operate on the wrong visual state.
+  useEffect(() => {
+    if (isSaving || localUpdates.length === 0 || data === undefined) return;
+    const persisted = localUpdates.every((update) =>
+      data.some(
+        (entry) =>
+          entry.workspaceId === update.workspaceId && entry.isEnabled === update.isEnabled
+      )
+    );
+    if (persisted) setLocalUpdates([]);
+  }, [data, isSaving, localUpdates]);
+
   function handleToggle(workspaceId: string, checked: boolean): void {
     setLocalUpdates((prev) => {
       const existing = prev.findIndex((u) => u.workspaceId === workspaceId);
@@ -57,7 +72,6 @@ export function VisibilityEditor({
 
   function handleSave(): void {
     onSave(currentUpdates);
-    setLocalUpdates([]);
   }
 
   if (isPending) {

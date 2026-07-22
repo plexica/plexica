@@ -211,6 +211,11 @@ Vite + React app, sharing `@plexica/ui` and `@plexica/i18n` with `apps/web/`
 but with its own router, its own Zustand auth store (master realm), and no
 Module Federation host role. It is served from a CDN in production.
 
+Per accepted ADR-023, the browser uses Authorization Code + PKCE S256 through
+Keycloak and public `/callback`; Plexica renders no credential form. Failed
+refresh announces session expiry before re-authentication. Logout uses OIDC
+RP-Initiated Logout with the persisted ID token and exact registered URI.
+
 ## 9. Non-Functional Requirements
 
 | Metric                                    | Target           |
@@ -270,6 +275,7 @@ later phases or separate concerns:
 | ADR-001 | `.forge/knowledge/adr/adr-001-schema-per-tenant.md` | Schema-per-tenant model — provisioning creates the schema; deletion drops it. |
 | ADR-002 | `.forge/knowledge/adr/adr-002-keycloak-multi-realm.md` | Realm-per-tenant — provisioning creates the realm; suspension disables it; deletion removes it. |
 | ADR-004 | `.forge/knowledge/adr/adr-004-kafka-redpanda-event-bus.md` | Event bus — Kafka status feature (005-11) reads consumer lag and DLQ metrics. |
+| ADR-023 | `.forge/knowledge/adr/adr-023-admin-pkce-auth.md` | Admin PKCE S256, callback/expiry UX, exact URIs, logout, and E2E token isolation. |
 | ADR-016 | `.forge/knowledge/adr/adr-016-two-tier-dead-letter-queue.md` | DLQ model — informs the DLQ size metric surfaced in 005-11. |
 | Spec 002 | `.forge/specs/002-foundations/spec.md` | Auth, multi-tenancy infra, Keycloak master realm for super admin. |
 | Spec 003 | `.forge/specs/003-core-features/spec.md` | Tenant/workspace entities, per-tenant `audit_logs` consumed in 005-03. |

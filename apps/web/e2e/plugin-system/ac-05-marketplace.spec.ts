@@ -60,19 +60,14 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     await expect(filterGroup).toBeVisible({ timeout: 10_000 });
 
     const sales = filterGroup.getByRole('button', { name: /sales/i });
-    if (await sales.isVisible().catch(() => false)) {
-      await sales.click();
-      await expect(sales).toHaveAttribute('aria-pressed', 'true');
-    }
+    await expect(sales).toBeVisible();
+    await sales.click();
+    await expect(sales).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('AC-05.4: plugin detail sheet opens on card click and shows permissions/tables/events', async ({ page }) => {
     const cards = page.getByTestId('plugin-card');
     await expect(cards.first()).toBeVisible({ timeout: 10_000 });
-    if ((await cards.count()) === 0) {
-      test.skip(true, 'No plugins to open detail for');
-      return;
-    }
 
     // Click the "View details" button — dialog appears immediately (skeleton state)
     const detailBtn = cards.first().getByRole('button', { name: /view details/i });
@@ -89,10 +84,6 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
   test('AC-05.5: detail sheet passes axe-core WCAG 2.1 AA check', async ({ page }) => {
     const cards = page.getByTestId('plugin-card');
     await expect(cards.first()).toBeVisible({ timeout: 10_000 });
-    if ((await cards.count()) === 0) {
-      test.skip(true, 'No plugins to test accessibility on');
-      return;
-    }
 
     // Click the "View details" button — dialog appears immediately (skeleton state)
     const detailBtn = cards.first().getByRole('button', { name: /view details/i });
@@ -111,10 +102,6 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
   test('AC-05.6: plugin card is keyboard accessible — Tab to detail button, Enter opens detail, Escape closes', async ({ page }) => {
     const cards = page.getByTestId('plugin-card');
     await expect(cards.first()).toBeVisible({ timeout: 10_000 });
-    if ((await cards.count()) === 0) {
-      test.skip(true, 'No plugins to test keyboard nav on');
-      return;
-    }
 
     // Focus the "View details" button inside the first card
     const detailBtn = cards.first().getByRole('button', { name: /view details/i });

@@ -7,9 +7,9 @@
 
 import { createApiClient, ApiError } from '@plexica/auth/api-client';
 
-export { ApiError };
-
 import { useAuthStore } from '../stores/auth-store.js';
+
+export { ApiError };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 

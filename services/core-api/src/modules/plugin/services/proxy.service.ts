@@ -105,6 +105,9 @@ export async function proxyRequest(
   const workspaceId = (typeof workspaceHeader === 'string' ? workspaceHeader : '') ?? '';
 
   const isTenantAdmin = request.user?.roles.includes('tenant_admin') ?? false;
+  const forwardedRole = isTenantAdmin
+    ? 'admin'
+    : request.user?.roles.find((role) => ['admin', 'member', 'viewer'].includes(role)) ?? '';
   await verifyWorkspaceMembership(workspaceId, internalUserId, tenantContext, isTenantAdmin);
 
   const headers: Record<string, string> = {
@@ -112,7 +115,7 @@ export async function proxyRequest(
     'X-Plexica-Tenant-Id': tenantContext?.tenantId ?? '',
     'X-Plexica-User-Id': keycloakUserId,
     'X-Plexica-Workspace-Id': workspaceId,
-    'X-Plexica-User-Role': ((request.user as { roles?: string[] })?.roles?.[0]) ?? '',
+    'X-Plexica-User-Role': forwardedRole,
     'X-Plexica-Correlation-Id': crypto.randomUUID(),
   };
 

@@ -6,7 +6,7 @@
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;
-  /** Present in PKCE flow (web, admin after migration). Absent in password grant. */
+  /** Returned for the initial OIDC exchange; refresh responses may omit it. */
   id_token?: string;
   expires_in: number;
   refresh_expires_in: number;

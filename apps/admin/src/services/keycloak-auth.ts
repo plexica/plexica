@@ -1,8 +1,7 @@
 // keycloak-auth.ts
 // Keycloak authentication client for the admin app.
 // Uses the shared @plexica/auth/createKeycloakClient factory with
-// admin-specific configuration (master realm, PKCE redirect for login,
-// password grant kept for E2E backward compatibility).
+// admin-specific configuration (master realm and PKCE redirect for login).
 
 import { createKeycloakClient } from '@plexica/auth/keycloak-client';
 

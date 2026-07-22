@@ -10,7 +10,8 @@
 
 | # | Screen | Route | Primary Action | FR Ref | States |
 |---|--------|-------|----------------|--------|--------|
-| 1 | Login | `/login` | Authenticate (master realm) | auth | default, error, loading |
+| 1 | Sign-in Redirect | `/login` | Continue to Keycloak | auth | redirecting, redirect error |
+| 1a | Auth Callback | `/callback` | Complete PKCE exchange | auth | loading, error, success |
 | 2 | Dashboard | `/dashboard` | Assess platform health at a glance | 005-01 | loading, error, empty (no tenants) |
 | 3 | Tenant List | `/tenants` | Search + filter tenants | 005-02 | loading, empty (first-visit), empty (filtered), dense (100+) |
 | 4 | Tenant Detail | `/tenants/$tenantId` | View tenant info, users, plugins, audit | 005-03 | loading, error (not found), tabs: info/users/plugins/audit |
@@ -48,7 +49,8 @@
 
 ```
 Admin App (master realm auth)
-├── /login                     ← Keycloak password grant
+├── /login                     ← redirect to master-realm Keycloak PKCE
+├── /callback                  ← public callback; validate state + exchange code
 ├── /dashboard                 ← KPI cards + status breakdown (005-01)
 ├── /tenants                   ← Searchable, filterable table (005-02)
 │   └── /tenants/$tenantId     ← Detail with tabs (005-03)
@@ -651,7 +653,7 @@ The existing `@plexica/ui` Badge component has variants: `admin`, `member`, `vie
 | Screen | Key A11y Requirements |
 |--------|-----------------------|
 | All screens | Skip-nav link (first focusable element); logical tab order (sidebar → content); focus indicator visible (`--focus-ring-width: 2px`, `--color-primary-500`); all interactive elements keyboard-accessible |
-| Login | Form labels visible; error messages in text (not color); `aria-live` on error; password show/hide toggle |
+| Sign-in / Callback | Redirect status uses `aria-live`; retry is keyboard accessible; callback errors are localized; credentials are entered only on Keycloak |
 | Dashboard | KPIs in `<dl>`; `aria-live="polite"` on refresh timestamp; cards are static (no interactive without keyboard equivalent) |
 | Tenant List | Table `scope="col"` + `aria-sort`; search `aria-label`; filter Select `aria-label`; pagination `aria-label`s; result count `aria-live` |
 | Tenant Detail | Tabs use @plexica/ui Tabs (Radix Tabs — keyboard arrow nav, `role="tablist"`); tab state in URL (`?tab=info`); `aria-labelledby` for tab panels |
@@ -691,6 +693,7 @@ The existing `@plexica/ui` Badge component has variants: `admin`, `member`, `vie
 | **Health as status cards** (not charts) | 5 fixed services, monitoring intent (not trend). Cards give visual prominence with icon + color. Aggregate header provides the headline. | 005-09 |
 | **Logs via Loki proxy** (not direct query) | Backend translates filters to LogQL. Frontend never knows Loki URL. 503 on Loki down with retry. No PII (Pino redact). | 005-10 |
 | **Role-gated UI** (Sam sees no destructive actions) | Read-only super_admin role. Provision/Suspend/Delete/Approve/Publish buttons hidden by role check, not just disabled. Defense-in-depth. | all |
+| **Keycloak-hosted PKCE sign-in** (ADR-023) | `/login` redirects to Keycloak; `/callback` validates state and exchanges the code. Failed refresh announces session expiry before fresh PKCE. No Plexica password form. | auth |
 
 ---
 
@@ -706,3 +709,4 @@ The existing `@plexica/ui` Badge component has variants: `admin`, `member`, `vie
 | Product Brief (Platform Operator persona) | `.forge/product-brief.md` |
 | @plexica/ui components | `packages/ui/src/components/` (18 components) |
 | @plexica/ui tokens | `packages/ui/src/tokens/` (colors, typography, spacing, radius) |
+| ADR-023 (admin PKCE auth) | `.forge/knowledge/adr/adr-023-admin-pkce-auth.md` |

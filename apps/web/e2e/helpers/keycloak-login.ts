@@ -50,9 +50,18 @@ export async function loginViaKeycloak(
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', password);
   await page.click('input[type="submit"], button[type="submit"]');
-  // P11-L-1: explicit 10s timeout matches login-flow.spec.ts and fails fast on
-  // Keycloak misconfiguration rather than silently hanging for the 30s default.
-  await page.waitForURL('**/dashboard', { timeout: 10_000 });
+  await page.waitForURL('**/dashboard', { timeout: 20_000 });
+  await page.waitForFunction(
+    () => {
+      const stored = sessionStorage.getItem('plexica-auth');
+      if (stored === null) return false;
+      const parsed = JSON.parse(stored) as { state?: { accessToken?: string } };
+      return typeof parsed.state?.accessToken === 'string';
+    },
+    undefined,
+    { timeout: 10_000 }
+  );
+  await page.getByRole('heading', { level: 1 }).waitFor({ state: 'visible', timeout: 15_000 });
 }
 
 // ---------------------------------------------------------------------------

@@ -1,22 +1,15 @@
-// auth-store.ts
-// Single Zustand store for the tenant web app authentication state.
-// Handles PKCE login, token refresh, session expiry, and tenant context.
-//
-// Uses shared utilities from @plexica/auth:
-//   - decodeBase64Url, extractBaseProfile, isTokenValid from @plexica/auth/jwt
-//   - rehydrateStatus, partializeAuthState from @plexica/auth/auth-store
-
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { extractBaseProfile } from '@plexica/auth/jwt';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { createAuthFlowCoordinator } from '@plexica/auth/auth-flow';
 import { createRehydrationHandler, partializeAuthState } from '@plexica/auth/auth-store';
+import { extractBaseProfile } from '@plexica/auth/jwt';
+import { createAuthorizationState } from '@plexica/auth/pkce';
 
 import { keycloakClient, REDIRECT_URI } from '../services/keycloak-auth.js';
 
 import type { UserProfile, AuthState } from '../types/auth.js';
 
 interface AuthStore extends AuthState {
-  // Actions
   login: () => Promise<void>;
   logout: () => Promise<void>;
   handleCallback: (code: string, state: string) => Promise<void>;
@@ -26,128 +19,118 @@ interface AuthStore extends AuthState {
   setTenantContext: (slug: string, realm: string, uuid?: string) => void;
 }
 
+const authFlow = createAuthFlowCoordinator();
+
 function decodeUserProfile(accessToken: string, realm: string): UserProfile {
-  const base = extractBaseProfile(accessToken);
-  const roles = base.roles;
-  const result: UserProfile = {
-    ...base,
-    realm,
-  };
-  if (roles.includes('tenant_admin')) {
-    result.tenantRole = 'tenant_admin';
-  } else if (roles.includes('member')) {
-    result.tenantRole = 'member';
-  }
-  return result;
+  const profile: UserProfile = { ...extractBaseProfile(accessToken), realm };
+  if (profile.roles.includes('tenant_admin')) profile.tenantRole = 'tenant_admin';
+  else if (profile.roles.includes('member')) profile.tenantRole = 'member';
+  return profile;
 }
+
+const clearedAuth = {
+  accessToken: null,
+  refreshToken: null,
+  idToken: null,
+  userProfile: null,
+  status: 'unauthenticated' as const,
+  isAuthenticated: false,
+};
 
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
-      accessToken: null,
-      refreshToken: null,
-      idToken: null,
-      userProfile: null,
-      status: 'unauthenticated',
-      isAuthenticated: false,
+      ...clearedAuth,
       tenantSlug: null,
       tenantUuid: null,
       realm: null,
 
-      setTenantContext: (slug: string, realm: string, uuid?: string) => {
-        set({ tenantSlug: slug, tenantUuid: uuid ?? null, realm });
+      setTenantContext: (tenantSlug, realm, tenantUuid) => {
+        set({ tenantSlug, tenantUuid: tenantUuid ?? null, realm });
       },
 
-      login: async () => {
-        const { realm } = get();
-        if (realm === null) throw new Error('Realm not set — call setTenantContext first');
-        set({ status: 'authenticating' });
-        const state = crypto.randomUUID();
-        sessionStorage.setItem('auth_state', state);
-        const url = await keycloakClient.getLoginUrl(realm, state, REDIRECT_URI);
-        window.location.href = url;
+      login: () => {
+        if (get().status === 'authenticated') return Promise.resolve();
+        return authFlow.runLogin(async () => {
+          const { realm } = get();
+          if (realm === null) throw new Error('Tenant authentication is unavailable.');
+          set({ status: 'authenticating' });
+          try {
+            const state = createAuthorizationState();
+            sessionStorage.setItem('auth_state', state);
+            const url = await keycloakClient.getLoginUrl(realm, state, REDIRECT_URI);
+            window.location.href = url;
+          } catch {
+            set({ status: 'unauthenticated' });
+            throw new Error('Authentication could not be started.');
+          }
+        });
       },
 
       logout: async () => {
-        const { refreshToken, realm, tenantSlug } = get();
-
-        if (refreshToken !== null && realm !== null) {
-          await keycloakClient.revokeSession(refreshToken, realm);
+        const { refreshToken, idToken, realm, tenantSlug } = get();
+        const postLogoutUrl = new URL('/', window.location.origin);
+        if (tenantSlug !== null) postLogoutUrl.searchParams.set('tenant', tenantSlug);
+        try {
+          if (refreshToken !== null && realm !== null) {
+            await keycloakClient.revokeSession(refreshToken, realm);
+          }
+        } catch {
+          // Front-channel logout below remains authoritative if revocation fails.
+        } finally {
+          set(clearedAuth);
+          authFlow.reset();
+          window.location.href =
+            idToken === null || realm === null
+              ? postLogoutUrl.href
+              : keycloakClient.getLogoutUrl(realm, idToken, postLogoutUrl.href);
         }
-
-        set({
-          accessToken: null,
-          refreshToken: null,
-          idToken: null,
-          userProfile: null,
-          status: 'unauthenticated',
-          isAuthenticated: false,
-        });
-
-        const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
-        window.location.href = `/${tenantParam}`;
       },
 
-      handleCallback: async (code: string, state: string) => {
-        const expectedState = sessionStorage.getItem('auth_state');
-        if (state !== expectedState) throw new Error('State mismatch — possible CSRF');
+      handleCallback: (code, state) =>
+        authFlow.runCallback(code, state, async () => {
+          set({ status: 'authenticating' });
+          const expectedState = sessionStorage.getItem('auth_state');
+          const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+          const { realm } = get();
+          if (expectedState === null || state !== expectedState) {
+            throw new Error('Invalid authentication state.');
+          }
+          if (realm === null || codeVerifier === null) {
+            throw new Error('Authentication context is missing.');
+          }
 
-        const { realm } = get();
-        if (realm === null) throw new Error('Realm not set');
-
-        const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-        if (codeVerifier === null) throw new Error('PKCE verifier missing');
-
-        const tokens = await keycloakClient.exchangeCode(code, realm, codeVerifier, REDIRECT_URI);
-        const userProfile = decodeUserProfile(tokens.access_token, realm);
-
-        sessionStorage.removeItem('pkce_code_verifier');
-        sessionStorage.removeItem('auth_state');
-
-        set({
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          idToken: tokens.id_token ?? null,
-          userProfile,
-          status: 'authenticated',
-          isAuthenticated: true,
-        });
-      },
+          const tokens = await keycloakClient.exchangeCode(code, realm, codeVerifier, REDIRECT_URI);
+          sessionStorage.removeItem('pkce_code_verifier');
+          sessionStorage.removeItem('auth_state');
+          set({
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            idToken: tokens.id_token ?? null,
+            userProfile: decodeUserProfile(tokens.access_token, realm),
+            status: 'authenticated',
+            isAuthenticated: true,
+          });
+        }),
 
       refresh: async () => {
-        const { refreshToken, realm } = get();
-        if (refreshToken === null || realm === null) throw new Error('Cannot refresh');
+        const { refreshToken, idToken, realm } = get();
+        if (refreshToken === null || realm === null) {
+          throw new Error('Session refresh is unavailable.');
+        }
         const tokens = await keycloakClient.refreshTokens(refreshToken, realm);
-        const userProfile = decodeUserProfile(tokens.access_token, realm);
         set({
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
-          idToken: tokens.id_token ?? null,
-          userProfile,
+          idToken: tokens.id_token ?? idToken,
+          userProfile: decodeUserProfile(tokens.access_token, realm),
           status: 'authenticated',
           isAuthenticated: true,
         });
       },
 
-      setSessionExpired: () => {
-        // Clear tokens so rehydration on next page load detects
-        // accessToken === null and preserves the 'expired' status
-        // (via rehydrateStatus). Without this, a page reload after
-        // session expiry would silently re-authenticate the user because
-        // the store still holds a (possibly invalid) refresh token.
-        set({
-          accessToken: null,
-          refreshToken: null,
-          idToken: null,
-          userProfile: null,
-          status: 'expired',
-          isAuthenticated: false,
-        });
-      },
-
-      dismissExpired: () => {
-        set({ status: 'unauthenticated' });
-      },
+      setSessionExpired: () => set({ ...clearedAuth, status: 'expired' }),
+      dismissExpired: () => set({ status: 'unauthenticated' }),
     }),
     {
       name: 'plexica-auth',
@@ -159,8 +142,7 @@ export const useAuthStore = create<AuthStore>()(
         tenantUuid: state.tenantUuid,
         realm: state.realm,
       }),
-      // Derive transient fields from persisted tokens on rehydration.
       onRehydrateStorage: createRehydrationHandler(),
-    },
-  ),
+    }
+  )
 );
