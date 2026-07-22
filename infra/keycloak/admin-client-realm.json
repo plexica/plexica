@@ -19,11 +19,5 @@
     "access.token.lifespan": "3600",
     "client_credentials.use_refresh_token": "false",
     "use.refresh.tokens": "true"
-  },
-  "roles": [
-    {
-      "name": "super_admin",
-      "description": "Super administrator with full platform access (master realm only)"
-    }
-  ]
+  }
 }
