@@ -6,38 +6,44 @@ import { describe, expect, it } from 'vitest';
 
 import { config } from '../lib/config.js';
 
-const REALM = 'plexica-test';
 const BASE_URL = config.KEYCLOAK_URL;
-const CLIENT_ID = 'plexica-web';
+const ADMIN_USERNAME = config.KEYCLOAK_ADMIN_USER;
+const ADMIN_PASSWORD = config.KEYCLOAK_ADMIN_PASSWORD;
 
 describe('Keycloak smoke test', () => {
   it('OIDC discovery endpoint returns 200 with issuer field', async () => {
-    const url = `${BASE_URL}/realms/${REALM}/.well-known/openid-configuration`;
+    const realm = 'plexica-test';
+    const url = `${BASE_URL}/realms/${realm}/.well-known/openid-configuration`;
     const res = await fetch(url);
     expect(res.status).toBe(200);
 
     const body = await res.json() as Record<string, unknown>;
     expect(typeof body['issuer']).toBe('string');
-    expect(body['issuer']).toContain(REALM);
+    expect(body['issuer']).toContain(realm);
   });
 
   it('token endpoint is discoverable and reachable', async () => {
-    const discoveryUrl = `${BASE_URL}/realms/${REALM}/.well-known/openid-configuration`;
+    const realm = 'plexica-test';
+    const discoveryUrl = `${BASE_URL}/realms/${realm}/.well-known/openid-configuration`;
     const discoveryRes = await fetch(discoveryUrl);
     const discovery = await discoveryRes.json() as Record<string, unknown>;
 
     expect(typeof discovery['token_endpoint']).toBe('string');
     // Verify the token endpoint URL contains the realm
-    expect(discovery['token_endpoint'] as string).toContain(REALM);
+    expect(discovery['token_endpoint'] as string).toContain(realm);
   });
 
-  it('exchanges super-admin credentials for a real access token', async () => {
-    const tokenUrl = `${BASE_URL}/realms/${REALM}/protocol/openid-connect/token`;
+  it('exchanges admin credentials for a real access token via admin-cli', async () => {
+    // Uses admin-cli client (built-in, always has direct grant enabled)
+    // against the master realm. This tests real Keycloak token exchange.
+    // The plexica-web client no longer has directAccessGrantsEnabled
+    // (ADR-023, Phase C — password grant removed from all clients).
+    const tokenUrl = `${BASE_URL}/realms/master/protocol/openid-connect/token`;
     const params = new URLSearchParams({
       grant_type: 'password',
-      client_id: CLIENT_ID,
-      username: 'super-admin@plexica.test',
-      password: 'test1234',
+      client_id: 'admin-cli',
+      username: ADMIN_USERNAME,
+      password: ADMIN_PASSWORD,
     });
 
     const res = await fetch(tokenUrl, {

@@ -2,10 +2,9 @@
 // Real behavior: super admin accesses the DLQ API, entries load, and retrying a
 // pending entry changes its status (or the entry leaves the pending filter).
 //
-// The DLQ endpoints require a master-realm super admin token. Unlike tenant-realm
-// logins, the Keycloak master realm does not have the 'plexica-web' client, so the
-// frontend OIDC flow cannot be used. Instead we obtain a token directly from the
-// Keycloak admin API using the admin-cli client.
+// This test obtains a master-realm super admin token via the built-in admin-cli
+// client (which always has direct grant enabled and includes realm_access.roles
+// because the admin user has the super_admin role assigned in the master realm).
 //
 // This test is purely API-driven — it does not interact with the frontend UI, so
 // there is no need to log in through the browser.
@@ -19,10 +18,10 @@ const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'chang
 
 /**
  * Obtains a Keycloak access token for the master-realm admin user.
- * Uses the plexica-web client (created in the master realm by global-setup)
- * which includes realm_access.roles in the token. The admin-cli client
- * does not include realm roles, so it cannot be used with the
- * require-super-admin middleware.
+ * Uses the built-in admin-cli client (always has direct grant enabled).
+ * The admin user has the super_admin role assigned in the master realm
+ * (by global-setup), so the token includes realm_access.roles and passes
+ * the require-super-admin middleware — proven by admin E2E usage.
  */
 async function getSuperAdminToken(): Promise<string> {
   const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
@@ -30,7 +29,7 @@ async function getSuperAdminToken(): Promise<string> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: 'plexica-web',
+      client_id: 'admin-cli',
       username: KEYCLOAK_ADMIN_USER,
       password: KEYCLOAK_ADMIN_PASSWORD,
     }).toString(),

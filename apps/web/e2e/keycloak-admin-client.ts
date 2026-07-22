@@ -244,10 +244,12 @@ export async function ensureSuperAdminForUser(
 
 /**
  * Ensures the `plexica-web` OIDC client exists in the master realm.
- * Required for DLQ E2E tests (ac-06) which log in through the frontend
- * (the frontend resolves the 'admin' slug to the Keycloak master realm).
  * The master realm does not have this client by default — only tenant realms
  * (created via createRealm) receive it.
+ *
+ * directAccessGrantsEnabled is false: the password grant has been removed
+ * from plexica-web (ADR-023 Phase C). DLQ E2E tests (ac-06) use admin-cli
+ * instead of plexica-web for token acquisition.
  *
  * Idempotent: 409 (already exists) is treated as success.
  */
@@ -260,7 +262,7 @@ export async function ensurePlexicaWebClientInMasterRealm(token: string): Promis
     protocol: 'openid-connect',
     publicClient: true,
     standardFlowEnabled: true,
-    directAccessGrantsEnabled: true,
+    directAccessGrantsEnabled: false,
     redirectUris,
     webOrigins,
     attributes: {
@@ -290,7 +292,7 @@ export async function ensurePlexicaWebClientInMasterRealm(token: string): Promis
       clientId: 'plexica-web',
       publicClient: true,
       standardFlowEnabled: true,
-      directAccessGrantsEnabled: true,
+      directAccessGrantsEnabled: false,
       redirectUris,
       webOrigins,
       attributes: { 'post.logout.redirect.uris': '+' },

@@ -89,6 +89,8 @@ async function adminFetch(
 
 /**
  * Ensures the `plexica-web` OIDC public client exists in the master realm.
+ * directAccessGrantsEnabled is false: password grant removed from plexica-web
+ * (ADR-023 Phase C). DLQ tests use admin-cli directly.
  */
 async function ensurePlexicaWebClient(token: string): Promise<void> {
   const res = await adminFetch(token, '/admin/realms/master/clients', 'POST', {
@@ -96,7 +98,7 @@ async function ensurePlexicaWebClient(token: string): Promise<void> {
     protocol: 'openid-connect',
     publicClient: true,
     standardFlowEnabled: true,
-    directAccessGrantsEnabled: true,
+    directAccessGrantsEnabled: false,
     redirectUris: ['http://localhost:3000/*'],
     webOrigins: ['http://localhost:3000'],
   });
