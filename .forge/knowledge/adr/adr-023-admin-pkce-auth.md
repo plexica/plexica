@@ -88,14 +88,11 @@ The existing `plexica-admin` client in the Keycloak master realm gains:
 
 ```typescript
 {
-  // Existing:
   publicClient: true,
   fullScopeAllowed: true,
-  directAccessGrantsEnabled: true,  // kept during migration, removed after
-  attributes: { 'access.token.lifespan': '86400' },
-
-  // New:
   standardFlowEnabled: true,
+  directAccessGrantsEnabled: false,
+  attributes: { 'access.token.lifespan': '86400' },
   redirectUris: [
     'http://localhost:3002/*',     // dev
     'https://admin.plexica.app/*', // prod
@@ -107,9 +104,12 @@ The existing `plexica-admin` client in the Keycloak master realm gains:
 }
 ```
 
-**Migration strategy**: `directAccessGrantsEnabled` remains `true` during the
-transition so that existing E2E tests and any scripts using direct password
-grant continue to work. It is removed once the migration is verified.
+**Migration completed**: `directAccessGrantsEnabled` was kept `true` during the
+transition so that existing E2E tests and scripts using direct password grant
+could continue to work. Once all E2E tests were migrated to the PKCE browser
+redirect flow, `directAccessGrantsEnabled` was set to `false` and removed from
+the client configuration. E2E tests now use browser redirect for authentication
+and `admin-cli` for API token acquisition in global setup.
 
 ### Frontend Changes
 
@@ -164,9 +164,9 @@ grant continue to work. It is removed once the migration is verified.
 - **E2E test complexity**: The login helper must now handle the Keycloak
   redirect flow (navigate → wait for Keycloak → fill Keycloak form → wait for
   callback → wait for dashboard) instead of a simple form fill. Mitigated by
-  (a) reusing the pattern already established in `apps/web` E2E tests, and
-  (b) keeping `directAccessGrantsEnabled: true` for a transition period so
-  E2E tests can use an API-based login bypass.
+  reusing the pattern already established in `apps/web` E2E tests. During a
+  transition period, `directAccessGrantsEnabled: true` was kept so E2E tests
+  could gradually migrate — it has since been removed.
 - **Redirect URI management**: Keycloak validates the `redirect_uri` parameter
   against the configured whitelist. Adding new environments (staging, review
   apps) requires updating the client config. This is already a known pattern

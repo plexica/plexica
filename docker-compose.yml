@@ -168,9 +168,10 @@ services:
           echo "keycloak-init: accessTokenLifespan=86400s applied to realm: $$realm"
         done
 
-        # S5-C04: provision the plexica-admin client in the master realm.
-        # The admin app (apps/admin) uses direct password grant against master;
-        # no browser/PKCE flow. Idempotent — skip if the client already exists.
+        # S5-C04 / ADR-023: provision the plexica-admin client in the master
+        # realm. The admin app (apps/admin) uses PKCE Authorization Code Flow
+        # (browser redirect). directAccessGrantsEnabled is false.
+        # Idempotent — skip if the client already exists.
         # NOTE: admin-client-realm.json is mounted at /opt/keycloak/data/ (not
         # under data/import/) to avoid --import-realm parsing it as a realm.
         # Capture lookup exit code separately: kcadm.sh returning 1 = not found,

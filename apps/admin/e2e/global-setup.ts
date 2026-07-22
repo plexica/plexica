@@ -7,9 +7,9 @@
 //   2. Call Keycloak admin REST API to ensure:
 //      a. The admin user is assigned the `super_admin` realm-level role.
 //      b. The `plexica-web` OIDC public client exists in the master realm.
-//      c. The built-in `account` client has directAccessGrantsEnabled.
-//   3. Obtain a token via the `account` client (which includes
-//      realm_access.roles because it has the "roles" default client scope).
+//   3. Obtain a token via `admin-cli` (built-in Keycloak client with direct
+//      grant always enabled). The admin user already has the super_admin realm
+//      role assigned, so this token includes realm_access.roles.
 //      Store it as PLAYWRIGHT_ADMIN_API_TOKEN for test workers.
 //   4. Provision a dedicated E2E tenant via the core-api CLI.
 //
@@ -211,8 +211,9 @@ async function setup(): Promise<void> {
   // Step 3: Ensure the admin user has the super_admin realm-level role.
   await ensureSuperAdminForUser(adminToken, 'master', ADMIN_USER);
 
-  // Step 4: Ensure plexica-admin client is configured correctly and has
-  //   fullScopeAllowed: true so its tokens include realm roles.
+  // Step 4: Ensure plexica-admin client is configured with PKCE settings.
+  //   directAccessGrantsEnabled is NOT set — the password grant has been
+  //   removed from the plexica-admin client (ADR-023, Phase C).
   process.stdout.write('[admin global-setup] Ensuring plexica-admin client config…\n');
   try {
     const lookupRes = await adminFetch(
@@ -227,7 +228,7 @@ async function setup(): Promise<void> {
         // Create the client if it doesn't exist
         const postRes = await adminFetch(adminToken, '/admin/realms/master/clients', 'POST', {
           clientId: 'plexica-admin', protocol: 'openid-connect',
-          publicClient: true, directAccessGrantsEnabled: true,
+          publicClient: true,
           standardFlowEnabled: true, fullScopeAllowed: true,
           attributes: { 'access.token.lifespan': '86400' },
           redirectUris: ['http://localhost:3002/*'], webOrigins: ['http://localhost:3002'],
@@ -237,7 +238,7 @@ async function setup(): Promise<void> {
         }
       } else {
         const putRes = await adminFetch(adminToken, `/admin/realms/master/clients/${clientUuid}`, 'PUT', {
-          publicClient: true, directAccessGrantsEnabled: true,
+          publicClient: true,
           standardFlowEnabled: true, fullScopeAllowed: true,
           attributes: { 'access.token.lifespan': '86400' },
           webOrigins: ['http://localhost:3002'], redirectUris: ['http://localhost:3002/*'],
@@ -270,24 +271,11 @@ async function setup(): Promise<void> {
     process.stderr.write(`[admin global-setup] Warning: could not update realm: ${String(e)}\n`);
   }
 
-  // Step 5: Get the API token via plexica-admin client (which has
-  //   fullScopeAllowed: true from the step above, so token includes roles).
-  process.stdout.write('[admin global-setup] Obtaining API token via plexica-admin…\n');
-  const apiRes = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'plexica-admin',
-      username: ADMIN_USER,
-      password: ADMIN_PASSWORD,
-    }).toString(),
-  });
-  if (!apiRes.ok) {
-    throw new Error(`API token fetch failed: ${apiRes.status} ${await apiRes.text()}`);
-  }
-  const apiData = (await apiRes.json()) as { access_token: string };
-  const apiToken = apiData.access_token;
+  // Step 5: Get the API token via admin-cli (built-in Keycloak client with
+  //   direct grant always enabled). The admin user already has the super_admin
+  //   realm role assigned (Step 3), so this token includes realm_access.roles.
+  process.stdout.write('[admin global-setup] Obtaining API token via admin-cli…\n');
+  const apiToken = await getKeycloakAdminToken();
 
   // Set token for test workers via process.env. Playwright propagates env
   // mutations from globalSetup to worker processes automatically.
