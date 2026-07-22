@@ -44,31 +44,33 @@ test.describe('005-08 Plugin catalog', () => {
   test('approving a pending plugin changes its review status', async ({ page }) => {
     const api = adminApi();
     const list = await api.listPlugins();
-    const pending = list.data.find((p) => p.reviewStatus === 'pending');
-    if (pending === undefined) {
-      // No deterministic pending plugin available — see file header note #2.
-      test.skip(true, 'No plugin with reviewStatus=pending available to review');
-      return;
-    }
+    const pending = list.data.find((p) => p.reviewStatus === 'pending') as PluginRow | undefined;
+    // Global-setup seeds the first plugin with reviewStatus='pending', so a
+    // missing pending plugin means seed-plugins failed silently. Fail hard
+    // rather than skip — a green CI must mean the test actually ran.
+    expect(pending, 'No pending plugin — seed-plugins may have failed').toBeDefined();
+    // At this point pending is guaranteed by the assertion above. TypeScript
+    // doesn't narrow via expect(), so the non-null assertion is needed.
+    const plugin = pending!;
 
     await loginAsAdmin(page);
     await page.goto('/plugins');
     await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
 
     // Open the review dialog for the pending plugin row.
-    await page.getByRole('button', { name: pending.name }).click();
+    await page.getByRole('button', { name: plugin.name }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 
     // The row's review badge now reads "Approved".
-    const row = page.getByRole('row').filter({ hasText: pending.name });
+    const row = page.getByRole('row').filter({ hasText: plugin.name });
     await expect(row.getByText('Approved', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Source-of-truth check via the API.
     const after = await api.listPlugins();
-    const updated = after.data.find((p) => p.slug === pending.slug) as PluginRow | undefined;
+    const updated = after.data.find((p) => p.slug === plugin.slug) as PluginRow | undefined;
     expect(updated?.reviewStatus).toBe('approved');
   });
 });

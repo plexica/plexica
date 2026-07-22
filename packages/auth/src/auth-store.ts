@@ -132,7 +132,17 @@ export function createAuthBaseSlice<T extends BaseUserProfile>(
     },
 
     setSessionExpired: () => {
-      set({ status: 'expired' as AuthStatus, isAuthenticated: false });
+      // Clear tokens so rehydration detects accessToken === null and
+      // preserves the 'expired' status (via rehydrateStatus). Without this,
+      // a page reload after session expiry would re-authenticate the user
+      // silently because the store still holds valid tokens.
+      set({
+        accessToken: null,
+        refreshToken: null,
+        userProfile: null,
+        status: 'expired' as AuthStatus,
+        isAuthenticated: false,
+      });
     },
 
     dismissExpired: () => {
@@ -159,4 +169,33 @@ export function partializeAuthState(
     userProfile: state.userProfile,
   };
   return result;
+}
+
+/**
+ * Shared Zustand persist `onRehydrateStorage` handler.
+ * Derives transient fields (status, isAuthenticated) from persisted tokens.
+ *
+ * When accessToken is null, preserves the persisted status (e.g. 'expired')
+ * so the SessionExpiredHandler can show the toast before redirecting.
+ *
+ * IMPORTANT — Zustand persist contract: `onRehydrateStorage` is called
+ * TWICE in different phases:
+ *   1. Immediately, with the PRE-rehydration (initial/default) state — its
+ *      return value is saved as a "post-rehydration callback".
+ *   2. That returned callback is invoked AFTER storage is read and merged,
+ *      with the FINAL rehydrated state.
+ * This function must therefore return a FACTORY: `() => (state) => void`,
+ * NOT a direct `(state) => void`. Returning the handler directly causes it
+ * to run on the pre-rehydration state (a no-op) instead of mutating the
+ * real, token-populated state — silently breaking rehydration.
+ *
+ * Usage in app auth stores:
+ *   onRehydrateStorage: createRehydrationHandler()
+ */
+export function createRehydrationHandler<T extends { accessToken: string | null; status: AuthStatus; isAuthenticated: boolean }>() {
+  return () => (state: T | undefined): void => {
+    if (state === undefined) return;
+    state.status = rehydrateStatus(state.accessToken, state.status);
+    state.isAuthenticated = isTokenValid(state.accessToken ?? '');
+  };
 }

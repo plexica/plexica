@@ -9,8 +9,8 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { extractBaseProfile, isTokenValid } from '@plexica/auth/jwt';
-import { rehydrateStatus, partializeAuthState } from '@plexica/auth/auth-store';
+import { extractBaseProfile } from '@plexica/auth/jwt';
+import { createRehydrationHandler, partializeAuthState } from '@plexica/auth/auth-store';
 
 import { keycloakClient, REDIRECT_URI } from '../services/keycloak-auth.js';
 
@@ -108,7 +108,19 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       setSessionExpired: () => {
-        set({ status: 'expired', isAuthenticated: false });
+        // Clear tokens so rehydration on next page load detects
+        // accessToken === null and preserves the 'expired' status
+        // (via rehydrateStatus). Without this, a page reload after
+        // session expiry would silently re-authenticate the user because
+        // the store still holds a (possibly invalid) refresh token.
+        set({
+          accessToken: null,
+          refreshToken: null,
+          idToken: null,
+          userProfile: null,
+          status: 'expired',
+          isAuthenticated: false,
+        });
       },
 
       dismissExpired: () => {
@@ -123,12 +135,7 @@ export const useAuthStore = create<AuthStore>()(
         refreshToken: state.refreshToken,
         userProfile: state.userProfile,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (state !== undefined) {
-          state.status = rehydrateStatus(state.accessToken, state.status);
-          state.isAuthenticated = isTokenValid(state.accessToken ?? '');
-        }
-      },
+      onRehydrateStorage: createRehydrationHandler(),
     },
   ),
 );

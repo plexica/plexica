@@ -293,13 +293,21 @@ function provisionE2eTenant(): void {
 /**
  * Seeds the plugin catalog by calling the seed-plugins CLI.
  * Idempotent — re-runs upsert the existing plugins with updated data.
+ * SEED_FORCE_REVIEW_STATUS=true ensures the seeded plugin's reviewStatus is
+ * reset to 'pending' on every run, even if a previous test run approved it —
+ * required for the deterministic plugin review E2E test.
  */
 function seedPluginCatalog(): void {
   process.stdout.write('[admin global-setup] Seeding plugin catalog…\n');
   const result = spawnSync(
     TSX_BIN,
     ['src/cli/seed-plugins.ts'],
-    { cwd: CORE_API_DIR, env: process.env, encoding: 'utf8', timeout: 60_000 }
+    {
+      cwd: CORE_API_DIR,
+      env: { ...process.env, SEED_FORCE_REVIEW_STATUS: 'true' },
+      encoding: 'utf8',
+      timeout: 60_000,
+    }
   );
   if (result.error !== undefined) {
     throw new Error(`Failed to spawn seed-plugins CLI: ${String(result.error)}`);
