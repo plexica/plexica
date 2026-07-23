@@ -9,6 +9,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { z } from 'zod';
+
 import { prisma, disconnectDatabase } from '../lib/database.js';
 import { manifestSchema } from '../modules/plugin/schema/manifest.js';
 
@@ -19,11 +21,11 @@ const MONOREPO_ROOT = path.resolve(__dirname, '../../../../');
 interface SeedPlugin {
   manifestPath: string;
   registryUrl: string;
-  /** 
+  /**
    * Explicit review status for the seeded plugin.
    * Only 'pending' and 'none' are valid for seeding.
    * Defaults to 'none' if not set.
-   * The E2E review test requires at least one plugin with 'pending' status.
+   * Admin review E2E uses a separate, non-installable review fixture.
    */
   reviewStatus?: 'pending' | 'none';
 }
@@ -32,8 +34,8 @@ interface SeedPlugin {
 // AC-04 / AC-07 (CRM workflow + database isolation E2E). Additional plugins give
 // the marketplace enough cards for search/filter assertions (AC-05).
 const SEED_PLUGINS: SeedPlugin[] = [
-  // CRM plugin: the first plugin gets reviewStatus='pending' so the E2E review
-  // test has deterministic data. Global-setup seeds the catalog before tests run.
+  // CRM keeps its catalog seed status; E2E promotes it to the approved,
+  // installable marketplace fixture and creates a separate pending review fixture.
   { manifestPath: 'examples/plugins/crm/manifest.json', registryUrl: 'oci://plexica/crm-plugin', reviewStatus: 'pending' },
 ];
 
@@ -44,11 +46,14 @@ const SEED_PLUGINS: SeedPlugin[] = [
 const SEED_CREATOR_KEYCLOAK_ID = '00000000-0000-0000-0000-000000000000';
 
 // When true, the update branch ALSO applies reviewStatus, overwriting any
-// review decision an admin has made. Used exclusively by the E2E global-setup
-// to guarantee deterministic test data (a plugin with reviewStatus='pending'
-// on every run) — NOT used by general dev/CI seeding, which must preserve
-// real review decisions. Enabled via SEED_FORCE_REVIEW_STATUS=true.
-const FORCE_REVIEW_STATUS = process.env['SEED_FORCE_REVIEW_STATUS'] === 'true';
+// review decision an admin has made. This opt-in is not part of normal dev/CI
+// seeding. Admin review E2E instead resets a separate review fixture around
+// each test. Enabled via SEED_FORCE_REVIEW_STATUS=true.
+const forceReviewStatusEnv = z
+  .enum(['true', 'false'])
+  .default('false')
+  .parse(process.env['SEED_FORCE_REVIEW_STATUS'] ?? undefined);
+const FORCE_REVIEW_STATUS = forceReviewStatusEnv === 'true';
 
 async function upsertPlugin(manifestPath: string, registryUrl: string, reviewStatus: 'pending' | 'none'): Promise<string> {
   const absPath = path.resolve(MONOREPO_ROOT, manifestPath);
@@ -82,7 +87,11 @@ async function upsertPlugin(manifestPath: string, registryUrl: string, reviewSta
       // reviewStatus is intentionally NOT set on update by default — re-running
       // the seed must NOT overwrite any review decision an admin has made.
       // Exception: SEED_FORCE_REVIEW_STATUS=true (E2E global-setup only).
-      ...(FORCE_REVIEW_STATUS ? { reviewStatus } : {}),
+      // Also clears reviewNotes and reviewedAt to avoid leaking stale metadata
+      // when transitioning from approved/rejected back to pending/none.
+      ...(FORCE_REVIEW_STATUS
+        ? { reviewStatus, reviewNotes: null, reviewedAt: null }
+        : {}),
       registryUrl,
       imageName,
       imageTag,

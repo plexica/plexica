@@ -13,7 +13,9 @@ import type { BaseUserProfile } from './types.js';
  */
 export function decodeBase64Url(input: string): unknown {
   const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-  const binaryStr = atob(base64);
+  // JWT segments are unpadded; atob() requires padding to length % 4 === 0.
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+  const binaryStr = atob(padded);
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) {
     bytes[i] = binaryStr.charCodeAt(i);
@@ -25,9 +27,7 @@ export function decodeBase64Url(input: string): unknown {
  * Decode the payload of a JWT access token.
  * Returns the raw payload record — caller extracts specific claims.
  */
-export function decodeAccessToken<T extends Record<string, unknown>>(
-  accessToken: string,
-): T {
+export function decodeAccessToken<T extends Record<string, unknown>>(accessToken: string): T {
   const parts = accessToken.split('.');
   if (parts.length !== 3 || parts[1] === undefined) {
     throw new Error('Malformed JWT access token');

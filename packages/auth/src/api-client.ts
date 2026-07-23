@@ -1,5 +1,6 @@
 export interface ApiClientConfig {
   baseUrl?: string;
+  requestTimeoutMs?: number;
   getTokens: () => { accessToken: string | null; refreshToken: string | null };
   refreshTokens: () => Promise<void>;
   onSessionExpired: () => void;
@@ -9,7 +10,10 @@ export interface ApiClientConfig {
 export interface RequestOptions {
   body?: unknown;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 }
+
+export const API_REQUEST_TIMEOUT_MS = 10_000;
 
 interface ErrorBody {
   code?: string;
@@ -32,7 +36,14 @@ export class ApiError extends Error {
 }
 
 export function createApiClient(config: ApiClientConfig) {
-  const { baseUrl = '', getTokens, refreshTokens, onSessionExpired, extraHeaders } = config;
+  const {
+    baseUrl = '',
+    requestTimeoutMs = API_REQUEST_TIMEOUT_MS,
+    getTokens,
+    refreshTokens,
+    onSessionExpired,
+    extraHeaders,
+  } = config;
   let refreshFlight: Promise<void> | null = null;
   let expirationNotified = false;
 
@@ -91,26 +102,61 @@ export function createApiClient(config: ApiClientConfig) {
 
   async function parseResponse<T>(response: Response): Promise<T> {
     if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
+    const value: unknown = await response.json();
+    // Basic runtime validation: ensure the parsed JSON is an object or array.
+    // Callers may further validate with Zod as needed.
+    if (typeof value !== 'object' || value === null) {
+      throw new ApiError(response.status, {
+        code: 'INVALID_RESPONSE',
+        message: 'Expected a JSON object or array response',
+      });
+    }
+    return value as T;
+  }
+
+  function requestSignal(callerSignal?: AbortSignal): AbortSignal {
+    const timeoutSignal = AbortSignal.timeout(requestTimeoutMs);
+    return callerSignal === undefined
+      ? timeoutSignal
+      : AbortSignal.any([callerSignal, timeoutSignal]);
+  }
+
+  function fetchRequest(
+    url: string,
+    method: string,
+    headers: Record<string, string>,
+    body: string | undefined,
+    callerSignal?: AbortSignal
+  ): Promise<Response> {
+    return fetch(url, {
+      method,
+      headers,
+      signal: requestSignal(callerSignal),
+      ...(body !== undefined ? { body } : {}),
+    });
   }
 
   async function request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
     const url = `${baseUrl}${path}`;
     const hasBody = options?.body !== undefined;
     const body = hasBody ? JSON.stringify(options.body) : undefined;
-    const response = await fetch(url, {
+    const response = await fetchRequest(
+      url,
       method,
-      headers: buildHeaders(options?.headers, hasBody),
-      ...(body !== undefined ? { body } : {}),
-    });
+      buildHeaders(options?.headers, hasBody),
+      body,
+      options?.signal
+    );
 
     if (response.status === 401) {
       await refreshOnce();
-      const retryResponse = await fetch(url, {
+      const retryResponse = await fetchRequest(
+        url,
         method,
-        headers: buildHeaders(options?.headers, hasBody),
-        ...(body !== undefined ? { body } : {}),
-      });
+        buildHeaders(options?.headers, hasBody),
+        body,
+        options?.signal
+      );
       if (retryResponse.status === 401) throw expireSession();
       if (!retryResponse.ok) {
         throw new ApiError(retryResponse.status, await readErrorBody(retryResponse));

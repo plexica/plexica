@@ -33,9 +33,16 @@ export function useSilentRefresh(
   const { status, isAuthenticated, refreshToken, refresh, setSessionExpired } = config;
 
   const refreshAttempted = useRef(false);
+  const unauthenticatedHandled = useRef(false);
 
   useEffect(() => {
-    if (status !== 'unauthenticated') return;
+    if (status !== 'unauthenticated') {
+      // Reset guards when leaving unauthenticated state so they can fire again
+      // if the component re-enters it (e.g. after a failed login attempt).
+      refreshAttempted.current = false;
+      unauthenticatedHandled.current = false;
+      return;
+    }
 
     if (refreshToken !== null && !refreshAttempted.current) {
       refreshAttempted.current = true;
@@ -45,7 +52,8 @@ export function useSilentRefresh(
       return;
     }
 
-    if (refreshToken === null) {
+    if (refreshToken === null && !unauthenticatedHandled.current) {
+      unauthenticatedHandled.current = true;
       onUnauthenticated();
     }
   }, [status, refreshToken, refresh, setSessionExpired, onUnauthenticated]);
