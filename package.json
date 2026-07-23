@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Plexica v2 — Multi-tenant SaaS platform",
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "pnpm": ">=10"
   },
   "scripts": {
@@ -14,7 +14,9 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check:lines": "bash scripts/check-authored-lines.sh",
+    "test:line-gate": "bash scripts/check-authored-lines.test.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

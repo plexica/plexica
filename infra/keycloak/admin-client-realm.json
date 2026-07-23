@@ -12,11 +12,26 @@
   "authorizationServicesEnabled": false,
   "bearerOnly": false,
   "frontchannelLogout": false,
-  "fullScopeAllowed": true,
+  "fullScopeAllowed": false,
   "redirectUris": ["http://localhost:3002/callback"],
   "webOrigins": ["http://localhost:3002"],
   "attributes": {
     "pkce.code.challenge.method": "S256",
-    "post.logout.redirect.uris": "http://localhost:3002/login"
-  }
+    "post.logout.redirect.uris": "http://localhost:3002/login",
+    "client.session.idle.timeout": "3600",
+    "client.session.max.lifespan": "3600"
+  },
+  "protocolMappers": [
+    {
+      "name": "audience-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "consentRequired": false,
+      "config": {
+        "included.client.audience": "plexica-api",
+        "id.token.claim": "false",
+        "access.token.claim": "true"
+      }
+    }
+  ]
 }

@@ -10,10 +10,7 @@ async function responseFailure(response: Response): Promise<string> {
   return `HTTP ${response.status}${detail === '' ? '' : ` ${detail}`}`;
 }
 
-export async function ensureSuperAdminForUser(
-  token: string,
-  username: string
-): Promise<KeycloakRole> {
+export async function ensureSuperAdminRole(token: string): Promise<KeycloakRole> {
   const createResponse = await adminFetch(token, '/admin/realms/master/roles', 'POST', {
     name: 'super_admin',
     description: 'Super administrator with full platform access',
@@ -31,28 +28,5 @@ export async function ensureSuperAdminForUser(
     throw new Error('Keycloak returned an invalid super_admin role representation');
   }
 
-  const userResponse = await adminFetch(
-    token,
-    `/admin/realms/master/users?username=${encodeURIComponent(username)}&exact=true`,
-    'GET'
-  );
-  if (!userResponse.ok) {
-    throw new Error(`Failed to look up master user: ${await responseFailure(userResponse)}`);
-  }
-  const users = (await userResponse.json()) as Array<{ id?: unknown }>;
-  const userId = users[0]?.id;
-  if (typeof userId !== 'string') {
-    throw new Error(`Master user ${username} was not found`);
-  }
-
-  const mappingResponse = await adminFetch(
-    token,
-    `/admin/realms/master/users/${userId}/role-mappings/realm`,
-    'POST',
-    [role]
-  );
-  if (!mappingResponse.ok) {
-    throw new Error(`Failed to assign super_admin role: ${await responseFailure(mappingResponse)}`);
-  }
   return { id: role.id, name: role.name };
 }

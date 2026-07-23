@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createKeycloakClient } from '../src/keycloak-client.js';
+import { consumeAuthorizationRequest } from '../src/authorization-request.js';
 import { AUTH_ERROR_MESSAGES, AuthRequestError } from '../src/oidc-request.js';
 import {
   createAuthorizationState,
@@ -36,19 +37,37 @@ describe('PKCE and Keycloak client', () => {
     ).resolves.toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
   });
 
-  it('should preserve state and store the verifier in the authorization request', async () => {
+  it('should keep verifier and nonce records isolated for overlapping states', async () => {
     const client = createKeycloakClient({
       keycloakUrl: 'https://id.example.com',
       clientId: 'browser-client',
     });
-    const url = new URL(
-      await client.getLoginUrl('tenant-realm', 'csrf-state', 'https://app.example.com/callback')
+    const firstUrl = new URL(
+      await client.getLoginUrl('tenant-realm', 'first-state', 'https://app.example.com/callback')
+    );
+    const secondUrl = new URL(
+      await client.getLoginUrl('tenant-realm', 'second-state', 'https://app.example.com/callback')
     );
 
-    expect(url.searchParams.get('state')).toBe('csrf-state');
-    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(url.searchParams.get('code_challenge')).toBeTruthy();
-    expect(sessionStorage.getItem('pkce_code_verifier')).toMatch(/^[A-Za-z0-9_-]{86}$/);
+    // Assert storage keys follow the plexica_oidc_request:{state} pattern
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k !== null) keys.push(k);
+    }
+    expect(keys).toContain('plexica_oidc_request:first-state');
+    expect(keys).toContain('plexica_oidc_request:second-state');
+
+    const first = consumeAuthorizationRequest('first-state');
+    const second = consumeAuthorizationRequest('second-state');
+
+    expect(firstUrl.searchParams.get('state')).toBe('first-state');
+    expect(firstUrl.searchParams.get('nonce')).toBe(first.nonce);
+    expect(secondUrl.searchParams.get('nonce')).toBe(second.nonce);
+    expect(first.codeVerifier).not.toBe(second.codeVerifier);
+    expect(first.nonce).not.toBe(second.nonce);
+
+    expect(() => consumeAuthorizationRequest('first-state')).toThrow('missing or invalid');
   });
 
   it('should return a safe stable error for token endpoint failures', async () => {
@@ -63,13 +82,35 @@ describe('PKCE and Keycloak client', () => {
     const client = createKeycloakClient({ keycloakUrl: 'https://id.example.com', clientId: 'app' });
 
     await expect(
-      client.exchangeCode('code', 'realm', 'verifier', 'https://app/callback')
+      client.exchangeCode('code', 'realm', 'verifier', 'https://app/callback', 'nonce')
     ).rejects.toEqual(new AuthRequestError(AUTH_ERROR_MESSAGES.exchange));
   });
 
   it('should reject non-successful revocation with a safe stable error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
     const client = createKeycloakClient({ keycloakUrl: 'https://id.example.com', clientId: 'app' });
+
+    await expect(client.revokeSession('refresh', 'realm')).rejects.toThrow(
+      AUTH_ERROR_MESSAGES.revoke
+    );
+  });
+
+  it('should bound best-effort revocation with its dedicated timeout', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+            once: true,
+          });
+        });
+      })
+    );
+    const client = createKeycloakClient({
+      keycloakUrl: 'https://id.example.com',
+      clientId: 'app',
+      revokeTimeoutMs: 5,
+    });
 
     await expect(client.revokeSession('refresh', 'realm')).rejects.toThrow(
       AUTH_ERROR_MESSAGES.revoke
@@ -111,5 +152,17 @@ describe('PKCE and Keycloak client', () => {
       access_token: expect.any(String),
       refresh_token: 'refresh-new',
     });
+  });
+
+  it('should reject malformed token response fields at runtime', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ ...tokenResponse(), expires_in: Number.NaN }))
+    );
+    const client = createKeycloakClient({ keycloakUrl: 'https://id.example.com', clientId: 'app' });
+
+    await expect(client.refreshTokens('refresh', 'realm')).rejects.toEqual(
+      new AuthRequestError(AUTH_ERROR_MESSAGES.refresh)
+    );
   });
 });

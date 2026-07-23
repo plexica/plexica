@@ -57,26 +57,50 @@ export async function resetPluginReviewFixture(): Promise<void> {
 }
 
 export async function resetPendingDlqFixture(): Promise<void> {
+  const tenant = await prisma.tenant.findFirst({
+    where: { status: 'active' },
+    select: { id: true },
+  });
+  const plugin = await prisma.plugin.findUnique({
+    where: { slug: CRM_MARKETPLACE_SLUG },
+    select: { id: true },
+  });
+  if (!tenant || !plugin) throw new Error('DLQ fixture ownership is unavailable');
+  const installId = '77000000-0000-4000-8000-000000000007';
+  const occurredAt = new Date().toISOString();
+  const payload = {
+    eventId: DLQ_ENTRY_FIXTURE_ID,
+    type: 'plexica.plugin.events',
+    schemaVersion: 1 as const,
+    tenantId: tenant.id,
+    occurredAt,
+    producer: { kind: 'core' as const, id: 'core' as const },
+    correlationId: DLQ_ENTRY_FIXTURE_ID,
+    causationId: null,
+    payload: { id: DLQ_ENTRY_FIXTURE_ID, fixture: 'ac-06-retry' },
+  };
+  const normalized = {
+    tenantId: tenant.id,
+    installId,
+    eventId: DLQ_ENTRY_FIXTURE_ID,
+    eventType: payload.type,
+    schemaVersion: 1,
+    payload,
+    pluginId: plugin.id,
+    errorMessage: 'E2E_DELIVERY_FAILURE',
+    retryCount: 3,
+    originalTopic: payload.type,
+    originalPartition: 0,
+    originalOffset: 0n,
+    dedupeKey: DLQ_ENTRY_FIXTURE_ID.replaceAll('-', '').padEnd(64, '0'),
+    status: 'pending',
+    failedAt: new Date(),
+    resolvedAt: null,
+  };
   await prisma.deadLetterQueue.upsert({
     where: { id: DLQ_ENTRY_FIXTURE_ID },
-    update: {
-      eventType: 'plexica.plugin.events',
-      payload: { id: DLQ_ENTRY_FIXTURE_ID, fixture: 'ac-06-retry' },
-      pluginId: null,
-      errorMessage: 'Deterministic E2E delivery failure',
-      retryCount: 3,
-      status: 'pending',
-      failedAt: new Date(),
-      resolvedAt: null,
-    },
-    create: {
-      id: DLQ_ENTRY_FIXTURE_ID,
-      eventType: 'plexica.plugin.events',
-      payload: { id: DLQ_ENTRY_FIXTURE_ID, fixture: 'ac-06-retry' },
-      errorMessage: 'Deterministic E2E delivery failure',
-      retryCount: 3,
-      status: 'pending',
-    },
+    update: normalized,
+    create: { id: DLQ_ENTRY_FIXTURE_ID, ...normalized },
   });
 }
 
@@ -95,4 +119,12 @@ export async function deletePluginReviewFixture(): Promise<void> {
 
 export async function deleteDlqFixture(): Promise<void> {
   await prisma.deadLetterQueue.deleteMany({ where: { id: DLQ_ENTRY_FIXTURE_ID } });
+}
+
+export async function deleteDlqEventsByPayloadIds(ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await prisma.deadLetterQueue.deleteMany({
+      where: { payload: { path: ['payload', 'id'], equals: id } },
+    });
+  }
 }

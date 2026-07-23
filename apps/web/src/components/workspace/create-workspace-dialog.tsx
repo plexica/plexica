@@ -18,8 +18,10 @@ import {
   DialogTitle,
 } from '@plexica/ui';
 
-import { useCreateWorkspace, useWorkspaces } from '../../hooks/use-workspaces.js';
+import { useCreateWorkspace, useParentWorkspaceOptions } from '../../hooks/use-workspaces.js';
 import { useWorkspaceTemplates } from '../../hooks/use-workspace-templates.js';
+
+import { WorkspaceParentSelector } from './workspace-parent-selector.js';
 
 interface CreateWorkspaceDialogProps {
   open: boolean;
@@ -43,7 +45,7 @@ export function CreateWorkspaceDialog({
   const [serverError, setServerError] = useState<string | null>(null);
   const { mutate, isPending } = useCreateWorkspace();
   // Lazy fetch: only hit the API when the dialog is actually open
-  const { data: workspacesData } = useWorkspaces({ limit: 100 }, { enabled: open });
+  const { data: parentWorkspaces } = useParentWorkspaceOptions({ enabled: open });
   const { data: templatesData } = useWorkspaceTemplates({ enabled: open });
 
   const {
@@ -81,11 +83,6 @@ export function CreateWorkspaceDialog({
     });
   }
 
-  const workspaceOptions = (workspacesData?.data ?? []).map((w) => ({
-    value: w.id,
-    label: w.name,
-  }));
-
   const templateOptions = (templatesData ?? []).map((t) => ({
     value: t.id,
     label: t.name,
@@ -95,13 +92,18 @@ export function CreateWorkspaceDialog({
 
   return (
     <DialogRoot open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeLabel={intl.formatMessage({ id: 'common.cancel' })}>
+      <DialogContent
+        closeLabel={intl.formatMessage({ id: 'common.cancel' })}
+        className="max-h-[calc(100vh-2rem)] overflow-y-auto"
+      >
         <DialogTitle>
           <FormattedMessage id="workspace.create.title" />
         </DialogTitle>
 
         <form
-          onSubmit={(e) => { void handleSubmit(onSubmit)(e); }}
+          onSubmit={(e) => {
+            void handleSubmit(onSubmit)(e);
+          }}
           className="mt-4 space-y-4"
           noValidate
         >
@@ -114,25 +116,18 @@ export function CreateWorkspaceDialog({
             label={intl.formatMessage({ id: 'workspace.create.description.label' })}
             {...register('description')}
           />
-          {workspaceOptions.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-neutral-700">
-                <FormattedMessage id="workspace.create.parent.label" />
-              </label>
-              <Controller
-                name="parentId"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    options={workspaceOptions}
-                    placeholder={selectPlaceholder}
-                    {...(field.value !== undefined ? { value: field.value } : {})}
-                    onValueChange={(v) => field.onChange(v)}
-                    aria-label={intl.formatMessage({ id: 'workspace.create.parent.label' })}
-                  />
-                )}
-              />
-            </div>
+          {(parentWorkspaces?.length ?? 0) > 0 && (
+            <Controller
+              name="parentId"
+              control={control}
+              render={({ field }) => (
+                <WorkspaceParentSelector
+                  workspaces={parentWorkspaces ?? []}
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           )}
           {templateOptions.length > 0 && (
             <div className="flex flex-col gap-1">

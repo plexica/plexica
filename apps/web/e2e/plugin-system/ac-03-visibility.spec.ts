@@ -2,9 +2,15 @@
 // Real behavior: open the visibility editor for an installed plugin, toggle a
 // workspace off, see the UI reflect the pending change, toggle it back on.
 
+import { randomUUID } from 'node:crypto';
+
+import { setWorkspaceMembershipFixture } from '../../../../e2e/fixtures/crm-database-fixture.js';
 import { expect, test } from '../helpers/base-fixture.js';
 import {
+  ADMIN_TENANT_SLUG,
   loginAsAdmin,
+  loginAsMember,
+  loginAsViewer,
   requireKeycloakInCI,
   uniqueName,
 } from '../helpers/admin-login.js';
@@ -14,8 +20,6 @@ import {
   getBrowserToken,
 } from '../helpers/plugin-fixtures.js';
 
-import type { APIResponse } from '@playwright/test';
-
 const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
 
 interface VisibilityEntry {
@@ -24,8 +28,36 @@ interface VisibilityEntry {
   isOverride: boolean;
 }
 
+let installId = '';
+let workspaceId = '';
+
+function headers(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    'X-Tenant-Slug': ADMIN_TENANT_SLUG,
+    'Content-Type': 'application/json',
+  };
+}
+
+async function profileId(page: import('@playwright/test').Page, token: string): Promise<string> {
+  const response = await page.request.get(`${API_BASE}/api/v1/profile`, { headers: headers(token) });
+  expect(response.status(), JSON.stringify(await response.json())).toBe(200);
+  return ((await response.json()) as { userId: string }).userId;
+}
+
+async function patchVisibility(
+  page: import('@playwright/test').Page,
+  token: string,
+  targetWorkspaceId: string,
+): Promise<import('@playwright/test').APIResponse> {
+  return page.request.patch(`${API_BASE}/api/v1/plugins/${installId}/visibility`, {
+    headers: headers(token),
+    data: [{ workspaceId: targetWorkspaceId, isEnabled: false }],
+  });
+}
+
 async function expectPersistedVisibility(
-  response: APIResponse,
+  response: { status: () => number; json: () => Promise<unknown> },
   workspaceId: string,
   isEnabled: boolean
 ): Promise<void> {
@@ -40,7 +72,7 @@ async function expectPersistedVisibility(
   });
 }
 
-test.describe('004 Plugin System — AC-03: Plugin Workspace Visibility', () => {
+test.describe.serial('004 Plugin System — AC-03: Plugin Workspace Visibility', () => {
   test.beforeAll(() => {
     requireKeycloakInCI();
   });
@@ -50,8 +82,8 @@ test.describe('004 Plugin System — AC-03: Plugin Workspace Visibility', () => 
     await loginAsAdmin(page);
     const token = await getBrowserToken(page);
     const workspaceName = uniqueName('plugin-visibility');
-    const workspaceId = await createWorkspaceFixture(page, token, workspaceName);
-    const installId = await ensureCrmInstalled(page, token);
+    workspaceId = await createWorkspaceFixture(page, token, workspaceName);
+    installId = await ensureCrmInstalled(page, token);
     await page.goto('/settings/plugins');
 
     await expect(page.getByRole('heading', { name: /installed plugins/i })).toBeVisible({ timeout: 10_000 });
@@ -105,5 +137,26 @@ test.describe('004 Plugin System — AC-03: Plugin Workspace Visibility', () => 
       { headers: { Authorization: `Bearer ${token}` } }
     );
     await expectPersistedVisibility(finalResponse, workspaceId, wasChecked);
+  });
+
+  test('workspace admin can update visibility with workspace:update', async ({ page }) => {
+    await loginAsMember(page);
+    const token = await getBrowserToken(page);
+    await setWorkspaceMembershipFixture(workspaceId, await profileId(page, token), 'admin');
+    expect((await patchVisibility(page, token, workspaceId)).status()).toBe(200);
+  });
+
+  test('non-member cannot update workspace visibility', async ({ page }) => {
+    await loginAsViewer(page);
+    const token = await getBrowserToken(page);
+    expect((await patchVisibility(page, token, workspaceId)).status()).toBe(403);
+  });
+
+  test('tenant admin cannot forge a missing workspace id', async ({ page }) => {
+    await loginAsAdmin(page);
+    const token = await getBrowserToken(page);
+    const response = await patchVisibility(page, token, randomUUID());
+    expect(response.status()).toBe(404);
+    expect(await response.json()).toMatchObject({ error: { code: 'WORKSPACE_NOT_FOUND' } });
   });
 });

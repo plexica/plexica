@@ -11,8 +11,15 @@
 //   // PKCE flow
 //   const url = await kc.getLoginUrl('master', crypto.randomUUID());
 //
+import { storeAuthorizationRequest } from './authorization-request.js';
+import { verifyIdToken } from './id-token.js';
 import { generateCodeChallenge, generateCodeVerifier } from './pkce.js';
-import { AUTH_ERROR_MESSAGES, requestTokens, revokeTokens } from './oidc-request.js';
+import {
+  AUTH_ERROR_MESSAGES,
+  AuthRequestError,
+  requestTokens,
+  revokeTokens,
+} from './oidc-request.js';
 
 import type { TokenResponse } from './types.js';
 
@@ -22,14 +29,19 @@ export interface KeycloakClientConfig {
   /** Default realm used when no explicit realm is passed. */
   defaultRealm?: string;
   requestTimeoutMs?: number;
+  revokeTimeoutMs?: number;
 }
 
 function realmBase(keycloakUrl: string, realm: string): string {
-  return `${keycloakUrl}/realms/${realm}/protocol/openid-connect`;
+  return `${keycloakUrl.replace(/\/$/, '')}/realms/${realm}/protocol/openid-connect`;
+}
+
+function realmIssuer(keycloakUrl: string, realm: string): string {
+  return `${keycloakUrl.replace(/\/$/, '')}/realms/${realm}`;
 }
 
 export function createKeycloakClient(config: KeycloakClientConfig) {
-  const { keycloakUrl, clientId, defaultRealm, requestTimeoutMs } = config;
+  const { keycloakUrl, clientId, defaultRealm, requestTimeoutMs, revokeTimeoutMs = 2_000 } = config;
 
   const resolveRealm = (realm?: string): string => realm ?? defaultRealm ?? 'master';
 
@@ -49,9 +61,10 @@ export function createKeycloakClient(config: KeycloakClientConfig) {
      */
     getLoginUrl: async (realm: string, state: string, redirectUri: string): Promise<string> => {
       const codeVerifier = generateCodeVerifier();
+      const nonce = generateCodeVerifier();
       const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-      sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+      storeAuthorizationRequest(state, { codeVerifier, nonce });
 
       const params = new URLSearchParams({
         client_id: clientId,
@@ -59,6 +72,7 @@ export function createKeycloakClient(config: KeycloakClientConfig) {
         response_type: 'code',
         scope: 'openid profile email',
         state,
+        nonce,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
       });
@@ -73,7 +87,8 @@ export function createKeycloakClient(config: KeycloakClientConfig) {
       code: string,
       realm: string,
       codeVerifier: string,
-      redirectUri: string
+      redirectUri: string,
+      nonce: string
     ): Promise<TokenResponse> => {
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -83,12 +98,26 @@ export function createKeycloakClient(config: KeycloakClientConfig) {
         code_verifier: codeVerifier,
       });
 
-      return requestTokens(
+      const tokens = await requestTokens(
         `${realmBase(keycloakUrl, realm)}/token`,
         body,
         AUTH_ERROR_MESSAGES.exchange,
         requestTimeoutMs
       );
+      if (tokens.id_token === undefined) {
+        throw new AuthRequestError(AUTH_ERROR_MESSAGES.exchange);
+      }
+      try {
+        await verifyIdToken(tokens.id_token, {
+          issuer: realmIssuer(keycloakUrl, realm),
+          audience: clientId,
+          nonce,
+          timeoutMs: requestTimeoutMs,
+        });
+      } catch {
+        throw new AuthRequestError(AUTH_ERROR_MESSAGES.exchange);
+      }
+      return tokens;
     },
 
     /**
@@ -101,23 +130,39 @@ export function createKeycloakClient(config: KeycloakClientConfig) {
         refresh_token: refreshToken,
       });
 
-      return requestTokens(
+      const tokens = await requestTokens(
         `${realmBase(keycloakUrl, resolveRealm(realm))}/token`,
         body,
         AUTH_ERROR_MESSAGES.refresh,
         requestTimeoutMs
       );
+      if (tokens.id_token !== undefined) {
+        try {
+          await verifyIdToken(tokens.id_token, {
+            issuer: realmIssuer(keycloakUrl, resolveRealm(realm)),
+            audience: clientId,
+            timeoutMs: requestTimeoutMs,
+          });
+        } catch {
+          throw new AuthRequestError(AUTH_ERROR_MESSAGES.refresh);
+        }
+      }
+      return tokens;
     },
 
     /**
      * Build a Keycloak logout URL (front-channel logout via browser redirect).
      */
-    getLogoutUrl: (realm: string, idToken: string, postLogoutRedirectUri?: string): string => {
+    getLogoutUrl: (
+      realm: string,
+      idToken: string | null,
+      postLogoutRedirectUri: string
+    ): string => {
       const params = new URLSearchParams({
         client_id: clientId,
-        post_logout_redirect_uri: postLogoutRedirectUri ?? window.location.origin,
-        id_token_hint: idToken,
+        post_logout_redirect_uri: postLogoutRedirectUri,
       });
+      if (idToken !== null) params.set('id_token_hint', idToken);
       return `${realmBase(keycloakUrl, realm)}/logout?${params.toString()}`;
     },
 
@@ -132,7 +177,7 @@ export function createKeycloakClient(config: KeycloakClientConfig) {
       await revokeTokens(
         `${realmBase(keycloakUrl, resolveRealm(realm))}/logout`,
         body,
-        requestTimeoutMs
+        revokeTimeoutMs
       );
     },
   };

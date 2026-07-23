@@ -4,8 +4,6 @@
 // once dropped, the data is gone (GDPR erasure). Throws on failure so the
 // saga executor records the error and retries with backoff.
 
-
-import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 import { logger } from '../../../lib/logger.js';
 
 import type { PrismaClient } from '@prisma/client';
@@ -23,19 +21,15 @@ const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]{1,55}$/;
 export async function executeSchemaDrop(
   prisma: PrismaClient,
   tenantId: string,
-  tenantSlug: string
+  schemaName: string
 ): Promise<void> {
-  const schemaName = toSchemaName(tenantSlug);
-
   if (!SCHEMA_NAME_REGEX.test(schemaName)) {
-    throw new Error(`Refusing to drop schema with invalid name: ${schemaName}`);
+    throw new Error('Refusing to drop invalid tenant schema identifier');
   }
 
-  logger.info({ tenantId, tenantSlug, schemaName }, 'Dropping tenant PostgreSQL schema');
+  logger.info({ tenantId }, 'Dropping tenant PostgreSQL schema');
 
-  await prisma.$executeRawUnsafe(
-    `DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`
-  );
+  await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
 
-  logger.info({ tenantId, schemaName }, 'Tenant PostgreSQL schema dropped');
+  logger.info({ tenantId }, 'Tenant PostgreSQL schema dropped');
 }

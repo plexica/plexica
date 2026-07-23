@@ -168,7 +168,7 @@ CLI tool invoked via `pnpm` script, not an HTTP endpoint.
 - **Key configuration**:
   - Realm export JSON mounted as volume and imported via `--import-realm` startup argument
   - Users have pre-set passwords (`test1234` for all test users — only in dev/CI)
-  - Client configured with `http://localhost:3000/*` as valid redirect URI
+  - Client configured with `http://localhost:3000/callback` as valid redirect URI
   - Keycloak admin credentials from `.env` (`KEYCLOAK_ADMIN_USER`, `KEYCLOAK_ADMIN_PASSWORD`)
 - **Integration points**: Docker Compose healthcheck verifies realm is loaded via Keycloak REST API
 

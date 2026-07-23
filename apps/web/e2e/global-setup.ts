@@ -5,7 +5,7 @@
 // Strategy:
 //   1. Invoke the core-api CLI directly via `spawnSync tsx` to create each tenant.
 //   2. Call the Keycloak Admin REST API directly (fetch) to add test users.
-//   3. Set the login theme to 'plexica' with a render probe fallback.
+//   3. Set the login theme to 'plexica' and verify that it renders.
 //
 // Idempotent: 409 responses are treated as "already exists" and the password
 // is reset to the known test value so re-runs after partial failures are safe.
@@ -27,23 +27,34 @@ import * as url from 'node:url';
 
 import { getAdminToken, waitForKeycloak } from '../../../e2e/keycloak/admin-api.js';
 import { createEphemeralE2eClient } from '../../../e2e/keycloak/ephemeral-client.js';
-import { ensureSuperAdminForUser } from '../../../e2e/keycloak/realm-role.js';
-import { ensureCrmMarketplaceFixture } from '../../../e2e/fixtures/core-fixtures.js';
+import { ensureSuperAdminRole } from '../../../e2e/keycloak/realm-role.js';
+import {
+  createRunScopedSuperAdmin,
+  deleteRunScopedSuperAdmin,
+} from '../../../e2e/keycloak/run-super-admin.js';
 
-import { upsertUser, setRealmPlexicaTheme } from './keycloak-admin-client.js';
+import {
+  setRealmPlexicaTheme,
+  setTenantClientOrigin,
+  upsertUser,
+} from './keycloak-admin-client.js';
 import {
   provisionTenant,
   migrateTenantSchemas,
   seedPluginCatalog,
 } from './tenant-provisioning-helpers.js';
+import { isLocalThemeFallbackAllowed } from './theme-fallback-policy.js';
+import { tenantWebUrl } from './helpers/tenant-hosts.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-// Marker file: '1' = plexica theme active, '0' = fallback to default.
+// Marker file: '1' = Plexica theme active, '0' = explicit local fallback.
 const THEME_MARKER_PATH = path.resolve(__dirname, '.e2e-plexica-theme-active');
 
 async function setup(): Promise<void> {
   process.stdout.write('[global-setup] Starting E2E environment provisioning…\n');
+  isLocalThemeFallbackAllowed();
+  fs.rmSync(THEME_MARKER_PATH, { force: true });
 
   // ── 0. Wait for Keycloak readiness ────────────────────────────────────────
   await waitForKeycloak();
@@ -59,9 +70,8 @@ async function setup(): Promise<void> {
   // ── 1b. Apply tenant DDL migrations ──────────────────────────────────────
   migrateTenantSchemas();
 
-  // ── 1c. Seed the plugin catalog (CRM) so the marketplace has real data ──
+  // Seed installable CRM marketplace data; admin review uses a separate fixture.
   seedPluginCatalog();
-  await ensureCrmMarketplaceFixture();
 
   // ── 2. Add test users via Keycloak Admin REST API ─────────────────────────
   process.stdout.write('[global-setup] Obtaining Keycloak admin token…\n');
@@ -72,7 +82,10 @@ async function setup(): Promise<void> {
 
   process.stdout.write('[global-setup] Configuring realms and creating test users…\n');
 
-  // Set login theme with render-probe fallback.
+  await setTenantClientOrigin(token, REALM_A, new URL(tenantWebUrl('e2e')).origin);
+  await setTenantClientOrigin(token, REALM_B, new URL(tenantWebUrl('e2e-b')).origin);
+
+  // Activation and rendering must succeed; fallback is explicit and local-only.
   const themeActiveA = await setRealmPlexicaTheme(token, REALM_A);
   const themeActiveB = await setRealmPlexicaTheme(token, REALM_B);
   const plexicaThemeActive = themeActiveA && themeActiveB;
@@ -136,14 +149,15 @@ async function setup(): Promise<void> {
     realmRoles: ['tenant_admin'],
   });
 
-  // ── 3. Set up master realm for super admin E2E tests ──────────────────────
-  // The DLQ test (ac-06) hits super-admin-only API endpoints. It needs a
-  // super admin token from the master realm with realm_access.roles including
-  // 'super_admin'. This requires:
-  // The helper client is random, E2E-only, and scoped to this one realm role.
-  const masterAdminUsername = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
-  const superAdminRole = await ensureSuperAdminForUser(token, masterAdminUsername);
-  await createEphemeralE2eClient(token, 'web', superAdminRole);
+  // ── 3. Set up a distinct, run-scoped master-realm identity ────────────────
+  const superAdminRole = await ensureSuperAdminRole(token);
+  await createRunScopedSuperAdmin(token, 'web', superAdminRole);
+  try {
+    await createEphemeralE2eClient(token, 'web', superAdminRole);
+  } catch (error) {
+    await deleteRunScopedSuperAdmin(token).catch(() => undefined);
+    throw error;
+  }
 
   process.stdout.write('[global-setup] E2E environment provisioning complete.\n');
 }

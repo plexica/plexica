@@ -83,4 +83,50 @@ describe('API client refresh handling', () => {
     expect(onSessionExpired).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
+
+  it('should apply the configured timeout to normal requests', async () => {
+    const fetchMock = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createApiClient({
+      requestTimeoutMs: 5,
+      getTokens: () => ({ accessToken: null, refreshToken: null }),
+      refreshTokens: vi.fn(),
+      onSessionExpired: vi.fn(),
+    });
+
+    await expect(client.get('/slow')).rejects.toMatchObject({ name: 'TimeoutError' });
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('should propagate a caller abort signal to the initial request and retry', async () => {
+    const controller = new AbortController();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(401))
+      .mockImplementationOnce((_url: string | URL | Request, init?: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+            once: true,
+          });
+        });
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createApiClient({
+      getTokens: () => ({ accessToken: 'access', refreshToken: 'refresh' }),
+      refreshTokens: vi.fn().mockResolvedValue(undefined),
+      onSessionExpired: vi.fn(),
+    });
+
+    const request = client.get('/abort', { signal: controller.signal });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(true);
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).signal?.aborted).toBe(true);
+  });
 });

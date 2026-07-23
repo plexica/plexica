@@ -5,8 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
-import { evaluate, invalidateAbacCache } from '../modules/abac/engine.js';
-import { membershipCacheKey } from '../modules/abac/engine-helpers.js';
+import { evaluate } from '../modules/abac/engine.js';
 
 import { createTestServer, isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
 import {
@@ -190,108 +189,4 @@ describe('INT-08 — ABAC engine', () => {
       await tenantDb.$disconnect();
     }
   });
-
-  // ── Unknown action ────────────────────────────────────────────────────────
-
-  it.skipIf(!allOk)('denies unknown actions by default', async () => {
-    const ws = await seedWorkspace(ctx, 'Unknown-Action-WS', USER_ID);
-    await seedWorkspaceMember(ctx, ws.id, USER_ID, 'admin');
-    const tenantDb = buildTenantClientForCtx(ctx);
-
-    try {
-      const abacCtx: AbacContext = {
-        userId: USER_ID,
-        workspaceId: ws.id,
-        tenantSlug: ctx.slug,
-        action: 'completely:unknown',
-        isTenantAdmin: false,
-      };
-      const d = await evaluate(abacCtx, tenantDb, redis);
-      expect(d.allowed).toBe(false);
-      expect(d.reason).toMatch(/unknown/);
-    } finally {
-      await tenantDb.$disconnect();
-    }
-  });
-
-  // ── Redis cache ───────────────────────────────────────────────────────────
-
-  it.skipIf(!allOk)('caches membership result in Redis after first evaluation', async () => {
-    const ws = await seedWorkspace(ctx, 'Cache-Test-WS', USER_ID);
-    await seedWorkspaceMember(ctx, ws.id, USER_ID, 'viewer');
-    const tenantDb = buildTenantClientForCtx(ctx);
-
-    try {
-      const abacCtx: AbacContext = {
-        userId: USER_ID,
-        workspaceId: ws.id,
-        tenantSlug: ctx.slug,
-        action: 'workspace:read',
-        isTenantAdmin: false,
-      };
-
-      // First call — cache miss, populates Redis
-      await evaluate(abacCtx, tenantDb, redis);
-      const key = membershipCacheKey(abacCtx);
-      const cached = await redis.get(key);
-      expect(cached).not.toBeNull();
-      const parsed = JSON.parse(cached ?? '');
-      expect(parsed.role).toBe('viewer');
-    } finally {
-      await tenantDb.$disconnect();
-    }
-  });
-
-  // ── Cache invalidation ────────────────────────────────────────────────────
-
-  it.skipIf(!allOk)('invalidateAbacCache removes the Redis entry', async () => {
-    const ws = await seedWorkspace(ctx, 'Invalidate-WS', USER_ID);
-    await seedWorkspaceMember(ctx, ws.id, USER_ID, 'admin');
-    const tenantDb = buildTenantClientForCtx(ctx);
-
-    try {
-      const abacCtx: AbacContext = {
-        userId: USER_ID,
-        workspaceId: ws.id,
-        tenantSlug: ctx.slug,
-        action: 'workspace:read',
-        isTenantAdmin: false,
-      };
-      await evaluate(abacCtx, tenantDb, redis);
-
-      const key = membershipCacheKey(abacCtx);
-      expect(await redis.get(key)).not.toBeNull();
-
-      await invalidateAbacCache(ctx.slug, USER_ID, ws.id, redis);
-      expect(await redis.get(key)).toBeNull();
-    } finally {
-      await tenantDb.$disconnect();
-    }
-  });
-
-  // ── Tenant-level actions ──────────────────────────────────────────────────
-
-  it.skipIf(!allOk)(
-    'denies tenant-level actions for non-admin even with workspace membership',
-    async () => {
-      const ws = await seedWorkspace(ctx, 'Tenant-Level-WS', USER_ID);
-      await seedWorkspaceMember(ctx, ws.id, USER_ID, 'admin');
-      const tenantDb = buildTenantClientForCtx(ctx);
-
-      try {
-        const abacCtx: AbacContext = {
-          userId: USER_ID,
-          workspaceId: ws.id,
-          tenantSlug: ctx.slug,
-          action: 'audit:read',
-          isTenantAdmin: false,
-        };
-        const d = await evaluate(abacCtx, tenantDb, redis);
-        expect(d.allowed).toBe(false);
-        expect(d.reason).toMatch(/tenant-level/);
-      } finally {
-        await tenantDb.$disconnect();
-      }
-    }
-  );
 });

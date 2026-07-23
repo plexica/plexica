@@ -38,7 +38,7 @@ export async function tenantSuspendRoutes(
   fastify.post(
     '/tenants/:id/suspend',
     { preHandler: [requireSuperAdmin] },
-    async (request) => {
+    async (request, reply) => {
       const paramsParsed = TenantSuspendParamsSchema.safeParse(request.params);
       if (!paramsParsed.success) {
         throw new ValidationError(
@@ -66,7 +66,9 @@ export async function tenantSuspendRoutes(
           throw new NotFoundError('Tenant not found');
         }
 
-        return suspendTenant(prisma, id, version, actorId);
+        const result = await suspendTenant(prisma, id, version, actorId);
+        if (result.reconciliation === 'pending') return reply.status(202).send(result);
+        return result;
       });
     }
   );

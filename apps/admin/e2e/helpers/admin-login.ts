@@ -10,13 +10,11 @@
 
 import type { Page } from '@playwright/test';
 
-// Master realm super-admin credentials. Defaults match the Keycloak container
-// bootstrap (admin/changeme). Override via env vars in CI.
-export const SUPER_ADMIN_USERNAME = process.env['PLAYWRIGHT_SUPER_ADMIN_USER'] ?? 'admin';
-export const SUPER_ADMIN_PASSWORD = process.env['PLAYWRIGHT_SUPER_ADMIN_PASS'] ?? 'changeme';
+// Global setup creates this run-scoped identity; bootstrap credentials are Admin REST only.
+export const SUPER_ADMIN_USERNAME = process.env['PLAYWRIGHT_SUPER_ADMIN_USER'] ?? '';
+export const SUPER_ADMIN_PASSWORD = process.env['PLAYWRIGHT_SUPER_ADMIN_PASS'] ?? '';
 
-export const hasKeycloak =
-  SUPER_ADMIN_USERNAME.length > 0 && SUPER_ADMIN_PASSWORD.length > 0;
+export const hasKeycloak = SUPER_ADMIN_USERNAME.length > 0 && SUPER_ADMIN_PASSWORD.length > 0;
 
 /**
  * Throws in CI when super-admin credentials are absent.

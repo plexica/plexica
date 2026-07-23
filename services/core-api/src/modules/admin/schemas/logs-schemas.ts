@@ -7,20 +7,13 @@
 
 import { z } from 'zod';
 
-// Tenant slug — restricted charset so it is safe to embed as a LogQL label
-// selector value. Mirrors the slug rules enforced at provisioning time.
-const TENANT_SLUG_RE = /^[a-z0-9-]+$/;
-const LOG_LEVEL_RE = /^(debug|info|warn|error)$/;
+import { ADMIN_LOG_LEVELS, LOG_TENANT_SLUG_RE } from '../../../lib/logging-contract.js';
+
+// Tenant uses the provisioning slug contract before exact JSON comparison.
 
 export const LogsQuerySchema = z.object({
-  tenant: z
-    .string()
-    .regex(TENANT_SLUG_RE, 'tenant must match ^[a-z0-9-]+$')
-    .optional(),
-  level: z
-    .string()
-    .regex(LOG_LEVEL_RE, 'level must be one of debug|info|warn|error')
-    .optional(),
+  tenant: z.string().regex(LOG_TENANT_SLUG_RE, 'tenant must be a valid tenant slug').optional(),
+  level: z.enum(ADMIN_LOG_LEVELS).optional(),
   start: z.string().min(1).optional(),
   end: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),

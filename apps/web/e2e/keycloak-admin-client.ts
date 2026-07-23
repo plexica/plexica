@@ -14,6 +14,38 @@ export interface KeycloakUser {
   realmRoles?: string[];
 }
 
+export async function setTenantClientOrigin(
+  token: string,
+  realm: string,
+  origin: string
+): Promise<void> {
+  const lookup = await adminFetch(
+    token,
+    `/admin/realms/${realm}/clients?clientId=plexica-web`,
+    'GET'
+  );
+  if (!lookup.ok) throw new Error(`Could not find plexica-web in ${realm}: HTTP ${lookup.status}`);
+  const clients = (await lookup.json()) as Array<{
+    id?: string;
+    attributes?: Record<string, unknown>;
+    [key: string]: unknown;
+  }>;
+  const client = clients[0];
+  if (client?.id === undefined) throw new Error(`plexica-web is missing in ${realm}`);
+
+  const update = await adminFetch(token, `/admin/realms/${realm}/clients/${client.id}`, 'PUT', {
+    ...client,
+    redirectUris: [`${origin}/callback`],
+    webOrigins: [origin],
+    attributes: {
+      ...client.attributes,
+      'post.logout.redirect.uris': `${origin}/`,
+    },
+  });
+  if (!update.ok)
+    throw new Error(`Could not configure plexica-web in ${realm}: HTTP ${update.status}`);
+}
+
 /**
  * Assigns realm-level roles to a Keycloak user.
  * Resolves each role name to its Keycloak representation, then posts the mapping.

@@ -8,13 +8,18 @@
 //
 // Requires the full stack: docker compose up (Keycloak with plexica-theme.jar).
 // Skips when PLAYWRIGHT_KEYCLOAK_URL is not provided.
-// Skips theme-specific assertions when the Plexica theme fell back to default
-// (detected via .e2e-plexica-theme-active marker written by global-setup.ts).
+// Theme-specific skips require PLAYWRIGHT_ALLOW_KEYCLOAK_THEME_FALLBACK=true,
+// which global setup rejects in CI.
 //
 // Spec: ADR-010 (Keycloakify theme), Constitution Rule 1 (every feature has E2E).
 
 import { expect, test } from './helpers/base-fixture.js';
-import { isPlexicaThemeActive } from './helpers/keycloak-login.js';
+import {
+  isPlexicaThemeActive,
+  KEYCLOAK_PASSWORD,
+  loginViaKeycloak,
+} from './helpers/keycloak-login.js';
+import { LOCAL_THEME_FALLBACK_REASON } from './theme-fallback-policy.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
@@ -34,14 +39,14 @@ test.describe('Keycloak theme — Login page branding', () => {
   );
 
   test('login page shows Plexica branding (.auth-card present)', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await expect(page.locator('.auth-card')).toBeVisible();
   });
 
   test('login page shows Plexica logo text', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await expect(page.locator('.auth-logo-text')).toHaveText('Plexica');
@@ -56,7 +61,7 @@ test.describe('Keycloak theme — Login page branding', () => {
   });
 
   test('login page submit button is labelled and enabled', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     const submit = page.locator('button[type="submit"].btn-primary');
@@ -64,8 +69,23 @@ test.describe('Keycloak theme — Login page branding', () => {
     await expect(submit).toBeEnabled();
   });
 
+  test('tenant browser access token contains the universal API audience', async ({ page }) => {
+    await loginViaKeycloak(page, {
+      tenantSlug: TENANT_SLUG,
+      username: KEYCLOAK_USERNAME,
+      password: KEYCLOAK_PASSWORD,
+    });
+    const audience = await page.evaluate(() => {
+      const stored = sessionStorage.getItem('plexica-auth');
+      const token = stored === null ? undefined : JSON.parse(stored).state?.accessToken;
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.aud;
+    });
+    expect(Array.isArray(audience) ? audience : [audience]).toContain('plexica-api');
+  });
+
   test('login page: invalid credentials shows branded error alert', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', 'invalid-user@plexica.io');
@@ -78,7 +98,7 @@ test.describe('Keycloak theme — Login page branding', () => {
   });
 
   test('password toggle button changes input type', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     const passwordInput = page.locator('input#password');
@@ -102,7 +122,7 @@ test.describe('Keycloak theme — Reset password page', () => {
   );
 
   test('forgot-password link navigates to reset-password page', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     const forgotLink = page.locator('a.label-link');
@@ -116,7 +136,7 @@ test.describe('Keycloak theme — Reset password page', () => {
   });
 
   test('reset-password page has username input and submit button', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.locator('a.label-link').click();
@@ -126,7 +146,7 @@ test.describe('Keycloak theme — Reset password page', () => {
   });
 
   test('reset-password page has back-to-login link', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.locator('a.label-link').click();

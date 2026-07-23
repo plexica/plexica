@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
 import { useIntl, FormattedMessage } from 'react-intl';
+import { discardAuthorizationRequest } from '@plexica/auth/authorization-request';
 
 import { useAuthStore } from '../stores/auth-store.js';
 
@@ -20,6 +21,7 @@ export function AuthCallbackPage(): JSX.Element {
     const state = params.get('state');
 
     if (code === null || state === null) {
+      if (state !== null && state.length <= 512) discardAuthorizationRequest(state);
       setError(intl.formatMessage({ id: 'auth.callback.error' }));
       return;
     }

@@ -5,91 +5,29 @@
 // require a master-realm super_admin bearer token. Without an explicit browser
 // token, each request obtains a fresh token from the ephemeral E2E client.
 //
-// Read methods (assertions) return `unknown` so callers assert on the shape
-// they expect. Lifecycle methods (provision/suspend/reactivate/delete) are
-// typed so setup/cleanup code in afterAll can read tenantId/version/slugs
-// without casting. Every method throws on non-2xx so failures surface fast.
+// Read assertions return `unknown`; setup and cleanup methods are typed.
 
 import { getE2eApiToken } from '../../../../e2e/keycloak/ephemeral-client.js';
 
+import type {
+  DeletionStatusResponse,
+  PluginListResponse,
+  ProvisionResult,
+  TenantDetailResponse,
+  TenantListResponse,
+  TenantRow,
+} from './api-client-types.js';
+
+export type {
+  DeletionStatusResponse,
+  PluginListResponse,
+  ProvisionResult,
+  TenantDetailResponse,
+  TenantRow,
+} from './api-client-types.js';
+
 const CORE_API_BASE = process.env['PLAYWRIGHT_CORE_API_URL'] ?? 'http://localhost:3001';
 const ADMIN_API_BASE = `${CORE_API_BASE}/api/v1/admin`;
-
-// ── Response shapes used by setup/cleanup ────────────────────────────────────
-// Kept minimal (only the fields tests read) and stringly-typed for status
-// enums so cleanup never breaks when the backend widens an enum.
-
-export interface TenantRow {
-  id: string;
-  slug: string;
-  name: string;
-  status: string;
-  version: number;
-  createdAt: string;
-}
-
-export interface TenantListResponse {
-  data: TenantRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export interface TenantDetailResponse {
-  tenant: {
-    id: string;
-    slug: string;
-    name: string;
-    status: string;
-    version: number;
-    createdAt: string;
-    updatedAt: string;
-    minioBucket: string | null;
-  };
-  userCount: number;
-  workspaceCount: number;
-  pluginInstallations: unknown[];
-  recentAudit: unknown[];
-}
-
-export interface ProvisionResult {
-  tenantId: string;
-  slug: string;
-  schemaName: string;
-  realmName: string;
-  minioBucket: string;
-  tempPassword: string;
-}
-
-export interface DeletionStep {
-  id: string;
-  step: string;
-  status: string;
-  attempts: number;
-  lastError: string | null;
-  updatedAt: string;
-}
-
-export interface DeletionStatusResponse {
-  steps: DeletionStep[];
-}
-
-export interface PluginRow {
-  id: string;
-  slug: string;
-  name: string;
-  version: string;
-  status: string;
-  reviewStatus: string;
-  installedCount: number;
-}
-
-export interface PluginListResponse {
-  data: PluginRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
 
 async function req(
   token: string | undefined,
@@ -123,7 +61,12 @@ export interface AdminApiClient {
   getDashboardMetrics(): Promise<unknown>;
   getKafkaStatus(): Promise<unknown>;
   getAuditLog(): Promise<unknown>;
-  getLogs(params?: { tenant?: string; level?: string; limit?: number }): Promise<unknown>;
+  getLogs(params?: {
+    tenant?: string;
+    level?: string;
+    start?: string;
+    limit?: number;
+  }): Promise<unknown>;
   // Lifecycle endpoints (setup/cleanup).
   findTenantBySlug(slug: string): Promise<TenantRow | undefined>;
   getTenantDetail(id: string): Promise<TenantDetailResponse>;
@@ -159,6 +102,7 @@ export function adminApi(token?: string): AdminApiClient {
       const query = new URLSearchParams();
       if (params.tenant !== undefined) query.set('tenant', params.tenant);
       if (params.level !== undefined) query.set('level', params.level);
+      if (params.start !== undefined) query.set('start', params.start);
       if (params.limit !== undefined) query.set('limit', String(params.limit));
       const suffix = query.size > 0 ? `?${query.toString()}` : '';
       return get(`/logs${suffix}`);

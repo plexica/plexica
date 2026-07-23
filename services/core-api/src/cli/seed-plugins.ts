@@ -17,6 +17,11 @@ import { manifestSchema } from '../modules/plugin/schema/manifest.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Monorepo root: services/core-api/src/cli -> ../../../../
 const MONOREPO_ROOT = path.resolve(__dirname, '../../../../');
+const fixtureManifest = z
+  .string()
+  .regex(/^[a-zA-Z0-9_./-]+$/)
+  .optional()
+  .parse(process.env['PLUGIN_SEED_MANIFEST_PATH']);
 
 interface SeedPlugin {
   manifestPath: string;
@@ -36,7 +41,11 @@ interface SeedPlugin {
 const SEED_PLUGINS: SeedPlugin[] = [
   // CRM keeps its catalog seed status; E2E promotes it to the approved,
   // installable marketplace fixture and creates a separate pending review fixture.
-  { manifestPath: 'examples/plugins/crm/manifest.json', registryUrl: 'oci://plexica/crm-plugin', reviewStatus: 'pending' },
+  {
+    manifestPath: fixtureManifest ?? 'examples/plugins/crm/manifest.json',
+    registryUrl: 'oci://plexica/crm-plugin',
+    reviewStatus: 'pending',
+  },
 ];
 
 // Stable Keycloak sub for the super-admin who "registered" the seed plugins.
@@ -55,7 +64,11 @@ const forceReviewStatusEnv = z
   .parse(process.env['SEED_FORCE_REVIEW_STATUS'] ?? undefined);
 const FORCE_REVIEW_STATUS = forceReviewStatusEnv === 'true';
 
-async function upsertPlugin(manifestPath: string, registryUrl: string, reviewStatus: 'pending' | 'none'): Promise<string> {
+async function upsertPlugin(
+  manifestPath: string,
+  registryUrl: string,
+  reviewStatus: 'pending' | 'none'
+): Promise<string> {
   const absPath = path.resolve(MONOREPO_ROOT, manifestPath);
   const raw = await readFile(absPath, 'utf-8');
   const manifest = JSON.parse(raw) as Record<string, unknown>;
@@ -68,7 +81,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string, reviewSta
 
   const imageRef = m.hosting.image;
   const imageName = (imageRef.includes(':') ? imageRef.split(':')[0] : imageRef) ?? '';
-  const imageTag = imageRef.includes(':') ? imageRef.split(':')[1] ?? 'latest' : 'latest';
+  const imageTag = imageRef.includes(':') ? (imageRef.split(':')[1] ?? 'latest') : 'latest';
 
   // icon in manifest is a Lucide icon name; store it as the icon_url field.
   const iconUrl = m.icon ?? '';
@@ -89,9 +102,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string, reviewSta
       // Exception: SEED_FORCE_REVIEW_STATUS=true (E2E global-setup only).
       // Also clears reviewNotes and reviewedAt to avoid leaking stale metadata
       // when transitioning from approved/rejected back to pending/none.
-      ...(FORCE_REVIEW_STATUS
-        ? { reviewStatus, reviewNotes: null, reviewedAt: null }
-        : {}),
+      ...(FORCE_REVIEW_STATUS ? { reviewStatus, reviewNotes: null, reviewedAt: null } : {}),
       registryUrl,
       imageName,
       imageTag,

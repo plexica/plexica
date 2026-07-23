@@ -4,9 +4,20 @@ export interface AuthFlowCoordinator {
   reset: () => void;
 }
 
+export const AUTH_CALLBACK_REPLAY_TTL_MS = 10 * 60 * 1_000;
+
 export function createAuthFlowCoordinator(): AuthFlowCoordinator {
   let loginFlight: Promise<void> | null = null;
-  let callbackFlight: { state: string; promise: Promise<void> } | null = null;
+  let callbackFlight: { code: string; state: string; promise: Promise<void> } | null = null;
+  const settledCallbackStates = new Map<string, number>();
+  let generation = 0;
+
+  function cleanupSettledStates(): void {
+    const cutoff = Date.now() - AUTH_CALLBACK_REPLAY_TTL_MS;
+    for (const [state, settledAt] of settledCallbackStates) {
+      if (settledAt < cutoff) settledCallbackStates.delete(state);
+    }
+  }
 
   return {
     runLogin(operation) {
@@ -15,26 +26,41 @@ export function createAuthFlowCoordinator(): AuthFlowCoordinator {
       callbackFlight = null;
       const promise = Promise.resolve().then(operation);
       loginFlight = promise;
-      void promise.catch(() => {
+      void promise.finally(() => {
         if (loginFlight === promise) loginFlight = null;
       });
       return promise;
     },
 
-    runCallback(_code, state, operation) {
+    runCallback(code, state, operation) {
+      cleanupSettledStates();
       if (callbackFlight !== null) {
-        if (callbackFlight.state === state) return callbackFlight.promise;
+        if (callbackFlight.code === code && callbackFlight.state === state) {
+          return callbackFlight.promise;
+        }
         return Promise.reject(new Error('Another authentication callback is already in progress'));
+      }
+      if (settledCallbackStates.has(state)) {
+        return Promise.reject(new Error('Authentication callback has already been handled'));
       }
 
       const promise = Promise.resolve().then(operation);
-      callbackFlight = { state, promise };
+      const callbackGeneration = generation;
+      callbackFlight = { code, state, promise };
+      void promise
+        .finally(() => {
+          if (callbackGeneration === generation) settledCallbackStates.set(state, Date.now());
+          if (callbackFlight?.promise === promise) callbackFlight = null;
+        })
+        .catch(() => undefined);
       return promise;
     },
 
     reset() {
+      generation += 1;
       loginFlight = null;
       callbackFlight = null;
+      settledCallbackStates.clear();
     },
   };
 }

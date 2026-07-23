@@ -16,7 +16,7 @@
 // platform resolves the precise 3-part action key and forwards it; until then
 // method-based defaults are a safe, conservative enforcement layer.
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const ROLE_LEVEL: Record<string, number> = { admin: 3, member: 2, viewer: 1 };
 
@@ -34,24 +34,24 @@ function roleFromHeader(request: FastifyRequest): string {
   return ROLE_LEVEL[role] !== undefined ? role : '';
 }
 
-export async function requireRolePlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Health/event ingest endpoints are platform-internal, skip enforcement.
-    const url = request.url;
-    if (url.startsWith('/_plexica')) return;
+export async function requireRole(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<FastifyReply | undefined> {
+  // Health/event ingest endpoints are platform-internal, skip enforcement.
+  const url = request.url;
+  if (url.startsWith('/_plexica')) return undefined;
 
-    const required = METHOD_MIN_ROLE[request.method] ?? 'admin';
-    const role = roleFromHeader(request);
+  const required = METHOD_MIN_ROLE[request.method] ?? 'admin';
+  const role = roleFromHeader(request);
 
-    if (role === '') {
-      reply.status(403).send({ error: 'Missing or invalid X-Plexica-User-Role' });
-      return;
-    }
-    const userLevel = ROLE_LEVEL[role] ?? 0;
-    const requiredLevel = ROLE_LEVEL[required] ?? 99;
-    if (userLevel < requiredLevel) {
-      reply.status(403).send({ error: `Role "${role}" is not permitted to ${request.method} this resource` });
-      return;
-    }
-  });
+  if (role === '') {
+    return reply.status(403).send({ error: 'Missing or invalid X-Plexica-User-Role' });
+  }
+  const userLevel = ROLE_LEVEL[role] ?? 0;
+  const requiredLevel = ROLE_LEVEL[required] ?? 99;
+  if (userLevel < requiredLevel) {
+    return reply.status(403).send({ error: `Role "${role}" is not permitted to ${request.method} this resource` });
+  }
+  return undefined;
 }

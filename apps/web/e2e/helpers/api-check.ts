@@ -2,7 +2,7 @@
 // Stack connectivity helpers for E2E tests.
 // Tests skip gracefully when the stack (API, Keycloak) is not running.
 
-const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://e2e.localhost:3001';
 const MAILPIT_BASE = process.env['PLAYWRIGHT_MAILPIT_URL'] ?? 'http://localhost:8025';
 
 /**

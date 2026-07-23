@@ -38,6 +38,10 @@ export function VisibilityEditor({
   // click previously exposed stale query data between PATCH and refetch,
   // making a second user toggle operate on the wrong visual state.
   useEffect(() => {
+    if (isError && localUpdates.length > 0) {
+      setLocalUpdates([]);
+      return;
+    }
     if (isSaving || localUpdates.length === 0 || data === undefined) return;
     const persisted = localUpdates.every((update) =>
       data.some(
@@ -46,7 +50,7 @@ export function VisibilityEditor({
       )
     );
     if (persisted) setLocalUpdates([]);
-  }, [data, isSaving, localUpdates]);
+  }, [data, isSaving, localUpdates, isError]);
 
   function handleToggle(workspaceId: string, checked: boolean): void {
     setLocalUpdates((prev) => {
@@ -107,7 +111,7 @@ export function VisibilityEditor({
                   <span className="text-sm text-neutral-700">{entry.workspaceName}</span>
                   {isModified(entry.workspaceId) && (
                     <span className="rounded bg-warning-base/10 px-1.5 py-0.5 text-[10px] text-warning-base">
-                      <FormattedMessage id="plugins.visibility.enabled" />
+                      <FormattedMessage id="plugins.visibility.modified" />
                     </span>
                   )}
                 </div>

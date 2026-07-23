@@ -1,6 +1,6 @@
 // 005-07-deletion.spec.ts — Deletion saga E2E (Feature 005-07).
 // Provision a throwaway tenant via the admin API → open its detail → Delete
-// with type-to-confirm → watch the deletion panel → poll until all 3 steps are
+// with type-to-confirm → watch the deletion panel → poll until all 4 steps are
 // done → verify the tenant row is `deleted` and the saga steps are all `done`.
 // The test is its own cleanup: the provisioned tenant is permanently erased.
 //
@@ -14,6 +14,17 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from './helpers/base-fixture.js';
 import { loginAsAdmin, requireKeycloakInCI } from './helpers/admin-login.js';
 import { adminApi } from './helpers/api-client.js';
+import {
+  keycloakRealmExists,
+  minioBucketExists,
+  postgresSchemaExists,
+  readGdprResidue,
+  seedTenantDeletionResidue,
+} from './helpers/deletion-infrastructure.js';
+import {
+  readDeletionEventProof,
+  seedDeletionEventData,
+} from './helpers/deletion-event-infrastructure.js';
 
 import type { AdminApiClient, DeletionStatusResponse } from './helpers/api-client.js';
 
@@ -34,7 +45,7 @@ async function waitForCompletedSaga(
           (failed.lastError ?? 'no error reported')
       );
     }
-    if (latest.steps.length === 3 && latest.steps.every((step) => step.status === 'done')) {
+    if (latest.steps.length === 4 && latest.steps.every((step) => step.status === 'done')) {
       return latest;
     }
     await new Promise((resolve) => setTimeout(resolve, 5_000));
@@ -45,57 +56,80 @@ async function waitForCompletedSaga(
 test.describe('005-07 Tenant deletion saga', () => {
   test.beforeAll(() => requireKeycloakInCI());
 
-  test(
-    'deleting a tenant erases schema/realm/bucket and marks it deleted',
-    async ({ page }) => {
-      test.setTimeout(480_000);
+  test('deleting a tenant erases schema/realm/bucket and marks it deleted', async ({ page }) => {
+    test.setTimeout(480_000);
 
-      const suffix = randomUUID().slice(0, 8);
-      const slug = `e2e-del-${suffix}`;
-      const name = `E2E Delete ${suffix}`;
-      const adminEmail = `admin@${slug}.local`;
+    const suffix = randomUUID().slice(0, 8);
+    const slug = `e2e-del-${suffix}`;
+    const name = `E2E Delete ${suffix}`;
+    const adminEmail = `admin@${slug}.local`;
 
-      const api = adminApi();
-      const result = await api.provisionTenant({ slug, name, adminEmail });
-      const tenantId = result.tenantId;
+    const api = adminApi();
+    const result = await api.provisionTenant({ slug, name, adminEmail });
+    const tenantId = result.tenantId;
+    const redisKeys = await seedTenantDeletionResidue(tenantId, slug, result.schemaName);
+    const brokerEvent = await seedDeletionEventData(tenantId);
 
-      await loginAsAdmin(page);
-      await page.goto(`/tenants/${tenantId}`);
-      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({
-        timeout: 15_000,
-      });
+    await loginAsAdmin(page);
+    await page.goto(`/tenants/${tenantId}`);
+    await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({
+      timeout: 15_000,
+    });
 
-      // Open the type-to-confirm delete dialog.
-      await page.getByRole('button', { name: `Delete ${name}` }).click();
-      const dialog = page.getByRole('dialog');
-      await expect(dialog).toBeVisible();
+    // Open the type-to-confirm delete dialog.
+    await page.getByRole('button', { name: `Delete ${name}` }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
 
-      // Type the slug exactly to arm the destructive confirm button.
-      await page.getByLabel(/Type the tenant slug/i).fill(slug);
-      await dialog.getByRole('button', { name: 'Delete Permanently' }).click();
+    // Type the slug exactly to arm the destructive confirm button.
+    await page.getByLabel(/Type the tenant slug/i).fill(slug);
+    await dialog.getByRole('button', { name: 'Delete Permanently' }).click();
 
-      const deletionPanel = page.getByRole('region', {
-        name: `Deletion in progress — ${name}`,
-      });
-      await expect(deletionPanel).toBeVisible({ timeout: 15_000 });
+    const deletionPanel = page.getByRole('region', {
+      name: `Deletion in progress — ${name}`,
+    });
+    await expect(deletionPanel).toBeVisible({ timeout: 15_000 });
 
-      const status = await waitForCompletedSaga(api, tenantId);
-      await expect(deletionPanel.getByText(/Deletion complete/)).toBeVisible({
-        timeout: 15_000,
-      });
-      const tenantInformation = page.getByRole('region', { name: 'Tenant information' });
-      await expect(tenantInformation.getByText('Deleted', { exact: true })).toBeVisible({
-        timeout: 15_000,
-      });
+    const status = await waitForCompletedSaga(api, tenantId);
+    await expect(deletionPanel.getByText(/Deletion complete/)).toBeVisible({
+      timeout: 15_000,
+    });
+    const tenantInformation = page.getByRole('region', { name: 'Tenant information' });
+    await expect(tenantInformation.getByText('Deleted', { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
 
-      // Source-of-truth checks via the admin API.
-      const deletedTenant = await api.findTenantBySlug(slug);
-      expect(deletedTenant).toMatchObject({ id: tenantId, slug, status: 'deleted' });
-      expect(status.steps).toEqual([
-        expect.objectContaining({ step: 'schema_drop', status: 'done' }),
-        expect.objectContaining({ step: 'realm_delete', status: 'done' }),
-        expect.objectContaining({ step: 'bucket_delete', status: 'done' }),
-      ]);
-    }
-  );
+    // Source-of-truth checks via the admin API.
+    const deletedTenant = await api.findTenantBySlug(slug);
+    expect(deletedTenant).toBeUndefined();
+    expect(status.steps).toEqual([
+      expect.objectContaining({ step: 'event_data_purge', status: 'done' }),
+      expect.objectContaining({ step: 'schema_drop', status: 'done' }),
+      expect.objectContaining({ step: 'realm_delete', status: 'done' }),
+      expect.objectContaining({ step: 'bucket_delete', status: 'done' }),
+    ]);
+
+    // Independently verify each erased resource against its owning service.
+    expect(await postgresSchemaExists(result.schemaName)).toBe(false);
+    expect(await keycloakRealmExists(result.realmName)).toBe(false);
+    expect(await minioBucketExists(result.minioBucket)).toBe(false);
+    const residue = await readGdprResidue(tenantId, redisKeys);
+    expect(residue.configCount).toBe(0);
+    expect(residue.redisValues).toEqual(redisKeys.map(() => null));
+    expect(residue.tenant).toEqual({
+      slug: `deleted-${tenantId}`,
+      name: 'Deleted tenant',
+      minioBucket: null,
+      deletionContext: null,
+    });
+    expect(residue.auditMetadata).not.toContain(slug);
+    expect(residue.auditMetadata).not.toContain(name);
+    expect(residue.auditMetadata).not.toContain(adminEmail);
+    expect(await readDeletionEventProof(tenantId, brokerEvent)).toEqual({
+      credentials: 0,
+      outbox: 0,
+      deadLetters: 0,
+      destroyed: true,
+    });
+  });
 });

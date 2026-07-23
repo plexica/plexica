@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  consumeAuthorizationRequest,
+  storeAuthorizationRequest,
+} from '../src/authorization-request.js';
+
 import { MemoryStorage, makeAccessToken, tokenResponse } from './test-helpers.js';
 
 interface TestWindow {
@@ -43,8 +48,13 @@ describe('admin auth store', () => {
     await Promise.all([first, second]);
     await useAuthStore.getState().login();
 
-    expect(getLoginUrl).toHaveBeenCalledTimes(1);
-    expect(sessionStorage.getItem('auth_state')).toBeTruthy();
+    expect(getLoginUrl).toHaveBeenCalledTimes(2);
+    expect(getLoginUrl).toHaveBeenCalledWith(
+      'master',
+      expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      'https://admin.example.com/callback'
+    );
+    expect(sessionStorage.getItem('auth_state')).toBeNull();
     expect(testWindow.location.href).toBe('https://id.example.com/auth');
   });
 
@@ -68,8 +78,7 @@ describe('admin auth store', () => {
   });
 
   it('should exchange a duplicate callback only once', async () => {
-    sessionStorage.setItem('auth_state', 'expected-state');
-    sessionStorage.setItem('pkce_code_verifier', 'verifier');
+    storeAuthorizationRequest('expected-state', { codeVerifier: 'verifier', nonce: 'nonce' });
     const { keycloakClient } = await loadClient();
     const exchange = vi
       .spyOn(keycloakClient, 'exchangeCode')
@@ -79,30 +88,38 @@ describe('admin auth store', () => {
     const first = useAuthStore.getState().handleCallback('code', 'expected-state');
     const second = useAuthStore.getState().handleCallback('code', 'expected-state');
     await Promise.all([first, second]);
-    await useAuthStore.getState().handleCallback('code', 'expected-state');
 
     expect(exchange).toHaveBeenCalledTimes(1);
+    expect(exchange.mock.calls[0]?.[2]).toBe('verifier');
+    expect(exchange.mock.calls[0]?.[4]).toBe('nonce');
     expect(useAuthStore.getState().status).toBe('authenticated');
-    expect(sessionStorage.getItem('pkce_code_verifier')).toBeNull();
+    await expect(useAuthStore.getState().handleCallback('code', 'expected-state')).rejects.toThrow(
+      'already been handled'
+    );
   });
 
-  it('should reject mismatched state or a missing PKCE verifier before exchange', async () => {
-    sessionStorage.setItem('auth_state', 'expected-state');
+  it('should reject an unknown state before exchange', async () => {
     const { keycloakClient } = await loadClient();
     const exchange = vi.spyOn(keycloakClient, 'exchangeCode');
     const { useAuthStore } = await loadStore();
 
-    await expect(useAuthStore.getState().handleCallback('code', 'wrong-state')).rejects.toThrow(
-      'Invalid authentication state'
+    await expect(useAuthStore.getState().handleCallback('code', 'unknown-state')).rejects.toThrow(
+      'Authentication request is missing or invalid'
     );
     expect(exchange).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().status).toBe('unauthenticated');
+  });
 
-    vi.resetModules();
-    const { useAuthStore: reloadedStore } = await loadStore();
-    await expect(reloadedStore.getState().handleCallback('code', 'expected-state')).rejects.toThrow(
-      'PKCE verifier is missing'
-    );
-    expect(exchange).not.toHaveBeenCalled();
+  it('should consume callback material when token exchange fails terminally', async () => {
+    storeAuthorizationRequest('failed-state', { codeVerifier: 'verifier', nonce: 'nonce' });
+    const { keycloakClient } = await loadClient();
+    vi.spyOn(keycloakClient, 'exchangeCode').mockRejectedValue(new Error('exchange failed'));
+    const { useAuthStore } = await loadStore();
+
+    await expect(useAuthStore.getState().handleCallback('code', 'failed-state')).rejects.toThrow();
+
+    expect(useAuthStore.getState().status).toBe('unauthenticated');
+    expect(() => consumeAuthorizationRequest('failed-state')).toThrow('missing or invalid');
   });
 
   it('should retain the ID token when refresh omits a replacement', async () => {
@@ -149,20 +166,29 @@ describe('admin auth store', () => {
 
   it('should distinguish explicit logout from expiry and use front-channel logout', async () => {
     const { keycloakClient } = await loadClient();
-    vi.spyOn(keycloakClient, 'revokeSession').mockRejectedValue(new Error('non-2xx'));
+    const { registerAuthQueryCacheClear } =
+      await import('../../../apps/admin/src/services/auth-query-cache.js');
+    const clearCache = vi.fn();
+    registerAuthQueryCacheClear(clearCache);
     const logoutUrl = vi
       .spyOn(keycloakClient, 'getLogoutUrl')
       .mockReturnValue('https://id.example.com/logout');
     const { useAuthStore } = await loadStore();
     useAuthStore.setState({ refreshToken: 'refresh', idToken: 'id-token' });
+    const revoke = vi.spyOn(keycloakClient, 'revokeSession').mockImplementation(() => {
+      expect(useAuthStore.getState().refreshToken).toBeNull();
+      expect(clearCache).toHaveBeenCalledTimes(1);
+      return Promise.reject(new Error('non-2xx'));
+    });
 
-    await useAuthStore.getState().logout();
+    const logout = useAuthStore.getState().logout();
 
-    expect(logoutUrl).toHaveBeenCalledWith('master', 'id-token', 'https://admin.example.com/');
+    expect(logoutUrl).toHaveBeenCalledWith('master', 'id-token', 'https://admin.example.com/login');
+    expect(revoke).toHaveBeenCalledWith('refresh');
     expect(useAuthStore.getState().status).toBe('unauthenticated');
     expect(storage.getItem('plexica-admin-auth')).not.toContain('expired');
+    await logout;
     expect(testWindow.location.href).toBe('https://id.example.com/logout');
-
     vi.resetModules();
     const { useAuthStore: reloadedStore } = await loadStore();
     await reloadedStore.persist.rehydrate();

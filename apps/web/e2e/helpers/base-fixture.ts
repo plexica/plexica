@@ -41,7 +41,9 @@ import { type Page, test as base } from '@playwright/test';
 
 function isolatedTestIp(testId: string, retry: number): string {
   const runId = process.env['PLAYWRIGHT_E2E_KEYCLOAK_CLIENT_UUID'] ?? String(process.pid);
-  const bytes = createHash('sha256').update(`${runId}:${testId}:${String(retry)}`).digest();
+  const bytes = createHash('sha256')
+    .update(`${runId}:${testId}:${String(retry)}`)
+    .digest();
   return `198.${18 + ((bytes[0] ?? 0) % 2)}.${bytes[1] ?? 0}.${(bytes[2] ?? 0) || 1}`;
 }
 
@@ -51,7 +53,6 @@ export const test = base.extend<{ page: Page }>({
     // isolated documentation-range client IP so public endpoint budgets cannot
     // leak between otherwise independent browser contexts.
     await context.setExtraHTTPHeaders({
-      'X-Tenant-Slug': process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'e2e',
       'X-Forwarded-For': isolatedTestIp(testInfo.testId, testInfo.retry),
     });
 

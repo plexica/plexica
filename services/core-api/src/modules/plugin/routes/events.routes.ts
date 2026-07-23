@@ -4,10 +4,10 @@
 
 import { z } from 'zod';
 
-import { emitEvent } from '../../../lib/kafka.js';
+import { buildDomainEvent, jsonObjectSchema } from '../../../events/event-envelope.js';
+import { enqueueEvent } from '../../../events/outbox-repository.js';
 import { requireAbac } from '../../../middleware/abac.js';
-import { ValidationError } from '../../../lib/app-error.js';
-import { logger } from '../../../lib/logger.js';
+import { ForbiddenError, ValidationError } from '../../../lib/app-error.js';
 import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
 import { rateLimit } from '../../../middleware/rate-limit.js';
 
@@ -29,9 +29,10 @@ const emitEventSchema = z.object({
       const slug = parts[1];
       return parts.length >= 3 && typeof slug === 'string' && SLUG_REGEX.test(slug);
     }, 'Event type must be "plugin.{slug}.{type}" with a valid slug'),
-  payload: z.any(),
-  timestamp: z.string(),
-  correlationId: z.string().min(1),
+  payload: jsonObjectSchema,
+  timestamp: z.string().datetime({ offset: true }),
+  correlationId: z.string().uuid(),
+  causationId: z.string().uuid().nullable().optional(),
 });
 
 function extractSlug(eventType: string): string {
@@ -47,10 +48,7 @@ export const _testEmitEventSchema = emitEventSchema;
  * uninstalled) in the caller's tenant. This prevents plugin event
  * impersonation — a plugin cannot emit events under another plugin's slug.
  */
-async function verifyPluginInstalled(
-  slug: string,
-  tenantCtx: TenantContext
-): Promise<void> {
+async function verifyPluginInstalled(slug: string, tenantCtx: TenantContext): Promise<string> {
   const plugin = await withCoreDb((prisma) =>
     prisma.plugin.findUnique({ where: { slug }, select: { id: true } })
   );
@@ -60,43 +58,57 @@ async function verifyPluginInstalled(
 
   const installation = await withTenantDb((tx) => {
     return tx.pluginInstallation.findFirst({
-      where: { pluginId: plugin.id, status: { in: ['active', 'degraded', 'deactivated', 'installing'] } },
+      where: { pluginId: plugin.id, status: { in: ['active', 'degraded'] } },
       select: { id: true },
     });
   }, tenantCtx);
 
   if (!installation) {
-    throw new ValidationError(`Plugin "${slug}" is not installed in this tenant — cannot emit events on its behalf`);
+    throw new ValidationError(
+      `Plugin "${slug}" is not installed in this tenant — cannot emit events on its behalf`
+    );
   }
+  return installation.id;
 }
 
 export async function eventEmitRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.post(
-    '/api/v1/events/emit',
-    { preHandler: [rateLimit(100, 60000)] },
-    async (request) => {
-      const parsed = emitEventSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
+  fastify.post('/api/v1/events/emit', { preHandler: [rateLimit(100, 60000)] }, async (request) => {
+    const parsed = emitEventSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+    }
 
-      const { type, payload, correlationId } = parsed.data;
-      const slug = extractSlug(type);
-      const ctx = request.tenantContext;
+    const { type, payload, correlationId, timestamp, causationId } = parsed.data;
+    const slug = extractSlug(type);
+    const ctx = request.tenantContext;
 
-      await verifyPluginInstalled(slug, ctx);
-
+    const serviceIdentity = request.pluginServiceIdentity;
+    let installId: string;
+    if (serviceIdentity) {
+      if (
+        serviceIdentity.tenantId !== ctx.tenantId ||
+        serviceIdentity.scope !== 'events:emit' ||
+        !type.startsWith(`plugin.${serviceIdentity.pluginSlug}.`)
+      )
+        throw new ForbiddenError('Plugin service request denied');
+      installId = serviceIdentity.installId;
+    } else {
+      installId = await verifyPluginInstalled(slug, ctx);
       const abacHandler = requireAbac('plugin:access');
       await abacHandler(request, {} as FastifyReply);
-
-      try {
-        await emitEvent(type, payload as Record<string, unknown>, correlationId);
-      } catch (err) {
-        logger.error({ err, eventType: type }, 'Failed to emit plugin event');
-        throw err;
-      }
-
-      return { status: 'emitted', type, correlationId };
     }
-  );
+
+    const event = buildDomainEvent({
+      type,
+      tenantId: ctx.tenantId,
+      producer: { kind: 'plugin', id: installId },
+      payload,
+      occurredAt: timestamp,
+      correlationId,
+      ...(causationId === undefined ? {} : { causationId }),
+    });
+    await withCoreDb((db) => db.$transaction((tx) => enqueueEvent(tx, type, event)));
+
+    return { status: 'accepted', type, correlationId, eventId: event.eventId };
+  });
 }

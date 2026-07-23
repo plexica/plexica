@@ -12,6 +12,7 @@ export interface AbacContext {
   action: string; // e.g. "workspace:read", "member:invite"
   isTenantAdmin?: boolean; // Derived from Keycloak roles — precomputed by middleware
   pluginActionKey?: string; // e.g. "crm:contact:read" — for plugin action override
+  verifiedWorkspaceRole?: WorkspaceRole; // Authoritative DB role supplied by a scoped gate
 }
 
 export interface AbacDecision {

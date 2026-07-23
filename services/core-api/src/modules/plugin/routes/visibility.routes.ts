@@ -3,12 +3,16 @@
 
 import { z } from 'zod';
 
-import { ValidationError, ForbiddenError } from '../../../lib/app-error.js';
+import { ValidationError, ForbiddenError, WorkspaceNotFoundError } from '../../../lib/app-error.js';
 import { withTenantDb } from '../../../lib/tenant-database.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { evaluate } from '../../../modules/abac/engine.js';
 import { redis } from '../../../lib/redis.js';
-import { setWorkspaceVisibility, clearVisibilityCache } from '../services/visibility.service.js';
+import {
+  clearVisibilityCache,
+  getVisibilityEntries,
+  setWorkspaceVisibility,
+} from '../services/visibility.service.js';
 import { updateVisibilityListSchema } from '../schema/api.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -26,30 +30,7 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const ctx = request.tenantContext;
 
       return withTenantDb(async (tx: TenantPrismaClient) => {
-        const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
-        if (!installation) return [];
-
-        const [workspaces, overrides] = await Promise.all([
-          tx.workspace.findMany({
-            where: { status: 'active' },
-            select: { id: true, name: true },
-            orderBy: { name: 'asc' },
-          }),
-          tx.pluginWorkspaceVisibility.findMany({ where: { installId, isOverride: true } }),
-        ]);
-        const overrideByWorkspace = new Map(overrides.map((item) => [item.workspaceId, item]));
-        const defaultEnabled = installation.tenantDefaultVisibility === 'enabled';
-
-        return workspaces.map((workspace) => {
-          const override = overrideByWorkspace.get(workspace.id);
-          return {
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-            isEnabled: override?.isEnabled ?? defaultEnabled,
-            isOverride: override !== undefined,
-            updatedAt: override?.updatedAt ?? null,
-          };
-        });
+        return getVisibilityEntries(tx as never, installId);
       }, ctx);
     }
   );
@@ -70,12 +51,18 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       }
 
       const updates = parsed.data;
-      const userId = request.user?.keycloakUserId ?? '';
-      const isTenantAdmin = request.user?.roles.includes('tenant_admin') ?? false;
+      const userId = request.user.id;
+      const isTenantAdmin = request.user.roles.includes('tenant_admin');
 
-      // Authorize: for each target workspace, the caller must be a workspace
-      // admin (or tenant admin). Workspace:update requires the `admin` role.
-      if (!isTenantAdmin) {
+      await withTenantDb(async (tx) => {
+        const workspaceIds = [...new Set(updates.map((update) => update.workspaceId))];
+        const existing = await tx.workspace.findMany({
+          where: { id: { in: workspaceIds } },
+          select: { id: true },
+        });
+        if (existing.length !== workspaceIds.length) throw new WorkspaceNotFoundError();
+        if (isTenantAdmin) return;
+
         for (const { workspaceId } of updates) {
           const abacCtx: AbacContext = {
             userId: request.user.id,
@@ -84,27 +71,25 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
             action: 'workspace:update',
             isTenantAdmin,
           };
-          const decision = await withTenantDb((tx) => evaluate(abacCtx, tx, redis), ctx);
+          const decision = await evaluate(abacCtx, tx, redis);
           if (!decision.allowed) {
             throw new ForbiddenError(`Workspace admin required for workspace ${workspaceId}: ${decision.reason}`);
           }
         }
-      }
+      }, ctx);
 
       const results = await withTenantDb(async (tx: TenantPrismaClient) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return (tx as any).$transaction(async (innerTx: TenantPrismaClient) => {
-          const out: Array<{ workspaceId: string; isEnabled: boolean }> = [];
           for (const { workspaceId, isEnabled } of updates) {
             await setWorkspaceVisibility(innerTx, installId, workspaceId, isEnabled, userId);
-            out.push({ workspaceId, isEnabled });
           }
-          return out;
+          return getVisibilityEntries(innerTx as never, installId);
         });
       }, ctx);
 
       await clearVisibilityCache(installId);
-      return { installId, overrides: results };
+      return results;
     }
   );
 }

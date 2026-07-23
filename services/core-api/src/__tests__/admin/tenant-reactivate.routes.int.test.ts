@@ -63,6 +63,7 @@ afterAll(async () => {
   await deleteRealm(`plexica-${SLUG}`).catch(() => {});
   await deleteBucket(`tenant-${SLUG}`).catch(() => {});
   await prisma.tenantDeletionStep.deleteMany({ where: { tenantId: seeded.tenantId } }).catch(() => {});
+  await prisma.tenantLifecycleReconciliation.deleteMany({ where: { tenantId: seeded.tenantId } }).catch(() => {});
   await prisma.tenantConfig.deleteMany({ where: { tenant: { slug: SLUG } } }).catch(() => {});
   await prisma.tenant.deleteMany({ where: { slug: SLUG } }).catch(() => {});
   await prisma.$disconnect();

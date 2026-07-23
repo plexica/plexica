@@ -8,6 +8,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as url from 'node:url';
 
+import { isLocalThemeFallbackAllowed } from '../theme-fallback-policy.js';
+
+import { tenantWebUrl } from './tenant-hosts.js';
+
 import type { Page } from '@playwright/test';
 
 export const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
@@ -45,7 +49,7 @@ export async function loginViaKeycloak(
   page: Page,
   { tenantSlug, username, password }: { tenantSlug: string; username: string; password: string }
 ): Promise<void> {
-  await page.goto('/?tenant=' + tenantSlug);
+  await page.goto(tenantWebUrl(tenantSlug));
   await page.waitForURL(/\/realms\//);
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', password);
@@ -72,15 +76,22 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const THEME_MARKER_PATH = path.resolve(__dirname, '..', '.e2e-plexica-theme-active');
 
 /**
- * Returns true when the Plexica custom Keycloak theme is active for this run.
- * Written by global-setup.ts after the render probe. If the marker file is
- * absent (e.g. local dev without running global-setup), defaults to false so
- * theme-specific tests are skipped rather than timing out.
+ * Returns true when the custom theme is active. False is valid only when the
+ * explicit local fallback is enabled; missing or invalid markers are failures.
  */
 export function isPlexicaThemeActive(): boolean {
+  let marker: string;
   try {
-    return fs.readFileSync(THEME_MARKER_PATH, 'utf8').trim() === '1';
-  } catch {
-    return false;
+    marker = fs.readFileSync(THEME_MARKER_PATH, 'utf8').trim();
+  } catch (error) {
+    throw new Error(
+      'Keycloak theme activation marker is missing; global setup did not verify it.',
+      {
+        cause: error,
+      }
+    );
   }
+  if (marker === '1') return true;
+  if (marker === '0' && isLocalThemeFallbackAllowed()) return false;
+  throw new Error(`Invalid or inactive Keycloak theme marker: ${JSON.stringify(marker)}.`);
 }

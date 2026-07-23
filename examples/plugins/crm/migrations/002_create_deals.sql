@@ -22,3 +22,8 @@ CREATE INDEX IF NOT EXISTS idx_crm_deals_stage ON crm_deals (stage);
 
 -- Index for contact lookups
 CREATE INDEX IF NOT EXISTS idx_crm_deals_contact_id ON crm_deals (contact_id);
+
+-- At-least-once workspace event delivery must create one default pipeline.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_deals_default_pipeline
+  ON crm_deals (workspace_id)
+  WHERE title = 'Default Pipeline' AND contact_id IS NULL;

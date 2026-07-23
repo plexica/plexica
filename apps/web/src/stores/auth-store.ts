@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { createAuthEpoch } from '@plexica/auth/auth-epoch';
 import { createAuthFlowCoordinator } from '@plexica/auth/auth-flow';
 import { createRehydrationHandler, partializeAuthState } from '@plexica/auth/auth-store';
+import {
+  clearAuthorizationRequests,
+  consumeAuthorizationRequest,
+} from '@plexica/auth/authorization-request';
 import { extractBaseProfile } from '@plexica/auth/jwt';
 import { createAuthorizationState } from '@plexica/auth/pkce';
 
+import { clearAuthQueryCache } from '../services/auth-query-cache.js';
 import { keycloakClient, REDIRECT_URI } from '../services/keycloak-auth.js';
 
 import type { UserProfile, AuthState } from '../types/auth.js';
@@ -20,6 +26,7 @@ interface AuthStore extends AuthState {
 }
 
 const authFlow = createAuthFlowCoordinator();
+const authEpoch = createAuthEpoch();
 
 function decodeUserProfile(accessToken: string, realm: string): UserProfile {
   const profile: UserProfile = { ...extractBaseProfile(accessToken), realm };
@@ -57,7 +64,6 @@ export const useAuthStore = create<AuthStore>()(
           set({ status: 'authenticating' });
           try {
             const state = createAuthorizationState();
-            sessionStorage.setItem('auth_state', state);
             const url = await keycloakClient.getLoginUrl(realm, state, REDIRECT_URI);
             window.location.href = url;
           } catch {
@@ -71,46 +77,64 @@ export const useAuthStore = create<AuthStore>()(
         const { refreshToken, idToken, realm, tenantSlug } = get();
         const postLogoutUrl = new URL('/', window.location.origin);
         if (tenantSlug !== null) postLogoutUrl.searchParams.set('tenant', tenantSlug);
+        const logoutUrl =
+          realm === null
+            ? postLogoutUrl.href
+            : keycloakClient.getLogoutUrl(realm, idToken, postLogoutUrl.href);
+
+        authEpoch.invalidate();
+        set(clearedAuth);
+        clearAuthQueryCache();
+        clearAuthorizationRequests();
+        authFlow.reset();
         try {
           if (refreshToken !== null && realm !== null) {
             await keycloakClient.revokeSession(refreshToken, realm);
           }
         } catch {
-          // Front-channel logout below remains authoritative if revocation fails.
-        } finally {
-          set(clearedAuth);
-          authFlow.reset();
-          window.location.href =
-            idToken === null || realm === null
-              ? postLogoutUrl.href
-              : keycloakClient.getLogoutUrl(realm, idToken, postLogoutUrl.href);
+          // RP-initiated logout remains authoritative when revocation fails or times out.
         }
+        authEpoch.invalidate();
+        set(clearedAuth);
+        clearAuthQueryCache();
+        clearAuthorizationRequests();
+        authFlow.reset();
+        window.location.href = logoutUrl;
       },
 
       handleCallback: (code, state) =>
         authFlow.runCallback(code, state, async () => {
+          const epoch = authEpoch.capture();
           set({ status: 'authenticating' });
-          const expectedState = sessionStorage.getItem('auth_state');
-          const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-          const { realm } = get();
-          if (expectedState === null || state !== expectedState) {
-            throw new Error('Invalid authentication state.');
+          try {
+            const { codeVerifier, nonce } = consumeAuthorizationRequest(state);
+            const { realm } = get();
+            if (realm === null) throw new Error('Authentication context is missing.');
+            const tokens = await keycloakClient.exchangeCode(
+              code,
+              realm,
+              codeVerifier,
+              REDIRECT_URI,
+              nonce
+            );
+            if (!authEpoch.isCurrent(epoch)) return;
+            clearAuthorizationRequests();
+            authEpoch.invalidate();
+            set({
+              accessToken: tokens.access_token,
+              refreshToken: tokens.refresh_token,
+              idToken: tokens.id_token ?? null,
+              userProfile: decodeUserProfile(tokens.access_token, realm),
+              status: 'authenticated',
+              isAuthenticated: true,
+            });
+          } catch (error) {
+            if (authEpoch.isCurrent(epoch)) {
+              authEpoch.invalidate();
+              set(clearedAuth);
+            }
+            throw error;
           }
-          if (realm === null || codeVerifier === null) {
-            throw new Error('Authentication context is missing.');
-          }
-
-          const tokens = await keycloakClient.exchangeCode(code, realm, codeVerifier, REDIRECT_URI);
-          sessionStorage.removeItem('pkce_code_verifier');
-          sessionStorage.removeItem('auth_state');
-          set({
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-            idToken: tokens.id_token ?? null,
-            userProfile: decodeUserProfile(tokens.access_token, realm),
-            status: 'authenticated',
-            isAuthenticated: true,
-          });
         }),
 
       refresh: async () => {
@@ -118,7 +142,9 @@ export const useAuthStore = create<AuthStore>()(
         if (refreshToken === null || realm === null) {
           throw new Error('Session refresh is unavailable.');
         }
+        const epoch = authEpoch.capture();
         const tokens = await keycloakClient.refreshTokens(refreshToken, realm);
+        if (!authEpoch.isCurrent(epoch) || get().refreshToken !== refreshToken) return;
         set({
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
@@ -129,7 +155,13 @@ export const useAuthStore = create<AuthStore>()(
         });
       },
 
-      setSessionExpired: () => set({ ...clearedAuth, status: 'expired' }),
+      setSessionExpired: () => {
+        authEpoch.invalidate();
+        set({ ...clearedAuth, status: 'expired' });
+        clearAuthQueryCache();
+        clearAuthorizationRequests();
+        authFlow.reset();
+      },
       dismissExpired: () => set({ status: 'unauthenticated' }),
     }),
     {

@@ -104,7 +104,9 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
       if (!parsed.success)
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
       const result = await withTenantDb(
-        (tx) => createWorkspaceService(tx, req.user.id, parsed.data),
+        (db) => db.$transaction((tx) =>
+          createWorkspaceService(tx, req.user.id, parsed.data, req.tenantContext.tenantId)
+        ),
         req.tenantContext
       );
       return reply.status(201).send(result);

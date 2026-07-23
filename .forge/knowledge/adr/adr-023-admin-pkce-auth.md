@@ -179,3 +179,72 @@ reopening access.
 - ADR-010: branded Keycloak-hosted login.
 - ADR-011: Keycloak Admin REST API is control-plane only.
 - Spec 005 Plan D-3: superseded by this ADR.
+
+---
+
+## Amendment — 2026-07-23: Dedicated API Resource Audience
+
+**Status**: Accepted (amends the accepted decision above)
+**Driver**: PR #77 security remediation; Spec 002 002-02; Spec 005 admin auth
+
+### Context
+
+Validating tenant tokens against the browser client ID while exempting all
+master-realm tokens confuses OAuth clients with the protected API resource. It
+also leaves master and E2E token acceptance dependent on issuer/role checks
+without one universal audience boundary.
+
+### Decision
+
+- Define one Keycloak resource audience, `plexica-api`. The core API validates
+  `aud` contains exactly this accepted resource value for every user JWT,
+  including tenant-realm, master-realm, and E2E-helper tokens. There is no
+  master-realm audience bypass.
+- `plexica-web` in every tenant realm and `plexica-admin` in the master realm
+  receive an explicit audience mapper/client scope for `plexica-api` while
+  retaining `fullScopeAllowed: false`.
+- Each run-scoped confidential E2E client receives the same API audience and
+  only its required role mappings. Bootstrap/admin-control-plane tokens never
+  call Plexica APIs.
+- Issuer-to-tenant checks and `requireSuperAdmin` master-realm + role checks
+  remain mandatory; audience does not replace them.
+- Configure the API with `KEYCLOAK_API_AUDIENCE=plexica-api`. Browser client IDs
+  remain authorization/logout identifiers and are not accepted audiences.
+
+Alternatives considered were retaining the master bypass (too broad), accepting
+multiple browser/E2E client IDs as audiences (couples resource validation to
+clients), and introspection on every request (unnecessary latency). They are
+rejected.
+
+### Consequences
+
+- **Positive**: all realms and clients cross the same resource boundary; adding
+  a client no longer changes API validation semantics.
+- **Negative**: Keycloak client reconciliation must precede API enforcement or
+  old tokens will be rejected.
+- **Neutral**: PKCE, exact redirects, session handling, and ephemeral E2E client
+  lifecycle are unchanged.
+
+### Migration and Rollout
+
+First add and verify the mapper on master, all tenant realms, and E2E client
+creation. Obtain fresh tokens and assert `aud=plexica-api`. Then deploy strict
+API verification and expire old access tokens; do not add a dual-audience or
+master bypass compatibility flag. Rollback may restore the prior API binary
+while leaving the harmless mapper in place, but it must not broaden public
+client grants.
+
+### Security and GDPR
+
+Audience failures return a generic 401 and log only issuer realm and reason
+code, never token contents or claims containing PII. Client secrets remain
+run-scoped, random, and unlogged.
+
+### Constitution Alignment
+
+| Article | Status | Notes |
+| --- | --- | --- |
+| Rule 1 / Testing | Compliant | Requires real Keycloak token-matrix and browser E2E tests. |
+| Rule 3 / One pattern | Compliant | One API resource audience across all user clients. |
+| Rule 5 / ADR | Compliant | Records a material authentication change. |
+| Security: authentication | Improved | Removes the master-realm audience exemption. |

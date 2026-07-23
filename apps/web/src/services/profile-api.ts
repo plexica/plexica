@@ -23,7 +23,7 @@ export const profileApi = {
     const { accessToken, tenantSlug } = useAuthStore.getState();
     const headers: Record<string, string> = {};
     if (accessToken !== null) headers['Authorization'] = `Bearer ${accessToken}`;
-    if (tenantSlug !== null) headers['X-Tenant-Slug'] = tenantSlug;
+    if (import.meta.env.DEV && tenantSlug !== null) headers['X-Tenant-Slug'] = tenantSlug;
     const formData = new FormData();
     formData.append('file', file);
     const res = await fetch(`${API_BASE}/api/v1/profile/avatar`, {

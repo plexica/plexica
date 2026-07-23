@@ -1,20 +1,13 @@
-// tenant-context.ts
-// Fastify preHandler middleware — resolves tenant from request header/subdomain.
-// Sets tenant context in AsyncLocalStorage for access throughout the request lifecycle.
-//
 // ID-001: $queryRawUnsafe intentional — slug is regex-validated.
 // ID-002: single error code for unknown/deleted prevents tenant enumeration.
 // H-1: enterWithTenant() (AsyncLocalStorage.enterWith) so getTenantContext()
 //      and withTenantDb() work in route handlers without param drilling.
 // H-2: verifies request.user.realm matches the resolved tenant's realm.
 // H-3: X-Tenant-Slug header is only accepted in non-production environments.
-// M-9: periodic cache eviction prevents unbounded memory growth.
 // ADR-022 Decision 1: reject non-admin requests for suspended / pending_deletion
 //      tenants with 403; deleted stays 400 INVALID_TENANT_CONTEXT (anti-enumeration).
 //
-// M-01: all tenant-scoped DB access MUST use withTenantDb() (lib/tenant-schema.ts).
-//   This middleware sets AsyncLocalStorage context; withTenantDb() reads it and
-//   executes SET search_path before each tenant query.
+// M-01: tenant DB access uses withTenantDb(), backed by this request context.
 
 import {
   InvalidTenantContextError,
@@ -25,39 +18,28 @@ import {
 import { prisma } from '../lib/database.js';
 import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
+import { tenantSlugFromHost } from '../lib/tenant-host.js';
+import { clearTenantLifecycle, writeTenantLifecycle } from '../lib/tenant-context-cache.js';
 import { SLUG_REGEX } from '../lib/tenant-schema-helpers.js';
 import { type TenantContext, enterWithTenant } from '../lib/tenant-context-store.js';
 import { toRealmName, toSchemaName } from '../lib/tenant-schema-helpers.js';
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { Redis } from 'ioredis';
+import type { TenantStatus } from '@prisma/client';
 
-// In-memory tenant cache — 60 second TTL (active tenants only).
-interface TenantCacheEntry {
-  context: TenantContext;
-  expiresAt: number;
+export async function clearTenantCache(slug: string, client?: Redis): Promise<void> {
+  await clearTenantLifecycle(slug, client);
 }
 
-const tenantCache = new Map<string, TenantCacheEntry>();
-const CACHE_TTL_MS = 60_000;
-
-// NEW-L-3: Exported for test use — clears cache between test cases.
-export function clearTenantCache(): void {
-  tenantCache.clear();
-}
-
-// M-9: Periodic eviction of expired entries to prevent unbounded memory growth.
-// unref() ensures this timer does not keep the Node.js process alive in tests.
-const pruneTimer = setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of tenantCache.entries()) {
-    if (now >= entry.expiresAt) {
-      tenantCache.delete(key);
-    }
-  }
-}, CACHE_TTL_MS);
-
-if (typeof pruneTimer.unref === 'function') {
-  pruneTimer.unref();
+export async function publishTenantStatus(
+  slug: string,
+  id: string,
+  status: TenantStatus,
+  version: number,
+  client?: Redis
+): Promise<boolean> {
+  return writeTenantLifecycle(slug, { id, status, version }, client);
 }
 
 function extractSlug(request: FastifyRequest): string | null {
@@ -69,19 +51,12 @@ function extractSlug(request: FastifyRequest): string | null {
     }
   }
 
-  // Production (and fallback): parse subdomain from Host header.
-  const host = request.headers.host ?? '';
-  const hostWithoutPort = host.split(':')[0] ?? '';
-  const parts = hostWithoutPort.split('.');
-  if (parts.length >= 3 && parts[0] !== undefined) {
-    return parts[0];
-  }
-
-  return null;
+  // Production (and fallback): resolve the validated first Host label.
+  return tenantSlugFromHost(request.headers.host);
 }
 
 /**
- * Resolves tenant state from a slug (60s in-memory cache for active tenants).
+ * Resolves authoritative tenant state and publishes a short-lived shared cache entry.
  * Exported for the plugin event-emission route (service-token path). Returns
  * null for unknown / `deleted` (ID-002 anti-enumeration) or `{ status, context:
  * null }` for `suspended` / `pending_deletion` so callers can reject with 403.
@@ -91,26 +66,23 @@ export type ResolvedTenant =
   | { status: 'suspended'; context: null }
   | { status: 'pending_deletion'; context: null };
 
-export async function resolveTenant(slug: string): Promise<ResolvedTenant | null> {
-  const cached = tenantCache.get(slug);
-  if (cached !== undefined && Date.now() < cached.expiresAt) {
-    return { status: 'active', context: cached.context };
-  }
-
+export async function resolveTenant(slug: string, client?: Redis): Promise<ResolvedTenant | null> {
   const tenant = await prisma.tenant.findUnique({
     where: { slug },
-    select: { id: true, slug: true, status: true },
+    select: { id: true, slug: true, status: true, version: true },
   });
 
   // ID-002: unknown OR deleted → null (same generic 400, no enumeration leak).
   if (tenant === null || tenant.status === 'deleted') {
-    tenantCache.delete(slug);
+    if (tenant !== null) {
+      await writeTenantLifecycle(slug, tenant, client);
+    }
     return null;
   }
 
-  // Suspended / pending_deletion: surface status (no cache — may change).
+  // Inactive statuses are shared briefly so every replica rejects consistently.
   if (tenant.status !== 'active') {
-    tenantCache.delete(slug);
+    await writeTenantLifecycle(slug, tenant, client);
     return { status: tenant.status, context: null };
   }
 
@@ -121,7 +93,7 @@ export async function resolveTenant(slug: string): Promise<ResolvedTenant | null
     realmName: toRealmName(tenant.slug),
   };
 
-  tenantCache.set(slug, { context, expiresAt: Date.now() + CACHE_TTL_MS });
+  await writeTenantLifecycle(slug, tenant, client);
   return { status: 'active', context };
 }
 
@@ -192,7 +164,6 @@ export async function tenantContextMiddleware(
   request.tenantContext = resolved.context;
 }
 
-// Fastify type augmentation
 declare module 'fastify' {
   interface FastifyRequest {
     tenantContext: TenantContext;

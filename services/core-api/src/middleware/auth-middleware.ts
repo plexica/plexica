@@ -2,7 +2,7 @@
 // Fastify preHandler hook — validates RS256 Bearer tokens via Keycloak JWKS.
 // Attaches decoded user profile to request.user on success.
 // EC-06: on signature failure, invalidates cache and retries once.
-// H-4: validates JWT audience claim against KEYCLOAK_CLIENT_ID.
+// ADR-023: every realm must issue the universal plexica-api resource audience.
 // M-10: only invalidates JWKS cache on JWSSignatureVerificationFailed,
 //       not on expired/malformed tokens (which would thrash the cache).
 
@@ -82,18 +82,11 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
   const jwks = await getJWKS(realm);
   const expectedIssuer = `${config.KEYCLOAK_URL}/realms/${realm}`;
 
-  // H-4: validate audience to reject tokens issued for other Keycloak clients.
-  // Exception: master-realm tokens (super admin via admin-cli) don't have the
-  // plexica-web audience — they're issued for admin-cli. The master realm is
-  // Keycloak's built-in admin realm, and only the super_admin role is accepted
-  // for super-admin endpoints (see require-super-admin.ts).
   const verifyOptions: Parameters<typeof jwtVerify>[2] = {
     algorithms: ['RS256'],
     issuer: expectedIssuer,
+    audience: config.KEYCLOAK_API_AUDIENCE,
   };
-  if (realm !== config.KEYCLOAK_MASTER_REALM) {
-    verifyOptions.audience = config.KEYCLOAK_CLIENT_ID;
-  }
 
   const { payload } = await jwtVerify(token, jwks, verifyOptions);
 
@@ -141,7 +134,7 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
         request.user = await verifyToken(token, realm);
       } catch (retryErr) {
         logger.error(
-          { realm, errName: (retryErr as Error).constructor?.name, errMsg: (retryErr as Error).message },
+          { realm, reasonCode: (retryErr as Error).constructor?.name },
           'JWT verification failed — retry also failed'
         );
         // Internal details (errName, errMsg) are logged above,
@@ -150,7 +143,7 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
       }
     } else {
       logger.error(
-        { realm, errName: (err as Error).constructor?.name, errMsg: (err as Error).message },
+        { realm, reasonCode: (err as Error).constructor?.name },
         'JWT verification failed — non-signature error'
       );
       // Internal details (errName, errMsg) are logged above,

@@ -23,29 +23,14 @@
 // - `auth-store.ts`  — createAuthBaseSlice(), rehydrateStatus(), partializeAuthState()
 // - `use-silent-refresh.ts` — useSilentRefresh() hook
 
-export type {
-  TokenResponse,
-  BaseUserProfile,
-  AuthStatus,
-  AuthState,
-} from './types.js';
+export type { TokenResponse, BaseUserProfile, AuthStatus, AuthState } from './types.js';
 
-export type {
-  KeycloakClientConfig,
-  KeycloakClient,
-} from './keycloak-client.js';
+export type { KeycloakClientConfig, KeycloakClient } from './keycloak-client.js';
 
-export type {
-  ApiClientConfig,
-  RequestOptions,
-  ApiClient,
-} from './api-client.js';
+export type { ApiClientConfig, RequestOptions, ApiClient } from './api-client.js';
 
-export type {
-  AuthBaseState,
-  AuthBaseActions,
-} from './auth-store.js';
+export type { AuthBaseState, AuthBaseActions } from './auth-store.js';
 
-export type {
-  SilentRefreshConfig,
-} from './use-silent-refresh.js';
+export type { SilentRefreshConfig } from './use-silent-refresh.js';
+
+export type { AuthEpoch } from './auth-epoch.js';

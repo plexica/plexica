@@ -1,5 +1,5 @@
 // tenant-resolver.ts
-// Resolves the current tenant from the browser URL (subdomain or dev header override).
+// Resolves the current tenant from the browser URL (subdomain or dev query override).
 // Called once at app startup to determine which Keycloak realm to use.
 
 import type { TenantInfo } from '../types/tenant.js';
@@ -20,16 +20,19 @@ function extractSlug(): string | null {
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
 
-  // In development: support ?tenant= query param as override
-  const searchParams = new URLSearchParams(window.location.search);
-  const devSlug = searchParams.get('tenant');
-  if (devSlug !== null && devSlug.length > 0) {
-    return devSlug;
+  if (import.meta.env.DEV) {
+    const devSlug = new URLSearchParams(window.location.search).get('tenant');
+    if (devSlug !== null && devSlug.length > 0) return devSlug;
   }
 
-  // Production: first subdomain component
-  if (parts.length >= 3 && parts[0] !== undefined && parts[0] !== 'www') {
-    return parts[0];
+  // Tenant localhost names are used by production-mode E2E; deployed hosts
+  // retain the normal tenant.example.com shape.
+  const hasTenantSubdomain = hostname.endsWith('.localhost')
+    ? parts.length >= 2
+    : parts.length >= 3;
+  const slug = parts[0];
+  if (hasTenantSubdomain && slug !== undefined && slug !== 'www') {
+    return /^[a-z][a-z0-9-]{1,62}$/.test(slug) ? slug : null;
   }
 
   return null;

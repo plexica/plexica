@@ -7,12 +7,13 @@
 import pino, { type TransportTargetOptions } from 'pino';
 
 import { config } from './config.js';
+import { LOGGER_REDACT_PATHS, LOKI_APP_LABEL } from './logging-contract.js';
 
 const LOG_LEVEL = config.NODE_ENV === 'production' ? 'info' : 'debug';
 
 // Never log PII (Constitution security rule)
 const redactConfig = {
-  paths: ['email', 'password', 'token', 'secret', 'credential'],
+  paths: [...LOGGER_REDACT_PATHS],
   censor: '[REDACTED]',
 };
 
@@ -49,7 +50,9 @@ function buildLokiTarget(): TransportTargetOptions | null {
       batching: { interval: 5, maxBufferSize: 10000 },
       // Silence transport errors so Loki outages don't spam stdout.
       silenceErrors: true,
-      labels: { app: 'plexica-core-api', env: config.NODE_ENV },
+      // Contract: app/env and pino-loki's bounded level are the only labels.
+      // Tenant remains in the JSON line and is parsed exactly at query time.
+      labels: { app: LOKI_APP_LABEL, env: config.NODE_ENV },
     },
     level: LOG_LEVEL,
   };

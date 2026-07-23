@@ -4,7 +4,11 @@ import {
   assertPlexicaAdminPasswordGrantRejected,
   reconcilePlexicaAdminClient,
 } from '../../../e2e/keycloak/plexica-admin-client.js';
-import { ensureSuperAdminForUser } from '../../../e2e/keycloak/realm-role.js';
+import { ensureSuperAdminRole } from '../../../e2e/keycloak/realm-role.js';
+import {
+  createRunScopedSuperAdmin,
+  deleteRunScopedSuperAdmin,
+} from '../../../e2e/keycloak/run-super-admin.js';
 import {
   ensureCrmMarketplaceFixture,
   resetPluginReviewFixture,
@@ -17,17 +21,21 @@ export default async function setup(): Promise<void> {
   await waitForKeycloak();
 
   let adminToken = await getAdminToken();
-  await reconcilePlexicaAdminClient(adminToken);
-  await assertPlexicaAdminPasswordGrantRejected();
+  try {
+    const superAdminRole = await ensureSuperAdminRole(adminToken);
+    await reconcilePlexicaAdminClient(adminToken, superAdminRole);
+    await createRunScopedSuperAdmin(adminToken, 'admin', superAdminRole);
+    await assertPlexicaAdminPasswordGrantRejected();
+    provisionAdminTestData();
+    await ensureCrmMarketplaceFixture();
+    await resetPluginReviewFixture();
 
-  const adminUsername = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
-  const superAdminRole = await ensureSuperAdminForUser(adminToken, adminUsername);
-  provisionAdminTestData();
-  await ensureCrmMarketplaceFixture();
-  await resetPluginReviewFixture();
-
-  // Do not rely on a globally extended realm TTL for setup credentials.
-  adminToken = await getAdminToken();
-  await createEphemeralE2eClient(adminToken, 'admin', superAdminRole);
+    // Do not rely on a globally extended realm TTL for setup credentials.
+    adminToken = await getAdminToken();
+    await createEphemeralE2eClient(adminToken, 'admin', superAdminRole);
+  } catch (error) {
+    await deleteRunScopedSuperAdmin(adminToken).catch(() => undefined);
+    throw error;
+  }
   process.stdout.write('[admin global-setup] E2E provisioning complete.\n');
 }

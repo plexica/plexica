@@ -5,8 +5,7 @@ import { z } from 'zod';
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
-import { retryDlqEntry } from '../events/dlq.service.js';
-import { PluginNotFoundError } from '../errors.js';
+import { dismissDlqEntry, retryDlqEntry } from '../events/dlq.service.js';
 import { ValidationError } from '../../../lib/app-error.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -22,37 +21,41 @@ const listQuerySchema = z.object({
 
 export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/system/dlq ──────────────────────────────────────────
-  fastify.get(
-    '/api/v1/admin/system/dlq',
-    { preHandler: [requireSuperAdmin] },
-    async (request) => {
-      const parsed = listQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
-
-      const { status, pluginId, page, pageSize } = parsed.data;
-      const where: Record<string, unknown> = {};
-      if (status) where.status = status;
-      if (pluginId) where.pluginId = pluginId;
-
-      return withCoreDb((prisma) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (prisma as any).$transaction(async (tx: any) => {
-          const [data, total] = await Promise.all([
-            tx.deadLetterQueue.findMany({
-              where,
-              skip: (page - 1) * pageSize,
-              take: pageSize,
-              orderBy: { failedAt: 'desc' },
-            }),
-            tx.deadLetterQueue.count({ where }),
-          ]);
-          return { data, total, page, pageSize };
-        })
-      );
+  fastify.get('/api/v1/admin/system/dlq', { preHandler: [requireSuperAdmin] }, async (request) => {
+    const parsed = listQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
     }
-  );
+
+    const { status, pluginId, page, pageSize } = parsed.data;
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (pluginId) where.pluginId = pluginId;
+
+    return withCoreDb((prisma) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prisma as any).$transaction(async (tx: any) => {
+        const [data, total] = await Promise.all([
+          tx.deadLetterQueue.findMany({
+            where,
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            orderBy: { failedAt: 'desc' },
+          }),
+          tx.deadLetterQueue.count({ where }),
+        ]);
+        return {
+          data: data.map((entry: { originalOffset: bigint }) => ({
+            ...entry,
+            originalOffset: entry.originalOffset.toString(),
+          })),
+          total,
+          page,
+          pageSize,
+        };
+      })
+    );
+  });
 
   const idParamSchema = z.object({ id: z.string().uuid() });
 
@@ -65,24 +68,8 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
       if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
       const { id } = parsed.data;
 
-      return withCoreDb((prisma) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (prisma as any).$transaction(async (tx: any) => {
-          const entry = await tx.deadLetterQueue.findUnique({ where: { id } });
-          if (!entry) throw new PluginNotFoundError(`DLQ entry ${id}`);
-
-          // Re-emit the event
-          await retryDlqEntry(entry.eventType, entry.payload as Record<string, unknown>);
-
-          // Update status
-          await tx.deadLetterQueue.update({
-            where: { id },
-            data: { status: 'retried', resolvedAt: new Date() },
-          });
-
-          return { status: 'retried' };
-        })
-      );
+      await withCoreDb((prisma) => retryDlqEntry(prisma, id));
+      return { status: 'retried' };
     }
   );
 
@@ -95,20 +82,8 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
       if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
       const { id } = parsed.data;
 
-      return withCoreDb((prisma) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (prisma as any).$transaction(async (tx: any) => {
-          const entry = await tx.deadLetterQueue.findUnique({ where: { id } });
-          if (!entry) throw new PluginNotFoundError(`DLQ entry ${id}`);
-
-          await tx.deadLetterQueue.update({
-            where: { id },
-            data: { status: 'dismissed', resolvedAt: new Date() },
-          });
-
-          return { status: 'dismissed' };
-        })
-      );
+      await withCoreDb((prisma) => dismissDlqEntry(prisma, id));
+      return { status: 'dismissed' };
     }
   );
 }

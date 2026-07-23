@@ -1,6 +1,6 @@
 // api-client.ts
 // Tenant web app API client — configured fetch wrapper with automatic
-// Authorization bearer token injection, X-Tenant-Slug for tenant context,
+// Authorization bearer token injection, a development-only tenant override,
 // and 401-driven token refresh.
 //
 // Uses the shared @plexica/auth/api-client factory.
@@ -29,7 +29,9 @@ export const apiClient = createApiClient({
   extraHeaders: () => {
     const state = useAuthStore.getState();
     return {
-      ...(state.tenantSlug !== null ? { 'X-Tenant-Slug': state.tenantSlug } : {}),
+      ...(import.meta.env.DEV && state.tenantSlug !== null
+        ? { 'X-Tenant-Slug': state.tenantSlug }
+        : {}),
     };
   },
 });

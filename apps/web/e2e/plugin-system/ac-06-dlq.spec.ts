@@ -1,66 +1,182 @@
-// ac-06-dlq.spec.ts — Spec 004, AC-06: Dead Letter Queue.
-// Real behavior: a deterministic pending entry is retried through the real
-// super-admin API and Kafka producer, then persists as retried.
-//
-// This test obtains a fresh token from the random, narrowly scoped client
-// created by global setup and removed by global teardown.
-//
-// This test is purely API-driven — it does not interact with the frontend UI, so
-// there is no need to log in through the browser.
+import crypto from 'node:crypto';
 
-import { expect, test } from '../helpers/base-fixture.js';
+import { createConsumer } from '../../../../services/core-api/src/lib/kafka.js';
 import { getE2eApiToken } from '../../../../e2e/keycloak/ephemeral-client.js';
+import { expect, test } from '../helpers/base-fixture.js';
+import { loginAsAdmin, uniqueName } from '../helpers/admin-login.js';
 import {
-  deleteDlqFixture,
-  DLQ_ENTRY_FIXTURE_ID,
-  resetPendingDlqFixture,
-} from '../../../../e2e/fixtures/core-fixtures.js';
+  createWorkspaceFixture,
+  ensureCrmInstalled,
+  getBrowserToken,
+} from '../helpers/plugin-fixtures.js';
+
+import type { APIRequestContext } from '@playwright/test';
 
 const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
+const createdWorkspaceIds: string[] = [];
 
-test.describe('004 Plugin System — AC-06: Dead Letter Queue', () => {
-  test.beforeEach(() => resetPendingDlqFixture());
-  test.afterEach(() => deleteDlqFixture());
+interface TopicProbe {
+  next: Promise<Record<string, unknown>>;
+  stop: () => Promise<void>;
+}
 
-  test('DLQ API loads entries and retrying a pending entry changes its status', async ({
+async function getHandlerAttempts(
+  request: APIRequestContext,
+  token: string,
+  installId: string,
+  workspaceId: string
+): Promise<number> {
+  const response = await request.get(
+    `${API_BASE}/api/v1/plugins/${installId}/proxy/_plexica/event/attempts/${workspaceId}`,
+    { headers: { Authorization: `Bearer ${token}`, 'X-Plexica-Workspace-Id': workspaceId } }
+  );
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as { count: number }).count;
+}
+
+async function startTopicProbe(
+  topic: string,
+  predicate: (payload: Record<string, unknown>) => boolean
+): Promise<TopicProbe> {
+  const consumer = createConsumer(`e2e-probe-${crypto.randomUUID()}`);
+  await consumer.connect();
+  await consumer.subscribe({ topic, fromBeginning: false });
+  let resolveMessage!: (payload: Record<string, unknown>) => void;
+  const message = new Promise<Record<string, unknown>>((resolve) => {
+    resolveMessage = resolve;
+  });
+  await consumer.run({
+    eachMessage: async ({ message: kafkaMessage }) => {
+      const payload = JSON.parse(kafkaMessage.value?.toString() ?? '{}') as Record<string, unknown>;
+      if (predicate(payload)) resolveMessage(payload);
+    },
+  });
+  return {
+    next: Promise.race([
+      message,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`No ${topic} event`)), 10_000)
+      ),
+    ]),
+    stop: () => consumer.disconnect(),
+  };
+}
+
+async function findDlqEntry(
+  request: APIRequestContext,
+  token: string,
+  workspaceId: string,
+  entryId?: string
+): Promise<{ id: string; eventId: string; retryCount: number; status: string } | undefined> {
+  const response = await request.get(`${API_BASE}/api/v1/admin/system/dlq?pageSize=100`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok()) return undefined;
+  const body = (await response.json()) as {
+    data: Array<{
+      id: string;
+      eventId: string;
+      retryCount: number;
+      status: string;
+      payload: { payload?: { id?: string } };
+    }>;
+  };
+  return body.data.find(
+    (entry) =>
+      entry.payload.payload?.id === workspaceId && (entryId === undefined || entry.id === entryId)
+  );
+}
+
+test.describe('004 Plugin System - AC-06: Dead Letter Queue', () => {
+  test.afterEach(() => {
+    createdWorkspaceIds.splice(0);
+  });
+
+  test('failed Kafka delivery retries three times, enters DLQ, and retry republishes original topic', async ({
+    page,
     request,
   }) => {
-    const token = await getE2eApiToken();
-    expect(token, 'super admin access token must be obtained').toBeTruthy();
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const listRes = await request.get(
-      `${API_BASE}/api/v1/admin/system/dlq?status=pending&pageSize=100`,
-      { headers }
+    test.setTimeout(180_000);
+    await loginAsAdmin(page);
+    const token = await getBrowserToken(page);
+    const installId = await ensureCrmInstalled(page, token);
+    const superToken = await getE2eApiToken();
+    let workspaceId = '';
+    const dlqProbe = await startTopicProbe(
+      'plexica.plugin.dlq',
+      (message) => message.type === 'plexica.plugin.delivery.failed'
     );
-    expect(listRes.status(), 'pending DLQ list should return 200').toBe(200);
-    const before = (await listRes.json()) as {
-      data: Array<{ id: string; status: string; resolvedAt: string | null }>;
-    };
-    expect(before.data).toContainEqual(
-      expect.objectContaining({
-        id: DLQ_ENTRY_FIXTURE_ID,
-        status: 'pending',
-        resolvedAt: null,
-      })
-    );
+    workspaceId = await createWorkspaceFixture(page, token, uniqueName('e2e-dlq-failure'));
+    createdWorkspaceIds.push(workspaceId);
 
-    const retryRes = await request.post(
-      `${API_BASE}/api/v1/admin/system/dlq/${DLQ_ENTRY_FIXTURE_ID}/retry`,
-      { headers }
-    );
-    expect(retryRes.status(), 'DLQ retry should return the documented 200').toBe(200);
-    expect(await retryRes.json()).toEqual({ status: 'retried' });
-
-    const verifyRes = await request.get(`${API_BASE}/api/v1/admin/system/dlq?pageSize=100`, {
-      headers,
+    const dlqMessage = await dlqProbe.next;
+    await dlqProbe.stop();
+    expect(dlqMessage).toMatchObject({
+      type: 'plexica.plugin.delivery.failed',
+      schemaVersion: 1,
+      encryption: { algorithm: 'A256GCM' },
     });
-    expect(verifyRes.status()).toBe(200);
-    const after = (await verifyRes.json()) as {
-      data: Array<{ id: string; status: string; resolvedAt: string | null }>;
-    };
-    const fixture = after.data.find((entry) => entry.id === DLQ_ENTRY_FIXTURE_ID);
-    expect(fixture).toMatchObject({ id: DLQ_ENTRY_FIXTURE_ID, status: 'retried' });
-    expect(fixture?.resolvedAt).not.toBeNull();
+    expect(dlqMessage).toHaveProperty('ciphertext');
+    expect(dlqMessage).not.toHaveProperty('payload');
+    await expect
+      .poll(() => getHandlerAttempts(request, token, installId, workspaceId), {
+        timeout: 10_000,
+      })
+      .toBe(3);
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId), {
+        timeout: 10_000,
+      })
+      .toMatchObject({ retryCount: 3, status: 'pending' });
+    const entry = await findDlqEntry(request, superToken, workspaceId);
+    expect(entry).toBeDefined();
+
+    const originalProbe = await startTopicProbe(
+      'plexica.workspace.created',
+      (message) => message.eventId === entry!.eventId
+    );
+    const retry = await request.post(`${API_BASE}/api/v1/admin/system/dlq/${entry!.id}/retry`, {
+      headers: { Authorization: `Bearer ${superToken}` },
+    });
+    expect(retry.status()).toBe(200);
+    expect(await originalProbe.next).toMatchObject({
+      eventId: entry!.eventId,
+      schemaVersion: 1,
+      encryption: { algorithm: 'A256GCM' },
+    });
+    await originalProbe.stop();
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId, entry!.id))
+      .toMatchObject({
+        id: entry!.id,
+        status: 'retried',
+      });
+  });
+
+  test('super admin dismisses a real failed-consumer DLQ entry', async ({ page, request }) => {
+    test.setTimeout(180_000);
+    await loginAsAdmin(page);
+    const token = await getBrowserToken(page);
+    await ensureCrmInstalled(page, token);
+    const workspaceId = await createWorkspaceFixture(page, token, uniqueName('e2e-dlq-failure'));
+    createdWorkspaceIds.push(workspaceId);
+    const superToken = await getE2eApiToken();
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId), {
+        timeout: 10_000,
+      })
+      .toMatchObject({ retryCount: 3, status: 'pending' });
+    const entry = await findDlqEntry(request, superToken, workspaceId);
+
+    const dismiss = await request.post(`${API_BASE}/api/v1/admin/system/dlq/${entry!.id}/dismiss`, {
+      headers: { Authorization: `Bearer ${superToken}` },
+    });
+    expect(dismiss.status()).toBe(200);
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId, entry!.id))
+      .toMatchObject({
+        id: entry!.id,
+        status: 'dismissed',
+      });
   });
 });

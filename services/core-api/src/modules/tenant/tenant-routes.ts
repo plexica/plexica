@@ -63,6 +63,8 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return { exists: false };
       }
 
+      request.log.info({ tenant: slug }, 'Tenant resolved');
+
       // NEW-H-3: return only { exists: true } — realm name is derived client-side
       return { exists: true };
     }

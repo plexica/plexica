@@ -6,13 +6,13 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-07-22 (ADR-023 accepted)
+**Last Updated**: 2026-07-23 (PR #77 architecture amendments; ADR-024 accepted)
 
 ---
 
 ## Active Decisions
 
-All foundational ADRs were accepted during the v2 bootstrap phase:
+Foundational and current ADR lifecycle states:
 
 | ADR     | Title                                                        | Status   | Date       |
 | ------- | ------------------------------------------------------------ | -------- | ---------- |
@@ -28,7 +28,9 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 | ADR-010 | Keycloakify for Keycloak Custom Theme                        | Accepted | April 2026 |
 | ADR-011 | Keycloak Admin API Integration for Tenant Auth Configuration | Accepted | April 2026 |
 | ADR-012 | Rate Limiting via @fastify/rate-limit                        | Accepted | April 2026 |
+| ADR-022 | Super Admin Infrastructure and Data Model                     | Accepted | July 2026  |
 | ADR-023 | Admin App PKCE Authentication Migration                      | Accepted | July 2026  |
+| ADR-024 | Plugin Installation Service Credentials                      | Accepted | 2026-07-23 |
 
 ---
 
@@ -52,7 +54,7 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 | ID-010 | ABAC unit tests mock `engine-helpers.js` (Redis + DB) to keep tests pure and fast                                 | Importing `engine.ts` without mocking its helpers triggers Redis/DB connections at module load. `vi.mock()` on `engine-helpers.js` intercepts `getMembership` and `getPluginActionOverride`, letting the real `evaluate()` function be tested with zero infrastructure. This is the correct trade-off: integration tests (INT-08/INT-09) cover the Redis cache and DB membership paths.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 003  | April 2026 |
 | ID-011 | Invitation unit tests do not import `invitation/service.ts`; crypto functions tested via `lib/crypto.ts` directly | `invitation/service.ts` imports `config.ts` which validates all required env vars at module load time. In a unit test environment these are not set. The pure logic (token generation, expiry) is accessible via `lib/crypto.ts` without triggering config validation. The expiry calculation is mirrored inline in the test to avoid any import side-effects.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 003  | April 2026 |
 | ID-012 | E2E tests use `uniqueName(prefix)` timestamp suffix to prevent cross-run fixture collisions                       | Playwright tests create real resources (workspaces, users, templates) in a shared DB. Without unique names, a second run fails with UNIQUE constraint violations. `uniqueName('ws')` appends `Date.now()` so each run generates distinct slugs without requiring DB teardown between runs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 003  | April 2026 |
-| ID-013 | E2E graceful-skip pattern: `test.skip(!hasKeycloak, ...)` consistent with existing specs                          | All new E2E specs wrap their `beforeAll` connectivity check (`isStackReachable()`) and call `test.skip(condition, reason)` before any test body runs. This mirrors the `it.skipIf` pattern in Vitest integration tests and ensures `pnpm test` passes on CI even when Docker is not available.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 003  | April 2026 |
+| ID-013 | **Superseded 2026-07-23** — E2E infrastructure failures fail the suite; no graceful skip                          | The earlier `test.skip(!hasKeycloak, ...)` pattern could report green CI without exercising the required real stack, contradicting Constitution Rules 1-2. PR #77 remediation requires infrastructure preflight to fail clearly when unavailable and prohibits conditional skips in blocking E2E.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 003  | April 2026 |
 | ID-014 | pnpm overrides for security patch versions — pinned to exact fix versions on hotfix branch                       | Nine Dependabot alerts (CVE-2026-53632, CVE-2026-53571, CVE-2026-53550, CVE-2026-49356, CVE-2026-41305, CVE-2026-6322, CVE-2026-6321, CVE-2026-44665, CVE-2026-41650) addressed via `pnpm.overrides` in root `package.json`. Overrides pinned to exact security-fix versions (not caret ranges) to minimize behavioral change surface on the hotfix branch. See `hotfix/security-vulnerabilities` branch for full mapping. Code scanning alert #9 (missing regex anchor) also fixed in `apps/web/e2e/org-error.spec.ts`. | 002  | June 2026 |
 
 ---
@@ -79,6 +81,23 @@ All foundational ADRs were accepted during the v2 bootstrap phase:
 | 018 | Two-Level Plugin Visibility | 2026-06-26 | Accepted | Tenant default (`enabled`) + per-workspace override. |
 | 019 | Plugin SDK & OpenAPI Architecture | 2026-06-26 | Accepted | Single `PluginSDK` class + OpenAPI 3.1 contract. |
 | 020 | Plugin Reinstall = Update Flow | 2026-06-26 | Accepted | Reinstall = update with additive-only schema changes. |
+
+---
+
+## PR #77 Security Remediation Amendments
+
+| ADR | Amendment Date | Status | Amendment Decision |
+| --- | --- | --- | --- |
+| ADR-004 | 2026-07-23 | Accepted | Canonical tenant event envelope, tenant partition/filter, transactional outbox, stable IDs/schema version, and per-tenant encrypted Kafka payloads with key destruction. |
+| ADR-007 | 2026-07-23 | Accepted | `node-sql-parser` is the approved core dependency for AST migration validation/serialization; textual SQL splitting is prohibited. |
+| ADR-016 | 2026-07-23 | Accepted | DLQ tenant/install ownership, source-coordinate dedupe key, targeted DB purge, and cryptographic Kafka payload erasure. |
+| ADR-017 | 2026-07-23 | Accepted | Production plugin PostgreSQL URLs require `verify-full` TLS and a dedicated CA; privileged URL parameters are not propagated. |
+| ADR-022 | 2026-07-23 | Accepted | Durable fail-closed suspension/reactivation reconciliation and first-step event/credential purge in tenant deletion. |
+| ADR-023 | 2026-07-23 | Accepted | One `plexica-api` resource audience is required for master, tenant, and E2E user JWTs. |
+| ADR-024 | 2026-07-23 | Accepted | Random, hash-only, expiring/revocable/rotatable plugin installation service credentials with namespace binding. |
+
+Implementation order and gates are defined in
+`.forge/architecture/pr-77-security-remediation-plan.md`.
 
 ---
 

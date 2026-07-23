@@ -9,9 +9,12 @@
 // No vi.mock is used — config is mutated in place and restored, so the real
 // requireSuperAdmin config reads keep working.
 
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { config } from '../../lib/config.js';
+import { logger } from '../../lib/logger.js';
 import { logsRoutes } from '../../modules/admin/routes/logs.routes.js';
 import { createTestServer, makeFullStub } from '../helpers/server.helpers.js';
 
@@ -20,7 +23,9 @@ import type { TenantContext } from '../../lib/tenant-context-store.js';
 
 const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
 const mockTenantContext: TenantContext = {
-  slug: 'system', schemaName: 'core', realmName: 'master',
+  slug: 'system',
+  schemaName: 'core',
+  realmName: 'master',
   tenantId: '00000000-0000-0000-0000-000000000000',
 };
 
@@ -83,14 +88,45 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     expect(typeof body.total).toBe('number');
   });
 
+  skipIfNoLoki('retrieves a log emitted by the application Pino transport', async () => {
+    const tenant = `logs-int-${randomUUID()}`;
+    const message = `Core logger integration ${randomUUID()}`;
+    const start = new Date().toISOString();
+    logger.info({ tenant }, message);
+
+    await expect
+      .poll(
+        async () => {
+          const query = new URLSearchParams({ tenant, level: 'info', start, limit: '10' });
+          const res = await server.inject({
+            method: 'GET',
+            url: `/api/v1/admin/logs?${query.toString()}`,
+          });
+          if (res.statusCode !== 200) return false;
+          const body = JSON.parse(res.payload) as {
+            logs: Array<{ tenant: string | null; message: string }>;
+          };
+          return body.logs.some((entry) => entry.tenant === tenant && entry.message === message);
+        },
+        { timeout: 20_000, interval: 500 }
+      )
+      .toBe(true);
+  });
+
   skipIfNoLoki('accepts a tenant filter and returns the expected shape', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs?tenant=acme&limit=5' });
+    const res = await server.inject({
+      method: 'GET',
+      url: '/api/v1/admin/logs?tenant=acme&limit=5',
+    });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(JSON.parse(res.payload).logs)).toBe(true);
   });
 
   skipIfNoLoki('accepts a level filter and returns the expected shape', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs?level=error&limit=5' });
+    const res = await server.inject({
+      method: 'GET',
+      url: '/api/v1/admin/logs?level=error&limit=5',
+    });
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(JSON.parse(res.payload).logs)).toBe(true);
   });
@@ -99,6 +135,16 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     // Validation runs before Loki is contacted, so no Loki needed.
     config.LOKI_URL = originalLokiUrl;
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs?level=fatal' });
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.payload).error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a LogQL injection attempt in the tenant filter', async () => {
+    const tenant = encodeURIComponent('acme" | line_format "attack');
+    const res = await server.inject({
+      method: 'GET',
+      url: `/api/v1/admin/logs?tenant=${tenant}`,
+    });
     expect(res.statusCode).toBe(422);
     expect(JSON.parse(res.payload).error.code).toBe('VALIDATION_ERROR');
   });

@@ -5,6 +5,7 @@
 import { useEffect } from 'react';
 import { FormattedMessage } from 'react-intl';
 
+import { clearAuthQueryCache } from '../../services/auth-query-cache.js';
 import { useAuthStore } from '../../stores/auth-store.js';
 
 const REDIRECT_DELAY_MS = 3_000;
@@ -15,8 +16,12 @@ export function SessionExpiredHandler(): JSX.Element | null {
 
   useEffect(() => {
     if (status !== 'expired') return;
+    clearAuthQueryCache();
     const timer = setTimeout(() => {
-      void login().catch(() => undefined);
+      void login().catch((error) => {
+        if (import.meta.env.DEV) console.error('Session re-login failed:', error);
+        window.location.href = '/login';
+      });
     }, REDIRECT_DELAY_MS);
     return () => {
       clearTimeout(timer);

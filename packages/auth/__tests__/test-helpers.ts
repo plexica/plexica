@@ -40,6 +40,43 @@ export function makeAccessToken(): string {
   return `header.${payload}.signature`;
 }
 
+interface IdTokenClaims {
+  issuer?: string;
+  audience?: string | string[];
+  azp?: string;
+  nonce?: string;
+  issuedAt?: number;
+  expiresAt?: number;
+}
+
+export interface IdTokenSigner {
+  jwk: JWK;
+  sign: (claims?: IdTokenClaims) => Promise<string>;
+}
+
+export async function createIdTokenSigner(kid = crypto.randomUUID()): Promise<IdTokenSigner> {
+  const { publicKey, privateKey } = await generateKeyPair('RS256', { extractable: true });
+  const jwk = { ...(await exportJWK(publicKey)), alg: 'RS256', kid, use: 'sig' };
+  return {
+    jwk,
+    sign: (claims = {}) => signIdToken(privateKey, kid, claims),
+  };
+}
+
+async function signIdToken(key: KeyLike, kid: string, claims: IdTokenClaims): Promise<string> {
+  const now = Math.floor(Date.now() / 1_000);
+  return new SignJWT({
+    azp: claims.azp ?? 'app',
+    nonce: claims.nonce ?? 'expected-nonce',
+  })
+    .setProtectedHeader({ alg: 'RS256', kid })
+    .setIssuer(claims.issuer ?? 'https://id.example.com/realms/realm')
+    .setAudience(claims.audience ?? 'app')
+    .setIssuedAt(claims.issuedAt ?? now)
+    .setExpirationTime(claims.expiresAt ?? now + 300)
+    .sign(key);
+}
+
 export function tokenResponse(idToken?: string) {
   return {
     access_token: makeAccessToken(),
@@ -50,3 +87,6 @@ export function tokenResponse(idToken?: string) {
     token_type: 'Bearer' as const,
   };
 }
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+
+import type { JWK, KeyLike } from 'jose';

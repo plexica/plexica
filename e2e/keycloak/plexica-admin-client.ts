@@ -1,4 +1,8 @@
 import { adminFetch, getKeycloakUrl } from './admin-api.js';
+import { reconcileApiAudienceMapper } from './api-audience.js';
+import { SUPER_ADMIN_PASSWORD_ENV, SUPER_ADMIN_USER_ENV } from './run-super-admin.js';
+
+import type { KeycloakRole } from './realm-role.js';
 
 const CLIENT_ID = 'plexica-admin';
 const ADMIN_ORIGIN = 'http://localhost:3002';
@@ -27,12 +31,15 @@ function desiredClient(existing: ClientRepresentation = {}): ClientRepresentatio
     serviceAccountsEnabled: false,
     authorizationServicesEnabled: false,
     bearerOnly: false,
+    fullScopeAllowed: false,
     redirectUris: [ADMIN_CALLBACK],
     webOrigins: [ADMIN_ORIGIN],
     attributes: {
       ...existingAttributes,
       'pkce.code.challenge.method': 'S256',
       'post.logout.redirect.uris': `${ADMIN_ORIGIN}/login`,
+      'client.session.idle.timeout': '3600',
+      'client.session.max.lifespan': '3600',
     },
   };
 }
@@ -49,6 +56,7 @@ export function assertPlexicaAdminConfiguration(actual: ClientRepresentation): v
     standardFlowEnabled: true,
     implicitFlowEnabled: false,
     directAccessGrantsEnabled: false,
+    fullScopeAllowed: false,
   };
   for (const [field, value] of Object.entries(expected)) {
     if (actual[field] !== value) {
@@ -61,12 +69,54 @@ export function assertPlexicaAdminConfiguration(actual: ClientRepresentation): v
   if (attributes?.['pkce.code.challenge.method'] !== 'S256') {
     throw new Error(`${CLIENT_ID} security check failed: PKCE S256 is not required`);
   }
-  if (attributes['post.logout.redirect.uris'] !== `${ADMIN_ORIGIN}/login`) {
-    throw new Error(`${CLIENT_ID} security check failed: post-logout URI is incorrect`);
+  if (attributes?.['post.logout.redirect.uris'] !== `${ADMIN_ORIGIN}/login`) {
+    throw new Error(
+      `${CLIENT_ID} security check failed: post-logout redirect URI is ${attributes === undefined ? 'not configured' : `incorrect: ${JSON.stringify(attributes['post.logout.redirect.uris'])}`}`
+    );
+  }
+  for (const field of ['client.session.idle.timeout', 'client.session.max.lifespan']) {
+    const seconds = Number(attributes[field]);
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 3600) {
+      throw new Error(`${CLIENT_ID} security check failed: ${field}=${String(attributes[field])}`);
+    }
   }
 }
 
-export async function reconcilePlexicaAdminClient(token: string): Promise<void> {
+async function synchronizeRoleScope(
+  token: string,
+  uuid: string,
+  superAdminRole: KeycloakRole
+): Promise<void> {
+  const path = `/admin/realms/master/clients/${uuid}/scope-mappings/realm`;
+  const currentResponse = await adminFetch(token, path, 'GET');
+  if (!currentResponse.ok) {
+    throw new Error(`${CLIENT_ID} role-scope read failed: HTTP ${currentResponse.status}`);
+  }
+  const current = (await currentResponse.json()) as Array<Record<string, unknown>>;
+  if (current.length > 0) {
+    const deleteResponse = await adminFetch(token, path, 'DELETE', current);
+    if (!deleteResponse.ok) {
+      throw new Error(`${CLIENT_ID} role-scope cleanup failed: HTTP ${deleteResponse.status}`);
+    }
+  }
+  const addResponse = await adminFetch(token, path, 'POST', [superAdminRole]);
+  if (!addResponse.ok) {
+    throw new Error(`${CLIENT_ID} role-scope mapping failed: HTTP ${addResponse.status}`);
+  }
+  const verifyResponse = await adminFetch(token, path, 'GET');
+  if (!verifyResponse.ok) {
+    throw new Error(`${CLIENT_ID} role-scope verification failed: HTTP ${verifyResponse.status}`);
+  }
+  const scopes = (await verifyResponse.json()) as Array<{ name?: unknown }>;
+  if (scopes.length !== 1 || scopes[0]?.name !== 'super_admin') {
+    throw new Error(`${CLIENT_ID} has unexpected role scopes: ${JSON.stringify(scopes)}`);
+  }
+}
+
+export async function reconcilePlexicaAdminClient(
+  token: string,
+  superAdminRole: KeycloakRole
+): Promise<void> {
   const lookupResponse = await adminFetch(
     token,
     `/admin/realms/master/clients?clientId=${CLIENT_ID}`,
@@ -111,6 +161,8 @@ export async function reconcilePlexicaAdminClient(token: string): Promise<void> 
   }
   if (uuid === '') throw new Error(`${CLIENT_ID} reconciliation returned no UUID`);
 
+  await synchronizeRoleScope(token, uuid, superAdminRole);
+  await reconcileApiAudienceMapper(token, uuid);
   const verifyResponse = await adminFetch(token, `/admin/realms/master/clients/${uuid}`, 'GET');
   if (!verifyResponse.ok) {
     throw new Error(`${CLIENT_ID} verification read failed: HTTP ${verifyResponse.status}`);
@@ -125,8 +177,8 @@ export async function assertPlexicaAdminPasswordGrantRejected(): Promise<void> {
     body: new URLSearchParams({
       grant_type: 'password',
       client_id: CLIENT_ID,
-      username: process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin',
-      password: process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme',
+      username: process.env[SUPER_ADMIN_USER_ENV] ?? '',
+      password: process.env[SUPER_ADMIN_PASSWORD_ENV] ?? '',
     }),
     signal: AbortSignal.timeout(10_000),
   });

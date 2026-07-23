@@ -1,11 +1,14 @@
 // lib/kafka.ts
-// Kafka producer/consumer wrapper for plugin events.
-// Provides fire-and-forget emit and consumer lifecycle management.
+// Kafka transport wrapper. Domain shaping belongs to the event layer.
 
 import { Kafka, logLevel } from 'kafkajs';
 
+import { wireEventEnvelopeSchema } from '../events/event-envelope.js';
+
 import { config } from './config.js';
 import { logger } from './logger.js';
+
+import type { WireEventEnvelope } from '../events/event-envelope.js';
 
 const kafka = new Kafka({
   clientId: 'plexica-core',
@@ -57,36 +60,33 @@ async function getProducer(): Promise<ReturnType<typeof kafka.producer>> {
   return connectingProducer;
 }
 
-/**
- * Emit an event to Kafka. Throws on failure so callers can decide whether to
- * fall back (e.g. DLQ direct DB write). Most call sites use `.catch()` to
- * make it fire-and-forget; the throw gives them that option.
- */
-export async function emitEvent(
+export async function sendKafkaEnvelope(
   topic: string,
-  payload: Record<string, unknown>,
-  correlationId?: string
+  input: WireEventEnvelope,
+  options: { headers?: Record<string, string>; partition?: number } = {}
 ): Promise<void> {
+  const envelope = wireEventEnvelopeSchema.parse(input);
   try {
     const p = await getProducer();
     await p.send({
       topic,
       messages: [
         {
-          key: String(payload.id ?? payload.slug ?? ''),
-          value: JSON.stringify({
-            ...payload,
-            _metadata: {
-              timestamp: new Date().toISOString(),
-              correlationId: correlationId ?? crypto.randomUUID(),
-              producer: 'plexica-core',
-            },
-          }),
+          key: envelope.tenantId,
+          value: JSON.stringify(envelope),
+          headers: {
+            'event-id': envelope.eventId,
+            'tenant-id': envelope.tenantId,
+            'schema-version': String(envelope.schemaVersion),
+            'content-encoding': 'plexica-a256gcm-v1',
+            ...options.headers,
+          },
+          ...(options.partition === undefined ? {} : { partition: options.partition }),
         },
       ],
     });
   } catch (err) {
-    logger.error({ err, topic }, 'Failed to emit event to Kafka');
+    logger.error({ topic, code: 'KAFKA_SEND_FAILED' }, 'Failed to send Kafka envelope');
     throw err;
   }
 }

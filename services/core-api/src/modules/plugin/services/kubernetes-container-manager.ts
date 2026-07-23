@@ -3,7 +3,11 @@
 
 import { PluginInstallError } from '../errors.js';
 
-import type { ContainerManager, ContainerInfo, ContainerStatus } from './container-manager.service.js';
+import type {
+  ContainerManager,
+  ContainerInfo,
+  ContainerStatus,
+} from './container-manager.service.js';
 import type { Manifest } from '../schema/manifest.js';
 
 export class KubernetesContainerManager implements ContainerManager {
@@ -16,7 +20,7 @@ export class KubernetesContainerManager implements ContainerManager {
   }
 
   async stopContainer(_installId: string): Promise<void> {
-    // No-op — no container to stop in dev/CI
+    throw new PluginInstallError('Kubernetes lifecycle control is unavailable');
   }
 
   async removeContainer(_installId: string): Promise<void> {
@@ -34,7 +38,11 @@ export class KubernetesContainerManager implements ContainerManager {
     );
   }
 
-  async restartContainer(_installId: string): Promise<void> {
-    // No-op — no container to restart in dev/CI
+  async restartContainer(_installId: string, environment?: Record<string, string>): Promise<void> {
+    throw new PluginInstallError(
+      environment === undefined
+        ? 'Kubernetes lifecycle control is unavailable'
+        : 'Kubernetes credential rotation is unavailable'
+    );
   }
 }

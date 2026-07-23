@@ -23,11 +23,18 @@ function parseTokenResponse(value: unknown, errorMessage: string): TokenResponse
   if (
     !isRecord(value) ||
     typeof value['access_token'] !== 'string' ||
+    value['access_token'].length === 0 ||
     typeof value['refresh_token'] !== 'string' ||
+    value['refresh_token'].length === 0 ||
     typeof value['expires_in'] !== 'number' ||
+    !Number.isFinite(value['expires_in']) ||
+    value['expires_in'] <= 0 ||
     typeof value['refresh_expires_in'] !== 'number' ||
+    !Number.isFinite(value['refresh_expires_in']) ||
+    value['refresh_expires_in'] < 0 ||
     value['token_type'] !== 'Bearer' ||
-    (value['id_token'] !== undefined && typeof value['id_token'] !== 'string')
+    (value['id_token'] !== undefined &&
+      (typeof value['id_token'] !== 'string' || value['id_token'].length === 0))
   ) {
     throw new AuthRequestError(errorMessage);
   }

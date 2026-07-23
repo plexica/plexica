@@ -62,3 +62,68 @@ The plugin ships its own migration files (SQL or Prisma migration format) as par
 
 - Use Prisma's built-in migration system for plugin schemas.
 - Rejected: Prisma's migration system assumes a single schema. Multi-schema execution with plugin-prefixed tables in per-tenant schemas requires custom handling regardless. Raw SQL migrations give plugins more control with less framework coupling.
+
+---
+
+## Amendment — 2026-07-23: Parsed SQL Allowlist and `node-sql-parser`
+
+**Status**: Accepted (amends the accepted decision above)
+**Driver**: PR #77 security remediation; Spec 004 DR-18, AC-07
+**New core dependency**: `node-sql-parser` `^5.4.0`
+
+### Context
+
+Prefix checks and textual semicolon splitting are not a security boundary.
+Comments, quoted values, CTEs, cross-schema references, and multi-statement SQL
+can bypass or break string-based handling. PostgreSQL role restrictions remain
+the authoritative boundary, but the migration runner also needs deterministic
+pre-execution validation and one-statement-at-a-time execution.
+
+### Decision
+
+- Adopt `node-sql-parser` as the single parser for PostgreSQL plugin migration
+  SQL. Parse the complete file into an AST array before executing anything.
+- Allow only `CREATE TABLE`, `CREATE INDEX`, and additive `ALTER TABLE` against
+  unqualified `{pluginSlug}_*` tables. Reject CTEs, `CREATE ... AS SELECT`,
+  cross-schema references, DML, functions, extensions, grants, role/session
+  changes, destructive DDL, and AST nodes the validator does not recognize.
+- Execute each already-approved AST statement separately using parser
+  serialization; do not split SQL with `String.split(';')`.
+- Keep execution inside one PostgreSQL transaction under the installation's
+  temporary restricted migration role. Parser validation is defense in depth,
+  never a replacement for ADR-017 database grants.
+
+Alternatives considered were retaining prefix/string checks (bypassable) and
+relying only on PostgreSQL permissions (insufficient error quality and allows
+more DDL than the plugin contract). Both are rejected.
+
+### Consequences
+
+- **Positive**: comments and semicolons are handled structurally; the dependency
+  closes the missing ADR for a core package; validation and execution share one
+  statement model.
+- **Negative**: supported SQL is intentionally narrower than PostgreSQL, and
+  parser upgrades require regression tests before adoption.
+- **Neutral**: migration authors still provide ordered `.sql` files.
+
+### Migration and Rollout
+
+Pin the dependency through the lockfile, add parser corpus tests, and validate
+all bundled plugin migrations before enabling installs. Existing applied
+migrations are not replayed. A parser failure blocks the install transaction
+without changing schema state. Rollback removes the application release but
+must not restore textual allowlists.
+
+### Security and GDPR
+
+Migration content is untrusted input and is validated before database access.
+Errors expose statement category and file only, not SQL containing tenant data.
+No migration, parser diagnostic, or connection string is logged verbatim.
+
+### Constitution Alignment
+
+| Article | Status | Notes |
+| --- | --- | --- |
+| Rule 5 / dependencies | Compliant | This amendment records the new core dependency before remediation build. |
+| Security: SQL injection | Improved | AST allowlist plus restricted PostgreSQL role is defense in depth. |
+| Security: input validation | Compliant | Complete migration files are parsed before execution. |

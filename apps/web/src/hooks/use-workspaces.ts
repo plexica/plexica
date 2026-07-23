@@ -27,6 +27,24 @@ export function useWorkspaces(filters?: WorkspaceFilters, options?: { enabled?: 
   });
 }
 
+export function useParentWorkspaceOptions(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['workspaces', 'parent-options', 'active'],
+    queryFn: async () => {
+      const firstPage = await workspaceApi.list({ status: 'active', page: 1, limit: 100 });
+      const workspaces = [...firstPage.data];
+
+      for (let page = 2; page <= firstPage.totalPages; page++) {
+        const nextPage = await workspaceApi.list({ status: 'active', page, limit: 100 });
+        workspaces.push(...nextPage.data);
+      }
+
+      return workspaces;
+    },
+    enabled: options?.enabled !== false,
+  });
+}
+
 export function useWorkspace(id: string) {
   return useQuery({
     queryKey: ['workspace', id],

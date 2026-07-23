@@ -12,14 +12,12 @@ import { logger } from '../../../lib/logger.js';
  * then removes the bucket. Idempotent — a missing bucket is treated as
  * success. Throws on MinIO service errors.
  */
-export async function executeBucketDelete(tenantSlug: string): Promise<void> {
-  const bucketName = `tenant-${tenantSlug}`;
-
-  logger.info({ tenantSlug, bucketName }, 'Force-deleting MinIO bucket (objects + bucket)');
+export async function executeBucketDelete(tenantId: string, bucketName: string): Promise<void> {
+  logger.info({ tenantId }, 'Force-deleting tenant object storage');
 
   // deleteBucket lists all objects, removes them, then removes the bucket.
   // No partial deletion is left behind — required for GDPR full erasure.
   await deleteBucket(bucketName);
 
-  logger.info({ bucketName }, 'MinIO bucket deletion step complete');
+  logger.info({ tenantId }, 'Tenant object storage deletion step complete');
 }
