@@ -1,0 +1,34 @@
+# CodeRabbit configuration
+# See: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+early_access: false
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - develop
+  resolve_conversation: true
+  path_instructions:
+    - path: "packages/auth/**"
+      instructions: |
+        Apply strict Zod validation for all external inputs.
+        Ensure PKCE is correctly implemented with state-keyed verifiers.
+    - path: "apps/**/e2e/**"
+      instructions: |
+        E2E tests must be deterministic with real infrastructure.
+        No conditional skips, no test-app separation.
+    - path: "infra/**"
+      instructions: |
+        Security-sensitive infrastructure configs.
+        Validate PKCE enforcement, TLS settings, secrets management.
+chat:
+  auto_reply: true
