@@ -21,6 +21,7 @@ import type {
 export type {
   DeletionStatusResponse,
   PluginListResponse,
+  PluginRow,
   ProvisionResult,
   TenantDetailResponse,
   TenantRow,

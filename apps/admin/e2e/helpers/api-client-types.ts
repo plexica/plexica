@@ -45,16 +45,18 @@ export interface DeletionStatusResponse {
   }>;
 }
 
+export interface PluginRow {
+  id: string;
+  slug: string;
+  name: string;
+  version: string;
+  status: string;
+  reviewStatus: string;
+  installedCount: number;
+}
+
 export interface PluginListResponse {
-  data: Array<{
-    id: string;
-    slug: string;
-    name: string;
-    version: string;
-    status: string;
-    reviewStatus: string;
-    installedCount: number;
-  }>;
+  data: PluginRow[];
   total: number;
   page: number;
   pageSize: number;
