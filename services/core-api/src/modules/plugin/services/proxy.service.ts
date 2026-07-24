@@ -128,7 +128,19 @@ export async function proxyRequest(
     }
     const responseBuffer = Buffer.from(await response.arrayBuffer());
     if (responseBuffer.length > MAX_RESPONSE_BYTES) {
-      reply.send(responseBuffer.subarray(0, MAX_RESPONSE_BYTES) + TRUNCATION_MARKER);
+      // Avoid Buffer+string coercion which corrupts binary responses.
+      // Only append the text truncation marker for text/JSON content types;
+      // binary responses get a bare truncated buffer with corrected length.
+      const contentType = response.headers.get('content-type') ?? '';
+      const isText = contentType.includes('text/') || contentType.includes('json') || contentType.includes('xml') || contentType.includes('javascript');
+      if (isText) {
+        reply.send(Buffer.concat([
+          responseBuffer.subarray(0, MAX_RESPONSE_BYTES),
+          Buffer.from(TRUNCATION_MARKER, 'utf8'),
+        ]));
+      } else {
+        reply.send(responseBuffer.subarray(0, MAX_RESPONSE_BYTES));
+      }
     } else {
       reply.send(responseBuffer);
     }

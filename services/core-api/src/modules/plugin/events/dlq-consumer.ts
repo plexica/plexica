@@ -43,8 +43,21 @@ export async function persistDlqEntry(
   });
 }
 
+// Permanent errors that cannot be resolved by retrying the same record.
+// Committing the offset skips the poison pill instead of blocking the bridge.
+class PermanentDlqError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
 export async function handleDlqMessage(db: PrismaClient, input: unknown): Promise<boolean> {
-  const wire = wireEventEnvelopeSchema.parse(input);
+  let wire;
+  try {
+    wire = wireEventEnvelopeSchema.parse(input);
+  } catch {
+    throw new PermanentDlqError('DLQ_ENVELOPE_SCHEMA_INVALID');
+  }
   const tenant = await db.tenant.findUnique({
     where: { id: wire.tenantId }, select: { status: true },
   });
@@ -53,16 +66,23 @@ export async function handleDlqMessage(db: PrismaClient, input: unknown): Promis
   try {
     const key = await getTenantEventKey(db, wire.tenantId, wire.encryption.keyVersion);
     outer = decryptWireEvent(wire, key);
-  } catch (error) {
+  } catch {
     const current = await db.tenant.findUnique({
       where: { id: wire.tenantId }, select: { status: true },
     });
     if (current?.status !== 'active') return false;
-    throw error;
+    // Decrypt failure for an active tenant is permanent — the key is destroyed
+    // or corrupted. Retrying will never succeed; skip to avoid a poison pill.
+    throw new PermanentDlqError('DLQ_DECRYPT_FAILED');
   }
-  const payload = dlqPayloadSchema.parse(outer.payload);
+  let payload;
+  try {
+    payload = dlqPayloadSchema.parse(outer.payload);
+  } catch {
+    throw new PermanentDlqError('DLQ_PAYLOAD_SCHEMA_INVALID');
+  }
   if (outer.eventId !== payload.event.eventId || outer.tenantId !== payload.tenantId) {
-    throw new Error('DLQ_IDENTITY_MISMATCH');
+    throw new PermanentDlqError('DLQ_IDENTITY_MISMATCH');
   }
   return persistDlqEntry(db, payload);
 }
@@ -77,16 +97,27 @@ export async function startDlqConsumer(): Promise<void> {
   await activeConsumer.run({
     autoCommit: false,
     eachMessage: async ({ topic, partition, message }) => {
+      const offset = (BigInt(message.offset) + 1n).toString();
       try {
         await handleDlqMessage(prisma, JSON.parse(message.value?.toString() ?? ''));
-        await activeConsumer.commitOffsets([{
-          topic,
-          partition,
-          offset: (BigInt(message.offset) + 1n).toString(),
-        }]);
-      } catch {
-        logger.error({ topic, partition, offset: message.offset }, 'DLQ bridge record failed');
-        throw new Error('DLQ_BRIDGE_RECORD_FAILED');
+        await activeConsumer.commitOffsets([{ topic, partition, offset }]);
+      } catch (error) {
+        if (error instanceof PermanentDlqError) {
+          // Permanent errors (identity mismatch, schema invalid, decrypt
+          // failure for active tenant) cannot be resolved by retrying.
+          // Commit the offset to skip the poison pill and keep the bridge
+          // running for all other tenants. Alert via structured log.
+          logger.error(
+            { topic, partition, offset: message.offset, code: error.code },
+            'DLQ bridge skipping permanent error record'
+          );
+          await activeConsumer.commitOffsets([{ topic, partition, offset }]);
+          return;
+        }
+        // Transient errors (DB connection, Kafka producer) — re-throw so
+        // kafkajs retries the same record after backoff.
+        logger.error({ topic, partition, offset: message.offset }, 'DLQ bridge transient failure');
+        throw error;
       }
     },
   });
