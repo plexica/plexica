@@ -116,8 +116,10 @@ jobs:
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
           LOKI_URL: ${{ env.LOKI_URL }}
 
-      - name: Clean up ports for Playwright
-        run: bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3000 3001 3002
+      - name: Clean up ports and stale E2E containers for Playwright
+        run: |
+          docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
+          bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3000 3001 3002 15432 16379 18080 19000 19001 29092 13100 13301 11025 18025
       - name: Verify preinstalled Chrome
         run: google-chrome --version
       - name: Run Playwright E2E tests
@@ -147,7 +149,9 @@ jobs:
           retention-days: 7
 
       - name: Clean up ports for admin Playwright
-        run: bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
+        run: |
+          docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
+          bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
       - name: Run admin Playwright E2E tests
         run: pnpm --filter @plexica/admin e2e
         env:
