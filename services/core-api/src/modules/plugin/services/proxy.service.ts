@@ -35,7 +35,10 @@ export type { ProxyTarget };
 function sanitizeProxyPath(url: string): string {
   const pathSuffix = url.replace(/^\/api\/v1\/plugins\/[^/]+\/proxy/, '');
   const decoded = decodeURIComponent(pathSuffix);
-  if (decoded.includes('..') || decoded.includes('//')) {
+  // Check for '..' as a path segment, not as a substring — a legitimate
+  // plugin path like /foo..bar should not be rejected as traversal.
+  const segments = decoded.split('/');
+  if (segments.includes('..') || decoded.includes('//')) {
     throw new ValidationError('Invalid proxy path');
   }
   return decoded;

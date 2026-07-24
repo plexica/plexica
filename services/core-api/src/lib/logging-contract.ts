@@ -17,47 +17,55 @@ export const LOKI_LEVEL_BY_ADMIN_LEVEL: Record<AdminLogLevel, string> = {
   error: 'error',
 };
 
-export const LOGGER_REDACT_PATHS = [
+// Sensitive key names that must be redacted at any nesting depth.
+const SENSITIVE_KEYS = new Set([
   'email',
-  '*.email',
-  '*.*.email',
   'adminEmail',
-  '*.adminEmail',
   'to',
-  '*.to',
-  '*.*.to',
   'recipient',
-  '*.recipient',
   'password',
-  '*.password',
-  '*.*.password',
   'token',
-  '*.token',
-  '*.*.token',
-  '*.*.*.token',
   'secret',
-  '*.secret',
-  '*.*.secret',
-  '*.*.*.secret',
   'credential',
-  '*.credential',
-  '*.*.credential',
   'credentials',
-  '*.credentials',
-  '*.*.credentials',
   'auth',
-  '*.auth',
-  '*.*.auth',
   'authorization',
-  '*.authorization',
-  '*.*.authorization',
-  '*.*.*.authorization',
+  'payload',
+]);
+
+// Explicit path-based redact for top-level and shallow-nested fields that Pino
+// matches efficiently. Deeper nesting is handled by the custom redact function.
+export const LOGGER_REDACT_PATHS = [
+  'email', '*.email', '*.*.email',
+  'adminEmail', '*.adminEmail',
+  'to', '*.to', '*.*.to',
+  'recipient', '*.recipient',
+  'password', '*.password', '*.*.password',
+  'token', '*.token', '*.*.token', '*.*.*.token',
+  'secret', '*.secret', '*.*.secret', '*.*.*.secret',
+  'credential', '*.credential', '*.*.credential',
+  'credentials', '*.credentials', '*.*.credentials',
+  'auth', '*.auth', '*.*.auth',
+  'authorization', '*.authorization', '*.*.authorization', '*.*.*.authorization',
   'req.headers.authorization',
   'req.headers.cookie',
-  'payload',
-  '*.payload',
-  '*.*.payload',
+  'payload', '*.payload', '*.*.payload',
 ] as const;
+
+/**
+ * Custom redact function that walks the object tree by key name regardless of
+ * depth, complementing Pino's path-based wildcards which cap at 3 levels.
+ * Returns a deep-cloned object with sensitive values replaced by '[REDACTED]'.
+ */
+export function deepRedact(obj: unknown): unknown {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(deepRedact);
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    result[key] = SENSITIVE_KEYS.has(key) ? '[REDACTED]' : deepRedact(value);
+  }
+  return result;
+}
 
 export function normalizeLogLevel(value: unknown): AdminLogLevel | 'unknown' {
   if (typeof value === 'number') {

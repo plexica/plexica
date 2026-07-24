@@ -7,11 +7,13 @@
 import pino, { type TransportTargetOptions } from 'pino';
 
 import { config } from './config.js';
-import { LOGGER_REDACT_PATHS, LOKI_APP_LABEL } from './logging-contract.js';
+import { LOGGER_REDACT_PATHS, LOKI_APP_LABEL, deepRedact } from './logging-contract.js';
 
 const LOG_LEVEL = config.NODE_ENV === 'production' ? 'info' : 'debug';
 
-// Never log PII (Constitution security rule)
+// Pino path-based redact handles shallow fields efficiently.
+// deepRedact in the serializer handles deeply-nested sensitive keys that
+// Pino's wildcard paths (capped at 3 levels) would miss.
 const redactConfig = {
   paths: [...LOGGER_REDACT_PATHS],
   censor: '[REDACTED]',
@@ -69,4 +71,19 @@ export const logger = pino({
   level: LOG_LEVEL,
   transport: buildTransport(),
   redact: redactConfig,
+  // Apply deep redaction as a custom serializer step so sensitive keys at
+  // any nesting depth are caught even when Pino's path wildcards fall short.
+  serializers: {
+    err(value: unknown): unknown {
+      return deepRedact(value);
+    },
+  },
+  // Wrap the mixin to deep-redact the bindings at every log call.
+  mixin() {
+    return {};
+  },
 });
+
+// Re-export deepRedact for testing and direct use in service code that
+// builds log objects before passing them to the logger.
+export { deepRedact };

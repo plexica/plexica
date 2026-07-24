@@ -39,7 +39,11 @@ export async function processInstallationMessage(input: {
     }));
     return;
   }
-  if (wire.tenantId !== input.tenantId || !(await tenantIsActive(input.tenantId))) return;
+  // Early tenant filter: skip cross-tenant events before any expensive
+  // operation (DB lookup, key fetch, decrypt). This reduces the O(T×P)
+  // fan-out cost by avoiding decrypt for non-matching tenant events.
+  if (wire.tenantId !== input.tenantId) return;
+  if (!(await tenantIsActive(input.tenantId))) return;
   let event: DomainEventEnvelope;
   try {
     const key = await getTenantEventKey(prisma, wire.tenantId, wire.encryption.keyVersion);
