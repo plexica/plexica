@@ -62,14 +62,17 @@ export async function queryLogs(
   _prisma: PrismaClient,
   options: LogsQueryOptions
 ): Promise<LogsResult> {
-  if (!config.LOKI_URL) {
+  // Use config.LOKI_URL first; fall back to process.env so the handler
+  // works even if a prior isolate:false test mutated the config singleton.
+  const lokiUrl = config.LOKI_URL || process.env['LOKI_URL'] || '';
+  if (!lokiUrl) {
     throw new ServiceUnavailableError('Loki not configured');
   }
 
   const query = buildLogQL(options);
   const { startNs, endNs } = resolveRange(options);
 
-  const url = new URL(`${config.LOKI_URL}/loki/api/v1/query_range`);
+  const url = new URL(`${lokiUrl}/loki/api/v1/query_range`);
   url.searchParams.set('query', query);
   url.searchParams.set('start', startNs);
   url.searchParams.set('end', endNs);

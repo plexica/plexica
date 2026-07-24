@@ -80,13 +80,17 @@ afterEach(() => {
 describe('Logs — GET /api/v1/admin/logs', () => {
   it('returns 503 SERVICE_UNAVAILABLE when LOKI_URL is not configured', async () => {
     const savedUrl = config.LOKI_URL;
+    const savedProcUrl = process.env['LOKI_URL'];
     config.LOKI_URL = '';
+    // Also clear process.env so the handler fallback (config || process.env) fails.
+    delete process.env['LOKI_URL'];
     try {
       const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs' });
       expect(res.statusCode).toBe(503);
       expect(JSON.parse(res.payload).error.code).toBe('SERVICE_UNAVAILABLE');
     } finally {
       config.LOKI_URL = savedUrl;
+      process.env['LOKI_URL'] = savedProcUrl;
     }
   });
 
