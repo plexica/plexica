@@ -64,6 +64,8 @@ suite('INT-03 public invitation acceptance', () => {
     server = await createTestServer();
     await server.register(invitationPublicRoutes);
     await server.register(async (tenantScope) => {
+      // Test scope — rate limiting is not needed in unit/integration tests.
+      // codeql[js/missing-rate-limiting]
       tenantScope.addHook('preHandler', authMiddleware);
       tenantScope.addHook('preHandler', tenantContextMiddleware);
       tenantScope.addHook('preHandler', userProfileResolver);

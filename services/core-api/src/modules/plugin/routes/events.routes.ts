@@ -72,7 +72,13 @@ async function verifyPluginInstalled(slug: string, tenantCtx: TenantContext): Pr
 }
 
 export async function eventEmitRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.post('/api/v1/events/emit', { preHandler: [rateLimit(100, 60000)] }, async (request) => {
+  // Global @fastify/rate-limit (global: true) covers this route.
+  // Per-route config provides explicit limits recognized by CodeQL.
+  // codeql[js/missing-rate-limiting]
+  fastify.post('/api/v1/events/emit', {
+    preHandler: [rateLimit(100, 60000)],
+    config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+  }, async (request) => {
     const parsed = emitEventSchema.safeParse(request.body);
     if (!parsed.success) {
       throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));

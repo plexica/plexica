@@ -80,6 +80,8 @@ beforeAll(async () => {
   ({ token, credentialId } = await issueAndActivate());
   server = Fastify({ logger: false });
   configureErrorHandler(server);
+  // Test server — rate limiting is not needed in unit/integration tests.
+  // codeql[js/missing-rate-limiting]
   server.addHook('preHandler', pluginEventAuth);
   server.addHook('preHandler', async (request) => {
     if (request.pluginServiceIdentity && request.user === undefined) {

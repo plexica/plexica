@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import {
   ForbiddenError,
   ServiceUnavailableError,
@@ -18,12 +20,20 @@ declare module 'fastify' {
   }
 }
 
+// Validate the service token format before using it to decide which
+// authentication path to take — a user-provided header value must not
+// control a security branch without schema validation.
+const serviceTokenSchema = z.string().min(1).max(256).regex(/^plxsvc_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+
 export async function pluginEventAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const serviceToken = request.headers['x-plugin-service-token'];
+  const rawServiceToken = request.headers['x-plugin-service-token'];
   const authHeader = request.headers.authorization;
 
-  if (typeof serviceToken === 'string' && serviceToken.length > 0) {
-    const identity = await authenticateServiceCredential(serviceToken).catch(() => {
+  const tokenResult = serviceTokenSchema.safeParse(
+    typeof rawServiceToken === 'string' ? rawServiceToken : ''
+  );
+  if (tokenResult.success) {
+    const identity = await authenticateServiceCredential(tokenResult.data).catch(() => {
       throw new ServiceUnavailableError('Plugin service authentication unavailable');
     });
     if (!identity) throw new ForbiddenError('Plugin service request denied');

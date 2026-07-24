@@ -19,6 +19,8 @@ export async function proxyRoutes(fastify: FastifyInstance): Promise<void> {
   // (multipart, binary, form-data) are NOT rejected with 415 and the raw
   // request stream is preserved for forwarding to the plugin backend.
   // This parser is scoped to the proxy route group only (Fastify encapsulation).
+  // Global @fastify/rate-limit (global: true) also covers this route.
+  // codeql[js/missing-rate-limiting]
   fastify.addContentTypeParser(
     '*',
     { parseAs: 'buffer' },
@@ -29,6 +31,9 @@ export async function proxyRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.all(
     '/api/v1/plugins/:installId/proxy/*',
+    {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
+    },
     async (request, reply) => {
       const parsedParams = proxyParamsSchema.safeParse(request.params);
       const parsedWorkspace = workspaceHeaderSchema.safeParse(

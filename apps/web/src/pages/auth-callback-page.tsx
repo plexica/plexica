@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
 import { useIntl, FormattedMessage } from 'react-intl';
+import { z } from 'zod';
 import { discardAuthorizationRequest } from '@plexica/auth/authorization-request';
 
 import { useAuthStore } from '../stores/auth-store.js';
@@ -21,7 +22,11 @@ export function AuthCallbackPage(): JSX.Element {
     const state = params.get('state');
 
     if (code === null || state === null) {
-      if (state !== null && state.length <= 512) discardAuthorizationRequest(state);
+      // Validate state with Zod before using it for cleanup — the raw
+      // URL parameter is user-controlled and must not bypass validation.
+      const stateSchema = z.string().min(1).max(512);
+      const stateResult = stateSchema.safeParse(state);
+      if (stateResult.success) discardAuthorizationRequest(stateResult.data);
       setError(intl.formatMessage({ id: 'auth.callback.error' }));
       return;
     }

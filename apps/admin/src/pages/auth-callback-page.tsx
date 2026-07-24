@@ -25,8 +25,11 @@ export function AuthCallbackPage(): JSX.Element {
       .safeParse({ code: params.get('code'), state: params.get('state') });
 
     if (!parsed.success) {
-      const state = params.get('state');
-      if (state !== null && state.length <= 512) discardAuthorizationRequest(state);
+      // Validate state with Zod before using it for cleanup — the raw
+      // URL parameter is user-controlled and must not bypass validation.
+      const stateSchema = z.string().min(1).max(512);
+      const stateResult = stateSchema.safeParse(params.get('state'));
+      if (stateResult.success) discardAuthorizationRequest(stateResult.data);
       setErrorId('admin.login.callbackInvalid');
       return;
     }

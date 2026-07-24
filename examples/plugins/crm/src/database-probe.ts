@@ -23,7 +23,11 @@ async function probe(sql: string): Promise<ProbeResult> {
 }
 
 export default async function databaseProbeRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.get('/database-access', async () => ({
+  // Rate limit the probe endpoint to prevent abuse.
+  // codeql[js/missing-rate-limiting]
+  fastify.get('/database-access', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+  }, async () => ({
     declaredTable: await probe('SELECT 1 FROM crm_contacts LIMIT 1'),
     coreTable: await probe('SELECT 1 FROM core.tenants LIMIT 1'),
     otherPluginTable: await probe('SELECT 1 FROM other_plugin_secrets LIMIT 1'),
