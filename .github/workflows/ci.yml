@@ -23,6 +23,7 @@ env:
   MINIO_SECRET_KEY: changeme
   KAFKA_BROKERS: localhost:19092
   LOKI_URL: http://localhost:3100
+  PLUGIN_DB_SSL_MODE: disable
 
 jobs:
   ci:
