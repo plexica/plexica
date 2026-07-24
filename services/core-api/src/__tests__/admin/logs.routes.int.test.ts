@@ -65,19 +65,30 @@ afterEach(() => {
 
 describe('Logs — GET /api/v1/admin/logs', () => {
   it('returns 503 SERVICE_UNAVAILABLE when LOKI_URL is not configured', async () => {
+    const savedUrl = config.LOKI_URL;
     config.LOKI_URL = '';
-    const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs' });
-    expect(res.statusCode).toBe(503);
-    expect(JSON.parse(res.payload).error.code).toBe('SERVICE_UNAVAILABLE');
+    try {
+      const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs' });
+      expect(res.statusCode).toBe(503);
+      expect(JSON.parse(res.payload).error.code).toBe('SERVICE_UNAVAILABLE');
+    } finally {
+      config.LOKI_URL = savedUrl;
+    }
   });
 
   it('returns 503 LOG_QUERY_TIMEOUT when Loki is too slow', async () => {
+    const savedUrl = config.LOKI_URL;
     config.LOKI_URL = 'http://loki.test:3100';
     const timeoutErr = new DOMException('Aborted', 'TimeoutError');
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeoutErr));
-    const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs' });
-    expect(res.statusCode).toBe(503);
-    expect(JSON.parse(res.payload).error.code).toBe('LOG_QUERY_TIMEOUT');
+    try {
+      const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs' });
+      expect(res.statusCode).toBe(503);
+      expect(JSON.parse(res.payload).error.code).toBe('LOG_QUERY_TIMEOUT');
+    } finally {
+      vi.unstubAllGlobals();
+      config.LOKI_URL = savedUrl;
+    }
   });
 
   skipIfNoLoki('returns logs from Loki (happy path)', async () => {
