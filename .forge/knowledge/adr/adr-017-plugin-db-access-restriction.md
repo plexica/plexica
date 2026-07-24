@@ -226,3 +226,74 @@ PostgreSQL enforces these restrictions at the protocol level:
 - **ADR-019: Plugin SDK & OpenAPI Architecture** — SDK connection pooling (5
   connections per plugin instance, configurable via `PLUGIN_DB_POOL_SIZE`).
   Each pool uses the restricted role's credentials.
+
+---
+
+## Amendment — 2026-07-23: Production TLS Parameters for Plugin DB Roles
+
+**Status**: Accepted (amends the accepted decision above)
+**Driver**: PR #77 security remediation; Spec 004 DR-18 and AC-07
+
+### Context
+
+Building a restricted connection URL from only host, port, and database drops
+TLS verification parameters. Conversely, copying every query parameter from the
+platform `DATABASE_URL` could expose privileged client certificates or unsafe
+session options to plugin containers. The generated URL needs one explicit,
+fail-closed policy.
+
+### Decision
+
+- Production plugin database URLs must use `sslmode=verify-full` and an absolute
+  CA path mounted read-only into the plugin runtime. Container orchestration
+  supplies the same dedicated CA path through `PLUGIN_DB_SSL_ROOT_CERT_PATH`.
+- Production startup and plugin install fail if the CA path is absent, relative,
+  not mounted, or if any requested mode is weaker than `verify-full`.
+- Development/test may explicitly use `sslmode=disable`; there is no production
+  fallback. Modes `allow`, `prefer`, `require`, and `verify-ca` are rejected.
+- Generated URLs contain only host, port, database, restricted role credentials,
+  encoded `search_path`, `sslmode`, and `sslrootcert`. Platform `sslcert`,
+  `sslkey`, passwords, arbitrary `options`, and unknown source URL parameters
+  are never copied to a plugin.
+- TLS policy is independent of table grants: both verified transport and the
+  per-install PostgreSQL role are required.
+
+Alternatives considered were copying all platform parameters (secret and option
+leakage), preserving only `sslmode=require` (encryption without server identity
+verification), and relying on cluster networking (no transport guarantee).
+They are rejected.
+
+### Consequences
+
+- **Positive**: production plugin connections authenticate PostgreSQL and do
+  not inherit privileged client material.
+- **Negative**: production deployments must mount a CA file into every plugin
+  runtime before installs or rotations can succeed.
+- **Neutral**: restricted DB passwords remain reversibly encrypted at rest
+  because runtime recreation needs them; ADR-024's API service secret is a
+  separate credential and is hash-only.
+
+### Migration and Rollout
+
+Mount and verify the CA before deploying strict URL generation. Rotate/restart
+each active plugin connection with the verified URL. Installations that cannot
+establish verified TLS become `degraded`; the platform must not retry with an
+insecure URL. Development compose explicitly sets disabled mode. Rollback may
+restore the prior application image only after preventing plugin starts; it may
+not weaken the production TLS mode.
+
+### Security and GDPR
+
+Connection URLs and DB passwords are never logged or returned. CA material is
+public trust material, mounted read-only. Verified TLS prevents credential and
+tenant payload interception in transit; role grants continue to limit the
+compromise radius.
+
+### Constitution Alignment
+
+| Article | Status | Notes |
+| --- | --- | --- |
+| Rule 5 / ADR | Compliant | Records a production database security policy. |
+| Security: tenant isolation | Improved | Protects restricted-role traffic in transit. |
+| Security: secrets | Compliant | Privileged client cert/key parameters are not propagated. |
+| Architecture: PostgreSQL | Compliant | Uses the prescribed database and role model. |

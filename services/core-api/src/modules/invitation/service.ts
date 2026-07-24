@@ -56,7 +56,7 @@ async function assertNoActiveInvitation(
   const existing = await findPendingInvitation(tenantDb, email, workspaceId);
   if (existing !== null) {
     throw new AlreadyExistsError(
-      `A pending invitation for ${email} in this workspace already exists (INVITATION_EXISTS)`
+      'A pending invitation for this address already exists in the workspace (INVITATION_EXISTS)'
     );
   }
 }

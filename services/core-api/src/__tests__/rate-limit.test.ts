@@ -1,16 +1,4 @@
-// rate-limit.test.ts
-// Integration tests for @fastify/rate-limit — admin endpoint rate limits.
-// Tests POST /api/admin/tenants (5 req/min) and POST /api/admin/tenants/migrate-all (2 req/5 min).
-//
-// Auth is stubbed via a Fastify onRequest hook — NOT via vi.mock. This pattern:
-//   1. Does not pollute the module cache (isolate:false safe).
-//   2. Tests the real rate-limit code paths with real @fastify/rate-limit behaviour.
-//   3. Avoids mocking any core service (constitution §Testing rule 4).
-//
-// Admin routes are registered manually with lightweight handlers so that:
-//   - provisionTenant / migrateAll are NOT called — only the rate-limit layer is exercised.
-//   - No live PostgreSQL, Keycloak, or Redis connection is required.
-//   - Each test gets a fresh Fastify instance to prevent counter bleed between cases.
+// Integration coverage for user-keyed admin endpoint rate limits.
 
 import { describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
@@ -28,9 +16,6 @@ import {
 import type { FastifyInstance } from 'fastify';
 import type { AuthUser } from '../middleware/auth-middleware.js';
 
-// ---------------------------------------------------------------------------
-// Canonical super-admin fixture — matches requireSuperAdmin() shape (ID-004).
-// ---------------------------------------------------------------------------
 const SUPER_ADMIN_USER: AuthUser = {
   id: 'test-super-admin',
   keycloakUserId: 'test-super-admin',
@@ -41,13 +26,7 @@ const SUPER_ADMIN_USER: AuthUser = {
   roles: ['super_admin'],
 };
 
-// ---------------------------------------------------------------------------
-// buildAdminServer — fresh Fastify instance for each test.
-//
-// Routes are registered manually (no tenantRoutes import) so no real DB or
-// external service call is made. The onRequest hook populates request.user
-// before per-route keyGenerators run in the preHandler lifecycle.
-// ---------------------------------------------------------------------------
+// Manual routes isolate the real rate-limit layer from external services.
 async function buildAdminServer(): Promise<FastifyInstance> {
   const server = Fastify({ logger: false });
   configureErrorHandler(server);

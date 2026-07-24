@@ -8,14 +8,22 @@
 // plugin_container_config.envOverrides and handed to the container in clear
 // (the container needs the real value to connect).
 
-import crypto from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import { prisma } from '../../../lib/database.js';
 import { logger } from '../../../lib/logger.js';
 import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 import { PluginInstallError } from '../errors.js';
 
+import {
+  buildPluginDatabaseUrl,
+  configuredPluginDbTransport,
+  encryptPluginDatabaseUrl,
+} from './plugin-db-credentials.js';
+
 import type { DeclaredTable } from '../schema/manifest.js';
+
+export { dropPluginRole, revokeCreateOnSchema } from './db-role-cleanup.service.js';
 
 const PG_IDENT = /^[a-z0-9_]+$/;
 const TABLE_NAME = /^[a-z][a-z0-9_]{1,63}$/;
@@ -35,53 +43,7 @@ function quoteIdent(name: string): string {
 }
 
 function randomPassword(): string {
-  return crypto.randomBytes(24).toString('base64url');
-}
-
-/**
- * Derives a 32-byte AES key for encrypting connection strings at rest.
- * Production MUST set PLUGIN_DB_ENCRYPTION_KEY (64 hex chars). In dev we fall
- * back to a key derived from DATABASE_URL so installs still work, with a warning.
- */
-function encryptionKey(): Buffer {
-  const envKey = process.env['PLUGIN_DB_ENCRYPTION_KEY'];
-  if (envKey && /^[0-9a-fA-F]{64}$/.test(envKey)) {
-    return Buffer.from(envKey, 'hex');
-  }
-  if (process.env['NODE_ENV'] === 'production') {
-    throw new PluginInstallError(
-      'PLUGIN_DB_ENCRYPTION_KEY (64 hex chars) is required in production to encrypt plugin DB credentials',
-    );
-  }
-  logger.warn(
-    'PLUGIN_DB_ENCRYPTION_KEY not set — deriving a dev-only key from DATABASE_URL. Do NOT use in production.',
-  );
-  return crypto.createHash('sha256').update(process.env['DATABASE_URL'] ?? 'plexica-dev').digest();
-}
-
-function encrypt(plaintext: string): string {
-  const key = encryptionKey();
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `v1:${iv.toString('hex')}:${tag.toString('hex')}:${enc.toString('hex')}`;
-}
-
-function parseDbUrl(url: string): { host: string; port: string; dbname: string } {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new PluginInstallError('DATABASE_URL is not a valid URL — cannot build plugin connection string');
-  }
-  return { host: parsed.hostname || 'localhost', port: parsed.port || '5432', dbname: parsed.pathname.replace(/^\//, '') || 'postgres' };
-}
-
-function buildConnectionString(roleName: string, password: string, schemaName: string): string {
-  const { host, port, dbname } = parseDbUrl(process.env['DATABASE_URL'] ?? '');
-  const enc = (s: string) => encodeURIComponent(s);
-  return `postgresql://${enc(roleName)}:${enc(password)}@${host}:${port}/${dbname}?schema=${enc(schemaName)}`;
+  return randomBytes(24).toString('base64url');
 }
 
 /**
@@ -96,7 +58,7 @@ function buildConnectionString(roleName: string, password: string, schemaName: s
 export async function createPluginRole(
   installId: string,
   tenantSlug: string,
-  declaredTables: DeclaredTable[],
+  declaredTables: DeclaredTable[]
 ): Promise<PluginRole> {
   // installId is a UUID (contains hyphens). We transform it into a valid
   // PostgreSQL identifier by replacing hyphens with underscores, then validate
@@ -132,22 +94,35 @@ export async function createPluginRole(
   } catch (err: unknown) {
     // Best-effort cleanup of a half-created role before surfacing the error.
     try {
-      await prisma.$executeRawUnsafe(`REVOKE ALL ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`);
+      await prisma.$executeRawUnsafe(
+        `REVOKE ALL ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`
+      );
       await prisma.$executeRawUnsafe(`DROP ROLE IF EXISTS ${quoteIdent(roleName)}`);
     } catch {
       /* ignore */
     }
-    throw new PluginInstallError(`Failed to create restricted plugin DB role: ${(err as Error)?.message ?? err}`);
+    throw new PluginInstallError(
+      `Failed to create restricted plugin DB role: ${(err as Error)?.message ?? err}`
+    );
   }
 
-  const connectionString = buildConnectionString(roleName, password, schemaName);
-  logger.info({ roleName, schemaName, tableCount: declaredTables.length }, 'Created restricted plugin DB role');
+  const connectionString = buildPluginDatabaseUrl(
+    process.env['DATABASE_URL'] ?? '',
+    roleName,
+    password,
+    schemaName,
+    configuredPluginDbTransport()
+  );
+  logger.info(
+    { roleName, schemaName, tableCount: declaredTables.length },
+    'Created restricted plugin DB role'
+  );
 
   return {
     roleName,
     schemaName,
     connectionString,
-    encryptedEnvOverrides: { DATABASE_URL: encrypt(connectionString) },
+    encryptedEnvOverrides: { DATABASE_URL: encryptPluginDatabaseUrl(connectionString) },
   };
 }
 
@@ -160,7 +135,7 @@ export async function createPluginRole(
 export async function grantTablePrivileges(
   installId: string,
   tenantSlug: string,
-  declaredTables: DeclaredTable[],
+  declaredTables: DeclaredTable[]
 ): Promise<void> {
   const roleName = `plugin_${installId.replace(/-/g, '_')}`;
   const schemaName = toSchemaName(tenantSlug);
@@ -169,10 +144,16 @@ export async function grantTablePrivileges(
   }
   for (const t of declaredTables) {
     await prisma.$executeRawUnsafe(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${quoteIdent(schemaName)}.${quoteIdent(t.name)} TO ${quoteIdent(roleName)}`,
+      `ALTER TABLE ${quoteIdent(schemaName)}.${quoteIdent(t.name)} OWNER TO CURRENT_USER`
+    );
+    await prisma.$executeRawUnsafe(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${quoteIdent(schemaName)}.${quoteIdent(t.name)} TO ${quoteIdent(roleName)}`
     );
   }
-  logger.info({ roleName, schemaName, tableCount: declaredTables.length }, 'Granted DML on plugin tables to restricted role');
+  logger.info(
+    { roleName, schemaName, tableCount: declaredTables.length },
+    'Granted DML on plugin tables to restricted role'
+  );
 }
 
 /**
@@ -184,41 +165,11 @@ export async function grantCreateOnSchema(installId: string, tenantSlug: string)
   const roleName = `plugin_${installId.replace(/-/g, '_')}`;
   const schemaName = toSchemaName(tenantSlug);
   await prisma.$executeRawUnsafe(
-    `GRANT CREATE ON SCHEMA ${quoteIdent(schemaName)} TO ${quoteIdent(roleName)}`,
+    `GRANT CREATE ON SCHEMA ${quoteIdent(schemaName)} TO ${quoteIdent(roleName)}`
   );
   // Allow the platform admin role to SET ROLE plugin_xxx when running migrations.
   await prisma.$executeRawUnsafe(`GRANT ${quoteIdent(roleName)} TO CURRENT_USER`).catch(() => {
     /* superusers do not need membership; ignore */
   });
   return roleName;
-}
-
-export async function revokeCreateOnSchema(installId: string, tenantSlug: string): Promise<void> {
-  const roleName = `plugin_${installId.replace(/-/g, '_')}`;
-  const schemaName = toSchemaName(tenantSlug);
-  await prisma.$executeRawUnsafe(
-    `REVOKE CREATE ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`,
-  ).catch((err: unknown) => {
-    logger.warn({ err: (err as Error)?.message, roleName }, 'Failed to revoke CREATE on schema from plugin role');
-  });
-}
-
-/**
- * Drops the restricted role and its privileges. Called on uninstall.
- */
-export async function dropPluginRole(installId: string, tenantSlug: string): Promise<void> {
-  const roleName = `plugin_${installId.replace(/-/g, '_')}`;
-  const schemaName = toSchemaName(tenantSlug);
-  await prisma.$executeRawUnsafe(
-    `REVOKE ALL ON ALL TABLES IN SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`,
-  ).catch(() => {
-    /* ignore */
-  });
-  await prisma.$executeRawUnsafe(
-    `REVOKE USAGE ON SCHEMA ${quoteIdent(schemaName)} FROM ${quoteIdent(roleName)}`,
-  ).catch(() => {
-    /* ignore */
-  });
-  await prisma.$executeRawUnsafe(`DROP ROLE IF EXISTS ${quoteIdent(roleName)}`);
-  logger.info({ roleName }, 'Dropped restricted plugin DB role');
 }

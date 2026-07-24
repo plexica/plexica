@@ -1,0 +1,48 @@
+# CodeRabbit configuration
+# See: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+early_access: false
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - develop
+  resolve_conversation: true
+  path_instructions:
+    - path: "packages/auth/**"
+      instructions: |
+        Apply strict Zod validation for all external inputs.
+        Ensure PKCE is correctly implemented with state-keyed verifiers.
+    - path: "apps/**/e2e/**"
+      instructions: |
+        E2E tests must be deterministic with real infrastructure.
+        No conditional skips, no test-app separation.
+    - path: "e2e/**"
+      instructions: |
+        Shared E2E fixtures and helpers — must be deterministic,
+        use real infrastructure only, never mock core services.
+    - path: "infra/**"
+      instructions: |
+        Security-sensitive infrastructure configs.
+        Validate PKCE enforcement, TLS settings, secrets management.
+    - path: "docker-compose.yml"
+      instructions: |
+        Security-sensitive infrastructure configuration.
+        Validate PKCE enforcement on Keycloak clients,
+        TLS settings on all services, no hardcoded secrets.
+    - path: ".github/actions/docker-infra/action.yml"
+      instructions: |
+        CI infrastructure action. Must not expose secrets in logs,
+        must use secure defaults, must validate service health
+        before dependent steps run.
+chat:
+  auto_reply: true

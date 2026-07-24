@@ -7,13 +7,14 @@
 //
 // Requires users with the respective required actions set in Keycloak.
 // Skips each describe block when the corresponding env vars are not set.
-// Skips all tests when the Plexica theme fell back to default (all assertions
-// in this file require Plexica-specific CSS classes).
+// Theme-specific skips require PLAYWRIGHT_ALLOW_KEYCLOAK_THEME_FALLBACK=true,
+// which global setup rejects in CI.
 //
 // Spec: ADR-010 (Keycloakify theme), Constitution Rule 1 (every feature has E2E).
 
 import { expect, test } from './helpers/base-fixture.js';
 import { isPlexicaThemeActive } from './helpers/keycloak-login.js';
+import { LOCAL_THEME_FALLBACK_REASON } from './theme-fallback-policy.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
@@ -44,7 +45,7 @@ test.describe('Keycloak theme — Update password page', () => {
   );
 
   test('update-password page shows Plexica branding', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
@@ -58,7 +59,7 @@ test.describe('Keycloak theme — Update password page', () => {
   });
 
   test('update-password page has new-password and confirm-password fields', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
@@ -71,7 +72,7 @@ test.describe('Keycloak theme — Update password page', () => {
   });
 
   test('update-password: new-password toggle changes input type', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
@@ -88,7 +89,7 @@ test.describe('Keycloak theme — Update password page', () => {
   });
 
   test('update-password: mismatch shows confirm-password error', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PASSWORD_USER);
@@ -117,7 +118,7 @@ test.describe('Keycloak theme — Update profile page', () => {
   );
 
   test('update-profile page shows Plexica branding', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
@@ -131,7 +132,7 @@ test.describe('Keycloak theme — Update profile page', () => {
   });
 
   test('update-profile page renders profile fields with our CSS classes', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
@@ -147,7 +148,7 @@ test.describe('Keycloak theme — Update profile page', () => {
   });
 
   test('update-profile page has a submit button', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);
@@ -160,7 +161,7 @@ test.describe('Keycloak theme — Update profile page', () => {
   });
 
   test('update-profile: readonly fields are visually disabled', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
     await page.fill('input[name="username"]', FORCE_PROFILE_USER);

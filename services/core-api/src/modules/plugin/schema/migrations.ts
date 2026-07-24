@@ -26,6 +26,7 @@ export const migrationFileSchema = z.object({
 export interface MigrationValidation {
   valid: boolean;
   errors: string[];
+  statements: string[];
 }
 
 interface ParsedAst {
@@ -36,24 +37,30 @@ interface ParsedAst {
   query_expr?: { with?: unknown } | null;
   with?: unknown;
   index_type?: string;
+  expr?: Array<{ action?: string }>;
 }
 
 function tableNamePattern(slug: string): RegExp {
   return new RegExp(`^${slug}_[a-z0-9_]+$`);
 }
 
-function extractTableRef(ast: ParsedAst): { schema: string | null; table: string | null } {
-  // CREATE TABLE / ALTER TABLE → a.table is an array of { db, table }
-  const tableField = ast.table;
-  if (Array.isArray(tableField)) {
-    const first = tableField[0] as { db?: string | null; table?: string | null } | undefined;
-    return { schema: first?.db ?? null, table: first?.table ?? null };
+function collectTableRefs(
+  value: unknown,
+  refs: Array<{ schema: string | null; table: string }>
+): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectTableRefs(item, refs);
+    return;
   }
-  if (tableField && typeof tableField === 'object') {
-    const t = tableField as { db?: string | null; table?: string | null };
-    return { schema: t.db ?? null, table: t.table ?? null };
+  if (!value || typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  if (typeof record['table'] === 'string') {
+    refs.push({
+      schema: typeof record['db'] === 'string' ? record['db'] : null,
+      table: record['table'],
+    });
   }
-  return { schema: null, table: null };
+  for (const nested of Object.values(record)) collectTableRefs(nested, refs);
 }
 
 /**
@@ -69,21 +76,21 @@ function extractTableRef(ast: ParsedAst): { schema: string | null; table: string
  * @param sql   Raw migration SQL (may contain multiple statements).
  * @param slug  Plugin slug — all referenced tables must be in its namespace.
  */
-export function validateMigrationSql(sql: string, slug: string): MigrationValidation {
+export function prepareMigrationSql(sql: string, slug: string): MigrationValidation {
   const errors: string[] = [];
   const expectedTable = tableNamePattern(slug);
 
   let parsed: { ast: ParsedAst | ParsedAst[]; tableList: string[] };
   try {
     parsed = parser.parse(sql, PARSE_OPT) as { ast: ParsedAst | ParsedAst[]; tableList: string[] };
-  } catch (err: unknown) {
-    return { valid: false, errors: [`SQL parse error: ${(err as Error)?.message ?? err}`] };
+  } catch {
+    return { valid: false, errors: ['SQL parse error'], statements: [] };
   }
 
   const stmts: ParsedAst[] = Array.isArray(parsed.ast) ? parsed.ast : [parsed.ast];
 
-  // tableList entries have the shape "action::schema::table" — scan for any
-  // cross-schema or subquery reference the per-statement check might miss.
+  if (stmts.length === 0) errors.push('Migration must contain at least one statement');
+
   for (const entry of parsed.tableList ?? []) {
     const [, schema, table] = entry.split('::');
     if (schema && schema !== 'null' && schema === 'core') {
@@ -99,7 +106,9 @@ export function validateMigrationSql(sql: string, slug: string): MigrationValida
     const keyword = (ast.keyword ?? '').toLowerCase();
 
     if (type !== 'create' && type !== 'alter') {
-      errors.push(`Disallowed statement type "${type}" — only CREATE TABLE / CREATE INDEX / ALTER TABLE allowed`);
+      errors.push(
+        `Disallowed statement type "${type}" — only CREATE TABLE / CREATE INDEX / ALTER TABLE allowed`
+      );
       continue;
     }
     if (type === 'create' && keyword !== 'table' && keyword !== 'index') {
@@ -110,6 +119,12 @@ export function validateMigrationSql(sql: string, slug: string): MigrationValida
       errors.push(`Disallowed ALTER "${keyword}" — only ALTER TABLE allowed`);
       continue;
     }
+    if (
+      type === 'alter' &&
+      (!ast.expr?.length || ast.expr.some(({ action }) => action !== 'add'))
+    ) {
+      errors.push('Only additive ALTER TABLE operations are allowed');
+    }
 
     // Block CREATE TABLE ... AS SELECT and CTEs outright.
     if (ast.as === 'as' || ast.query_expr) {
@@ -119,39 +134,27 @@ export function validateMigrationSql(sql: string, slug: string): MigrationValida
       errors.push('WITH (CTE) clauses are not allowed in plugin migrations');
     }
 
-    const { schema, table } = extractTableRef(ast);
-    if (schema && schema !== 'null' && schema === 'core') {
-      errors.push(`Migration must not reference the "core" schema (table: ${schema}.${table ?? '?'})`);
-    }
-    if (schema && schema !== 'null') {
-      errors.push(`Migration must not reference schema "${schema}" — only the tenant schema is permitted`);
-    }
-    if (!table || !expectedTable.test(table)) {
-      errors.push(
-        `Referenced table "${table ?? '?'}" does not match the plugin namespace "${slug}_*"`,
-      );
+    const refs: Array<{ schema: string | null; table: string }> = [];
+    collectTableRefs(ast, refs);
+    if (refs.length === 0) errors.push('Migration statement has no recognized table reference');
+    for (const { schema, table } of refs) {
+      if (schema && schema !== 'null') {
+        errors.push(`Migration must not reference schema "${schema}"`);
+      }
+      if (!expectedTable.test(table)) {
+        errors.push(`Referenced table "${table}" does not match the plugin namespace "${slug}_*"`);
+      }
     }
   }
 
-  return { valid: errors.length === 0, errors };
+  const valid = errors.length === 0;
+  return {
+    valid,
+    errors,
+    statements: valid ? stmts.map((statement) => parser.sqlify(statement as never, PARSE_OPT)) : [],
+  };
 }
 
-/**
- * Splits a multi-statement SQL string into individual statements.
- *
- * Prisma's `$executeRawUnsafe` executes ONLY the first statement of a
- * multi-statement string. For plugin migrations (CREATE TABLE + CREATE INDEX
- * ...), this silently drops every statement after the first — including the
- * workspace-isolation index. Since `validateMigrationSql` already guarantees
- * only CREATE TABLE / CREATE INDEX / ALTER TABLE (no INSERT/string literals
- * containing semicolons), splitting on the statement terminator `;` is safe.
- *
- * Returns trimmed, non-empty statements WITHOUT the trailing semicolon —
- * callers re-append it before execution.
- */
-export function splitSqlStatements(sql: string): string[] {
-  return sql
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith('--'));
+export function validateMigrationSql(sql: string, slug: string): MigrationValidation {
+  return prepareMigrationSql(sql, slug);
 }

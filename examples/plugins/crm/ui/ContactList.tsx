@@ -6,6 +6,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Button, 
 import { fetchContacts, createContact, updateContact, deleteContact } from './api';
 import { ContactForm } from './ContactForm';
 
+import type { CrmApiContext } from './api';
 import type { Contact, ContactFormData } from './types';
 
 function SkeletonRows(): React.JSX.Element {
@@ -24,7 +25,7 @@ function SkeletonRows(): React.JSX.Element {
   );
 }
 
-export function ContactList(): React.JSX.Element {
+export function ContactList(context: CrmApiContext): React.JSX.Element {
   const intl = useIntl();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -32,12 +33,12 @@ export function ContactList(): React.JSX.Element {
   const [deleting, setDeleting] = useState<Contact | null>(null);
 
   const { data: contacts, isLoading, isError, refetch } = useQuery<Contact[]>({
-    queryKey: ['crm', 'contacts'],
-    queryFn: fetchContacts,
+    queryKey: ['crm', 'contacts', context.workspaceId],
+    queryFn: () => fetchContacts(context),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: ContactFormData) => createContact(data),
+    mutationFn: (data: ContactFormData) => createContact(context, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'contacts'] });
       setShowForm(false);
@@ -45,7 +46,7 @@ export function ContactList(): React.JSX.Element {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<ContactFormData> }) => updateContact(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<ContactFormData> }) => updateContact(context, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'contacts'] });
       setEditingContact(null);
@@ -53,7 +54,7 @@ export function ContactList(): React.JSX.Element {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteContact(id),
+    mutationFn: (id: string) => deleteContact(context, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['crm', 'contacts'] });
       setDeleting(null);
@@ -62,7 +63,7 @@ export function ContactList(): React.JSX.Element {
 
   function handleEdit(contact: Contact): void { setEditingContact(contact); setShowForm(true); }
 
-  function handleFormSubmit(data: ContactFormData): Promise<void> {
+  function handleFormSubmit(data: ContactFormData): Promise<unknown> {
     if (editingContact) return updateMutation.mutateAsync({ id: editingContact.id, data });
     return createMutation.mutateAsync(data);
   }
@@ -99,6 +100,7 @@ export function ContactList(): React.JSX.Element {
   if (!contacts || contacts.length === 0) {
     return (
       <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-neutral-900">{intl.formatMessage({ id: 'crm.list.title' })}</h2>
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-neutral-300 p-8 text-center">
           <p className="text-sm text-neutral-500">{intl.formatMessage({ id: 'crm.list.empty' })}</p>
           <Button
@@ -132,7 +134,7 @@ export function ContactList(): React.JSX.Element {
 
       {showForm && (
         <ContactForm
-          contact={editingContact ?? undefined}
+          {...(editingContact ? { contact: editingContact } : {})}
           onSubmit={handleFormSubmit}
           onCancel={handleCancel}
           loading={createMutation.isPending || updateMutation.isPending}

@@ -43,5 +43,5 @@ export async function sendInvitationEmail(
     html,
   });
 
-  logger.info({ to, tenantName }, 'Invitation email sent');
+  logger.info({ tenantName }, 'Invitation email sent');
 }

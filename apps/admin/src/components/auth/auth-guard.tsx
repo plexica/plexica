@@ -1,12 +1,10 @@
 // auth-guard.tsx
 // Route guard for the admin app.
-// Unlike apps/web (which redirects to Keycloak PKCE flow), the admin app uses
-// a password-grant login form served at /login. Unauthenticated users are
-// redirected there. A silent refresh is attempted first when a refresh token
-// is present (e.g. page reload after access-token TTL expiry).
+// Uses useSilentRefresh from @plexica/auth for the shared silent-refresh pattern.
+// When unauthenticated with no refresh token, redirects to Keycloak PKCE login.
 
-import { useEffect, useRef } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useCallback } from 'react';
+import { useSilentRefresh } from '@plexica/auth/use-silent-refresh';
 
 import { useAuthStore } from '../../stores/auth-store.js';
 
@@ -20,27 +18,18 @@ export function AuthGuard({ children }: AuthGuardProps): JSX.Element | null {
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const refresh = useAuthStore((s) => s.refresh);
   const setSessionExpired = useAuthStore((s) => s.setSessionExpired);
-  const navigate = useNavigate();
+  const login = useAuthStore((s) => s.login);
 
-  const refreshAttempted = useRef(false);
+  const onUnauthenticated = useCallback(() => {
+    void login().catch(() => undefined);
+  }, [login]);
 
-  useEffect(() => {
-    if (status !== 'unauthenticated') return;
+  const { isAuthenticated: guarded } = useSilentRefresh(
+    { status, isAuthenticated, refreshToken, refresh, setSessionExpired },
+    onUnauthenticated,
+  );
 
-    if (refreshToken !== null && !refreshAttempted.current) {
-      refreshAttempted.current = true;
-      refresh().catch(() => {
-        setSessionExpired();
-      });
-      return;
-    }
-
-    if (refreshToken === null) {
-      void navigate({ to: '/login' });
-    }
-  }, [status, refreshToken, refresh, setSessionExpired, navigate]);
-
-  if (!isAuthenticated) {
+  if (!guarded) {
     return null;
   }
 

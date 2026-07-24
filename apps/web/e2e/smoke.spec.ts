@@ -11,7 +11,9 @@ import { expect, test } from './helpers/base-fixture.js';
 
 test.describe('App smoke test', () => {
   test('app loads at / without tenant and shows org-error page', async ({ page }) => {
-    await page.goto('/');
+    // In production mode, tenant is resolved from the host subdomain.
+    // Use a bare localhost (no subdomain) to trigger the no-subdomain org-error.
+    await page.goto('http://localhost:3000/');
 
     // Root loader must redirect to /org-error (no tenant in URL or sessionStorage)
     await page.waitForURL(/\/org-error/, { timeout: 10_000 });

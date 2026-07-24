@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
 import { useIntl, FormattedMessage } from 'react-intl';
+import { z } from 'zod';
+import { discardAuthorizationRequest } from '@plexica/auth/authorization-request';
 
 import { useAuthStore } from '../stores/auth-store.js';
 
@@ -20,21 +22,32 @@ export function AuthCallbackPage(): JSX.Element {
     const state = params.get('state');
 
     if (code === null || state === null) {
+      // Validate state with Zod before using it for cleanup — the raw
+      // URL parameter is user-controlled and must not bypass validation.
+      const stateSchema = z.string().min(1).max(512);
+      const stateResult = stateSchema.safeParse(state);
+      if (stateResult.success) discardAuthorizationRequest(stateResult.data);
       setError(intl.formatMessage({ id: 'auth.callback.error' }));
       return;
     }
 
+    let active = true;
     void handleCallback(code, state)
-      .then(() => navigate({ to: '/dashboard' }))
-      .catch((err: unknown) => {
-        setError(String(err instanceof Error ? err.message : err));
+      .then(() => {
+        if (active) void navigate({ to: '/dashboard' });
+      })
+      .catch(() => {
+        if (active) setError(intl.formatMessage({ id: 'auth.callback.error' }));
       });
-  }, []); // intentionally empty — runs once on mount only
+    return () => {
+      active = false;
+    };
+  }, [handleCallback, intl, navigate]);
 
   if (error !== null) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <p role="alert" className="text-error">
+        <p role="alert" aria-live="assertive" className="text-error">
           {error}
         </p>
         {/* M-8: use TanStack Router <Link> instead of raw <a href> to avoid full page reload */}
@@ -47,7 +60,7 @@ export function AuthCallbackPage(): JSX.Element {
 
   return (
     <main className="flex min-h-screen items-center justify-center" aria-busy="true">
-      <p className="text-neutral-600">
+      <p role="status" aria-live="polite" className="text-neutral-600">
         <FormattedMessage id="auth.callback.loading" />
       </p>
     </main>

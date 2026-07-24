@@ -1,89 +1,182 @@
-// ac-06-dlq.spec.ts — Spec 004, AC-06: Dead Letter Queue.
-// Real behavior: super admin accesses the DLQ API, entries load, and retrying a
-// pending entry changes its status (or the entry leaves the pending filter).
-//
-// The DLQ endpoints require a master-realm super admin token. Unlike tenant-realm
-// logins, the Keycloak master realm does not have the 'plexica-web' client, so the
-// frontend OIDC flow cannot be used. Instead we obtain a token directly from the
-// Keycloak admin API using the admin-cli client.
-//
-// This test is purely API-driven — it does not interact with the frontend UI, so
-// there is no need to log in through the browser.
+import crypto from 'node:crypto';
 
+import { createConsumer } from '../../../../services/core-api/src/lib/kafka.js';
+import { getE2eApiToken } from '../../../../e2e/keycloak/ephemeral-client.js';
 import { expect, test } from '../helpers/base-fixture.js';
+import { loginAsAdmin, uniqueName } from '../helpers/admin-login.js';
+import {
+  createWorkspaceFixture,
+  ensureCrmInstalled,
+  getBrowserToken,
+} from '../helpers/plugin-fixtures.js';
+
+import type { APIRequestContext } from '@playwright/test';
 
 const API_BASE = process.env['PLAYWRIGHT_API_URL'] ?? 'http://localhost:3001';
-const KEYCLOAK_URL = process.env['KEYCLOAK_URL'] ?? process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
-const KEYCLOAK_ADMIN_USER = process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin';
-const KEYCLOAK_ADMIN_PASSWORD = process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme';
+const createdWorkspaceIds: string[] = [];
 
-/**
- * Obtains a Keycloak access token for the master-realm admin user.
- * Uses the plexica-web client (created in the master realm by global-setup)
- * which includes realm_access.roles in the token. The admin-cli client
- * does not include realm roles, so it cannot be used with the
- * require-super-admin middleware.
- */
-async function getSuperAdminToken(): Promise<string> {
-  const res = await fetch(`${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'plexica-web',
-      username: KEYCLOAK_ADMIN_USER,
-      password: KEYCLOAK_ADMIN_PASSWORD,
-    }).toString(),
-  });
-  if (!res.ok) {
-    throw new Error(`Super admin token fetch failed: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
+interface TopicProbe {
+  next: Promise<Record<string, unknown>>;
+  stop: () => Promise<void>;
 }
 
-// Skip condition: require Keycloak URL + admin credentials to be present.
-const hasSuperAdminCredentials =
-  KEYCLOAK_URL.length > 0 && KEYCLOAK_ADMIN_USER.length > 0 && KEYCLOAK_ADMIN_PASSWORD.length > 0;
+async function getHandlerAttempts(
+  request: APIRequestContext,
+  token: string,
+  installId: string,
+  workspaceId: string
+): Promise<number> {
+  const response = await request.get(
+    `${API_BASE}/api/v1/plugins/${installId}/proxy/_plexica/event/attempts/${workspaceId}`,
+    { headers: { Authorization: `Bearer ${token}`, 'X-Plexica-Workspace-Id': workspaceId } }
+  );
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as { count: number }).count;
+}
 
-test.describe('004 Plugin System — AC-06: Dead Letter Queue', () => {
-  test.skip(!hasSuperAdminCredentials, 'Requires Keycloak admin credentials (KEYCLOAK_ADMIN_USER / KEYCLOAK_ADMIN_PASSWORD)');
+async function startTopicProbe(
+  topic: string,
+  predicate: (payload: Record<string, unknown>) => boolean
+): Promise<TopicProbe> {
+  const consumer = createConsumer(`e2e-probe-${crypto.randomUUID()}`);
+  await consumer.connect();
+  await consumer.subscribe({ topic, fromBeginning: false });
+  let resolveMessage!: (payload: Record<string, unknown>) => void;
+  const message = new Promise<Record<string, unknown>>((resolve) => {
+    resolveMessage = resolve;
+  });
+  await consumer.run({
+    eachMessage: async ({ message: kafkaMessage }) => {
+      const payload = JSON.parse(kafkaMessage.value?.toString() ?? '{}') as Record<string, unknown>;
+      if (predicate(payload)) resolveMessage(payload);
+    },
+  });
+  return {
+    next: Promise.race([
+      message,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`No ${topic} event`)), 10_000)
+      ),
+    ]),
+    stop: () => consumer.disconnect(),
+  };
+}
 
-  test('DLQ API loads entries and retrying a pending entry changes its status', async ({ page }) => {
-    const token = await getSuperAdminToken();
-    expect(token, 'super admin access token must be obtained').toBeTruthy();
+async function findDlqEntry(
+  request: APIRequestContext,
+  token: string,
+  workspaceId: string,
+  entryId?: string
+): Promise<{ id: string; eventId: string; retryCount: number; status: string } | undefined> {
+  const response = await request.get(`${API_BASE}/api/v1/admin/system/dlq?pageSize=100`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok()) return undefined;
+  const body = (await response.json()) as {
+    data: Array<{
+      id: string;
+      eventId: string;
+      retryCount: number;
+      status: string;
+      payload: { payload?: { id?: string } };
+    }>;
+  };
+  return body.data.find(
+    (entry) =>
+      entry.payload.payload?.id === workspaceId && (entryId === undefined || entry.id === entryId)
+  );
+}
 
-    // List DLQ entries (all statuses).
-    const listRes = await page.request.get(`${API_BASE}/api/v1/admin/system/dlq`, {
-      headers: { Authorization: `Bearer ${token}` },
+test.describe('004 Plugin System - AC-06: Dead Letter Queue', () => {
+  test.afterEach(() => {
+    createdWorkspaceIds.splice(0);
+  });
+
+  test('failed Kafka delivery retries three times, enters DLQ, and retry republishes original topic', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(180_000);
+    await loginAsAdmin(page);
+    const token = await getBrowserToken(page);
+    const installId = await ensureCrmInstalled(page, token);
+    const superToken = await getE2eApiToken();
+    let workspaceId = '';
+    const dlqProbe = await startTopicProbe(
+      'plexica.plugin.dlq',
+      (message) => message.type === 'plexica.plugin.delivery.failed'
+    );
+    workspaceId = await createWorkspaceFixture(page, token, uniqueName('e2e-dlq-failure'));
+    createdWorkspaceIds.push(workspaceId);
+
+    const dlqMessage = await dlqProbe.next;
+    await dlqProbe.stop();
+    expect(dlqMessage).toMatchObject({
+      type: 'plexica.plugin.delivery.failed',
+      schemaVersion: 1,
+      encryption: { algorithm: 'A256GCM' },
     });
-    expect(listRes.status(), `DLQ list should return 200`).toBe(200);
-    const body = await listRes.json() as { data: Array<{ id: string; status: string }> };
-    expect(Array.isArray(body.data)).toBe(true);
+    expect(dlqMessage).toHaveProperty('ciphertext');
+    expect(dlqMessage).not.toHaveProperty('payload');
+    await expect
+      .poll(() => getHandlerAttempts(request, token, installId, workspaceId), {
+        timeout: 10_000,
+      })
+      .toBe(3);
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId), {
+        timeout: 10_000,
+      })
+      .toMatchObject({ retryCount: 3, status: 'pending' });
+    const entry = await findDlqEntry(request, superToken, workspaceId);
+    expect(entry).toBeDefined();
 
-    // If there are no pending entries, the empty DLQ is a valid state.
-    const pending = body.data.filter((e) => e.status === 'pending');
-    if (pending.length === 0) {
-      return;
-    }
-
-    // Retry the first pending entry.
-    const entry = pending[0];
-    if (!entry) return;
-    const entryId = entry.id;
-    const retryRes = await page.request.post(
-      `${API_BASE}/api/v1/admin/system/dlq/${entryId}/retry`,
-      { headers: { Authorization: `Bearer ${token}` } },
+    const originalProbe = await startTopicProbe(
+      'plexica.workspace.created',
+      (message) => message.eventId === entry!.eventId
     );
-    expect(retryRes.status()).toBeLessThan(500);
+    const retry = await request.post(`${API_BASE}/api/v1/admin/system/dlq/${entry!.id}/retry`, {
+      headers: { Authorization: `Bearer ${superToken}` },
+    });
+    expect(retry.status()).toBe(200);
+    expect(await originalProbe.next).toMatchObject({
+      eventId: entry!.eventId,
+      schemaVersion: 1,
+      encryption: { algorithm: 'A256GCM' },
+    });
+    await originalProbe.stop();
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId, entry!.id))
+      .toMatchObject({
+        id: entry!.id,
+        status: 'retried',
+      });
+  });
 
-    // After retry, the entry should no longer be pending.
-    const verifyRes = await page.request.get(
-      `${API_BASE}/api/v1/admin/system/dlq?status=pending`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    expect(verifyRes.status()).toBe(200);
-    const verifyBody = await verifyRes.json() as { data: Array<{ id: string }> };
-    expect(verifyBody.data.some((e) => e.id === entryId)).toBe(false);
+  test('super admin dismisses a real failed-consumer DLQ entry', async ({ page, request }) => {
+    test.setTimeout(180_000);
+    await loginAsAdmin(page);
+    const token = await getBrowserToken(page);
+    await ensureCrmInstalled(page, token);
+    const workspaceId = await createWorkspaceFixture(page, token, uniqueName('e2e-dlq-failure'));
+    createdWorkspaceIds.push(workspaceId);
+    const superToken = await getE2eApiToken();
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId), {
+        timeout: 10_000,
+      })
+      .toMatchObject({ retryCount: 3, status: 'pending' });
+    const entry = await findDlqEntry(request, superToken, workspaceId);
+
+    const dismiss = await request.post(`${API_BASE}/api/v1/admin/system/dlq/${entry!.id}/dismiss`, {
+      headers: { Authorization: `Bearer ${superToken}` },
+    });
+    expect(dismiss.status()).toBe(200);
+    await expect
+      .poll(() => findDlqEntry(request, superToken, workspaceId, entry!.id))
+      .toMatchObject({
+        id: entry!.id,
+        status: 'dismissed',
+      });
   });
 });

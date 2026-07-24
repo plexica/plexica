@@ -39,7 +39,7 @@ export async function tenantReactivateRoutes(
   fastify.post(
     '/tenants/:id/reactivate',
     { preHandler: [requireSuperAdmin] },
-    async (request) => {
+    async (request, reply) => {
       const paramsParsed =
         TenantReactivateParamsSchema.safeParse(request.params);
       if (!paramsParsed.success) {
@@ -68,7 +68,9 @@ export async function tenantReactivateRoutes(
           throw new NotFoundError('Tenant not found');
         }
 
-        return reactivateTenant(prisma, id, version, actorId);
+        const result = await reactivateTenant(prisma, id, version, actorId);
+        if (result.reconciliation === 'pending') return reply.status(202).send(result);
+        return result;
       });
     }
   );

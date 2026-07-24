@@ -49,7 +49,7 @@ function toEntry(row: AuditRow): AuditEntry {
  * metadata (Security §6). actorId is the Keycloak master realm sub.
  */
 export async function writeAuditEntry(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   input: WriteAuditEntry
 ): Promise<AuditEntry> {
   const parsed = WriteAuditEntrySchema.parse(input);

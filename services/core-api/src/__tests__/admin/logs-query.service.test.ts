@@ -85,27 +85,24 @@ describe('queryLogs — LogQL construction', () => {
     fetchMock.mockResolvedValue(makeLokiResponse() as never);
     await queryLogs({} as never, baseOptions);
     const url = new URL(fetchMock.mock.calls[0]![0] as string);
-    expect(url.searchParams.get('query')).toBe('{app="plexica-core"}');
+    expect(url.searchParams.get('query')).toBe('{app="plexica-core-api"}');
+    expect(url.searchParams.get('direction')).toBe('backward');
   });
 
-  it('adds a tenant label selector', async () => {
+  it('parses JSON and compares the tenant exactly', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue(makeLokiResponse() as never);
     await queryLogs({} as never, { tenant: 'acme', limit: 100 });
     const url = new URL(fetchMock.mock.calls[0]![0] as string);
-    expect(url.searchParams.get('query')).toBe(
-      '{app="plexica-core",tenant="acme"}'
-    );
+    expect(url.searchParams.get('query')).toBe('{app="plexica-core-api"} | json | tenant = "acme"');
   });
 
-  it('adds a level line filter', async () => {
+  it('uses pino-loki bounded level labels', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue(makeLokiResponse() as never);
     await queryLogs({} as never, { level: 'error', limit: 100 });
     const url = new URL(fetchMock.mock.calls[0]![0] as string);
-    expect(url.searchParams.get('query')).toBe(
-      '{app="plexica-core"} |~ "\\"level\\":\\"error\\""'
-    );
+    expect(url.searchParams.get('query')).toBe('{app="plexica-core-api",level="error"}');
   });
 
   it('combines tenant and level filters', async () => {
@@ -114,8 +111,15 @@ describe('queryLogs — LogQL construction', () => {
     await queryLogs({} as never, { tenant: 'acme', level: 'warn', limit: 50 });
     const url = new URL(fetchMock.mock.calls[0]![0] as string);
     expect(url.searchParams.get('query')).toBe(
-      '{app="plexica-core",tenant="acme"} |~ "\\"level\\":\\"warn\\""'
+      '{app="plexica-core-api",level="warning"} | json | tenant = "acme"'
     );
+  });
+
+  it('rejects an unvalidated tenant before contacting Loki', async () => {
+    await expect(
+      queryLogs({} as never, { tenant: 'acme" | line_format "attack', limit: 100 })
+    ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('forwards start/end and limit as query params', async () => {
@@ -130,6 +134,31 @@ describe('queryLogs — LogQL construction', () => {
     expect(url.searchParams.get('limit')).toBe('100');
     expect(url.searchParams.get('start')).toBe('1767225600000000000');
     expect(url.searchParams.get('end')).toBe('1767229200000000000');
+  });
+
+  it('normalizes numeric Pino and Loki warning levels', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      makeLokiResponse([
+        {
+          stream: { level: 'warning' },
+          values: [
+            ['1767225600000000000', JSON.stringify({ level: 40, tenant: 'acme', msg: 'warn' })],
+          ],
+        },
+        {
+          stream: { level: 'info' },
+          values: [
+            ['1767225601000000000', JSON.stringify({ level: 30, tenant: 'acme', msg: 'info' })],
+          ],
+        },
+      ]) as never
+    );
+
+    const result = await queryLogs({} as never, baseOptions);
+    expect(result.logs.map(({ level, message }) => ({ level, message }))).toEqual([
+      { level: 'info', message: 'info' },
+      { level: 'warn', message: 'warn' },
+    ]);
   });
 });
 

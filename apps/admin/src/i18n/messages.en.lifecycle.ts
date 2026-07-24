@@ -25,6 +25,7 @@ export const lifecycleMessages = {
 
   'tenants.deletion.title': 'Deletion in progress — {name}',
   'tenants.deletion.subtitle': 'Deletion saga steps',
+  'tenants.deletion.step.eventDataPurge': 'Erase event data and credentials',
   'tenants.deletion.step.schemaDrop': 'Drop PostgreSQL schema',
   'tenants.deletion.step.realmDelete': 'Delete Keycloak realm',
   'tenants.deletion.step.bucketDelete': 'Delete MinIO bucket',

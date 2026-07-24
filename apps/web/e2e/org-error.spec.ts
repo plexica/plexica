@@ -6,8 +6,9 @@ import { expect, test } from './helpers/base-fixture.js';
 
 test.describe('Organization error pages', () => {
   test('unknown tenant slug shows org not found page', async ({ page }) => {
-    // Navigate with a slug that does not exist in the API
-    await page.goto('/?tenant=this-org-does-not-exist-xyz123');
+    // In production mode, tenant is resolved from the host subdomain.
+    // Use a non-existent subdomain to trigger the unknown-tenant org-error.
+    await page.goto('http://nonexistent-org-xyz.localhost:3000/');
 
     // Should redirect to /org-error with reason=unknown
     await page.waitForURL('**/org-error?reason=*', { timeout: 10_000 });

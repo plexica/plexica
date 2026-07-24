@@ -98,7 +98,7 @@ describe('Auth middleware — JWKS cache stats', () => {
         iss: `${config.KEYCLOAK_URL}/realms/${testRealm}`,
         sub: 'test',
         exp: Math.floor(Date.now() / 1000) + 3600,
-        aud: config.KEYCLOAK_CLIENT_ID,
+        aud: config.KEYCLOAK_API_AUDIENCE,
       })
     ).toString('base64url');
     const fakeToken = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.${fakePayload}.fake-sig`;
@@ -149,7 +149,7 @@ describe('Auth middleware — validation timing (NFR-02)', () => {
           iss: `${config.KEYCLOAK_URL}/realms/${testRealm}`,
           sub: 'test',
           exp: Math.floor(Date.now() / 1000) + 3600,
-          aud: config.KEYCLOAK_CLIENT_ID,
+          aud: config.KEYCLOAK_API_AUDIENCE,
         })
       ).toString('base64url');
       const fakeToken = `eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.${fakePayload}.fake-sig`;

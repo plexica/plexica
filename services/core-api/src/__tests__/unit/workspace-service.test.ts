@@ -1,5 +1,4 @@
 // workspace-service.test.ts
-// Pure-logic unit tests for workspace utilities (no DB, no network).
 // Covers: materialized path math, cycle detection, depth limits, slug generation,
 // and template instantiation structure.
 

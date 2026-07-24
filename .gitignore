@@ -5,6 +5,7 @@ node_modules/
 
 # Build outputs
 dist/
+dist-ui/
 build/
 .next/
 storybook-static/
@@ -22,6 +23,7 @@ playwright-report/
 test-results/
 apps/web/e2e/screenshots/
 apps/web/e2e/.e2e-plexica-theme-active
+.e2e/
 
 # Prisma generated
 prisma/generated/

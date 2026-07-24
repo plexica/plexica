@@ -1,5 +1,5 @@
 // router-shell.tsx
-// Root + shell + login + index route definitions for the admin app.
+// Root + shell + callback + login + index route definitions for the admin app.
 // Kept separate to avoid circular imports between router.tsx and routes.
 //
 // Key difference from apps/web: NO tenant resolution. The admin app
@@ -9,6 +9,7 @@ import React from 'react';
 import { createRootRoute, createRoute, Outlet, redirect } from '@tanstack/react-router';
 
 import { AppShell } from './components/layout/app-shell.js';
+import { AuthCallbackPage } from './pages/auth-callback-page.js';
 import { LoginPage } from './pages/login-page.js';
 import { AuthGuard } from './components/auth/auth-guard.js';
 
@@ -17,7 +18,16 @@ export const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
 
-// /login — public password-grant login form.
+// /callback — handles the Keycloak PKCE redirect.
+// Must be public (unguarded) so the auth callback can be processed.
+export const callbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/callback',
+  component: AuthCallbackPage,
+});
+
+// /login — redirect page to Keycloak PKCE login.
+// No longer a password form; auto-redirects to Keycloak.
 export const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -43,5 +53,3 @@ export const shellRoute = createRoute({
     </AuthGuard>
   ),
 });
-
-

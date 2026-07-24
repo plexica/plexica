@@ -1,5 +1,5 @@
 // deletion-status-panel.tsx — Deletion saga status panel (S5-704).
-// Renders the 3 deletion steps (schema_drop, realm_delete, bucket_delete) with
+// Renders the ordered GDPR deletion steps with
 // status icons, attempts, last error and per-step retry. Auto-refreshes via
 // useDeletionStatus (5s polling, stops when all done or any failed).
 // aria-live="polite" announces status transitions to screen readers.
@@ -22,12 +22,18 @@ interface DeletionStatusPanelProps {
 }
 
 const STEP_LABELS: Record<DeletionStepName, string> = {
+  event_data_purge: 'tenants.deletion.step.eventDataPurge',
   schema_drop: 'tenants.deletion.step.schemaDrop',
   realm_delete: 'tenants.deletion.step.realmDelete',
   bucket_delete: 'tenants.deletion.step.bucketDelete',
 };
 
-const ORDER: DeletionStepName[] = ['schema_drop', 'realm_delete', 'bucket_delete'];
+const ORDER: DeletionStepName[] = [
+  'event_data_purge',
+  'schema_drop',
+  'realm_delete',
+  'bucket_delete',
+];
 
 function sortSteps(steps: TenantDeletionStepResponse[]): TenantDeletionStepResponse[] {
   return [...steps].sort(

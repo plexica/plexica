@@ -35,6 +35,38 @@
 
 ---
 
+## Journey 0: Dana signs in, recovers an expired session, and signs out
+
+**Trigger**: Dana opens an admin route without a valid tab-scoped session.
+
+```
+Steps:
+  1. Open /dashboard                    → Guard routes once through /login
+  2. /login starts PKCE S256            → Browser redirects to master-realm Keycloak
+  3. Authenticate under realm policy    → Keycloak handles password/MFA/SSO
+  4. Return to /callback                → App validates state and exchanges code
+  5. Land on /dashboard                 → Authenticated shell renders
+  6. [Later] Refresh is no longer valid → "Session expired" is announced
+  7. After the notice                   → Fresh PKCE starts; no inline form
+  8. Choose Logout                      → Local state clears; visit Keycloak logout
+  9. Keycloak ends current SSO session  → Return to exact registered /login
+
+Outcome: Credentials stay on Keycloak; callback, expiry, and logout recover
+without a password grant in Plexica.
+```
+
+**Edge Cases**:
+- **Repeated sign-in**: duplicate effects/clicks do not replace the in-flight
+  state/verifier pair.
+- **Invalid/replayed state**: no exchange; show localized error and retry.
+- **Keycloak unavailable**: show localized retry; expose no raw OAuth details.
+- **Refresh failure**: clear all tokens, preserve only expiry UX state, then
+  re-authenticate.
+- **Logout**: use the ID token and exact environment post-logout URI; do not
+  merely clear local state.
+
+---
+
 ## Journey 1: Dana provisions a new tenant (005-04)
 
 **Trigger**: Sales closes a deal; Dana receives a request to onboard "Acme Corp".

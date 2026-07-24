@@ -1,45 +1,56 @@
 import type { Contact, ContactFormData } from './types';
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+export interface CrmApiContext {
+  apiBaseUrl: string;
+  accessToken: string;
+  tenantSlug: string;
+  workspaceId: string;
+}
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+async function request<T>(context: CrmApiContext, path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${context.apiBaseUrl}${path}`, {
+    headers: {
+      Authorization: `Bearer ${context.accessToken}`,
+      'Content-Type': 'application/json',
+      'X-Plexica-Workspace-Id': context.workspaceId,
+      'X-Tenant-Slug': context.tenantSlug,
+      ...options?.headers,
+    },
     ...options,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message ?? `Request failed: ${res.status}`);
   }
-  return res.json() as Promise<T>;
+  return res.status === 204 ? undefined as T : res.json() as Promise<T>;
 }
 
-export function fetchContacts(): Promise<Contact[]> {
-  return request<Contact[]>('/contacts');
+export function fetchContacts(context: CrmApiContext): Promise<Contact[]> {
+  return request<Contact[]>(context, '/contacts');
 }
 
-export function fetchContact(id: string): Promise<Contact> {
-  return request<Contact>(`/contacts/${id}`);
+export function fetchContact(context: CrmApiContext, id: string): Promise<Contact> {
+  return request<Contact>(context, `/contacts/${id}`);
 }
 
-export function createContact(data: ContactFormData): Promise<Contact> {
-  return request<Contact>('/contacts', {
+export function createContact(context: CrmApiContext, data: ContactFormData): Promise<Contact> {
+  return request<Contact>(context, '/contacts', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export function updateContact(id: string, data: Partial<ContactFormData>): Promise<Contact> {
-  return request<Contact>(`/contacts/${id}`, {
+export function updateContact(context: CrmApiContext, id: string, data: Partial<ContactFormData>): Promise<Contact> {
+  return request<Contact>(context, `/contacts/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
 }
 
-export function deleteContact(id: string): Promise<void> {
-  return request<void>(`/contacts/${id}`, { method: 'DELETE' });
+export function deleteContact(context: CrmApiContext, id: string): Promise<void> {
+  return request<void>(context, `/contacts/${id}`, { method: 'DELETE' });
 }
 
-export function fetchDealCount(): Promise<{ count: number }> {
-  return request<{ count: number }>('/deals/count');
+export function fetchDealCount(context: CrmApiContext): Promise<{ count: number }> {
+  return request<{ count: number }>(context, '/deals/count');
 }

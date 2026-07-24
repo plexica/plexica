@@ -36,10 +36,15 @@ export interface PluginContext {
 }
 
 export interface PluginEvent {
+  eventId: string;
   type: string;
+  schemaVersion: 1;
+  tenantId: string;
+  occurredAt: string;
+  producer: { kind: 'core'; id: 'core' } | { kind: 'plugin'; id: string };
   payload: unknown;
-  timestamp: string;
   correlationId: string;
+  causationId: string | null;
 }
 
 export type EventHandler = (event: PluginEvent) => Promise<void>;

@@ -1,0 +1,62 @@
+volumes:
+  postgres_e2e_tls:
+
+services:
+  postgres-tls-init:
+    image: postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    user: root
+    entrypoint: /bin/sh
+    command: /generate-e2e-tls.sh
+    volumes:
+      - postgres_e2e_tls:/tls
+      - ${E2E_POSTGRES_TLS_SOURCE:?E2E_POSTGRES_TLS_SOURCE is required}:/source:ro
+      - ./infra/postgres/generate-e2e-tls.sh:/generate-e2e-tls.sh:ro
+    restart: 'no'
+
+  postgres:
+    depends_on:
+      postgres-tls-init:
+        condition: service_completed_successfully
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/tls/server.crt
+      - -c
+      - ssl_key_file=/tls/server.key
+    volumes:
+      - postgres_e2e_tls:/tls:ro
+    networks:
+      default:
+        aliases:
+          - postgres
+          - wrong-postgres
+
+  postgres-tls-verify:
+    image: postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-plexica}
+      POSTGRES_USER: ${POSTGRES_USER:-plexica}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    entrypoint: /bin/sh
+    command: /verify-e2e-tls.sh
+    volumes:
+      - postgres_e2e_tls:/tls:ro
+      - ./infra/postgres/verify-e2e-tls.sh:/verify-e2e-tls.sh:ro
+    restart: 'no'
+
+  redpanda:
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 256M
+      - --overprovisioned
+      - --set redpanda.developer_mode=true
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:9092,OUTSIDE://localhost:${REDPANDA_KAFKA_PORT:-29092}
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082

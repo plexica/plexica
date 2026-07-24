@@ -158,9 +158,11 @@ export interface LogEntry {
   meta?: Record<string, unknown>;
 }
 
-// ── Tenant deletion saga (S5-704 — mirrors deletion-status.routes.ts) ──────
-
-export type DeletionStepName = 'schema_drop' | 'realm_delete' | 'bucket_delete';
+export type DeletionStepName =
+  | 'event_data_purge'
+  | 'schema_drop'
+  | 'realm_delete'
+  | 'bucket_delete';
 export type DeletionStepStatus = 'pending' | 'in_progress' | 'done' | 'failed';
 
 export interface TenantDeletionStepResponse {

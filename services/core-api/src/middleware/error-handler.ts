@@ -68,6 +68,24 @@ export function configureErrorHandler(fastify: AnyFastifyInstance): void {
         });
       }
 
+      // Fastify HTTP errors (e.g. empty JSON body, malformed payload) carry a
+      // numeric statusCode. Surface them with their own status instead of
+      // masking client errors as 500. Messages are generic (no PII).
+      const fastifyStatus = (error as { statusCode?: unknown }).statusCode;
+      if (
+        typeof fastifyStatus === 'number' &&
+        fastifyStatus >= 400 &&
+        fastifyStatus < 500
+      ) {
+        request.log.warn(
+          { code: (error as { code?: string }).code, statusCode: fastifyStatus, msg: error.message },
+          'Fastify HTTP error'
+        );
+        return reply.status(fastifyStatus).send({
+          error: { code: 'BAD_REQUEST', message: error.message },
+        });
+      }
+
       // Unexpected errors — log full details, never expose to client
       request.log.error({ err: error }, 'Unhandled server error');
       return reply.status(500).send({

@@ -1,26 +1,21 @@
-// auth-store.ts
-// Single Zustand store for authentication state.
-// Handles login, logout, PKCE callback, token refresh, and session expiry.
-// Tokens are persisted in sessionStorage (cleared on browser close).
-
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { createAuthEpoch } from '@plexica/auth/auth-epoch';
+import { createAuthFlowCoordinator } from '@plexica/auth/auth-flow';
+import { createRehydrationHandler, partializeAuthState } from '@plexica/auth/auth-store';
 import {
-  exchangeCode,
-  getLoginUrl,
-  refreshTokens,
-  revokeSession,
-} from '../services/keycloak-auth.js';
+  clearAuthorizationRequests,
+  consumeAuthorizationRequest,
+} from '@plexica/auth/authorization-request';
+import { extractBaseProfile } from '@plexica/auth/jwt';
+import { createAuthorizationState } from '@plexica/auth/pkce';
 
-import type { AuthState, UserProfile } from '../types/auth.js';
+import { clearAuthQueryCache } from '../services/auth-query-cache.js';
+import { keycloakClient, REDIRECT_URI } from '../services/keycloak-auth.js';
+
+import type { UserProfile, AuthState } from '../types/auth.js';
 
 interface AuthStore extends AuthState {
-  tenantSlug: string | null;
-  tenantUuid: string | null;
-  realm: string | null;
-
-  // Actions
   login: () => Promise<void>;
   logout: () => Promise<void>;
   handleCallback: (code: string, state: string) => Promise<void>;
@@ -30,165 +25,156 @@ interface AuthStore extends AuthState {
   setTenantContext: (slug: string, realm: string, uuid?: string) => void;
 }
 
-// L-1: decode base64url (JWT uses - and _ instead of + and /) and handle
-// UTF-8 encoded characters (e.g. non-ASCII names). atob() alone handles neither.
-function decodeBase64Url(input: string): unknown {
-  const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-  const binaryStr = atob(base64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) {
-    bytes[i] = binaryStr.charCodeAt(i);
-  }
-  return JSON.parse(new TextDecoder().decode(bytes));
-}
+const authFlow = createAuthFlowCoordinator();
+const authEpoch = createAuthEpoch();
 
 function decodeUserProfile(accessToken: string, realm: string): UserProfile {
-  const parts = accessToken.split('.');
-  const payload = decodeBase64Url(parts[1] ?? '') as Record<string, unknown>;
-  return {
-    id: String(payload['sub'] ?? ''),
-    email: String(payload['email'] ?? ''),
-    firstName: String(payload['given_name'] ?? ''),
-    lastName: String(payload['family_name'] ?? ''),
-    realm,
-    roles: (payload['realm_access'] as { roles?: string[] } | undefined)?.roles ?? [],
-  };
+  const profile: UserProfile = { ...extractBaseProfile(accessToken), realm };
+  if (profile.roles.includes('tenant_admin')) profile.tenantRole = 'tenant_admin';
+  else if (profile.roles.includes('member')) profile.tenantRole = 'member';
+  return profile;
 }
+
+const clearedAuth = {
+  accessToken: null,
+  refreshToken: null,
+  idToken: null,
+  userProfile: null,
+  status: 'unauthenticated' as const,
+  isAuthenticated: false,
+};
 
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
-      accessToken: null,
-      refreshToken: null,
-      idToken: null,
-      userProfile: null,
-      status: 'unauthenticated',
-      isAuthenticated: false,
+      ...clearedAuth,
       tenantSlug: null,
       tenantUuid: null,
       realm: null,
 
-      setTenantContext: (slug: string, realm: string, uuid?: string) => {
-        set({ tenantSlug: slug, tenantUuid: uuid ?? null, realm });
+      setTenantContext: (tenantSlug, realm, tenantUuid) => {
+        set({ tenantSlug, tenantUuid: tenantUuid ?? null, realm });
       },
 
-      login: async () => {
-        const { realm } = get();
-        if (realm === null) throw new Error('Realm not set — call setTenantContext first');
-        set({ status: 'authenticating' });
-        const state = crypto.randomUUID();
-        sessionStorage.setItem('auth_state', state);
-        const url = await getLoginUrl(realm, state);
-        window.location.href = url;
+      login: () => {
+        if (get().status === 'authenticated') return Promise.resolve();
+        return authFlow.runLogin(async () => {
+          const { realm } = get();
+          if (realm === null) throw new Error('Tenant authentication is unavailable.');
+          set({ status: 'authenticating' });
+          try {
+            const state = createAuthorizationState();
+            const url = await keycloakClient.getLoginUrl(realm, state, REDIRECT_URI);
+            window.location.href = url;
+          } catch {
+            set({ status: 'unauthenticated' });
+            throw new Error('Authentication could not be started.');
+          }
+        });
       },
 
       logout: async () => {
-        const { refreshToken, realm, tenantSlug } = get();
+        const { refreshToken, idToken, realm, tenantSlug } = get();
+        const postLogoutUrl = new URL('/', window.location.origin);
+        if (tenantSlug !== null) postLogoutUrl.searchParams.set('tenant', tenantSlug);
+        const logoutUrl =
+          realm === null
+            ? postLogoutUrl.href
+            : keycloakClient.getLogoutUrl(realm, idToken, postLogoutUrl.href);
 
-        // Backchannel logout: revoke the Keycloak session server-side before
-        // clearing local state. No browser redirect to Keycloak is needed,
-        // which avoids all redirect-URI validation issues entirely.
-        if (refreshToken !== null && realm !== null) {
-          await revokeSession(realm, refreshToken);
+        authEpoch.invalidate();
+        set(clearedAuth);
+        clearAuthQueryCache();
+        clearAuthorizationRequests();
+        authFlow.reset();
+        try {
+          if (refreshToken !== null && realm !== null) {
+            await keycloakClient.revokeSession(refreshToken, realm);
+          }
+        } catch {
+          // RP-initiated logout remains authoritative when revocation fails or times out.
         }
-
-        set({
-          accessToken: null,
-          refreshToken: null,
-          idToken: null,
-          userProfile: null,
-          status: 'unauthenticated',
-          isAuthenticated: false,
-        });
-
-          // Full page reload with tenant param preserved from sessionStorage
-          const tenantParam = tenantSlug !== null ? `?tenant=${encodeURIComponent(tenantSlug)}` : '';
-        window.location.href = `/${tenantParam}`;
+        authEpoch.invalidate();
+        set(clearedAuth);
+        clearAuthQueryCache();
+        clearAuthorizationRequests();
+        authFlow.reset();
+        window.location.href = logoutUrl;
       },
 
-      handleCallback: async (code: string, state: string) => {
-        const expectedState = sessionStorage.getItem('auth_state');
-        if (state !== expectedState) throw new Error('State mismatch — possible CSRF');
-
-        const { realm } = get();
-        if (realm === null) throw new Error('Realm not set');
-
-        const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
-        if (codeVerifier === null) throw new Error('PKCE verifier missing');
-
-        const tokens = await exchangeCode(code, realm, codeVerifier);
-        const userProfile = decodeUserProfile(tokens.access_token, realm);
-
-        sessionStorage.removeItem('pkce_code_verifier');
-        sessionStorage.removeItem('auth_state');
-
-        set({
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          idToken: tokens.id_token,
-          userProfile,
-          status: 'authenticated',
-          isAuthenticated: true,
-        });
-      },
+      handleCallback: (code, state) =>
+        authFlow.runCallback(code, state, async () => {
+          const epoch = authEpoch.capture();
+          set({ status: 'authenticating' });
+          try {
+            const { codeVerifier, nonce } = consumeAuthorizationRequest(state);
+            const { realm } = get();
+            if (realm === null) throw new Error('Authentication context is missing.');
+            const tokens = await keycloakClient.exchangeCode(
+              code,
+              realm,
+              codeVerifier,
+              REDIRECT_URI,
+              nonce
+            );
+            if (!authEpoch.isCurrent(epoch)) return;
+            clearAuthorizationRequests();
+            authEpoch.invalidate();
+            set({
+              accessToken: tokens.access_token,
+              refreshToken: tokens.refresh_token,
+              idToken: tokens.id_token ?? null,
+              userProfile: decodeUserProfile(tokens.access_token, realm),
+              status: 'authenticated',
+              isAuthenticated: true,
+            });
+          } catch (error) {
+            if (authEpoch.isCurrent(epoch)) {
+              authEpoch.invalidate();
+              set(clearedAuth);
+            }
+            throw error;
+          }
+        }),
 
       refresh: async () => {
-        const { refreshToken, realm } = get();
-        if (refreshToken === null || realm === null) throw new Error('Cannot refresh');
-        const tokens = await refreshTokens(refreshToken, realm);
-        const userProfile = decodeUserProfile(tokens.access_token, realm);
+        const { refreshToken, idToken, realm } = get();
+        if (refreshToken === null || realm === null) {
+          throw new Error('Session refresh is unavailable.');
+        }
+        const epoch = authEpoch.capture();
+        const tokens = await keycloakClient.refreshTokens(refreshToken, realm);
+        if (!authEpoch.isCurrent(epoch) || get().refreshToken !== refreshToken) return;
         set({
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
-          idToken: tokens.id_token,
-          userProfile,
+          idToken: tokens.id_token ?? idToken,
+          userProfile: decodeUserProfile(tokens.access_token, realm),
           status: 'authenticated',
           isAuthenticated: true,
         });
       },
 
       setSessionExpired: () => {
-        set({ status: 'expired', isAuthenticated: false });
+        authEpoch.invalidate();
+        set({ ...clearedAuth, status: 'expired' });
+        clearAuthQueryCache();
+        clearAuthorizationRequests();
+        authFlow.reset();
       },
-
-      dismissExpired: () => {
-        set({ status: 'unauthenticated' });
-      },
+      dismissExpired: () => set({ status: 'unauthenticated' }),
     }),
     {
       name: 'plexica-auth',
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
+        ...partializeAuthState(state),
         idToken: state.idToken,
-        userProfile: state.userProfile,
         tenantSlug: state.tenantSlug,
         tenantUuid: state.tenantUuid,
         realm: state.realm,
       }),
-      // L-03/M-6: derive transient fields from persisted tokens on rehydration.
-      // Verify access token hasn't expired before marking as authenticated.
-      onRehydrateStorage: () => (state) => {
-        if (state !== undefined && state.accessToken !== null) {
-          const parts = state.accessToken.split('.');
-          const payloadPart = parts[1];
-          if (payloadPart !== undefined) {
-            try {
-              const payload = decodeBase64Url(payloadPart) as Record<string, unknown>;
-              const exp = typeof payload['exp'] === 'number' ? payload['exp'] : 0;
-              if (exp > Date.now() / 1000) {
-                state.status = 'authenticated';
-                state.isAuthenticated = true;
-              }
-              // If exp <= now, leave status as 'unauthenticated' — the app will
-              // redirect to Keycloak for a fresh login or attempt a silent refresh.
-            } catch {
-              // Malformed token payload — leave as unauthenticated.
-            }
-          }
-        }
-      },
+      onRehydrateStorage: createRehydrationHandler(),
     }
   )
 );

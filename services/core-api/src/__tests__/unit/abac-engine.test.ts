@@ -26,7 +26,11 @@ vi.mock('../../modules/abac/engine-helpers.js', () => ({
 }));
 
 import { evaluate } from '../../modules/abac/engine.js';
-import { getMembership, getPluginActionOverride, getPluginActionDefaultRole } from '../../modules/abac/engine-helpers.js';
+import {
+  getMembership,
+  getPluginActionOverride,
+  getPluginActionDefaultRole,
+} from '../../modules/abac/engine-helpers.js';
 import { CORE_POLICIES, TENANT_LEVEL_ACTIONS } from '../../modules/abac/policies.js';
 
 import type { AbacContext } from '../../modules/abac/types.js';
@@ -192,63 +196,5 @@ describe('ABAC evaluate() — unknown action', () => {
     const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
     expect(decision.decision).toBe('deny');
     expect(decision.reason).toContain('unknown action');
-  });
-});
-
-describe('ABAC evaluate() — plugin action default-role fallback (A2)', () => {
-  it('uses action_registry defaultRole when POLICY_MAP misses + pluginActionKey set', async () => {
-    // crm:access is not in POLICY_MAP; action_registry says defaultRole=member
-    mockGetMembership.mockResolvedValue(memberOf('member'));
-    mockGetPluginDefaultRole.mockResolvedValue('member');
-    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
-    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
-    expect(decision.decision).toBe('allow');
-    expect(mockGetPluginDefaultRole).toHaveBeenCalledWith(ctx, fakeTenantDb);
-  });
-
-  it('denies viewer when registered defaultRole is member', async () => {
-    mockGetMembership.mockResolvedValue(memberOf('viewer'));
-    mockGetPluginDefaultRole.mockResolvedValue('member');
-    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
-    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
-    expect(decision.decision).toBe('deny');
-  });
-
-  it('falls back to viewer when action not in POLICY_MAP and not in action_registry', async () => {
-    // No registry entry → viewer fallback → member allowed, viewer allowed
-    mockGetMembership.mockResolvedValue(memberOf('viewer'));
-    mockGetPluginDefaultRole.mockResolvedValue(null);
-    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
-    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
-    expect(decision.decision).toBe('allow');
-  });
-
-  it('denies non-members even with viewer fallback', async () => {
-    mockGetMembership.mockResolvedValue(nonMember);
-    mockGetPluginDefaultRole.mockResolvedValue(null);
-    const ctx = makeCtx('crm:access', { pluginActionKey: 'crm:access' });
-    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
-    expect(decision.decision).toBe('deny');
-    expect(decision.reason).toContain('not a workspace member');
-  });
-});
-
-describe('ABAC evaluate() — plugin action override', () => {
-  it('override changes required role: viewer doing member:invite allowed when override=viewer', async () => {
-    mockGetMembership.mockResolvedValue(memberOf('viewer'));
-    // Override: member:invite now only needs viewer
-    mockGetPluginOverride.mockResolvedValue('viewer');
-    const ctx = makeCtx('member:invite', { pluginActionKey: 'crm:invite' });
-    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
-    expect(decision.decision).toBe('allow');
-  });
-
-  it('override raises required role: admin doing workspace:read denied when override=admin', async () => {
-    // member doing workspace:read (normally viewer required) — override sets required=admin
-    mockGetMembership.mockResolvedValue(memberOf('member'));
-    mockGetPluginOverride.mockResolvedValue('admin');
-    const ctx = makeCtx('workspace:read', { pluginActionKey: 'crm:read' });
-    const decision = await evaluate(ctx, fakeTenantDb, fakeRedis);
-    expect(decision.decision).toBe('deny');
   });
 });

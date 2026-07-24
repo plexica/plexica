@@ -27,8 +27,8 @@
 ## Shared App Shell
 
 All authenticated screens share the same shell (sidebar + topbar + content
-area). Login is the only screen without the shell. The shell is rendered by
-`AdminShell` (`components/layout/admin-shell.tsx`).
+area). Sign-in and callback are the only screens without it. The shell is
+rendered by `AdminShell` (`components/layout/admin-shell.tsx`).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -63,6 +63,8 @@ area). Login is the only screen without the shell. The shell is rendered by
 - App name "Plexica Admin" (left) — i18n: `admin.app.title`
 - User menu (right): name + role + dropdown (Profile, Logout)
 - User menu uses `@plexica/ui DropdownMenu` (Radix)
+- Logout clears local/query state, then performs OIDC RP-Initiated Logout with
+  the persisted ID token and exact registered post-logout URI (ADR-023).
 
 **Accessibility (all screens)**:
 - Skip-nav link is first focusable element; jumps to `#main-content`
@@ -73,133 +75,77 @@ area). Login is the only screen without the shell. The shell is rendered by
 
 ---
 
-## Screen 1: Login Page
+## Screen 1: Sign-in Redirect and Callback
 
-**Route**: `/login` · **FR ref**: auth (master realm password grant) · **Component**:
-`LoginPage` (`components/auth/login-page.tsx`)
+**Routes**: `/login`, `/callback` · **FR ref**: auth · **Components**:
+`LoginPage`, `AuthCallbackPage`, `SessionExpiredHandler`
 
-Login is the only screen WITHOUT the app shell. Centered card on a neutral
-background. Authenticates against the Keycloak master realm via the
-`plexica-admin` client (plan §5.5, D-3 — password grant, not PKCE).
+Plexica renders no credential fields. `/login` starts a single-flight OIDC
+Authorization Code + PKCE S256 redirect. Keycloak owns password, MFA,
+WebAuthn, and federated-login UX.
 
-### Default State
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│                                                                          │
-│                                                                          │
-│                      ┌──────────────────────────────────┐                │
-│                      │       [ShieldCheck logo]         │                │
-│                      │       Plexica Admin              │                │
-│                      │                                  │                │
-│                      │  Email                           │                │
-│                      │  [dana@plexica.io______________] │                │
-│                      │                                  │                │
-│                      │  Password            [👁 show]   │                │
-│                      │  [•••••••••••••••••••••••••••••] │                │
-│                      │                                  │                │
-│                      │  [      Sign in to Admin      ]  │                │
-│                      │                                  │                │
-│                      │  Super admin access only.       │                │
-│                      │  MFA required on master realm.  │                │
-│                      └──────────────────────────────────┘                │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-**Components**: `@plexica/ui Input`, `@plexica/ui Button` (primary, full width),
-`@plexica/ui Field` (label + input wrapper). Logo via Lucide `ShieldCheck`
-(`aria-hidden`).
-
-**Form**: `react-hook-form` + `Zod` schema `{ email: string.email(), password:
-string.min(1) }`. Submit handler calls `keycloakAuth.login(email, password)`
-which performs the master realm password grant (plan D-3).
-
-### Loading State — Submit in Progress
+### Redirecting (`/login`)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                      ┌──────────────────────────────────┐                │
 │                      │       [ShieldCheck logo]         │                │
 │                      │       Plexica Admin              │                │
-│                      │                                  │                │
-│                      │  Email                           │                │
-│                      │  [dana@plexica.io (disabled)___] │                │
-│                      │                                  │                │
-│                      │  Password            [👁 show]   │                │
-│                      │  [disabled — input locked ─────] │                │
-│                      │                                  │                │
-│                      │  [  ⟳ Signing in...          ]  │  ← spinner     │
-│                      │                                  │                │
-│                      │  Super admin access only.       │                │
+│                      │  ⟳ Redirecting to secure sign-in │ [aria-live]    │
+│                      │  [ Continue to Keycloak ]        │                │
 │                      └──────────────────────────────────┘                │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Behavior**: Both inputs `disabled` to prevent re-submit. Submit button shows
-`Loader2` icon (spinning, Lucide) + text "Signing in...". Button is
-`aria-busy="true"` and `disabled`. No navigation until token resolves.
+Automatic redirect and fallback use one guarded action, so repeated effects or
+clicks cannot replace in-flight `state`/verifier data. The app sends S256 and
+Keycloak enforces `pkce.code.challenge.method=S256` (ADR-023).
 
-### Error State — Invalid Credentials (401)
+### Callback (`/callback`)
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                      ┌──────────────────────────────────┐                │
-│                      │       [ShieldCheck logo]         │                │
-│                      │       Plexica Admin              │                │
-│                      │                                  │                │
-│                      │  ⚠ Invalid email or password.    │  ← role=alert  │
-│                      │    [aria-live="assertive"]       │                │
-│                      │                                  │                │
-│                      │  Email                           │                │
-│                      │  [dana@plexica.io______________] │  ← focus here  │
-│                      │  ^ Email or password is incorrect│                │
-│                      │                                  │                │
-│                      │  Password            [👁 show]   │                │
-│                      │  [_______________••••_________]  │                │
-│                      │                                  │                │
-│                      │  [      Sign in to Admin      ]  │                │
-│                      └──────────────────────────────────┘                │
-└──────────────────────────────────────────────────────────────────────────┘
+│  ⟳ Completing secure sign-in…                            [aria-live]     │
+│  Verifying the response.                                                 │
 ```
 
-**Behavior**: 401 from Keycloak → inline error banner at top of card with
-`role="alert"` + `aria-live="assertive"`. Focus moves back to email field
-(WCAG 2.4.3 — logical focus on error). Password field cleared. Generic message
-("Invalid email or password") — never reveals which field is wrong (security:
-no username enumeration).
+Validate OAuth parameters and exact anti-CSRF state, exchange the code with
+its one-time verifier, remove PKCE data, and navigate to `/dashboard`. Tokens
+are in `sessionStorage`; retain the ID token for RP-Initiated Logout.
 
-**Other error variants**:
-- **Network error / Keycloak unreachable (500/503)**: "Cannot reach the
-  authentication service. Check your connection and retry." + `[Retry]` button.
-- **Account locked**: "Account temporarily locked after too many attempts.
-  Try again later or contact your administrator."
-- **Forbidden — not a super_admin (403)**: "Your account does not have super
-  admin access. Contact your platform administrator."
+### Callback / Redirect Error
 
-### Empty State — N/A
+```
+│  Sign-in could not be completed.                         [role="alert"]  │
+│  Your secure sign-in response was invalid or expired.                    │
+│  [ Try secure sign-in again ]                                            │
+```
 
-Login has no empty-data state. The form is always present. Email field is
-empty (never pre-filled from `sessionStorage` for security).
+Missing/replayed state, denial, failed exchange, and Keycloak unavailability
+use localized generic messages. Retry clears stale one-time data and starts a
+fresh flow. Never display raw OAuth details or tokens.
+
+### Session Expired
+
+```
+│  Your session has expired. Redirecting to secure sign-in… [status]       │
+```
+
+After refresh failure, withhold protected content and clear all tokens. Keep
+the localized notice long enough to announce, then start fresh PKCE via
+`/login`; never replace it with an inline password form.
 
 ### Accessibility
 
 | Criterion | Implementation |
 |-----------|----------------|
-| 1.3.1 Info & Relationships | `@plexica/ui Field` renders `<label for>` = input id |
-| 1.4.3 Contrast | Error text uses `--color-error-dark` (≥ 4.5:1 on card bg) |
-| 2.1.1 Keyboard | Tab: email → show/hide → submit; Enter submits form |
-| 2.4.3 Focus Order | On error, focus moves to email field (first invalid) |
-| 3.3.1 Error Identification | Error in text banner + icon (not color alone) |
-| 3.3.2 Labels | Visible labels "Email" / "Password" above inputs |
-| 4.1.2 Name/Role/Value | Inputs `aria-label` = visible label; show/hide button `aria-label="Show password"` |
-| 4.1.3 Status Messages | `aria-live="assertive"` on error banner |
+| 2.1.1 Keyboard | Fallback/retry buttons are keyboard operable and focus-visible |
+| 2.4.3 Focus Order | Error focus moves to alert heading, then retry |
+| 3.3.1 Error Identification | Localized text + icon, never color alone |
+| 4.1.3 Status Messages | Redirect, callback, and expiry use `aria-live` |
 
-**i18n keys**: `admin.login.title`, `admin.login.email.label`,
-`admin.login.password.label`, `admin.login.submit`,
-`admin.login.error.invalid`, `admin.login.error.unreachable`,
-`admin.login.hint.superAdminOnly`, `admin.login.hint.mfaRequired`.
+**i18n keys**: `admin.login.redirecting`, `admin.login.continue`,
+`admin.callback.loading`, `admin.callback.error`, `admin.callback.retry`,
+`admin.session.expired`, `admin.session.redirecting`.
 
 ---
 
@@ -375,7 +321,7 @@ enabled (they navigate to other pages that load independently). `[Retry]`
 button calls `queryClient.invalidateQueries(['dashboard'])`.
 
 **Error variants**:
-- **401 session expired**: Auth guard redirects to `/login` (not shown here)
+- **401 session expired**: clear tokens, announce expiry, then start fresh PKCE
 - **503 backend down**: Same error UI, message "Platform backend unreachable"
 - **Timeout (504)**: "Metrics took too long to load. [Retry]"
 
@@ -550,7 +496,7 @@ filter bar and table. Table not rendered. Filter bar remains interactive
 `queryClient.invalidateQueries(['tenants'])`.
 
 **Error variants**:
-- **401 session expired**: redirect to `/login`
+- **401 session expired**: announce expiry, then start fresh PKCE via `/login`
 - **500 backend error**: "Tenant list service error. [Retry]"
 - **503 backend down**: "Platform backend unreachable. [Retry]"
 
@@ -2589,7 +2535,7 @@ expensive. Suggested recovery actions help the admin narrow the query.
 
 | # | Screen | FR Ref | States Covered |
 |---|--------|--------|----------------|
-| 1 | Login Page | auth | default, loading, error (invalid creds + network + locked + forbidden) |
+| 1 | Sign-in Redirect / Callback | auth | redirecting, callback error, session expired |
 | 2 | Dashboard | 005-01 | default, loading, empty (no tenants), error (load failed) |
 | 3 | Tenant List | 005-02 | default (dense), loading, empty (filtered + first-visit), error |
 | 4 | Tenant Detail | 005-03 | default (4 tabs: Info/Users/Plugins/Audit) + suspended + pending_deletion, loading, empty (404), error |
@@ -2706,5 +2652,3 @@ expensive. Suggested recovery actions help the admin narrow the query.
 | Constitution (WCAG, Radix, Lucide, i18n) | `.forge/constitution.md` |
 | @plexica/ui components | `packages/ui/src/components/` |
 | @plexica/ui tokens | `packages/ui/src/tokens/` |
-
-

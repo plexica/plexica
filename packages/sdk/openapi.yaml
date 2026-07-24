@@ -47,19 +47,40 @@ paths:
           application/json:
             schema:
               type: object
-              required: [type, payload, timestamp, correlationId]
+              required: [eventId, type, schemaVersion, tenantId, occurredAt, producer, correlationId, causationId, payload]
               properties:
+                eventId:
+                  type: string
+                  format: uuid
                 type:
                   type: string
                   example: plexica.workspace.created
-                payload:
-                  type: object
-                timestamp:
+                schemaVersion:
+                  type: integer
+                  const: 1
+                tenantId:
+                  type: string
+                  format: uuid
+                occurredAt:
                   type: string
                   format: date-time
+                producer:
+                  type: object
+                  required: [kind, id]
+                  properties:
+                    kind:
+                      type: string
+                      enum: [core, plugin]
+                    id:
+                      type: string
                 correlationId:
                   type: string
                   format: uuid
+                causationId:
+                  type: [string, "null"]
+                  format: uuid
+                payload:
+                  type: object
       responses:
         "200":
           description: Event acknowledged and processed

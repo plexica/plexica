@@ -10,7 +10,7 @@
 | Date    | 2026-07-10                                    |
 | Spec    | `.forge/specs/005-super-admin/spec.md`        |
 | Plan    | `.forge/specs/005-super-admin/plan.md`        |
-| ADR     | ADR-022 — Super Admin Infra and Data Model    |
+| ADR     | ADR-022; ADR-023 (Accepted)                   |
 | Sprint  | `.forge/sprints/active/sprint-005.yaml`       |
 
 ---
@@ -212,17 +212,19 @@ Task IDs use a numeric scheme:
   - `apps/admin/src/router-shell-routes.tsx` (create — all authenticated child routes, initially placeholder)
   - `apps/admin/src/app.tsx` (create — app shell re-export)
   - `apps/admin/src/styles/globals.css` (create — Tailwind globals importing @plexica/ui tokens)
-  - `apps/admin/src/stores/auth-store.ts` (create — Zustand auth store, master realm, password grant, sessionStorage persist)
+  - `apps/admin/src/stores/auth-store.ts` (create — master-realm PKCE, RP logout, sessionStorage)
   - `apps/admin/src/services/api-client.ts` (create — fetch wrapper, master realm token, no X-Tenant-Slug header, 401 refresh)
-  - `apps/admin/src/services/keycloak-auth.ts` (create — Keycloak master realm direct password grant, `plexica-admin` client)
+  - `apps/admin/src/services/keycloak-auth.ts` (create — PKCE S256 and RP logout client)
   - `apps/admin/src/services/admin-api.ts` (create — admin API methods: dashboard, tenants, plugins, health, logs, kafka — stubs filled per feature)
   - `apps/admin/src/types/admin-types.ts` (create — TypeScript types for admin API responses)
 - **Depends on**: S5-C00
 - **Acceptance**:
   - Router shell renders a placeholder dashboard route without errors
-  - Auth store persists tokens to sessionStorage (same pattern as web app)
+  - Persist access, refresh, ID token, and expiry status to `sessionStorage`
+    only; never `localStorage`
   - API client attaches bearer token to requests; no `X-Tenant-Slug` header
-  - `keycloak-auth.ts` performs password grant against master realm `plexica-admin` client
+  - Login redirects with S256/state; callback validates state and exchanges code
+  - Logout clears local/query state and uses `id_token_hint` plus exact URI
   - All files under 200 lines (Rule 4)
 - **Estimate**: L (4-8h)
 
@@ -234,13 +236,17 @@ Task IDs use a numeric scheme:
 - **Files**:
   - `apps/admin/src/components/layout/admin-shell.tsx` (create — sidebar nav + content area)
   - `apps/admin/src/components/layout/sidebar.tsx` (create — nav links: dashboard, tenants, plugins, health, logs, kafka — Lucide icons)
-  - `apps/admin/src/components/auth/auth-guard.tsx` (create — redirect to login if not authenticated)
-  - `apps/admin/src/components/auth/login-page.tsx` (create — master realm login form, react-hook-form + Zod)
+  - `apps/admin/src/components/auth/auth-guard.tsx` (create — single-flight PKCE redirect)
+  - `apps/admin/src/components/auth/session-expired-handler.tsx` (create — localized expiry notice)
+  - `apps/admin/src/pages/login-page.tsx` (create — redirect/fallback; no credentials)
+  - `apps/admin/src/pages/auth-callback-page.tsx` (create — validate/exchange/recover)
   - `apps/admin/src/i18n/messages.en.ts` (create — main i18n entry)
 - **Depends on**: S5-C01
 - **Acceptance**:
-  - Unauthenticated user visiting `/dashboard` is redirected to `/login`
-  - Login form validates email + password via Zod, submits to `keycloak-auth.ts`
+  - Unauthenticated `/dashboard` starts one PKCE redirect via `/login`
+  - Public `/callback` rejects missing/replayed state and enters `/dashboard`
+    only after successful exchange
+  - Failed refresh clears tokens, announces expiry, then starts fresh PKCE
   - Sidebar shows 6 nav sections with Lucide icons (no emoji)
   - All strings pass through react-intl (no hardcoded UI strings)
   - All files under 200 lines (Rule 4)
@@ -253,14 +259,20 @@ Task IDs use a numeric scheme:
 - **Type**: test
 - **Files**:
   - `apps/admin/playwright.config.ts` (create — port 3002, admin app baseURL)
-  - `apps/admin/e2e/global-setup.ts` (create — seed test tenant, admin token)
+  - `apps/admin/e2e/global-setup.ts` (create — guarded run-scoped helper + seed)
+  - `apps/admin/e2e/global-teardown.ts` (create — failure-safe helper deletion)
   - `apps/admin/e2e/helpers/admin-login.ts` (create — super admin login helper via master realm)
   - `apps/admin/e2e/helpers/api-client.ts` (create — admin API helper for test assertions)
 - **Depends on**: S5-C02
 - **Acceptance**:
   - `pnpm --filter @plexica/admin e2e` runs Playwright against port 3002
-  - `global-setup.ts` obtains a super-admin token from the master realm
-  - `admin-login.ts` helper logs in via the login page UI and returns authenticated context
+  - Create a unique confidential E2E-only client; direct grants exist only
+    there, `fullScopeAllowed` is false, and mappings are minimal
+  - Secret is random per run, never committed/defaulted/logged; setup refuses
+    non-E2E and known production targets
+  - Teardown deletes the helper after successful and failed runs
+  - `admin-login.ts` follows Keycloak → `/callback` → dashboard, never
+    authenticating the app with the helper or `admin-cli`
   - `api-client.ts` helper wraps admin API calls for test assertions (e.g., verify schema dropped)
 - **Estimate**: M (2-4h)
 
@@ -270,13 +282,19 @@ Task IDs use a numeric scheme:
 - **Feature**: Infrastructure (plan §5.5)
 - **Type**: infra
 - **Files**:
-  - `infra/keycloak/admin-client-realm.json` (create — Keycloak client representation for `plexica-admin`, direct access grants enabled)
+  - `infra/keycloak/admin-client-realm.json` (create — S256, exact URIs, no direct grants)
 - **Depends on**: none
 - **Acceptance**:
   - `plexica-admin` client created in Keycloak master realm on `docker compose up` (via `keycloak-init` or new `keycloak-admin-init` service)
-  - Client supports direct access grants (password flow)
+  - Explicit `directAccessGrantsEnabled: false`; standard flow enabled;
+    implicit/service accounts disabled; `pkce.code.challenge.method: S256`
+  - `fullScopeAllowed: false`; map only standard OIDC and `super_admin`
+  - Local/CI uses only `http://localhost:3002/callback` and
+    `http://localhost:3002/login`; production uses only
+    `https://admin.plexica.app/callback` and
+    `https://admin.plexica.app/login`; no wildcards
+  - Staging/review values are exact per environment and absent from production
   - `super_admin` role assignable to master realm users
-  - Admin app `keycloak-auth.ts` can obtain a token using test super-admin credentials
 - **Estimate**: S (1h)
 
 ---
@@ -1405,12 +1423,12 @@ Task IDs use a numeric scheme:
 - **Type**: integration
 - **Files**:
   - `services/core-api/src/modules/admin/index.ts` (modify — register all route groups: dashboard, tenant-list, tenant-detail, tenant-provision, tenant-suspend, tenant-reactivate, tenant-delete, deletion-status, plugin-catalog, health, logs, audit-log, kafka-status)
-  - `apps/admin/src/router-shell-routes.tsx` (verify — all 9 routes registered: /dashboard, /tenants, /tenants/$tenantId, /tenants/provision, /plugins, /health, /logs, /kafka, /login)
+  - `apps/admin/src/router-shell-routes.tsx` (verify — authenticated routes plus public `/login` and `/callback`)
   - `apps/admin/src/i18n/messages.en.ts` (verify — all message catalogs imported: dashboard, tenants, plugins, system)
 - **Depends on**: S5-B04, S5-903, S5-A04, S5-803, S5-704, S5-603, S5-503, S5-403, S5-304, S5-204, S5-104
 - **Acceptance**:
   - All 14 admin route files registered in `admin/index.ts`
-  - All 9 frontend routes registered in `router-shell-routes.tsx`
+  - All frontend routes registered; `/callback` is outside `AuthGuard`
   - All i18n message catalogs imported in `messages.en.ts`
   - No route duplication (verified against route ownership table §3.4)
   - Server starts without errors; admin app builds without errors
@@ -1422,12 +1440,18 @@ Task IDs use a numeric scheme:
 - **Feature**: All
 - **Type**: integration
 - **Files**: none (process task)
-- **Depends on**: S5-C10, S5-C11
+- **Depends on**: S5-C03, S5-C04, S5-C10, S5-C11
 - **Acceptance**:
   - `/forge-review .forge/specs/005-super-admin/` completed — dual-model adversarial review on 7 dimensions
   - All HIGH severity findings addressed before merge
   - Human code review completed (at least 1 approval per PR)
   - All CI checks green (unit, integration, E2E)
+  - Real Keycloak rejects missing PKCE and `code_challenge_method=plain`
+  - Environment exports contain only exact callback/logout URIs; both public
+    clients explicitly disable direct grants
+  - Callback rejects replay; repeated login starts preserve in-flight PKCE data
+  - Expiry notice survives reload; RP logout ends current SSO and returns to `/login`
+  - E2E helper is guarded/scoped, has no known secret, and is absent after runs
   - Constitution compliance verified (all 6 rules)
 - **Estimate**: M (2-4h)
 

@@ -3,13 +3,9 @@
 // installation shows up on the installed-plugins page.
 
 import { expect, test } from '../helpers/base-fixture.js';
-import {
-  hasKeycloak,
-  loginAsAdmin,
-  requireKeycloakInCI,
-} from '../helpers/admin-login.js';
+import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from '../helpers/admin-login.js';
 
-test.describe('004 Plugin System — AC-01: Plugin Lifecycle', () => {
+test.describe.serial('004 Plugin System — AC-01: Plugin Lifecycle', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
 
   test.beforeAll(() => {
@@ -20,40 +16,42 @@ test.describe('004 Plugin System — AC-01: Plugin Lifecycle', () => {
     await loginAsAdmin(page);
     await page.goto('/marketplace');
 
-    const cards = page.getByTestId('plugin-card');
-    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
-    // Real data assertion: each visible card has a non-empty name + author.
-    const first = cards.first();
-    await expect(first.getByRole('heading', { level: 3 })).not.toBeEmpty({ timeout: 10_000 });
-    const name = await first.getByRole('heading', { level: 3 }).innerText();
-    expect(name.trim().length).toBeGreaterThan(0);
+    const crm = page.getByTestId('plugin-card').filter({ hasText: 'CRM' });
+    await expect(crm).toHaveCount(1);
+    await expect(crm.getByRole('heading', { name: 'CRM', exact: true })).toBeVisible();
+    await expect(crm.getByText('Plexica', { exact: true })).toBeVisible();
   });
 
-  test('installing a plugin from the marketplace makes it appear in the installed list', async ({ page }) => {
+  test('installing a plugin from the marketplace makes it appear in the installed list', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
     await loginAsAdmin(page);
     await page.goto('/marketplace');
 
-    const cards = page.getByTestId('plugin-card');
-    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
-    const first = cards.first();
-    const pluginName = (await first.getByRole('heading', { level: 3 }).innerText()).trim();
-
-    const installBtn = first.getByRole('button', { name: /^install$/i });
-    // If already installed (prior run), skip the click and just verify presence.
-    if (await installBtn.isVisible().catch(() => false)) {
-      const installResp = page.waitForResponse(
-        (r) => r.url().includes('/install') && r.request().method() === 'POST',
-      );
-      await installBtn.click();
-      await installResp.catch(() => undefined);
-      // Allow the cache invalidation + refetch to settle.
-      await page.waitForResponse((r) => r.url().includes('/plugins/installed')).catch(() => undefined);
-      await page.waitForTimeout(500);
-    }
+    const crm = page.getByTestId('plugin-card').filter({ hasText: 'CRM' });
+    await expect(crm).toHaveCount(1);
+    const installBtn = crm.getByRole('button', { name: /^install$/i });
+    await expect(installBtn).toBeEnabled();
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/v1/plugins/crm/install') &&
+        response.request().method() === 'POST'
+    );
+    await installBtn.click();
+    const installResponse = await responsePromise;
+    expect(installResponse.status()).toBeGreaterThanOrEqual(200);
+    expect(installResponse.status()).toBeLessThan(300);
+    expect(await installResponse.json()).toMatchObject({ slug: 'crm', status: 'active' });
+    await expect(crm.getByRole('button', { name: /^installed$/i })).toBeVisible({
+      timeout: 20_000,
+    });
 
     // Verify the plugin now appears on the installed-plugins page.
     await page.goto('/settings/plugins');
-    await expect(page.getByRole('heading', { name: /installed plugins/i })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(pluginName, { exact: false }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: /installed plugins/i })).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByText('CRM', { exact: true }).first()).toBeVisible({ timeout: 10_000 });
   });
 });

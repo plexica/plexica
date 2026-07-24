@@ -57,8 +57,8 @@ beforeAll(async () => {
   await server.ready();
 });
 
-beforeEach(() => {
-  clearTenantCache();
+beforeEach(async () => {
+  await clearTenantCache(TEST_SLUG);
 });
 
 afterAll(async () => {

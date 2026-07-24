@@ -1,4 +1,5 @@
 import { dirname, resolve } from 'path';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'url';
 
 import { loadEnv } from 'vite';
@@ -12,9 +13,18 @@ export default defineConfig(({ mode }) => {
   // Load all env vars (empty prefix = no filter) from monorepo root .env
   const env = loadEnv(mode ?? 'test', monorepoRoot, '');
 
+  // vitest's test.env REPLACES process.env in the fork — it does not merge.
+  // In CI (no .env file), critical infra vars set in the GitHub Actions step
+  // would be lost. Start from process.env, then overlay .env file values,
+  // then apply test-specific overrides.
   const sharedEnv = {
+    ...process.env,
     ...env,
     NODE_ENV: 'test',
+    PLUGIN_DB_SSL_MODE: env['PLUGIN_DB_SSL_MODE'] ?? process.env['PLUGIN_DB_SSL_MODE'] ?? 'disable',
+    PLUGIN_CREDENTIAL_PEPPER:
+      env['PLUGIN_CREDENTIAL_PEPPER'] ?? process.env['PLUGIN_CREDENTIAL_PEPPER'] ??
+      randomBytes(32).toString('base64url'),
   };
 
   return {

@@ -1,6 +1,4 @@
-// workspace-members.test.ts
-// Integration tests — INT-02: Workspace member management.
-// Spec 003, Phase 18.2
+// INT-02: Workspace member management integration tests.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { prisma } from '../lib/database.js';
@@ -44,7 +42,6 @@ let workspaceId: string;
 beforeAll(async () => {
   const { tenantContext } = await seedTenant(SLUG);
   ctx = tenantContext;
-  // Pass the same UUID as userId so req.user.id == workspace.created_by == user_profile.user_id
   await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin User', ADMIN_ID);
   await seedUserProfile(ctx, MEMBER_ID, `${MEMBER_ID}@test.plexica.io`, 'Member User', MEMBER_ID);
 

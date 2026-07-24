@@ -13,7 +13,6 @@ import {
 
 import type { Page } from '@playwright/test';
 
-
 // ---------------------------------------------------------------------------
 // Admin credentials
 // The admin user is the same as the regular test user in global-setup.ts
@@ -69,10 +68,9 @@ export async function loginAsViewer(page: Page): Promise<void> {
   });
 }
 
-// Super-admin credentials — the Keycloak master realm admin user.
-// Used by DLQ E2E tests (ac-06) that hit super-admin-only API endpoints.
-export const SUPER_ADMIN_USERNAME = process.env['PLAYWRIGHT_SUPER_ADMIN_USER'] ?? 'admin';
-export const SUPER_ADMIN_PASSWORD = process.env['PLAYWRIGHT_SUPER_ADMIN_PASS'] ?? 'changeme';
+// Run-scoped master-realm identity created by global setup. Bootstrap is REST-only.
+export const SUPER_ADMIN_USERNAME = process.env['PLAYWRIGHT_SUPER_ADMIN_USER'] ?? '';
+export const SUPER_ADMIN_PASSWORD = process.env['PLAYWRIGHT_SUPER_ADMIN_PASS'] ?? '';
 export const SUPER_ADMIN_TENANT_SLUG = 'admin'; // maps to 'master' realm in tenant-resolver
 
 /**

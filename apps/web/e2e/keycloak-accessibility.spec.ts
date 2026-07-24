@@ -5,13 +5,14 @@
 //
 // Requires the full stack: docker compose up (Keycloak with plexica-theme.jar).
 // Skips when PLAYWRIGHT_KEYCLOAK_URL is not provided.
-// Skips theme-specific assertions when the Plexica theme fell back to default
-// (detected via .e2e-plexica-theme-active marker written by global-setup.ts).
+// Theme-specific skips require PLAYWRIGHT_ALLOW_KEYCLOAK_THEME_FALLBACK=true,
+// which global setup rejects in CI.
 //
 // Spec: ADR-010 (Keycloakify theme), Constitution Rule 1 (every feature has E2E).
 
 import { expect, test } from './helpers/base-fixture.js';
 import { isPlexicaThemeActive } from './helpers/keycloak-login.js';
+import { LOCAL_THEME_FALLBACK_REASON } from './theme-fallback-policy.js';
 
 const KEYCLOAK_URL = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? '';
 const KEYCLOAK_USERNAME = process.env['PLAYWRIGHT_KEYCLOAK_USER'] ?? '';
@@ -31,7 +32,7 @@ test.describe('Keycloak theme — Accessibility', () => {
   );
 
   test('submit button is reachable by keyboard and receives focus', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
 
@@ -54,7 +55,7 @@ test.describe('Keycloak theme — Accessibility', () => {
   });
 
   test('toggle password button is focusable via keyboard', async ({ page }) => {
-    test.skip(!plexicaTheme, 'Plexica theme not active — skipping theme-specific assertion');
+    test.skip(!plexicaTheme, LOCAL_THEME_FALLBACK_REASON);
     await page.goto('/?tenant=' + TENANT_SLUG);
     await page.waitForURL(/\/realms\//);
 

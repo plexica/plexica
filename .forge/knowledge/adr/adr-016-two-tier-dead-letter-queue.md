@@ -192,3 +192,83 @@ CREATE INDEX idx_dlq_plugin ON core.dead_letter_queue(plugin_id, status);
 - **ADR-017: Plugin DB Access Restriction** — The system consumer (`plexica-system-dlq-processor`)
   writes to core tables, not plugin tables. Plugin DB access restrictions do
   not apply to system consumers.
+
+---
+
+## Amendment — 2026-07-23: Tenant Ownership, Stable Dedupe, and Erasure
+
+**Status**: Accepted (amends the accepted decision above)
+**Driver**: PR #77 security remediation; Spec 004 DR-17 and AC-06; Spec 005
+005-07
+**Extends**: ADR-004 amendment dated 2026-07-23
+
+### Context
+
+The original table does not make tenant ownership mandatory and its proposed
+dedupe fields are not stable across retries. A timestamp/correlation tuple can
+create duplicate rows after a bridge crash. The original retention policy also
+leaves readable payloads in Kafka after tenant deletion and does not support a
+targeted database purge.
+
+### Decision
+
+1. Every DLQ record owns these immutable source coordinates:
+   `tenantId`, `installId`, `eventId`, `originalTopic`, `originalPartition`, and
+   `originalOffset`. `pluginId` remains catalog metadata, not ownership.
+2. `dedupeKey = SHA-256(installId + "\n" + originalTopic + "\n" +
+   originalPartition + "\n" + originalOffset)` and is protected by a unique
+   database constraint. The bridge performs an insert-on-conflict no-op and
+   commits the Kafka DLQ offset only after that transaction succeeds.
+3. Source consumers commit the original offset only after the encrypted DLQ
+   publication is acknowledged. If DLQ publication is unavailable, the source
+   event remains uncommitted and is retried; it is not silently discarded.
+4. The Kafka DLQ stores the original event and bounded structural error data as
+   a tenant-key-encrypted payload under ADR-004. Stack traces, credentials, and
+   raw database/client errors are prohibited.
+5. `core.dead_letter_queue` stores the decrypted payload for the authorized
+   super-admin UI and adds `tenant_id` plus the source coordinates above.
+   Tenant deletion executes `DELETE ... WHERE tenant_id = $1` before completion.
+6. Retry preserves `eventId`, `tenantId`, original event type, schema version,
+   and tenant partition key; it adds retry metadata without changing ownership.
+   Retry/dismiss uses a leased/CAS status transition (`pending -> retrying ->
+   retried` or `pending -> dismissed`).
+7. Kafka retention remains seven days for operational recovery. It is not the
+   erasure control: destroying the tenant event key makes every retained source
+   and DLQ payload unreadable before deletion completes.
+
+### Consequences
+
+- **Positive**: bridge replay is idempotent, tenant purge is exact, and no
+  readable Kafka domain payload survives logical tenant deletion.
+- **Negative**: DLQ production must carry Kafka source coordinates and the UI
+  database remains sensitive until targeted purge.
+- **Neutral**: the two-tier Kafka + PostgreSQL architecture and super-admin
+  retry/dismiss UX remain unchanged.
+
+### Migration and Rollout
+
+Add nullable columns, then purge existing DB rows because the legacy schema did
+not persist tenant ownership plus source partition/offset and therefore cannot
+prove any stable coordinates. Enforce `NOT NULL` and the unique dedupe
+constraint after that deterministic purge. Legacy Kafka DLQ records are purged
+during the ADR-004 maintenance window rather than guessed. Deploy the bridge
+before producers, then enable strict validation. Rollback must retain the new
+columns and may not resume timestamp-based dedupe or plaintext DLQ publication.
+
+### Security and GDPR
+
+- All list, retry, dismiss, and purge queries use the stored `tenant_id`; payload
+  inspection remains super-admin-only.
+- Error fields contain codes and bounded sanitized text, never stack traces or
+  PII.
+- Database purge plus tenant-key destruction is a deletion completion gate;
+  retention alone is explicitly insufficient.
+
+### Constitution Alignment
+
+| Article | Status | Notes |
+| --- | --- | --- |
+| Rule 1 / Testing | Compliant | Requires bridge-crash dedupe, two-tenant isolation, retry, and deletion E2E tests. |
+| Rule 5 / ADR | Compliant | Documents DLQ schema and security changes. |
+| Security: tenant isolation | Improved | Ownership is mandatory and queryable. |
+| Security: PII | Improved | Targeted purge and cryptographic erasure replace retention-only mitigation. |

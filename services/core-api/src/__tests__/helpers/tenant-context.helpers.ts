@@ -42,7 +42,7 @@ export function makeAuthStub(realm: string): (request: FastifyRequest) => Promis
  *
  * @note This function triggers tenantContextMiddleware internally, which populates
  *   the module-level `tenantCache` in tenant-context.ts as a side effect.
- *   Tests that call this helper should invoke `clearTenantCache()` in `beforeEach`
+ *   Tests that call this helper should clear their tenant slug in `beforeEach`
  *   to ensure cache state does not leak between test cases.
  */
 export async function createServerWithRealmStub(realm: string): Promise<FastifyInstance> {

@@ -43,7 +43,7 @@ describe('PostgreSQL smoke test', () => {
     expect(result[0]?.table_name).toBe('tenant_configs');
   });
 
-  it('TenantStatus enum has the correct values', async () => {
+  it('TenantStatus enum contains exactly the allowed values', async () => {
     // Prisma multiSchema stores enums with PascalCase names (core."TenantStatus").
     const result = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
       SELECT e.enumlabel
@@ -52,12 +52,10 @@ describe('PostgreSQL smoke test', () => {
       JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
       WHERE t.typname = 'TenantStatus'
         AND n.nspname = 'core'
-      ORDER BY e.enumsortorder
     `;
-    const values = result.map((r: { enumlabel: string }) => r.enumlabel);
+    const values = result.map((r: { enumlabel: string }) => r.enumlabel).sort();
     // ADR-022 Decision 1: 'pending_deletion' added for forward-only deletion saga.
-    // CI uses prisma db push (idempotent), which creates the enum from the Prisma
-    // schema order: active → suspended → pending_deletion → deleted.
-    expect(values).toEqual(['active', 'suspended', 'pending_deletion', 'deleted']);
+    // Enum membership is required; PostgreSQL sort order may retain migration history.
+    expect(values).toEqual(['active', 'deleted', 'pending_deletion', 'suspended']);
   });
 });

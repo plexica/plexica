@@ -63,6 +63,8 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         return { exists: false };
       }
 
+      request.log.info({ tenant: slug }, 'Tenant resolved');
+
       // NEW-H-3: return only { exists: true } — realm name is derived client-side
       return { exists: true };
     }
@@ -72,6 +74,8 @@ const tenantRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // ADMIN SCOPE: auth required, no tenant context (ID-003)
   // Tenant provisioning (POST /api/admin/tenants) now lives in the admin
   // module under /api/v1/admin/tenants (S5-401). Only migrate-all remains here.
+  // Global @fastify/rate-limit (global: true) covers this scope.
+  // codeql[js/missing-rate-limiting]
   // ---------------------------------------------------------------------------
   await fastify.register(async (adminScope) => {
     adminScope.addHook('preHandler', authMiddleware);

@@ -77,41 +77,41 @@ test.describe('Session expiry (EC-05 / AC-4)', () => {
     await expect(page).toHaveURL(/realms/);
   });
 
-  test('session expired page does not show a blank screen (AC-4)', async ({ page }) => {
-    // Even if the redirect hasn't happened yet, the page should show something meaningful
-    await page.goto('/');
+  test('session expired page does not show a blank screen (AC-4)', async ({ page, baseURL }) => {
+    if (baseURL === undefined) throw new Error('Playwright baseURL is required');
 
-    await page.evaluate((tenantSlug) => {
-      sessionStorage.setItem(
-        'plexica-auth',
-        JSON.stringify({
-          state: {
-            accessToken: null,
-            refreshToken: null,
-            idToken: null,
-            userProfile: null,
-            status: 'expired',
-            isAuthenticated: false,
-            tenantSlug,
-            realm: `plexica-${tenantSlug}`,
-          },
-          version: 0,
-        })
-      );
-    }, TENANT_SLUG);
+    // Seed the exact Zustand persist payload before the application store is created.
+    // Restrict the script to the web origin so it does not write on the Keycloak page.
+    await page.addInitScript(
+      ({ tenantSlug, webOrigin }) => {
+        if (window.location.origin !== webOrigin) return;
+        sessionStorage.setItem(
+          'plexica-auth',
+          JSON.stringify({
+            state: {
+              accessToken: null,
+              refreshToken: null,
+              userProfile: null,
+              status: 'expired',
+              idToken: null,
+              tenantSlug,
+              tenantUuid: null,
+              realm: `plexica-${tenantSlug}`,
+            },
+            version: 0,
+          })
+        );
+      },
+      { tenantSlug: TENANT_SLUG, webOrigin: new URL(baseURL).origin }
+    );
 
     await page.goto('/dashboard');
 
-    // There should be visible content — not a blank page
-    const bodyText = (await page.locator('body').textContent()) ?? '';
-    expect(bodyText.trim().length).toBeGreaterThan(10);
-
-    // Session expired toast or a redirect to Keycloak — either is acceptable
-    const hasToast = await page
-      .locator('[role="alert"]')
-      .isVisible()
-      .catch(() => false);
-    const isOnKeycloak = page.url().includes('realms');
-    expect(hasToast || isOnKeycloak, 'Should show toast or redirect to Keycloak').toBe(true);
+    const toast = page.getByRole('alert');
+    await expect(toast).toBeVisible({ timeout: 8_000 });
+    await expect(toast).toContainText(/expired/i);
+    await page.waitForURL(/\/realms\/.*\/protocol\/openid-connect\/auth/, {
+      timeout: 10_000,
+    });
   });
 });

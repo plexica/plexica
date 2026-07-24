@@ -1,7 +1,7 @@
 // tenant-detail-actions.tsx — Lifecycle action buttons + dialogs for the tenant
 // detail page (S5-503 suspend, S5-603 reactivate, S5-704 delete + deletion
-// status). When the tenant is `pending_deletion` the DeletionStatusPanel
-// replaces the action buttons.
+// status). During and after the deletion saga, DeletionStatusPanel replaces the
+// action buttons so operators can observe the final resource-erasure result.
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
@@ -34,12 +34,12 @@ export function TenantDetailActions({
   const intl = useIntl();
   const [dialog, setDialog] = useState<DialogKind>(null);
 
-  if (status === 'pending_deletion') {
+  // Keep the saga panel mounted after the tenant transitions to `deleted`.
+  // The detail query can refetch after a fast saga and observe `deleted` before
+  // the status query renders its final snapshot. Hiding actions at that point
+  // made the completion state impossible to observe in the UI.
+  if (status === 'pending_deletion' || status === 'deleted') {
     return <DeletionStatusPanel tenantId={tenantId} tenantName={tenantName} />;
-  }
-
-  if (status === 'deleted') {
-    return null;
   }
 
   const isActive = status === 'active';

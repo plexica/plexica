@@ -36,3 +36,9 @@ services:
       resources:
         limits:
           memory: 48M
+
+  loki:
+    deploy:
+      resources:
+        limits:
+          memory: 192M

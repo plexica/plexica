@@ -58,7 +58,7 @@ async function findOrCreateUserProfile(
     });
   } catch (err: unknown) {
     logger.error(
-      { err: String(err), kcUserId, email, realmName },
+      { kcUserId, realmName },
       'DB write failed after Keycloak user creation — KC user requires manual cleanup'
     );
     throw err;

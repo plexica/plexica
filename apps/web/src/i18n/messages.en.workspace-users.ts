@@ -19,10 +19,23 @@ export const messagesWorkspaceUsers = {
   'workspace.restore.confirm.description': 'This will restore the workspace and its children.',
   'workspace.status.active': 'Active',
   'workspace.status.archived': 'Archived',
+  'workspace.detail.parent': 'Parent workspace:',
   'workspace.detail.members': 'Members',
   'workspace.detail.children': 'Sub-workspaces',
   'workspace.reparent.label': 'Move to',
   'workspace.dangerZone.title': 'Danger Zone',
+  'workspace.tree.label': 'Workspace hierarchy',
+  'workspace.tree.empty': 'No workspaces.',
+  'workspace.tree.expand': 'Expand {name}',
+  'workspace.tree.collapse': 'Collapse {name}',
+  'workspace.tree.search.label': 'Search workspaces',
+  'workspace.tree.search.placeholder': 'Search workspaces...',
+  'workspace.tree.search.results':
+    '{count, plural, one {# workspace found} other {# workspaces found}}',
+  'workspace.tree.search.empty': 'No workspaces match your search.',
+  'workspace.tree.noParent': 'No parent workspace',
+  'workspace.selector.label': 'Workspace selector: {name}',
+  'workspace.selector.viewAll': 'View all workspaces',
 
   // Members
   'members.title': 'Members',

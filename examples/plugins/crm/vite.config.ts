@@ -12,13 +12,15 @@ export default defineConfig({
     }),
   ],
   build: {
-    outDir: 'dist',
-    lib: {
-      entry: 'ui/index.ts',
-      formats: ['es'],
-    },
+    target: 'esnext',
+    modulePreload: false,
+    cssCodeSplit: false,
+    outDir: 'dist-ui',
+    rollupOptions: { input: 'ui/index.ts' },
   },
   server: {
     port: 4001,
+    cors: true,
   },
+  preview: { port: 4001, cors: true },
 });

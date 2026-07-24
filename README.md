@@ -137,14 +137,20 @@ pnpm --filter core-api test
 
 Playwright starts `core-api` and the Vite dev server automatically via
 `webServer` in `playwright.config.ts`. You only need the infrastructure stack.
+Browser authentication exercises the real Keycloak-hosted PKCE flow described
+by ADR-023; Plexica does not collect credentials in an application form.
 
 `global-setup.ts` runs before every test session and auto-provisions:
 
-- Two test tenants (`e2e`, `e2e-b`) via the `tenant:create` CLI
+- Tenant fixtures, including an isolated tenant pair, via the `tenant:create` CLI
 - Test users in each Keycloak realm
 - The `plexica` login theme on both realms
 
 The setup is **idempotent** — safe to re-run without wiping volumes.
+Theme activation and its render probe are required. For local troubleshooting
+only, `PLAYWRIGHT_ALLOW_KEYCLOAK_THEME_FALLBACK=true` permits the default
+Keycloak theme and explicitly skips theme-specific assertions; CI rejects this
+opt-in.
 
 ```bash
 # 1. Start the full infrastructure stack
@@ -196,14 +202,12 @@ pnpm lint
 
 ### Expected Results
 
-| Suite                     | Command                       | Expected             |
-| ------------------------- | ----------------------------- | -------------------- |
-| Unit + integration        | `pnpm --filter core-api test` | All pass             |
-| E2E (Playwright Chromium) | `pnpm --filter web test:e2e`  | 54 passed, 1 skipped |
+| Suite                     | Command                       | Expected       |
+| ------------------------- | ----------------------------- | -------------- |
+| Unit + integration        | `pnpm --filter core-api test` | Successful run |
+| E2E (Playwright Chromium) | `pnpm --filter web test:e2e`  | Successful run |
 
-The 1 skipped test (`reading tenant B resource as tenant A returns 404`) is
-intentional — it is a placeholder for resource-level isolation coverage
-that requires CRUD routes not yet implemented (see `cross-tenant.spec.ts`).
+CI does not permit infrastructure or theme failures to become hidden skips.
 
 ## Changing Default Ports
 
@@ -212,7 +216,7 @@ For example, to run PostgreSQL on port 5433:
 
 ```bash
 POSTGRES_PORT=5433
-DATABASE_URL=postgresql://plexica:changeme@localhost:5433/plexica
+# Update DATABASE_URL to use port 5433 while retaining your existing credentials.
 ```
 
 ## Documentation

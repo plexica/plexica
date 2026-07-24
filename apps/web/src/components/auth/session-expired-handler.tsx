@@ -4,6 +4,7 @@
 import { useEffect } from 'react';
 import { useIntl } from 'react-intl';
 
+import { clearAuthQueryCache } from '../../services/auth-query-cache.js';
 import { useAuthStore } from '../../stores/auth-store.js';
 
 // L-5: design-spec Screen 5 specifies 3 seconds. Aligns document and code.
@@ -17,12 +18,15 @@ export function SessionExpiredHandler(): JSX.Element | null {
 
   useEffect(() => {
     if (status !== 'expired') return;
+    clearAuthQueryCache();
 
     // NEW-L-2: document.title manipulation removed — it is not a meaningful
     // notification mechanism. The role="alert" banner below already provides
     // the correct accessible notification to screen readers and users.
     const timer = setTimeout(() => {
-      void login();
+      void login().catch(() => {
+        window.location.href = '/login';
+      });
     }, REDIRECT_DELAY_MS);
 
     return () => {

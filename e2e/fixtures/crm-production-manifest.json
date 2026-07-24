@@ -1,0 +1,34 @@
+{
+  "slug": "crm",
+  "name": "CRM",
+  "version": "1.0.0",
+  "description": "Customer relationship management for contacts and deals across workspaces.",
+  "author": "Plexica",
+  "icon": "Contact2",
+  "categories": ["sales", "productivity"],
+  "hosting": {
+    "type": "sidecar",
+    "image": "plexica/crm-plugin:1.0.0",
+    "port": 3000,
+    "resources": { "cpu": "0.25", "memory": "128Mi" }
+  },
+  "ui": {
+    "remoteEntry": "remoteEntry.js",
+    "extensionPoints": ["sidebar:admin", "workspace-panel:main"]
+  },
+  "events": { "subscribes": ["plexica.workspace.created"] },
+  "env": { "E2E_FAIL_EVENT_PREFIX": "e2e-dlq-failure" },
+  "actions": [
+    { "action": "crm:contact:create", "label": "Create Contact", "defaultRole": "member" },
+    { "action": "crm:contact:read", "label": "View Contacts", "defaultRole": "viewer" },
+    { "action": "crm:contact:update", "label": "Edit Contact", "defaultRole": "member" },
+    { "action": "crm:contact:delete", "label": "Delete Contact", "defaultRole": "admin" },
+    { "action": "crm:deal:read", "label": "View Deals", "defaultRole": "viewer" },
+    { "action": "crm:deal:create", "label": "Create Deal", "defaultRole": "member" }
+  ],
+  "declaredTables": [
+    { "name": "crm_contacts", "description": "Contact records", "migrationFile": "migrations/001_create_contacts.sql", "content": "CREATE TABLE crm_contacts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL, name TEXT NOT NULL, email TEXT, phone TEXT, company TEXT, notes TEXT, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()); CREATE INDEX idx_crm_contacts_workspace_id ON crm_contacts(workspace_id); CREATE INDEX idx_crm_contacts_name ON crm_contacts(name);" },
+    { "name": "crm_deals", "description": "Deal pipeline", "migrationFile": "migrations/002_create_deals.sql", "content": "CREATE TABLE crm_deals (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL, contact_id UUID REFERENCES crm_contacts(id) ON DELETE SET NULL, title VARCHAR(255) NOT NULL, value DECIMAL(12,2) DEFAULT 0, stage VARCHAR(64) NOT NULL DEFAULT 'new', created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()); CREATE INDEX idx_crm_deals_workspace_id ON crm_deals(workspace_id); CREATE INDEX idx_crm_deals_stage ON crm_deals(stage); CREATE INDEX idx_crm_deals_contact_id ON crm_deals(contact_id); CREATE UNIQUE INDEX idx_crm_deals_default_pipeline ON crm_deals(workspace_id) WHERE title = 'Default Pipeline' AND contact_id IS NULL;" },
+    { "name": "crm_processed_events", "description": "Processed event IDs", "migrationFile": "migrations/003_create_processed_events.sql", "content": "CREATE TABLE crm_processed_events (event_id UUID PRIMARY KEY, processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW());" }
+  ]
+}

@@ -76,8 +76,11 @@ export async function evaluate(
     requiredRole = pluginOverride;
   }
 
-  // 5. Get workspace membership (with Redis cache)
-  const membership = await getMembership(ctx, tenantDb, redis);
+  // 5. Use an authoritative role when the caller already verified membership
+  // in its current DB operation; otherwise use the shared membership cache.
+  const membership = ctx.verifiedWorkspaceRole === undefined
+    ? await getMembership(ctx, tenantDb, redis)
+    : { role: ctx.verifiedWorkspaceRole, isTenantAdmin: false };
   if (membership.role === null) {
     return { allowed: false, reason: 'not a workspace member', decision: 'deny' };
   }

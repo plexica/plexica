@@ -9,9 +9,11 @@ import { Tabs, Badge } from '@plexica/ui';
 import { useWorkspaceId } from '../hooks/use-workspace-params.js';
 import { useWorkspace } from '../hooks/use-workspaces.js';
 import { useWorkspaceMembers } from '../hooks/use-workspace-members.js';
+import { useWorkspacePlugins } from '../hooks/use-plugins.js';
 import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
 import { EmptyState } from '../components/feedback/empty-state.js';
 import { PageError } from '../components/feedback/page-error.js';
+import { WorkspaceParentReference } from '../components/workspace/workspace-parent-reference.js';
 import { WorkspacePanelSlot } from '../mf-host/extension-slots/workspace-panel-slot.js';
 
 function TabContentSkeleton(): JSX.Element {
@@ -128,6 +130,7 @@ export function WorkspaceDetailPage(): JSX.Element {
   const intl = useIntl();
   const id = useWorkspaceId();
   const { data, isPending, isError, refetch } = useWorkspace(id);
+  const { data: pluginEntries = [] } = useWorkspacePlugins(id);
 
   if (isPending) return <WorkspaceDetailSkeleton />;
   if (isError || data === undefined) {
@@ -167,8 +170,9 @@ export function WorkspaceDetailPage(): JSX.Element {
         />
       </div>
       {ws.description !== null && <p className="text-neutral-600">{ws.description}</p>}
+      {ws.parentId !== null && <WorkspaceParentReference parentId={ws.parentId} />}
       <Tabs tabs={tabs} />
-      <WorkspacePanelSlot pluginEntries={[]} />
+      <WorkspacePanelSlot pluginEntries={pluginEntries} workspaceId={id} />
     </div>
   );
 }

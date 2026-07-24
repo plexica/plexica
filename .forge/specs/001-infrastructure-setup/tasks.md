@@ -893,7 +893,7 @@ Create the `apps/web` frontend app scaffold: `package.json` (React 19, Vite, `@v
 
 ---
 
-### 001-T30: Login page placeholder — renders login form elements for E2E
+### 001-T30: Historical login placeholder — superseded by PKCE redirect
 
 **Phase**: Phase 5 — Frontend Shell
 **Points**: 2
@@ -901,7 +901,9 @@ Create the `apps/web` frontend app scaffold: `package.json` (React 19, Vite, `@v
 **Assignee**: TBD
 
 **Description**:
-Implement `apps/web/src/main.tsx` (React entry point) and `apps/web/src/app.tsx` (root App component with TanStack Router). The root route `/` must render a login page placeholder using `@plexica/ui` components: at minimum an `Input` for email, an `Input` for password, and a `Button` for submit. These elements are what the Playwright E2E smoke test will assert are visible. Add react-intl as the i18n provider wrapping the app with English messages for all visible strings.
+This completed Phase 0 task created a temporary placeholder before auth existed.
+It is not the current contract. Spec 002 and ADR-023 supersede it with Keycloak
+Authorization Code + PKCE S256; Plexica renders no credential fields.
 
 **Files to create/modify**:
 
@@ -909,15 +911,18 @@ Implement `apps/web/src/main.tsx` (React entry point) and `apps/web/src/app.tsx`
 - `apps/web/src/app.tsx` — root App component with router and login placeholder
 - `apps/web/src/i18n/messages.en.ts` — English i18n messages
 
-**Definition of Done**:
+**Historical Definition of Done** (not a current auth requirement):
 
 - [x] `http://localhost:3000` renders without runtime errors in the browser console
-- [x] Page contains an email input (`type="email"`), password input (`type="password"`), and a submit button
+- [x] The temporary placeholder rendered its original smoke elements
 - [x] All visible strings are wrapped in react-intl `<FormattedMessage>` (no hardcoded English)
 - [x] No `window.confirm`, `window.alert`, or raw `<a href>` navigation
 - [x] The page passes axe-core accessibility check (no critical violations)
 
 **Spec requirement**: FR-012, US-003, Constitution Rule 3 (one i18n pattern), AGENTS.md (react-intl mandatory)
+
+**Current validation**: E2E asserts Keycloak redirect, PKCE callback, and no
+Plexica credential form (Spec 002; ADR-023).
 
 ---
 
@@ -1088,13 +1093,13 @@ Write `services/core-api/src/__tests__/tenant-schema.test.ts` covering: happy pa
 
 ## Phase 7: E2E Test + CI Pipeline
 
-> **Objective**: Playwright smoke test for the login page and full GitHub Actions CI pipeline configuration.
+> **Objective**: Playwright smoke test for sign-in and full CI configuration.
 > **Verification**: Full CI pipeline passes a test PR in < 10 minutes.
 > **Depends on**: All previous phases complete
 
 ---
 
-### 001-T37: Playwright config and `smoke.spec.ts` — login page E2E test
+### 001-T37: Historical placeholder smoke test — superseded by PKCE E2E
 
 **Phase**: Phase 7 — E2E Test + CI Pipeline
 **Points**: 3
@@ -1102,23 +1107,26 @@ Write `services/core-api/src/__tests__/tenant-schema.test.ts` covering: happy pa
 **Assignee**: TBD
 
 **Description**:
-Create `apps/web/playwright.config.ts` configuring Chromium-only, base URL `http://localhost:3000`, and screenshot/trace capture on failure. Write `apps/web/e2e/smoke.spec.ts` that navigates to `/`, waits for page load, and asserts: the page title is set, an email input is visible (`input[type="email"]`), a password input is visible (`input[type="password"]`), and a submit button is visible. This is the Constitution Rule 1 capstone test for Phase 0.
+This completed Phase 0 test covered the temporary 001-T30 placeholder. It is
+not the current auth E2E contract. Spec 002 and ADR-023 replace it with a real
+Keycloak PKCE S256 redirect/callback test and no Plexica credential inputs.
 
 **Files to create/modify**:
 
 - `apps/web/playwright.config.ts` — Playwright configuration
-- `apps/web/e2e/smoke.spec.ts` — E2E smoke test for login page
+- `apps/web/e2e/smoke.spec.ts` — historical placeholder smoke test
 
-**Definition of Done**:
+**Historical Definition of Done** (not a current auth requirement):
 
 - [x] `pnpm --filter web test:e2e` runs the Playwright test against a live `apps/web` dev server
-- [x] Test asserts `input[type="email"]` is visible
-- [x] Test asserts `input[type="password"]` is visible
-- [x] Test asserts the submit `button` is visible and enabled
+- [x] Test asserted the original placeholder elements
 - [x] Test captures a screenshot on failure and saves to `apps/web/e2e/screenshots/`
 - [x] `apps/web/package.json` has a `test:e2e` script
 
 **Spec requirement**: FR-012, US-002 AC-01, Constitution Rule 1 (E2E for every user-interactive surface)
+
+**Current validation**: Browser E2E follows Keycloak → exact `/callback` → app,
+asserts PKCE S256, and verifies Plexica has no credential form.
 
 ---
 
@@ -1214,7 +1222,7 @@ Perform and document the NFR validation checks as a verification pass after the 
 | 001-T28           | Barrel export + Storybook configuration               | 4     | 2              | T23–T27    |
 | **Phase 4 total** |                                                       |       | **26**         |            |
 | 001-T29           | `apps/web` scaffold — Vite + React + TanStack         | 5     | 3              | T28        |
-| 001-T30           | Login page placeholder with react-intl                | 5     | 2              | T29        |
+| 001-T30           | Historical login placeholder (superseded by PKCE)     | 5     | 2              | T29        |
 | **Phase 5 total** |                                                       |       | **5**          |            |
 | 001-T31           | `smoke-db.test.ts` — PostgreSQL + core schema         | 6     | 2              | T16, T17   |
 | 001-T32           | `smoke-keycloak.test.ts` — OIDC + token exchange      | 6     | 2              | T10        |

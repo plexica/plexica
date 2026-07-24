@@ -12,6 +12,7 @@ import Fastify from 'fastify';
 import { config } from './lib/config.js';
 import { disconnectDatabase } from './lib/database.js';
 import { disconnectKafka } from './lib/kafka.js';
+import { startEventWorkers, stopEventWorkers } from './events/event-workers.js';
 import { logger } from './lib/logger.js';
 import { redis, disconnectRedis } from './lib/redis.js';
 import {
@@ -36,10 +37,14 @@ import { pluginAdminRoutes, pluginTenantRoutes, pluginEventRoutes } from './modu
 import { adminRoutes } from './modules/admin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
 import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
-import { startDlqConsumer, stopDlqConsumer } from './modules/plugin/events/dlq-consumer.js';
 import { startupSweep } from './modules/admin/services/deletion-saga.service.js';
 import { startMetricsAggregator } from './modules/admin/services/metrics-aggregator.service.js';
 import { prisma } from './lib/database.js';
+import { reconcilePluginRuntimes } from './modules/plugin/services/runtime-recovery.service.js';
+import {
+  startTenantLifecycleWorker,
+  stopTenantLifecycleWorker,
+} from './modules/admin/services/tenant-lifecycle-worker.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -151,7 +156,8 @@ await server.register(async (tenantScope) => {
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Shutdown signal received — closing server');
   await server.close();
-  await stopDlqConsumer();
+  await stopTenantLifecycleWorker();
+  await stopEventWorkers();
   await disconnectDatabase();
   await disconnectRedis();
   await disconnectKafka();
@@ -167,16 +173,17 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 // ---------------------------------------------------------------------------
 async function start(): Promise<void> {
   try {
-    // Start DLQ consumer (reads from Kafka DLQ topic → populates DB table)
-    startDlqConsumer().catch((err) =>
-      logger.error({ err }, 'DLQ consumer failed to start — DLQ management UI will be empty')
+    await startEventWorkers();
+    startTenantLifecycleWorker();
+
+    // Discover every pending saga; CAS leases delay live work and recover crashed work.
+    void startupSweep(prisma).catch(() =>
+      logger.error('Deletion saga startup sweep failed')
     );
 
-    // Crash recovery: reset stale in_progress deletion saga steps to pending
-    // so they can be resumed (ADR-022 Decision 1 — forward-only saga).
-    void startupSweep(prisma).catch((err) =>
-      logger.error({ err }, 'Deletion saga startup sweep failed — stale in_progress steps may need manual recovery')
-    );
+    // Restore Kafka subscriptions held only in memory before accepting new
+    // workspace events. Individual broken installations do not block startup.
+    await reconcilePluginRuntimes();
 
     // Scheduled job: aggregate user/workspace counts across tenant schemas
     // into Redis (5-minute interval). Dashboard reads the cached totals.

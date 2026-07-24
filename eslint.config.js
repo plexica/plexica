@@ -12,6 +12,7 @@ export default [
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/dist-ui/**',
       '**/dist_keycloak/**',
       '**/build/**',
       '**/.next/**',

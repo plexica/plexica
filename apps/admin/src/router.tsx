@@ -6,11 +6,12 @@
 
 import { createRouter } from '@tanstack/react-router';
 
-import { rootRoute, loginRoute, indexRoute, shellRoute } from './router-shell.js';
+import { rootRoute, callbackRoute, loginRoute, indexRoute, shellRoute } from './router-shell.js';
 import { shellChildRoutes } from './router-shell-routes.js';
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  callbackRoute,
   loginRoute,
   shellRoute.addChildren([...shellChildRoutes]),
 ]);

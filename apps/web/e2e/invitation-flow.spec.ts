@@ -7,6 +7,7 @@
 
 import { expect, test } from './helpers/base-fixture.js';
 import {
+  ADMIN_TENANT_SLUG,
   hasKeycloak,
   loginAsAdmin,
   requireKeycloakInCI,
@@ -20,6 +21,7 @@ import {
   openWorkspaceMembers,
 } from './helpers/workspace.js';
 import { sendInviteViaUi } from './helpers/workspace-members.js';
+import { tenantApiUrl } from './helpers/tenant-hosts.js';
 
 let stackReady = false;
 
@@ -27,6 +29,9 @@ test.describe('E2E-04: User invitation flow', () => {
   test.beforeAll(async () => {
     requireKeycloakInCI();
     stackReady = hasKeycloak && (await isMailpitReachable());
+    if (process.env['CI'] !== undefined && !stackReady) {
+      throw new Error('CI requires live Keycloak and Mailpit for the invitation E2E flow.');
+    }
   });
 
   test.beforeEach(async ({ page }) => {
@@ -69,7 +74,7 @@ test.describe('E2E-04: User invitation flow', () => {
     expect(message.Subject).toMatch(/invitation|invite|join/i);
   });
 
-  test('invitation email contains an accept link', async ({ page }) => {
+  test('public invitation acceptance succeeds once', async ({ page }) => {
     const wsName = uniqueName('invite-link');
     const inviteEmail = `invite-link-${Date.now()}@e2e-test.local`;
     const id = await createWorkspace(page, { name: wsName });
@@ -82,15 +87,26 @@ test.describe('E2E-04: User invitation flow', () => {
     const detail = await getMessage(message.ID);
     const link = extractInviteLink(detail.HTML || detail.Text);
     expect(link, 'Invitation email must contain an accept link').not.toBeNull();
+
+    const token = link === null ? '' : new URL(link).pathname.split('/').pop();
+    expect(token).toBeTruthy();
+    const acceptUrl = tenantApiUrl(ADMIN_TENANT_SLUG, `/api/v1/invitations/${token ?? ''}/accept`);
+    const accepted = await page.request.post(acceptUrl);
+    expect(accepted.status()).toBe(200);
+    expect(await accepted.json()).toMatchObject({ workspaceId: id, role: 'member' });
+
+    const replay = await page.request.post(acceptUrl);
+    expect(replay.status()).toBe(409);
+    expect(await replay.json()).toMatchObject({
+      error: { code: 'INVITATION_ALREADY_ACCEPTED' },
+    });
   });
 
-  test('expired/invalid invitation token shows error', async ({ page }) => {
-    // Navigate directly to a fake/expired token URL — should show an error or redirect
-    await page.goto('/invitations/accept?token=expired-fake-token-000');
-    // The page may show an error or redirect to login/dashboard
-    // Since there's no dedicated invitation accept page, this may just show the SPA
-    await expect(
-      page.getByText(/expired|invalid|not found/i).or(page.getByRole('heading', { level: 1 }))
-    ).toBeVisible({ timeout: 8_000 });
+  test('invalid public invitation token returns the generic error', async ({ page }) => {
+    const response = await page.request.post(
+      tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/invitations/invalid-e2e-token/accept')
+    );
+    expect(response.status()).toBe(404);
+    expect(await response.json()).toMatchObject({ error: { code: 'INVITATION_NOT_FOUND' } });
   });
 });

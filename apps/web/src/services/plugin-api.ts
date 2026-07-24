@@ -13,6 +13,7 @@ import type {
   PluginVisibilityUpdate,
   DlqListResponse,
   InstallProgress,
+  WorkspacePluginEntry,
 } from '../types/plugin.js';
 
 export const pluginApi = {
@@ -41,6 +42,9 @@ export const pluginApi = {
 
   listInstalled: () =>
     apiClient.get<PluginInstallation[]>('/api/v1/plugins/installed'),
+
+  listWorkspacePlugins: (workspaceId: string) =>
+    apiClient.get<WorkspacePluginEntry[]>(`/api/v1/plugins/workspace/${workspaceId}`),
 
   deactivate: (installId: string) =>
     apiClient.post<void>(`/api/v1/plugins/${installId}/deactivate`),

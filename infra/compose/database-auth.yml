@@ -1,0 +1,120 @@
+volumes:
+  postgres_data:
+
+services:
+  postgres:
+    image: postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-plexica}
+      POSTGRES_USER: ${POSTGRES_USER:-plexica}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-plexica} -d ${POSTGRES_DB:-plexica}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  keycloak-db-init:
+    image: postgres@sha256:fceb6f86328c36f2438fae3b851b0cc57c4a7e69a58c866d9ce24281f2cf0c9c
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        psql -h postgres -U "${POSTGRES_USER:-plexica}" -d "${POSTGRES_DB:-plexica}" -tc \
+          "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1 \
+        || psql -h postgres -U "${POSTGRES_USER:-plexica}" -d "${POSTGRES_DB:-plexica}" \
+          -c "CREATE DATABASE keycloak"
+    restart: 'no'
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  keycloak:
+    image: quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
+    command: start-dev --import-realm
+    depends_on:
+      keycloak-db-init:
+        condition: service_completed_successfully
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-plexica}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'false'
+      KC_HTTP_ENABLED: 'true'
+      KC_HOSTNAME_STRICT: 'false'
+    ports:
+      - '${KEYCLOAK_PORT:-8080}:8080'
+    volumes:
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./infra/keycloak/admin-client-realm.json:/opt/keycloak/data/admin-client-realm.json:ro
+      - ./infra/keycloak/providers:/opt/keycloak/providers:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    healthcheck:
+      test:
+        - CMD
+        - /bin/bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/localhost/9000 &&
+          printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+          cat <&3 | grep -q UP
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./infra/keycloak/admin-client-realm.json:/opt/keycloak/data/admin-client-realm.json:ro
+      - ./infra/keycloak/reconcile-dev-keycloak.sh:/opt/keycloak/bin/reconcile-dev-keycloak.sh:ro
+      - ./infra/keycloak/reconcile-admin-client.sh:/opt/keycloak/bin/reconcile-admin-client.sh:ro
+      - ./infra/keycloak/reconcile-tenant-clients.sh:/opt/keycloak/bin/reconcile-tenant-clients.sh:ro
+      - ./infra/keycloak/reconcile-audience-mapper.sh:/opt/keycloak/bin/reconcile-audience-mapper.sh:ro
+    environment:
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-changeme}
+      KEYCLOAK_ADMIN_ORIGIN: ${KEYCLOAK_ADMIN_ORIGIN:-http://localhost:3002}
+      KEYCLOAK_API_AUDIENCE: ${KEYCLOAK_API_AUDIENCE:-plexica-api}
+    entrypoint:
+      - /bin/bash
+      - -euc
+      - |
+        set -Eeo pipefail
+        /opt/keycloak/bin/kcadm.sh config credentials \
+          --server http://keycloak:8080 \
+          --realm master \
+          --user "$$KEYCLOAK_ADMIN_USER" \
+          --password "$$KEYCLOAK_ADMIN_PASSWORD"
+        /bin/bash /opt/keycloak/bin/reconcile-dev-keycloak.sh
+    restart: 'no'
+    deploy:
+      resources:
+        limits:
+          memory: 256M

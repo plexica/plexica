@@ -7,6 +7,7 @@ import { PluginSlot } from './plugin-slot.js';
 interface SidebarSlotProps {
   pluginEntries: Array<{
     slug: string;
+    installId: string;
     remoteEntryUrl: string;
     extensionPoint: string;
   }>;
@@ -20,8 +21,8 @@ export function SidebarSlot({ pluginEntries }: SidebarSlotProps): JSX.Element | 
   }
 
   return (
-    <div className="border-t border-neutral-200 pt-2 mt-2 dark:border-neutral-700">
-      <PluginSlot entries={sidebarPlugins} />
+    <div className="mt-2 border-t border-neutral-200 pt-2">
+      <PluginSlot entries={sidebarPlugins} workspaceId="" />
     </div>
   );
 }

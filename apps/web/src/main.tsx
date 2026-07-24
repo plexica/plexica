@@ -4,25 +4,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { IntlProvider } from 'react-intl';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 
 import { messages } from './i18n/messages.en.js';
 import { router } from './router.js';
 import { SessionExpiredHandler } from './components/auth/session-expired-handler.js';
 import { startDevWatcher } from './mf-host/plugin-dev-watcher.js';
+import { queryClient } from './services/query-client.js';
 
 // Start dev mode WebSocket listener for plugin hot reload
 startDevWatcher();
 
 import '@plexica/ui/tokens';
 import './styles/globals.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 5 * 60 * 1_000 },
-  },
-});
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {

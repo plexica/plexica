@@ -2,12 +2,12 @@
 // E2E test: RouteErrorBoundary catches component errors and shows fallback UI.
 // Verifies AppShell remains intact and navigation resets the boundary.
 //
-// M-6 fix: updated to use the dev-only /test-error route (TestErrorPage throws
+// M-6 fix: uses the dev/E2E-only /test-error route (TestErrorPage throws
 // intentionally) instead of the org-error page, which never triggered the
 // RouteErrorBoundary at all. This test now verifies feature 002-16 correctly.
 //
 // Requires PLAYWRIGHT_TEST_USER + PLAYWRIGHT_TEST_PASSWORD + PLAYWRIGHT_TENANT_SLUG
-// (and a valid Keycloak realm for that tenant). Skips gracefully when absent.
+// (and a valid Keycloak realm for that tenant).
 
 import { expect, test } from './helpers/base-fixture.js';
 import { requireKeycloakInCI } from './helpers/keycloak-login.js';
@@ -15,8 +15,6 @@ import { requireKeycloakInCI } from './helpers/keycloak-login.js';
 const TEST_USER = process.env['PLAYWRIGHT_TEST_USER'] ?? '';
 const TEST_PASSWORD = process.env['PLAYWRIGHT_TEST_PASSWORD'] ?? '';
 const TENANT_SLUG = process.env['PLAYWRIGHT_TENANT_SLUG'] ?? 'test-tenant';
-
-const hasTestCredentials = TEST_USER.length > 0 && TEST_PASSWORD.length > 0;
 
 // Helper: log in and navigate to a protected route
 async function loginAndGoTo(page: import('@playwright/test').Page, path: string): Promise<void> {
@@ -33,11 +31,6 @@ async function loginAndGoTo(page: import('@playwright/test').Page, path: string)
 }
 
 test.describe('Error boundary (M-6)', () => {
-  test.skip(
-    !hasTestCredentials,
-    'Requires PLAYWRIGHT_TEST_USER and PLAYWRIGHT_TEST_PASSWORD to be set'
-  );
-
   test.beforeAll(() => {
     requireKeycloakInCI();
   });
@@ -45,7 +38,7 @@ test.describe('Error boundary (M-6)', () => {
   test('RouteErrorBoundary catches render error and shows fallback UI', async ({ page }) => {
     await loginAndGoTo(page, '/dashboard');
 
-    // Navigate to the dev-only /test-error route — TestErrorPage throws on render
+    // Navigate to the dev/E2E-only /test-error route — TestErrorPage throws on render
     await page.goto('/test-error');
 
     // ErrorFallback must be shown with role="alert"

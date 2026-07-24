@@ -19,7 +19,9 @@ async function getCached(installId: string, workspaceId: string): Promise<boolea
   try {
     const raw = await redis.get(cacheKey(installId, workspaceId));
     if (raw === null) return null;
-    return raw === '1';
+    // Positive decisions are never cached: failed invalidation must not retain
+    // access after a workspace or installation is disabled.
+    return raw === '0' ? false : null;
   } catch {
     return null; // Redis unavailable — fall through to DB
   }
@@ -27,7 +29,8 @@ async function getCached(installId: string, workspaceId: string): Promise<boolea
 
 async function setCache(installId: string, workspaceId: string, visible: boolean): Promise<void> {
   try {
-    await redis.setex(cacheKey(installId, workspaceId), CACHE_TTL_SECONDS, visible ? '1' : '0');
+    if (visible) await redis.del(cacheKey(installId, workspaceId));
+    else await redis.setex(cacheKey(installId, workspaceId), CACHE_TTL_SECONDS, '0');
   } catch {
     // Non-blocking cache miss — queries hit DB
   }
@@ -80,7 +83,7 @@ export async function isPluginVisible(
   // override rows (AC-03: overrides are preserved across deactivate/reactivate,
   // so we must NOT mutate isEnabled on lifecycle transitions).
   const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
-  if (!installation || (installation.status !== 'active' && installation.status !== 'degraded')) {
+  if (!installation || installation.status !== 'active') {
     await setCache(installId, workspaceId, false);
     return false;
   }
@@ -102,6 +105,42 @@ export async function isPluginVisible(
 }
 
 export { invalidateCache as clearVisibilityCache };
+
+export interface PluginVisibilityEntry {
+  workspaceId: string;
+  workspaceName: string;
+  isEnabled: boolean;
+  isOverride: boolean;
+  updatedAt: Date | null;
+}
+
+export async function getVisibilityEntries(
+  tx: Prisma.TransactionClient,
+  installId: string
+): Promise<PluginVisibilityEntry[]> {
+  const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
+  if (!installation) return [];
+  const [workspaces, overrides] = await Promise.all([
+    tx.workspace.findMany({
+      where: { status: 'active' },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+    tx.pluginWorkspaceVisibility.findMany({ where: { installId, isOverride: true } }),
+  ]);
+  const overrideByWorkspace = new Map(overrides.map((item) => [item.workspaceId, item]));
+  const defaultEnabled = installation.tenantDefaultVisibility === 'enabled';
+  return workspaces.map((workspace) => {
+    const override = overrideByWorkspace.get(workspace.id);
+    return {
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      isEnabled: override?.isEnabled ?? defaultEnabled,
+      isOverride: override !== undefined,
+      updatedAt: override?.updatedAt ?? null,
+    };
+  });
+}
 
 /**
  * Sets workspace-level visibility with override tracking.

@@ -16,6 +16,12 @@ export interface RealmConfig {
   tenantSlug: string;
 }
 
+export interface TenantWebClientUris {
+  callbackUri: string;
+  logoutUri: string;
+  origin: string;
+}
+
 export function buildRealmPayload(
   realmName: string,
   nodeEnv: string = process.env['NODE_ENV'] ?? 'development'
@@ -48,27 +54,51 @@ export function buildRealmPayload(
 
 // M-bonus: redirectUris and webOrigins are now scoped to the tenant's domain
 // instead of the wildcard '*' that would allow open redirects and token leakage.
+export function buildTenantWebClientUris(
+  tenantSlug: string,
+  nodeEnv: string = process.env['NODE_ENV'] ?? 'development'
+): TenantWebClientUris {
+  if (!/^[a-z][a-z0-9-]{1,62}$/.test(tenantSlug)) {
+    throw new Error(`Invalid tenant slug for Keycloak client: ${tenantSlug}`);
+  }
+  const origin =
+    nodeEnv === 'production' ? `https://${tenantSlug}.plexica.io` : 'http://localhost:3000';
+  const logoutUrl = new URL('/', origin);
+  logoutUrl.searchParams.set('tenant', tenantSlug);
+  return {
+    callbackUri: `${origin}/callback`,
+    logoutUri: logoutUrl.href,
+    origin,
+  };
+}
+
 export function buildClientPayload(
   clientId: string,
-  redirectUris: string[],
-  webOrigins: string[]
+  tenantSlug: string,
+  nodeEnv?: string
 ): Record<string, unknown> {
+  const uris = buildTenantWebClientUris(tenantSlug, nodeEnv);
   return {
     clientId,
     name: clientId,
     enabled: true,
+    protocol: 'openid-connect',
     publicClient: true,
     standardFlowEnabled: true,
+    implicitFlowEnabled: false,
     directAccessGrantsEnabled: false,
     serviceAccountsEnabled: false,
-    redirectUris,
-    webOrigins,
+    authorizationServicesEnabled: false,
+    bearerOnly: false,
+    fullScopeAllowed: false,
+    redirectUris: [uris.callbackUri],
+    webOrigins: [uris.origin],
     attributes: {
       'pkce.code.challenge.method': 'S256',
       // Keycloak stores post-logout redirect URIs in attributes["post.logout.redirect.uris"]
       // as a ##-separated string. The top-level postLogoutRedirectUris field is only
       // available in newer Keycloak REST API versions and causes a 400 on older ones.
-      'post.logout.redirect.uris': redirectUris.join('##'),
+      'post.logout.redirect.uris': uris.logoutUri,
     },
   };
 }
@@ -80,14 +110,14 @@ export function buildClientPayload(
  * protocol-mappers/models call after the client is created — embedding
  * protocolMappers in the client creation payload causes a 400 in Keycloak 26.
  */
-export function buildAudienceMapperPayload(clientId: string): Record<string, unknown> {
+export function buildAudienceMapperPayload(audience: string): Record<string, unknown> {
   return {
     name: 'audience-mapper',
     protocol: 'openid-connect',
     protocolMapper: 'oidc-audience-mapper',
     consentRequired: false,
     config: {
-      'included.client.audience': clientId,
+      'included.client.audience': audience,
       'id.token.claim': 'false',
       'access.token.claim': 'true',
     },
