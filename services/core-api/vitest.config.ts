@@ -13,28 +13,18 @@ export default defineConfig(({ mode }) => {
   // Load all env vars (empty prefix = no filter) from monorepo root .env
   const env = loadEnv(mode ?? 'test', monorepoRoot, '');
 
-  // Preserve critical process.env vars that CI sets directly (no .env file).
-  // Without this, vitest's fork env override would blank them out.
-  // Only include keys that are actually set to avoid injecting undefined.
-  const processEnvKeys = [
-    'LOKI_URL', 'DATABASE_URL', 'KEYCLOAK_URL', 'KEYCLOAK_ADMIN_USER',
-    'KEYCLOAK_ADMIN_PASSWORD', 'REDIS_URL', 'MINIO_ENDPOINT', 'MINIO_ACCESS_KEY',
-    'MINIO_SECRET_KEY', 'KAFKA_BROKERS', 'SMTP_HOST', 'SMTP_PORT',
-    'EVENT_KEY_ENCRYPTION_KEY', 'PLUGIN_DB_ENCRYPTION_KEY',
-  ];
-  const processEnvPatch: Record<string, string> = {};
-  for (const key of processEnvKeys) {
-    const val = process.env[key] ?? env[key];
-    if (val !== undefined) processEnvPatch[key] = val;
-  }
-
+  // vitest's test.env REPLACES process.env in the fork — it does not merge.
+  // In CI (no .env file), critical infra vars set in the GitHub Actions step
+  // would be lost. Start from process.env, then overlay .env file values,
+  // then apply test-specific overrides.
   const sharedEnv = {
+    ...process.env,
     ...env,
-    ...processEnvPatch,
     NODE_ENV: 'test',
-    PLUGIN_DB_SSL_MODE: env['PLUGIN_DB_SSL_MODE'] ?? 'disable',
+    PLUGIN_DB_SSL_MODE: env['PLUGIN_DB_SSL_MODE'] ?? process.env['PLUGIN_DB_SSL_MODE'] ?? 'disable',
     PLUGIN_CREDENTIAL_PEPPER:
-      env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url'),
+      env['PLUGIN_CREDENTIAL_PEPPER'] ?? process.env['PLUGIN_CREDENTIAL_PEPPER'] ??
+      randomBytes(32).toString('base64url'),
   };
 
   return {
