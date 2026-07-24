@@ -1,19 +1,22 @@
 // routes.ts
 // Invitation module Fastify plugin — registers all invitation routes.
-// The public accept endpoint requires tenantContextMiddleware but NO auth.
+// The public accept endpoint resolves its tenant from Host and requires NO auth.
 //
 // NOTE: authMiddleware, tenantContextMiddleware, and userProfileResolver are
 // registered as scope-level addHook('preHandler', ...) in index.ts and run
 // automatically for every route in invitationRoutes. Do NOT re-add them here.
-// invitationPublicRoutes is registered OUTSIDE the tenant scope and retains
-// its explicit [tenantContextMiddleware] preHandler.
+// invitationPublicRoutes is registered OUTSIDE the authenticated tenant scope.
 
-import { tenantContextMiddleware } from '../../middleware/tenant-context.js';
+import { publicInvitationTenantResolver } from '../../middleware/public-invitation-tenant.js';
 import { requireAbac } from '../../middleware/abac.js';
-import { ForbiddenError, ValidationError } from '../../lib/app-error.js';
+import { ForbiddenError, InvitationNotFoundError, ValidationError } from '../../lib/app-error.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 
-import { createInvitationSchema, invitationListQuerySchema } from './schema.js';
+import {
+  createInvitationSchema,
+  invitationListQuerySchema,
+  invitationTokenSchema,
+} from './schema.js';
 import {
   createInvitationService,
   resendInvitationService,
@@ -92,21 +95,24 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
   );
 }
 
-// ── Public accept route (tenant context required, no auth) ───────────────────
+// ── Public accept route (host tenant required, no auth) ──────────────────────
 // Registered separately so the host app can mount it without authMiddleware.
-// Callers must provide X-Tenant-Slug header for tenantContextMiddleware.
 export async function invitationPublicRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     '/api/v1/invitations/:token/accept',
-    { preHandler: [tenantContextMiddleware] },
+    {
+      // Fastify access logs include the URL, which contains the capability token.
+      logLevel: 'silent',
+      preHandler: [publicInvitationTenantResolver],
+    },
     async (req, reply) => {
-      const { token } = req.params as { token: string };
-      if (!token || token.trim().length === 0) {
-        throw new ValidationError('Invitation token is required');
-      }
+      const parsedToken = invitationTokenSchema.safeParse(
+        (req.params as { token?: unknown }).token
+      );
+      if (!parsedToken.success) throw new InvitationNotFoundError();
 
       const result = await withTenantDb(
-        (tx) => acceptInvitationService(tx, token, req.tenantContext.realmName),
+        (tx) => acceptInvitationService(tx, parsedToken.data, req.tenantContext.realmName),
         req.tenantContext
       );
       return reply.status(200).send(result);

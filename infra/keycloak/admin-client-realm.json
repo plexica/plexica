@@ -1,28 +1,37 @@
 {
   "clientId": "plexica-admin",
   "name": "Plexica Admin App",
-  "description": "Public client for the super-admin app. Uses direct password grant against the master realm — no browser flow.",
+  "description": "Public client for the super-admin app. Uses Authorization Code Flow with PKCE S256 against the master realm.",
   "enabled": true,
   "protocol": "openid-connect",
   "publicClient": true,
-  "standardFlowEnabled": false,
+  "standardFlowEnabled": true,
   "implicitFlowEnabled": false,
-  "directAccessGrantsEnabled": true,
+  "directAccessGrantsEnabled": false,
   "serviceAccountsEnabled": false,
   "authorizationServicesEnabled": false,
   "bearerOnly": false,
   "frontchannelLogout": false,
-  "redirectUris": ["http://localhost:3002/*"],
+  "fullScopeAllowed": false,
+  "redirectUris": ["http://localhost:3002/callback"],
   "webOrigins": ["http://localhost:3002"],
   "attributes": {
-    "access.token.lifespan": "3600",
-    "client_credentials.use_refresh_token": "false",
-    "use.refresh.tokens": "true"
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "http://localhost:3002/login",
+    "client.session.idle.timeout": "3600",
+    "client.session.max.lifespan": "3600"
   },
-  "roles": [
+  "protocolMappers": [
     {
-      "name": "super_admin",
-      "description": "Super administrator with full platform access (master realm only)"
+      "name": "audience-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-audience-mapper",
+      "consentRequired": false,
+      "config": {
+        "included.client.audience": "plexica-api",
+        "id.token.claim": "false",
+        "access.token.claim": "true"
+      }
     }
   ]
 }

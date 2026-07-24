@@ -9,23 +9,43 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { z } from 'zod';
+
 import { prisma, disconnectDatabase } from '../lib/database.js';
 import { manifestSchema } from '../modules/plugin/schema/manifest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Monorepo root: services/core-api/src/cli -> ../../../../
 const MONOREPO_ROOT = path.resolve(__dirname, '../../../../');
+const fixtureManifest = z
+  .string()
+  .regex(/^[a-zA-Z0-9_./-]+$/)
+  .optional()
+  .parse(process.env['PLUGIN_SEED_MANIFEST_PATH']);
 
 interface SeedPlugin {
   manifestPath: string;
   registryUrl: string;
+  /**
+   * Explicit review status for the seeded plugin.
+   * Only 'pending' and 'none' are valid for seeding.
+   * Defaults to 'none' if not set.
+   * Admin review E2E uses a separate, non-installable review fixture.
+   */
+  reviewStatus?: 'pending' | 'none';
 }
 
 // Example plugins shipped in the repo. The CRM plugin is required by Spec 004
 // AC-04 / AC-07 (CRM workflow + database isolation E2E). Additional plugins give
 // the marketplace enough cards for search/filter assertions (AC-05).
 const SEED_PLUGINS: SeedPlugin[] = [
-  { manifestPath: 'examples/plugins/crm/manifest.json', registryUrl: 'oci://plexica/crm-plugin' },
+  // CRM keeps its catalog seed status; E2E promotes it to the approved,
+  // installable marketplace fixture and creates a separate pending review fixture.
+  {
+    manifestPath: fixtureManifest ?? 'examples/plugins/crm/manifest.json',
+    registryUrl: 'oci://plexica/crm-plugin',
+    reviewStatus: 'pending',
+  },
 ];
 
 // Stable Keycloak sub for the super-admin who "registered" the seed plugins.
@@ -34,7 +54,21 @@ const SEED_PLUGINS: SeedPlugin[] = [
 // route level (plugin:manage), not by this column.
 const SEED_CREATOR_KEYCLOAK_ID = '00000000-0000-0000-0000-000000000000';
 
-async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<string> {
+// When true, the update branch ALSO applies reviewStatus, overwriting any
+// review decision an admin has made. This opt-in is not part of normal dev/CI
+// seeding. Admin review E2E instead resets a separate review fixture around
+// each test. Enabled via SEED_FORCE_REVIEW_STATUS=true.
+const forceReviewStatusEnv = z
+  .enum(['true', 'false'])
+  .default('false')
+  .parse(process.env['SEED_FORCE_REVIEW_STATUS'] ?? undefined);
+const FORCE_REVIEW_STATUS = forceReviewStatusEnv === 'true';
+
+async function upsertPlugin(
+  manifestPath: string,
+  registryUrl: string,
+  reviewStatus: 'pending' | 'none'
+): Promise<string> {
   const absPath = path.resolve(MONOREPO_ROOT, manifestPath);
   const raw = await readFile(absPath, 'utf-8');
   const manifest = JSON.parse(raw) as Record<string, unknown>;
@@ -47,7 +81,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
 
   const imageRef = m.hosting.image;
   const imageName = (imageRef.includes(':') ? imageRef.split(':')[0] : imageRef) ?? '';
-  const imageTag = imageRef.includes(':') ? imageRef.split(':')[1] ?? 'latest' : 'latest';
+  const imageTag = imageRef.includes(':') ? (imageRef.split(':')[1] ?? 'latest') : 'latest';
 
   // icon in manifest is a Lucide icon name; store it as the icon_url field.
   const iconUrl = m.icon ?? '';
@@ -63,6 +97,12 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
       categories: m.categories,
       manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'published',
+      // reviewStatus is intentionally NOT set on update by default — re-running
+      // the seed must NOT overwrite any review decision an admin has made.
+      // Exception: SEED_FORCE_REVIEW_STATUS=true (E2E global-setup only).
+      // Also clears reviewNotes and reviewedAt to avoid leaking stale metadata
+      // when transitioning from approved/rejected back to pending/none.
+      ...(FORCE_REVIEW_STATUS ? { reviewStatus, reviewNotes: null, reviewedAt: null } : {}),
       registryUrl,
       imageName,
       imageTag,
@@ -77,6 +117,7 @@ async function upsertPlugin(manifestPath: string, registryUrl: string): Promise<
       categories: m.categories,
       manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       status: 'published',
+      reviewStatus,
       registryUrl,
       imageName,
       imageTag,
@@ -103,7 +144,7 @@ async function main(): Promise<void> {
   process.stdout.write('Seeding plugin catalog…\n');
   let count = 0;
   for (const seed of SEED_PLUGINS) {
-    const id = await upsertPlugin(seed.manifestPath, seed.registryUrl);
+    const id = await upsertPlugin(seed.manifestPath, seed.registryUrl, seed.reviewStatus ?? 'none');
     process.stdout.write(`  ✓ seeded plugin (id: ${id})\n`);
     count++;
   }

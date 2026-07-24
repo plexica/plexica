@@ -1,9 +1,3 @@
-// kafka-status.routes.int.test.ts
-// Integration tests — GET /api/v1/admin/system/kafka (S5-901 / Feature 005-09).
-// DLQ counts come from core.dead_letter_queue (real DB); consumer lag comes
-// from the in-memory lag-metrics service (seeded via updateLag — no real Kafka
-// connection is made by the endpoint itself). Auth/tenant stubbed.
-
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
@@ -26,15 +20,39 @@ const mockTenantContext: TenantContext = {
 let server: FastifyInstance;
 let pluginId: string;
 let pluginId2: string;
+let tenantId: string;
+let pendingDlqBaseline: number;
 const PLUGIN_SLUG = 'test-kafka-plugin';
 const PLUGIN_SLUG_2 = 'test-kafka-plugin-2';
 const INSTALL_ID = 'test-kafka-install-1';
 const INSTALL_ID_2 = 'test-kafka-install-2';
 
+function dlqData(currentPluginId: string, index: number, status = 'pending') {
+  const eventId = crypto.randomUUID();
+  const installId = crypto.randomUUID();
+  return {
+    tenantId, installId, eventId, eventType: 'plexica.plugin.test', schemaVersion: 1,
+    payload: {
+      eventId, type: 'plexica.plugin.test', schemaVersion: 1, tenantId,
+      occurredAt: new Date().toISOString(), producer: { kind: 'core', id: 'core' },
+      correlationId: eventId, causationId: null, payload: { idx: index },
+    },
+    pluginId: currentPluginId, errorMessage: 'TEST_FAILURE', retryCount: 0,
+    originalTopic: 'plexica.plugin.test', originalPartition: 0,
+    originalOffset: BigInt(index), dedupeKey: eventId.replaceAll('-', '').padEnd(64, '0'), status,
+  };
+}
+
 beforeAll(async () => {
   if (!(await isDbReachable())) {
     throw new Error('Database is not reachable — ensure PostgreSQL is running.');
   }
+
+  pendingDlqBaseline = await prisma.deadLetterQueue.count({ where: { status: 'pending' } });
+  const tenant = await prisma.tenant.create({
+    data: { slug: `kafka-test-${crypto.randomUUID().slice(0, 8)}`, name: 'Kafka Test' },
+  });
+  tenantId = tenant.id;
 
   const row = await prisma.plugin.create({
     data: {
@@ -56,20 +74,10 @@ beforeAll(async () => {
 
   // Seed 3 pending DLQ entries linked to the plugin.
   for (let i = 0; i < 3; i++) {
-    await prisma.deadLetterQueue.create({
-      data: {
-        eventType: 'plexica.plugin.test',
-        payload: { idx: i },
-        pluginId,
-        errorMessage: 'boom',
-        status: 'pending',
-      },
-    });
+    await prisma.deadLetterQueue.create({ data: dlqData(pluginId, i) });
   }
   // One resolved DLQ entry — must NOT count toward pending totals.
-  await prisma.deadLetterQueue.create({
-    data: { eventType: 'plexica.plugin.test', payload: {}, pluginId, status: 'resolved' },
-  });
+  await prisma.deadLetterQueue.create({ data: dlqData(pluginId, 10, 'dismissed') });
 
   // Second plugin with its own DLQ entries (exercises cross-plugin aggregation).
   const row2 = await prisma.plugin.create({
@@ -92,15 +100,7 @@ beforeAll(async () => {
 
   // Seed 2 pending DLQ entries for the second plugin.
   for (let i = 0; i < 2; i++) {
-    await prisma.deadLetterQueue.create({
-      data: {
-        eventType: 'plexica.plugin.test',
-        payload: { idx: i },
-        pluginId: pluginId2,
-        errorMessage: 'boom',
-        status: 'pending',
-      },
-    });
+    await prisma.deadLetterQueue.create({ data: dlqData(pluginId2, i + 20) });
   }
 
   server = await createTestServer();
@@ -121,6 +121,7 @@ afterAll(async () => {
     await prisma.deadLetterQueue.deleteMany({ where: { pluginId: pluginId2 } });
     await prisma.plugin.deleteMany({ where: { slug: PLUGIN_SLUG_2 } });
   }
+  if (tenantId) await prisma.tenant.delete({ where: { id: tenantId } });
 });
 
 afterEach(() => {
@@ -167,7 +168,7 @@ describe('Kafka Status — GET /api/v1/admin/system/kafka', () => {
   it('dlqDepth aggregates pending DLQ entries across all plugins', async () => {
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/system/kafka' });
     const body = JSON.parse(res.payload);
-    // 3 from first plugin + 2 from second = 5 pending; 1 resolved excluded
-    expect(body.dlqDepth).toBe(5);
+    // Baseline entries are preserved; 3 + 2 test pending entries count, 1 resolved does not.
+    expect(body.dlqDepth).toBe(pendingDlqBaseline + 5);
   });
 });

@@ -1,4 +1,5 @@
 import { dirname, resolve } from 'path';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'url';
 
 import { loadEnv } from 'vite';
@@ -15,6 +16,9 @@ export default defineConfig(({ mode }) => {
   const sharedEnv = {
     ...env,
     NODE_ENV: 'test',
+    PLUGIN_DB_SSL_MODE: env['PLUGIN_DB_SSL_MODE'] ?? 'disable',
+    PLUGIN_CREDENTIAL_PEPPER:
+      env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url'),
   };
 
   return {

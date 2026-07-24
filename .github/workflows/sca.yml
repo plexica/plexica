@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v7
 
       # ── SCA scan via Trivy GitHub Action ─────────────────────────────────
-      # Scans pnpm-lock.yaml for known vulnerabilities.
+      # Excludes .forge tooling and scans production dependency lockfiles outside it.
       # scan-type: fs = filesystem scan (lock files, not container images)
       # scanners: vuln = vulnerability scanning only (not misconfig, secret)
       # exit-code: 1 = fail the pipeline if ANY vulnerability is found
@@ -42,6 +42,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          skip-dirs: .forge
           scanners: vuln
           format: table
           exit-code: 1

@@ -1,26 +1,3 @@
-# ci.yml — Plexica v2 CI pipeline
-# Runs on every PR targeting main.
-# Constitution Rule 2: all stages must pass; failure blocks merge.
-#
-# Dependabot: CI does NOT auto-run. A guard step fails fast with a message
-# to trigger manually via `workflow_dispatch`. The PR stays blocked until a
-# human triggers and passes CI manually. This avoids wasted runs on every
-# Dependabot commit and double runs on merge to main.
-#
-# Stages (optimized order — Docker warms up in parallel with lint/build):
-#   1. Setup        — checkout, Node, pnpm cache
-#   2. Install      — pnpm install
-#   2b. Generate    — prisma generate (TypeScript client)
-#   3. Infra-start  — Docker cache/pull/`up -d` (detached, returns immediately)
-#   4. Lint         — eslint              ┐ run while Docker is warming up
-#   5. Typecheck    — tsc --noEmit        │
-#   6. Build        — pnpm build          ┘
-#   7. Infra-wait   — block until all services are healthy + topics created
-#   8. Migrate      — apply Prisma migrations
-#   9. Unit + Integration tests — Vitest (real services)
-#  10. E2E          — Playwright Chromium smoke test (browser cached)
-#  11. Teardown     — docker compose down (always runs)
-
 name: CI
 
 on:
@@ -29,10 +6,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    description: Manually trigger CI (used for Dependabot PRs)
 
 env:
-  # Use CI-friendly defaults pointing to Docker service names
   NODE_ENV: test
   DATABASE_URL: postgresql://plexica:changeme@localhost:5432/plexica
   KEYCLOAK_URL: http://localhost:8080
@@ -47,6 +22,7 @@ env:
   MINIO_ACCESS_KEY: minioadmin
   MINIO_SECRET_KEY: changeme
   KAFKA_BROKERS: localhost:19092
+  LOKI_URL: http://localhost:3100
 
 jobs:
   ci:
@@ -54,81 +30,44 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 90
     permissions:
-      contents: read # Minimum required for checkout; all other permissions denied
-
+      contents: read
     steps:
-      # ── 0. Dependabot guard ────────────────────────────────────────────────────
-      # Dependabot PRs skip full CI by design. This guard fails fast with a clear
-      # message telling the human to trigger CI manually via workflow_dispatch.
-      # The ❌ status blocks merge until CI passes (required check).
-      #
-      # This also prevents wasted CI runs on `push` to main after a Dependabot
-      # PR is merged (auto-merge by Dependabot), avoiding the double-run problem.
-      #
-      # To trigger: gh workflow run ci.yml --ref <branch-name>
-      - name: ⏭️  Manual CI required for Dependabot PRs
+      - name: Manual CI required for Dependabot PRs
         if: github.actor == 'dependabot[bot]'
         run: |
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          echo "::notice title=Dependabot ::Full CI skipped — must be triggered manually"
-          echo ""
-          echo "  ╔══════════════════════════════════════════════════════════╗"
-          echo "  ║  Dependabot PR detected — full CI is NOT auto-run.     ║"
-          echo "  ║                                                         ║"
-          echo "  ║  Trigger CI manually:                                   ║"
-          echo "  ║    gh workflow run ci.yml --ref ${BRANCH}               ║"
-          echo "  ║                                                         ║"
-          echo "  ║  Or via GitHub UI: Actions → CI → Run workflow          ║"
-          echo "  ╚══════════════════════════════════════════════════════════╝"
-          echo ""
+          echo "::notice title=Dependabot ::Full CI must be triggered manually"
+          echo "Run: gh workflow run ci.yml --ref ${BRANCH}"
           echo "This check must pass before the PR can merge."
           exit 1
 
-      # ── 1. Setup ──────────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      # IMPORTANT: Setup order for self-hosted runners:
-      #   1. Node.js first  — the system Node (v18) is too old for pnpm/action-setup
-      #   2. pnpm second    — uses Node.js 24 from step 1
-      #
-      # NOTE: `cache: pnpm` is intentionally omitted from setup-node. On self-hosted
-      # runners it creates a circular dependency (setup-node needs pnpm to find cache,
-      # but pnpm isn't installed yet). The local pnpm store persists between runs
-      # anyway, so caching adds no value.
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
         with:
           node-version: '24'
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: 10
           run_install: false
-
-      # ── 2. Install ────────────────────────────────────────────────────────────
+      - name: Generate run-scoped encryption material
+        shell: bash
+        run: |
+          to_base64url() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
+          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
+          printf 'PLUGIN_DB_ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          printf 'PLUGIN_CREDENTIAL_PEPPER=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # ── 2b. Generate Prisma client ────────────────────────────────────────────
-      # Must run before lint/typecheck/build — @prisma/client types are generated here.
-      # Does NOT require a running database (reads schema.prisma only).
+      - name: Verify authored-file line gate
+        run: pnpm test:line-gate && pnpm check:lines
       - name: Generate Prisma client
         run: pnpm --filter core-api db:generate
-
-      # ── 2c. Build Keycloak theme JAR ──────────────────────────────────────────
-      # Build and copy the JAR to infra/keycloak/providers/ BEFORE Docker starts.
-      # Keycloak loads provider JARs at startup — if Docker starts first it loads
-      # the stale committed JAR and won't reload it after pnpm build (step 6).
       - name: Build Keycloak theme JAR
         run: pnpm --filter @plexica/keycloak-theme build
 
-      # ── 3. Infra start (detached) ─────────────────────────────────────────────
-      # Launch Docker containers in the background (phase=start). Returns as soon
-      # as `docker compose up -d` exits — healthchecks run asynchronously.
-      # Lint, typecheck, and build execute while Keycloak (~60-120s) warms up,
-      # recovering 2-3 min of wall-clock time per run.
       - name: Start Docker infrastructure (detached)
         uses: ./.github/actions/docker-infra
         with:
@@ -138,39 +77,14 @@ jobs:
           postgres-password: changeme
           keycloak-admin-user: admin
           keycloak-admin-password: changeme
-
-      # ── 4. Lint ───────────────────────────────────────────────────────────────
       - name: Lint
         run: pnpm lint
-
-      # ── 5. Typecheck ──────────────────────────────────────────────────────────
-      # Runs `tsc --noEmit` across all workspaces (admin-unit-int / S5-C10
-      # is covered here — @plexica/admin typecheck runs as part of the
-      # recursive `pnpm -r run typecheck`). The admin app has no Vitest
-      # suite yet (only Playwright E2E), so typecheck is its static gate.
       - name: Typecheck
         run: pnpm typecheck
-
-      # ── 6. Build ──────────────────────────────────────────────────────────────
-      # Builds ALL workspace packages in topological order (admin-build is
-      # covered here — @plexica/admin is part of the recursive build), excluding:
-      #   - root (plexica) — its "build" script re-triggers full recursive build
-      #   - CRM example — pre-existing dependency issues not related to core
       - name: Build
         run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
-
-      # ── 6b. Admin build verification ──────────────────────────────────────────
-      # Explicit admin app build check (S5-C10). The recursive build above
-      # already produces dist/, but this step gives a named, grep-able signal
-      # in CI logs and fails fast with a clear message if the admin bundle
-      # breaks independently of other packages.
       - name: Admin app build (S5-C10)
         run: pnpm --filter @plexica/admin build
-
-      # ── 7. Infra wait ─────────────────────────────────────────────────────────
-      # Block until all services report healthy. If Docker is already ready
-      # (lint+build took longer than Keycloak startup) this completes in seconds.
-      # Also creates Redpanda topics and runs the health verification step.
       - name: Wait for Docker infrastructure to be healthy
         uses: ./.github/actions/docker-infra
         with:
@@ -181,16 +95,13 @@ jobs:
           keycloak-admin-user: admin
           keycloak-admin-password: changeme
 
-      # ── 8. Migrate ────────────────────────────────────────────────────────────
-      # Use prisma db push (idempotent) instead of migrate deploy because the
-      # self-hosted runner's PostgreSQL volume may persist between CI runs.
-      # migrate deploy requires a clean slate (P3005), while db push handles
-      # existing tables gracefully.
       - name: Apply database migrations
-        run: pnpm --filter core-api exec prisma db push
+        run: pnpm --filter core-api exec prisma migrate deploy
         working-directory: ${{ github.workspace }}
-
-      # ── 9. Unit + Integration tests ───────────────────────────────────────────
+      - name: Verify migrations are complete and idempotent
+        run: |
+          pnpm --filter core-api exec prisma migrate deploy
+          pnpm --filter core-api exec prisma migrate status
       - name: Run unit and integration tests
         run: pnpm --filter core-api test
         env:
@@ -203,46 +114,20 @@ jobs:
           MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
+          LOKI_URL: ${{ env.LOKI_URL }}
 
-      # ── 10. E2E ────────────────────────────────────────────────────────────────
-      # GitHub-hosted Ubuntu runners already ship with Google Chrome.
-      # Downloading Playwright-managed Chromium has repeatedly hung after the
-      # archive reached 100%, so CI uses the preinstalled system browser
-      # instead of downloading another Chromium bundle.
-
-      # Self-hosted runner: kill leftover processes on Playwright ports (3000,
-      # 3001, 3002). Previous runs or unrelated services may leave orphan
-      # processes that block Playwright from starting its own webServer
-      # instances.
       - name: Clean up ports for Playwright
-        run: |
-          for port in 3000 3001 3002; do
-            pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
-            if [ -n "$pid" ]; then
-              echo "Killing process $pid on port $port"
-              kill -9 "$pid" 2>/dev/null || true
-            fi
-          done
-
+        run: bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3000 3001 3002
       - name: Verify preinstalled Chrome
         run: google-chrome --version
-
       - name: Run Playwright E2E tests
         run: pnpm --filter web test:e2e
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           PLAYWRIGHT_BROWSER_CHANNEL: chrome
           CI: 'true'
-          # Raise the global rate-limit ceiling for E2E runs. The 120 tests in
-          # the suite make many workspace POSTs from a single IP in rapid
-          # succession; the default of 100 req/min is exhausted mid-suite,
-          # causing 429s. 1000 req/min is still a meaningful guard against
-          # runaway loops while allowing all tests to complete.
           RATE_LIMIT_MAX: '1000'
           ADMIN_RATE_LIMIT_MAX: '1000'
-          # Infra vars — forwarded so the core-api webServer subprocess (started
-          # by Playwright) can connect to all services. These are also set at the
-          # job level (env:) but explicit forwarding ensures subprocess inheritance.
           DATABASE_URL: ${{ env.DATABASE_URL }}
           KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
           KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
@@ -252,7 +137,7 @@ jobs:
           MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-
+          LOKI_URL: ${{ env.LOKI_URL }}
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -261,26 +146,8 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
-      # ── 10b. Admin E2E (S5-C10) ────────────────────────────────────────────────
-      # Runs the 11 admin app Playwright spec files (dashboard, tenant list,
-      # detail, provisioning, suspend/reactivate, deletion, plugin catalog,
-      # health, logs, kafka status). Shares the same Docker infra stack
-      # already warmed up for web E2E — no additional services needed.
-      # The admin Playwright config (apps/admin/playwright.config.ts) starts
-      # its own webServers: core-api on :3001 and the admin Vite app on :3002.
-
-      # Kill leftover processes on the admin port (3002) plus core-api (3001)
-      # which the web E2E webServer may have left bound.
       - name: Clean up ports for admin Playwright
-        run: |
-          for port in 3001 3002; do
-            pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
-            if [ -n "$pid" ]; then
-              echo "Killing process $pid on port $port"
-              kill -9 "$pid" 2>/dev/null || true
-            fi
-          done
-
+        run: bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
       - name: Run admin Playwright E2E tests
         run: pnpm --filter @plexica/admin e2e
         env:
@@ -298,7 +165,8 @@ jobs:
           MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
           KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-
+          LOKI_URL: ${{ env.LOKI_URL }}
+          PLAYWRIGHT_LOKI_URL: ${{ env.LOKI_URL }}
       - name: Upload admin Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -307,20 +175,11 @@ jobs:
           path: apps/admin/playwright-report/
           retention-days: 7
 
-      # ── 11. Teardown ──────────────────────────────────────────────────────────
       - name: Tear down infrastructure services
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v --remove-orphans
-
       - name: Clean up orphan processes
         if: always()
         run: |
-          # Kill any leftover node/vite/playwright processes from the workspace
           pkill -f "node.*plexica" 2>/dev/null || true
-          for port in 3000 3001 3002; do
-            pid=$(lsof -ti tcp:"$port" 2>/dev/null || true)
-            if [ -n "$pid" ]; then
-              echo "Killing process $pid on port $port"
-              kill -9 "$pid" 2>/dev/null || true
-            fi
-          done
+          bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3000 3001 3002

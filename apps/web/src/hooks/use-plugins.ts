@@ -39,6 +39,14 @@ export function useInstalledPlugins() {
   });
 }
 
+export function useWorkspacePlugins(workspaceId: string) {
+  return useQuery({
+    queryKey: ['plugins', 'workspace', workspaceId],
+    queryFn: () => pluginApi.listWorkspacePlugins(workspaceId),
+    enabled: workspaceId.length > 0,
+  });
+}
+
 export function usePluginVisibility(installId: string) {
   return useQuery({
     queryKey: ['plugin', 'visibility', installId],

@@ -4,16 +4,14 @@
 
 
 import { ValidationError } from '../../../lib/app-error.js';
-import { logger } from '../../../lib/logger.js';
-import { PluginBackendUnreachableError, WorkspaceVerifyError } from '../errors.js';
+import { PluginBackendUnreachableError } from '../errors.js';
 
 import { shouldProbe, recordFailure, recordSuccess } from './health-check.service.js';
 import { registerDevBackend, unregisterDevBackend, getDevBackend } from './dev-backends.js';
 
 import type { ProxyTarget } from './dev-backends.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
-import type { TenantContext } from '../../../lib/tenant-context-store.js';
+import type { AuthorizedPluginProxy } from './proxy-authorization.service.js';
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10MB
 const TRUNCATION_MARKER = '\n… (truncated: response exceeded max size)\n';
@@ -37,7 +35,10 @@ export type { ProxyTarget };
 function sanitizeProxyPath(url: string): string {
   const pathSuffix = url.replace(/^\/api\/v1\/plugins\/[^/]+\/proxy/, '');
   const decoded = decodeURIComponent(pathSuffix);
-  if (decoded.includes('..') || decoded.includes('//')) {
+  // Check for '..' as a path segment, not as a substring — a legitimate
+  // plugin path like /foo..bar should not be rejected as traversal.
+  const segments = decoded.split('/');
+  if (segments.includes('..') || decoded.includes('//')) {
     throw new ValidationError('Invalid proxy path');
   }
   return decoded;
@@ -55,41 +56,11 @@ function validateTargetHost(targetUrl: string): void {
   }
 }
 
-// CRITICAL #3 — FAIL-CLOSED: if membership cannot be positively confirmed
-// (DB error, unreachable, etc.) the request is NEVER forwarded → 503.
-async function verifyWorkspaceMembership(
-  workspaceId: string | undefined,
-  userId: string | undefined,
-  tenantContext: TenantContext | undefined,
-  isTenantAdmin = false,
-): Promise<void> {
-  if (!workspaceId || !userId || !tenantContext) return;
-  if (workspaceId === '' || userId === '') return;
-  // Tenant admins have access to all workspaces in their tenant — bypass
-  // the per-workspace membership check (same as the ABAC preHandler).
-  if (isTenantAdmin) return;
-
-  const { withTenantDb } = await import('../../../lib/tenant-database.js');
-  try {
-    await withTenantDb(async (tx: TenantPrismaClient) => {
-      const member = await tx.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId, userId } },
-        select: { id: true },
-      });
-      if (!member) throw new ValidationError('User is not a member of the specified workspace');
-    }, tenantContext as TenantContext);
-  } catch (err) {
-    if (err instanceof ValidationError) throw err;
-    logger.error(
-      { err, workspaceId, userId },
-      'Workspace membership verification failed — denying request (fail-closed)',
-    );
-    throw new WorkspaceVerifyError();
-  }
-}
-
 export async function proxyRequest(
-  request: FastifyRequest, reply: FastifyReply, target: ProxyTarget
+  request: FastifyRequest,
+  reply: FastifyReply,
+  target: ProxyTarget,
+  access: AuthorizedPluginProxy
 ): Promise<void> {
   const canProbe = await shouldProbe(target.installId);
   if (!canProbe) throw new PluginBackendUnreachableError(target.installId);
@@ -98,21 +69,15 @@ export async function proxyRequest(
   const targetUrl = `${target.baseUrl}${pathSuffix}`;
   validateTargetHost(targetUrl);
 
-  const tenantContext = (request as FastifyRequest & { tenantContext: TenantContext }).tenantContext;
-  const internalUserId = request.user?.id ?? '';
+  const tenantContext = request.tenantContext;
   const keycloakUserId = request.user?.keycloakUserId ?? '';
-  const workspaceHeader = request.headers['x-plexica-workspace-id'];
-  const workspaceId = (typeof workspaceHeader === 'string' ? workspaceHeader : '') ?? '';
-
-  const isTenantAdmin = request.user?.roles.includes('tenant_admin') ?? false;
-  await verifyWorkspaceMembership(workspaceId, internalUserId, tenantContext, isTenantAdmin);
 
   const headers: Record<string, string> = {
     'Content-Type': (request.headers['content-type'] as string) || 'application/json',
     'X-Plexica-Tenant-Id': tenantContext?.tenantId ?? '',
     'X-Plexica-User-Id': keycloakUserId,
-    'X-Plexica-Workspace-Id': workspaceId,
-    'X-Plexica-User-Role': ((request.user as { roles?: string[] })?.roles?.[0]) ?? '',
+    'X-Plexica-Workspace-Id': access.workspaceId,
+    'X-Plexica-User-Role': access.workspaceRole,
     'X-Plexica-Correlation-Id': crypto.randomUUID(),
   };
 
@@ -160,20 +125,45 @@ export async function proxyRequest(
     // (Readable.fromWeb) can produce empty bodies with some HTTP clients when
     // the stream ends before the client reads it. Buffering is simpler and
     // reliable for the 10MB max response size.
-    if (response.body === null) {
-      reply.send('');
+    if (response.status === 204 || response.body === null) {
+      reply.send();
       return;
     }
     const responseBuffer = Buffer.from(await response.arrayBuffer());
     if (responseBuffer.length > MAX_RESPONSE_BYTES) {
-      reply.send(responseBuffer.subarray(0, MAX_RESPONSE_BYTES) + TRUNCATION_MARKER);
+      // Avoid Buffer+string coercion which corrupts binary responses.
+      // Only append the text truncation marker for text/JSON content types;
+      // binary responses get a bare truncated buffer with corrected length.
+      const contentType = response.headers.get('content-type') ?? '';
+      const isText = contentType.includes('text/') || contentType.includes('json') || contentType.includes('xml') || contentType.includes('javascript');
+      if (isText) {
+        reply.send(Buffer.concat([
+          responseBuffer.subarray(0, MAX_RESPONSE_BYTES),
+          Buffer.from(TRUNCATION_MARKER, 'utf8'),
+        ]));
+      } else {
+        reply.send(responseBuffer.subarray(0, MAX_RESPONSE_BYTES));
+      }
     } else {
       reply.send(responseBuffer);
     }
   } catch (err) {
     await recordFailure(target.installId);
-    const message = (err as Error).message;
-    if (message.includes('timeout') || message.includes('abort')) {
+    const message = (err as Error).message ?? '';
+    // Network-level failures (connection refused, reset, DNS, abort/timeout)
+    // mean the plugin backend is not reachable right now — surface a 503
+    // rather than leaking a raw TypeError as a 500. The circuit breaker
+    // recorded the failure; callers can retry until the backend converges.
+    if (
+      message.includes('timeout') ||
+      message.includes('abort') ||
+      message.includes('fetch failed') ||
+      message.includes('ECONNREFUSED') ||
+      message.includes('ECONNRESET') ||
+      message.includes('EAI_AGAIN') ||
+      message.includes('EHOSTUNREACH') ||
+      message.includes('ENOTFOUND')
+    ) {
       throw new PluginBackendUnreachableError(target.installId);
     }
     throw err;

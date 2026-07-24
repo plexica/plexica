@@ -9,7 +9,17 @@ const { PluginSDK } = await import('../src/index.js');
 import type { PluginEvent } from '../src/types.js';
 
 function makeEvent(type: string, payload: unknown = {}): PluginEvent {
-  return { type, payload, timestamp: new Date().toISOString(), correlationId: crypto.randomUUID() };
+  return {
+    eventId: crypto.randomUUID(),
+    type,
+    schemaVersion: 1,
+    tenantId: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    producer: { kind: 'core', id: 'core' },
+    payload,
+    correlationId: crypto.randomUUID(),
+    causationId: null,
+  };
 }
 
 function mockFetchOk(): ReturnType<typeof vi.fn> {

@@ -5,7 +5,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { IntlProvider } from 'react-intl';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 
 import '@plexica/ui/tokens';
@@ -13,14 +13,9 @@ import '@plexica/ui/tokens';
 import { messages } from './i18n/messages.en.js';
 import { router } from './router.js';
 import { SessionExpiredHandler } from './components/auth/session-expired-handler.js';
+import { queryClient } from './services/query-client.js';
 
 import './styles/globals.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 5 * 60 * 1_000 },
-  },
-});
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {

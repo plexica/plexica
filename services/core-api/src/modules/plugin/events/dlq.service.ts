@@ -1,107 +1,117 @@
-// events/dlq.service.ts
-// Dead Letter Queue management — Kafka topic + DB table (per ADR-016).
-// Primary path: Kafka DLQ topic (streaming, durable — consumed by dlq-consumer
-// which persists to DB). Fallback: direct DB write only when Kafka emit fails.
-// Deduplication: before any DB insert, check (eventType, correlationId, failedAt).
-
-import { emitEvent, Topics } from '../../../lib/kafka.js';
+import { domainEventEnvelopeSchema, buildDomainEvent } from '../../../events/event-envelope.js';
+import { dlqPayloadAsJson, dlqPayloadSchema } from '../../../events/dlq-contract.js';
+import { encryptDomainEvent } from '../../../events/event-crypto.js';
+import { ensureTenantEventKey } from '../../../events/event-key-service.js';
+import { ConflictError } from '../../../lib/app-error.js';
+import { prisma } from '../../../lib/database.js';
+import { sendKafkaEnvelope, Topics } from '../../../lib/kafka.js';
 import { logger } from '../../../lib/logger.js';
+import { PluginNotFoundError } from '../errors.js';
 
 import type { PrismaClient } from '@prisma/client';
+import type { DlqPayload } from '../../../events/dlq-contract.js';
+import type { WireEventEnvelope } from '../../../events/event-envelope.js';
+
+const RETRY_CLAIM_TTL_MS = 60_000;
+type DlqClient = Pick<PrismaClient, 'deadLetterQueue'>;
+type SendEvent = (
+  topic: string,
+  event: WireEventEnvelope,
+  options?: { headers?: Record<string, string>; partition?: number }
+) => Promise<void>;
 
 export async function moveToDlq(
-  installId: string,
-  eventType: string,
-  payload: Record<string, unknown>,
-  errorMessage: string,
-  retryCount: number,
-  pluginId?: string
+  input: DlqPayload,
+  db: PrismaClient = prisma,
+  send: SendEvent = sendKafkaEnvelope
 ): Promise<void> {
-  const correlationId =
-    (payload as Record<string, unknown>)?.['_metadata'] &&
-    typeof (payload as Record<string, unknown>)['_metadata'] === 'object'
-      ? ((payload as Record<string, unknown>)['_metadata'] as Record<string, unknown>)?.['correlationId'] as string | undefined
-      : undefined;
-  const failedAt = new Date();
-
-  // Prefer the actual pluginId (from plugin_installations.pluginId) when the
-  // caller has resolved it; fall back to installId as a best-effort identifier.
-  const resolvedPluginId = pluginId ?? installId;
-
-  // Primary path: emit to Kafka DLQ topic. The dlq-consumer persists to DB.
-  try {
-    await emitEvent(Topics.dlq, {
-      eventType,
-      payload,
-      pluginId: resolvedPluginId,
-      errorMessage,
-      retryCount,
-      correlationId: correlationId ?? installId,
-      failedAt: failedAt.toISOString(),
-    });
-    logger.debug({ installId, eventType }, 'DLQ entry emitted to Kafka topic');
-    return;
-  } catch (err) {
-    logger.error({ err, installId, eventType }, 'Kafka DLQ emit failed — falling back to direct DB write');
-  }
-
-  // Fallback path: Kafka emit failed — write directly to DB with dedup check.
-  try {
-    const { prisma } = await import('../../../lib/database.js');
-    await persistDlqEntryDedup(prisma, {
-      eventType,
-      payload: payload as Record<string, unknown>,
-      pluginId: resolvedPluginId,
-      errorMessage,
-      retryCount,
-      failedAt,
-    });
-    logger.info({ installId, eventType }, 'DLQ entry persisted directly to DB (fallback)');
-  } catch (err) {
-    logger.error({ err, installId, eventType }, 'Failed to persist DLQ entry directly to DB');
-  }
-}
-
-export async function persistDlqEntryDedup(
-  prisma: PrismaClient,
-  data: {
-    eventType: string;
-    payload: unknown;
-    pluginId: string;
-    errorMessage: string;
-    retryCount: number;
-    failedAt: Date;
-  }
-): Promise<void> {
-  const existing = await prisma.deadLetterQueue.findFirst({
-    where: { eventType: data.eventType, failedAt: data.failedAt },
-    select: { id: true },
+  const payload = dlqPayloadSchema.parse(input);
+  const tenant = await db.tenant.findUnique({
+    where: { id: payload.tenantId }, select: { status: true },
   });
-  if (existing) return;
-
-  await prisma.deadLetterQueue.create({
-    data: {
-      eventType: data.eventType,
-      payload: data.payload as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      pluginId: data.pluginId,
-      errorMessage: data.errorMessage,
-      retryCount: data.retryCount,
-      status: 'pending',
-      failedAt: data.failedAt,
+  if (tenant?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
+  const { keyVersion, key } = await ensureTenantEventKey(db, payload.tenantId);
+  const dlqEvent = buildDomainEvent({
+    eventId: payload.event.eventId,
+    type: 'plexica.plugin.delivery.failed',
+    tenantId: payload.tenantId,
+    producer: { kind: 'core', id: 'core' },
+    correlationId: payload.event.correlationId,
+    causationId: payload.event.eventId,
+    payload: dlqPayloadAsJson(payload),
+  });
+  const current = await db.tenant.findUnique({
+    where: { id: payload.tenantId }, select: { status: true },
+  });
+  if (current?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
+  await send(Topics.dlq, encryptDomainEvent(dlqEvent, keyVersion, key), {
+    headers: {
+      'plugin-install-id': payload.installId,
+      'original-topic': payload.source.topic,
+      'original-partition': String(payload.source.partition),
+      'original-offset': payload.source.offset,
     },
   });
+  logger.debug(
+    { eventId: payload.event.eventId, tenantId: payload.tenantId },
+    'Encrypted DLQ event published'
+  );
 }
 
-/**
- * Retries a DLQ entry by re-emitting the event to the original topic.
- * Called from the super admin DLQ management UI.
- */
 export async function retryDlqEntry(
-  eventType: string,
-  payload: Record<string, unknown>
+  db: PrismaClient,
+  id: string,
+  now = new Date(),
+  send: SendEvent = sendKafkaEnvelope
 ): Promise<void> {
-  const originalTopic = eventType;
+  const staleBefore = new Date(now.getTime() - RETRY_CLAIM_TTL_MS);
+  const claim = await db.deadLetterQueue.updateMany({
+    where: { id, OR: [{ status: 'pending' }, { status: 'retrying', resolvedAt: { lt: staleBefore } }] },
+    data: { status: 'retrying', resolvedAt: now },
+  });
+  if (claim.count !== 1) await throwClaimError(db, id);
+  const entry = await db.deadLetterQueue.findUnique({ where: { id } });
+  if (!entry) throw new PluginNotFoundError(`DLQ entry ${id}`);
 
-  await emitEvent(originalTopic, payload);
-  logger.info({ eventType, originalTopic }, 'DLQ entry retried');
+  try {
+    const tenant = await db.tenant.findUnique({
+      where: { id: entry.tenantId }, select: { status: true },
+    });
+    if (tenant?.status !== 'active') throw new Error('TENANT_NOT_ACTIVE');
+    const event = domainEventEnvelopeSchema.parse(entry.payload);
+    if (event.eventId !== entry.eventId || event.tenantId !== entry.tenantId) {
+      throw new Error('DLQ_IDENTITY_MISMATCH');
+    }
+    const { keyVersion, key } = await ensureTenantEventKey(db, entry.tenantId);
+    await send(entry.originalTopic, encryptDomainEvent(event, keyVersion, key), {
+      partition: entry.originalPartition,
+      headers: { 'dlq-retry': 'true' },
+    });
+  } catch (error) {
+    await db.deadLetterQueue.updateMany({
+      where: { id, status: 'retrying', resolvedAt: now },
+      data: { status: 'pending', resolvedAt: null },
+    });
+    throw error;
+  }
+  const finalized = await db.deadLetterQueue.updateMany({
+    where: { id, status: 'retrying', resolvedAt: now },
+    data: { status: 'retried', resolvedAt: new Date(), retryCount: { increment: 1 } },
+  });
+  if (finalized.count !== 1) throw new Error('DLQ_RETRY_LEASE_LOST');
+  logger.info({ id, eventId: entry.eventId }, 'DLQ entry retried');
+}
+
+export async function dismissDlqEntry(db: DlqClient, id: string): Promise<void> {
+  const dismissed = await db.deadLetterQueue.updateMany({
+    where: { id, status: 'pending' },
+    data: { status: 'dismissed', resolvedAt: new Date() },
+  });
+  if (dismissed.count !== 1) await throwClaimError(db, id);
+}
+
+async function throwClaimError(db: DlqClient, id: string): Promise<never> {
+  const entry = await db.deadLetterQueue.findUnique({ where: { id }, select: { status: true } });
+  if (!entry) throw new PluginNotFoundError(`DLQ entry ${id}`);
+  throw new ConflictError(`DLQ entry ${id} is ${entry.status} and cannot be changed`);
 }

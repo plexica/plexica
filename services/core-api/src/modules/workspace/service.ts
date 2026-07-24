@@ -1,9 +1,4 @@
-// service.ts
-// Workspace CRUD business logic — list, create, get, update.
-// Archive/restore/reparent live in service-archive.ts.
-
 import { generateSlug } from '../../lib/slug.js';
-import { emitEvent, Topics } from '../../lib/kafka.js';
 import {
   WorkspaceNotFoundError,
   WorkspaceArchivedError,
@@ -12,6 +7,8 @@ import {
 } from '../../lib/app-error.js';
 import { buildPaginatedResult } from '../../lib/pagination.js';
 import { writeAuditLog } from '../audit-log/writer.js';
+import { buildDomainEvent } from '../../events/event-envelope.js';
+import { enqueueEvent } from '../../events/outbox-repository.js';
 
 import {
   findWorkspacesByUser,
@@ -106,7 +103,8 @@ async function seedTemplateChildren(
 export async function createWorkspaceService(
   tenantDb: unknown,
   userId: string,
-  input: CreateWorkspaceInput
+  input: CreateWorkspaceInput,
+  tenantId: string
 ): Promise<WorkspaceDetailDto> {
   let parentPath: string | null = null;
   if (input.parentId != null) {
@@ -136,7 +134,16 @@ export async function createWorkspaceService(
     targetType: 'workspace',
     targetId: created.id,
   });
-  void emitEvent(Topics.workspace('created'), { id: created.id, slug, name: input.name });
+  await enqueueEvent(
+    tenantDb as Parameters<typeof enqueueEvent>[0],
+    'plexica.workspace.created',
+    buildDomainEvent({
+      type: 'plexica.workspace.created',
+      tenantId,
+      producer: { kind: 'core', id: 'core' },
+      payload: { id: created.id, workspaceId: created.id, slug, name: input.name },
+    })
+  );
   return getWorkspaceService(tenantDb, created.id, userId);
 }
 

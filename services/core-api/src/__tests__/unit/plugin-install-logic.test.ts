@@ -54,7 +54,7 @@ describe('events.routes — emitEventSchema + extractSlug (A5)', () => {
       type: 'plugin.crm.contact.created',
       payload: { id: '123' },
       timestamp: new Date().toISOString(),
-      correlationId: 'corr-1',
+      correlationId: '10000000-0000-4000-8000-000000000001',
     });
     expect(result.success).toBe(true);
   });
@@ -64,7 +64,7 @@ describe('events.routes — emitEventSchema + extractSlug (A5)', () => {
       type: 'crm.contact.created',
       payload: {},
       timestamp: new Date().toISOString(),
-      correlationId: 'corr-1',
+      correlationId: '10000000-0000-4000-8000-000000000001',
     });
     expect(result.success).toBe(false);
   });
@@ -74,7 +74,7 @@ describe('events.routes — emitEventSchema + extractSlug (A5)', () => {
       type: 'plugin.CRM.contact',
       payload: {},
       timestamp: new Date().toISOString(),
-      correlationId: 'corr-1',
+      correlationId: '10000000-0000-4000-8000-000000000001',
     });
     expect(result.success).toBe(false);
   });
@@ -84,7 +84,7 @@ describe('events.routes — emitEventSchema + extractSlug (A5)', () => {
       type: 'plugin.crm',
       payload: {},
       timestamp: new Date().toISOString(),
-      correlationId: 'corr-1',
+      correlationId: '10000000-0000-4000-8000-000000000001',
     });
     expect(result.success).toBe(false);
   });

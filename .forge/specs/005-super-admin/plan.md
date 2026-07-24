@@ -12,7 +12,7 @@
 | Date    | 2026-07-10                                    |
 | Track   | Feature                                       |
 | Spec    | `.forge/specs/005-super-admin/spec.md`        |
-| ADR     | ADR-022 (`.forge/knowledge/adr/adr-022-…md`)  |
+| ADR     | ADR-022; ADR-023 (Accepted)                   |
 
 ---
 
@@ -31,6 +31,8 @@ can be merged independently once its dependency chain is satisfied.
 - Spec: `.forge/specs/005-super-admin/spec.md` — features, edge cases, NFRs
 - ADR-022: `.forge/knowledge/adr/adr-022-super-admin-infra-and-data-model.md` —
   SQL DDL for new tables, Loki+Grafana infra, optimistic locking, `pino-loki`
+- ADR-023: `.forge/knowledge/adr/adr-023-admin-pkce-auth.md` — PKCE S256,
+  RP-Initiated Logout, exact URIs, and isolated E2E token helper
 - Architecture: `.forge/architecture/architecture.md` — §4.3 admin routes bypass
   tenant-context middleware (ID-003), §3.2 data model, §7.1 logging
 
@@ -57,15 +59,14 @@ ADR-022 (Accepted) provides the five foundational decisions this plan builds on:
 
 ### 2.2 Additional Technical Decisions (Plan-Level)
 
-These are implementation decisions that do not cross the ADR threshold (no new
-data model, auth, infrastructure, or core dependency — they are internal
-module/app structure choices):
+Except for D-3, these do not cross the ADR threshold. Accepted ADR-023
+supersedes D-3.
 
 | Decision | Rationale |
 | -------- | --------- |
 | **D-1: New `admin` module consolidates super-admin routes** | Currently super-admin routes are scattered: `POST /api/admin/tenants` in `tenant/tenant-routes.ts`, plugin catalog in `plugin/routes/admin-*.ts`. Spec 005 adds 20+ more admin endpoints. A dedicated `modules/admin/` module with route sub-files keeps each file under 200 lines (Rule 4) and provides a clear ownership boundary. Existing routes in `tenant/` and `plugin/` admin scopes remain for now — the new `admin` module adds the remaining features and new route files. A future refactor can consolidate. |
 | **D-2: Admin app uses object-based TanStack Router** | The web app uses object-based routing (`createRoute` + `addChildren`). The admin app replicates this exact pattern — no file-based routing framework to learn. Same `router-shell.tsx` + `router-shell-routes.tsx` split. |
-| **D-3: Admin auth store authenticates against master realm via `admin-cli` client** | Keycloak's master realm has the built-in `admin-cli` client for direct access grants. The admin app uses password grant (not PKCE browser flow) because it's an internal tool, not a public-facing tenant app. The store persists tokens in sessionStorage (same as web app). The `plexica-web` client ID is NOT used — a separate `plexica-admin` client is created in the master realm. |
+| **D-3 (superseded): Admin browser auth uses PKCE S256** | Public `plexica-admin` uses Authorization Code + PKCE against the master realm. `/login` redirects to Keycloak; `/callback` validates state and exchanges code. Application clients explicitly disable password grant. Access, refresh, and ID tokens are tab-scoped in `sessionStorage`. See ADR-023. |
 | **D-4: Metrics aggregation via `setInterval` scheduled job** | The pre-aggregated Redis metrics (user count, workspace count) need a 5-minute refresh. A `setInterval` in the server bootstrap (`src/index.ts`) starts the aggregation job — same pattern as the DLQ consumer startup. No external cron or job runner needed for v2. |
 | **D-5: Loki query proxy in backend, never direct from frontend** | The admin frontend calls `GET /api/v1/admin/logs` which proxies to Loki. The backend translates admin filters (tenant, level, time range) into LogQL labels + line filters using parameterized construction. The frontend never knows the Loki URL or LogQL syntax. |
 | **D-6: `withCoreDb` for all admin route handlers** | Admin routes bypass tenant-context middleware (ID-003). All admin database operations use `withCoreDb` (from `lib/tenant-database.ts`) which uses the singleton Prisma client against the `core` schema. Cross-schema aggregates (user counts per tenant) use `prisma.$queryRaw` with parameterized schema names. |
@@ -276,10 +277,10 @@ apps/admin/
     styles/
       globals.css                   — Tailwind globals (imports @plexica/ui/tokens)
     stores/
-      auth-store.ts                 — Zustand auth store (master realm, password grant)
+      auth-store.ts                 — Zustand auth store (master realm, PKCE + RP logout)
     services/
       api-client.ts                 — Configured fetch wrapper (master realm token, no X-Tenant-Slug)
-      keycloak-auth.ts              — Keycloak master realm direct grant (password flow)
+      keycloak-auth.ts              — Master-realm PKCE/OIDC client config
       admin-api.ts                  — Admin API methods (dashboard, tenants, plugins, health, logs, kafka)
     hooks/
       use-dashboard.ts              — TanStack Query: dashboard metrics
@@ -296,8 +297,11 @@ apps/admin/
         admin-shell.tsx             — Main layout (sidebar nav + content area)
         sidebar.tsx                 — Navigation sidebar (dashboard, tenants, plugins, health, logs, kafka)
       auth/
-        auth-guard.tsx              — Redirects to login if not authenticated
-        login-page.tsx              — Master realm login form
+        auth-guard.tsx              — Starts PKCE when no valid session exists
+        session-expired-handler.tsx — Announces expiry before re-authentication
+      pages/
+        login-page.tsx              — Keycloak redirect/fallback; no credentials
+        auth-callback-page.tsx      — Validate callback and exchange code
       dashboard/
         dashboard-page.tsx          — 005-01: metric cards + status summary
         metric-card.tsx             — Reusable metric card component
@@ -335,7 +339,8 @@ apps/admin/
       messages.en.plugins.ts        — Plugin catalog messages
       messages.en.system.ts         — Health + logs + kafka messages
   e2e/
-    global-setup.ts                 — E2E setup: seed test tenant, admin token
+    global-setup.ts                 — Seed data + ephemeral API helper client
+    global-teardown.ts              — Delete run-scoped helper client
     helpers/
       admin-login.ts                — Super admin login helper
       api-client.ts                 — Admin API helper for test assertions
@@ -359,18 +364,19 @@ apps/admin/
 | Router setup | `router.tsx` (object-based, `createRoute` + `addChildren`) | `src/router.tsx` — identical structure |
 | Router shell | `router-shell.tsx` (root route + shell route + auth guard) | `src/router-shell.tsx` — no tenant resolution (master realm only) |
 | Shell routes | `router-shell-routes.tsx` (all child route definitions) | `src/router-shell-routes.tsx` |
-| Auth store | `stores/auth-store.ts` (Zustand + persist + sessionStorage) | `src/stores/auth-store.ts` — master realm, password grant (not PKCE) |
+| Auth store | `stores/auth-store.ts` (Zustand + persist + sessionStorage) | Master-realm PKCE; access, refresh, ID token, and expiry status are tab-scoped |
 | API client | `services/api-client.ts` (fetch wrapper + 401 refresh) | `src/services/api-client.ts` — no `X-Tenant-Slug` header |
 | TanStack Query hooks | `hooks/use-plugins.ts` (useQuery + useMutation + invalidation) | `src/hooks/use-*.ts` — identical pattern |
 | i18n | `i18n/messages.en.ts` (react-intl message catalogs) | `src/i18n/messages.en.*.ts` |
 | Entry point | `main.tsx` (QueryClientProvider + IntlProvider + RouterProvider) | `src/main.tsx` — same structure |
-| Keycloak auth | `services/keycloak-auth.ts` (PKCE flow) | `src/services/keycloak-auth.ts` — direct password grant (internal tool) |
+| Keycloak auth | `services/keycloak-auth.ts` (PKCE flow) | PKCE S256 with exact environment callback/logout URIs |
 
 ### 4.3 Frontend Routes
 
 | Route Path | Component | Feature |
 | ---------- | --------- | ------- |
 | `/login` | `login-page.tsx` | Auth — master realm login |
+| `/callback` | `auth-callback-page.tsx` | Public PKCE callback |
 | `/dashboard` | `dashboard-page.tsx` | 005-01 |
 | `/tenants` | `tenant-list-page.tsx` | 005-02 |
 | `/tenants/$tenantId` | `tenant-detail-page.tsx` | 005-03 |
@@ -631,13 +637,20 @@ configured.
 
 ### 5.5 Keycloak Master Realm — `plexica-admin` Client
 
-A new OIDC client `plexica-admin` is created in the Keycloak master realm (via
-the `keycloak-init` one-shot service or a new `keycloak-admin-init` service).
-This client supports direct access grants (password flow) for the admin app.
-The `super_admin` role is assigned to master realm users who need admin access.
+Public client `plexica-admin` enables standard flow and explicitly disables
+implicit flow, direct grants, service accounts, and authorization services. Set
+`pkce.code.challenge.method = S256`, `fullScopeAllowed: false`, and map only
+standard OIDC scopes plus required `super_admin`. Never register `/*`.
 
-Infra file: `infra/keycloak/admin-client-realm.json` — Keycloak client
-representation for `plexica-admin`.
+| Environment | Redirect URI | Post-logout URI | Web origin |
+| --- | --- | --- | --- |
+| Local/CI | `http://localhost:3002/callback` | `http://localhost:3002/login` | `http://localhost:3002` |
+| Production | `https://admin.plexica.app/callback` | `https://admin.plexica.app/login` | `https://admin.plexica.app` |
+
+Staging/review use the same paths under their exact HTTPS origin; production
+contains no localhost/review values. Configure `post.logout.redirect.uris`.
+Persist the ID token in `sessionStorage`; logout clears local/query state then
+redirects to Keycloak with `client_id`, `id_token_hint`, and the exact URI.
 
 ---
 
@@ -782,11 +795,19 @@ One spec file per feature, in `apps/admin/e2e/`:
 | `005-11-kafka-status.spec.ts` | 005-11 | View Kafka status, see consumer lag per plugin, DLQ size per plugin |
 
 **E2E test setup**:
-- `global-setup.ts` — seeds a test tenant (via provisioning API), creates a
-  test plugin, ensures admin token is available
-- `helpers/admin-login.ts` — logs in as super admin via master realm
+- `global-setup.ts` seeds data and creates a unique, run-scoped confidential
+  helper. Direct grants exist only there; `fullScopeAllowed` is false and only
+  required role mappings are attached.
+- Generate its secret per run with no committed/default fallback; never log it.
+  Refuse setup outside explicit local/CI E2E infrastructure.
+- `global-teardown.ts` plus failure cleanup deletes the helper.
+- `helpers/admin-login.ts` exercises Keycloak browser PKCE and `/callback`.
 - `helpers/api-client.ts` — admin API helper for test assertions (verify
-  schema dropped, realm deleted, bucket deleted)
+  schema dropped, realm deleted, bucket deleted) with the scoped helper token,
+  never `admin-cli`.
+
+Bootstrap credentials may call Keycloak Admin REST only to create/delete the
+helper; that control-plane token is never sent to Plexica APIs.
 
 **Destructive operation cleanup**:
 - `005-07-deletion.spec.ts` creates a dedicated test tenant (e.g.,
@@ -936,7 +957,7 @@ existing integration test files listed in §8.2 (not separate files):
 | `src/styles/globals.css` | Tailwind globals | ~10 |
 | `src/stores/auth-store.ts` | Zustand auth store (master realm) | ~130 |
 | `src/services/api-client.ts` | Fetch wrapper (master realm, no tenant header) | ~100 |
-| `src/services/keycloak-auth.ts` | Keycloak master realm password grant | ~70 |
+| `src/services/keycloak-auth.ts` | Master-realm PKCE S256 + RP logout | ~70 |
 | `src/services/admin-api.ts` | Admin API methods | ~120 |
 | `src/hooks/use-dashboard.ts` | Dashboard metrics query | ~20 |
 | `src/hooks/use-tenants.ts` | Tenant list + detail queries | ~40 |
@@ -950,7 +971,9 @@ existing integration test files listed in §8.2 (not separate files):
 | `src/components/layout/admin-shell.tsx` | Main layout | ~80 |
 | `src/components/layout/sidebar.tsx` | Navigation sidebar | ~70 |
 | `src/components/auth/auth-guard.tsx` | Auth guard | ~30 |
-| `src/components/auth/login-page.tsx` | Login form | ~80 |
+| `src/pages/login-page.tsx` | Keycloak redirect/fallback; no credentials | ~60 |
+| `src/pages/auth-callback-page.tsx` | PKCE callback validation/exchange | ~80 |
+| `src/components/auth/session-expired-handler.tsx` | Expiry notice + re-authentication | ~50 |
 | `src/components/dashboard/dashboard-page.tsx` | 005-01 dashboard | ~90 |
 | `src/components/dashboard/metric-card.tsx` | Metric card | ~40 |
 | `src/components/tenants/tenant-list-page.tsx` | 005-02 tenant list | ~100 |
@@ -984,9 +1007,10 @@ existing integration test files listed in §8.2 (not separate files):
 
 | Path | Purpose |
 | ---- | ------- |
-| `e2e/global-setup.ts` | E2E setup: admin token, test tenant seed |
-| `e2e/helpers/admin-login.ts` | Super admin login helper |
-| `e2e/helpers/api-client.ts` | Admin API test helper |
+| `e2e/global-setup.ts` | Guarded run-scoped helper client + seed data |
+| `e2e/global-teardown.ts` | Failure-safe helper deletion |
+| `e2e/helpers/admin-login.ts` | Browser PKCE login helper |
+| `e2e/helpers/api-client.ts` | API assertions with E2E-only helper token |
 | `e2e/005-01-dashboard.spec.ts` | Dashboard E2E |
 | `e2e/005-02-tenant-list.spec.ts` | Tenant list E2E |
 | `e2e/005-03-tenant-detail.spec.ts` | Tenant detail E2E |
@@ -1008,7 +1032,7 @@ existing integration test files listed in §8.2 (not separate files):
 | `infra/grafana/provisioning/datasources/loki.yml` | Loki datasource |
 | `infra/grafana/provisioning/datasources/prometheus.yml` | Prometheus datasource |
 | `infra/grafana/dashboards/` | Dashboard JSON files (optional this sprint) |
-| `infra/keycloak/admin-client-realm.json` | `plexica-admin` client for master realm |
+| `infra/keycloak/admin-client-realm.json` | S256, exact URIs, direct grants disabled |
 
 ### 9.6 Backend — Modified Files
 
@@ -1086,9 +1110,9 @@ port 3002. All 11 admin E2E spec files must pass for CI green (Rule 2).
 | ------- | ------ | ----- |
 | Rule 1: E2E per feature | **COMPLIANT** | 11 E2E spec files (one per feature 005-01 through 005-11). Destructive operations (provision, suspend, delete) test against real Keycloak, real MinIO, real PostgreSQL — no mocks of core services (AGENTS.md testing rules). |
 | Rule 2: No merge without green CI | **COMPLIANT** | Unit, integration, and E2E suites all pass before merge. Each feature merged independently with its own E2E spec. |
-| Rule 3: One pattern per operation | **COMPLIANT** | Data fetching: TanStack Query (only). Forms: react-hook-form + Zod (provisioning wizard, login). Auth: single Zustand store in `apps/admin/`. No `fetch` raw, no `useEffect+useState` data fetching, no inline form state. |
+| Rule 3: One pattern per operation | **COMPLIANT** | TanStack Query; RHF+Zod where forms exist; no Plexica credential form; one Zustand store and PKCE S256 for browser auth. |
 | Rule 4: No file above 200 lines | **COMPLIANT** | All backend route files decomposed (max ~90 lines). Deletion saga split across 3 step handler files. Health checker split across 5 probe files. All frontend components decomposed (max ~100 lines). Provisioning wizard split across 3 step files. Enforced via lint rule in CI. |
-| Rule 5: ADR for significant decisions | **COMPLIANT** | ADR-022 (Accepted) covers all five significant decisions: new `core` tables, Loki+Grafana infra, `pino-loki` dependency, optimistic locking, plugin review queue + `deprecated` status. Plan-level decisions (D-1 through D-6) are implementation choices that do not cross the ADR threshold. |
+| Rule 5: ADR for significant decisions | **COMPLIANT** | ADR-022 covers data/infra. ADR-023 (Accepted) supersedes auth D-3 and covers PKCE, logout, persistence, client settings, and E2E isolation. |
 | Rule 6: English commit messages | **COMPLIANT** | All commits for this sprint written in English. |
 
 ### Security Compliance
@@ -1096,10 +1120,10 @@ port 3002. All 11 admin E2E spec files must pass for CI green (Rule 2).
 | Security Rule | Status | Notes |
 | ------------- | ------ | ----- |
 | §1 Tenant isolation | **COMPLIANT** | Deletion saga drops schema (full erasure). Admin routes operate on `core` schema only via `withCoreDb`. Cross-schema aggregates use parameterized schema names (validated slug → `toSchemaName`). No cross-tenant data leak. |
-| §2 Authentication | **COMPLIANT** | All admin endpoints require `super_admin` role via `requireSuperAdmin` preHandler. Admin app authenticates against Keycloak master realm. |
+| §2 Authentication | **COMPLIANT** | Endpoints require `super_admin`; browser auth uses master-realm PKCE S256; public clients disable direct grants; logout terminates Keycloak SSO. |
 | §3 SQL injection | **COMPLIANT** | All queries via Prisma parameterized. Cross-schema `SET search_path` uses validated slug (ID-001). Loki queries built via parameterized LogQL construction — no string interpolation of user input. |
 | §4 Input validation | **COMPLIANT** | Zod schemas on every admin endpoint (§3.1 schemas/ directory). |
-| §5 Secrets | **COMPLIANT** | `LOKI_URL`, `GRAFANA_URL`, Keycloak credentials via env vars only. Never in code. |
+| §5 Secrets | **COMPLIANT** | Runtime credentials use env vars. E2E helper secrets are random per run, never committed/defaulted/logged, then torn down. |
 | §6 PII | **COMPLIANT** | Pino logger redacts PII before shipping to Loki (existing redaction config). Platform audit log `metadata` carries structural data (slug, step, counts), not personal data. Health check returns status enum only — no connection strings or credentials. |
 
 ---
@@ -1112,7 +1136,7 @@ port 3002. All 11 admin E2E spec files must pass for CI green (Rule 2).
 | **Deletion saga stuck in E2E** | 005-07 E2E test hangs if a step fails | Each deletion step has a timeout. The E2E test creates a dedicated test tenant with known state (no active connections, empty bucket). If the saga gets stuck, the test queries deletion-status and asserts the step state. |
 | **Metrics aggregation job at scale** | `setInterval` aggregation scans all tenant schemas every 5 min — could be slow with 100+ tenants | The aggregation job counts rows in `user_profile` and `workspaces` tables across schemas. With 100 tenants this is 200 count queries — acceptable. For 1000+ tenants, a materialized view or per-tenant trigger would be needed (out of scope this sprint). |
 | **Grafana port conflict** | Grafana defaults to port 3000, same as web app dev server | Grafana is mapped to host port 3001 (configurable). The web app's Vite dev server runs on 3000. The admin app runs on 3002. No conflict. |
-| **Keycloak master realm `plexica-admin` client not created** | Admin app cannot authenticate | The `keycloak-init` one-shot service (or a new `keycloak-admin-init` service) creates the client on `docker compose up`. If the client doesn't exist, the admin app login returns an error — caught in E2E global setup. |
+| **`plexica-admin` settings/URIs drift** | Login, callback, or logout fails; PKCE bypass risk | Provision ADR-023 per environment; reject wildcards and validate S256, callback, and RP logout before merge. |
 | **Existing `POST /api/admin/tenants` route duplication** | Two routes at the same path → Fastify error | The old route in `tenant/tenant-routes.ts` is removed when the new `tenant-provision.routes.ts` in the admin module is registered. The Route Ownership Table (§3.4) documents explicit ownership of every admin route — `publish`/`unpublish` stay in `admin-publish.routes.ts`, only `review` is new. This is a coordinated change in one PR. |
 | **Optimistic lock 409 on legitimate retry** | Admin user sees confusing 409 error | The frontend handles 409 by re-fetching the tenant detail and showing a "tenant was modified by another admin" message with a retry button. The mutation hook's `onError` checks for 409 status. |
 
@@ -1124,6 +1148,7 @@ port 3002. All 11 admin E2E spec files must pass for CI green (Rule 2).
 | -------- | ---- |
 | Spec | `.forge/specs/005-super-admin/spec.md` |
 | ADR-022 | `.forge/knowledge/adr/adr-022-super-admin-infra-and-data-model.md` |
+| ADR-023 | `.forge/knowledge/adr/adr-023-admin-pkce-auth.md` |
 | Architecture | `.forge/architecture/architecture.md` (§4.3 admin routes, §3.2 data model, §7.1 logging) |
 | Constitution | `.forge/constitution.md` |
 | Product Brief | `.forge/product-brief.md` (Super Admin persona) |

@@ -70,6 +70,13 @@ export interface PluginInstallation {
   healthStatus: 'healthy' | 'degraded' | 'unreachable';
 }
 
+export interface WorkspacePluginEntry {
+  installId: string;
+  slug: string;
+  remoteEntryUrl: string;
+  extensionPoint: string;
+}
+
 export type PluginInstallStatus =
   | 'installing'
   | 'active'

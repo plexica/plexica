@@ -4,7 +4,6 @@
 // re-launches the background executor for the tenant. The executor re-runs
 // from the first non-done step, so a successful retry cascades to later steps.
 
-
 import { logger } from '../../../lib/logger.js';
 import { NotFoundError, ValidationError } from '../../../lib/app-error.js';
 
@@ -35,7 +34,13 @@ export async function retryFailedStep(
 
   const updated = await prisma.tenantDeletionStep.update({
     where: { id: stepId },
-    data: { status: 'pending', attempts: 0, lastError: null },
+    data: {
+      status: 'pending',
+      attempts: 0,
+      lastError: null,
+      leaseToken: null,
+      leaseExpiresAt: null,
+    },
   });
 
   await writeAuditEntry(prisma, {
@@ -48,13 +53,13 @@ export async function retryFailedStep(
   });
 
   logger.info(
-    { stepId, tenantId: step.tenantId, step: step.step, actorId },
-    'Deletion step reset for manual retry'
+    { stepId, tenantId: step.tenantId, step: step.step },
+    'Deletion step reset for retry'
   );
 
   setImmediate(() => {
-    runSagaSteps(prisma, step.tenantId).catch((err) => {
-      logger.error({ tenantId: step.tenantId, err }, 'Retry saga executor crashed');
+    runSagaSteps(prisma, step.tenantId).catch(() => {
+      logger.error({ tenantId: step.tenantId }, 'Retry saga executor crashed');
     });
   });
 

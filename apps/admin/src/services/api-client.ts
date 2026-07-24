@@ -1,132 +1,32 @@
 // api-client.ts
-// Configured fetch wrapper for admin API calls.
-// Attaches the Authorization bearer token on every request.
+// Admin app API client — configured fetch wrapper with automatic
+// Authorization bearer token injection and 401-driven token refresh.
 // NO X-Tenant-Slug header — admin routes bypass tenant context (master realm).
-// On 401: attempts a token refresh; if failed, marks the session as expired.
+//
+// Uses the shared @plexica/auth/api-client factory.
 
-// API paths include the /api/v1 prefix (e.g. /api/v1/admin/tenants).
-// The Vite dev proxy forwards /api/* -> http://localhost:3001 without rewriting,
-// so API_BASE must be empty to avoid doubling the prefix.
-// When VITE_API_URL is set (e.g. in CI), it should NOT include /api.
+import { createApiClient, ApiError } from '@plexica/auth/api-client';
+
+import { useAuthStore } from '../stores/auth-store.js';
+
+export { ApiError };
+
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
-// Module-level lazy cache breaks the circular dependency between api-client
-// (which needs auth tokens) and auth-store (which calls api-client on logout).
-let _authStoreModule: {
-  useAuthStore: typeof import('../stores/auth-store.js').useAuthStore;
-} | null = null;
-
-async function getAuthStore() {
-  if (_authStoreModule === null) {
-    _authStoreModule = await import('../stores/auth-store.js');
-  }
-  return _authStoreModule.useAuthStore.getState();
-}
-
-interface RequestOptions {
-  body?: unknown;
-  headers?: Record<string, string>;
-}
-
-export interface ApiErrorBody {
-  code?: string;
-  message?: string;
-  conflictType?: string;
-}
-
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly conflictType: string | undefined;
-
-  constructor(status: number, body: ApiErrorBody) {
-    super(body.message ?? `Request failed: ${status}`);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = body.code ?? 'UNKNOWN';
-    this.conflictType = body.conflictType;
-  }
-}
-
-async function readErrorBody(response: Response): Promise<ApiErrorBody> {
-  const body = (await response.json().catch(() => ({}))) as { error?: ApiErrorBody };
-  return body.error ?? {};
-}
-
-async function buildHeaders(
-  extra?: Record<string, string>,
-  hasBody = false
-): Promise<Record<string, string>> {
-  const store = await getAuthStore();
-  const headers: Record<string, string> = {
-    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-    ...extra,
-  };
-
-  if (store.accessToken !== null) {
-    headers['Authorization'] = `Bearer ${store.accessToken}`;
-  }
-
+export const apiClient = createApiClient({
+  baseUrl: API_BASE,
+  getTokens: () => {
+    const state = useAuthStore.getState();
+    return {
+      accessToken: state.accessToken,
+      refreshToken: state.refreshToken,
+    };
+  },
+  refreshTokens: async () => {
+    await useAuthStore.getState().refresh();
+  },
+  onSessionExpired: () => {
+    useAuthStore.getState().setSessionExpired();
+  },
   // Admin app: no X-Tenant-Slug header — admin endpoints operate cross-tenant.
-  return headers;
-}
-
-async function request<T>(method: string, path: string, options?: RequestOptions): Promise<T> {
-  const url = `${API_BASE}${path}`;
-  const hasBody = options?.body !== undefined;
-  const headers = await buildHeaders(options?.headers, hasBody);
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    ...(options?.body !== undefined && { body: JSON.stringify(options.body) }),
-  });
-
-  if (response.status === 401) {
-    const store = await getAuthStore();
-    try {
-      await store.refresh();
-      const retryHeaders = await buildHeaders(options?.headers, hasBody);
-      const retryResponse = await fetch(url, {
-        method,
-        headers: retryHeaders,
-        ...(options?.body !== undefined && { body: JSON.stringify(options.body) }),
-      });
-      if (!retryResponse.ok) {
-        // Refresh succeeded but the API returned a non-401 error — not a session
-        // expiry. Throw an ApiError so callers can inspect status/code.
-        throw new ApiError(retryResponse.status, await readErrorBody(retryResponse));
-      }
-      if (retryResponse.status === 204) {
-        return undefined as T;
-      }
-      return retryResponse.json() as Promise<T>;
-    } catch (err) {
-      if (err instanceof ApiError) {
-        throw err;
-      }
-      store.setSessionExpired();
-      throw new Error('Session expired');
-    }
-  }
-
-  if (!response.ok) {
-    throw new ApiError(response.status, await readErrorBody(response));
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
-}
-
-export const apiClient = {
-  get: <T>(path: string, options?: Omit<RequestOptions, 'body'>) =>
-    request<T>('GET', path, options),
-  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>('POST', path, { ...options, body }),
-  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>('PATCH', path, { ...options, body }),
-  delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, options),
-};
+});

@@ -7,12 +7,15 @@
 import pino, { type TransportTargetOptions } from 'pino';
 
 import { config } from './config.js';
+import { LOGGER_REDACT_PATHS, LOKI_APP_LABEL, deepRedact } from './logging-contract.js';
 
 const LOG_LEVEL = config.NODE_ENV === 'production' ? 'info' : 'debug';
 
-// Never log PII (Constitution security rule)
+// Pino path-based redact handles shallow fields efficiently.
+// deepRedact in the serializer handles deeply-nested sensitive keys that
+// Pino's wildcard paths (capped at 3 levels) would miss.
 const redactConfig = {
-  paths: ['email', 'password', 'token', 'secret', 'credential'],
+  paths: [...LOGGER_REDACT_PATHS],
   censor: '[REDACTED]',
 };
 
@@ -49,7 +52,9 @@ function buildLokiTarget(): TransportTargetOptions | null {
       batching: { interval: 5, maxBufferSize: 10000 },
       // Silence transport errors so Loki outages don't spam stdout.
       silenceErrors: true,
-      labels: { app: 'plexica-core-api', env: config.NODE_ENV },
+      // Contract: app/env and pino-loki's bounded level are the only labels.
+      // Tenant remains in the JSON line and is parsed exactly at query time.
+      labels: { app: LOKI_APP_LABEL, env: config.NODE_ENV },
     },
     level: LOG_LEVEL,
   };
@@ -66,4 +71,19 @@ export const logger = pino({
   level: LOG_LEVEL,
   transport: buildTransport(),
   redact: redactConfig,
+  // Apply deep redaction as a custom serializer step so sensitive keys at
+  // any nesting depth are caught even when Pino's path wildcards fall short.
+  serializers: {
+    err(value: unknown): unknown {
+      return deepRedact(value);
+    },
+  },
+  // Wrap the mixin to deep-redact the bindings at every log call.
+  mixin() {
+    return {};
+  },
 });
+
+// Re-export deepRedact for testing and direct use in service code that
+// builds log objects before passing them to the logger.
+export { deepRedact };

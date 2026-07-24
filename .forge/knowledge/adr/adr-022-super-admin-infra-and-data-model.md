@@ -326,3 +326,88 @@ alongside `draft`, `published`, `unpublished`. The existing
 - **Spec 003 `audit_logs`** — The per-tenant audit table. Decision 2
   (`core.platform_audit_log`) is distinct and complementary: platform-level
   actions go to `core`, tenant-internal actions go to the tenant schema.
+
+---
+
+## Amendment — 2026-07-23: Durable Lifecycle Reconciliation and Event Purge
+
+**Status**: Accepted (amends the accepted decision above)
+**Driver**: PR #77 security remediation; Spec 005 005-05, 005-06, 005-07 and
+AC 2—3
+**Extends**: ADR-004 and ADR-016 amendments dated 2026-07-23; ADR-024 (Accepted 2026-07-23)
+
+### Context
+
+Suspension/reactivation currently combines a committed PostgreSQL status change
+with non-transactional Keycloak, plugin runtime, Redis, and credential side
+effects. A process crash or dependency outage can leave those systems divergent
+without a durable retry intent. The three-step deletion saga also omits event
+stores and service credentials, so it can mark a tenant deleted while readable
+Kafka payloads or tenant-owned DLQ rows remain.
+
+### Decision
+
+1. Add `core.tenant_lifecycle_reconciliations`, one immutable operation per
+   `(tenant_id, target_version)`, with desired status, operation status,
+   attempts, next-attempt time, lease token/expiry, sanitized error code, and
+   completion timestamps.
+2. Suspension commits `core.tenants.status = suspended`, increments version,
+   and creates the reconciliation operation atomically. The database status is
+   the immediate fail-closed API/proxy/event gate. The worker idempotently
+   disables the realm and pauses plugin runtimes/consumers, then marks the
+   operation complete.
+3. Reactivation creates a durable desired-`active` operation and increments the
+   version while the public tenant status remains `suspended`. The worker first
+   enables/reconciles external resources; only after all checks pass does its
+   final transaction set status `active`. Any failure therefore remains
+   fail-closed.
+4. Routes run the durable executor inline for the happy path to preserve the
+   existing `200` response contract. If a dependency fails after intent commit,
+   they return `202 Accepted` with operation ID, version, current fail-closed
+   status, and `reconciliation: pending`; they never imply rollback. Startup and
+   a periodic distributed leased sweep resume pending/expired operations.
+5. Add `event_data_purge` as the first deletion step:
+   `event_data_purge -> schema_drop -> realm_delete -> bucket_delete`. It stops
+   tenant plugin runtimes/consumers, revokes/deletes plugin service credentials,
+   deletes tenant outbox and DB DLQ rows by `tenant_id`, and destroys all wrapped
+   event keys. It is idempotent and must be `done` before any later step and
+   before status `deleted`.
+6. Outbox publishers and DLQ bridges re-check tenant status immediately before
+   write/send. `pending_deletion` is a permanent deny for new tenant events.
+
+### Consequences
+
+- **Positive**: crashes and partial external failures converge automatically;
+  reactivation cannot expose a tenant before dependencies are ready; deletion
+  covers event data and plugin credentials.
+- **Negative**: lifecycle operations become durable asynchronous work and need
+  lease/age metrics.
+- **Neutral**: optimistic locking, existing API paths, forward-only deletion,
+  and manual retry remain.
+
+### Migration and Rollout
+
+Create the reconciliation table and extend the deletion-step CHECK constraint.
+Backfill a pending reconciliation for every suspended tenant and verify every
+active tenant's realm/runtime state. Insert `event_data_purge` for existing
+`pending_deletion` sagas and do not resume later steps until it succeeds.
+Deploy workers before routes begin writing operations. Rollback must leave
+pending rows intact for a compatible worker and must never set a pending
+reactivation active without successful reconciliation.
+
+### Security and GDPR
+
+- API, proxy, event emission, and consumers treat any non-active status as deny.
+- Operation errors store stable codes only; credentials, realm responses, and
+  payloads are not persisted or logged.
+- Tenant deletion completion requires targeted database purge and cryptographic
+  Kafka payload erasure, not only schema/realm/bucket deletion or retention.
+
+### Constitution Alignment
+
+| Article | Status | Notes |
+| --- | --- | --- |
+| Rule 1 / Testing | Compliant | Requires dependency-outage, crash-restart, fail-closed, and full deletion E2E gates. |
+| Rule 5 / ADR | Compliant | Records lifecycle and deletion data-model changes. |
+| Security: authentication | Improved | Suspension is enforced across API, Keycloak, and plugin service paths. |
+| Security: tenant isolation/PII | Improved | Deletion now gates on all tenant event stores and key destruction. |

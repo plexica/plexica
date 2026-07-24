@@ -1,11 +1,8 @@
 // logout.spec.ts
-// E2E test: logout flow — backchannel session revocation and token invalidation.
+// E2E test: RP-initiated logout, local cleanup, and token invalidation.
 //
-// Logout strategy (backchannel): the app calls POST /realms/.../protocol/openid-connect/logout
-// with the refresh_token directly (no browser redirect to Keycloak). After the call:
-//   1. The Keycloak session is revoked server-side.
-//   2. Local auth state is cleared.
-//   3. The browser reloads at /?tenant=<slug>; AuthGuard redirects to Keycloak login.
+// Logout clears local auth first, starts best-effort refresh-token revocation, and redirects
+// through Keycloak's front-channel logout endpoint to terminate the SSO session.
 //
 // Token validity after logout (Decision ID-005):
 //   - The REFRESH TOKEN is immediately invalid (revoked by Keycloak).
@@ -59,7 +56,7 @@ async function clickSignOut(page: Page): Promise<void> {
   await page.getByText('Sign out').click();
 }
 
-test.describe('Logout flow (backchannel)', () => {
+test.describe('RP-initiated logout flow', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak');
 
   test('clicking Sign out clears local auth state and redirects to Keycloak login', async ({
@@ -68,9 +65,7 @@ test.describe('Logout flow (backchannel)', () => {
     await loginAndGetTokens(page);
     await clickSignOut(page);
 
-    // Backchannel flow: browser navigates to /?tenant=slug (page reload),
-    // then AuthGuard (status=unauthenticated) calls login() → Keycloak auth URL.
-    // The Keycloak auth URL contains /realms/ — wait up to 10s for the two-hop redirect.
+    // Front-channel logout returns to the app, then AuthGuard starts a fresh authorization flow.
     await page.waitForURL(/\/realms\/.*\/protocol\/openid-connect\/auth/, { timeout: 10_000 });
     await expect(page).toHaveURL(new RegExp(KEYCLOAK_URL.replace(/https?:\/\//, '')));
   });
@@ -79,10 +74,7 @@ test.describe('Logout flow (backchannel)', () => {
     await loginAndGetTokens(page);
 
     // Strategy: expose a capture channel via CDP before sign-out.
-    // The logout() call in auth-store:
-    //   1. Calls Keycloak backchannel revoke (async, awaited)
-    //   2. Calls set({ accessToken: null, ... }) — Zustand writes to sessionStorage
-    //   3. Sets window.location.href = /?tenant=e2e (full-page reload)
+    // The logout() call writes cleared Zustand state before any revocation or navigation work.
     //
     // We install a sessionStorage.setItem spy that sends a custom window event
     // carrying the value. We listen for that event via page.exposeFunction() which
@@ -139,7 +131,7 @@ test.describe('Logout flow (backchannel)', () => {
     const { refreshToken } = await loginAndGetTokens(page);
     await clickSignOut(page);
 
-    // Wait for the Keycloak redirect to confirm logout completed
+    // Wait for the Keycloak redirect to confirm front-channel logout completed.
     await page.waitForURL(/\/realms\//, { timeout: 10_000 });
 
     // Attempt to use the old refresh token to obtain a new access token.

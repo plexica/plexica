@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Plexica v2 — Multi-tenant SaaS platform",
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "pnpm": ">=10"
   },
   "scripts": {
@@ -14,7 +14,9 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check:lines": "bash scripts/check-authored-lines.sh",
+    "test:line-gate": "bash scripts/check-authored-lines.test.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -36,7 +38,7 @@
     "overrides": {
       "lodash": "^4.18.1",
       "js-yaml": "4.2.0",
-      "fast-uri": "3.1.2",
+      "fast-uri": "3.1.4",
       "fast-xml-builder": "1.1.7",
       "fast-xml-parser": "5.7.0",
       "@babel/core": "7.29.6",

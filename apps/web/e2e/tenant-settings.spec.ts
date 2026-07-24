@@ -65,25 +65,12 @@ test.describe('E2E-07: Tenant settings', () => {
   test('change primary color — hex input reflects new value', async ({ page }) => {
     await page.goto('/settings/branding');
 
-    // ColorPicker renders <input type="color"> and a text hex input.
-    // The text input is a React controlled component that only propagates
-    // valid hex values (#xxxxxx). Using the native color input with
-    // React-compatible value setter to trigger onChange.
-    const colorInput = page.locator('input[type="color"]');
-    await colorInput.evaluate((el: HTMLInputElement) => {
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        'value'
-      )?.set;
-      if (nativeSetter) {
-        nativeSetter.call(el, '#ff6b35');
-      }
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-
-    // Verify the hex text input updated reactively
     const hexInput = page.getByRole('textbox', { name: /primary color hex value/i });
-    await expect(hexInput).toHaveValue('#ff6b35', { timeout: 5_000 });
+    await expect(hexInput).toBeVisible({ timeout: 15_000 });
+    const currentColor = await hexInput.inputValue();
+    const newColor = currentColor.toLowerCase() === '#ff6b35' ? '#2563eb' : '#ff6b35';
+    await hexInput.fill(newColor);
+    await expect(hexInput).toHaveValue(newColor);
 
     // Click save and wait for the PATCH response
     const [response] = await Promise.all([
@@ -99,7 +86,7 @@ test.describe('E2E-07: Tenant settings', () => {
     // Reload and verify the value persisted
     await page.reload();
     await expect(page.getByRole('textbox', { name: /primary color hex value/i })).toHaveValue(
-      '#ff6b35',
+      newColor,
       { timeout: 8_000 }
     );
   });

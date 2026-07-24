@@ -6,6 +6,7 @@ import { PluginSlot } from './plugin-slot.js';
 interface DashboardWidgetSlotProps {
   pluginEntries: Array<{
     slug: string;
+    installId: string;
     remoteEntryUrl: string;
     extensionPoint: string;
   }>;
@@ -20,7 +21,7 @@ export function DashboardWidgetSlot({ pluginEntries }: DashboardWidgetSlotProps)
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <PluginSlot entries={widgetPlugins} />
+      <PluginSlot entries={widgetPlugins} workspaceId="" />
     </div>
   );
 }

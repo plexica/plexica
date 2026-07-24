@@ -1,5 +1,7 @@
 import pg from 'pg';
 
+import logger from './logger.js';
+
 // Tables are created by the platform during install via declaredTables migrations
 // (see services/core-api/src/modules/plugin/routes/lifecycle/install.routes.ts).
 // The plugin backend must NEVER run DDL itself — it only holds runtime DML
@@ -18,6 +20,7 @@ if (!connectionString) {
 }
 
 const pool = new pg.Pool({ connectionString });
+pool.on('error', (error) => logger.warn({ code: (error as { code?: string }).code }, 'Idle database connection closed'));
 
 export async function query(
   sql: string,

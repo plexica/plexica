@@ -60,6 +60,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await wipeTenantWorkspaces(ctx);
+  await prisma.eventOutbox.deleteMany({ where: { tenantId: ctx.tenantId } });
 });
 
 describe('INT-01 Workspace CRUD', () => {
@@ -70,6 +71,10 @@ describe('INT-01 Workspace CRUD', () => {
     expect(ws.name).toBe('Alpha');
     expect(ws.status).toBe('active');
     expect(ws.materializedPath).toMatch(/^\/alpha/);
+    const outbox = await prisma.eventOutbox.findFirst({
+      where: { tenantId: ctx.tenantId, eventType: 'plexica.workspace.created' },
+    });
+    expect(outbox?.payload).toMatchObject({ workspaceId: ws.id, name: 'Alpha' });
   });
 
   skipIfNoDb('lists workspaces (GET /api/v1/workspaces)', async () => {
