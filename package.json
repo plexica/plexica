@@ -43,7 +43,8 @@
       "fast-xml-parser": "5.7.0",
       "@babel/core": "7.29.6",
       "protobufjs": "7.6.5",
-      "ws": "8.21.0"
+      "ws": "8.21.0",
+      "find-my-way": "^9.7.0"
     },
     "peerDependencyRules": {
       "ignoreMissing": [],

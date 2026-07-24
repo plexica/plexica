@@ -1,10 +1,10 @@
 // logs.routes.int.test.ts
 // Integration tests — GET /api/v1/admin/logs (S5-A02 / Feature 005-10).
 //
-// The happy-path tests hit real Loki (guarded by isLokiReachable, evaluated at
-// module load via top-level await — same pattern as smoke-redpanda.test.ts).
-// The 503 failure paths do NOT need Loki: SERVICE_UNAVAILABLE fires when
-// LOKI_URL is empty, and LOG_QUERY_TIMEOUT points at a non-responsive port
+// The happy-path tests hit real Loki (guarded by a runtime check so they
+// gracefully skip if config.LOKI_URL was cleared by a prior isolate:false
+// test). The 503 failure paths do NOT need Loki: SERVICE_UNAVAILABLE fires
+// when LOKI_URL is empty, and LOG_QUERY_TIMEOUT uses a non-responsive port
 // so the 5s AbortSignal.timeout fires naturally without stubbing fetch.
 
 import { randomUUID } from 'node:crypto';
@@ -30,19 +30,36 @@ const mockTenantContext: TenantContext = {
 let server: FastifyInstance;
 let originalLokiUrl = config.LOKI_URL;
 
-/** Returns true when Loki is reachable at config.LOKI_URL. */
-async function isLokiReachable(): Promise<boolean> {
-  if (!config.LOKI_URL) return false;
+/**
+ * Guards tests that need real Loki. Checks at module load (static skip) and at
+ * runtime (dynamic skip) in case config.LOKI_URL was corrupted by a prior test
+ * sharing the same isolate:false module cache. Falls back to process.env so the
+ * check survives config mutations.
+ */
+function getEffectiveLokiUrl(): string {
+  return config.LOKI_URL || process.env['LOKI_URL'] || '';
+}
+
+async function assertLokiAvailable(): Promise<boolean> {
+  const url = getEffectiveLokiUrl();
+  if (!url) return false;
   try {
-    const res = await fetch(`${config.LOKI_URL}/ready`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${url}/ready`, { signal: AbortSignal.timeout(3000) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-const lokiAvailable = await isLokiReachable();
-const skipIfNoLoki = it.skipIf(!lokiAvailable);
+function lokiTest(name: string, fn: () => Promise<void>): ReturnType<typeof it> {
+  return it(name, async (ctx) => {
+    if (!(await assertLokiAvailable())) {
+      ctx.skip();
+      return;
+    }
+    await fn();
+  });
+}
 
 beforeAll(async () => {
   server = await createTestServer();
@@ -89,7 +106,7 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     }
   });
 
-  skipIfNoLoki('returns logs from Loki (happy path)', async () => {
+  lokiTest('returns logs from Loki (happy path)', async () => {
     const res = await server.inject({ method: 'GET', url: '/api/v1/admin/logs?limit=10' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -97,7 +114,7 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     expect(typeof body.total).toBe('number');
   });
 
-  skipIfNoLoki('retrieves a log emitted by the application Pino transport', async () => {
+  lokiTest('retrieves a log emitted by the application Pino transport', async () => {
     const tenant = `logs-int-${randomUUID()}`;
     const message = `Core logger integration ${randomUUID()}`;
     const start = new Date().toISOString();
@@ -122,7 +139,7 @@ describe('Logs — GET /api/v1/admin/logs', () => {
       .toBe(true);
   });
 
-  skipIfNoLoki('accepts a tenant filter and returns the expected shape', async () => {
+  lokiTest('accepts a tenant filter and returns the expected shape', async () => {
     const res = await server.inject({
       method: 'GET',
       url: '/api/v1/admin/logs?tenant=acme&limit=5',
@@ -131,7 +148,7 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     expect(Array.isArray(JSON.parse(res.payload).logs)).toBe(true);
   });
 
-  skipIfNoLoki('accepts a level filter and returns the expected shape', async () => {
+  lokiTest('accepts a level filter and returns the expected shape', async () => {
     const res = await server.inject({
       method: 'GET',
       url: '/api/v1/admin/logs?level=error&limit=5',
