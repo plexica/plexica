@@ -82,6 +82,7 @@ export PLUGIN_CORE_API_URL=http://host.docker.internal:3001
 export PLAYWRIGHT_PRODUCTION_MODE=true
 export PLUGIN_SEED_MANIFEST_PATH=e2e/fixtures/crm-production-manifest.json
 export PLAYWRIGHT_KEYCLOAK_URL="$KEYCLOAK_URL"
+export PLAYWRIGHT_MAILPIT_URL="http://localhost:${SMTP_UI_PORT}"
 export PLAYWRIGHT_BASE_URL=http://e2e.localhost:3000
 export PLAYWRIGHT_API_URL=http://e2e.localhost:3001
 export VITE_PLUGIN_ASSET_ORIGIN="$MINIO_ENDPOINT"
