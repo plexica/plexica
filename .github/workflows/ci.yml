@@ -52,6 +52,13 @@ jobs:
         with:
           version: 10
           run_install: false
+      - name: Generate run-scoped encryption material
+        shell: bash
+        run: |
+          to_base64url() { openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'; }
+          printf 'EVENT_KEY_ENCRYPTION_KEY=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
+          printf 'PLUGIN_DB_ENCRYPTION_KEY=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          printf 'PLUGIN_CREDENTIAL_PEPPER=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify authored-file line gate

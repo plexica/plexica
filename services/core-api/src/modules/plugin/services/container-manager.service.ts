@@ -43,15 +43,12 @@ export interface ContainerManager {
 }
 export class DockerContainerManager implements ContainerManager {
   private docker: Docker;
-
   constructor() {
     this.docker = new Docker();
   }
-
   async startContainer(installId: string, manifest: Manifest): Promise<ContainerInfo> {
     const containerName = `plexica-plugin-${installId}`;
     const image = manifest.hosting.image;
-
     try {
       await this.docker.getImage(image).inspect();
     } catch {
@@ -63,12 +60,10 @@ export class DockerContainerManager implements ContainerManager {
         );
       }
     }
-
     const env = manifest.env
       ? Object.entries(manifest.env).map(([k, v]) => `${k}=${v}`)
       : undefined;
     const runtime = dockerRuntimeOptions(installId);
-
     const container = await this.docker.createContainer({
       name: containerName,
       Image: image,
@@ -91,7 +86,6 @@ export class DockerContainerManager implements ContainerManager {
           : {}),
       },
     });
-
     await container.start();
 
     const inspect = await container.inspect();
@@ -110,6 +104,7 @@ export class DockerContainerManager implements ContainerManager {
       const msg = (err as Error)?.message ?? '';
       if (
         !msg.includes('already stopped') &&
+        !msg.includes('is not running') &&
         !msg.includes('not found') &&
         !msg.includes('No such')
       )
@@ -125,7 +120,12 @@ export class DockerContainerManager implements ContainerManager {
       await container.stop({ t: 5 });
     } catch (err: unknown) {
       const msg = (err as Error)?.message ?? '';
-      if (!msg.includes('already stopped') && !msg.includes('not found')) throw err;
+      if (
+        !msg.includes('already stopped') &&
+        !msg.includes('is not running') &&
+        !msg.includes('not found')
+      )
+        throw err;
     }
     try {
       await container.remove({ force: true, v: true });

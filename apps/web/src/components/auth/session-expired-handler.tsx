@@ -24,8 +24,7 @@ export function SessionExpiredHandler(): JSX.Element | null {
     // notification mechanism. The role="alert" banner below already provides
     // the correct accessible notification to screen readers and users.
     const timer = setTimeout(() => {
-      void login().catch((error) => {
-        if (import.meta.env.DEV) console.error('Session re-login failed:', error);
+      void login().catch(() => {
         window.location.href = '/login';
       });
     }, REDIRECT_DELAY_MS);

@@ -141,6 +141,7 @@ export default defineConfig({
         PLUGIN_DB_SSL_MODE: 'verify-full',
         PLUGIN_DB_SSL_ROOT_CERT_PATH: pluginDbCaPath,
         PLUGIN_DB_HOST: process.env['PLUGIN_DB_HOST'] ?? 'postgres',
+        PLUGIN_DB_PORT: process.env['PLUGIN_DB_PORT'] ?? '5432',
         PLUGIN_DOCKER_NETWORK: requiredRunValue('PLUGIN_DOCKER_NETWORK'),
         PLUGIN_CORE_API_URL:
           process.env['PLUGIN_CORE_API_URL'] ?? 'http://host.docker.internal:3001',

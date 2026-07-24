@@ -76,18 +76,28 @@ export KAFKA_BROKERS="localhost:$REDPANDA_KAFKA_PORT"
 export LOKI_URL="http://localhost:$LOKI_PORT"
 export PLUGIN_DB_SSL_MODE=verify-full
 export PLUGIN_DB_HOST=postgres
+export PLUGIN_DB_PORT=5432
 export PLUGIN_DOCKER_NETWORK="${COMPOSE_PROJECT_NAME}_default"
 export PLUGIN_CORE_API_URL=http://host.docker.internal:3001
 export PLAYWRIGHT_PRODUCTION_MODE=true
 export PLUGIN_SEED_MANIFEST_PATH=e2e/fixtures/crm-production-manifest.json
 export PLAYWRIGHT_KEYCLOAK_URL="$KEYCLOAK_URL"
+export PLAYWRIGHT_BASE_URL=http://e2e.localhost:3000
+export PLAYWRIGHT_API_URL=http://e2e.localhost:3001
 export VITE_PLUGIN_ASSET_ORIGIN="$MINIO_ENDPOINT"
 
 readonly COMPOSE=(docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.yml -f docker-compose.ci.yml -f infra/compose/e2e-production.yml)
 cleanup() {
+  status=$?
+  if [[ $status -ne 0 ]]; then
+    for container in $(docker ps -q --filter "label=io.plexica.runtime-scope=$PLUGIN_RUNTIME_SCOPE"); do
+      docker logs --tail 100 "$container" >&2 || true
+    done
+  fi
   docker ps -aq --filter "label=io.plexica.runtime-scope=$PLUGIN_RUNTIME_SCOPE" | xargs -r docker rm -f
   "${COMPOSE[@]}" down -v --remove-orphans
   rm -rf "$RUN_DIR"
+  return "$status"
 }
 trap cleanup EXIT INT TERM
 

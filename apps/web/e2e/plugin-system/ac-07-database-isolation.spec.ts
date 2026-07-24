@@ -35,7 +35,7 @@ test.describe('004 Plugin System — AC-07: Database Isolation', () => {
       `${API_BASE}/api/v1/plugins/${installId}/proxy/contacts`,
       { headers, data: { name: contactName } }
     );
-    expect(created.status()).toBe(201);
+    expect(created.status(), await created.text()).toBe(201);
 
     const workspaceBContacts = await page.request.get(
       `${API_BASE}/api/v1/plugins/${installId}/proxy/contacts`,

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   recover: vi.fn(),
   disable: vi.fn(),
   enable: vi.fn(),
+  resetBreaker: vi.fn(),
 }));
 
 vi.mock('../../lib/tenant-database.js', () => ({
@@ -32,6 +33,9 @@ vi.mock('../../modules/plugin/services/runtime-recovery.service.js', () => ({
 vi.mock('../../modules/plugin/services/dev-backends.js', () => ({
   disableDevBackend: mocks.disable,
   enableDevBackend: mocks.enable,
+}));
+vi.mock('../../modules/plugin/services/health-check.service.js', () => ({
+  resetBreaker: mocks.resetBreaker,
 }));
 
 import {
@@ -73,6 +77,7 @@ describe('tenant plugin runtime lifecycle', () => {
     await resumeTenantPluginRuntime('tenant-id', 'acme');
 
     expect(mocks.restart).toHaveBeenCalledWith('install-id');
+    expect(mocks.resetBreaker).toHaveBeenCalledWith('install-id');
     expect(mocks.recover).toHaveBeenCalledWith({ ...RUNTIME, tenantId: 'tenant-id' });
     expect(mocks.resume).toHaveBeenCalledWith('install-id', 'acme');
     expect(mocks.enable).toHaveBeenCalledWith('install-id');

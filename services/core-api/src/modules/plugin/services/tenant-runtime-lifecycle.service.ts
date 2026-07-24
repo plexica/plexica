@@ -7,6 +7,7 @@ import {
 
 import { createContainerManager } from './container-manager.service.js';
 import { disableDevBackend, enableDevBackend } from './dev-backends.js';
+import { resetBreaker } from './health-check.service.js';
 import { recoverInstallationConsumer } from './runtime-recovery.service.js';
 
 interface TenantRuntime {
@@ -57,6 +58,7 @@ export async function resumeTenantPluginRuntime(
 ): Promise<void> {
   for (const runtime of await tenantRuntimes(tenantId, tenantSlug)) {
     await createContainerManager(runtime.hostingType).restartContainer(runtime.id);
+    await resetBreaker(runtime.id);
     await recoverInstallationConsumer({ ...runtime, tenantId });
     await resumeConsumerGroup(runtime.id, tenantSlug);
     enableDevBackend(runtime.id);

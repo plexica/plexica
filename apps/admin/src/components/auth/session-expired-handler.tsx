@@ -18,8 +18,7 @@ export function SessionExpiredHandler(): JSX.Element | null {
     if (status !== 'expired') return;
     clearAuthQueryCache();
     const timer = setTimeout(() => {
-      void login().catch((error) => {
-        if (import.meta.env.DEV) console.error('Session re-login failed:', error);
+      void login().catch(() => {
         window.location.href = '/login';
       });
     }, REDIRECT_DELAY_MS);

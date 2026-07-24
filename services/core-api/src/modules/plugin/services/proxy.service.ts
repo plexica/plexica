@@ -134,8 +134,21 @@ export async function proxyRequest(
     }
   } catch (err) {
     await recordFailure(target.installId);
-    const message = (err as Error).message;
-    if (message.includes('timeout') || message.includes('abort')) {
+    const message = (err as Error).message ?? '';
+    // Network-level failures (connection refused, reset, DNS, abort/timeout)
+    // mean the plugin backend is not reachable right now — surface a 503
+    // rather than leaking a raw TypeError as a 500. The circuit breaker
+    // recorded the failure; callers can retry until the backend converges.
+    if (
+      message.includes('timeout') ||
+      message.includes('abort') ||
+      message.includes('fetch failed') ||
+      message.includes('ECONNREFUSED') ||
+      message.includes('ECONNRESET') ||
+      message.includes('EAI_AGAIN') ||
+      message.includes('EHOSTUNREACH') ||
+      message.includes('ENOTFOUND')
+    ) {
       throw new PluginBackendUnreachableError(target.installId);
     }
     throw err;

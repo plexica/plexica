@@ -17,6 +17,7 @@ const configSchema = z
     PLUGIN_DB_SSL_MODE: z.enum(['disable', 'verify-full']),
     PLUGIN_DB_SSL_ROOT_CERT_PATH: z.string().optional(),
     PLUGIN_DB_HOST: z.string().min(1).optional(),
+    PLUGIN_DB_PORT: z.coerce.number().int().min(1).max(65535).optional(),
     PLUGIN_DOCKER_NETWORK: z.string().min(1).optional(),
     PLUGIN_CORE_API_URL: z.string().url().default('http://localhost:3001'),
     PLUGIN_RUNTIME_SCOPE: z

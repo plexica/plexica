@@ -24,7 +24,7 @@ export async function deactivateRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = z.object({ installId: uuidSchema }).parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (tx: TenantPrismaClient) => {
+      const inst = await withTenantDb(async (tx: TenantPrismaClient) => {
         const inst = await tx.pluginInstallation.findUnique({ where: { id: installId } });
         if (!inst) throw new PluginNotFoundError(`Installation ${installId}`);
         if (inst.tenantSlug !== ctx.slug)
@@ -39,17 +39,19 @@ export async function deactivateRoutes(fastify: FastifyInstance): Promise<void> 
             data: { status: 'deactivated' },
           });
         }
-        await clearVisibilityCache(installId);
-        disableDevBackend(installId);
-        const shutdown = await Promise.allSettled([
-          pauseConsumerGroup(installId, inst.tenantSlug),
-          revokeInstallationCredentials(installId),
-          createContainerManager(inst.hostingType).stopContainer(installId),
-        ]);
-        const failure = shutdown.find((result) => result.status === 'rejected');
-        if (failure?.status === 'rejected') throw failure.reason;
-        return { status: 'deactivated', installId };
+        return inst;
       }, ctx);
+
+      await clearVisibilityCache(installId);
+      disableDevBackend(installId);
+      const shutdown = await Promise.allSettled([
+        pauseConsumerGroup(installId, inst.tenantSlug),
+        revokeInstallationCredentials(installId),
+        createContainerManager(inst.hostingType).stopContainer(installId),
+      ]);
+      const failure = shutdown.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
+      return { status: 'deactivated', installId };
     }
   );
 }

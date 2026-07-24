@@ -102,7 +102,7 @@ async function createConsumerGroupInner(
 
 export async function pauseConsumerGroup(installId: string, tenantSlug: string): Promise<void> {
   const entry = consumers.get(`${CONSUMER_GROUP_PREFIX}${installId}-${tenantSlug}`);
-  if (!entry) return;
+  if (!entry || !entry.isRunning) return;
   await entry.consumer.pause(entry.topics.map((topic) => ({ topic })));
   entry.isRunning = false;
 }

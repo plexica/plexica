@@ -150,7 +150,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     );
     const where: Record<string, unknown> = { status: 'published' };
     if (search) where.slug = { contains: search, mode: 'insensitive' };
-    if (category) where.categories = { has: category };
+    if (category) where.categories = { array_contains: [category] };
 
     return withCoreDb((prisma) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

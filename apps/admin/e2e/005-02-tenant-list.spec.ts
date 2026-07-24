@@ -17,8 +17,10 @@ test.describe('005-02 Tenant list', () => {
     await page.goto('/tenants');
     await expect(page.getByRole('heading', { level: 1, name: 'Tenants' })).toBeVisible();
 
-    // Wait for the table (skeleton replaced by rows). The e2e-admin slug is
-    // stable and unique — its cell is a reliable "data loaded" signal.
+    // Deleted tenants from E2E deletion tests may fill the first page.
+    // Search for the stable slug to locate the row regardless of pagination.
+    const search = page.getByLabel('Search by name or slug');
+    await search.fill(E2E_TENANT_SLUG);
     await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible({
       timeout: 15_000,
     });
@@ -28,15 +30,14 @@ test.describe('005-02 Tenant list', () => {
   test('search by name narrows the table and updates the result count', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/tenants');
-    await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
 
     const search = page.getByLabel('Search by name or slug');
     await search.fill(E2E_TENANT_NAME);
 
-    // The e2e-admin row remains visible; the result-count region updates.
-    await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible();
+    // The e2e-admin row is found by name search; the result-count region updates.
+    await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByText(/Showing \d+–\d+ of \d+ tenants/)).toBeVisible();
 
     // A non-matching term yields the empty state.
@@ -47,17 +48,16 @@ test.describe('005-02 Tenant list', () => {
   test('filter by status and pagination controls are operable', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/tenants');
-    await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
 
-    // Open the status filter (Radix Select combobox) and choose Active.
+    // Filter to Active tenants first so deleted tenants don't obscure the row.
     const statusSelect = page.getByRole('combobox', { name: 'Filter by status' });
     await statusSelect.click();
     await page.getByRole('option', { name: 'Active', exact: true }).click();
 
-    // The e2e-admin tenant is active → it remains after filtering.
-    await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible();
+    // The e2e-admin tenant is active → it is visible after filtering.
+    await expect(page.getByText(E2E_TENANT_SLUG, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Pagination nav is present and Previous is disabled on page 1.
     const pagination = page.getByRole('navigation', { name: 'Pagination' });

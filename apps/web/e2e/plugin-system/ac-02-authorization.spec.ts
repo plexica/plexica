@@ -79,7 +79,7 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
       headers: headers(token, workspaceId),
       data: { name: 'Member contact' },
     });
-    expect(create.status(), 'member workspace role permits writes').toBe(201);
+    expect(create.status(), await create.text()).toBe(201);
     expect((await create.json()) as { id: string }).toEqual(
       expect.objectContaining({ id: expect.any(String) })
     );
@@ -128,6 +128,8 @@ test.describe.serial('004 Plugin System - AC-02: Plugin Proxy Authorization', ()
       ).status()
     ).toBe(403);
 
+    await page.evaluate(() => sessionStorage.clear());
+    await page.context().clearCookies();
     await loginAsViewer(page);
     const viewerToken = await getBrowserToken(page);
     expect(

@@ -49,8 +49,17 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
 
     const sales = filterGroup.getByRole('button', { name: /sales/i });
     await expect(sales).toBeVisible();
+    const responsePromise = page.waitForResponse(
+      (response) => response.url().includes('category=sales'),
+    );
     await sales.click();
+    const response = await responsePromise;
+    expect(response.status(), await response.text()).toBe(200);
     await expect(sales).toHaveAttribute('aria-pressed', 'true');
+    expect(await response.json()).toMatchObject({
+      data: [expect.objectContaining({ slug: 'crm', categories: expect.arrayContaining(['sales']) })],
+      total: 1,
+    });
     await expect(page.getByTestId('plugin-card')).toHaveCount(1);
     await filterGroup.getByRole('button', { name: /analytics/i }).click();
     await expect(page.getByTestId('plugin-card')).toHaveCount(0);
@@ -60,10 +69,11 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
     page,
   }) => {
     const cards = page.getByTestId('plugin-card');
-    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
+    const crm = cards.filter({ hasText: 'CRM' });
+    await expect(crm).toHaveCount(1);
 
     // Click the "View details" button — dialog appears immediately (skeleton state)
-    const detailBtn = cards.first().getByRole('button', { name: /view details/i });
+    const detailBtn = crm.getByRole('button', { name: /view details/i });
     await detailBtn.click();
 
     const dialog = page.getByRole('dialog');
@@ -78,11 +88,11 @@ test.describe('004 Plugin System — AC-05: Marketplace', () => {
   });
 
   test('AC-05.5: detail sheet passes axe-core WCAG 2.1 AA check', async ({ page }) => {
-    const cards = page.getByTestId('plugin-card');
-    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
+    const crm = page.getByTestId('plugin-card').filter({ hasText: 'CRM' });
+    await expect(crm).toHaveCount(1);
 
     // Click the "View details" button — dialog appears immediately (skeleton state)
-    const detailBtn = cards.first().getByRole('button', { name: /view details/i });
+    const detailBtn = crm.getByRole('button', { name: /view details/i });
     await detailBtn.click();
 
     const dialog = page.getByRole('dialog');

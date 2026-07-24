@@ -42,9 +42,44 @@ async function setTenantStatus(
     {
       headers: { Authorization: `Bearer ${token}` },
       data: { version: tenant!.version },
+      timeout: 90_000,
     }
   );
   expect(response.status()).toBe(200);
+}
+
+// The e2e tenant realm mints 60s access tokens (see keycloak-admin-helpers).
+// The browser silently refreshes on 401, but direct page.request calls bypass
+// the app's api-client, so a token captured once expires during long lifecycle
+// flows. Use the browser's persisted refresh token to mint a fresh access token
+// (same grant the app uses) before the late-phase API calls.
+async function refreshBrowserToken(
+  page: import('@playwright/test').Page
+): Promise<string> {
+  const refreshToken = await page.evaluate(() => {
+    const stored = sessionStorage.getItem('plexica-auth');
+    if (stored === null) return '';
+    const parsed = JSON.parse(stored) as { state?: { refreshToken?: string } };
+    return parsed.state?.refreshToken ?? '';
+  });
+  expect(refreshToken, 'browser session has a refresh token').not.toBe('');
+  const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
+  const realm = `plexica-${ADMIN_TENANT_SLUG}`;
+  const response = await fetch(
+    `${keycloakUrl}/realms/${realm}/protocol/openid-connect/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: 'plexica-web',
+        refresh_token: refreshToken,
+      }),
+    }
+  );
+  expect(response.ok, `token refresh failed: ${response.status}`).toBe(true);
+  const tokens = (await response.json()) as { access_token: string };
+  return tokens.access_token;
 }
 
 test.describe.serial('004 Plugin System - AC-03: Proxy Lifecycle Visibility', () => {
@@ -53,7 +88,7 @@ test.describe.serial('004 Plugin System - AC-03: Proxy Lifecycle Visibility', ()
   test('denies hidden, deactivated, and suspended targets and restores only visible access', async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await loginAsAdmin(page);
     const token = await getBrowserToken(page);
     const installId = await ensureCrmInstalled(page, token);
@@ -95,35 +130,47 @@ test.describe.serial('004 Plugin System - AC-03: Proxy Lifecycle Visibility', ()
       await setTenantStatus(page, 'active');
     }
 
+    await expect.poll(async () => {
+      const response = await page.request.get(proxyUrl, {
+        headers: headers(token, visibleWorkspaceId),
+      });
+      return response.status();
+    }, { timeout: 90_000 }).toBe(200);
+
+    const authedToken = await refreshBrowserToken(page);
     const deactivated = await page.request.post(
       `${API_BASE}/api/v1/plugins/${installId}/deactivate`,
-      { headers: headers(token) }
+      { headers: headers(authedToken), data: {}, timeout: 90_000 }
     );
-    expect(deactivated.status()).toBe(200);
+    expect(deactivated.status(), await deactivated.text()).toBe(200);
     expect(
       (
         await page.request.get(proxyUrl, {
-          headers: headers(token, visibleWorkspaceId),
+          headers: headers(authedToken, visibleWorkspaceId),
         })
       ).status()
     ).toBe(404);
 
     const reactivated = await page.request.post(
       `${API_BASE}/api/v1/plugins/${installId}/reactivate`,
-      { headers: headers(token), timeout: 90_000 }
+      { headers: headers(authedToken), data: {}, timeout: 90_000 }
     );
-    expect(reactivated.status()).toBe(200);
-    expect(
-      (
-        await page.request.get(proxyUrl, {
-          headers: headers(token, visibleWorkspaceId),
-        })
-      ).status()
+    expect(reactivated.status(), await reactivated.text()).toBe(200);
+    // The reactivated container needs a moment to bind its port; poll until
+    // the proxy converges back to 200 for the visible workspace.
+    await expect.poll(
+      async () =>
+        (
+          await page.request.get(proxyUrl, {
+            headers: headers(authedToken, visibleWorkspaceId),
+          })
+        ).status(),
+      { timeout: 90_000 }
     ).toBe(200);
     expect(
       (
         await page.request.get(proxyUrl, {
-          headers: headers(token, hiddenWorkspaceId),
+          headers: headers(authedToken, hiddenWorkspaceId),
         })
       ).status()
     ).toBe(403);

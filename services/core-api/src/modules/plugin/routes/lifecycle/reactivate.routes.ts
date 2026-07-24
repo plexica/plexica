@@ -15,6 +15,7 @@ import { enableDevBackend } from '../../services/dev-backends.js';
 import { resumeConsumerGroup } from '../../events/consumer-manager.service.js';
 import { clearVisibilityCache } from '../../services/visibility.service.js';
 import { recoverInstallationConsumer } from '../../services/runtime-recovery.service.js';
+import { resetBreaker } from '../../services/health-check.service.js';
 import {
   completeCredentialRotation,
   issueServiceCredential,
@@ -32,7 +33,7 @@ export async function reactivateRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = z.object({ installId: uuidSchema }).parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (tx: TenantPrismaClient) => {
+      const inst = await withTenantDb(async (tx: TenantPrismaClient) => {
         const inst = await tx.pluginInstallation.findUnique({ where: { id: installId } });
         if (!inst) throw new PluginNotFoundError(`Installation ${installId}`);
         if (inst.tenantSlug !== ctx.slug)
@@ -45,36 +46,40 @@ export async function reactivateRoutes(fastify: FastifyInstance): Promise<void> 
           db.plugin.findUnique({ where: { id: inst.pluginId }, select: { slug: true } })
         );
         if (!plugin) throw new PluginNotFoundError(`Plugin ${inst.pluginId}`);
-        const credential = await issueServiceCredential({
-          tenantId: ctx.tenantId,
-          tenantSlug: ctx.slug,
-          installId,
-          pluginId: inst.pluginId,
-          pluginSlug: plugin.slug,
-        });
-        const mgr = createContainerManager(inst.hostingType);
-        try {
-          await mgr.restartContainer(installId, { PLEXICA_SERVICE_TOKEN: credential.token });
-          await completeCredentialRotation(installId, credential.credentialId, true);
-        } catch (error) {
-          await completeCredentialRotation(installId, credential.credentialId, false);
-          throw error;
-        }
-        await recoverInstallationConsumer(inst);
-        await resumeConsumerGroup(installId, inst.tenantSlug);
-        await tx.pluginInstallation.update({
-          where: { id: installId },
-          data: { status: 'active' },
-        });
-
-        // AC-03: overrides were preserved during deactivate (we did not touch
-        // pluginWorkspaceVisibility.isEnabled). Nothing to restore — the
-        // visibility resolver honours the original override values now that
-        // status is back to 'active'.
-        await clearVisibilityCache(installId);
-        enableDevBackend(installId);
-        return { status: 'active', installId };
+        return { ...inst, pluginSlug: plugin.slug };
       }, ctx);
+
+      const credential = await issueServiceCredential({
+        tenantId: ctx.tenantId,
+        tenantSlug: ctx.slug,
+        installId,
+        pluginId: inst.pluginId,
+        pluginSlug: inst.pluginSlug,
+      });
+      const mgr = createContainerManager(inst.hostingType);
+      try {
+        await mgr.restartContainer(installId, { PLEXICA_SERVICE_TOKEN: credential.token });
+        await completeCredentialRotation(installId, credential.credentialId, true);
+      } catch (error) {
+        await completeCredentialRotation(installId, credential.credentialId, false);
+        throw error;
+      }
+      await resetBreaker(installId);
+      await recoverInstallationConsumer(inst);
+      await resumeConsumerGroup(installId, inst.tenantSlug);
+      await withTenantDb(
+        (tx: TenantPrismaClient) =>
+          tx.pluginInstallation.update({
+            where: { id: installId },
+            data: { status: 'active' },
+          }),
+        ctx
+      );
+
+      // AC-03: visibility overrides are preserved while deactivated.
+      await clearVisibilityCache(installId);
+      enableDevBackend(installId);
+      return { status: 'active', installId };
     }
   );
 }

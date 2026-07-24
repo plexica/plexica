@@ -11,6 +11,8 @@ export interface PluginDbTransportPolicy {
   rootCertPath?: string;
 }
 
+export const PLUGIN_CONTAINER_CA_PATH = '/tmp/plexica-postgres-ca.crt';
+
 function encryptionKey(): Buffer {
   if (config.PLUGIN_DB_ENCRYPTION_KEY) {
     return Buffer.from(config.PLUGIN_DB_ENCRYPTION_KEY, 'hex');
@@ -34,7 +36,7 @@ export function configuredPluginDbTransport(): PluginDbTransportPolicy {
     nodeEnv: config.NODE_ENV,
     sslMode: config.PLUGIN_DB_SSL_MODE,
     ...(config.PLUGIN_DB_SSL_ROOT_CERT_PATH
-      ? { rootCertPath: config.PLUGIN_DB_SSL_ROOT_CERT_PATH }
+      ? { rootCertPath: PLUGIN_CONTAINER_CA_PATH }
       : {}),
   };
 }
@@ -76,6 +78,7 @@ export function buildPluginDatabaseUrl(
   url.username = roleName;
   url.password = password;
   if (config.PLUGIN_DB_HOST) url.hostname = config.PLUGIN_DB_HOST;
+  if (config.PLUGIN_DB_PORT) url.port = String(config.PLUGIN_DB_PORT);
   url.hash = '';
   url.search = '';
   url.searchParams.set('options', `-c search_path=${schemaName}`);
