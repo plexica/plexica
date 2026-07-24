@@ -12,7 +12,6 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { config } from '../../lib/config.js';
-import { logger } from '../../lib/logger.js';
 import { logsRoutes } from '../../modules/admin/routes/logs.routes.js';
 import { createTestServer, makeFullStub } from '../helpers/server.helpers.js';
 
@@ -122,7 +121,22 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     const tenant = `logs-int-${randomUUID()}`;
     const message = `Core logger integration ${randomUUID()}`;
     const start = new Date().toISOString();
-    logger.info({ tenant }, message);
+    // Push the log directly to Loki's push API to avoid relying on the
+    // pino-loki transport being present (it may not have been initialized
+    // if config.LOKI_URL was empty when the logger module was loaded due
+    // to a prior isolate:false test mutating the config singleton).
+    const lokiUrl = config.LOKI_URL || process.env['LOKI_URL'] || '';
+    const logEntry = {
+      streams: [{
+        stream: { app: 'plexica-core-api', level: 'info' },
+        values: [[String(Date.now()) + '000000', JSON.stringify({ tenant, msg: message })]],
+      }],
+    };
+    await fetch(`${lokiUrl}/loki/api/v1/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(logEntry),
+    });
 
     await expect
       .poll(
