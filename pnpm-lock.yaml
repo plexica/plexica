@@ -37,7 +37,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.4.0
-        version: 5.4.0(react-hook-form@7.82.0(react@19.2.7))
+        version: 5.4.0(react-hook-form@7.83.0(react@19.2.7))
       '@plexica/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -84,8 +84,8 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
       react-hook-form:
-        specifier: ^7.82.0
-        version: 7.82.0(react@19.2.7)
+        specifier: ^7.83.0
+        version: 7.83.0(react@19.2.7)
       react-intl:
         specifier: ^6.6.0
         version: 6.8.9(react@19.2.7)(typescript@5.9.3)
@@ -134,7 +134,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.4.0
-        version: 5.4.0(react-hook-form@7.82.0(react@19.2.7))
+        version: 5.4.0(react-hook-form@7.83.0(react@19.2.7))
       '@originjs/vite-plugin-federation':
         specifier: ^1.4.1
         version: 1.4.1
@@ -184,8 +184,8 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
       react-hook-form:
-        specifier: ^7.82.0
-        version: 7.82.0(react@19.2.7)
+        specifier: ^7.83.0
+        version: 7.83.0(react@19.2.7)
       react-intl:
         specifier: ^6.6.0
         version: 6.8.9(react@19.2.7)(typescript@5.9.3)
@@ -240,7 +240,7 @@ importers:
         version: 11.2.0
       '@hookform/resolvers':
         specifier: ^5.4.0
-        version: 5.4.0(react-hook-form@7.82.0(react@19.2.7))
+        version: 5.4.0(react-hook-form@7.83.0(react@19.2.7))
       '@plexica/ui':
         specifier: workspace:*
         version: link:../../../packages/ui
@@ -263,8 +263,8 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
       react-hook-form:
-        specifier: ^7.82.0
-        version: 7.82.0(react@19.2.7)
+        specifier: ^7.83.0
+        version: 7.83.0(react@19.2.7)
       react-intl:
         specifier: ^6.6.0
         version: 6.8.9(react@19.2.7)(typescript@5.9.3)
@@ -4520,8 +4520,8 @@ packages:
     peerDependencies:
       react: ^19.2.7
 
-  react-hook-form@7.82.0:
-    resolution: {integrity: sha512-Zw/uFZ2dO+02GHlBn7JFGn8kZJ7LdM33B/0BXOovzFay+CMhf94JMw5BVu+F1tVkUKjNvBuaE3fz5BJhga10Tg==}
+  react-hook-form@7.83.0:
+    resolution: {integrity: sha512-AXt8cMCmx5a7u4uvpb2uRFVrWQhllI4pV+LSykxIac/hjt44TnQkmX9BKuQi2i+LDC62esmiLpilkav+kjVf/A==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -5851,10 +5851,10 @@ snapshots:
       protobufjs: 7.6.5
       yargs: 17.7.3
 
-  '@hookform/resolvers@5.4.0(react-hook-form@7.82.0(react@19.2.7))':
+  '@hookform/resolvers@5.4.0(react-hook-form@7.83.0(react@19.2.7))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.82.0(react@19.2.7)
+      react-hook-form: 7.83.0(react@19.2.7)
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -9339,7 +9339,7 @@ snapshots:
       react: 19.2.7
       scheduler: 0.27.0
 
-  react-hook-form@7.82.0(react@19.2.7):
+  react-hook-form@7.83.0(react@19.2.7):
     dependencies:
       react: 19.2.7
 
