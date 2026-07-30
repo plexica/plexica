@@ -23,8 +23,8 @@
     "test": "pnpm --dir ../sdk exec vitest run --root ../auth"
   },
   "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "zustand": "*"
   },
   "dependencies": {
@@ -34,8 +34,8 @@
     "@tanstack/react-router": "^1.170.16",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^5.9.0",
     "zustand": "*"
   }
