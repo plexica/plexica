@@ -18,6 +18,40 @@ import type { PrismaClient } from '@prisma/client';
 // defence-in-depth (slug comes from DB, not user input).
 const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]+$/;
 
+/**
+ * Filters schema names to only those that contain the specified table.
+ * This is a defence-in-depth guard: even if a tenant schema exists without
+ * the expected table (e.g. incomplete provisioning or test artefacts),
+ * cross-schema queries won't fail with "relation does not exist".
+ *
+ * The query uses a single information_schema scan for all candidate schemas
+ * rather than checking each schema individually, keeping the overhead O(1)
+ * in the number of schemas.
+ */
+async function filterSchemasWithTable(
+  prisma: PrismaClient,
+  schemas: string[],
+  tableName: string
+): Promise<string[]> {
+  if (schemas.length === 0) return [];
+  // Build a parameterised list of schema names to check in one query.
+  const placeholders = schemas.map((_, i) => `$${i + 1}`);
+  const sql = `
+    SELECT table_schema
+    FROM information_schema.tables
+    WHERE table_schema IN (${placeholders.join(', ')})
+      AND table_name = $${schemas.length + 1}
+      AND table_type = 'BASE TABLE'
+  `;
+  const rows = await prisma.$queryRawUnsafe<Array<{ table_schema: string }>>(
+    sql,
+    ...schemas,
+    tableName
+  );
+  const validSet = new Set(rows.map((r) => r.table_schema));
+  return schemas.filter((s) => validSet.has(s));
+}
+
 interface CountRow {
   plugin_id: string;
   count: number;
@@ -46,13 +80,20 @@ export async function countPluginInstallationsBatch(
 
   if (schemaNames.length === 0) return result;
 
+  // Filter schemas to only those that actually have the plugin_installations
+  // table. This prevents failures when a tenant schema was created without
+  // running tenant DDL migrations — e.g. in test ensureTenant() helpers,
+  // or during recovery scenarios where the table may be absent.
+  const validSchemas = await filterSchemasWithTable(prisma, schemaNames, 'plugin_installations');
+  if (validSchemas.length === 0) return result;
+
   // Parameterised IN list: $1..$N for pluginIds, cast to ::uuid so Postgres
   // resolves the operator (plugin_id is uuid; bound params arrive as text and
   // `uuid = text` raises 42883 "operator does not exist" without the cast).
   // Schema names are regex-validated and non-user-controlled; plugin_id values
   // are bound parameters.
   const inList = pluginIds.map((_, i) => `$${i + 1}::uuid`).join(', ');
-  const unions = schemaNames
+  const unions = validSchemas
     .map(
       (s) =>
         `SELECT plugin_id, COUNT(*)::int AS count ` +

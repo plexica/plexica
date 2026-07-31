@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 
 import { prisma } from '../lib/database.js';
+import { migrateTenantSchema } from '../lib/multi-schema-migrate.js';
 import { configureErrorHandler } from '../middleware/error-handler.js';
 import { tenantContextMiddleware } from '../middleware/tenant-context.js';
 import { withTenantDb } from '../lib/tenant-database.js';
@@ -34,6 +35,11 @@ async function ensureTenant(slug: string, schema: string): Promise<void> {
     await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
     await tx.tenantConfig.create({ data: { tenantId: t.id, keycloakRealm: `plexica-${slug}` } });
   });
+  // Apply tenant DDL migrations so the schema has all required tables
+  // (plugin_installations, workspace, user_profile, etc.). Without this,
+  // cross-schema queries like countPluginInstallationsBatch() fail when
+  // they encounter incomplete schemas.
+  await migrateTenantSchema(schema);
 }
 
 beforeAll(async () => {

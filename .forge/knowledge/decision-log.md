@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-07-23 (PR #77 architecture amendments; ADR-024 accepted)
+**Last Updated**: 2026-07-31 (CI verification session; integration suite 275/275)
 
 ---
 
@@ -98,6 +98,23 @@ Foundational and current ADR lifecycle states:
 
 Implementation order and gates are defined in
 `.forge/architecture/pr-77-security-remediation-plan.md`.
+
+---
+
+## Session Decisions
+
+| ID    | Decision Date | Status   | Decision                                                                                                                                                                                                                                                                                    |
+| ----- | ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SD-01 | 2026-07-31    | Accepted | Integration test failures observed after Dependabot merges were caused by a **degraded dev stack** (PostgreSQL container crash-looping), not by test flakiness or the dependency bumps. With the stack healthy, the full integration suite passes **275/275 twice in a row** (incl. all previously skipped Keycloak/NFR tests). |
+| SD-02 | 2026-07-31    | Accepted | `countPluginInstallationsBatch()` must skip tenant schemas missing the `plugin_installations` table (`filterSchemasWithTable`) — real bug found during CI verification, fixed without ADR (internal robustness).                                                                              |
+| SD-03 | 2026-07-31    | Accepted | Test helper `ensureTenant()` must apply tenant migrations so freshly seeded schemas contain all DDL tables expected by the code under test — real bug found during CI verification, fixed without ADR (test fixture robustness).                                                              |
+
+**Lesson**: before attributing integration failures to code changes, verify the
+dev stack is fully healthy (`docker compose ps` — all services `healthy`, incl.
+`keycloak-init` having exited 0). A crash-looping PostgreSQL produces
+`PrismaClientInitializationError: FATAL: the database system is shutting down`
+and unrelated 404/409 assertion mismatches in tests that otherwise pass in
+isolation and in a healthy full run.
 
 ---
 
