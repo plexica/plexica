@@ -20,7 +20,7 @@
     "@fastify/cors": "^11.0.0",
     "@plexica/ui": "workspace:*",
     "@tanstack/react-query": "latest",
-    "fastify": "^5.0.0",
+    "fastify": "^5.11.0",
     "pg": "^8.13.0",
     "pino": "^9.0.0",
     "react": "^19.2.8",
