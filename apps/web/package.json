@@ -30,7 +30,7 @@
     "react": "^19.2.8",
     "react-colorful": "^5.6.1",
     "react-dom": "^19.2.8",
-    "react-hook-form": "^7.82.0",
+    "react-hook-form": "^7.83.0",
     "react-intl": "^6.6.0",
     "zod": "^3.25.76",
     "zustand": "latest"
