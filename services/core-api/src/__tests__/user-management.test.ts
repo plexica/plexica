@@ -26,6 +26,17 @@ const SLUG = 'ws-int04-usermgmt';
 const ADMIN_ID = '00000000-0104-0001-0000-000000000001';
 const USER_A = '00000000-0104-0002-0000-000000000001';
 const USER_B = '00000000-0104-0003-0000-000000000001';
+const USER_C = '00000000-0104-0004-0000-000000000001';
+
+// Response envelope of GET /api/v1/users — mirrors PaginatedResult in
+// lib/pagination.ts; the list tests below assert this shape exactly.
+interface UserListBody {
+  data: TenantUserDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 const skipIfNoDb = it.skipIf(!(await isDbReachable()));
 
@@ -58,15 +69,39 @@ beforeEach(async () => {
   await seedUserProfile(ctx, ADMIN_ID, `${ADMIN_ID}@test.plexica.io`, 'Admin Int04', ADMIN_ID);
   await seedUserProfile(ctx, USER_A, `alice@test.plexica.io`, 'Alice User', USER_A);
   await seedUserProfile(ctx, USER_B, `bob@test.plexica.io`, 'Bob User', USER_B);
+  await seedUserProfile(ctx, USER_C, `carol@test.plexica.io`, 'Carol User', USER_C);
 });
 
 describe('INT-04 User list', () => {
   skipIfNoDb('GET /api/v1/users → paginated list of tenant users', async () => {
     const res = await server.inject({ method: 'GET', url: '/api/v1/users', headers: reqHeaders });
     expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { data: TenantUserDto[]; total: number };
-    expect(body.total).toBeGreaterThanOrEqual(3);
-    expect(Array.isArray(body.data)).toBe(true);
+    const body = JSON.parse(res.body) as UserListBody;
+    // Exact envelope — the web client renders <Pagination> from totalPages;
+    // when the backend omitted it the `?? 1` fallback hid page navigation.
+    expect(Object.keys(body).sort()).toEqual(['data', 'limit', 'page', 'total', 'totalPages']);
+    expect(body.total).toBe(4); // beforeEach seeds exactly 4 profiles
+    expect(body.totalPages).toBe(1);
+    expect(body.data).toHaveLength(4);
+  });
+
+  // Regression guard: with more users than the page limit, totalPages must
+  // reflect the real page count — the bug this covers left <Pagination>
+  // permanently hidden, so page 2 was unreachable from the UI.
+  skipIfNoDb('GET /api/v1/users?limit=2 → totalPages reflects the real page count', async () => {
+    const getPage = async (url: string): Promise<UserListBody> => {
+      const res = await server.inject({ method: 'GET', url, headers: reqHeaders });
+      expect(res.statusCode).toBe(200);
+      return JSON.parse(res.body) as UserListBody;
+    };
+    const p1 = await getPage('/api/v1/users?limit=2&page=1');
+    expect(p1).toMatchObject({ total: 4, page: 1, limit: 2, totalPages: 2 });
+    expect(p1.data).toHaveLength(2);
+    const p2 = await getPage('/api/v1/users?limit=2&page=2');
+    expect(p2).toMatchObject({ total: 4, page: 2, limit: 2, totalPages: 2 });
+    expect(p2.data).toHaveLength(2);
+    const p1Ids = new Set(p1.data.map((u) => u.userId));
+    expect(p2.data.every((u) => !p1Ids.has(u.userId))).toBe(true);
   });
 
   skipIfNoDb('GET /api/v1/users?search=alice → only matching users', async () => {
@@ -102,29 +137,10 @@ describe('INT-04 User list', () => {
   });
 });
 
-describe('INT-04 Remove user', () => {
-  skipIfNoDb('DELETE /api/v1/users/:id → 204, profile marked deleted', async () => {
-    const res = await server.inject({
-      method: 'DELETE',
-      url: `/api/v1/users/${USER_B}`,
-      headers: { 'content-type': 'application/json', ...reqHeaders },
-      body: JSON.stringify({ reassignments: [] }),
-    });
-    expect(res.statusCode).toBe(204);
-  });
-
-  skipIfNoDb('GET /api/v1/users/:id/workspaces → returns workspace list', async () => {
-    const res = await server.inject({
-      method: 'GET',
-      url: `/api/v1/users/${USER_A}/workspaces`,
-      headers: reqHeaders,
-    });
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { userId: string; workspaces: unknown[] };
-    expect(body.userId).toBe(USER_A);
-    expect(Array.isArray(body.workspaces)).toBe(true);
-  });
-});
+// Removal tests (self-removal guard, UUID validation, soft-delete) live in
+// user-management-remove.int.test.ts; the last-admin race test lives in
+// user-management-remove-race.test.ts — split to stay under the 200-line
+// file limit (Rule 4).
 
 describe('INT-04 Roles and action matrix', () => {
   skipIfNoDb('GET /api/v1/roles → returns role definitions', async () => {

@@ -2,7 +2,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { evaluate, invalidateAbacCache } from '../modules/abac/engine.js';
+import { evaluate, setAbacMembership } from '../modules/abac/engine.js';
 import { membershipCacheKey } from '../modules/abac/engine-helpers.js';
 
 import { createTestServer, isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
@@ -47,9 +47,9 @@ beforeEach(async () => {
   if (allOk) await wipeTenantWorkspaces(ctx);
 });
 
-function context(workspaceId: string, action: string): AbacContext {
+function context(workspaceId: string, action: string, userId = USER_ID): AbacContext {
   return {
-    userId: USER_ID,
+    userId,
     workspaceId,
     tenantSlug: ctx.slug,
     action,
@@ -80,23 +80,32 @@ describe('ABAC integration cache and default denial', () => {
       await evaluate(abacContext, tenantDb, redis);
       const cached = await redis.get(membershipCacheKey(abacContext));
       expect(cached).not.toBeNull();
-      expect(JSON.parse(cached ?? '').role).toBe('viewer');
+      // isTenantAdmin is deliberately NOT part of the payload: it describes the
+      // requesting principal, never the membership row, and evaluate() short-
+      // circuits tenant admins long before getMembership() runs.
+      expect(JSON.parse(cached ?? 'null')).toEqual({ role: 'viewer' });
     } finally {
       await tenantDb.$disconnect();
     }
   });
 
-  it.skipIf(!allOk)('invalidates a cached membership', async () => {
-    const workspace = await seedWorkspace(ctx, 'Invalidate-WS', USER_ID);
+  it.skipIf(!allOk)('a write-through tombstone survives a late NX populate', async () => {
+    // Regression guard for the revocation race: the reader below has already
+    // read role='admin' from the DB when the writer publishes {role: null}.
+    // Its populate must NOT resurrect the revoked role.
+    const workspace = await seedWorkspace(ctx, 'Tombstone-WS', USER_ID);
     await seedWorkspaceMember(ctx, workspace.id, USER_ID, 'admin');
-    const tenantDb = buildTenantClientForCtx(ctx);
     const abacContext = context(workspace.id, 'workspace:read');
+    const key = membershipCacheKey(abacContext);
+    await redis.del(key);
+
+    await setAbacMembership(ctx.slug, USER_ID, workspace.id, { role: null }, redis);
+
+    const tenantDb = buildTenantClientForCtx(ctx);
     try {
-      await evaluate(abacContext, tenantDb, redis);
-      const key = membershipCacheKey(abacContext);
-      expect(await redis.get(key)).not.toBeNull();
-      await invalidateAbacCache(ctx.slug, USER_ID, workspace.id, redis);
-      expect(await redis.get(key)).toBeNull();
+      const decision = await evaluate(abacContext, tenantDb, redis);
+      expect(decision.allowed).toBe(false);
+      expect(JSON.parse((await redis.get(key)) ?? 'null')).toEqual({ role: null });
     } finally {
       await tenantDb.$disconnect();
     }
@@ -115,3 +124,7 @@ describe('ABAC integration cache and default denial', () => {
     }
   });
 });
+
+// removeUser() ABAC revocation coverage lives in abac-cache-removal.test.ts —
+// kept in its own file to stay under the 200-line limit and because it
+// exercises a distinct production entry point (user-management/service-remove.js).

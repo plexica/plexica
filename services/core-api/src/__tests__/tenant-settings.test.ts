@@ -4,7 +4,6 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { config } from '../lib/config.js';
 import { prisma } from '../lib/database.js';
 import { createRealm, deleteRealm } from '../lib/keycloak-admin.js';
 import { tenantSettingsRoutes } from '../modules/tenant-settings/routes.js';
@@ -13,7 +12,7 @@ import {
   cleanupTenant, ensureTenantBucket, removeTenantBucket, seedTenant,
 } from './helpers/db.helpers.js';
 import {
-  createTestServer, isDbReachable, isKeycloakReachable, isMinioReachable, makeFullStub,
+  createTestServer, isDbReachable, isKeycloakReachable, makeFullStub,
 } from './helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -29,11 +28,9 @@ const ADMIN_ID = '00000000-0106-0001-0000-000000000001';
 
 const dbAvailable = await isDbReachable();
 const kcAvailable = await isKeycloakReachable();
-const minioAvailable = await isMinioReachable();
 
 const skipIfNoDb = it.skipIf(!dbAvailable);
 const skipIfNoKC = it.skipIf(!kcAvailable);
-const skipIfNoMinio = it.skipIf(!minioAvailable);
 
 let server: FastifyInstance;
 let ctx: TenantContext;
@@ -146,29 +143,11 @@ describe('INT-06 Branding', () => {
     const branding = JSON.parse(res.body) as TenantBrandingDto;
     expect(branding.primaryColor).toBe('#112233');
   });
-
-  skipIfNoMinio('rejects logo upload > 2MB (413)', async () => {
-    const oversize = Buffer.alloc(config.LOGO_MAX_BYTES + 1, 0x00);
-    const boundary = '----TestBoundaryLogoSize';
-    const body = Buffer.concat([
-      Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="logo"; filename="logo.png"\r\nContent-Type: image/png\r\n\r\n`
-      ),
-      oversize,
-      Buffer.from(`\r\n--${boundary}--\r\n`),
-    ]);
-    const res = await server.inject({
-      method: 'PATCH',
-      url: '/api/v1/tenant/branding',
-      headers: {
-        'x-tenant-slug': SLUG,
-        'content-type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body,
-    });
-    expect(res.statusCode).toBe(413);
-  });
 });
+
+// Logo file-upload security tests (size limit, magic-byte sniffing, SVG active
+// content rejection) live in tenant-settings-logo-upload.test.ts — kept
+// separate to stay under the 200-line file limit (Rule 4).
 
 describe('INT-06 Auth config', () => {
   skipIfNoKC('GET /api/v1/tenant/auth-config → returns auth config shape', async () => {

@@ -6,7 +6,7 @@ export interface TenantUser {
   keycloakId: string;
   email: string;
   displayName: string | null;
-  status: 'active' | 'suspended' | 'pending_deletion';
+  status: 'active' | 'invited' | 'disabled';
   createdAt: string;
 }
 

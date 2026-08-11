@@ -1,7 +1,16 @@
 // repository.ts
 // Workspace data access layer — Prisma queries scoped to the tenant schema.
 // All functions accept `db: unknown` and cast internally (type-erased pending prisma generate).
+// The functions here accept either a plain client or a `$transaction` client.
+// Archive/restore/path mutations live in repository-lifecycle.ts (note that
+// updateMaterializedPaths there does NOT accept a transaction client).
 // Template-related functions live in repository-templates.ts.
+
+export {
+  archiveWorkspaces,
+  restoreWorkspaces,
+  updateMaterializedPaths,
+} from './repository-lifecycle.js';
 
 export interface WorkspaceFilters {
   status?: 'active' | 'archived';
@@ -147,34 +156,6 @@ export async function updateWorkspace(
 ): Promise<WorkspaceRow> {
   const row = await db(tenantDb).workspace.update({ where: { id }, data });
   return row as WorkspaceRow;
-}
-
-export async function archiveWorkspaces(tenantDb: unknown, ids: string[]): Promise<void> {
-  await db(tenantDb).workspace.updateMany({
-    where: { id: { in: ids } },
-    data: { status: 'archived', archivedAt: new Date() },
-  });
-}
-
-export async function restoreWorkspaces(tenantDb: unknown, ids: string[]): Promise<void> {
-  await db(tenantDb).workspace.updateMany({
-    where: { id: { in: ids } },
-    data: { status: 'active', archivedAt: null },
-  });
-}
-
-export async function updateMaterializedPaths(
-  tenantDb: unknown,
-  updates: Array<{ id: string; materializedPath: string }>
-): Promise<void> {
-  await db(tenantDb).$transaction(
-    updates.map((u) =>
-      db(tenantDb).workspace.update({
-        where: { id: u.id },
-        data: { materializedPath: u.materializedPath },
-      })
-    )
-  );
 }
 
 export async function findMemberRole(

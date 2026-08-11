@@ -24,8 +24,8 @@ export async function deactivateRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = z.object({ installId: uuidSchema }).parse(request.params);
       const ctx = request.tenantContext;
 
-      const inst = await withTenantDb(async (tx: TenantPrismaClient) => {
-        const inst = await tx.pluginInstallation.findUnique({ where: { id: installId } });
+      const inst = await withTenantDb(async (db: TenantPrismaClient) => {
+        const inst = await db.pluginInstallation.findUnique({ where: { id: installId } });
         if (!inst) throw new PluginNotFoundError(`Installation ${installId}`);
         if (inst.tenantSlug !== ctx.slug)
           throw new PluginNotFoundError(`Installation ${installId}`);
@@ -34,7 +34,7 @@ export async function deactivateRoutes(fastify: FastifyInstance): Promise<void> 
         }
 
         if (inst.status !== 'deactivated') {
-          await tx.pluginInstallation.update({
+          await db.pluginInstallation.update({
             where: { id: installId },
             data: { status: 'deactivated' },
           });

@@ -67,7 +67,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
       }
       return withTenantDb(
-        (tx) => updateSettings(tx, request.user.id, request.tenantContext, parsed.data),
+        (db) => updateSettings(db, request.user.id, request.tenantContext, parsed.data),
         request.tenantContext
       );
     }
@@ -81,7 +81,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       config: { rateLimit: SETTINGS_RATE_LIMIT },
     },
     async (request) => {
-      return withTenantDb((tx) => getBranding(tx, request.tenantContext), request.tenantContext);
+      return withTenantDb((db) => getBranding(db, request.tenantContext), request.tenantContext);
     }
   );
 
@@ -131,7 +131,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
         const input = parsed.data as UpdateBrandingInput;
 
         return withTenantDb(
-          (tx) => updateBranding(tx, request.user.id, request.tenantContext, input, logoBuffer),
+          (db) => updateBranding(db, request.user.id, request.tenantContext, input, logoBuffer),
           request.tenantContext
         );
       }
@@ -142,7 +142,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       }
       const input = parsed.data as UpdateBrandingInput;
       return withTenantDb(
-        (tx) => updateBranding(tx, request.user.id, request.tenantContext, input),
+        (db) => updateBranding(db, request.user.id, request.tenantContext, input),
         request.tenantContext
       );
     }
@@ -176,7 +176,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       // with exactOptionalPropertyTypes. Runtime values are correct.
       const input = parsed.data as Parameters<typeof updateAuthConfig>[3];
       return withTenantDb(
-        (tx) => updateAuthConfig(tx, request.user.id, request.tenantContext, input),
+        (db) => updateAuthConfig(db, request.user.id, request.tenantContext, input),
         request.tenantContext
       );
     }

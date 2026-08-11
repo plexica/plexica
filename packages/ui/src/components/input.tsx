@@ -22,7 +22,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, label, error, helperText, id, disabled,
      showPasswordLabel = 'Show password', hidePasswordLabel = 'Hide password',
      ...props }, ref) => {
-    const inputId = id ?? React.useId();
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
     const errorId = `${inputId}-error`;
     const helperId = `${inputId}-helper`;
     const [showPassword, setShowPassword] = React.useState(false);

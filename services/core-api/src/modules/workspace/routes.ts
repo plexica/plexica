@@ -12,13 +12,13 @@ import { requireAbac } from '../../middleware/abac.js';
 import { redis } from '../../lib/redis.js';
 import { ValidationError } from '../../lib/app-error.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
+import { writeAuditLog } from '../audit-log/writer.js';
 
 import {
   createWorkspaceSchema,
   updateWorkspaceSchema,
   reparentSchema,
   workspaceListQuerySchema,
-  createTemplateSchema,
 } from './schema.js';
 import {
   listWorkspaces,
@@ -31,50 +31,13 @@ import {
   restoreWorkspaceService,
   reparentWorkspaceService,
 } from './service-archive.js';
-import { findTemplates, findTemplateById, createTemplate } from './repository-templates.js';
+import { workspaceTemplateRoutes } from './routes-templates.js';
 
 import type { FastifyInstance } from 'fastify';
 
 export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
-  // ── Template routes (MUST come before /:id) ──────────────────────────────
-  fastify.get(
-    '/api/v1/workspaces/templates',
-    { preHandler: [requireAbac('workspace:read')] },
-    async (req) => {
-      return withTenantDb((tx) => findTemplates(tx), req.tenantContext);
-    }
-  );
-
-  fastify.post(
-    '/api/v1/workspaces/templates',
-    { preHandler: [requireAbac('workspace:create')] },
-    async (req, reply) => {
-      const parsed = createTemplateSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      const { name, description, structure } = parsed.data;
-      const result = await withTenantDb(
-        (tx) =>
-          createTemplate(tx, {
-            name,
-            description: description ?? null,
-            structure,
-            createdBy: req.user.id,
-          }),
-        req.tenantContext
-      );
-      return reply.status(201).send(result);
-    }
-  );
-
-  fastify.get(
-    '/api/v1/workspaces/templates/:templateId',
-    { preHandler: [requireAbac('workspace:read')] },
-    async (req) => {
-      const { templateId } = req.params as { templateId: string };
-      return withTenantDb((tx) => findTemplateById(tx, templateId), req.tenantContext);
-    }
-  );
+  // ── Template routes (MUST be registered before /:id) ─────────────────────
+  workspaceTemplateRoutes(fastify);
 
   // ── Workspace list & create ───────────────────────────────────────────────
   fastify.get(
@@ -90,7 +53,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
       if (status !== undefined) listFilters.status = status;
       if (search !== undefined) listFilters.search = search;
       return withTenantDb(
-        (tx) => listWorkspaces(tx, req.user.id, isTenantAdmin, listFilters),
+        (db) => listWorkspaces(db, req.user.id, isTenantAdmin, listFilters),
         req.tenantContext
       );
     }
@@ -103,12 +66,18 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
       const parsed = createWorkspaceSchema.safeParse(req.body);
       if (!parsed.success)
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      const result = await withTenantDb(
-        (db) => db.$transaction((tx) =>
+      const result = await withTenantDb(async (db) => {
+        const created = await db.$transaction((tx) =>
           createWorkspaceService(tx, req.user.id, parsed.data, req.tenantContext.tenantId)
-        ),
-        req.tenantContext
-      );
+        );
+        // Audit is an observational side-effect, deliberately written AFTER the
+        // transaction committed and on the non-transactional client: a failed
+        // audit INSERT inside the tx would abort it (SQLSTATE 25P02) even
+        // though writeAuditLog swallows the rejection. If this write fails the
+        // workspace stays created and the request still answers 201.
+        await writeAuditLog(db, created.auditEntry);
+        return created.workspace;
+      }, req.tenantContext);
       return reply.status(201).send(result);
     }
   );
@@ -119,7 +88,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      return withTenantDb((tx) => getWorkspaceService(tx, id, req.user.id), req.tenantContext);
+      return withTenantDb((db) => getWorkspaceService(db, id, req.user.id), req.tenantContext);
     }
   );
 
@@ -134,7 +103,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
       const ifMatch =
         req.headers['if-match'] !== undefined ? Number(req.headers['if-match']) : undefined;
       return withTenantDb(
-        (tx) => updateWorkspaceService(tx, id, req.user.id, parsed.data, ifMatch),
+        (db) => updateWorkspaceService(db, id, req.user.id, parsed.data, ifMatch),
         req.tenantContext
       );
     }
@@ -146,7 +115,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const { id } = req.params as { id: string };
       await withTenantDb(
-        (tx) => archiveWorkspaceService(tx, id, req.user.id, req.tenantContext.slug, redis),
+        (db) => archiveWorkspaceService(db, id, req.user.id, req.tenantContext.slug, redis),
         req.tenantContext
       );
       return reply.status(204).send();
@@ -160,7 +129,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb(
-        (tx) => restoreWorkspaceService(tx, id, req.user.id, req.tenantContext.slug, redis),
+        (db) => restoreWorkspaceService(db, id, req.user.id, req.tenantContext.slug, redis),
         req.tenantContext
       );
     }
@@ -175,9 +144,9 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
       if (!parsed.success)
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
       return withTenantDb(
-        (tx) =>
+        (db) =>
           reparentWorkspaceService(
-            tx,
+            db,
             id,
             parsed.data.newParentId,
             req.user.id,
@@ -194,7 +163,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      return withTenantDb((tx) => getWorkspaceService(tx, id, req.user.id), req.tenantContext);
+      return withTenantDb((db) => getWorkspaceService(db, id, req.user.id), req.tenantContext);
     }
   );
 }

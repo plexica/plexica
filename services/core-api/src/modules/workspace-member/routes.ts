@@ -29,7 +29,7 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
       // exactOptionalPropertyTypes: build the filters object without undefined values
       const filters: MemberListFilters = { page: parsed.data.page, limit: parsed.data.limit };
       if (parsed.data.search !== undefined) filters.search = parsed.data.search;
-      return withTenantDb((tx) => listMembers(tx, id, filters), req.tenantContext);
+      return withTenantDb((db) => listMembers(db, id, filters), req.tenantContext);
     }
   );
 
@@ -43,9 +43,9 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
       if (!parsed.success)
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
       const member = await withTenantDb(
-        (tx) =>
+        (db) =>
           addMember(
-            tx,
+            db,
             id,
             parsed.data.userId,
             parsed.data.role,
@@ -65,7 +65,7 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
     async (req, reply) => {
       const { id, userId } = req.params as { id: string; userId: string };
       await withTenantDb(
-        (tx) => removeMember(tx, id, userId, req.user.id, req.tenantContext.slug),
+        (db) => removeMember(db, id, userId, req.user.id, req.tenantContext.slug),
         req.tenantContext
       );
       return reply.status(204).send();
@@ -82,8 +82,8 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
       if (!parsed.success)
         throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
       return withTenantDb(
-        (tx) =>
-          changeMemberRole(tx, id, userId, parsed.data.role, req.user.id, req.tenantContext.slug),
+        (db) =>
+          changeMemberRole(db, id, userId, parsed.data.role, req.user.id, req.tenantContext.slug),
         req.tenantContext
       );
     }

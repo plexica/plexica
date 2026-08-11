@@ -2,21 +2,58 @@
 // E2E-05: User list and management (Spec 003, Phase 20.5).
 // Tests navigate to /users, search/filter, remove user with TypeToConfirmDialog,
 // and type-to-confirm interaction. Skips when Keycloak credentials are absent.
+//
+// SCOPE — the "remove user" tests below cover the TypeToConfirmDialog WIDGET
+// only (disabled/enabled/cancel states); none of them completes the removal, so
+// none of them issues the DELETE. The destructive flow itself — DELETE round
+// trip, disappearance from GET /api/v1/users and revocation of the removed
+// user's access — lives in user-removal.spec.ts. Keep it that way: a completed
+// removal is irreversible and must use a dedicated disposable user, never
+// MEMBER_USERNAME, which the rest of the suite depends on.
 
 import { expect, test } from './helpers/base-fixture.js';
+import { expectApiStatus } from './helpers/api-response.js';
 import {
+  ADMIN_TENANT_SLUG,
   hasKeycloak,
   loginAsAdmin,
   loginAsMember,
   MEMBER_USERNAME,
   requireKeycloakInCI,
 } from './helpers/admin-login.js';
+import { freshBearer } from './helpers/session-token.js';
+import { tenantApiUrl } from './helpers/tenant-hosts.js';
 
 test.describe('E2E-05: User management', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
 
   test.beforeAll(() => {
     requireKeycloakInCI();
+  });
+
+  // MEMBER_USERNAME must have a tenant user_profile row before any test reads
+  // GET /api/v1/users. The row is created lazily by userProfileResolver on the
+  // member's FIRST authenticated request — it does NOT come from global-setup
+  // (which only creates the Keycloak account). Running this file in isolation
+  // previously relied on rbac-permissions.spec.ts having logged the member in
+  // first, which is an ordering dependency the test must not have.
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    try {
+      await loginAsMember(page);
+      // An authenticated tenant request is what provisions user_profile.
+      // Assert the 200 fail-fast: a silent 401/500 here means the profile was
+      // never provisioned and every test below fails downstream with the
+      // misleading "member not found in /users". The URL goes through
+      // tenantApiUrl so the host always matches the tenant the member logged
+      // into — API_BASE only worked by coincidence (slug == DNS first label).
+      const res = await page.request.get(tenantApiUrl(ADMIN_TENANT_SLUG, '/api/v1/profile'), {
+        headers: await freshBearer(page),
+      });
+      await expectApiStatus(res, 200);
+    } finally {
+      await page.close();
+    }
   });
 
   test.describe('admin tests', () => {
@@ -62,7 +99,7 @@ test.describe('E2E-05: User management', () => {
       const main = page.locator('main');
       await expect(main.getByRole('table')).toBeVisible({ timeout: 8_000 });
       const userRow = main.getByRole('row', { name: new RegExp(MEMBER_USERNAME, 'i') });
-      await userRow.getByRole('button', { name: /delete/i }).click();
+      await userRow.getByRole('button', { name: /^remove /i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible({ timeout: 5_000 });
       // Confirm button must be DISABLED until the correct word is typed
@@ -75,7 +112,7 @@ test.describe('E2E-05: User management', () => {
       const main = page.locator('main');
       await expect(main.getByRole('table')).toBeVisible({ timeout: 8_000 });
       const userRow = main.getByRole('row', { name: new RegExp(MEMBER_USERNAME, 'i') });
-      await userRow.getByRole('button', { name: /delete/i }).click();
+      await userRow.getByRole('button', { name: /^remove /i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible({ timeout: 5_000 });
       const confirmInput = dialog.getByLabel(/type confirm/i);
@@ -89,7 +126,7 @@ test.describe('E2E-05: User management', () => {
       const main = page.locator('main');
       await expect(main.getByRole('table')).toBeVisible({ timeout: 8_000 });
       const userRow = main.getByRole('row', { name: new RegExp(MEMBER_USERNAME, 'i') });
-      await userRow.getByRole('button', { name: /delete/i }).click();
+      await userRow.getByRole('button', { name: /^remove /i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible({ timeout: 5_000 });
       const confirmInput = dialog.getByLabel(/type confirm/i);
@@ -103,7 +140,7 @@ test.describe('E2E-05: User management', () => {
       const main = page.locator('main');
       await expect(main.getByRole('table')).toBeVisible({ timeout: 8_000 });
       const userRow = main.getByRole('row', { name: new RegExp(MEMBER_USERNAME, 'i') });
-      await userRow.getByRole('button', { name: /delete/i }).click();
+      await userRow.getByRole('button', { name: /^remove /i }).click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible({ timeout: 5_000 });
       const confirmInput = dialog.getByLabel(/type confirm/i);
@@ -111,7 +148,7 @@ test.describe('E2E-05: User management', () => {
       await dialog.getByRole('button', { name: /cancel/i }).first().click();
       await expect(dialog).not.toBeVisible({ timeout: 3_000 });
       // Reopen: typed text must be reset
-      await userRow.getByRole('button', { name: /delete/i }).click();
+      await userRow.getByRole('button', { name: /^remove /i }).click();
       const dialog2 = page.getByRole('dialog');
       await expect(dialog2).toBeVisible({ timeout: 5_000 });
       await expect(dialog2.getByLabel(/type confirm/i)).toHaveValue('');

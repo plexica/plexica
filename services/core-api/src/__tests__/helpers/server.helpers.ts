@@ -72,13 +72,25 @@ export function makeFullStub(
 /**
  * Creates a Fastify test server with error handler and multipart support.
  * Caller registers routes after receiving the instance.
+ *
+ * The multipart limit MUST match production (index.ts). It previously derived
+ * its own value — `max(AVATAR_MAX_BYTES, LOGO_MAX_BYTES) * 2` = 4 MB against
+ * production's 5 MB — so uploads between 4 and 5 MB were rejected in tests and
+ * accepted in production: the tests could not observe the real boundary.
+ *
+ * TECH DEBT: this is still a value copy, not a single source of truth, because
+ * production inlines the literal in index.ts. The constant belongs in
+ * lib/config.ts with both call sites importing it. See AGENTS.md §Testing
+ * rule 3 ("the test app is the production app") — createTestServer diverging
+ * from the real app is the underlying problem this only papers over.
  */
 export async function createTestServer(): Promise<FastifyInstance> {
   const server = Fastify({ logger: false });
   configureErrorHandler(server);
   await server.register(multipart, {
     limits: {
-      fileSize: Math.max(config.AVATAR_MAX_BYTES, config.LOGO_MAX_BYTES) * 2,
+      // Keep in sync with services/core-api/src/index.ts (5 MB).
+      fileSize: 5 * 1024 * 1024,
     },
   });
   return server;

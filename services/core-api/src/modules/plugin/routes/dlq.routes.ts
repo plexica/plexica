@@ -7,6 +7,7 @@ import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { dismissDlqEntry, retryDlqEntry } from '../events/dlq.service.js';
 import { ValidationError } from '../../../lib/app-error.js';
+import { buildPaginatedResult } from '../../../lib/pagination.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -44,15 +45,19 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
           }),
           tx.deadLetterQueue.count({ where }),
         ]);
-        return {
-          data: data.map((entry: { originalOffset: bigint }) => ({
+        // The envelope MUST come from buildPaginatedResult: the web client renders
+        // <Pagination> from `totalPages`, which the hand-built envelope silently
+        // omitted — leaving page 2+ unreachable from the UI. The DLQ contract
+        // names the page-size field `pageSize` (not `limit`), so rename the key.
+        const { limit, ...rest } = buildPaginatedResult(
+          data.map((entry: { originalOffset: bigint }) => ({
             ...entry,
             originalOffset: entry.originalOffset.toString(),
           })),
           total,
-          page,
-          pageSize,
-        };
+          { page, limit: pageSize }
+        );
+        return { ...rest, pageSize: limit };
       })
     );
   });

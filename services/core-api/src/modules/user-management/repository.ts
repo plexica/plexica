@@ -1,6 +1,8 @@
 // repository.ts
 // Data access functions for the user-management module.
-// All functions accept a type-erased Prisma transaction client (unknown → any).
+// All functions accept a type-erased tenant-schema Prisma client (unknown → any).
+// That client may be the plain one produced by withTenantDb() (no transaction,
+// no atomicity) or an interactive $transaction client — the caller decides.
 
 import type { TenantUserDto, UserWorkspacesDto, UserListFilters } from './types.js';
 
@@ -166,21 +168,28 @@ export async function findRawProfile(
   })) as { userId: string; keycloakUserId: string; status: string } | null;
 }
 
+/**
+ * Every active (non-deleted) profile's internal userId + Keycloak userId.
+ * Used by admin-guard.ts to cross-reference the tenant_admin realm-role
+ * holders returned by Keycloak against users who are still active in THIS
+ * tenant — a Keycloak role mapping left dangling on a disabled/removed
+ * account must not count as a "remaining admin".
+ */
+export async function findActiveProfileKeycloakIds(
+  db: unknown
+): Promise<Array<{ userId: string; keycloakUserId: string }>> {
+  const client = toClient(db);
+
+  return (await client.userProfile.findMany({
+    where: { status: 'active', deletedAt: null },
+    select: { userId: true, keycloakUserId: true },
+  })) as Array<{ userId: string; keycloakUserId: string }>;
+}
+
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
+// Write-side operations live in repository-mutations.ts (constitution Rule 4 —
+// 200-line limit). Re-exported here so callers keep a single import site.
 
-export async function softDeleteProfile(db: unknown, userId: string): Promise<void> {
-  const client = toClient(db);
-
-  await client.userProfile.update({
-    where: { userId },
-    data: { deletedAt: new Date(), status: 'disabled' },
-  });
-}
-
-export async function removeAllMemberships(db: unknown, userId: string): Promise<void> {
-  const client = toClient(db);
-
-  await client.workspaceMember.deleteMany({ where: { userId } });
-}
+export { softDeleteProfile, removeAllMemberships, lockTenantAdminRemoval } from './repository-mutations.js';

@@ -1,6 +1,7 @@
 // service.ts
 // Business logic for querying the audit log.
-// Writer logic lives in writer.ts (fire-and-forget).
+// Write logic lives in writer.ts — note it is awaited and non-throwing, NOT
+// fire-and-forget, and must run outside a $transaction (see its JSDoc).
 // Implements: Spec 003, Phase 10
 
 import { AUDIT_ACTION_TYPES } from './action-types.js';

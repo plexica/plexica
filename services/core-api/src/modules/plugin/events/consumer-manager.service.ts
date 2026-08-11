@@ -125,3 +125,34 @@ export async function deleteConsumerGroup(installId: string, tenantSlug: string)
 export function getActiveConsumerGroups(): string[] {
   return [...consumers.keys()];
 }
+
+/**
+ * Disconnects every plugin consumer group. Called from the shutdown path
+ * (bootstrap.stopBackgroundServices) BEFORE the Kafka producer, the database
+ * and Redis go down: a still-running consumer would otherwise keep processing
+ * messages — and publish to the DLQ — against connections that are gone.
+ *
+ * In-flight creations are settled first so a group started by a concurrent
+ * reconcilePluginRuntimes() cannot escape the teardown. Per-group failures are
+ * logged and never abort the sweep.
+ */
+export async function disconnectAllConsumerGroups(): Promise<void> {
+  await Promise.allSettled([...pendingConsumers.values()]);
+
+  const entries = [...consumers.entries()];
+  consumers.clear();
+
+  await Promise.all(
+    entries.map(async ([groupId, entry]) => {
+      try {
+        await entry.consumer.disconnect();
+      } catch (err) {
+        logger.error({ err, groupId }, 'Failed to disconnect plugin consumer group');
+      }
+    })
+  );
+
+  if (entries.length > 0) {
+    logger.info({ count: entries.length }, 'Plugin consumer groups disconnected');
+  }
+}

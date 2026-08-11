@@ -10,7 +10,6 @@ import { UserNotFoundError, FileTooLargeError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
 import { logger } from '../../lib/logger.js';
 import { uploadAvatar as minioUploadAvatar, getPresignedReadUrl } from '../../lib/minio-client.js';
-import { validateMimeType } from '../../lib/file-upload.js';
 import { syncDisplayName } from '../../lib/keycloak-admin-users.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
@@ -24,8 +23,6 @@ import {
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 import type { UpdateProfileInput, UserProfileDto } from './types.js';
 import type { MultipartFile } from '@fastify/multipart';
-
-const AVATAR_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -112,7 +109,7 @@ export async function updateProfile(
     );
   }
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId: existing.userId,
     actionType: 'profile.update',
     targetType: 'user_profile',
@@ -131,7 +128,13 @@ export async function uploadAvatar(
   const profile = await findProfileByKeycloakId(tenantDb, keycloakUserId);
   if (profile === null) throw new UserNotFoundError();
 
-  validateMimeType(file.mimetype, AVATAR_ALLOWED_MIME_TYPES);
+  // No mime/content validation here: routes.ts (the only caller) already runs
+  // the authoritative `validateFileContent` check — allowlist, magic-byte
+  // sniffing, SVG active-content scan — on these exact bytes before this
+  // function is invoked. Re-declaring a weaker, client-Content-Type-only
+  // check here would be redundant at best and a stale, unenforced allowlist
+  // at worst (see history: this used to duplicate the constant and never
+  // stayed in sync with lib/file-upload.ts).
 
   // Buffer the stream to validate size before uploading to MinIO.
   const fileBytes = await readStream(file.file as unknown as Readable, config.AVATAR_MAX_BYTES);
@@ -146,7 +149,7 @@ export async function uploadAvatar(
 
   await updateAvatarPath(tenantDb, profile.userId, avatarPath);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId: profile.userId,
     actionType: 'profile.avatar_change',
     targetType: 'user_profile',

@@ -6,25 +6,14 @@
 
 import { API_BASE } from './api-check.js';
 import { ADMIN_TENANT_SLUG } from './admin-login.js';
+import { expectApiStatus } from './api-response.js';
+import { freshBearer } from './session-token.js';
 
 import type { Page } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
 // API-based member management (bypasses UI for test setup)
 // ---------------------------------------------------------------------------
-
-/**
- * Retrieves the access token from the page's session storage.
- * The Zustand auth store persists the token under `plexica-auth`.
- */
-async function getAccessToken(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const stored = sessionStorage.getItem('plexica-auth');
-    if (!stored) return '';
-    const parsed = JSON.parse(stored) as { state?: { accessToken?: string } };
-    return parsed.state?.accessToken ?? '';
-  });
-}
 
 /**
  * Adds a member to a workspace via the backend API.
@@ -39,19 +28,11 @@ export async function addMemberViaApi(
   userId: string,
   role: 'admin' | 'member' | 'viewer' = 'member'
 ): Promise<void> {
-  const token = await getAccessToken(page);
   const res = await page.request.post(`${API_BASE}/api/v1/workspaces/${workspaceId}/members`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Tenant-Slug': ADMIN_TENANT_SLUG,
-      'Content-Type': 'application/json',
-    },
+    headers: { ...(await freshBearer(page)), 'X-Tenant-Slug': ADMIN_TENANT_SLUG },
     data: { userId, role },
   });
-  if (!res.ok()) {
-    const body = await res.text().catch(() => 'no body');
-    throw new Error(`addMemberViaApi failed: ${res.status()} — ${body}`);
-  }
+  await expectApiStatus(res, 201);
 }
 
 // ---------------------------------------------------------------------------

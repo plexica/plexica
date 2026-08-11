@@ -33,8 +33,8 @@ export async function reactivateRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = z.object({ installId: uuidSchema }).parse(request.params);
       const ctx = request.tenantContext;
 
-      const inst = await withTenantDb(async (tx: TenantPrismaClient) => {
-        const inst = await tx.pluginInstallation.findUnique({ where: { id: installId } });
+      const inst = await withTenantDb(async (db: TenantPrismaClient) => {
+        const inst = await db.pluginInstallation.findUnique({ where: { id: installId } });
         if (!inst) throw new PluginNotFoundError(`Installation ${installId}`);
         if (inst.tenantSlug !== ctx.slug)
           throw new PluginNotFoundError(`Installation ${installId}`);
@@ -42,8 +42,8 @@ export async function reactivateRoutes(fastify: FastifyInstance): Promise<void> 
           throw new PluginValidationError(`Status: ${inst.status}`);
         }
 
-        const plugin = await withCoreDb((db) =>
-          db.plugin.findUnique({ where: { id: inst.pluginId }, select: { slug: true } })
+        const plugin = await withCoreDb((coreDb) =>
+          coreDb.plugin.findUnique({ where: { id: inst.pluginId }, select: { slug: true } })
         );
         if (!plugin) throw new PluginNotFoundError(`Plugin ${inst.pluginId}`);
         return { ...inst, pluginSlug: plugin.slug };
@@ -68,8 +68,8 @@ export async function reactivateRoutes(fastify: FastifyInstance): Promise<void> 
       await recoverInstallationConsumer(inst);
       await resumeConsumerGroup(installId, inst.tenantSlug);
       await withTenantDb(
-        (tx: TenantPrismaClient) =>
-          tx.pluginInstallation.update({
+        (db: TenantPrismaClient) =>
+          db.pluginInstallation.update({
             where: { id: installId },
             data: { status: 'active' },
           }),

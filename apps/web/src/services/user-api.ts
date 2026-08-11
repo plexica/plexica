@@ -12,6 +12,7 @@ import type {
   WorkspaceMembership,
   InviteUserPayload,
 } from '../types/user-management.js';
+import type { PaginatedResponse } from '../types/workspace.js';
 
 interface UserListParams {
   search?: string;
@@ -20,11 +21,11 @@ interface UserListParams {
 }
 
 export const userApi = {
+  // The backend envelope is PaginatedResult (lib/pagination.ts) — a superset
+  // of PaginatedResponse (it also carries `limit`, unused by the web client).
   list: (params?: UserListParams) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
-    return apiClient.get<{ data: TenantUser[]; total: number; page: number; totalPages: number }>(
-      `/api/v1/users${qs}`
-    );
+    return apiClient.get<PaginatedResponse<TenantUser>>(`/api/v1/users${qs}`);
   },
 
   remove: (userId: string) => apiClient.delete<void>(`/api/v1/users/${userId}`),

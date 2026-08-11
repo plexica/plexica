@@ -66,11 +66,12 @@ async function invalidateCache(installId?: string): Promise<void> {
  * Returns whether a plugin is visible in a workspace.
  * Resolution: Redis cache → workspace override → tenant default → enabled.
  */
-// `tx` is a TenantPrismaClient transaction client (tenant schema) — the plugin
-// visibility models (pluginWorkspaceVisibility, pluginInstallation) live in the
-// tenant schema, so we use the tenant client's Prisma.TransactionClient type.
+// `db` is a tenant-schema Prisma client: either the plain client handed out by
+// withTenantDb() (no transaction, no atomicity) or an interactive $transaction
+// client. Prisma.TransactionClient is used only as the structural type that both
+// satisfy — it does NOT imply the caller opened a transaction.
 export async function isPluginVisible(
-  tx: Prisma.TransactionClient,
+  db: Prisma.TransactionClient,
   installId: string,
   workspaceId: string
 ): Promise<boolean> {
@@ -82,14 +83,14 @@ export async function isPluginVisible(
   // default. A deactivated/uninstalled plugin is never visible regardless of
   // override rows (AC-03: overrides are preserved across deactivate/reactivate,
   // so we must NOT mutate isEnabled on lifecycle transitions).
-  const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
+  const installation = await db.pluginInstallation.findUnique({ where: { id: installId } });
   if (!installation || installation.status !== 'active') {
     await setCache(installId, workspaceId, false);
     return false;
   }
 
   // Check workspace override (preserved across deactivate/reactivate)
-  const override = await tx.pluginWorkspaceVisibility.findUnique({
+  const override = await db.pluginWorkspaceVisibility.findUnique({
     where: { installId_workspaceId: { installId, workspaceId } },
   });
 
@@ -115,18 +116,18 @@ export interface PluginVisibilityEntry {
 }
 
 export async function getVisibilityEntries(
-  tx: Prisma.TransactionClient,
+  db: Prisma.TransactionClient,
   installId: string
 ): Promise<PluginVisibilityEntry[]> {
-  const installation = await tx.pluginInstallation.findUnique({ where: { id: installId } });
+  const installation = await db.pluginInstallation.findUnique({ where: { id: installId } });
   if (!installation) return [];
   const [workspaces, overrides] = await Promise.all([
-    tx.workspace.findMany({
+    db.workspace.findMany({
       where: { status: 'active' },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     }),
-    tx.pluginWorkspaceVisibility.findMany({ where: { installId, isOverride: true } }),
+    db.pluginWorkspaceVisibility.findMany({ where: { installId, isOverride: true } }),
   ]);
   const overrideByWorkspace = new Map(overrides.map((item) => [item.workspaceId, item]));
   const defaultEnabled = installation.tenantDefaultVisibility === 'enabled';

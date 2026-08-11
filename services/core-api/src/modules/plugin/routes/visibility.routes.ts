@@ -29,8 +29,8 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (tx: TenantPrismaClient) => {
-        return getVisibilityEntries(tx as never, installId);
+      return withTenantDb(async (db: TenantPrismaClient) => {
+        return getVisibilityEntries(db as never, installId);
       }, ctx);
     }
   );
@@ -54,9 +54,9 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const userId = request.user.id;
       const isTenantAdmin = request.user.roles.includes('tenant_admin');
 
-      await withTenantDb(async (tx) => {
+      await withTenantDb(async (db) => {
         const workspaceIds = [...new Set(updates.map((update) => update.workspaceId))];
-        const existing = await tx.workspace.findMany({
+        const existing = await db.workspace.findMany({
           where: { id: { in: workspaceIds } },
           select: { id: true },
         });
@@ -71,16 +71,16 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
             action: 'workspace:update',
             isTenantAdmin,
           };
-          const decision = await evaluate(abacCtx, tx, redis);
+          const decision = await evaluate(abacCtx, db, redis);
           if (!decision.allowed) {
             throw new ForbiddenError(`Workspace admin required for workspace ${workspaceId}: ${decision.reason}`);
           }
         }
       }, ctx);
 
-      const results = await withTenantDb(async (tx: TenantPrismaClient) => {
+      const results = await withTenantDb(async (db: TenantPrismaClient) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (tx as any).$transaction(async (innerTx: TenantPrismaClient) => {
+        return (db as any).$transaction(async (innerTx: TenantPrismaClient) => {
           for (const { workspaceId, isEnabled } of updates) {
             await setWorkspaceVisibility(innerTx, installId, workspaceId, isEnabled, userId);
           }

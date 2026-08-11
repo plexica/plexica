@@ -6,8 +6,7 @@
 import { Readable } from 'node:stream';
 
 import { uploadLogo, getPresignedReadUrl } from '../../lib/minio-client.js';
-import { validateMimeType } from '../../lib/file-upload.js';
-import { LOGO_ALLOWED_MIME_TYPES } from '../../lib/file-upload.js';
+import { validateFileContent, LOGO_ALLOWED_MIME_TYPES } from '../../lib/file-upload.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
 import { findBranding, upsertBranding, updateLogoPath } from './repository.js';
@@ -53,7 +52,11 @@ export async function updateBranding(
   let branding: TenantBrandingDto;
 
   if (logoFile !== undefined) {
-    validateMimeType(logoFile.mimetype, LOGO_ALLOWED_MIME_TYPES);
+    // Authoritative check: sniffs magic bytes against the declared type and,
+    // for SVG, rejects active content (script, event handlers, XXE, etc).
+    // The logo path is the only allowlist that accepts image/svg+xml, so this
+    // is the sole place SVG active-content scanning is load-bearing.
+    validateFileContent(logoFile.data, logoFile.mimetype, LOGO_ALLOWED_MIME_TYPES);
     const logoPath = await uploadLogo(
       tenantContext.slug,
       Readable.from(logoFile.data),
@@ -67,7 +70,7 @@ export async function updateBranding(
     branding = await upsertBranding(tenantDb, tenantContext.tenantId, input);
   }
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'settings.branding_update',
     targetType: 'tenant',

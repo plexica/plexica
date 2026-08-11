@@ -17,7 +17,10 @@ import { deactivateRoutes } from './routes/lifecycle/deactivate.routes.js';
 import { reactivateRoutes } from './routes/lifecycle/reactivate.routes.js';
 import { uninstallRoutes } from './routes/lifecycle/uninstall.routes.js';
 import { visibilityRoutes } from './routes/visibility.routes.js';
-import { startPeriodicHealthPolling } from './services/health-check.service.js';
+import {
+  startPeriodicHealthPolling,
+  stopPeriodicHealthPolling,
+} from './services/health-polling.service.js';
 import { createContainerManager } from './services/container-manager.service.js';
 import { getActiveConsumerGroups, CONSUMER_GROUP_PREFIX } from './events/consumer-manager.service.js';
 import { registerDevBackend } from './services/dev-backends.js';
@@ -30,6 +33,23 @@ function extractInstallIds(groups: string[]): string[] {
     .map((g) => g.slice(CONSUMER_GROUP_PREFIX.length).split('-')[0] ?? '')
     .filter(Boolean);
 }
+
+/**
+ * Background lifecycle of the plugin module. Called by
+ * bootstrap.startBackgroundServices() / stopBackgroundServices(), NOT by route
+ * registration: a timer started while wiring routes has no teardown counterpart
+ * and would keep hitting Redis after disconnectRedis() (same anti-pattern that
+ * was already removed for the Kafka warm-up).
+ */
+export function startPluginHealthPolling(intervalMs = 30_000): void {
+  startPeriodicHealthPolling(
+    createContainerManager('sidecar'),
+    () => extractInstallIds(getActiveConsumerGroups()),
+    intervalMs
+  );
+}
+
+export { stopPeriodicHealthPolling as stopPluginHealthPolling };
 
 export async function pluginAdminRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(adminCatalogRoutes);
@@ -56,12 +76,6 @@ export async function pluginTenantRoutes(fastify: FastifyInstance): Promise<void
   await fastify.register(reactivateRoutes);
   await fastify.register(uninstallRoutes);
   await fastify.register(visibilityRoutes);
-
-  startPeriodicHealthPolling(
-    createContainerManager('sidecar'),
-    () => extractInstallIds(getActiveConsumerGroups()),
-    30_000,
-  );
 
   // Dev mode: auto-register locally-running CRM backend if reachable.
   // The CRM example plugin runs on port 4000 (see examples/plugins/crm).

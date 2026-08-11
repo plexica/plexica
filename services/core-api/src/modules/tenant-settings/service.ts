@@ -34,7 +34,7 @@ export async function updateSettings(
 ): Promise<TenantSettingsDto> {
   const result = await updateTenantDisplayName(tenantContext.tenantId, input.displayName);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'settings.name_change',
     targetType: 'tenant',
@@ -84,7 +84,7 @@ export async function updateAuthConfig(
     throw new KeycloakError('Failed to update auth configuration in Keycloak');
   }
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'settings.auth_config_change',
     targetType: 'tenant',

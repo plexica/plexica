@@ -28,11 +28,84 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaClient as TenantPrismaClient } from '../../prisma/generated/tenant-client/index.js';
 
 import { prisma as coreDb } from './database.js';
+import { logger } from './logger.js';
 import { getTenantContext } from './tenant-context-store.js';
 
 import type { TenantContext } from './tenant-context-store.js';
 
 export type { TenantPrismaClient };
+
+// ---------------------------------------------------------------------------
+// Transaction-client detection (runtime guard)
+//
+// WHY A RUNTIME GUARD AND NOT A BRANDED TYPE
+// The obvious compile-time defence — brand the client returned by
+// `withTenantDb` so that a `Prisma.TransactionClient` fails to typecheck — was
+// evaluated and rejected on evidence:
+//
+//   1. TYPE ERASURE IS CONDITIONAL. The `@ts-ignore` on the tenant-client
+//      import above only erases the type when `prisma/generated/` is absent
+//      (it is .gitignored). Measured: with the client generated, the type is
+//      real; on a fresh checkout it collapses to `any` and any brand silently
+//      evaporates. A guarantee that depends on whether someone has run
+//      `pnpm db:generate` is not a guarantee.
+//   2. THE CALL SITES ARE ALREADY TYPE-ERASED. Every consumer of the tenant
+//      client declares its parameter as `tenantDb: unknown` (workspace-member,
+//      user-profile, invitation, tenant-settings, user-management, workspace…).
+//      `unknown` is not assignable to a branded type, so branding would break
+//      ~13 call sites; making it compile would mean threading the brand
+//      through those modules first.
+//
+// The discriminant below is verified against the generated client: an
+// interactive-transaction client exposes `$queryRaw`/`$executeRaw` but NOT
+// `$transaction`, `$connect`, `$disconnect` or `$extends`. Requiring
+// `$queryRaw` keeps plain test doubles (e.g. `{ auditLog: { create } }`) from
+// being misreported as transaction clients.
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when `db` is a Prisma interactive-transaction ("itx") client.
+ *
+ * Detection: it quacks like a Prisma client (`$queryRaw` is callable) but the
+ * itx deny-list has stripped `$transaction`.
+ */
+export function isTransactionClient(db: unknown): boolean {
+  if (typeof db !== 'object' || db === null) return false;
+  const client = db as Record<string, unknown>;
+  return typeof client['$queryRaw'] === 'function' && typeof client['$transaction'] !== 'function';
+}
+
+/**
+ * Fails fast when a caller that must run OUTSIDE a transaction is handed an
+ * interactive `$transaction` client.
+ *
+ * Rationale: issuing a statement that errors inside an interactive transaction
+ * aborts it at the PostgreSQL level (SQLSTATE 25P02) even if the JS rejection
+ * is swallowed — the COMMIT then degrades into a silent ROLLBACK.
+ *
+ * Behaviour: always throws, in every environment, production included. This is
+ * a deterministic programming error (the wrong function called in the wrong
+ * context) — not a condition that only "emerges" in production and can be
+ * tolerated there. Logging and continuing in production is the exact silent
+ * data-loss scenario this guard exists to prevent, only with an extra log line.
+ * Failing the single request with a 500 is strictly better than returning 2xx
+ * over an audit entry that was never written.
+ *
+ * @param db     - Candidate tenant client.
+ * @param caller - Function name, used in the diagnostic message.
+ */
+export function assertNonTransactionalDb(db: unknown, caller: string): void {
+  if (!isTransactionClient(db)) return;
+
+  const message =
+    `${caller} received an interactive $transaction client. It must run on a ` +
+    `non-transactional client (see withTenantDb): a failure here would abort ` +
+    `the surrounding transaction (SQLSTATE 25P02) and turn its COMMIT into a ` +
+    `silent ROLLBACK.`;
+
+  logger.error({ caller }, message);
+  throw new Error(message);
+}
 
 /**
  * Executes a database callback within the current tenant's schema.

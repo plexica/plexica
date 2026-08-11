@@ -109,7 +109,7 @@ export async function createInvitationService(
   const inviteUrl = buildInviteUrl(token);
   await sendInvitationEmail(input.email, inviteUrl, tenantContext.slug);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'invitation.send',
     targetType: 'invitation',
@@ -144,7 +144,7 @@ export async function resendInvitationService(
 
   await sendInvitationEmail(updated.email, inviteUrl, tenantContext.slug);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'invitation.resend',
     targetType: 'invitation',

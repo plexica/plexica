@@ -56,8 +56,8 @@ async function verifyPluginInstalled(slug: string, tenantCtx: TenantContext): Pr
     throw new ValidationError(`Plugin "${slug}" is not registered`);
   }
 
-  const installation = await withTenantDb((tx) => {
-    return tx.pluginInstallation.findFirst({
+  const installation = await withTenantDb((db) => {
+    return db.pluginInstallation.findFirst({
       where: { pluginId: plugin.id, status: { in: ['active', 'degraded'] } },
       select: { id: true },
     });

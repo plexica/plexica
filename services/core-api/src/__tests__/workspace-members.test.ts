@@ -142,14 +142,12 @@ describe('INT-02 Remove member', () => {
       headers: { 'content-type': 'application/json', ...reqHeaders },
       body: JSON.stringify({ userId: MEMBER_ID, role: 'member' }),
     });
-
     const delRes = await server.inject({
       method: 'DELETE',
       url: `/api/v1/workspaces/${workspaceId}/members/${MEMBER_ID}`,
       headers: reqHeaders,
     });
     expect(delRes.statusCode).toBe(204);
-
     const listRes = await server.inject({
       method: 'GET',
       url: `/api/v1/workspaces/${workspaceId}/members`,
@@ -160,8 +158,8 @@ describe('INT-02 Remove member', () => {
   });
 });
 
-describe('INT-02 ABAC cache invalidation', () => {
-  skipIfNoStack('after role change Redis cache key is deleted and new role enforced', async () => {
+describe('INT-02 ABAC cache write-through', () => {
+  skipIfNoStack('role change and removal publish the new value into Redis', async () => {
     const { redis } = await import('../lib/redis.js');
     const ws2 = await mustCreateWorkspace(server, reqHeaders, 'CacheBustWS');
     await server.inject({
@@ -170,31 +168,33 @@ describe('INT-02 ABAC cache invalidation', () => {
       headers: { 'content-type': 'application/json', ...reqHeaders },
       body: JSON.stringify({ userId: MEMBER_ID, role: 'admin' }),
     });
-    // Seed Redis cache with current role
     const cacheKey = membershipCacheKey({
       userId: MEMBER_ID,
       workspaceId: ws2.id,
       tenantSlug: SLUG,
-      action: 'workspace:read',
-      isTenantAdmin: false,
     });
-    await redis.set(cacheKey, JSON.stringify({ role: 'admin', isTenantAdmin: false }), 'EX', 300);
-    expect(await redis.get(cacheKey)).not.toBeNull();
-    // Downgrade role — must bust the Redis key
+    const cached = async (): Promise<unknown> => JSON.parse((await redis.get(cacheKey)) ?? 'null');
+
+    // addMember() is itself write-through — the key already holds the new role.
+    // Payload is exactly { role }: isTenantAdmin was dropped (principal flag,
+    // never part of a membership row — see engine-helpers.ts).
+    expect(await cached()).toEqual({ role: 'admin' });
+
+    // Downgrade — the cache must hold the NEW role, not be merely deleted.
     await server.inject({
       method: 'PATCH',
       url: `/api/v1/workspaces/${ws2.id}/members/${MEMBER_ID}`,
       headers: { 'content-type': 'application/json', ...reqHeaders },
       body: JSON.stringify({ role: 'viewer' }),
     });
-    expect(await redis.get(cacheKey)).toBeNull();
-    // DB reflects new role
-    const listRes = await server.inject({
-      method: 'GET',
-      url: `/api/v1/workspaces/${ws2.id}/members`,
+    expect(await cached()).toEqual({ role: 'viewer' });
+
+    // Removal publishes role: null (= not a member), closing the revocation race.
+    await server.inject({
+      method: 'DELETE',
+      url: `/api/v1/workspaces/${ws2.id}/members/${MEMBER_ID}`,
       headers: reqHeaders,
     });
-    const list = JSON.parse(listRes.body) as { data: Array<{ userId: string; role: string }> };
-    expect(list.data.find((m) => m.userId === MEMBER_ID)?.role).toBe('viewer');
+    expect(await cached()).toEqual({ role: null });
   });
 });

@@ -1,6 +1,10 @@
 // file-upload.test.ts
 // Pure unit tests for validateFileSize() and validateMimeType() helpers.
 // No mocks needed — the functions are pure and throw typed AppError subclasses.
+//
+// Tests for sniffMimeType(), assertSafeSvg() and validateFileContent() live in
+// the sibling file-upload-security.test.ts — kept separate to stay under the
+// 200-line file limit (Rule 4).
 
 import { describe, expect, it } from 'vitest';
 

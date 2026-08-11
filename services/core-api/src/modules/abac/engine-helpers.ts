@@ -7,13 +7,38 @@ import { config } from '../../lib/config.js';
 import type { Redis } from 'ioredis';
 import type { AbacContext, WorkspaceRole } from './types.js';
 
-// Shape stored in Redis for workspace membership
+/**
+ * Shape stored in Redis for workspace membership.
+ *
+ * `isTenantAdmin` USED to be part of the payload. It was provably always
+ * `false`: it is a property of the *requesting principal*, not of the
+ * membership row, and evaluate() short-circuits tenant admins before
+ * getMembership() is ever reached (engine.ts §1). It is no longer serialized
+ * and no longer read.
+ *
+ * It survives here as an optional, ignored field purely for source
+ * compatibility with call sites that still pass `isTenantAdmin: false` in an
+ * object literal (TypeScript excess-property checks would reject them
+ * otherwise). Do not read it, do not rely on it — new code must omit it.
+ *
+ * @deprecated `isTenantAdmin` — ignored, never persisted, never read.
+ */
 export interface CachedMembership {
   role: WorkspaceRole | null; // null = not a member
-  isTenantAdmin: boolean;
+  isTenantAdmin?: boolean;
 }
 
-export function membershipCacheKey(ctx: AbacContext): string {
+/**
+ * Single source of truth for the workspace-membership Redis cache key.
+ *
+ * Every path that touches the cache — getMembership() and setAbacMembership() —
+ * MUST derive its key here. This only guarantees that the key FORMAT cannot
+ * drift between readers and writers; it says nothing about staleness. Staleness
+ * bounds are documented on getMembership().
+ */
+export function membershipCacheKey(
+  ctx: Pick<AbacContext, 'tenantSlug' | 'userId' | 'workspaceId'>
+): string {
   return `abac:${ctx.tenantSlug}:${ctx.userId}:${ctx.workspaceId}`;
 }
 
@@ -22,7 +47,45 @@ export function membershipCacheKey(ctx: AbacContext): string {
  * Cache key: abac:<tenantSlug>:<userId>:<workspaceId>
  * TTL controlled by ABAC_CACHE_TTL_SECONDS env var.
  *
- * @param tenantDb - Tenant-schema Prisma transaction client (type-erased until generated client exists)
+ * CONCURRENCY — what `SET … EX … NX` does and does NOT guarantee.
+ *
+ * This is a read-then-write path, so a membership mutation can interleave
+ * between the DB read and the cache write:
+ *
+ *   reader:  GET → MISS
+ *   reader:  findUnique → role=admin
+ *   writer:                DELETE membership row
+ *   writer:                write-through SETEX role=null
+ *   reader:  populate cache with the now-REVOKED role=admin   ← the bug
+ *
+ * NX makes the reader's late populate a no-op whenever a value already exists
+ * for the key. Every membership mutation is write-through (unconditional
+ * SETEX of the post-mutation value) and NOTHING in the codebase deletes a
+ * membership key any more — invalidateAbacCache() was removed precisely
+ * because a DEL between a writer's SETEX and a reader's SET NX would let the
+ * reader resurrect the revoked role. See engine.ts § setAbacMembership.
+ *
+ * With that invariant the reader/writer race above is closed: for the reader's
+ * SET NX to succeed after the writer's SETEX, the key would have to disappear
+ * in the sub-millisecond gap between the two commands, and the only remaining
+ * removal mechanism is TTL expiry of a key the writer just wrote with a fresh
+ * ABAC_CACHE_TTL_SECONDS.
+ *
+ * RESIDUAL (documented, not fixed — see engine.ts § setAbacMembership):
+ * writer-vs-writer ordering is NOT fenced. Two concurrent mutations on the same
+ * (user, workspace) can publish out of DB order:
+ *
+ *   w1 (addMember):    INSERT row role=admin
+ *   w2 (removeMember): DELETE row
+ *   w2:                SETEX role=null
+ *   w1:                SETEX role=admin        ← stale, wins for a full TTL
+ *
+ * This requires two administrators mutating the same membership within the same
+ * few milliseconds. Closing it needs a real fencing token (versioned payload +
+ * Lua CAS), which is deliberately not implemented — see the ADR note in
+ * engine.ts.
+ *
+ * @param tenantDb - Tenant-schema Prisma client (type-erased until generated client exists)
  */
 export async function getMembership(
   ctx: AbacContext,
@@ -44,10 +107,10 @@ export async function getMembership(
 
   const membership: CachedMembership = {
     role: (member?.role as WorkspaceRole | null) ?? null,
-    isTenantAdmin: ctx.isTenantAdmin ?? false,
   };
 
-  await redis.setex(key, config.ABAC_CACHE_TTL_SECONDS, JSON.stringify(membership));
+  // NX: never overwrite a value published by a concurrent membership mutation.
+  await redis.set(key, JSON.stringify(membership), 'EX', config.ABAC_CACHE_TTL_SECONDS, 'NX');
   return membership;
 }
 

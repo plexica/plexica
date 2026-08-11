@@ -50,8 +50,11 @@ beforeAll(async () => {
   configureErrorHandler(server);
 
   // Route that uses withTenantDb() — the correct tenant data access pattern.
-  // M-3: withTenantDb() uses $transaction + SET LOCAL search_path, which is
-  // safe under connection pool concurrency (unlike the old SET search_path middleware).
+  // M-3: withTenantDb() does NOT use a transaction. It builds a dedicated
+  // TenantPrismaClient whose connection URL carries `?schema=<schemaName>`, so
+  // the search_path is fixed at connection level and cannot be mutated by
+  // another request sharing a pooled connection (unlike the old
+  // `SET search_path` middleware). That is what makes it concurrency-safe.
   // M-04: pass req.tenantContext explicitly — Fastify v5 runs preHandlers and
   // route handlers in separate async execution scopes, so AsyncLocalStorage
   // context set via enterWith() in the preHandler does not reach the handler.
@@ -70,7 +73,7 @@ beforeAll(async () => {
     },
     async (req) => {
       const rows = (await withTenantDb(
-        (tx) => tx.$queryRaw<Array<{ search_path: string }>>`SHOW search_path`,
+        (db) => db.$queryRaw<Array<{ search_path: string }>>`SHOW search_path`,
         req.tenantContext // M-04: explicit context required in Fastify v5
       )) as Array<{ search_path: string }>;
       return {

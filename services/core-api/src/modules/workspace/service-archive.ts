@@ -1,7 +1,18 @@
 // service-archive.ts
 // Archive, restore, and reparent business logic for the Workspace module.
 // CRUD operations live in service.ts.
-
+//
+// ABAC CACHE: these operations deliberately do NOT touch the ABAC membership
+// cache. That cache stores `workspace_member` rows, and archive/restore/
+// reparent do not modify a single membership — access to an archived workspace
+// is refused by the service layer (WorkspaceArchivedError), not by the ABAC
+// engine. The previous DEL-based invalidation was therefore pure overhead AND
+// a correctness hazard: deleting a key could drop a revocation tombstone
+// published by removeMember/removeUser, letting a concurrent ABAC reader
+// repopulate the revoked role for a full ABAC_CACHE_TTL_SECONDS. See
+// modules/abac/engine.ts § setAbacMembership for the full interleaving.
+// `redis` is still accepted by these functions to keep the call signatures
+// stable for the routes layer.
 
 import {
   WorkspaceNotFoundError,
@@ -10,7 +21,6 @@ import {
   MaxHierarchyDepthError,
   WorkspaceNotArchivedError,
 } from '../../lib/app-error.js';
-import { invalidateAbacCache } from '../../middleware/abac.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
 import {
@@ -31,23 +41,12 @@ function pathDepth(p: string): number {
   return p.split('/').filter(Boolean).length;
 }
 
-async function invalidateCaches(
-  tenantSlug: string,
-  actorId: string,
-  ids: string[],
-  redis: Redis
-): Promise<void> {
-  await Promise.all(
-    ids.map((id) => invalidateAbacCache(tenantSlug, actorId, id, redis).catch(() => undefined))
-  );
-}
-
 export async function archiveWorkspaceService(
   tenantDb: unknown,
   workspaceId: string,
   actorId: string,
-  tenantSlug: string,
-  redis: Redis
+  _tenantSlug: string,
+  _redis: Redis
 ): Promise<ArchiveResult> {
   const workspace = await findWorkspaceById(tenantDb, workspaceId);
   if (workspace === null) throw new WorkspaceNotFoundError();
@@ -57,9 +56,8 @@ export async function archiveWorkspaceService(
   const allIds = [workspaceId, ...descendants.map((d) => d.id)];
 
   await archiveWorkspaces(tenantDb, allIds);
-  await invalidateCaches(tenantSlug, actorId, allIds, redis);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'workspace.archive',
     targetType: 'workspace',
@@ -79,8 +77,8 @@ export async function restoreWorkspaceService(
   tenantDb: unknown,
   workspaceId: string,
   actorId: string,
-  tenantSlug: string,
-  redis: Redis
+  _tenantSlug: string,
+  _redis: Redis
 ): Promise<RestoreResult> {
   const workspace = await findWorkspaceById(tenantDb, workspaceId);
   if (workspace === null) throw new WorkspaceNotFoundError();
@@ -96,9 +94,8 @@ export async function restoreWorkspaceService(
   const allIds = [workspaceId, ...archivedDescendants.map((d) => d.id)];
 
   await restoreWorkspaces(tenantDb, allIds);
-  await invalidateCaches(tenantSlug, actorId, allIds, redis);
 
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'workspace.restore',
     targetType: 'workspace',
@@ -119,8 +116,8 @@ export async function reparentWorkspaceService(
   workspaceId: string,
   newParentId: string | null,
   actorId: string,
-  tenantSlug: string,
-  redis: Redis
+  _tenantSlug: string,
+  _redis: Redis
 ): Promise<{
   id: string;
   parentId: string | null;
@@ -162,9 +159,7 @@ export async function reparentWorkspaceService(
   ];
   await updateMaterializedPaths(tenantDb, updates);
 
-  const allIds = [workspaceId, ...descendants.map((d) => d.id)];
-  await invalidateCaches(tenantSlug, actorId, allIds, redis);
-  writeAuditLog(tenantDb, {
+  await writeAuditLog(tenantDb, {
     actorId,
     actionType: 'workspace.reparent',
     targetType: 'workspace',

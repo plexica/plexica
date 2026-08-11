@@ -44,7 +44,7 @@ export async function auditLogRoutes(fastify: FastifyInstance): Promise<void> {
         filters.to = isDateOnly ? new Date(`${raw}T23:59:59.999Z`) : new Date(raw);
       }
 
-      return withTenantDb((tx) => getAuditLog(tx, filters), request.tenantContext);
+      return withTenantDb((db) => getAuditLog(db, filters), request.tenantContext);
     }
   );
 

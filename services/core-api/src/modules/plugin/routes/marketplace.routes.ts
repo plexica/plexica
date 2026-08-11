@@ -34,8 +34,8 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     async (request) => {
       const ctx = request.tenantContext;
 
-      const installations = await withTenantDb(async (tx: TenantPrismaClient) => {
-        return tx.pluginInstallation.findMany({
+      const installations = await withTenantDb(async (db: TenantPrismaClient) => {
+        return db.pluginInstallation.findMany({
           where: { tenantSlug: ctx.slug, status: { not: 'uninstalled' } },
           orderBy: { installedAt: 'desc' },
         });
@@ -74,26 +74,26 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     const { workspaceId } = z.object({ workspaceId: z.string().uuid() }).parse(request.params);
     const ctx = request.tenantContext;
     const isTenantAdmin = request.user.roles.includes('tenant_admin');
-    const installations = await withTenantDb(async (tx: TenantPrismaClient) => {
-      const workspace = await tx.workspace.findFirst({
+    const installations = await withTenantDb(async (db: TenantPrismaClient) => {
+      const workspace = await db.workspace.findFirst({
         where: { id: workspaceId, status: 'active' },
         select: { id: true },
       });
       if (!workspace) throw new ForbiddenError('Active workspace required');
       if (!isTenantAdmin) {
-        const membership = await tx.workspaceMember.findUnique({
+        const membership = await db.workspaceMember.findUnique({
           where: { workspaceId_userId: { workspaceId, userId: request.user.id } },
           select: { id: true },
         });
         if (!membership) throw new ForbiddenError('Workspace membership required');
       }
-      const candidates = await tx.pluginInstallation.findMany({
+      const candidates = await db.pluginInstallation.findMany({
         where: { tenantSlug: ctx.slug, status: 'active' },
       });
       const visible = await Promise.all(
         candidates.map(async (item) =>
-          // Generated tenant transaction type is compatible at runtime.
-          (await isPluginVisible(tx as never, item.id, workspaceId)) ? item : null
+          // Plain TenantPrismaClient (no transaction); compatible at runtime.
+          (await isPluginVisible(db as never, item.id, workspaceId)) ? item : null
         )
       );
       return visible.filter((item): item is NonNullable<typeof item> => item !== null);
@@ -140,8 +140,8 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
     }
     const { page, pageSize, search, category } = parsed.data;
     const installedIds = new Set(
-      await withTenantDb(async (database) => {
-        const rows = await database.pluginInstallation.findMany({
+      await withTenantDb(async (db) => {
+        const rows = await db.pluginInstallation.findMany({
           where: { tenantSlug: request.tenantContext.slug, status: { not: 'uninstalled' } },
           select: { pluginId: true },
         });

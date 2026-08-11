@@ -80,8 +80,8 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       const role = await createPluginRole(install.id, ctx.slug, manifest.declaredTables);
       // Persist the encrypted connection string at rest in plugin_container_config
       // (a TENANT-schema table — must use withTenantDb, not the core prisma client).
-      await withTenantDb(async (tx: TenantPrismaClient) => {
-        await tx.pluginContainerConfig.upsert({
+      await withTenantDb(async (db: TenantPrismaClient) => {
+        await db.pluginContainerConfig.upsert({
           where: { installId: install.id },
           create: {
             installId: install.id,
@@ -102,9 +102,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       // so PostgreSQL enforces schema/table scope. The role gets CREATE on the
       // tenant schema only for the duration of the migration loop.
       await runMigrationSecurityPhase(install.id, ctx, async () => {
-        await withTenantDb(async (tenantDb) => {
+        await withTenantDb(async (db) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (tenantDb as any).$transaction(async (tx: any) => {
+          return (db as any).$transaction(async (tx: any) => {
             await runPluginMigrations({
               tx,
               manifest,

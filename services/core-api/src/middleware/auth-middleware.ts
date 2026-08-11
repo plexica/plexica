@@ -32,11 +32,29 @@ export interface AuthUser {
 }
 
 /**
- * Symbol used to mark a request as pre-authenticated by a trusted internal source.
- * Only code with access to this symbol can bypass JWT verification.
- * External plugins cannot forge this — symbols are identity-based, not string-based.
+ * Marks a request as pre-authenticated by a trusted internal source, letting
+ * `authMiddleware` skip JWT verification.
+ *
+ * This is an UNREGISTERED `Symbol()`, deliberately not `Symbol.for()`. A
+ * `Symbol.for()` key lives in the cross-realm global symbol registry, so any
+ * code in the process — including any transitive npm dependency — can obtain
+ * the identical symbol by computing `Symbol.for('plexica:trusted-auth')` and
+ * mark a request as trusted. `Symbol()` produces a value that is unique per
+ * module instance and unreachable except by importing it from this module,
+ * which is what "cannot be forged" actually requires.
+ *
+ * It is still not a security boundary on its own: anything able to import this
+ * module, or to enumerate the request's own property symbols via
+ * `Object.getOwnPropertySymbols(request)`, can set the flag. It only stops the
+ * flag being guessed from a string.
+ *
+ * TECH DEBT — this bypass exists solely to let integration tests inject a
+ * synthetic user (see __tests__/helpers/server.helpers.ts) yet it ships in
+ * production code, contradicting AGENTS.md §Testing rules 2, 3 and 5 (no
+ * test-only code paths, no separate test app, real RS256 tokens). It should be
+ * replaced by tests minting real Keycloak tokens.
  */
-export const TRUSTED_AUTH_SYMBOL = Symbol.for('plexica:trusted-auth');
+export const TRUSTED_AUTH_SYMBOL = Symbol('plexica:trusted-auth');
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -103,8 +121,9 @@ async function verifyToken(token: string, realm: string): Promise<AuthUser> {
 }
 
 export async function authMiddleware(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
-  // Allow bypass ONLY when a trusted internal source (identified by a Symbol
-  // that cannot be forged by external plugins) has pre-authenticated the request.
+  // Allow bypass ONLY when a trusted internal source has pre-authenticated the
+  // request by setting TRUSTED_AUTH_SYMBOL, which is an unregistered Symbol
+  // reachable only by importing it from this module (see its declaration).
   // This prevents untrusted code from escalating privileges by pre-setting request.user.
   if (
     request.user !== undefined &&

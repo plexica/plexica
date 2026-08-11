@@ -1,10 +1,15 @@
 // settings-api.ts
 // Typed API functions for tenant settings domain.
 // Used by TanStack Query hooks in use-tenant-settings.ts and use-branding.ts.
+//
+// API_BASE is NOT redefined here — it is imported (indirectly, via apiClient)
+// from api-client.ts, the single source of truth. The paths below already carry the
+// /api prefix, so API_BASE must not include it.
 
-import { useAuthStore } from '../stores/auth-store.js';
+import { z } from 'zod';
+import { invalidResponseError } from '@plexica/auth/api-client';
 
-import { apiClient } from './api-client.js';
+import { apiClient, fileFormData } from './api-client.js';
 
 import type {
   TenantSettings,
@@ -14,9 +19,28 @@ import type {
   UpdateAuthConfigPayload,
 } from '../types/settings.js';
 
-// API paths already include the /api/v1 prefix.
-// API_BASE must be empty to avoid doubling the prefix (/api/api/v1/…).
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
+/**
+ * SINGLE source of truth for the logo upload constraints on the client.
+ *
+ * Mirrors the server contract and must be kept in lockstep with it:
+ *   - size    → `LOGO_MAX_BYTES` (services/core-api/src/lib/config.ts)
+ *   - formats → `LOGO_ALLOWED_MIME_TYPES` (services/core-api/src/lib/file-upload.ts)
+ *
+ * The `accept` attribute, the `maxSizeBytes` prop and the localized copy are all
+ * derived from here — never restated independently.
+ */
+export const LOGO_UPLOAD = {
+  maxBytes: 2_097_152,
+  mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
+} as const;
+
+// Validated rather than cast: nothing else would catch a contract drift.
+const tenantBrandingSchema = z.object({
+  id: z.string(),
+  primaryColor: z.string(),
+  darkMode: z.boolean(),
+  logoUrl: z.string().nullable(),
+});
 
 export const settingsApi = {
   // Backend returns objects directly (no { data } wrapper)
@@ -35,24 +59,17 @@ export const settingsApi = {
   updateAuthConfig: (payload: UpdateAuthConfigPayload) =>
     apiClient.patch<AuthConfig>('/api/v1/tenant/auth-config', payload),
 
-  // Multipart upload for logo — uses native fetch to avoid apiClient's application/json header
-  // Backend returns TenantBranding directly (no { data } wrapper)
+  // Multipart upload for the logo — goes through the shared api-client so the
+  // bearer token, refresh-on-401 and session-expiry behaviour are identical to
+  // every other call.
   uploadLogo: async (file: File): Promise<TenantBranding> => {
-    const { accessToken, tenantSlug } = useAuthStore.getState();
-    const headers: Record<string, string> = {};
-    if (accessToken !== null) headers['Authorization'] = `Bearer ${accessToken}`;
-    if (import.meta.env.DEV && tenantSlug !== null) headers['X-Tenant-Slug'] = tenantSlug;
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch(`${API_BASE}/api/v1/tenant/branding`, {
-      method: 'PATCH',
-      headers,
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-      throw new Error(err.error?.message ?? `Upload failed: ${res.status}`);
+    const body = await apiClient.patchForm<unknown>('/api/v1/tenant/branding', fileFormData(file));
+    const parsed = tenantBrandingSchema.safeParse(body);
+    if (!parsed.success) {
+      // Non-HTTP status: a malformed 200 body is NOT a success. Machine-readable
+      // code — the component renders the localized message.
+      throw invalidResponseError();
     }
-    return res.json() as Promise<TenantBranding>;
+    return parsed.data;
   },
 };

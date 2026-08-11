@@ -107,7 +107,4 @@ export const pluginApi = {
 
   dismissDlq: (id: string) =>
     apiClient.post<void>(`/api/v1/admin/system/dlq/${id}/dismiss`),
-
-  getKafkaStatus: () =>
-    apiClient.get<{ lag: number; status: string }[]>('/api/v1/admin/system/kafka'),
 };

@@ -11,6 +11,7 @@
     "./jwt": "./src/jwt.ts",
     "./keycloak-client": "./src/keycloak-client.ts",
     "./api-client": "./src/api-client.ts",
+    "./env-guard": "./src/env-guard.ts",
     "./auth-store": "./src/auth-store.ts",
     "./auth-flow": "./src/auth-flow.ts",
     "./auth-epoch": "./src/auth-epoch.ts",

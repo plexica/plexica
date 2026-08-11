@@ -20,3 +20,11 @@ export const removeUserSchema = z.object({
     )
     .default([]),
 });
+
+// Path params for every /api/v1/users/:id* route. `:id` is a user_profile.userId
+// (@db.Uuid) — a malformed value must be rejected here with a clean 422
+// (ValidationError) rather than reaching Prisma, which throws P2023 for an
+// invalid UUID literal and would otherwise surface as an unmapped 500.
+export const userIdParamSchema = z.object({
+  id: z.string().uuid(),
+});

@@ -1,7 +1,10 @@
 // repository.ts
 // Tenant-schema data access layer for the user_profile table.
-// All functions accept a type-erased Prisma transaction client (unknown → any cast)
-// because the tenant-schema Prisma client is generated separately.
+// All functions accept a type-erased tenant-schema Prisma client (unknown → any
+// cast) because the tenant-schema Prisma client is generated separately.
+// The client is normally the one handed out by withTenantDb(), which is a plain
+// client bound to the schema via `?schema=<schemaName>` — NOT a transaction
+// client. Nothing here is atomic unless the caller opened a $transaction.
 
 import type { NotificationPrefs, UserProfileDto } from './types.js';
 

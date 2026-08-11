@@ -22,6 +22,7 @@
 // - `api-client.ts`  — createApiClient() factory (auto-auth, 401 refresh, error handling)
 // - `auth-store.ts`  — createAuthBaseSlice(), rehydrateStatus(), partializeAuthState()
 // - `use-silent-refresh.ts` — useSilentRefresh() hook
+// - `env-guard.ts`   — requiredOrigin() fail-fast guard for build-time env origins
 
 export type { TokenResponse, BaseUserProfile, AuthStatus, AuthState } from './types.js';
 

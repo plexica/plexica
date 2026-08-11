@@ -41,7 +41,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
       const filters: ListInvitationsFilters = { page: parsed.data.page, limit: parsed.data.limit };
       if (parsed.data.status !== undefined) filters.status = parsed.data.status;
 
-      return withTenantDb((tx) => listInvitationsService(tx, id, filters), req.tenantContext);
+      return withTenantDb((db) => listInvitationsService(db, id, filters), req.tenantContext);
     }
   );
 
@@ -55,9 +55,9 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
 
     if (!isTenantAdmin) {
       // Non-admins must be workspace admin in the target workspace.
-      const member = await withTenantDb(async (tx) => {
+      const member = await withTenantDb(async (db) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (tx as any).workspaceMember.findUnique({
+        return (db as any).workspaceMember.findUnique({
           where: {
             workspaceId_userId: {
               workspaceId: parsed.data.workspaceId,
@@ -75,7 +75,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     }
 
     const result = await withTenantDb(
-      (tx) => createInvitationService(tx, parsed.data, req.user.id, req.tenantContext),
+      (db) => createInvitationService(db, parsed.data, req.user.id, req.tenantContext),
       req.tenantContext
     );
     return reply.status(201).send(result);
@@ -88,7 +88,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     async (req) => {
       const { id } = req.params as { id: string };
       return withTenantDb(
-        (tx) => resendInvitationService(tx, id, req.user.id, req.tenantContext),
+        (db) => resendInvitationService(db, id, req.user.id, req.tenantContext),
         req.tenantContext
       );
     }
@@ -112,7 +112,7 @@ export async function invitationPublicRoutes(fastify: FastifyInstance): Promise<
       if (!parsedToken.success) throw new InvitationNotFoundError();
 
       const result = await withTenantDb(
-        (tx) => acceptInvitationService(tx, parsedToken.data, req.tenantContext.realmName),
+        (db) => acceptInvitationService(db, parsedToken.data, req.tenantContext.realmName),
         req.tenantContext
       );
       return reply.status(200).send(result);
