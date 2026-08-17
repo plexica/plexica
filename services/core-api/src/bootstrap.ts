@@ -10,8 +10,9 @@
 //   4. deletion saga startup sweep (fire & forget)   4. tenant lifecycle worker     (3)
 //   5. plugin consumer groups (reconcile)            5. event workers               (2)
 //   6. plugin health poller                          6. Kafka producer              (1)
-//   7. metrics aggregator                            7. PostgreSQL
-//                                                    8. Redis
+//   7. metrics aggregator                            7. tenant DB client cache (ADR-027)
+//                                                    8. PostgreSQL
+//                                                    9. Redis
 // Teardown is the exact reverse of startup: every Kafka producer/consumer is
 // stopped before the connections and stores it depends on (Kafka, PostgreSQL,
 // Redis) are closed. Nothing is started here without a matching stop.
@@ -21,6 +22,7 @@ import { disconnectDatabase, prisma } from './lib/database.js';
 import { disconnectKafka, initKafka } from './lib/kafka.js';
 import { logger } from './lib/logger.js';
 import { disconnectRedis, redis } from './lib/redis.js';
+import { disconnectAllTenantDbClients } from './lib/tenant-database.js';
 import { startupSweep } from './modules/admin/services/deletion-saga.service.js';
 import {
   startMetricsAggregator,
@@ -125,6 +127,9 @@ export async function stopBackgroundServices(): Promise<void> {
   await stopStep('tenant-lifecycle-worker', stopTenantLifecycleWorker);
   await stopStep('event-workers', stopEventWorkers);
   await stopStep('kafka-producer', disconnectKafka);
+  // Tenant client pools (ADR-027) close BEFORE the core pool, so no cached
+  // tenant connection can outlive the singleton it was derived from.
+  await stopStep('tenant-db-clients', disconnectAllTenantDbClients);
   await stopStep('database', disconnectDatabase);
   await stopStep('redis', disconnectRedis);
 }

@@ -7,13 +7,17 @@
 // (Tenant, TenantConfig, …) and cannot access tenant-schema models (workspace,
 // workspaceMember, invitation, auditLog, userProfile, …).
 //
-// The correct solution: create a TenantPrismaClient per request using the
+// The correct solution: a TenantPrismaClient per tenant schema using the
 // `?schema=<schemaName>` connection URL parameter. This is the same pattern
 // already used by db.helpers.ts (buildTenantClient) and tested in integration.
 //
-// Trade-off: one extra PrismaClient per request (no connection pooling for
-// tenant schemas). Acceptable for v2 phase 1; a PgBouncer/Prisma Accelerate
-// layer can be added later if connection limits become a concern.
+// ADR-027: clients are NOT created per call (67 call sites, 4+ per request
+// exhausted PostgreSQL connections). They live in a bounded LRU cache
+// (tenant-db-cache.ts) keyed by schemaName, with LRU cap + idle TTL eviction
+// (evicted entries are $disconnect()ed), explicit invalidation on the tenant
+// deprovisioning path, and a full drain on shutdown. The cache is safe
+// because every cached client is bound to exactly one schema via its
+// connection URL — no search_path state is ever shared across tenants.
 //
 // M-04 NOTE: Fastify v5 runs each hook and route handler in its own
 // async execution scope, so AsyncLocalStorage.enterWith() set in a
@@ -29,11 +33,15 @@ import { PrismaClient as TenantPrismaClient } from '../../prisma/generated/tenan
 
 import { prisma as coreDb } from './database.js';
 import { logger } from './logger.js';
+import { getOrCreateTenantClient, releaseTenantClient } from './tenant-db-cache.js';
 import { getTenantContext } from './tenant-context-store.js';
 
 import type { TenantContext } from './tenant-context-store.js';
 
 export type { TenantPrismaClient };
+
+// ADR-027 lifecycle API: deprovisioning invalidation + graceful shutdown drain.
+export { disconnectAllTenantDbClients, invalidateTenantDbClient } from './tenant-db-cache.js';
 
 // ---------------------------------------------------------------------------
 // Transaction-client detection (runtime guard)
@@ -110,10 +118,12 @@ export function assertNonTransactionalDb(db: unknown, caller: string): void {
 /**
  * Executes a database callback within the current tenant's schema.
  *
- * Creates a TenantPrismaClient connected to the tenant's schema via the
- * `?schema=<schemaName>` connection URL parameter, runs the callback,
- * then disconnects. On error the client is disconnected and the error
- * is re-thrown.
+ * Reuses the cached TenantPrismaClient for the tenant's schema (ADR-027) —
+ * a client connected via the `?schema=<schemaName>` connection URL parameter,
+ * created on first access and owned by the LRU cache (tenant-db-cache.ts).
+ * The client is NOT disconnected when the callback returns or throws: it
+ * outlives the request; the cache owns its lifecycle (LRU + TTL eviction,
+ * deprovisioning invalidation, shutdown drain).
  *
  * @param fn      - Callback that receives a TenantPrismaClient instance.
  * @param context - Tenant context. Pass `request.tenantContext` from Fastify
@@ -137,16 +147,10 @@ export async function withTenantDb<T>(
   // Fall back to AsyncLocalStorage for non-Fastify call sites.
   const { schemaName } = context ?? getTenantContext();
 
-  const baseUrl = process.env['DATABASE_URL'] ?? '';
-  const tenantUrl = baseUrl.includes('?')
-    ? `${baseUrl}&schema=${schemaName}`
-    : `${baseUrl}?schema=${schemaName}`;
-
-  const tenantDb = new TenantPrismaClient({ datasources: { db: { url: tenantUrl } } });
   try {
-    return await fn(tenantDb);
+    return await fn(getOrCreateTenantClient(schemaName));
   } finally {
-    await tenantDb.$disconnect();
+    releaseTenantClient(schemaName);
   }
 }
 
@@ -163,8 +167,6 @@ export async function withTenantDb<T>(
  * @example
  *   const plugins = await withCoreDb((db) => db.plugin.findMany());
  */
-export async function withCoreDb<T>(
-  fn: (db: PrismaClient) => Promise<T>
-): Promise<T> {
+export async function withCoreDb<T>(fn: (db: PrismaClient) => Promise<T>): Promise<T> {
   return fn(coreDb);
 }

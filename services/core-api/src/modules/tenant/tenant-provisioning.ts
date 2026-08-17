@@ -9,6 +9,7 @@ import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/te
 import { prisma } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
 import { ProvisioningFailedError } from '../../lib/app-error.js';
+import { invalidateTenantDbClient } from '../../lib/tenant-database.js';
 import { createTenantSchema } from '../../lib/tenant-schema.js';
 import { createRealm, deleteRealm } from '../../lib/keycloak-admin.js';
 import { createBucket, deleteBucket } from '../../lib/minio-client.js';
@@ -52,6 +53,11 @@ async function rollback(
         logger.info({ realmName }, 'Rollback: Keycloak realm deleted');
       } else if (step === 'schema') {
         await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+        // ADR-027: a cached client for a dropped schema would hold pooled
+        // connections to a schema that no longer exists. A client can only be
+        // cached if a request reached withTenantDb between schema creation and
+        // the failing step — rare, but the call is one line and idempotent.
+        await invalidateTenantDbClient(schemaName);
         await prisma.tenant.deleteMany({ where: { slug } });
         logger.info({ schemaName }, 'Rollback: PostgreSQL schema dropped');
       }

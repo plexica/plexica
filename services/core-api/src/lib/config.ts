@@ -10,6 +10,12 @@ const configSchema = z
 
     // Database
     DATABASE_URL: z.string().url(),
+
+    // Tenant DB client cache (ADR-027): bounded LRU of TenantPrismaClient,
+    // one per tenant schema. MAX = hard cap (LRU eviction), TTL_MS = idle
+    // timeout after which an entry is disconnected and evicted.
+    TENANT_DB_CACHE_MAX: z.coerce.number().int().min(1).default(100),
+    TENANT_DB_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(600_000),
     PLUGIN_DB_ENCRYPTION_KEY: z
       .string()
       .regex(/^[0-9a-fA-F]{64}$/)
