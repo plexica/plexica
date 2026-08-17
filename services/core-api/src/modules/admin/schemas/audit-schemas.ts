@@ -70,8 +70,6 @@ export const WriteAuditEntrySchema = z.object({
     .optional(),
 });
 
-export type AuditAction = z.infer<typeof AuditActionSchema>;
-export type AuditResourceType = z.infer<typeof AuditResourceTypeSchema>;
 export type AuditQuery = z.infer<typeof AuditQuerySchema>;
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;

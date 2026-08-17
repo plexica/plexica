@@ -37,6 +37,5 @@ export const TenantListResponseSchema = z.object({
   pageSize: z.number().int().min(1).max(100),
 });
 
-export type TenantListQuery = z.infer<typeof TenantListQuerySchema>;
 export type TenantListItem = z.infer<typeof TenantListItemSchema>;
 export type TenantListResponse = z.infer<typeof TenantListResponseSchema>;

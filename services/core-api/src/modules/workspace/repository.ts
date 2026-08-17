@@ -121,14 +121,6 @@ export async function findDescendants(
   return rows as WorkspaceRow[];
 }
 
-export async function findWorkspacesByIds(
-  tenantDb: unknown,
-  ids: string[]
-): Promise<WorkspaceRow[]> {
-  const rows = await db(tenantDb).workspace.findMany({ where: { id: { in: ids } } });
-  return rows as WorkspaceRow[];
-}
-
 export async function createWorkspace(
   tenantDb: unknown,
   data: {

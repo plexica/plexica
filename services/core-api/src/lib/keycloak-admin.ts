@@ -16,7 +16,7 @@ import {
 
 export type { RealmConfig };
 
-export interface CreateRealmResult {
+interface CreateRealmResult {
   /** Temporary password set on the initial admin user. Must be changed on first login. */
   tempPassword: string;
 }

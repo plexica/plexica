@@ -11,8 +11,9 @@ import { Readable } from 'node:stream';
 
 import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
-import { ValidationError, FileTooLargeError } from '../../lib/app-error.js';
+import { ValidationError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
+import { readStream } from '../../lib/file-upload.js';
 import {
   UPLOAD_RATE_LIMIT,
   AUTH_CONFIG_RATE_LIMIT,
@@ -25,21 +26,6 @@ import { getBranding, updateBranding } from './service-branding.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { UpdateBrandingInput, LogoFileBuffer } from './types.js';
-
-/** Reads a Readable stream into a Buffer; throws FileTooLargeError if maxBytes exceeded. */
-async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-  for await (const chunk of stream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-    totalBytes += buf.length;
-    if (totalBytes > maxBytes) {
-      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
-    }
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
-}
 
 export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/tenant/settings ──────────────────────────────────────────

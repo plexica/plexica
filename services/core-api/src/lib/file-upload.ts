@@ -14,6 +14,8 @@
 import { FileTooLargeError, InvalidFileTypeError } from './app-error.js';
 import { assertSafeSvg } from './svg-safety.js';
 
+import type { Readable } from 'node:stream';
+
 // Re-exported so existing importers keep working after the SVG scanner moved
 // to svg-safety.ts (Rule 4 split).
 export { assertSafeSvg } from './svg-safety.js';
@@ -33,6 +35,26 @@ export const LOGO_ALLOWED_MIME_TYPES: string[] = [
 
 /** Number of leading bytes inspected when sniffing a text-based format. */
 const SNIFF_TEXT_WINDOW = 1024;
+
+/**
+ * Reads a Readable stream into a Buffer. Throws FileTooLargeError as soon as
+ * the buffered bytes exceed maxBytes — the rest of the stream is not consumed.
+ */
+export async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  for await (const chunk of stream) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
+    totalBytes += buf.length;
+    if (totalBytes > maxBytes) {
+      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
+    }
+    chunks.push(buf);
+  }
+
+  return Buffer.concat(chunks);
+}
 
 /**
  * Throws FileTooLargeError if the file size exceeds maxBytes.

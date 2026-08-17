@@ -61,7 +61,7 @@ function extractSlug(request: FastifyRequest): string | null {
  * null for unknown / `deleted` (ID-002 anti-enumeration) or `{ status, context:
  * null }` for `suspended` / `pending_deletion` so callers can reject with 403.
  */
-export type ResolvedTenant =
+type ResolvedTenant =
   | { status: 'active'; context: TenantContext }
   | { status: 'suspended'; context: null }
   | { status: 'pending_deletion'; context: null };

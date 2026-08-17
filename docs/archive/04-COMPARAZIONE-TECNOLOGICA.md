@@ -1,3 +1,6 @@
+> **Documento storico — superato da ADR-009 / AGENTS.md. Conservato per
+> riferimento, non per uso corrente.**
+
 # Plexica v2 — Comparazione Tecnologica Backend
 
 > Analisi comparativa tra Rust e TypeScript per il core backend della

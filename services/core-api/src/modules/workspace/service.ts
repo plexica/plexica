@@ -18,12 +18,8 @@ import {
   findMemberRole,
 } from './repository.js';
 import { buildWorkspaceCreateAuditEntry } from './audit-entries.js';
-import {
-  MAX_DEPTH,
-  pathDepth,
-  resolveSlug,
-  seedTemplateChildren,
-} from './service-create-helpers.js';
+import { MAX_DEPTH, pathDepth } from './hierarchy.js';
+import { resolveSlug, seedTemplateChildren } from './service-create-helpers.js';
 
 import type { CreateWorkspaceResult } from './audit-entries.js';
 import type {

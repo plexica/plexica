@@ -10,7 +10,7 @@ interface Options { force: boolean; name: string | null }
 
 const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 
-function toSlug(name: string): string {
+export function toSlug(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')

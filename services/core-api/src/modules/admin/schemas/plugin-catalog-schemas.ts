@@ -36,8 +36,3 @@ export const ReviewResponseSchema = z.object({
   reviewedAt: z.coerce.date().nullable(),
   reviewedBy: z.string().nullable(),
 });
-
-export type ReviewParams = z.infer<typeof ReviewParamsSchema>;
-export type ReviewDecision = z.infer<typeof ReviewDecisionSchema>;
-export type ReviewBody = z.infer<typeof ReviewBodySchema>;
-export type ReviewResponse = z.infer<typeof ReviewResponseSchema>;

@@ -39,8 +39,6 @@ export const messages = {
 
   'admin.session.expired': 'Your session has expired. Redirecting to login…',
 
-  'admin.page.placeholder': 'This section is under construction',
-
   'admin.health.title': 'System Health',
   'admin.health.loading': 'Loading service status…',
   'admin.health.error': 'Failed to load service health.',

@@ -25,6 +25,4 @@ export const KafkaStatusResponseSchema = z.object({
   warnings: z.array(z.string()),
 });
 
-export type ConsumerLag = z.infer<typeof ConsumerLagSchema>;
-export type DlqSize = z.infer<typeof DlqSizeSchema>;
 export type KafkaStatusResponse = z.infer<typeof KafkaStatusResponseSchema>;

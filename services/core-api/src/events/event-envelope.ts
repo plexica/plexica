@@ -25,7 +25,7 @@ const pluginProducerSchema = z.object({
   id: z.string().uuid(),
 }).strict();
 
-export const eventMetadataSchema = z.object({
+const eventMetadataSchema = z.object({
   eventId: z.string().uuid(),
   type: z.string().min(1).max(128).regex(/^[a-z][a-z0-9.-]+$/),
   schemaVersion: z.literal(1),

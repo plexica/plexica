@@ -1,20 +1,13 @@
 // service-create-helpers.ts
-// Slug resolution, hierarchy depth guard and template seeding helpers used by
-// the workspace creation flow. Extracted from service.ts to satisfy the
-// 200-line-per-file rule (Constitution Rule 4).
+// Slug resolution and template seeding helpers used by the workspace creation
+// flow. Extracted from service.ts to satisfy the 200-line-per-file rule
+// (Constitution Rule 4). The hierarchy depth guard (MAX_DEPTH, pathDepth)
+// lives in hierarchy.ts, shared with service-archive.ts.
 
 import { generateSlug } from '../../lib/slug.js';
 
 import { createWorkspace, slugExists } from './repository.js';
 import { findTemplateById } from './repository-templates.js';
-
-/** Maximum workspace hierarchy depth (materialized path segments). */
-export const MAX_DEPTH = 10;
-
-/** Number of segments in a materialized path (`/a/b/c` -> 3). */
-export function pathDepth(p: string): number {
-  return p.split('/').filter(Boolean).length;
-}
 
 /**
  * Generates a slug for `baseName`, appending an incrementing numeric suffix

@@ -33,17 +33,6 @@ function rowToDto(row: Record<string, unknown>): UserProfileDto {
 // Public repository functions
 // ---------------------------------------------------------------------------
 
-export async function findProfileByUserId(
-  db: unknown,
-  userId: string
-): Promise<UserProfileDto | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (db as any).userProfile.findUnique({
-    where: { userId },
-  });
-  return row !== null ? rowToDto(row as Record<string, unknown>) : null;
-}
-
 export async function findProfileByKeycloakId(
   db: unknown,
   keycloakUserId: string

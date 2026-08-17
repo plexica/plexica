@@ -16,7 +16,7 @@ export interface RealmConfig {
   tenantSlug: string;
 }
 
-export interface TenantWebClientUris {
+interface TenantWebClientUris {
   callbackUri: string;
   logoutUri: string;
   origin: string;

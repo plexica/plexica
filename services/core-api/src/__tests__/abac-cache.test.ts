@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { evaluate, setAbacMembership } from '../modules/abac/engine.js';
 import { membershipCacheKey } from '../modules/abac/engine-helpers.js';
 
-import { createTestServer, isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
+import { isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
 import {
   buildTenantClientForCtx,
   cleanupTenant,
@@ -16,7 +16,6 @@ import {
   wipeTenantWorkspaces,
 } from './helpers/db.helpers.js';
 
-import type { FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { AbacContext } from '../modules/abac/types.js';
@@ -24,7 +23,6 @@ import type { AbacContext } from '../modules/abac/types.js';
 const TENANT_SLUG = 'test-abac-cache';
 const USER_ID = '00000000-abac-0002-0000-000000000001';
 const allOk = (await isDbReachable()) && (await isRedisReachable());
-let server: FastifyInstance;
 let ctx: TenantContext;
 let redis: Redis;
 
@@ -32,14 +30,11 @@ beforeAll(async () => {
   if (!allOk) return;
   ctx = (await seedTenant(TENANT_SLUG)).tenantContext;
   await seedUserProfile(ctx, USER_ID, `${USER_ID}@test.plexica.io`, null, USER_ID);
-  server = await createTestServer();
-  await server.ready();
   redis = (await import('../lib/redis.js')).redis;
 });
 
 afterAll(async () => {
   if (!allOk) return;
-  await server.close();
   await cleanupTenant(TENANT_SLUG);
 });
 

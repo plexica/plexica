@@ -6,8 +6,9 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 
 
-import { UserNotFoundError, FileTooLargeError } from '../../lib/app-error.js';
+import { UserNotFoundError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
+import { readStream } from '../../lib/file-upload.js';
 import { logger } from '../../lib/logger.js';
 import { uploadAvatar as minioUploadAvatar, getPresignedReadUrl } from '../../lib/minio-client.js';
 import { syncDisplayName } from '../../lib/keycloak-admin-users.js';
@@ -33,23 +34,6 @@ async function attachAvatarUrl(profile: UserProfileDto, slug: string): Promise<U
   const bucketName = `tenant-${slug}`;
   const avatarUrl = await getPresignedReadUrl(bucketName, profile.avatarPath);
   return { ...profile, avatarUrl };
-}
-
-/** Reads a Readable stream into a Buffer. Throws FileTooLargeError if maxBytes exceeded. */
-async function readStream(stream: Readable, maxBytes: number): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-
-  for await (const chunk of stream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string);
-    totalBytes += buf.length;
-    if (totalBytes > maxBytes) {
-      throw new FileTooLargeError(`File exceeds maximum allowed size of ${maxBytes} bytes`);
-    }
-    chunks.push(buf);
-  }
-
-  return Buffer.concat(chunks);
 }
 
 // ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ export const slugSchema = z
     'Slug must be lowercase alphanumeric + hyphens, start with a letter, end with alphanumeric'
   );
 
-export type SlugValidationResult = { valid: true; slug: string } | { valid: false; error: string };
+type SlugValidationResult = { valid: true; slug: string } | { valid: false; error: string };
 
 export function validateSlug(slug: string): SlugValidationResult {
   const result = slugSchema.safeParse(slug);

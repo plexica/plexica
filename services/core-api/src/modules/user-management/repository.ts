@@ -91,33 +91,6 @@ export async function findTenantUsers(
   return { data: rows.map(toUserDto), total };
 }
 
-export async function findUserById(db: unknown, userId: string): Promise<TenantUserDto | null> {
-  const client = toClient(db);
-
-  const row = (await client.userProfile.findUnique({
-    where: { userId, deletedAt: null },
-    select: {
-      userId: true,
-      displayName: true,
-      email: true,
-      avatarPath: true,
-      status: true,
-      createdAt: true,
-      _count: { select: { workspaceMembers: true } },
-    },
-  })) as {
-    userId: string;
-    displayName: string | null;
-    email: string;
-    avatarPath: string | null;
-    status: string;
-    createdAt: Date;
-    _count: { workspaceMembers: number };
-  } | null;
-
-  return row === null ? null : toUserDto(row);
-}
-
 export async function findUserWorkspaces(db: unknown, userId: string): Promise<UserWorkspacesDto> {
   const client = toClient(db);
 
@@ -140,20 +113,6 @@ export async function findUserWorkspaces(db: unknown, userId: string): Promise<U
       role: m.role,
     })),
   };
-}
-
-export async function findUserMemberships(
-  db: unknown,
-  userId: string
-): Promise<Array<{ workspaceId: string; role: string }>> {
-  const client = toClient(db);
-
-  const rows = (await client.workspaceMember.findMany({
-    where: { userId },
-    select: { workspaceId: true, role: true },
-  })) as Array<{ workspaceId: string; role: string }>;
-
-  return rows;
 }
 
 export async function findRawProfile(

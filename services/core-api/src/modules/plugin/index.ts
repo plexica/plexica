@@ -22,17 +22,10 @@ import {
   stopPeriodicHealthPolling,
 } from './services/health-polling.service.js';
 import { createContainerManager } from './services/container-manager.service.js';
-import { getActiveConsumerGroups, CONSUMER_GROUP_PREFIX } from './events/consumer-manager.service.js';
+import { extractInstallIds, getActiveConsumerGroups } from './events/consumer-manager.service.js';
 import { registerDevBackend } from './services/dev-backends.js';
 
 import type { FastifyInstance } from 'fastify';
-
-function extractInstallIds(groups: string[]): string[] {
-  return groups
-    .filter((g) => g.startsWith(CONSUMER_GROUP_PREFIX))
-    .map((g) => g.slice(CONSUMER_GROUP_PREFIX.length).split('-')[0] ?? '')
-    .filter(Boolean);
-}
 
 /**
  * Background lifecycle of the plugin module. Called by

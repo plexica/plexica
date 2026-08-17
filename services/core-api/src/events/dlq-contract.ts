@@ -6,7 +6,7 @@ import { buildDomainEvent, domainEventEnvelopeSchema } from './event-envelope.js
 
 import type { DomainEventEnvelope, JsonObject } from './event-envelope.js';
 
-export const sourceCoordinatesSchema = z.object({
+const sourceCoordinatesSchema = z.object({
   topic: z.string().min(1).max(128),
   partition: z.number().int().nonnegative(),
   offset: z.string().regex(/^\d+$/),
@@ -32,7 +32,7 @@ export function dlqDedupeKey(installId: string, source: SourceCoordinates): stri
     .digest('hex');
 }
 
-export function coordinateEventId(installId: string, source: SourceCoordinates): string {
+function coordinateEventId(installId: string, source: SourceCoordinates): string {
   const bytes = createHash('sha256')
     .update(`${installId}\n${source.topic}\n${source.partition}\n${source.offset}`)
     .digest()

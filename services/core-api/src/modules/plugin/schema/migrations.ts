@@ -11,17 +11,11 @@
 // node-sql-parser is a CommonJS module — under Node ESM (tsx/.ts files) named
 // imports are not exposed, so import the default and destructure to obtain Parser.
 import nodeSqlParser from 'node-sql-parser';
-import { z } from 'zod';
 
 const { Parser } = nodeSqlParser;
 
 const parser = new Parser();
 const PARSE_OPT = { database: 'postgresql' as const };
-
-export const migrationFileSchema = z.object({
-  filename: z.string().regex(/^\d+_.*\.sql$/, 'Migration filename must start with a number'),
-  content: z.string().min(1, 'Migration file cannot be empty'),
-});
 
 export interface MigrationValidation {
   valid: boolean;
@@ -153,8 +147,4 @@ export function prepareMigrationSql(sql: string, slug: string): MigrationValidat
     errors,
     statements: valid ? stmts.map((statement) => parser.sqlify(statement as never, PARSE_OPT)) : [],
   };
-}
-
-export function validateMigrationSql(sql: string, slug: string): MigrationValidation {
-  return prepareMigrationSql(sql, slug);
 }

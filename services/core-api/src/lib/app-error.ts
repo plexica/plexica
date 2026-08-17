@@ -28,15 +28,6 @@ export class InvalidTenantContextError extends AppError {
   }
 }
 
-export class InvalidSlugError extends AppError {
-  readonly statusCode = 400;
-  readonly code = 'INVALID_SLUG';
-
-  constructor(message = 'Invalid tenant slug format') {
-    super(message);
-  }
-}
-
 export class ValidationError extends AppError {
   readonly statusCode = 422;
   readonly code = 'VALIDATION_ERROR';

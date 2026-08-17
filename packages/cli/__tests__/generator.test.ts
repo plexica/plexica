@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { toSlug } from '../src/index.js';
 import { render } from '../src/templates.js';
 
 describe('CLI template rendering', () => {
@@ -35,20 +36,23 @@ describe('CLI template rendering', () => {
 
 describe('Slug generation', () => {
   it('converts name to lowercase kebab', () => {
-    const name = 'My CRM Plugin';
-    const slug = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').substring(0, 62);
-    expect(slug).toBe('my-crm-plugin');
+    expect(toSlug('My CRM Plugin')).toBe('my-crm-plugin');
   });
 
   it('removes leading/trailing hyphens', () => {
-    const name = '-test-';
-    const slug = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').substring(0, 62);
-    expect(slug).toBe('test');
+    expect(toSlug('-test-')).toBe('test');
   });
 
   it('truncates to 62 chars', () => {
-    const name = 'a'.repeat(100);
-    const slug = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').substring(0, 62);
-    expect(slug.length).toBe(62);
+    expect(toSlug('a'.repeat(100)).length).toBe(62);
+  });
+
+  it('collapses runs of invalid characters into a single hyphen', () => {
+    expect(toSlug('My  CRM')).toBe('my-crm');
+  });
+
+  it('strips trailing hyphens left by truncation', () => {
+    const slug = toSlug(`${'a'.repeat(61)}-b`);
+    expect(slug).toBe('a'.repeat(61));
   });
 });

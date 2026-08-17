@@ -32,7 +32,7 @@ const MIGRATIONS_DIR = resolve(__dirname, '../../prisma/migrations');
 // These are executed in order against every tenant schema.
 const TENANT_MIGRATION_FILES = ['003_core_features/migration.sql'];
 
-export interface MigrationResult {
+interface MigrationResult {
   slug: string;
   status: 'ok' | 'failed' | 'skipped';
   error?: string;

@@ -33,8 +33,3 @@ export function generateSlug(name: string): string {
 
   return slug;
 }
-
-/** Returns true if the slug matches SLUG_REGEX. */
-export function isValidSlug(slug: string): boolean {
-  return SLUG_REGEX.test(slug);
-}

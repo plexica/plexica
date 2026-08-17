@@ -76,6 +76,4 @@ export const manifestSchema = z.object({
 });
 
 export type Manifest = z.infer<typeof manifestSchema>;
-export type ManifestAction = z.infer<typeof actionSchema>;
-export type ApiMapping = z.infer<typeof apiMappingSchema>;
 export type DeclaredTable = z.infer<typeof declaredTableSchema>;

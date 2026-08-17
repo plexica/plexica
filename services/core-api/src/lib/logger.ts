@@ -78,12 +78,4 @@ export const logger = pino({
       return deepRedact(value);
     },
   },
-  // Wrap the mixin to deep-redact the bindings at every log call.
-  mixin() {
-    return {};
-  },
 });
-
-// Re-export deepRedact for testing and direct use in service code that
-// builds log objects before passing them to the logger.
-export { deepRedact };

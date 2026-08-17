@@ -1,3 +1,6 @@
+> **Documento storico — superato da ADR-009 / AGENTS.md. Conservato per
+> riferimento, non per uso corrente.**
+
 # Plexica v2 — Valutazione Better Auth vs Keycloak
 
 > Analisi comparativa tra Better Auth e Keycloak per il sistema di

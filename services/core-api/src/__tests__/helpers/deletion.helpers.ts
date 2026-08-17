@@ -75,8 +75,10 @@ export async function seedDeletionResidue(
     `abac:${tenantSlug}:${randomUUID()}:${randomUUID()}`,
     `plugin:vis:${installId}:${randomUUID()}`,
     `plugin:cb:${installId}`,
+    `plugin:health-tenant:${installId}`,
     `tenant:${tenantId}:settings`,
     `metrics:${tenantSlug}:users`,
+    `metrics:${tenantSlug}:plugin_health:${installId}`,
     `cache:${tenantSlug}:config`,
   ];
   await redis.mset(keys.flatMap((key) => [key, 'sensitive-test-value']));

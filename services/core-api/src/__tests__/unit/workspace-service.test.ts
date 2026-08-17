@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { generateSlug, isValidSlug, SLUG_REGEX } from '../../lib/slug.js';
+import { generateSlug, SLUG_REGEX } from '../../lib/slug.js';
 
 // ---------------------------------------------------------------------------
 // Materialized path helpers — inlined here because pathDepth is not exported.
@@ -150,24 +150,6 @@ describe('generateSlug()', () => {
     for (const name of ['My Workspace', 'Hello World!!!', '  spaces  ', '123', 'A']) {
       expect(SLUG_REGEX.test(generateSlug(name))).toBe(true);
     }
-  });
-});
-
-describe('isValidSlug()', () => {
-  it('"valid-slug" → true', () => {
-    expect(isValidSlug('valid-slug')).toBe(true);
-  });
-
-  it('"1invalid" (starts with digit) → false', () => {
-    expect(isValidSlug('1invalid')).toBe(false);
-  });
-
-  it('"UPPER" (uppercase) → false', () => {
-    expect(isValidSlug('UPPER')).toBe(false);
-  });
-
-  it('"ab" (2 chars total, meets min) → true', () => {
-    expect(isValidSlug('ab')).toBe(true);
   });
 });
 

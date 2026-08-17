@@ -80,14 +80,6 @@ export async function findPluginBySlug(
   return plugin as unknown as PluginRecord | null;
 }
 
-export async function findPluginById(
-  prisma: PrismaClient,
-  id: string
-): Promise<PluginRecord | null> {
-  const plugin = await prisma.plugin.findUnique({ where: { id } });
-  return plugin as unknown as PluginRecord | null;
-}
-
 export async function listPlugins(
   prisma: PrismaClient,
   options: PluginListOptions = {}
@@ -129,23 +121,6 @@ export async function updatePluginStatus(
     where: { slug },
     data: { status },
   }) as unknown as PluginRecord;
-}
-
-export async function addPluginVersion(
-  prisma: PrismaClient,
-  pluginId: string,
-  version: string,
-  manifest: Manifest,
-  imageDigest?: string
-): Promise<void> {
-  await prisma.pluginVersion.create({
-    data: {
-      pluginId,
-      version,
-      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      imageDigest: imageDigest ?? null,
-    },
-  });
 }
 
 export async function listPluginVersions(

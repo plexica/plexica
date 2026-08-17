@@ -82,9 +82,6 @@ const configSchema = z
     // Set higher (e.g. 1000) in dev/E2E to prevent flaky tests from shared budget.
     RATE_LIMIT_RESOLVE_MAX: z.coerce.number().int().min(1).default(30),
 
-    // JWKS cache TTL in milliseconds (default 1 hour)
-    JWKS_CACHE_TTL_MS: z.coerce.number().int().default(3_600_000),
-
     // Keycloak master realm name — used to enforce that super_admin tokens are
     // issued by the master realm, not by a tenant realm (H-03 security fix).
     KEYCLOAK_MASTER_REALM: z.string().default('master'),

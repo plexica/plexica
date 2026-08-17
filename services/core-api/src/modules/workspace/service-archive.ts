@@ -30,16 +30,12 @@ import {
   restoreWorkspaces,
   updateMaterializedPaths,
 } from './repository.js';
+import { MAX_DEPTH, pathDepth } from './hierarchy.js';
 
 import type { Redis } from 'ioredis';
 import type { ArchiveResult, RestoreResult } from './types.js';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_DEPTH = 10;
-
-function pathDepth(p: string): number {
-  return p.split('/').filter(Boolean).length;
-}
 
 export async function archiveWorkspaceService(
   tenantDb: unknown,

@@ -1,8 +1,7 @@
-// table.tsx — Table component with semantic HTML and sortable header visuals
-// WCAG 2.1 AA: proper th scope, keyboard-accessible sort indicators
+// table.tsx — Table component with semantic HTML
+// WCAG 2.1 AA: proper th scope
 
 import * as React from 'react';
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 import { cn } from '../lib/cn.js';
 
@@ -44,43 +43,20 @@ export const TableRow = React.forwardRef<
 ));
 TableRow.displayName = 'TableRow';
 
-export interface TableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
-  sortable?: boolean;
-  sortDirection?: 'asc' | 'desc' | 'none';
-}
-
-export const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
-  ({ className, sortable = false, sortDirection = 'none', children, ...props }, ref) => (
-    <th
-      ref={ref}
-      scope="col"
-      className={cn(
-        'px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider',
-        sortable && 'cursor-pointer select-none',
-        className
-      )}
-      aria-sort={
-        sortable
-          ? sortDirection === 'asc' ? 'ascending'
-          : sortDirection === 'desc' ? 'descending'
-          : 'none'
-          : undefined
-      }
-      {...props}
-    >
-      <span className="inline-flex items-center gap-1">
-        {children}
-        {sortable && (
-          <span aria-hidden="true">
-            {sortDirection === 'asc' && <ChevronUp className="h-3 w-3" />}
-            {sortDirection === 'desc' && <ChevronDown className="h-3 w-3" />}
-            {sortDirection === 'none' && <ChevronsUpDown className="h-3 w-3 opacity-50" />}
-          </span>
-        )}
-      </span>
-    </th>
-  )
-);
+export const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    scope="col"
+    className={cn(
+      'px-4 py-3 text-left text-xs font-semibold text-neutral-600 uppercase tracking-wider',
+      className
+    )}
+    {...props}
+  />
+));
 TableHead.displayName = 'TableHead';
 
 export const TableCell = React.forwardRef<

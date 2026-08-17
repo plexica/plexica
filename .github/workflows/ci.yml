@@ -80,12 +80,10 @@ jobs:
           keycloak-admin-password: changeme
       - name: Lint
         run: pnpm lint
-      - name: Typecheck
-        run: pnpm typecheck
       - name: Build
-        run: pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
-      - name: Admin app build (S5-C10)
-        run: pnpm --filter @plexica/admin build
+        run: |
+          pnpm -r --filter='!@plexica/plugin-crm' --filter='!plexica' run build
+          pnpm -r --filter '@plexica/auth' --filter '@plexica/sdk' --filter 'create-plexica-plugin' --filter '@plexica/keycloak-theme' --filter '@plexica/plugin-crm' run typecheck
       - name: Wait for Docker infrastructure to be healthy
         uses: ./.github/actions/docker-infra
         with:
@@ -105,17 +103,6 @@ jobs:
           pnpm --filter core-api exec prisma migrate status
       - name: Run unit and integration tests
         run: pnpm --filter core-api test
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
-          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
-          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
-          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
-          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-          LOKI_URL: ${{ env.LOKI_URL }}
 
       - name: Clean up ports and stale E2E containers for Playwright
         run: |
@@ -131,16 +118,6 @@ jobs:
           CI: 'true'
           RATE_LIMIT_MAX: '1000'
           ADMIN_RATE_LIMIT_MAX: '1000'
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
-          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
-          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
-          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
-          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-          LOKI_URL: ${{ env.LOKI_URL }}
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -161,16 +138,6 @@ jobs:
           CI: 'true'
           RATE_LIMIT_MAX: '1000'
           ADMIN_RATE_LIMIT_MAX: '1000'
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          KEYCLOAK_URL: ${{ env.KEYCLOAK_URL }}
-          KEYCLOAK_ADMIN_USER: ${{ env.KEYCLOAK_ADMIN_USER }}
-          KEYCLOAK_ADMIN_PASSWORD: ${{ env.KEYCLOAK_ADMIN_PASSWORD }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          MINIO_ENDPOINT: ${{ env.MINIO_ENDPOINT }}
-          MINIO_ACCESS_KEY: ${{ env.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY: ${{ env.MINIO_SECRET_KEY }}
-          KAFKA_BROKERS: ${{ env.KAFKA_BROKERS }}
-          LOKI_URL: ${{ env.LOKI_URL }}
           PLAYWRIGHT_LOKI_URL: ${{ env.LOKI_URL }}
       - name: Upload admin Playwright report on failure
         if: failure()

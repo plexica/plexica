@@ -22,5 +22,3 @@ export const auditLogQuerySchema = z.object({
   fromDate: dateOrDatetime.optional(),
   toDate: dateOrDatetime.optional(),
 });
-
-export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;

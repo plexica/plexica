@@ -19,6 +19,41 @@ const consumers = new Map<string, ConsumerEntry>();
 const pendingConsumers = new Map<string, Promise<void>>();
 export const CONSUMER_GROUP_PREFIX = 'plugin-';
 
+// Consumer group names are `plugin-{installId}-{tenantSlug}` where installId
+// is a dashed UUID (36 chars, gen_random_uuid()). The tenant slug may itself
+// contain dashes, so the split point is positional: never `.split('-')`.
+const INSTALL_UUID_LENGTH = 36;
+const INSTALL_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface ConsumerGroupName {
+  installId: string;
+  tenantSlug: string;
+}
+
+/**
+ * Single source of truth for the consumer group name format
+ * (`plugin-{installId}-{tenantSlug}`). Returns null for names this service
+ * would never create (wrong prefix, truncated/non-UUID id, empty slug).
+ */
+export function parseConsumerGroupName(groupId: string): ConsumerGroupName | null {
+  if (!groupId.startsWith(CONSUMER_GROUP_PREFIX)) return null;
+  const rest = groupId.slice(CONSUMER_GROUP_PREFIX.length);
+  const installId = rest.slice(0, INSTALL_UUID_LENGTH);
+  const tenantSlug = rest.slice(INSTALL_UUID_LENGTH + 1);
+  if (!INSTALL_UUID_RE.test(installId) || tenantSlug.length === 0) return null;
+  return { installId, tenantSlug };
+}
+
+/** Extracts full installation UUIDs from active consumer group names. */
+export function extractInstallIds(groups: string[]): string[] {
+  const ids: string[] = [];
+  for (const group of groups) {
+    const parsed = parseConsumerGroupName(group);
+    if (parsed !== null) ids.push(parsed.installId);
+  }
+  return ids;
+}
+
 const CORE_TOPICS = [
   'plexica.workspace.created', 'plexica.workspace.updated', 'plexica.workspace.deleted',
   'plexica.user.invited', 'plexica.user.joined', 'plexica.user.removed',

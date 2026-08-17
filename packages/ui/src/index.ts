@@ -29,7 +29,6 @@ export {
   TableHead,
   TableCell,
 } from './components/table.js';
-export type { TableHeadProps } from './components/table.js';
 
 export {
   DropdownMenuRoot,

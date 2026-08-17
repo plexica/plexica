@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
 import { evaluate } from '../modules/abac/engine.js';
 
-import { createTestServer, isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
+import { isDbReachable, isRedisReachable } from './helpers/server.helpers.js';
 import {
   seedTenant,
   cleanupTenant,
@@ -19,7 +19,6 @@ import {
   buildTenantClientForCtx,
 } from './helpers/db.helpers.js';
 
-import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { AbacContext } from '../modules/abac/types.js';
 import type { Redis } from 'ioredis';
@@ -30,7 +29,6 @@ const SLUG_B = 'test-isolation-b';
 const USER_A = '00000000-1501-0001-0000-000000000001';
 const USER_B = '00000000-1501-0002-0000-000000000001';
 
-let server: FastifyInstance;
 let ctxA: TenantContext;
 let ctxB: TenantContext;
 let redis: Redis;
@@ -52,15 +50,12 @@ describe('INT-09 — ABAC workspace & cross-tenant isolation', () => {
       seedUserProfile(ctxB, USER_A, `${USER_A}@test.plexica.io`, null, USER_A),
       seedUserProfile(ctxB, USER_B, `${USER_B}@test.plexica.io`, null, USER_B),
     ]);
-    server = await createTestServer();
-    await server.ready();
     const mod = await import('../lib/redis.js');
     redis = mod.redis;
   });
 
   afterAll(async () => {
     if (!allOk) return;
-    await server.close();
     await Promise.all([cleanupTenant(SLUG_A), cleanupTenant(SLUG_B)]);
   });
 

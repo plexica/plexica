@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 
-export interface PaginationParams {
+interface PaginationParams {
   page: number; // 1-indexed
   limit: number; // max 100
 }

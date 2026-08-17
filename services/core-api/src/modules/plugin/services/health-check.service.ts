@@ -24,8 +24,15 @@ interface CircuitBreakerState {
   lastTransitionAt: number;
 }
 
-// Health change listeners (in-process only — not persisted)
-type HealthChangeHandler = (installId: string, oldStatus: HealthStatus, newStatus: HealthStatus) => void;
+// Health change listeners (in-process only — not persisted here).
+// The registered consumer is health-observability.service.ts, which persists
+// transitions to plugin_container_config.health_status and to the Redis
+// health gauge. Registration happens in proxy.service.ts (module load).
+export type HealthChangeHandler = (
+  installId: string,
+  oldStatus: HealthStatus,
+  newStatus: HealthStatus
+) => void;
 const listeners: Set<HealthChangeHandler> = new Set();
 
 export function onHealthChange(handler: HealthChangeHandler): void {
@@ -66,14 +73,6 @@ async function readState(installId: string): Promise<CircuitBreakerState> {
 
 async function writeState(installId: string, state: CircuitBreakerState): Promise<void> {
   await redis.set(cbKey(installId), JSON.stringify(state), 'EX', CB_TTL_SECONDS);
-}
-
-/**
- * Returns the current circuit state for a plugin installation.
- * readState() never throws (handles null and parse errors internally).
- */
-export async function getCircuitState(installId: string): Promise<CircuitState> {
-  return (await readState(installId)).state;
 }
 
 /**
