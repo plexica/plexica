@@ -3,7 +3,8 @@
 
 import { z } from 'zod';
 
-import { ValidationError, ForbiddenError, WorkspaceNotFoundError } from '../../../lib/app-error.js';
+import { ForbiddenError, WorkspaceNotFoundError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { withTenantDb } from '../../../lib/tenant-database.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { evaluate } from '../../../modules/abac/engine.js';
@@ -45,12 +46,7 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      const parsed = updateVisibilityListSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
-
-      const updates = parsed.data;
+      const updates = parseOrThrow(updateVisibilityListSchema, request.body);
       const userId = request.user.id;
       const isTenantAdmin = request.user.roles.includes('tenant_admin');
 
@@ -73,7 +69,9 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
           };
           const decision = await evaluate(abacCtx, db, redis);
           if (!decision.allowed) {
-            throw new ForbiddenError(`Workspace admin required for workspace ${workspaceId}: ${decision.reason}`);
+            throw new ForbiddenError(
+              `Workspace admin required for workspace ${workspaceId}: ${decision.reason}`
+            );
           }
         }
       }, ctx);

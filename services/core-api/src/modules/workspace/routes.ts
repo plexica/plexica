@@ -10,7 +10,7 @@
 
 import { requireAbac } from '../../middleware/abac.js';
 import { redis } from '../../lib/redis.js';
-import { ValidationError } from '../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../lib/validation.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { writeAuditLog } from '../audit-log/writer.js';
 
@@ -44,14 +44,19 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/workspaces',
     { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
-      const parsed = workspaceListQuerySchema.safeParse(req.query);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const { page, limit, sort, order, status, search } = parseOrThrow(
+        workspaceListQuerySchema,
+        req.query
+      );
       const isTenantAdmin = req.user.roles.includes('tenant_admin');
-      const { page, limit, sort, order, status, search } = parsed.data;
-      const listFilters: Parameters<typeof listWorkspaces>[3] = { page, limit, sort, order };
-      if (status !== undefined) listFilters.status = status;
-      if (search !== undefined) listFilters.search = search;
+      const listFilters: Parameters<typeof listWorkspaces>[3] = stripUndefined({
+        page,
+        limit,
+        sort,
+        order,
+        status,
+        search,
+      });
       return withTenantDb(
         (db) => listWorkspaces(db, req.user.id, isTenantAdmin, listFilters),
         req.tenantContext
@@ -63,12 +68,10 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/workspaces',
     { preHandler: [requireAbac('workspace:create')] },
     async (req, reply) => {
-      const parsed = createWorkspaceSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const input = parseOrThrow(createWorkspaceSchema, req.body);
       const result = await withTenantDb(async (db) => {
         const created = await db.$transaction((tx) =>
-          createWorkspaceService(tx, req.user.id, parsed.data, req.tenantContext.tenantId)
+          createWorkspaceService(tx, req.user.id, input, req.tenantContext.tenantId)
         );
         // Audit is an observational side-effect, deliberately written AFTER the
         // transaction committed and on the non-transactional client: a failed
@@ -97,13 +100,11 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [requireAbac('workspace:update')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      const parsed = updateWorkspaceSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const input = parseOrThrow(updateWorkspaceSchema, req.body);
       const ifMatch =
         req.headers['if-match'] !== undefined ? Number(req.headers['if-match']) : undefined;
       return withTenantDb(
-        (db) => updateWorkspaceService(db, id, req.user.id, parsed.data, ifMatch),
+        (db) => updateWorkspaceService(db, id, req.user.id, input, ifMatch),
         req.tenantContext
       );
     }
@@ -140,19 +141,10 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: [requireAbac('workspace:reparent')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      const parsed = reparentSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const { newParentId } = parseOrThrow(reparentSchema, req.body);
       return withTenantDb(
         (db) =>
-          reparentWorkspaceService(
-            db,
-            id,
-            parsed.data.newParentId,
-            req.user.id,
-            req.tenantContext.slug,
-            redis
-          ),
+          reparentWorkspaceService(db, id, newParentId, req.user.id, req.tenantContext.slug, redis),
         req.tenantContext
       );
     }

@@ -9,6 +9,8 @@
 // applies to routes registered within that scope. Calling configureErrorHandler
 // on the root instance makes the handler apply to the entire application.
 
+import { ZodError } from 'zod';
+
 import { AppError, TenantConflictError } from '../lib/app-error.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -65,6 +67,25 @@ export function configureErrorHandler(fastify: AnyFastifyInstance): void {
         request.log.warn({ validation: error.validation }, 'Request validation error');
         return reply.status(400).send({
           error: { code: 'VALIDATION_ERROR', message: 'Request validation failed' },
+        });
+      }
+
+      // Zod validation errors from route handlers that use schema.parse() directly
+      // instead of parseOrThrow(). ZodError is not an AppError and carries no
+      // statusCode, so without this branch it would fall through to a generic 500
+      // for a client-side input error. 13 call sites in the plugin module use
+      // .parse() — this is the safety net, not the primary pattern (parseOrThrow
+      // produces a ValidationError with the same shape).
+      if (error instanceof ZodError) {
+        request.log.warn(
+          { issues: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) },
+          'Zod validation error from route handler'
+        );
+        return reply.status(422).send({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: error.issues.map((i) => i.message).join(', '),
+          },
         });
       }
 

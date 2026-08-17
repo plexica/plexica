@@ -2,33 +2,37 @@
 // Chromium only (desktop). The admin app is an internal tool — no mobile.
 //
 // Env loading strategy mirrors apps/web/playwright.config.ts:
-//   Local dev  — dotenv.config() reads ../../.env (monorepo root). No-ops if absent.
+//   Local dev  — dotenv.config() reads the monorepo-root .env. No-ops if absent.
 //   CI         — env vars come from the GitHub Actions job-level `env:` block.
+//
+// Shared config head/helpers live in ../../e2e/playwright-base.ts. This suite
+// intentionally diverges from apps/web: it runs the DEV servers (vite dev,
+// core-api via tsx watch locally) and disables plugin DB TLS. Do not align
+// those parts with web — see the base file's comment.
 //
 // Stable PLAYWRIGHT_* defaults are set during config evaluation. Per-run secrets
 // are generated later by global setup and propagated to worker environments.
 
 import { randomBytes } from 'node:crypto';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 
 import { defineConfig, devices } from '@playwright/test';
 import * as dotenv from 'dotenv';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import {
+  baseE2eConfig,
+  browserChannelUse,
+  coreApiEnv,
+  keycloakUrl,
+  MONOREPO_ROOT_ENV_PATH,
+  setDefault,
+} from '../../e2e/playwright-base.js';
 
 // Load .env from the monorepo root for local dev. No-ops in CI (file absent).
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: MONOREPO_ROOT_ENV_PATH });
 
 // ── Hardcoded E2E defaults ────────────────────────────────────────────────────
 // These match what global-setup.ts expects. Setting them here (not in
 // globalSetup) ensures test workers read them from process.env.
-
-function setDefault(key: string, value: string): void {
-  if (process.env[key] === undefined || process.env[key] === '') {
-    process.env[key] = value;
-  }
-}
 
 setDefault('PLAYWRIGHT_KEYCLOAK_URL', 'http://localhost:8080');
 setDefault('PLAYWRIGHT_E2E', 'true');
@@ -37,10 +41,8 @@ setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_NAME', 'E2E Admin');
 setDefault('PLAYWRIGHT_ADMIN_E2E_TENANT_EMAIL', 'admin@e2e-admin.local');
 setDefault('PLAYWRIGHT_LOKI_URL', 'http://localhost:3100');
 
-const keycloakUrl = process.env['PLAYWRIGHT_KEYCLOAK_URL'] ?? 'http://localhost:8080';
 const credentialPepper =
   process.env['PLUGIN_CREDENTIAL_PEPPER'] ?? randomBytes(32).toString('base64url');
-const playwrightBrowserChannel = process.env['PLAYWRIGHT_BROWSER_CHANNEL'];
 
 // ── webServer commands ────────────────────────────────────────────────────────
 // CI: after `pnpm build`, start the compiled output directly (no tsx / dotenv wrapper).
@@ -49,31 +51,17 @@ const isCi = process.env['CI'] !== undefined;
 const coreApiCommand = isCi ? 'pnpm --filter core-api start' : 'pnpm --filter core-api dev';
 
 export default defineConfig({
-  testDir: './e2e',
-  fullyParallel: false,
-  forbidOnly: isCi,
-  retries: isCi ? 1 : 0,
-  workers: 1,
-  timeout: 30_000,
-  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
-
-  globalSetup: './e2e/global-setup.ts',
-  globalTeardown: './e2e/global-teardown.ts',
-
+  ...baseE2eConfig,
   use: {
+    ...baseE2eConfig.use,
     baseURL: process.env['PLAYWRIGHT_ADMIN_BASE_URL'] ?? 'http://localhost:3002',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    video: 'on-first-retry',
-    navigationTimeout: 30_000,
-    actionTimeout: 10_000,
   },
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        ...(playwrightBrowserChannel === undefined ? {} : { channel: playwrightBrowserChannel }),
+        ...browserChannelUse(),
       },
     },
   ],
@@ -88,24 +76,14 @@ export default defineConfig({
       url: 'http://localhost:3001/health',
       reuseExistingServer: !isCi,
       timeout: 60_000,
-      env: {
+      env: coreApiEnv({
         NODE_ENV: process.env['NODE_ENV'] ?? 'test',
-        DATABASE_URL:
-          process.env['DATABASE_URL'] ?? 'postgresql://plexica:changeme@localhost:5432/plexica',
-        KEYCLOAK_URL: keycloakUrl,
-        KEYCLOAK_ADMIN_USER: process.env['KEYCLOAK_ADMIN_USER'] ?? 'admin',
-        KEYCLOAK_ADMIN_PASSWORD: process.env['KEYCLOAK_ADMIN_PASSWORD'] ?? 'changeme',
-        REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
-        MINIO_ENDPOINT: process.env['MINIO_ENDPOINT'] ?? 'http://localhost:9000',
-        MINIO_ACCESS_KEY: process.env['MINIO_ACCESS_KEY'] ?? 'minioadmin',
-        MINIO_SECRET_KEY: process.env['MINIO_SECRET_KEY'] ?? 'changeme',
-        KAFKA_BROKERS: process.env['KAFKA_BROKERS'] ?? 'localhost:19092',
         PLUGIN_DB_SSL_MODE: 'disable',
         PLUGIN_CREDENTIAL_PEPPER: credentialPepper,
         LOKI_URL: process.env['PLAYWRIGHT_LOKI_URL'] ?? 'http://localhost:3100',
         RATE_LIMIT_MAX: process.env['RATE_LIMIT_MAX'] ?? '100',
         ADMIN_RATE_LIMIT_MAX: process.env['ADMIN_RATE_LIMIT_MAX'] ?? '200',
-      },
+      }),
     },
     {
       // Admin Vite frontend.
@@ -114,7 +92,7 @@ export default defineConfig({
       reuseExistingServer: !isCi,
       timeout: 30_000,
       env: {
-        PLAYWRIGHT_KEYCLOAK_URL: keycloakUrl,
+        PLAYWRIGHT_KEYCLOAK_URL: keycloakUrl(),
       },
     },
   ],

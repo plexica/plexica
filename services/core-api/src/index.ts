@@ -15,7 +15,7 @@ import { redis } from './lib/redis.js';
 import { connectRedis, startBackgroundServices, stopBackgroundServices } from './bootstrap.js';
 import {
   GLOBAL_RATE_LIMIT,
-  rateLimitKeyGenerator,
+  rateLimitKey,
   rateLimitErrorResponseBuilder,
 } from './lib/rate-limit-config.js';
 import { configureErrorHandler } from './middleware/error-handler.js';
@@ -38,7 +38,6 @@ import {
 } from './modules/plugin/index.js';
 import { adminRoutes } from './modules/admin/index.js';
 import { pluginEventAuth } from './middleware/plugin-event-auth.js';
-import { rateLimit as rateLimitMiddleware } from './middleware/rate-limit.js';
 
 const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY });
 
@@ -54,9 +53,10 @@ await connectRedis();
 // ---------------------------------------------------------------------------
 // Rate limiting — registered before route plugins so all routes are covered.
 // Redis-backed for correctness across multiple Node.js processes.
-// keyGenerator: IP-based at plugin level (request.user not yet populated here).
-// Per-user keying is applied via hook:'preHandler' on individual routes
-// (e.g. POST /api/admin/tenants uses its own keyGenerator in preHandler).
+// keyGenerator: library default (request.ip) — request.user is not yet
+// populated at plugin level. Per-user keying is applied via hook:'preHandler'
+// on individual routes/scopes (e.g. the admin scope below, POST
+// /api/admin/tenants/migrate-all in tenant-routes.ts).
 // Fails open when Redis is unavailable (ADR-012).
 // ---------------------------------------------------------------------------
 await server.register(rateLimit, {
@@ -64,7 +64,6 @@ await server.register(rateLimit, {
   max: GLOBAL_RATE_LIMIT.max,
   timeWindow: GLOBAL_RATE_LIMIT.timeWindow,
   redis,
-  keyGenerator: rateLimitKeyGenerator,
   errorResponseBuilder: rateLimitErrorResponseBuilder,
 });
 
@@ -96,9 +95,27 @@ await server.register(invitationPublicRoutes);
 // Super admin plugin management routes — auth-only scope (no tenant context).
 // Also hosts the new admin module (/api/v1/admin/* — Spec 005) which applies
 // requireSuperAdmin per route group inside the module plugin itself.
+//
+// Scoped @fastify/rate-limit registration (the plugin is fp-wrapped, so this
+// adds a second onRoute hook firing only for routes registered inside this
+// scope): admin routes get BOTH the global IP-keyed limit (onRequest) and
+// this stricter user-keyed limit. hook:'preHandler' places the check after
+// authMiddleware (scope-level hooks run before route-level preHandler arrays),
+// so request.user is populated when rateLimitKey runs.
+// Redis-backed: the limit is exact across N replicas — the in-memory limiter
+// it replaces was per-process (effective limit N × max). Trade-off (ADR-012,
+// fail-open): with Redis down, admin endpoints lose this throttling.
 await server.register(async (adminScope) => {
   adminScope.addHook('preHandler', authMiddleware);
-  adminScope.addHook('preHandler', rateLimitMiddleware(config.ADMIN_RATE_LIMIT_MAX, 60000));
+  await adminScope.register(rateLimit, {
+    global: true,
+    max: config.ADMIN_RATE_LIMIT_MAX,
+    timeWindow: '1 minute',
+    hook: 'preHandler',
+    keyGenerator: rateLimitKey,
+    redis,
+    errorResponseBuilder: rateLimitErrorResponseBuilder,
+  });
   await adminScope.register(pluginAdminRoutes);
   await adminScope.register(adminRoutes);
 });
@@ -108,9 +125,10 @@ await server.register(async (adminScope) => {
 // Registered OUTSIDE the tenantScope because authMiddleware would reject
 // service-token requests (no Authorization header) with 401 before the
 // handler runs. pluginEventAuth handles both paths.
+// Rate limiting is per-route on POST /api/v1/events/emit (100 req/min,
+// Redis-backed — see events.routes.ts).
 await server.register(async (eventScope) => {
   eventScope.addHook('preHandler', pluginEventAuth);
-  eventScope.addHook('preHandler', rateLimitMiddleware(100, 60000));
   await eventScope.register(pluginEventRoutes);
 });
 

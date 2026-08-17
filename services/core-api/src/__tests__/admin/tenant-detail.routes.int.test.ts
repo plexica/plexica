@@ -4,9 +4,8 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { tenantDetailRoutes } from '../../modules/admin/routes/tenant-detail.routes.js';
-import { createTestServer, makeFullStub, isDbReachable } from '../helpers/server.helpers.js';
+import { createAdminTestServer, isDbReachable } from '../helpers/server.helpers.js';
 import {
   seedTenant,
   cleanupTenant,
@@ -19,15 +18,6 @@ import {
 import type { FastifyInstance } from 'fastify';
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const mockTenantContext: TenantContext = {
-  slug: 'system',
-  schemaName: 'core',
-  realmName: 'master',
-  tenantId: '00000000-0000-0000-0000-000000000000',
-};
-
-const ADMIN_PREFIX = '/api/v1/admin';
 const TENANT_SLUG = 'test-adm-td';
 
 let server: FastifyInstance;
@@ -64,16 +54,7 @@ beforeAll(async () => {
   await seedWorkspace(ctx, 'Detail Workspace One', creatorUserId);
   await seedWorkspace(ctx, 'Detail Workspace Two', creatorUserId);
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
-  await server.register(
-    async (scope) => {
-      scope.addHook('preHandler', requireSuperAdmin);
-      await scope.register(tenantDetailRoutes);
-    },
-    { prefix: ADMIN_PREFIX }
-  );
-  await server.ready();
+  server = await createAdminTestServer([tenantDetailRoutes]);
 });
 
 afterAll(async () => {

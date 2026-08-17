@@ -3,25 +3,26 @@
 
 import { z } from 'zod';
 
-// Slug validation regex: lowercase alphanumeric + hyphens, 3-51 chars.
-// Max 51: "tenant_" prefix (7 chars) + 51 = 58 chars, safely under PostgreSQL's
-// 63-char identifier limit (NAMEDATALEN=64). Prevents silent schema name truncation
-// that could cause two tenants to share the same PostgreSQL schema.
-// Must start with letter, end with alphanumeric (no trailing hyphens).
-// Exported so tenant-context.ts and tenant-routes.ts share the same canonical regex.
-//
-// M-02 (spec alignment): the original spec wrote /^[a-z][a-z0-9-]{1,62}$/ which would
-// allow up to 63-char slugs. With the "tenant_" prefix that would produce 70-char schema
-// names, exceeding PostgreSQL's NAMEDATALEN=64. The implementation deliberately tightens
-// the limit to 51 chars. This divergence is intentional and documented in the decision log.
-export const SLUG_REGEX = /^[a-z][a-z0-9-]{1,49}[a-z0-9]$/;
+import { TENANT_SLUG_REGEX } from './slug.js';
+
+// Canonical tenant slug regex is TENANT_SLUG_REGEX in lib/slug.ts
+// (3–51 chars — see that file for the NAMEDATALEN rationale). Consumers must
+// import it from there — this module does not re-export it.
+
+// Canonical guard for tenant schema identifiers before any SQL interpolation
+// (schema names cannot be parameterised in DDL, so a strict allowlist regex
+// is the defence-in-depth guard against SQL injection via corrupted slugs).
+// `tenant_` (7) + 55 = 62 chars, under PostgreSQL's NAMEDATALEN=64. Slugs are
+// capped at 51 by TENANT_SLUG_REGEX, so the 55-char bound never rejects a
+// legitimately derived name.
+export const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]{1,55}$/;
 
 export const slugSchema = z
   .string()
   .min(3, 'Slug must be at least 3 characters')
   .max(51, 'Slug must be at most 51 characters')
   .regex(
-    SLUG_REGEX,
+    TENANT_SLUG_REGEX,
     'Slug must be lowercase alphanumeric + hyphens, start with a letter, end with alphanumeric'
   );
 

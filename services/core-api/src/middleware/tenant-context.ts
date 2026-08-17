@@ -20,7 +20,7 @@ import { config } from '../lib/config.js';
 import { logger } from '../lib/logger.js';
 import { tenantSlugFromHost } from '../lib/tenant-host.js';
 import { clearTenantLifecycle, writeTenantLifecycle } from '../lib/tenant-context-cache.js';
-import { SLUG_REGEX } from '../lib/tenant-schema-helpers.js';
+import { TENANT_SLUG_REGEX } from '../lib/slug.js';
 import { type TenantContext, enterWithTenant } from '../lib/tenant-context-store.js';
 import { toRealmName, toSchemaName } from '../lib/tenant-schema-helpers.js';
 
@@ -115,9 +115,9 @@ export async function tenantContextMiddleware(
     throw new InvalidTenantContextError();
   }
 
-  // M-1: canonical SLUG_REGEX from tenant-schema-helpers (max 51 chars,
+  // M-1: canonical TENANT_SLUG_REGEX from lib/slug (max 51 chars,
   // no trailing hyphens) — same regex used at provisioning time.
-  if (!SLUG_REGEX.test(slug)) {
+  if (!TENANT_SLUG_REGEX.test(slug)) {
     throw new InvalidTenantContextError();
   }
 

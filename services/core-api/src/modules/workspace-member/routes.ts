@@ -7,7 +7,7 @@
 // automatically for every route in this plugin. Do NOT re-add them here.
 
 import { requireAbac } from '../../middleware/abac.js';
-import { ValidationError } from '../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../lib/validation.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 
 import { addMemberSchema, changeMemberRoleSchema, memberListQuerySchema } from './schema.js';
@@ -23,12 +23,13 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
     { preHandler: [requireAbac('member:list')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      const parsed = memberListQuerySchema.safeParse(req.query);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      // exactOptionalPropertyTypes: build the filters object without undefined values
-      const filters: MemberListFilters = { page: parsed.data.page, limit: parsed.data.limit };
-      if (parsed.data.search !== undefined) filters.search = parsed.data.search;
+      const query = parseOrThrow(memberListQuerySchema, req.query);
+      // exactOptionalPropertyTypes: stripUndefined drops undefined-valued keys.
+      const filters: MemberListFilters = stripUndefined({
+        page: query.page,
+        limit: query.limit,
+        search: query.search,
+      });
       return withTenantDb((db) => listMembers(db, id, filters), req.tenantContext);
     }
   );
@@ -39,19 +40,9 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
     { preHandler: [requireAbac('member:invite')] },
     async (req, reply) => {
       const { id } = req.params as { id: string };
-      const parsed = addMemberSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const input = parseOrThrow(addMemberSchema, req.body);
       const member = await withTenantDb(
-        (db) =>
-          addMember(
-            db,
-            id,
-            parsed.data.userId,
-            parsed.data.role,
-            req.user.id,
-            req.tenantContext.slug
-          ),
+        (db) => addMember(db, id, input.userId, input.role, req.user.id, req.tenantContext.slug),
         req.tenantContext
       );
       return reply.status(201).send(member);
@@ -78,12 +69,9 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
     { preHandler: [requireAbac('member:role-change')] },
     async (req) => {
       const { id, userId } = req.params as { id: string; userId: string };
-      const parsed = changeMemberRoleSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const { role } = parseOrThrow(changeMemberRoleSchema, req.body);
       return withTenantDb(
-        (db) =>
-          changeMemberRole(db, id, userId, parsed.data.role, req.user.id, req.tenantContext.slug),
+        (db) => changeMemberRole(db, id, userId, role, req.user.id, req.tenantContext.slug),
         req.tenantContext
       );
     }

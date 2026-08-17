@@ -6,13 +6,12 @@
 import { z } from 'zod';
 
 import { config } from '../../../lib/config.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { registerDevRuntime, unregisterDevRuntime } from '../services/dev-registration.service.js';
 
 import type { FastifyInstance } from 'fastify';
 
-// In-memory store of dev-registered plugins
-const devPlugins = new Map<string, {
+interface DevPluginEntry {
   slug: string;
   backendUrl: string;
   installId?: string;
@@ -23,7 +22,10 @@ const devPlugins = new Map<string, {
   events: string[];
   consumerGroupId?: string;
   registeredAt: Date;
-}>();
+}
+
+// In-memory store of dev-registered plugins
+const devPlugins = new Map<string, DevPluginEntry>();
 
 const devRegisterSchema = z.object({
   slug: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
@@ -61,17 +63,16 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const remoteAddr = request.socket.remoteAddress;
-    const isLoopback = remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1';
+    const isLoopback =
+      remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1';
     if (!isLoopback) {
       return reply.status(403).send({ error: 'Dev registration is only available from localhost' });
     }
 
-    const parsed = devRegisterSchema.safeParse(request.body);
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
-
-    const { slug, installId, backendUrl, uiUrl, extensionPoints, actions, events } = parsed.data;
+    const { slug, installId, backendUrl, uiUrl, extensionPoints, actions, events } = parseOrThrow(
+      devRegisterSchema,
+      request.body
+    );
 
     if (devPlugins.has(slug)) {
       return reply.status(409).send({
@@ -79,17 +80,14 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       });
     }
 
-    const devEntry: {
-      slug: string; backendUrl: string; uiUrl?: string;
-      installId?: string; tenantSlug: string;
-      extensionPoints: string[];
-      actions: Array<{ action: string; defaultRole: string }>;
-      events: string[];
-      consumerGroupId?: string;
-      registeredAt: Date;
-    } = {
-      slug, backendUrl, tenantSlug: request.tenantContext.slug, extensionPoints,
-      actions: actions ?? [], events: events?.subscribes ?? [], registeredAt: new Date(),
+    const devEntry: DevPluginEntry = {
+      slug,
+      backendUrl,
+      tenantSlug: request.tenantContext.slug,
+      extensionPoints,
+      actions: actions ?? [],
+      events: events?.subscribes ?? [],
+      registeredAt: new Date(),
     };
     if (installId) devEntry.installId = installId;
     if (uiUrl) devEntry.uiUrl = uiUrl;
@@ -112,12 +110,23 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       if (consumerGroupId) devEntry.consumerGroupId = consumerGroupId;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      request.log.warn({ err: msg, slug }, 'Failed to create dev consumer group — plugin will not receive events');
+      request.log.warn(
+        { err: msg, slug },
+        'Failed to create dev consumer group — plugin will not receive events'
+      );
     }
 
     devPlugins.set(slug, devEntry);
 
-    request.log.info({ slug, backendUrl, actionCount: devEntry.actions.length, hasConsumer: !!devEntry.consumerGroupId }, 'Plugin registered in dev mode');
+    request.log.info(
+      {
+        slug,
+        backendUrl,
+        actionCount: devEntry.actions.length,
+        hasConsumer: !!devEntry.consumerGroupId,
+      },
+      'Plugin registered in dev mode'
+    );
 
     return reply.status(200).send({
       status: 'ok',
@@ -132,12 +141,7 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'Not found' });
     }
 
-    const parsed = devUnregisterSchema.safeParse(request.body);
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
-
-    const { slug } = parsed.data;
+    const { slug } = parseOrThrow(devUnregisterSchema, request.body);
     const removed = devPlugins.get(slug);
     if (!removed) {
       return reply.status(404).send({ error: `Plugin "${slug}" is not registered in dev mode` });
@@ -162,17 +166,14 @@ export async function devPluginRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const plugins = Array.from(devPlugins.values()).map((p) => {
-      const entry: {
-        slug: string;
-        backendUrl: string;
-        installId?: string;
-        uiUrl?: string;
-        extensionPoints: string[];
-        actions: Array<{ action: string; defaultRole: string }>;
-        events: string[];
-        consumerGroupId?: string;
-        registeredAt: Date;
-      } = { slug: p.slug, backendUrl: p.backendUrl, extensionPoints: p.extensionPoints, actions: p.actions, events: p.events, registeredAt: p.registeredAt };
+      const entry: Omit<DevPluginEntry, 'tenantSlug'> = {
+        slug: p.slug,
+        backendUrl: p.backendUrl,
+        extensionPoints: p.extensionPoints,
+        actions: p.actions,
+        events: p.events,
+        registeredAt: p.registeredAt,
+      };
       if (p.installId) entry.installId = p.installId;
       if (p.uiUrl) entry.uiUrl = p.uiUrl;
       if (p.consumerGroupId) entry.consumerGroupId = p.consumerGroupId;

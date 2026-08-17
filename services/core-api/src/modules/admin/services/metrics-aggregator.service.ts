@@ -7,9 +7,8 @@
 import { prisma } from '../../../lib/database.js';
 import { logger } from '../../../lib/logger.js';
 import { redis } from '../../../lib/redis.js';
-import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
+import { SCHEMA_NAME_REGEX, toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]+$/;
 const USER_COUNT_KEY = 'metrics:user_count:total';
 const WORKSPACE_COUNT_KEY = 'metrics:workspace_count:total';
 const DEFAULT_INTERVAL_MS = 300_000; // 5 minutes

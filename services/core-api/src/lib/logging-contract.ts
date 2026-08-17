@@ -2,10 +2,10 @@
 // Only bounded infrastructure values are labels. Tenant remains structured JSON
 // so tenant count cannot create unbounded Loki streams.
 
-import { SLUG_REGEX } from './tenant-schema-helpers.js';
+import { TENANT_SLUG_REGEX } from './slug.js';
 
 export const LOKI_APP_LABEL = 'plexica-core-api';
-export const LOG_TENANT_SLUG_RE = SLUG_REGEX;
+export const LOG_TENANT_SLUG_RE = TENANT_SLUG_REGEX;
 
 export const ADMIN_LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 export type AdminLogLevel = (typeof ADMIN_LOG_LEVELS)[number];
@@ -36,20 +36,45 @@ const SENSITIVE_KEYS = new Set([
 // Explicit path-based redact for top-level and shallow-nested fields that Pino
 // matches efficiently. Deeper nesting is handled by the custom redact function.
 export const LOGGER_REDACT_PATHS = [
-  'email', '*.email', '*.*.email',
-  'adminEmail', '*.adminEmail',
-  'to', '*.to', '*.*.to',
-  'recipient', '*.recipient',
-  'password', '*.password', '*.*.password',
-  'token', '*.token', '*.*.token', '*.*.*.token',
-  'secret', '*.secret', '*.*.secret', '*.*.*.secret',
-  'credential', '*.credential', '*.*.credential',
-  'credentials', '*.credentials', '*.*.credentials',
-  'auth', '*.auth', '*.*.auth',
-  'authorization', '*.authorization', '*.*.authorization', '*.*.*.authorization',
+  'email',
+  '*.email',
+  '*.*.email',
+  'adminEmail',
+  '*.adminEmail',
+  'to',
+  '*.to',
+  '*.*.to',
+  'recipient',
+  '*.recipient',
+  'password',
+  '*.password',
+  '*.*.password',
+  'token',
+  '*.token',
+  '*.*.token',
+  '*.*.*.token',
+  'secret',
+  '*.secret',
+  '*.*.secret',
+  '*.*.*.secret',
+  'credential',
+  '*.credential',
+  '*.*.credential',
+  'credentials',
+  '*.credentials',
+  '*.*.credentials',
+  'auth',
+  '*.auth',
+  '*.*.auth',
+  'authorization',
+  '*.authorization',
+  '*.*.authorization',
+  '*.*.*.authorization',
   'req.headers.authorization',
   'req.headers.cookie',
-  'payload', '*.payload', '*.*.payload',
+  'payload',
+  '*.payload',
+  '*.*.payload',
 ] as const;
 
 /**

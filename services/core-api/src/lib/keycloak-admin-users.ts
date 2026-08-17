@@ -3,10 +3,9 @@
 // Companion module to keycloak-admin.ts (token management) and
 // keycloak-admin-realm.ts (realm configuration).
 
-// adminRequest is imported directly from the internal module to avoid circular
+// adminRequestOk is imported directly from the internal module to avoid circular
 // deps — keycloak-admin.ts re-exports it publicly but that would create a cycle.
-import { KeycloakError } from './app-error.js';
-import { adminRequest } from './keycloak-admin-internal.js';
+import { adminRequestOk } from './keycloak-admin-internal.js';
 import { logger } from './logger.js';
 
 /**
@@ -28,19 +27,20 @@ export async function createRealmUser(
   const firstName = nameParts[0] ?? '';
   const lastName = nameParts.slice(1).join(' ');
 
-  const res = await adminRequest(`/admin/realms/${realm}/users`, 'POST', {
-    username: email,
-    email,
-    enabled: true,
-    emailVerified: false,
-    firstName,
-    lastName,
-    requiredActions,
-  });
-
-  if (!res.ok) {
-    throw new KeycloakError(`Failed to create user in realm ${realm}: ${res.status}`);
-  }
+  const res = await adminRequestOk(
+    `/admin/realms/${realm}/users`,
+    'POST',
+    {
+      username: email,
+      email,
+      enabled: true,
+      emailVerified: false,
+      firstName,
+      lastName,
+      requiredActions,
+    },
+    { context: `Failed to create user in realm ${realm}` }
+  );
 
   const location = res.headers.get('Location') ?? '';
   const userId = location.split('/').pop() ?? '';
@@ -53,13 +53,12 @@ export async function createRealmUser(
  * Disables a user account in Keycloak (soft-lock, preserves data).
  */
 export async function disableRealmUser(realm: string, userId: string): Promise<void> {
-  const res = await adminRequest(`/admin/realms/${realm}/users/${userId}`, 'PUT', {
-    enabled: false,
-  });
-
-  if (!res.ok) {
-    throw new KeycloakError(`Failed to disable user ${userId} in realm ${realm}: ${res.status}`);
-  }
+  await adminRequestOk(
+    `/admin/realms/${realm}/users/${userId}`,
+    'PUT',
+    { enabled: false },
+    { context: `Failed to disable user ${userId} in realm ${realm}` }
+  );
 
   logger.debug({ realm, userId }, 'Keycloak user disabled');
 }
@@ -68,13 +67,10 @@ export async function disableRealmUser(realm: string, userId: string): Promise<v
  * Terminates all active sessions for a user (forces re-authentication).
  */
 export async function terminateUserSessions(realm: string, userId: string): Promise<void> {
-  const res = await adminRequest(`/admin/realms/${realm}/users/${userId}/sessions`, 'DELETE');
-
-  if (!res.ok && res.status !== 404) {
-    throw new KeycloakError(
-      `Failed to terminate sessions for user ${userId} in realm ${realm}: ${res.status}`
-    );
-  }
+  await adminRequestOk(`/admin/realms/${realm}/users/${userId}/sessions`, 'DELETE', undefined, {
+    tolerate: [404],
+    context: `Failed to terminate sessions for user ${userId} in realm ${realm}`,
+  });
 
   logger.debug({ realm, userId }, 'Keycloak user sessions terminated');
 }
@@ -87,16 +83,12 @@ export async function syncDisplayName(realm: string, userId: string, name: strin
   const firstName = parts[0] ?? '';
   const lastName = parts.slice(1).join(' ');
 
-  const res = await adminRequest(`/admin/realms/${realm}/users/${userId}`, 'PUT', {
-    firstName,
-    lastName,
-  });
-
-  if (!res.ok) {
-    throw new KeycloakError(
-      `Failed to sync display name for user ${userId} in realm ${realm}: ${res.status}`
-    );
-  }
+  await adminRequestOk(
+    `/admin/realms/${realm}/users/${userId}`,
+    'PUT',
+    { firstName, lastName },
+    { context: `Failed to sync display name for user ${userId} in realm ${realm}` }
+  );
 
   logger.debug({ realm, userId }, 'Keycloak user display name synced');
 }

@@ -19,7 +19,8 @@
 import { z } from 'zod';
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import { NotFoundError, ValidationError } from '../../../lib/app-error.js';
+import { NotFoundError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { reactivateTenant } from '../services/tenant-reactivate.service.js';
 
@@ -33,30 +34,13 @@ const TenantReactivateBodySchema = z.object({
   version: z.number().int().min(1),
 });
 
-export async function tenantReactivateRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function tenantReactivateRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     '/tenants/:id/reactivate',
     { preHandler: [requireSuperAdmin] },
     async (request, reply) => {
-      const paramsParsed =
-        TenantReactivateParamsSchema.safeParse(request.params);
-      if (!paramsParsed.success) {
-        throw new ValidationError(
-          paramsParsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
-
-      const bodyParsed = TenantReactivateBodySchema.safeParse(request.body);
-      if (!bodyParsed.success) {
-        throw new ValidationError(
-          bodyParsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
-
-      const { id } = paramsParsed.data;
-      const { version } = bodyParsed.data;
+      const { id } = parseOrThrow(TenantReactivateParamsSchema, request.params);
+      const { version } = parseOrThrow(TenantReactivateBodySchema, request.body);
       const actorId = request.user.keycloakUserId;
 
       return withCoreDb(async (prisma) => {

@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 
 import { ValidationError } from '../../lib/app-error.js';
 import { config } from '../../lib/config.js';
+import { parseOrThrow } from '../../lib/validation.js';
 import {
   AVATAR_ALLOWED_MIME_TYPES,
   validateFileContent,
@@ -35,13 +36,11 @@ export async function userProfileRoutes(fastify: FastifyInstance): Promise<void>
 
   // ── PATCH /api/v1/profile ─────────────────────────────────────────────────
   fastify.patch('/api/v1/profile', {}, async (request) => {
-    const parsed = updateProfileSchema.safeParse(request.body);
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
     // Cast required because Zod infers optional fields as `T | undefined` which
     // conflicts with exactOptionalPropertyTypes. Runtime values are correct.
-    const input = parsed.data as Parameters<typeof updateProfile>[2];
+    const input = parseOrThrow(updateProfileSchema, request.body) as Parameters<
+      typeof updateProfile
+    >[2];
 
     return withTenantDb(
       (db) => updateProfile(db, request.user.keycloakUserId, input, request.tenantContext),

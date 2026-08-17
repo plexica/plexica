@@ -186,4 +186,19 @@ describe('plugin proxy lifecycle and visibility gate', () => {
     await expectDenied(() => request(hiddenWorkspaceId));
     await tenantDb.$disconnect();
   }, 30_000);
+
+  skipIfNoDb('invalid installId param returns 422, not 500', async () => {
+    // The route uses installIdParamSchema.parse() on request.params. Without the
+    // ZodError branch in the error handler, this produced a 500 for a client-side
+    // input error. Regression guard: must be 422 with VALIDATION_ERROR.
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/plugins/not-a-uuid/visibility',
+      headers: { 'x-test-admin': 'true' },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({
+      error: { code: 'VALIDATION_ERROR' },
+    });
+  });
 });

@@ -8,6 +8,8 @@
 // The frontend performs a silent refresh every 55s, so users never notice the expiry.
 // This is Decision ID-005 in the decision log.
 
+import { TENANT_SLUG_REGEX } from './slug.js';
+
 export interface RealmConfig {
   realmName: string;
   adminEmail: string;
@@ -58,7 +60,11 @@ export function buildTenantWebClientUris(
   tenantSlug: string,
   nodeEnv: string = process.env['NODE_ENV'] ?? 'development'
 ): TenantWebClientUris {
-  if (!/^[a-z][a-z0-9-]{1,62}$/.test(tenantSlug)) {
+  // Tenant slugs are validated with the canonical TENANT_SLUG_REGEX (max 51
+  // chars) so the derived schema name can never exceed PostgreSQL's
+  // NAMEDATALEN — a 63-char check here would allow slugs that toSchemaName()
+  // cannot safely map.
+  if (!TENANT_SLUG_REGEX.test(tenantSlug)) {
     throw new Error(`Invalid tenant slug for Keycloak client: ${tenantSlug}`);
   }
   const origin =

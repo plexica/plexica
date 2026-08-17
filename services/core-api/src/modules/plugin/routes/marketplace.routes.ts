@@ -5,6 +5,7 @@
 import { z } from 'zod';
 
 import { withCoreDb, withTenantDb } from '../../../lib/tenant-database.js';
+import { RESOURCE_SLUG_REGEX } from '../../../lib/slug.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { ForbiddenError } from '../../../lib/app-error.js';
 import { getPresignedReadUrl } from '../../../lib/minio-client.js';
@@ -15,8 +16,6 @@ import { isPluginVisible } from '../services/visibility.service.js';
 
 import type { FastifyInstance } from 'fastify';
 import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
-
-const SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/;
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100).default(1),
@@ -181,7 +180,9 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
 
   // ── GET /api/v1/plugins/:slug ──────────────────────────────────────────────
   fastify.get('/api/v1/plugins/:slug', async (request) => {
-    const { slug } = z.object({ slug: z.string().regex(SLUG_REGEX) }).parse(request.params);
+    const { slug } = z
+      .object({ slug: z.string().regex(RESOURCE_SLUG_REGEX) })
+      .parse(request.params);
 
     const plugin = await withCoreDb((prisma) => prisma.plugin.findUnique({ where: { slug } }));
 

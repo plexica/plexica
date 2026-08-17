@@ -7,37 +7,30 @@
 // tenant-list.routes.ts pattern).
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../../lib/validation.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { AuditQuerySchema } from '../schemas/audit-schemas.js';
 import { queryAuditLog } from '../services/audit-log.service.js';
 
 import type { FastifyInstance } from 'fastify';
 
-export async function auditLogRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function auditLogRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/audit-logs ───────────────────────────────────────────
-  fastify.get(
-    '/audit-logs',
-    { preHandler: [requireSuperAdmin] },
-    async (request) => {
-      const parsed = AuditQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        throw new ValidationError(
-          parsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
+  fastify.get('/audit-logs', { preHandler: [requireSuperAdmin] }, async (request) => {
+    const { action, tenantId, actorId, page, pageSize } = parseOrThrow(
+      AuditQuerySchema,
+      request.query
+    );
 
-      const { action, tenantId, actorId, page, pageSize } = parsed.data;
+    // stripUndefined drops undefined keys (exactOptionalPropertyTypes).
+    const options: Parameters<typeof queryAuditLog>[1] = stripUndefined({
+      page,
+      pageSize,
+      action,
+      tenantId,
+      actorId,
+    });
 
-      // Build options without undefined keys (exactOptionalPropertyTypes).
-      const options: Parameters<typeof queryAuditLog>[1] = { page, pageSize };
-      if (action !== undefined) options.action = action;
-      if (tenantId !== undefined) options.tenantId = tenantId;
-      if (actorId !== undefined) options.actorId = actorId;
-
-      return withCoreDb((prisma) => queryAuditLog(prisma, options));
-    }
-  );
+    return withCoreDb((prisma) => queryAuditLog(prisma, options));
+  });
 }

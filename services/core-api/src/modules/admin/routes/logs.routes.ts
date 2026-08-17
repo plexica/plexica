@@ -7,38 +7,27 @@
 // tenant-list.routes.ts / audit-log.routes.ts pattern).
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../../lib/validation.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { LogsQuerySchema } from '../schemas/logs-schemas.js';
 import { queryLogs } from '../services/logs-query.service.js';
 
 import type { FastifyInstance } from 'fastify';
 
-export async function logsRoutes(
-  fastify: FastifyInstance
-): Promise<void> {
+export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/logs ───────────────────────────────────────────────
-  fastify.get(
-    '/logs',
-    { preHandler: [requireSuperAdmin] },
-    async (request) => {
-      const parsed = LogsQuerySchema.safeParse(request.query);
-      if (!parsed.success) {
-        throw new ValidationError(
-          parsed.error.issues.map((i) => i.message).join(', ')
-        );
-      }
+  fastify.get('/logs', { preHandler: [requireSuperAdmin] }, async (request) => {
+    const { tenant, level, start, end, limit } = parseOrThrow(LogsQuerySchema, request.query);
 
-      const { tenant, level, start, end, limit } = parsed.data;
+    // stripUndefined drops undefined keys (exactOptionalPropertyTypes).
+    const options: Parameters<typeof queryLogs>[1] = stripUndefined({
+      limit,
+      tenant,
+      level,
+      start,
+      end,
+    });
 
-      // Build options without undefined keys (exactOptionalPropertyTypes).
-      const options: Parameters<typeof queryLogs>[1] = { limit };
-      if (tenant !== undefined) options.tenant = tenant;
-      if (level !== undefined) options.level = level;
-      if (start !== undefined) options.start = start;
-      if (end !== undefined) options.end = end;
-
-      return withCoreDb((prisma) => queryLogs(prisma, options));
-    }
-  );
+    return withCoreDb((prisma) => queryLogs(prisma, options));
+  });
 }

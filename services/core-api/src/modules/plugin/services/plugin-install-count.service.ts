@@ -9,14 +9,13 @@
 // "Active" = status <> 'uninstalled'. Uninstalled plugins are terminal and must
 // NOT count toward the deprecated-vs-unpublished decision (ADR-022 Decision 5).
 
-import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
+import { SCHEMA_NAME_REGEX, toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 
 import type { PrismaClient } from '@prisma/client';
 
-
-// toSchemaName() produces `tenant_<slug-with-underscores>`. Re-validate as
-// defence-in-depth (slug comes from DB, not user input).
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]+$/;
+// toSchemaName() produces `tenant_<slug-with-underscores>`. Re-validate against
+// the canonical SCHEMA_NAME_REGEX as defence-in-depth (slug comes from DB, not
+// user input).
 
 /**
  * Filters schema names to only those that contain the specified table.

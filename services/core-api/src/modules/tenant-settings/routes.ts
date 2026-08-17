@@ -11,7 +11,7 @@ import { Readable } from 'node:stream';
 
 import { requireAbac } from '../../middleware/abac.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
-import { ValidationError } from '../../lib/app-error.js';
+import { parseOrThrow } from '../../lib/validation.js';
 import { config } from '../../lib/config.js';
 import { readStream } from '../../lib/file-upload.js';
 import {
@@ -48,12 +48,9 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       config: { rateLimit: SETTINGS_RATE_LIMIT },
     },
     async (request) => {
-      const parsed = updateSettingsSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
+      const input = parseOrThrow(updateSettingsSchema, request.body);
       return withTenantDb(
-        (db) => updateSettings(db, request.user.id, request.tenantContext, parsed.data),
+        (db) => updateSettings(db, request.user.id, request.tenantContext, input),
         request.tenantContext
       );
     }
@@ -110,11 +107,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
         if (fields['primaryColor'] !== undefined) rawInput['primaryColor'] = fields['primaryColor'];
         if (fields['darkMode'] !== undefined) rawInput['darkMode'] = fields['darkMode'] === 'true';
 
-        const parsed = updateBrandingSchema.safeParse(rawInput);
-        if (!parsed.success) {
-          throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-        }
-        const input = parsed.data as UpdateBrandingInput;
+        const input = parseOrThrow(updateBrandingSchema, rawInput) as UpdateBrandingInput;
 
         return withTenantDb(
           (db) => updateBranding(db, request.user.id, request.tenantContext, input, logoBuffer),
@@ -122,11 +115,7 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
         );
       }
 
-      const parsed = updateBrandingSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
-      const input = parsed.data as UpdateBrandingInput;
+      const input = parseOrThrow(updateBrandingSchema, request.body) as UpdateBrandingInput;
       return withTenantDb(
         (db) => updateBranding(db, request.user.id, request.tenantContext, input),
         request.tenantContext
@@ -154,13 +143,11 @@ export async function tenantSettingsRoutes(fastify: FastifyInstance): Promise<vo
       config: { rateLimit: AUTH_CONFIG_RATE_LIMIT },
     },
     async (request) => {
-      const parsed = updateAuthConfigSchema.safeParse(request.body);
-      if (!parsed.success) {
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      }
       // Cast required: Zod infers optional fields as T | undefined, which conflicts
       // with exactOptionalPropertyTypes. Runtime values are correct.
-      const input = parsed.data as Parameters<typeof updateAuthConfig>[3];
+      const input = parseOrThrow(updateAuthConfigSchema, request.body) as Parameters<
+        typeof updateAuthConfig
+      >[3];
       return withTenantDb(
         (db) => updateAuthConfig(db, request.user.id, request.tenantContext, input),
         request.tenantContext

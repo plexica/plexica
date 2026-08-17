@@ -6,7 +6,7 @@
 // Rate limiting: 120 req/min per user (hook: 'preHandler' so request.user is
 // already populated by authMiddleware before the key generator runs).
 
-import { rateLimitKey } from '../../lib/rate-limit-key.js';
+import { rateLimitKey } from '../../lib/rate-limit-config.js';
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 

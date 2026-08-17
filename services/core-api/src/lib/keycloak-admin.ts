@@ -5,7 +5,11 @@
 import { randomUUID } from 'node:crypto';
 
 import { logger } from './logger.js';
-import { adminRequest, invalidateAdminTokenCache } from './keycloak-admin-internal.js';
+import {
+  adminRequest,
+  adminRequestOk,
+  invalidateAdminTokenCache,
+} from './keycloak-admin-internal.js';
 import { reconcileTenantWebClient } from './keycloak-tenant-client.js';
 import {
   buildRealmPayload,
@@ -25,10 +29,10 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
   const { realmName, adminEmail, tenantSlug } = realmConfig;
 
   // Create realm
-  const realmRes = await adminRequest('/admin/realms', 'POST', buildRealmPayload(realmName));
-  if (!realmRes.ok && realmRes.status !== 409) {
-    throw new Error(`Failed to create realm ${realmName}: ${realmRes.status}`);
-  }
+  await adminRequestOk('/admin/realms', 'POST', buildRealmPayload(realmName), {
+    tolerate: [409],
+    context: `Failed to create realm ${realmName}`,
+  });
   logger.debug({ realmName }, 'Keycloak realm created');
 
   // Create default roles
@@ -114,17 +118,18 @@ export async function createRealm(realmConfig: RealmConfig): Promise<CreateRealm
  * 404 if absent. Any other status is treated as a Keycloak service error.
  */
 export async function realmExists(realmName: string): Promise<boolean> {
-  const res = await adminRequest(`/admin/realms/${realmName}`, 'GET');
-  if (res.ok) return true;
-  if (res.status === 404) return false;
-  throw new Error(`Failed to check realm ${realmName}: ${res.status}`);
+  const res = await adminRequestOk(`/admin/realms/${realmName}`, 'GET', undefined, {
+    tolerate: [404],
+    context: `Failed to check realm ${realmName}`,
+  });
+  return res.status !== 404;
 }
 
 export async function deleteRealm(realmName: string): Promise<void> {
-  const res = await adminRequest(`/admin/realms/${realmName}`, 'DELETE');
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Failed to delete realm ${realmName}: ${res.status}`);
-  }
+  await adminRequestOk(`/admin/realms/${realmName}`, 'DELETE', undefined, {
+    tolerate: [404],
+    context: `Failed to delete realm ${realmName}`,
+  });
   invalidateAdminTokenCache();
   logger.info({ realmName }, 'Keycloak realm deleted');
 }

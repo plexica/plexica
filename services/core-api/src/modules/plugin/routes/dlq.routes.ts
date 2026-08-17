@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { dismissDlqEntry, retryDlqEntry } from '../events/dlq.service.js';
-import { ValidationError } from '../../../lib/app-error.js';
+import { parseOrThrow } from '../../../lib/validation.js';
 import { buildPaginatedResult } from '../../../lib/pagination.js';
 
 import type { FastifyInstance } from 'fastify';
@@ -23,12 +23,7 @@ const listQuerySchema = z.object({
 export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/system/dlq ──────────────────────────────────────────
   fastify.get('/api/v1/admin/system/dlq', { preHandler: [requireSuperAdmin] }, async (request) => {
-    const parsed = listQuerySchema.safeParse(request.query);
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
-
-    const { status, pluginId, page, pageSize } = parsed.data;
+    const { status, pluginId, page, pageSize } = parseOrThrow(listQuerySchema, request.query);
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (pluginId) where.pluginId = pluginId;
@@ -69,9 +64,7 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/admin/system/dlq/:id/retry',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const parsed = idParamSchema.safeParse(request.params);
-      if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
-      const { id } = parsed.data;
+      const { id } = parseOrThrow(idParamSchema, request.params);
 
       await withCoreDb((prisma) => retryDlqEntry(prisma, id));
       return { status: 'retried' };
@@ -83,9 +76,7 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/admin/system/dlq/:id/dismiss',
     { preHandler: [requireSuperAdmin] },
     async (request) => {
-      const parsed = idParamSchema.safeParse(request.params);
-      if (!parsed.success) throw new ValidationError('Invalid DLQ entry ID');
-      const { id } = parsed.data;
+      const { id } = parseOrThrow(idParamSchema, request.params);
 
       await withCoreDb((prisma) => dismissDlqEntry(prisma, id));
       return { status: 'dismissed' };

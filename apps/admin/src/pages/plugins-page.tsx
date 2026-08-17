@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { Select } from '@plexica/ui';
+import { EmptyState, Select } from '@plexica/ui';
 
 import { PluginReviewDialog } from '../components/plugins/plugin-review-dialog.js';
 import { PluginTable, PluginTableSkeleton } from '../components/plugins/plugin-table.js';
@@ -97,9 +97,7 @@ export function PluginsPage(): JSX.Element {
       ) : isLoading ? (
         <PluginTableSkeleton />
       ) : filteredPlugins.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-12 text-center text-sm text-neutral-500">
-          <FormattedMessage id={emptyId} />
-        </div>
+        <EmptyState heading={<FormattedMessage id={emptyId} />} />
       ) : (
         <PluginTable plugins={filteredPlugins} onReview={openReview} />
       )}

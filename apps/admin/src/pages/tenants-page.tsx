@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Loader2 } from 'lucide-react';
-import { Input, Pagination, Select } from '@plexica/ui';
+import { EmptyState, Input, Pagination, Select } from '@plexica/ui';
 
 import { TenantTable, TenantTableSkeleton } from '../components/tenants/tenant-table.js';
 import { useTenantList } from '../hooks/use-tenants.js';
@@ -83,9 +83,7 @@ export function TenantsPage(): JSX.Element {
       ) : isLoading ? (
         <TenantTableSkeleton />
       ) : tenants.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-12 text-center text-sm text-neutral-500">
-          <FormattedMessage id="tenants.empty" />
-        </div>
+        <EmptyState heading={<FormattedMessage id="tenants.empty" />} />
       ) : (
         <TenantTable tenants={tenants} onRowClick={goToDetail} />
       )}

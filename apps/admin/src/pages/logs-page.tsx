@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { EmptyState, ErrorState } from '@plexica/ui';
 
 import {
   LogFilters,
@@ -90,7 +90,12 @@ export function LogsPage(): JSX.Element {
       />
 
       {isError && (
-        <ErrorBanner error={error} onRetry={() => void refetch()} intl={intl} />
+        <ErrorState
+          heading={<FormattedMessage id="admin.logs.error.title" />}
+          description={<FormattedMessage id={resolveError(error).key} />}
+          retryLabel={<FormattedMessage id="admin.logs.retry" />}
+          onRetry={() => void refetch()}
+        />
       )}
 
       {!isError && hasSearched && isLoading && (
@@ -100,9 +105,7 @@ export function LogsPage(): JSX.Element {
       )}
 
       {!isError && hasSearched && !isLoading && entries.length === 0 && (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-12 text-center text-sm text-neutral-500">
-          <FormattedMessage id="admin.logs.empty" />
-        </div>
+        <EmptyState heading={<FormattedMessage id="admin.logs.empty" />} />
       )}
 
       {!isError && hasSearched && !isLoading && entries.length > 0 && (
@@ -125,43 +128,8 @@ export function LogsPage(): JSX.Element {
       )}
 
       {!isError && !hasSearched && (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-12 text-center text-sm text-neutral-500">
-          <FormattedMessage id="admin.logs.empty" />
-        </div>
+        <EmptyState heading={<FormattedMessage id="admin.logs.empty" />} />
       )}
     </section>
-  );
-}
-
-interface ErrorBannerProps {
-  error: unknown;
-  onRetry: () => void;
-  intl: ReturnType<typeof useIntl>;
-}
-
-function ErrorBanner({ error, onRetry, intl }: ErrorBannerProps): JSX.Element {
-  const { key } = resolveError(error);
-  return (
-    <div
-      role="alert"
-      className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800"
-    >
-      <p className="flex items-center gap-2 font-medium">
-        <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-        <FormattedMessage id="admin.logs.error.title" />
-      </p>
-      <p className="mt-1 text-red-700">
-        <FormattedMessage id={key} />
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-        aria-label={intl.formatMessage({ id: 'admin.logs.retry' })}
-      >
-        <RefreshCw className="h-4 w-4" aria-hidden="true" />
-        <FormattedMessage id="admin.logs.retry" />
-      </button>
-    </div>
   );
 }

@@ -4,18 +4,8 @@
 
 import { prisma } from '../../../lib/database.js';
 
-import { buildServiceResult, withProbeTimeout } from './health-checker.service.js';
+import { makeProbe, withProbeTimeout } from './health-checker.service.js';
 
-import type { HealthServiceResult } from '../schemas/health-schemas.js';
-
-export async function probePostgres(): Promise<HealthServiceResult> {
-  const name = 'postgres';
-  const start = performance.now();
-
-  try {
-    await withProbeTimeout(prisma.$queryRaw`SELECT 1`);
-    return buildServiceResult(name, Math.round(performance.now() - start), null);
-  } catch (error) {
-    return buildServiceResult(name, Math.round(performance.now() - start), error);
-  }
-}
+export const probePostgres = makeProbe('postgres', () =>
+  withProbeTimeout(prisma.$queryRaw`SELECT 1`)
+);

@@ -4,18 +4,6 @@
 
 import { redis } from '../../../lib/redis.js';
 
-import { buildServiceResult, withProbeTimeout } from './health-checker.service.js';
+import { makeProbe, withProbeTimeout } from './health-checker.service.js';
 
-import type { HealthServiceResult } from '../schemas/health-schemas.js';
-
-export async function probeRedis(): Promise<HealthServiceResult> {
-  const name = 'redis';
-  const start = performance.now();
-
-  try {
-    await withProbeTimeout(redis.ping());
-    return buildServiceResult(name, Math.round(performance.now() - start), null);
-  } catch (error) {
-    return buildServiceResult(name, Math.round(performance.now() - start), error);
-  }
-}
+export const probeRedis = makeProbe('redis', () => withProbeTimeout(redis.ping()));

@@ -6,28 +6,24 @@
 
 import { getKafkaAdmin } from '../../../lib/kafka.js';
 
-import { buildServiceResult, withProbeTimeout } from './health-checker.service.js';
+import { makeProbe, withProbeTimeout } from './health-checker.service.js';
 
-import type { HealthServiceResult } from '../schemas/health-schemas.js';
-
-export async function probeKafka(): Promise<HealthServiceResult> {
-  const name = 'kafka';
-  const start = performance.now();
+export const probeKafka = makeProbe('kafka', async () => {
   const admin = getKafkaAdmin();
-
   try {
-    await withProbeTimeout((async () => {
-      await admin.connect();
-      try {
-        await admin.listTopics();
-      } finally {
-        await admin.disconnect();
-      }
-    })());
-    return buildServiceResult(name, Math.round(performance.now() - start), null);
+    await withProbeTimeout(
+      (async () => {
+        await admin.connect();
+        try {
+          await admin.listTopics();
+        } finally {
+          await admin.disconnect();
+        }
+      })()
+    );
   } catch (error) {
     // Best-effort cleanup — ignore secondary failures during disconnect.
     await admin.disconnect().catch(() => undefined);
-    return buildServiceResult(name, Math.round(performance.now() - start), error);
+    throw error;
   }
-}
+});

@@ -11,8 +11,7 @@
 // tables (user_profile, workspaces, plugin_installations) are read via
 // $queryRawUnsafe with a validated, non-user-controlled schema identifier.
 
-
-import { toSchemaName } from '../../../lib/tenant-schema-helpers.js';
+import { SCHEMA_NAME_REGEX, toSchemaName } from '../../../lib/tenant-schema-helpers.js';
 import { NotFoundError } from '../../../lib/app-error.js';
 
 import { queryAuditLog } from './audit-log.service.js';
@@ -21,9 +20,9 @@ import type { PrismaClient, Prisma } from '@prisma/client';
 import type { AuditEntry } from '../schemas/audit-schemas.js';
 
 // Schema names produced by toSchemaName() are `tenant_<slug-with-underscores>`.
-// Re-validate before interpolation as defence-in-depth (slug comes from DB, not
-// user input, but a corrupted row must never yield an injectable identifier).
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]+$/;
+// Re-validate against the canonical SCHEMA_NAME_REGEX before interpolation as
+// defence-in-depth (slug comes from DB, not user input, but a corrupted row
+// must never yield an injectable identifier).
 
 const TENANT_SELECT = {
   id: true,
@@ -112,13 +111,11 @@ export async function getTenantDetail(
   const userCount = userRows[0]?.count ?? 0;
   const workspaceCount = workspaceRows[0]?.count ?? 0;
 
-  const pluginInstallations: TenantDetailPluginInstallation[] = installRows.map(
-    (row) => ({
-      pluginSlug: row.plugin_slug,
-      status: row.status,
-      installedAt: row.installed_at.toISOString(),
-    })
-  );
+  const pluginInstallations: TenantDetailPluginInstallation[] = installRows.map((row) => ({
+    pluginSlug: row.plugin_slug,
+    status: row.status,
+    installedAt: row.installed_at.toISOString(),
+  }));
 
   return {
     tenant: {

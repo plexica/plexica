@@ -1,5 +1,6 @@
 // rate-limit-config.ts
-// Shared @fastify/rate-limit configuration — global defaults and key generator.
+// Shared @fastify/rate-limit configuration — global defaults, key generator,
+// and per-route limit presets.
 // Imported by index.ts (production server) and test helpers (test servers).
 // Centralised here so any change to error shape or key strategy is applied
 // consistently across production and tests.
@@ -13,6 +14,8 @@ import type { errorResponseBuilderContext } from '@fastify/rate-limit';
 // Global default: RATE_LIMIT_MAX req / 1 min per key (IP in public scope,
 // user sub in authenticated scopes via per-route keyGenerator override).
 // Configurable via RATE_LIMIT_MAX env var (default 100, increase for E2E).
+// No explicit keyGenerator: the library default (request.ip) is correct at
+// plugin level, where request.user is not yet populated.
 // ---------------------------------------------------------------------------
 export const GLOBAL_RATE_LIMIT = {
   max: config.RATE_LIMIT_MAX,
@@ -20,11 +23,17 @@ export const GLOBAL_RATE_LIMIT = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Default keyGenerator — falls back to IP when user is not yet populated.
-// Used for the global plugin registration in index.ts.
+// User-keyed keyGenerator for authenticated routes.
+// Prefer user ID (stable across IPs) when available; fall back to IP.
+// Guards against empty-string IDs which could collapse all anonymous
+// traffic into a single bucket.
+// Only usable where the rate-limit hook runs at 'preHandler' (route-level
+// hooks execute after scope-level preHandler hooks), so authMiddleware has
+// already populated request.user.
 // ---------------------------------------------------------------------------
-export function rateLimitKeyGenerator(request: FastifyRequest): string {
-  return request.ip;
+export function rateLimitKey(request: FastifyRequest): string {
+  const uid = request.user?.id?.trim();
+  return uid !== undefined && uid.length > 0 ? uid : request.ip;
 }
 
 // ---------------------------------------------------------------------------

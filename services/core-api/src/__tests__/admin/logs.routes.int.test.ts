@@ -13,18 +13,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { config } from '../../lib/config.js';
 import { logsRoutes } from '../../modules/admin/routes/logs.routes.js';
-import { createTestServer, makeFullStub } from '../helpers/server.helpers.js';
+import { createAdminTestServer } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
-
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const mockTenantContext: TenantContext = {
-  slug: 'system',
-  schemaName: 'core',
-  realmName: 'master',
-  tenantId: '00000000-0000-0000-0000-000000000000',
-};
 
 let server: FastifyInstance;
 let originalLokiUrl = config.LOKI_URL;
@@ -61,10 +52,7 @@ function lokiTest(name: string, fn: () => Promise<void>): ReturnType<typeof it> 
 }
 
 beforeAll(async () => {
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
-  await server.register(logsRoutes, { prefix: '/api/v1/admin' });
-  await server.ready();
+  server = await createAdminTestServer([logsRoutes]);
 });
 
 afterAll(async () => {
@@ -127,10 +115,12 @@ describe('Logs — GET /api/v1/admin/logs', () => {
     // to a prior isolate:false test mutating the config singleton).
     const lokiUrl = config.LOKI_URL || process.env['LOKI_URL'] || '';
     const logEntry = {
-      streams: [{
-        stream: { app: 'plexica-core-api', level: 'info' },
-        values: [[String(Date.now()) + '000000', JSON.stringify({ tenant, msg: message })]],
-      }],
+      streams: [
+        {
+          stream: { app: 'plexica-core-api', level: 'info' },
+          values: [[String(Date.now()) + '000000', JSON.stringify({ tenant, msg: message })]],
+        },
+      ],
     };
     await fetch(`${lokiUrl}/loki/api/v1/push`, {
       method: 'POST',

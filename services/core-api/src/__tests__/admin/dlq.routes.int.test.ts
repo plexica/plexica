@@ -2,16 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
 import { dlqRoutes } from '../../modules/plugin/routes/dlq.routes.js';
-import { createTestServer, isDbReachable, makeFullStub } from '../helpers/server.helpers.js';
+import {
+  SUPER_ADMIN_ACTOR,
+  createAdminTestServer,
+  isDbReachable,
+} from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
 
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const mockTenantContext: TenantContext = {
-  slug: 'system', schemaName: 'core', realmName: 'master',
-  tenantId: '00000000-0000-0000-0000-000000000000',
-};
 const PLUGIN_SLUG = 'test-dlq-pagination-plugin';
 
 // Response envelope of GET /api/v1/admin/system/dlq — mirrors the web client's
@@ -33,15 +31,29 @@ function dlqData(index: number) {
   const eventId = crypto.randomUUID();
   const installId = crypto.randomUUID();
   return {
-    tenantId, installId, eventId, eventType: 'plexica.plugin.test', schemaVersion: 1,
+    tenantId,
+    installId,
+    eventId,
+    eventType: 'plexica.plugin.test',
+    schemaVersion: 1,
     payload: {
-      eventId, type: 'plexica.plugin.test', schemaVersion: 1, tenantId,
-      occurredAt: new Date().toISOString(), producer: { kind: 'core', id: 'core' },
-      correlationId: eventId, causationId: null, payload: { idx: index },
+      eventId,
+      type: 'plexica.plugin.test',
+      schemaVersion: 1,
+      tenantId,
+      occurredAt: new Date().toISOString(),
+      producer: { kind: 'core', id: 'core' },
+      correlationId: eventId,
+      causationId: null,
+      payload: { idx: index },
     },
-    pluginId, errorMessage: 'TEST_FAILURE', retryCount: 0,
-    originalTopic: 'plexica.plugin.test', originalPartition: 0,
-    originalOffset: BigInt(index), dedupeKey: eventId.replaceAll('-', '').padEnd(64, '0'),
+    pluginId,
+    errorMessage: 'TEST_FAILURE',
+    retryCount: 0,
+    originalTopic: 'plexica.plugin.test',
+    originalPartition: 0,
+    originalOffset: BigInt(index),
+    dedupeKey: eventId.replaceAll('-', '').padEnd(64, '0'),
     status: 'pending',
   };
 }
@@ -52,15 +64,25 @@ beforeAll(async () => {
   }
 
   const tenant = await prisma.tenant.create({
-    data: { slug: `dlq-pagination-${crypto.randomUUID().slice(0, 8)}`, name: 'DLQ Pagination Test' },
+    data: {
+      slug: `dlq-pagination-${crypto.randomUUID().slice(0, 8)}`,
+      name: 'DLQ Pagination Test',
+    },
   });
   tenantId = tenant.id;
 
   const plugin = await prisma.plugin.create({
     data: {
-      slug: PLUGIN_SLUG, name: PLUGIN_SLUG, version: '1.0.0', author: 'Test',
-      categories: [], manifest: {}, status: 'published',
-      registryUrl: 'https://registry.example.com', imageName: PLUGIN_SLUG, imageTag: '1.0.0',
+      slug: PLUGIN_SLUG,
+      name: PLUGIN_SLUG,
+      version: '1.0.0',
+      author: 'Test',
+      categories: [],
+      manifest: {},
+      status: 'published',
+      registryUrl: 'https://registry.example.com',
+      imageName: PLUGIN_SLUG,
+      imageTag: '1.0.0',
       createdByKeycloakId: SUPER_ADMIN_ACTOR,
     },
     select: { id: true },
@@ -74,11 +96,8 @@ beforeAll(async () => {
     seededIds.push(entry.id);
   }
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
-  // No prefix: the route declares its full /api/v1 path, as in production.
-  await server.register(dlqRoutes);
-  await server.ready();
+  // rootRoutes: the plugin declares its full /api/v1 path, as in production.
+  server = await createAdminTestServer([], { rootRoutes: [dlqRoutes] });
 });
 
 afterAll(async () => {

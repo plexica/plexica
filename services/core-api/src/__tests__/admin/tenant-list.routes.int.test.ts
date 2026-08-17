@@ -5,22 +5,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../lib/database.js';
-import { requireSuperAdmin } from '../../middleware/require-super-admin.js';
 import { tenantListRoutes } from '../../modules/admin/routes/tenant-list.routes.js';
-import { createTestServer, makeFullStub, isDbReachable } from '../helpers/server.helpers.js';
+import { createAdminTestServer, isDbReachable } from '../helpers/server.helpers.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantContext } from '../../lib/tenant-context-store.js';
 
-const SUPER_ADMIN_ACTOR = '00000000-0000-0000-0000-000000000000';
-const mockTenantContext: TenantContext = {
-  slug: 'system',
-  schemaName: 'core',
-  realmName: 'master',
-  tenantId: '00000000-0000-0000-0000-000000000000',
-};
-
-const ADMIN_PREFIX = '/api/v1/admin';
 const SLUG_PREFIX = 'test-adm-tl';
 
 let server: FastifyInstance;
@@ -46,16 +35,7 @@ beforeAll(async () => {
     }),
   ]);
 
-  server = await createTestServer();
-  server.addHook('preHandler', makeFullStub(SUPER_ADMIN_ACTOR, mockTenantContext, ['super_admin']));
-  await server.register(
-    async (scope) => {
-      scope.addHook('preHandler', requireSuperAdmin);
-      await scope.register(tenantListRoutes);
-    },
-    { prefix: ADMIN_PREFIX }
-  );
-  await server.ready();
+  server = await createAdminTestServer([tenantListRoutes]);
 });
 
 afterAll(async () => {
@@ -119,7 +99,10 @@ describe('GET /api/v1/admin/tenants — paginated tenant list', () => {
   });
 
   it('filters by status=suspended', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/v1/admin/tenants?status=suspended' });
+    const res = await server.inject({
+      method: 'GET',
+      url: '/api/v1/admin/tenants?status=suspended',
+    });
     expect(res.statusCode).toBe(200);
     const body = res.json<{ data: Array<{ slug: string; status: string }> }>();
     const slugs = body.data.map((t) => t.slug);

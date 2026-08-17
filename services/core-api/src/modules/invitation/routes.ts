@@ -9,7 +9,8 @@
 
 import { publicInvitationTenantResolver } from '../../middleware/public-invitation-tenant.js';
 import { requireAbac } from '../../middleware/abac.js';
-import { ForbiddenError, InvitationNotFoundError, ValidationError } from '../../lib/app-error.js';
+import { ForbiddenError, InvitationNotFoundError } from '../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../lib/validation.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 
 import {
@@ -34,12 +35,13 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     { preHandler: [requireAbac('invitation:list')] },
     async (req) => {
       const { id } = req.params as { id: string };
-      const parsed = invitationListQuerySchema.safeParse(req.query);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+      const query = parseOrThrow(invitationListQuerySchema, req.query);
 
-      const filters: ListInvitationsFilters = { page: parsed.data.page, limit: parsed.data.limit };
-      if (parsed.data.status !== undefined) filters.status = parsed.data.status;
+      const filters: ListInvitationsFilters = stripUndefined({
+        page: query.page,
+        limit: query.limit,
+        status: query.status,
+      });
 
       return withTenantDb((db) => listInvitationsService(db, id, filters), req.tenantContext);
     }
@@ -47,9 +49,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
 
   // ── Send invitation (tenant_admin or workspace admin) ─────────────────────
   fastify.post('/api/v1/users/invite', {}, async (req, reply) => {
-    const parsed = createInvitationSchema.safeParse(req.body);
-    if (!parsed.success)
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
+    const input = parseOrThrow(createInvitationSchema, req.body);
 
     const isTenantAdmin = req.user.roles.includes('tenant_admin');
 
@@ -60,7 +60,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
         return (db as any).workspaceMember.findUnique({
           where: {
             workspaceId_userId: {
-              workspaceId: parsed.data.workspaceId,
+              workspaceId: input.workspaceId,
               userId: req.user.id,
             },
           },
@@ -75,7 +75,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     }
 
     const result = await withTenantDb(
-      (db) => createInvitationService(db, parsed.data, req.user.id, req.tenantContext),
+      (db) => createInvitationService(db, input, req.user.id, req.tenantContext),
       req.tenantContext
     );
     return reply.status(201).send(result);

@@ -9,6 +9,7 @@
 
 import { withTenantDb } from '../../lib/tenant-database.js';
 import { ForbiddenError, ValidationError } from '../../lib/app-error.js';
+import { parseOrThrow, stripUndefined } from '../../lib/validation.js';
 
 import { userListQuerySchema, removeUserSchema, userIdParamSchema } from './schema.js';
 import {
@@ -33,18 +34,15 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
   fastify.get('/api/v1/users', {}, async (req) => {
     requireTenantAdmin(req.user.roles);
 
-    const parsed = userListQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
+    const query = parseOrThrow(userListQuerySchema, req.query);
 
-    // Build filters without optional-undefined properties to satisfy exactOptionalPropertyTypes.
-    const filters: UserListFilters = {
-      page: parsed.data.page,
-      limit: parsed.data.limit,
-    };
-    if (parsed.data.status !== undefined) filters.status = parsed.data.status;
-    if (parsed.data.search !== undefined) filters.search = parsed.data.search;
+    // stripUndefined drops undefined-valued keys to satisfy exactOptionalPropertyTypes.
+    const filters: UserListFilters = stripUndefined({
+      page: query.page,
+      limit: query.limit,
+      status: query.status,
+      search: query.search,
+    });
 
     return withTenantDb((db) => listTenantUsers(db, filters, req.tenantContext), req.tenantContext);
   });
@@ -53,11 +51,7 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
   fastify.delete('/api/v1/users/:id', {}, async (req, reply) => {
     requireTenantAdmin(req.user.roles);
 
-    const paramsParsed = userIdParamSchema.safeParse(req.params);
-    if (!paramsParsed.success) {
-      throw new ValidationError(paramsParsed.error.issues.map((i) => i.message).join(', '));
-    }
-    const { id } = paramsParsed.data;
+    const { id } = parseOrThrow(userIdParamSchema, req.params);
 
     // A tenant_admin must never be able to remove their own account: doing so
     // disables their Keycloak account and terminates their sessions, and if
@@ -76,12 +70,9 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
     // so parsing it directly returned 400 for every UI-driven removal while the
     // integration test — which injects an explicit JSON body — stayed green.
     // Normalising to {} lets reassignments fall back to its declared default.
-    const parsed = removeUserSchema.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-    }
+    const input = parseOrThrow(removeUserSchema, req.body ?? {});
 
-    await removeUser(id, req.user.id, parsed.data, req.tenantContext);
+    await removeUser(id, req.user.id, input, req.tenantContext);
 
     return reply.status(204).send();
   });
@@ -90,15 +81,9 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
   fastify.get('/api/v1/users/:id/workspaces', {}, async (req) => {
     requireTenantAdmin(req.user.roles);
 
-    const paramsParsed = userIdParamSchema.safeParse(req.params);
-    if (!paramsParsed.success) {
-      throw new ValidationError(paramsParsed.error.issues.map((i) => i.message).join(', '));
-    }
+    const { id } = parseOrThrow(userIdParamSchema, req.params);
 
-    return withTenantDb(
-      (db) => getUserWorkspaces(db, paramsParsed.data.id, req.tenantContext),
-      req.tenantContext
-    );
+    return withTenantDb((db) => getUserWorkspaces(db, id, req.tenantContext), req.tenantContext);
   });
 
   // GET /api/v1/roles — list all roles with metadata (any authenticated tenant user)

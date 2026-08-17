@@ -5,13 +5,15 @@
 // saga executor records the error and retries with backoff.
 
 import { logger } from '../../../lib/logger.js';
+import { SCHEMA_NAME_REGEX } from '../../../lib/tenant-schema-helpers.js';
 
 import type { PrismaClient } from '@prisma/client';
 
-// Defence-in-depth: validate the derived schema name matches the exact shape
-// produced by toSchemaName before interpolating into DDL. PostgreSQL schema
-// names cannot be parameterised, so a strict allowlist regex is the guard.
-const SCHEMA_NAME_REGEX = /^tenant_[a-z0-9_]{1,55}$/;
+// SCHEMA_NAME_REGEX (canonical, lib/tenant-schema-helpers.ts) is the
+// defence-in-depth guard: validate the derived schema name matches the exact
+// shape produced by toSchemaName before interpolating into DDL. PostgreSQL
+// schema names cannot be parameterised, so a strict allowlist regex is the
+// guard.
 
 /**
  * Drops the PostgreSQL schema `tenant_<slug>` (hyphens → underscores) with

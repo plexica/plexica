@@ -8,6 +8,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSkeleton,
 } from '@plexica/ui';
 
 import { TenantStatusBadge } from './tenant-status-badge.js';
@@ -70,18 +71,6 @@ function TenantRow({ tenant, onRowClick }: TenantRowProps): JSX.Element {
 
 export function TenantTableSkeleton(): JSX.Element {
   return (
-    <div className="rounded-lg border border-neutral-200">
-      <div className="divide-y divide-neutral-100">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex animate-pulse gap-4 px-4 py-3">
-            <div className="h-4 w-40 rounded bg-neutral-200" />
-            <div className="h-4 w-24 rounded bg-neutral-200" />
-            <div className="h-4 w-20 rounded bg-neutral-200" />
-            <div className="h-4 w-24 rounded bg-neutral-200" />
-            <div className="h-4 w-12 rounded bg-neutral-200" />
-          </div>
-        ))}
-      </div>
-    </div>
+    <TableSkeleton columnWidths={['w-40', 'w-24', 'w-20', 'w-24', 'w-12']} rows={5} />
   );
 }

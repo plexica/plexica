@@ -11,7 +11,7 @@
 // registered as scope-level preHandler hooks in index.ts — do NOT re-add them.
 
 import { requireAbac } from '../../middleware/abac.js';
-import { ValidationError } from '../../lib/app-error.js';
+import { parseOrThrow } from '../../lib/validation.js';
 import { withTenantDb } from '../../lib/tenant-database.js';
 
 import { createTemplateSchema } from './schema.js';
@@ -32,10 +32,7 @@ export function workspaceTemplateRoutes(fastify: FastifyInstance): void {
     '/api/v1/workspaces/templates',
     { preHandler: [requireAbac('workspace:create')] },
     async (req, reply) => {
-      const parsed = createTemplateSchema.safeParse(req.body);
-      if (!parsed.success)
-        throw new ValidationError(parsed.error.issues.map((i) => i.message).join(', '));
-      const { name, description, structure } = parsed.data;
+      const { name, description, structure } = parseOrThrow(createTemplateSchema, req.body);
       const result = await withTenantDb(
         (db) =>
           createTemplate(db, {

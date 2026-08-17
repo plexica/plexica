@@ -2,7 +2,7 @@
 // Fetches the platform audit log filtered by tenantId via useAuditLog hook.
 
 import { FormattedMessage, useIntl } from 'react-intl';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
+import { EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@plexica/ui';
 
 import { useAuditLog } from '../../hooks/use-audit-log.js';
 
@@ -70,9 +70,7 @@ export function TenantDetailAuditTab({ tenantId, tenantName }: TenantDetailAudit
       )}
 
       {!isLoading && !isError && data && data.data.length === 0 && (
-        <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-10 text-center text-sm text-neutral-500">
-          <FormattedMessage id="tenant.audit.empty" />
-        </div>
+        <EmptyState heading={<FormattedMessage id="tenant.audit.empty" />} />
       )}
 
       {!isLoading && !isError && data && data.data.length > 0 && (

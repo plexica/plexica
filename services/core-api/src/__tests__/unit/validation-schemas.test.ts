@@ -11,7 +11,7 @@ import {
 } from '../../modules/workspace/schema.js';
 import { updateBrandingSchema } from '../../modules/tenant-settings/schema.js';
 import { paginationSchema } from '../../lib/pagination.js';
-import { SLUG_REGEX } from '../../lib/slug.js';
+import { RESOURCE_SLUG_REGEX } from '../../lib/slug.js';
 
 // ===========================================================================
 // Workspace name validation (createWorkspaceSchema.name)
@@ -56,43 +56,43 @@ describe('Workspace name — updateWorkspaceSchema', () => {
 });
 
 // ===========================================================================
-// Workspace slug regex (SLUG_REGEX)
+// Workspace slug regex (RESOURCE_SLUG_REGEX)
 // ===========================================================================
 
-describe('SLUG_REGEX', () => {
+describe('RESOURCE_SLUG_REGEX', () => {
   it('"valid-slug" → valid', () => {
-    expect(SLUG_REGEX.test('valid-slug')).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test('valid-slug')).toBe(true);
   });
 
   it('"1invalid" (starts with digit) → invalid', () => {
-    expect(SLUG_REGEX.test('1invalid')).toBe(false);
+    expect(RESOURCE_SLUG_REGEX.test('1invalid')).toBe(false);
   });
 
   it('"UPPER" (uppercase letters) → invalid', () => {
-    expect(SLUG_REGEX.test('UPPER')).toBe(false);
+    expect(RESOURCE_SLUG_REGEX.test('UPPER')).toBe(false);
   });
 
   it('"ab" (2 chars, minimum valid length) → valid', () => {
-    expect(SLUG_REGEX.test('ab')).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test('ab')).toBe(true);
   });
 
   it('"a" (1 char, below minimum 2 total) → invalid (regex requires 1 leading + 1 more)', () => {
-    // SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/ — so "a" (only 1 char) fails the {1,62} part
-    expect(SLUG_REGEX.test('a')).toBe(false);
+    // RESOURCE_SLUG_REGEX = /^[a-z][a-z0-9-]{1,62}$/ — so "a" (only 1 char) fails the {1,62} part
+    expect(RESOURCE_SLUG_REGEX.test('a')).toBe(false);
   });
 
   it('"a1" → valid', () => {
-    expect(SLUG_REGEX.test('a1')).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test('a1')).toBe(true);
   });
 
   it('63-char slug → valid (max boundary: 1 + 62)', () => {
     const slug = 'a' + 'b'.repeat(62);
-    expect(SLUG_REGEX.test(slug)).toBe(true);
+    expect(RESOURCE_SLUG_REGEX.test(slug)).toBe(true);
   });
 
   it('64-char slug → invalid (exceeds 63 max)', () => {
     const slug = 'a' + 'b'.repeat(63);
-    expect(SLUG_REGEX.test(slug)).toBe(false);
+    expect(RESOURCE_SLUG_REGEX.test(slug)).toBe(false);
   });
 });
 
