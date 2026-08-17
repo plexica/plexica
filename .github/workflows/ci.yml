@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel superseded runs on the same ref: on pull requests only the latest
+# push matters, so stale in-progress runs are cancelled. Runs on main are
+# never cancelled so merge results (and this run's artifacts) are preserved.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   NODE_ENV: test
   DATABASE_URL: postgresql://plexica:changeme@localhost:5432/plexica
@@ -44,6 +51,12 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v7
+      # No `cache: 'pnpm'` here: this job runs on a self-hosted runner whose
+      # filesystem persists between runs, so the pnpm store is already warm
+      # (same rationale as skipping the Docker image tar cache in
+      # .github/actions/docker-infra/action.yml). A tar-based actions/cache
+      # round-trip would add I/O slower than the warm local store.
+      # Revisit only if the runners ever become ephemeral.
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
         with:
@@ -104,6 +117,16 @@ jobs:
       - name: Run unit and integration tests
         run: pnpm --filter core-api test
 
+      # Free ~2.3 GB before the web E2E suite boots its own isolated compose
+      # stack (project plexica-e2e-*, ports 15432/16379/18080/...), otherwise
+      # two full stacks (~4.5 GB) run in parallel on a 7 GB runner.
+      # `stop` — not `down -v` — preserves containers and volumes: the admin
+      # E2E suite below still runs against this plexica-ci stack and expects
+      # the migrated database and provisioned Keycloak realm. The stack is
+      # restarted just before the admin E2E step.
+      - name: Stop Docker infrastructure before web E2E tests
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml stop
+
       - name: Clean up ports and stale E2E containers for Playwright
         run: |
           docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
@@ -130,6 +153,18 @@ jobs:
         run: |
           docker ps -aq --filter "name=plexica-e2e-" 2>/dev/null | xargs -r docker rm -f
           bash .github/actions/docker-infra/scripts/cleanup-ports.sh 3001 3002
+      # Restart the stack stopped above: admin E2E targets the plexica-ci
+      # ports (postgres 5432, keycloak 8080, redis 6379, minio 9000,
+      # redpanda 19092, loki 3100) via the job-level env. Containers and
+      # volumes were preserved, so the migrated schema and Keycloak realm
+      # are intact; --wait blocks until every service is healthy again.
+      # One-shot init containers (keycloak-init, redpanda-init) are not
+      # re-run: their side effects persist in the preserved volumes.
+      - name: Restart Docker infrastructure for admin E2E tests
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+            up -d --wait --wait-timeout 300 \
+            postgres keycloak redis minio redpanda mailpit loki
       - name: Run admin Playwright E2E tests
         run: pnpm --filter @plexica/admin e2e
         env:

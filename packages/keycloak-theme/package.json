@@ -12,8 +12,8 @@
   "dependencies": {
     "@fontsource/inter": "^5",
     "keycloakify": "^11",
-    "react": "^19",
-    "react-dom": "^19"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@plexica/ui": "workspace:*",

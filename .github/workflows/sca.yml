@@ -1,7 +1,8 @@
 # sca.yml — Plexica v2 SCA (Software Composition Analysis)
 # Scans production dependencies via Trivy for known vulnerabilities.
-# Constitution Rule 2: 0 production vulnerabilities required.
-# Fails the pipeline if any vulnerability is detected.
+# Constitution Security section + spec 007 success metric ("critical/high: 0"),
+# scoped per ADR-026: fails the pipeline on CRITICAL/HIGH vulnerabilities with
+# an available fix. Rule 2 (green CI) is unaffected: the gate stays blocking.
 #
 # Dev dependencies are excluded by default (Trivy default behaviour);
 # use `--include-dev-deps` locally to reproduce the full scan.
@@ -15,6 +16,12 @@ on:
     branches: [main]
   push:
     branches: [main]
+
+# Cancel superseded runs on the same ref for pull requests; never cancel
+# runs on main so merge-gate scan results are preserved.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   sca:
@@ -32,17 +39,22 @@ jobs:
       # Excludes .forge tooling and scans production dependency lockfiles outside it.
       # scan-type: fs = filesystem scan (lock files, not container images)
       # scanners: vuln = vulnerability scanning only (not misconfig, secret)
-      # exit-code: 1 = fail the pipeline if ANY vulnerability is found
+      # severity: CRITICAL,HIGH = gate fails only on actionable severities
+      # ignore-unfixed: true = CVEs without an available patch do not block merge
+      # exit-code: 1 = fail the pipeline on matching vulnerabilities
+      # Gate policy documented in ADR-026 (deliberate scoping of the Security
+      # section's zero-vulnerability target; Rule 2 — green CI — is unaffected).
       #
       # NOTE: `include-dev-deps` is NOT set. Trivy excludes dev dependencies
       # by default, so only production dependency issues are reported.
-      # This enforces "0 production vulnerabilities" as a merge gate.
       - name: Run Trivy SCA scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
           skip-dirs: .forge
           scanners: vuln
           format: table
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
           exit-code: 1

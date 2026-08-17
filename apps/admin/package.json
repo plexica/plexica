@@ -15,15 +15,15 @@
     "@hookform/resolvers": "^5.4.0",
     "@plexica/auth": "workspace:*",
     "@plexica/ui": "workspace:*",
-    "@tanstack/react-query": "latest",
+    "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-router": "^1.170.18",
-    "lucide-react": "latest",
+    "lucide-react": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.82.0",
     "react-intl": "^6.6.0",
     "zod": "^3.25.76",
-    "zustand": "latest"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
