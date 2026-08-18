@@ -15,6 +15,7 @@ import { getDevBackendForInstallation } from '../services/dev-backends.js';
 import { isPluginVisible } from '../services/visibility.service.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
 
 const listQuerySchema = z.object({
@@ -42,19 +43,17 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
 
       if (installations.length === 0) return [];
 
-      const pluginIds: string[] = Array.from(
-        new Set(installations.map((i: Record<string, unknown>) => i.pluginId as string))
-      );
+      const pluginIds: string[] = Array.from(new Set(installations.map((i) => i.pluginId)));
       const plugins = await withCoreDb((prisma) =>
         prisma.plugin.findMany({
           where: { id: { in: pluginIds } },
           select: { id: true, slug: true, name: true, version: true },
         })
       );
-      const pluginMap = new Map(plugins.map((p: Record<string, unknown>) => [p.id as string, p]));
+      const pluginMap = new Map(plugins.map((p) => [p.id, p]));
 
-      return installations.map((inst: Record<string, unknown>) => {
-        const plugin = pluginMap.get(inst.pluginId as string);
+      return installations.map((inst) => {
+        const plugin = pluginMap.get(inst.pluginId);
         return {
           ...inst,
           // Frontend PluginInstallation type uses `name`/`slug`; raw E2E
@@ -91,8 +90,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
       });
       const visible = await Promise.all(
         candidates.map(async (item) =>
-          // Plain TenantPrismaClient (no transaction); compatible at runtime.
-          (await isPluginVisible(db as never, item.id, workspaceId)) ? item : null
+          (await isPluginVisible(db, item.id, workspaceId)) ? item : null
         )
       );
       return visible.filter((item): item is NonNullable<typeof item> => item !== null);
@@ -147,13 +145,12 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
         return rows.map((row) => row.pluginId);
       }, request.tenantContext)
     );
-    const where: Record<string, unknown> = { status: 'published' };
+    const where: Prisma.PluginWhereInput = { status: 'published' };
     if (search) where.slug = { contains: search, mode: 'insensitive' };
     if (category) where.categories = { array_contains: [category] };
 
     return withCoreDb((prisma) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma as any).$transaction(async (tx: any) => {
+      prisma.$transaction(async (tx) => {
         const [data, total] = await Promise.all([
           tx.plugin.findMany({
             where,
@@ -164,7 +161,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
           tx.plugin.count({ where }),
         ]);
         return {
-          data: data.map((plugin: { id: string }) => ({
+          data: data.map((plugin) => ({
             ...plugin,
             isInstalled: installedIds.has(plugin.id),
             installCount: installedIds.has(plugin.id) ? 1 : 0,
@@ -188,7 +185,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
 
     if (!plugin || plugin.status !== 'published') throw new PluginNotFoundError(slug);
 
-    const manifest = manifestSchema.safeParse(plugin.manifest as unknown);
+    const manifest = manifestSchema.safeParse(plugin.manifest);
     return {
       ...plugin,
       actions: manifest.success ? (manifest.data.actions ?? []) : [],

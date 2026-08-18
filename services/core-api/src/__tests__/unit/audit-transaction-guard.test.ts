@@ -1,8 +1,11 @@
 // audit-transaction-guard.test.ts
 // Regression guard for the "audit write poisons the surrounding transaction"
-// bug (SQLSTATE 25P02). The constraint cannot be expressed in the type system
-// (see lib/tenant-database.ts for the feasibility evidence), so it is enforced
-// at runtime — and that enforcement is what this file locks down.
+// bug (SQLSTATE 25P02). Since ADR-028 the constraint is ALSO expressed in the
+// type system (writeAuditLog/updateMaterializedPaths take TenantPrismaClient,
+// which excludes transaction clients); the runtime guard remains as defence
+// in depth for untyped call paths — which is what this file locks down, by
+// deliberately passing plain doubles across the type boundary (hence the
+// `as unknown as TenantPrismaClient` casts at the guarded call sites).
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +14,7 @@ import { assertNonTransactionalDb, isTransactionClient } from '../../lib/tenant-
 import { updateMaterializedPaths } from '../../modules/workspace/repository.js';
 import { writeAuditLog } from '../../modules/audit-log/writer.js';
 
+import type { TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { AuditLogEntry } from '../../modules/audit-log/types.js';
 
 const ENTRY: AuditLogEntry = {
@@ -102,14 +106,18 @@ describe('assertNonTransactionalDb', () => {
 describe('writeAuditLog transaction safety', () => {
   it('refuses a transaction client instead of poisoning the transaction', async () => {
     const tx = makeTxClient();
-    await expect(writeAuditLog(tx, ENTRY)).rejects.toThrow(/writeAuditLog received an interactive/);
+    await expect(writeAuditLog(tx as unknown as TenantPrismaClient, ENTRY)).rejects.toThrow(
+      /writeAuditLog received an interactive/
+    );
     // The INSERT must not be attempted at all — issuing it is what aborts the tx.
     expect((tx['auditLog'] as { create: ReturnType<typeof vi.fn> }).create).not.toHaveBeenCalled();
   });
 
   it('writes normally on a non-transactional client', async () => {
     const db = makePlainClient();
-    await expect(writeAuditLog(db, ENTRY)).resolves.toBeUndefined();
+    await expect(
+      writeAuditLog(db as unknown as TenantPrismaClient, ENTRY)
+    ).resolves.toBeUndefined();
     expect((db['auditLog'] as { create: ReturnType<typeof vi.fn> }).create).toHaveBeenCalledOnce();
   });
 
@@ -119,20 +127,24 @@ describe('writeAuditLog transaction safety', () => {
       new Error('db down')
     );
     // Audit logging is observational here: it must not fail the business action.
-    await expect(writeAuditLog(db, ENTRY)).resolves.toBeUndefined();
+    await expect(
+      writeAuditLog(db as unknown as TenantPrismaClient, ENTRY)
+    ).resolves.toBeUndefined();
   });
 });
 
 describe('updateMaterializedPaths transaction safety', () => {
   it('refuses a transaction client rather than throwing an opaque TypeError', async () => {
-    await expect(updateMaterializedPaths(makeTxClient(), [])).rejects.toThrow(
-      /updateMaterializedPaths received an interactive/
-    );
+    await expect(
+      updateMaterializedPaths(makeTxClient() as unknown as TenantPrismaClient, [])
+    ).rejects.toThrow(/updateMaterializedPaths received an interactive/);
   });
 
   it('opens its own batch transaction on a non-transactional client', async () => {
     const db = makePlainClient();
-    await updateMaterializedPaths(db, [{ id: 'ws-1', materializedPath: '/a/b' }]);
+    await updateMaterializedPaths(db as unknown as TenantPrismaClient, [
+      { id: 'ws-1', materializedPath: '/a/b' },
+    ]);
     expect(db['$transaction']).toHaveBeenCalledOnce();
   });
 });

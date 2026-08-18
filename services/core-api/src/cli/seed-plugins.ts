@@ -14,6 +14,8 @@ import { z } from 'zod';
 import { prisma, disconnectDatabase } from '../lib/database.js';
 import { manifestSchema } from '../modules/plugin/schema/manifest.js';
 
+import type { Prisma } from '@prisma/client';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Monorepo root: services/core-api/src/cli -> ../../../../
 const MONOREPO_ROOT = path.resolve(__dirname, '../../../../');
@@ -95,7 +97,9 @@ async function upsertPlugin(
       author: m.author,
       iconUrl,
       categories: m.categories,
-      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      // Raw manifest JSON (Zod-validated above) → Prisma JSON column input.
+      // Same idiom as registry.service.ts.
+      manifest: manifest as unknown as Prisma.InputJsonValue,
       status: 'published',
       // reviewStatus is intentionally NOT set on update by default — re-running
       // the seed must NOT overwrite any review decision an admin has made.
@@ -115,7 +119,8 @@ async function upsertPlugin(
       author: m.author,
       iconUrl,
       categories: m.categories,
-      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      // Raw manifest JSON (Zod-validated above) → Prisma JSON column input.
+      manifest: manifest as unknown as Prisma.InputJsonValue,
       status: 'published',
       reviewStatus,
       registryUrl,
@@ -129,11 +134,11 @@ async function upsertPlugin(
   // Record the version snapshot (idempotent on [pluginId, version]).
   await prisma.pluginVersion.upsert({
     where: { pluginId_version: { pluginId: plugin.id, version: m.version } },
-    update: { manifest: manifest as any }, // eslint-disable-line @typescript-eslint/no-explicit-any
+    update: { manifest: manifest as unknown as Prisma.InputJsonValue },
     create: {
       pluginId: plugin.id,
       version: m.version,
-      manifest: manifest as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      manifest: manifest as unknown as Prisma.InputJsonValue,
     },
   });
 

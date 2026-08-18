@@ -10,6 +10,7 @@ import { findTenantUsers, findUserWorkspaces } from './repository.js';
 
 import type { PaginatedResult } from '../../lib/pagination.js';
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantDbClient } from '../../lib/tenant-database.js';
 import type {
   TenantUserDto,
   UserWorkspacesDto,
@@ -29,7 +30,7 @@ export { removeUser } from './service-remove.js';
 // <Pagination> from `totalPages`, which a hand-built { data, total, page,
 // limit } object silently omitted — leaving page 2+ unreachable from the UI.
 export async function listTenantUsers(
-  db: unknown,
+  db: TenantDbClient,
   filters: UserListFilters,
   _tenantContext: TenantContext
 ): Promise<PaginatedResult<TenantUserDto>> {
@@ -44,7 +45,7 @@ export async function listTenantUsers(
 // ---------------------------------------------------------------------------
 
 export async function getUserWorkspaces(
-  db: unknown,
+  db: TenantDbClient,
   userId: string,
   _tenantContext: TenantContext
 ): Promise<UserWorkspacesDto> {

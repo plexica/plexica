@@ -4,16 +4,18 @@
 //
 // Design note: TenantContext (from tenant-context-store) has no `.db` field.
 // All tenant DB access goes through withTenantDb(), which does NOT open a
-// transaction: it constructs a dedicated TenantPrismaClient bound to the tenant
-// schema via the `?schema=<schemaName>` connection URL parameter, runs the
-// callback, then `$disconnect()`s it (see lib/tenant-database.ts).
+// transaction: it hands the callback the CACHED TenantPrismaClient bound to
+// the tenant schema via the `?schema=<schemaName>` connection URL parameter
+// (ADR-027 — the LRU cache in tenant-db-cache.ts owns the client lifecycle;
+// nothing disconnects on the request path).
 // Consequences for this file:
 //   - the callback argument is a plain client (`db`), not a transaction client;
 //     nothing here is atomic, and no `SET LOCAL search_path` is involved;
-//   - every client is a real PostgreSQL connection, so the callback must do all
-//     tenant DB work in ONE withTenantDb() call — evaluate() and logDecision()
-//     share the same client;
-//   - anything not awaited inside the callback races against $disconnect().
+//   - the callback must do all tenant DB work in ONE withTenantDb() call —
+//     evaluate() and logDecision() share the same cached client;
+//   - anything not awaited inside the callback runs after the cache pin is
+//     released, when an LRU/TTL eviction could $disconnect() the client
+//     mid-query (tenant-db-cache-eviction.ts).
 
 import { redis } from '../lib/redis.js';
 import { logger } from '../lib/logger.js';
@@ -28,8 +30,8 @@ import type { TenantContext } from '../lib/tenant-context-store.js';
 import type { AbacContext, AbacDecision } from '../modules/abac/types.js';
 
 /**
- * Persists a decision that was reached without any tenant DB access, opening a
- * tenant client ONLY when the sample is kept. Never throws.
+ * Persists a decision that was reached without any tenant DB access, acquiring
+ * the cached tenant client (ADR-027) ONLY when the sample is kept. Never throws.
  */
 async function logSampledDecision(
   ctx: AbacContext,
@@ -95,24 +97,26 @@ export function requireAbac(action: string) {
 
     // Tenant-admin fast path. evaluate() short-circuits on isTenantAdmin as its
     // very first statement (engine.ts §1) without issuing a single query, so
-    // routing this case through withTenantDb() would construct a
-    // TenantPrismaClient, open a real PostgreSQL connection and disconnect it
-    // for nothing. The bypass is therefore hoisted above withTenantDb(); the
-    // decision is still recorded, and only a kept sample pays for a connection.
+    // routing this case through withTenantDb() would only pin a cache entry —
+    // since ADR-027 the client is reused from the LRU cache, not constructed
+    // and disconnected per call (and Prisma connects lazily, so a callback
+    // that issues no query never opens a connection). The bypass is still
+    // hoisted above withTenantDb() to skip even the cache pin; the decision
+    // is still recorded, and only a kept sample touches the client cache.
     if (isTenantAdmin) {
       await logSampledDecision(ctx, tenantAdminBypassDecision(action), tenantCtx);
       return;
     }
 
-    // Single withTenantDb() call: one tenant Prisma client (= one PostgreSQL
-    // connection) per ABAC-gated request, shared by evaluate() and the decision
-    // log. NOTE: the sampling gate below runs INSIDE the callback, i.e. after
-    // evaluate() has already created and connected the client — it saves the
-    // decision-log INSERT and nothing else. Only the tenant-admin fast path
-    // above can actually avoid acquiring a connection.
+    // Single withTenantDb() call: evaluate() and the decision log share the
+    // tenant's cached Prisma client (ADR-027). NOTE: the sampling gate below
+    // runs INSIDE the callback, i.e. after evaluate() has already run its
+    // queries on the client — it saves the decision-log INSERT and nothing
+    // else. Only the tenant-admin fast path above avoids the cache entirely.
     //
     // The decision log must never influence the authorization outcome: it is
-    // awaited (the client dies when the callback returns) but any failure is
+    // awaited (once the callback returns the cache pin is released and an
+    // eviction could disconnect the client mid-INSERT) but any failure is
     // logged and swallowed, and `d` is returned regardless.
     const decision = await withTenantDb(async (db) => {
       const d = await evaluate(ctx, db, redis);

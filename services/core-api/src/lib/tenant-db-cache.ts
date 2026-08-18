@@ -2,40 +2,30 @@
 // Bounded LRU cache of TenantPrismaClient instances, one per tenant schema (ADR-027).
 //
 // WHY THE CACHE IS SAFE
-// Each cached client is constructed with `?schema=<schemaName>` in its
-// connection URL: every connection in its pool derives its search_path from
-// that URL when it is opened. A cached client is therefore bound to exactly
-// ONE tenant schema for its entire lifetime — there is no pool shared across
-// schemas and no mutable search_path, so cached clients cannot leak data
-// across tenants. (Regression guard: cross-tenant-isolation.test.ts.)
+// Each cached client is built with `?schema=<schemaName>` in its connection URL,
+// so its pool is bound to ONE schema for its entire lifetime — no shared
+// search_path, no cross-tenant leak. (Regression guard: cross-tenant-isolation.)
 //
 // LIFECYCLE
-// - Read path: withTenantDb() (tenant-database.ts) via getOrCreateTenantClient().
-//   It NEVER disconnects on the request path — the cache owns the lifecycle.
-// - Eviction: least-recently-used when the cap (TENANT_DB_CACHE_MAX) is
-//   exceeded, and idle entries older than the TTL (TENANT_DB_CACHE_TTL_MS).
-//   Evicted entries are $disconnect()ed. TTL is enforced on every access and
-//   by a periodic unref'd sweeper (idle pools are released even without
-//   traffic). Only IDLE entries expire: config enforces ttl >= 1000 ms, far
-//   beyond the milliseconds an in-flight request holds a client reference.
-// - Deprovisioning: invalidateTenantDbClient() is called by the deletion saga
-//   (deletion-step-schema-drop.ts) when a schema is dropped.
-// - Shutdown: disconnectAllTenantDbClients() from stopBackgroundServices(),
-//   BEFORE the core pool closes.
+// - Read path: withTenantDb() via getOrCreateTenantClient(). The cache owns the
+//   lifecycle; nothing disconnects on the request path.
+// - Eviction: tenant-db-cache-eviction.ts (LRU on cap, TTL on idle).
+// - Deprovisioning: invalidateTenantDbClient() on schema drop.
+// - Shutdown: disconnectAllTenantDbClients() from stopBackgroundServices().
 
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+// ADR-028: the generated tenant client is always present after `pnpm install`.
 import { PrismaClient as TenantPrismaClient } from '../../prisma/generated/tenant-client/index.js';
 
 import { config } from './config.js';
 import { logger } from './logger.js';
+import { disconnectQuietly, evictExpiredEntries, evictLruEntry } from './tenant-db-cache-eviction.js';
+
+import type { CacheEntryLike } from './tenant-db-cache-eviction.js';
 
 type CachedTenantClient = InstanceType<typeof TenantPrismaClient>;
 
-interface CacheEntry {
+interface CacheEntry extends CacheEntryLike {
   client: CachedTenantClient;
-  lastUsed: number;
-  /** Number of withTenantDb callbacks currently executing on this client. */
-  inFlight: number;
 }
 
 // Map insertion order doubles as LRU order: entries are re-inserted at the
@@ -58,54 +48,13 @@ function buildTenantClient(schemaName: string): CachedTenantClient {
   return new TenantPrismaClient({ datasources: { db: { url: tenantUrl } } });
 }
 
-async function disconnectQuietly(
-  schemaName: string,
-  client: CachedTenantClient,
-  reason: string
-): Promise<void> {
-  try {
-    await client.$disconnect();
-  } catch (err) {
-    logger.warn({ err, schemaName, reason }, 'Tenant DB client disconnect failed');
-  }
-}
-
 function sweepIntervalMs(): number {
   return Math.min(Math.max(Math.floor(ttlMs / 2), MIN_SWEEP_INTERVAL_MS), MAX_SWEEP_INTERVAL_MS);
 }
 
-function evictEntry(schemaName: string, entry: CacheEntry, reason: string): void {
-  // Never evict a client with a callback in flight: $disconnect() would reject
-  // a query running right now (Prisma 6 lazy-reconnects on the NEXT query, so
-  // the failure would be a transient 500 under burst).
-  if (entry.inFlight > 0) return;
-  clients.delete(schemaName);
-  // Fire-and-forget: the request path is synchronous and cannot await.
-  void disconnectQuietly(schemaName, entry.client, reason);
-  logger.debug({ schemaName, reason, cacheSize: clients.size }, 'Tenant DB client evicted');
-}
-
-function evictExpiredEntries(now: number): void {
-  for (const [schemaName, entry] of clients) {
-    if (now - entry.lastUsed > ttlMs) evictEntry(schemaName, entry, 'ttl-expired');
-  }
-}
-
-function evictLruEntry(): void {
-  // Walk past entries with in-flight callbacks — the coldest IDLE entry is the
-  // one to evict. If every entry is busy (pathological burst), evict nothing:
-  // the cache temporarily exceeds the cap rather than killing live queries.
-  for (const [schemaName, entry] of clients) {
-    if (entry.inFlight === 0) {
-      evictEntry(schemaName, entry, 'lru-cap');
-      return;
-    }
-  }
-}
-
 function ensureSweeper(): void {
   if (sweeper !== undefined) return;
-  sweeper = setInterval(() => evictExpiredEntries(Date.now()), sweepIntervalMs());
+  sweeper = setInterval(() => evictExpiredEntries(clients, ttlMs, Date.now()), sweepIntervalMs());
   // Never keep the process alive just to reap idle clients.
   sweeper.unref();
 }
@@ -119,7 +68,7 @@ function ensureSweeper(): void {
  */
 export function getOrCreateTenantClient(schemaName: string): CachedTenantClient {
   const now = Date.now();
-  evictExpiredEntries(now);
+  evictExpiredEntries(clients, ttlMs, now);
   ensureSweeper();
 
   const existing = clients.get(schemaName);
@@ -134,7 +83,7 @@ export function getOrCreateTenantClient(schemaName: string): CachedTenantClient 
 
   while (clients.size >= maxEntries) {
     const sizeBefore = clients.size;
-    evictLruEntry();
+    evictLruEntry(clients);
     // Every entry busy: do not spin forever on a pathological burst.
     if (clients.size === sizeBefore) break;
   }

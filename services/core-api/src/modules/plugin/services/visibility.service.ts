@@ -5,8 +5,7 @@
 import { logger } from '../../../lib/logger.js';
 import { redis } from '../../../lib/redis.js';
 
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
-import type { Prisma } from '../../../../prisma/generated/tenant-client/index.js';
+import type { TenantDbClient } from '../../../lib/tenant-database.js';
 
 const CACHE_PREFIX = 'plugin:vis:';
 const CACHE_TTL_SECONDS = 60; // 60s TTL — balances freshness with performance
@@ -65,13 +64,13 @@ async function invalidateCache(installId?: string): Promise<void> {
 /**
  * Returns whether a plugin is visible in a workspace.
  * Resolution: Redis cache → workspace override → tenant default → enabled.
+ *
+ * `db` is a tenant-schema Prisma client (TenantDbClient, ADR-028): either the
+ * plain client handed out by withTenantDb() (no transaction, no atomicity) or
+ * an interactive $transaction client.
  */
-// `db` is a tenant-schema Prisma client: either the plain client handed out by
-// withTenantDb() (no transaction, no atomicity) or an interactive $transaction
-// client. Prisma.TransactionClient is used only as the structural type that both
-// satisfy — it does NOT imply the caller opened a transaction.
 export async function isPluginVisible(
-  db: Prisma.TransactionClient,
+  db: TenantDbClient,
   installId: string,
   workspaceId: string
 ): Promise<boolean> {
@@ -116,7 +115,7 @@ export interface PluginVisibilityEntry {
 }
 
 export async function getVisibilityEntries(
-  db: Prisma.TransactionClient,
+  db: TenantDbClient,
   installId: string
 ): Promise<PluginVisibilityEntry[]> {
   const installation = await db.pluginInstallation.findUnique({ where: { id: installId } });
@@ -148,7 +147,7 @@ export async function getVisibilityEntries(
  * Invalidates cache so subsequent reads get fresh data.
  */
 export async function setWorkspaceVisibility(
-  tx: Prisma.TransactionClient,
+  tx: TenantDbClient,
   installId: string,
   workspaceId: string,
   isEnabled: boolean,

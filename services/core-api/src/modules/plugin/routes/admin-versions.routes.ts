@@ -23,8 +23,7 @@ export async function adminVersionsRoutes(fastify: FastifyInstance): Promise<voi
 
       // Single withCoreDb call — N+1 prevention
       return withCoreDb((prisma) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (prisma as any).$transaction(async (tx: any) => {
+        prisma.$transaction(async (tx) => {
           const plugin = await findPluginBySlug(tx, slug);
           if (!plugin) throw new PluginNotFoundError(slug);
           return listPluginVersions(tx, plugin.id);

@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-07-31 (CI verification session; integration suite 275/275)
+**Last Updated**: 2026-08-18 (ADR-028 registered; TD-003 resolved — type-erasure casts removed from the tenant/core data paths)
 
 ---
 
@@ -31,6 +31,7 @@ Foundational and current ADR lifecycle states:
 | ADR-022 | Super Admin Infrastructure and Data Model                     | Accepted | July 2026  |
 | ADR-023 | Admin App PKCE Authentication Migration                      | Accepted | July 2026  |
 | ADR-024 | Plugin Installation Service Credentials                      | Accepted | 2026-07-23 |
+| ADR-028 | Automatic Prisma Client Generation Without a Database        | Accepted | 2026-08-11 |
 
 ---
 
@@ -65,7 +66,7 @@ Foundational and current ADR lifecycle states:
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------- | ------------------------- |
 | TD-001     | `ErrorFallback` component has no error-reporting integration (Sentry or equivalent). Errors caught by React error boundaries are silently discarded — no stack trace is forwarded to an error tracking service. The `_error` prop is intentionally not displayed to users (avoids leaking implementation details) but must be forwarded to error tracking before production.           | All frontend exceptions invisible in production; regression detection blind.       | Medium   | Pre-production            |
 | ~~TD-002~~ | ~~`POST /api/admin/tenants` has no rate limiting.~~ **Resolved**: ADR-012 accepted; implementation tracked as a follow-up task.                                                                                                                                                                                                                                                        | —                                                                                  | —        | **Resolved** (April 2026) |
-| TD-003     | `as any` sprawl throughout backend modules (`tenantDb as any`, DB model casts). Type-erased by design pending `prisma generate` with tenant schema client. Tracked to ensure the pattern is replaced once Prisma generates proper types for the tenant schema client. Every intentional `as any` site is tagged with `// eslint-disable-next-line @typescript-eslint/no-explicit-any`. | Type safety gaps may hide contract mismatches between service layer and DB schema. | Low      | Post Prisma generate      |
+| ~~TD-003~~ | ~~`as any` sprawl throughout backend modules (`tenantDb as any`, DB model casts). Type-erased by design pending `prisma generate` with tenant schema client.~~ **Resolved**: ADR-028 accepted — the `prepare` script makes the generated tenant client always present after `pnpm install` (no database required), the `@ts-ignore`/`as any`/whole-row `as unknown as` casts were replaced by typed mappers and narrowed signatures, and the redundant CI `db:generate` step was removed so the prepare mechanism is not masked. Residual casts are limited to JSON-column narrowing at the domain boundary (e.g. `manifest`/`categories`, `notificationPrefs`) — intentional and documented at each site. | — | — | **Resolved** (2026-08-18) |
 
 ---
 

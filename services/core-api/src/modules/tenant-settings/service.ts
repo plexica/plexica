@@ -11,6 +11,7 @@ import { writeAuditLog } from '../audit-log/writer.js';
 import { findTenantSettings, updateTenantDisplayName } from './repository.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantPrismaClient } from '../../lib/tenant-database.js';
 import type {
   AuthConfigDto,
   TenantSettingsDto,
@@ -26,8 +27,9 @@ export async function getSettings(tenantContext: TenantContext): Promise<TenantS
   return findTenantSettings(tenantContext.tenantId);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function updateSettings(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   actorId: string,
   tenantContext: TenantContext,
   input: UpdateSettingsInput
@@ -60,8 +62,9 @@ export async function getAuthConfig(tenantContext: TenantContext): Promise<AuthC
   }
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function updateAuthConfig(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   actorId: string,
   tenantContext: TenantContext,
   input: UpdateAuthConfigInput

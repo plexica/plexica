@@ -22,7 +22,6 @@ import { installPluginRuntime } from '../../services/install-runtime.service.js'
 import { manifestSchema } from '../../schema/manifest.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { PrismaClient } from '@prisma/client';
 import type { TenantPrismaClient } from '../../../../lib/tenant-database.js';
 
 const IMAGE_NAME_REGEX = /^[a-z0-9][a-z0-9._/-]{0,126}[a-z0-9]$/;
@@ -42,9 +41,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       const userId = request.user?.keycloakUserId;
       if (!userId) throw new ValidationError('User identity required');
 
-      const plugin = (await withCoreDb(async (prisma: PrismaClient) =>
-        prisma.plugin.findUnique({ where: { slug } })
-      )) as Record<string, unknown> | null;
+      const plugin = await withCoreDb((prisma) => prisma.plugin.findUnique({ where: { slug } }));
 
       if (!plugin) throw new PluginNotFoundError(slug);
       if (plugin.status !== 'published')
@@ -71,9 +68,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
 
       const install = await createInstallationRecord({
         context: ctx,
-        pluginId: plugin.id as string,
+        pluginId: plugin.id,
         pluginSlug: slug,
-        pluginVersion: plugin.version as string,
+        pluginVersion: plugin.version,
         hostingType,
         userId,
       });
@@ -105,14 +102,13 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       // tenant schema only for the duration of the migration loop.
       await runMigrationSecurityPhase(install.id, ctx, async () => {
         await withTenantDb(async (db) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return (db as any).$transaction(async (tx: any) => {
+          return db.$transaction(async (tx) => {
             await runPluginMigrations({
               tx,
               manifest,
               role,
               installId: install.id,
-              pluginId: plugin.id as string,
+              pluginId: plugin.id,
             });
           });
         }, ctx);
@@ -130,9 +126,9 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
       const degraded = await installPluginRuntime({
         context: ctx,
         installId: install.id,
-        pluginId: plugin.id as string,
+        pluginId: plugin.id,
         pluginSlug: slug,
-        pluginVersion: plugin.version as string,
+        pluginVersion: plugin.version,
         hostingType,
         imageRef,
         manifest,
@@ -154,7 +150,7 @@ export async function installRoutes(fastify: FastifyInstance): Promise<void> {
                 type: 'plexica.plugin.installed',
                 tenantId: ctx.tenantId,
                 producer: { kind: 'core', id: 'core' },
-                payload: { installId: install.id, pluginId: plugin.id as string, slug },
+                payload: { installId: install.id, pluginId: plugin.id, slug },
               })
             );
           }),

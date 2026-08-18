@@ -29,9 +29,10 @@ import type {
   UpdateWorkspaceInput,
 } from './types.js';
 import type { PaginatedResult } from '../../lib/pagination.js';
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 
 export async function listWorkspaces(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   userId: string,
   isTenantAdmin: boolean,
   filters: {
@@ -71,7 +72,7 @@ export async function listWorkspaces(
  * persists it on a non-transactional client after COMMIT.
  */
 export async function createWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   userId: string,
   input: CreateWorkspaceInput,
   tenantId: string
@@ -99,7 +100,7 @@ export async function createWorkspaceService(
     await seedTemplateChildren(tenantDb, input.templateId, created.id, path, userId);
   }
   await enqueueEvent(
-    tenantDb as Parameters<typeof enqueueEvent>[0],
+    tenantDb,
     'plexica.workspace.created',
     buildDomainEvent({
       type: 'plexica.workspace.created',
@@ -115,7 +116,7 @@ export async function createWorkspaceService(
 }
 
 export async function getWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceDetailDto> {
@@ -143,8 +144,9 @@ export async function getWorkspaceService(
   };
 }
 
+// TenantPrismaClient (non-transactional): this service writes the audit log.
 export async function updateWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   input: UpdateWorkspaceInput,

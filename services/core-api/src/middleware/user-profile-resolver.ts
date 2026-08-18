@@ -78,9 +78,6 @@ export async function userProfileResolver(
   const keycloakUserId = request.user.id;
 
   const profile = await withTenantDb(async (db) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const client = db as any;
-
     // Upsert to avoid TOCTOU race: two concurrent requests for a new user
     // both attempt findUnique → null → create, and the second fails with a
     // unique constraint violation. Upsert is atomic at the DB level.
@@ -89,7 +86,7 @@ export async function userProfileResolver(
     // soft-deleted one, which is exactly why deletedAt/status are selected and
     // asserted below instead of being assumed clean.
     const newUserId = crypto.randomUUID();
-    const row = (await client.userProfile.upsert({
+    const row = await db.userProfile.upsert({
       where: { keycloakUserId },
       update: {},
       create: {
@@ -103,7 +100,7 @@ export async function userProfileResolver(
         status: 'active',
       },
       select: { userId: true, status: true, deletedAt: true },
-    })) as ResolvedProfile;
+    });
 
     // Log only on first provision (userId matches the one we generated)
     if (row.userId === newUserId) {

@@ -1,8 +1,9 @@
 // repository.ts
 // Data access layer for the workspace-member module.
-// Uses type-erased Prisma client (db as any) — tenant schema.
+// Tenant-schema Prisma client (TenantDbClient, ADR-028).
 // Implements: WS-003 (Workspace Member Management)
 
+import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
 import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -33,45 +34,42 @@ function toDto(row: {
 // ---------------------------------------------------------------------------
 
 export async function findMembers(
-  db: unknown,
+  db: TenantDbClient,
   workspaceId: string,
   filters: MemberListFilters
 ): Promise<{ data: WorkspaceMemberDto[]; total: number }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const repo = (db as any).workspaceMember;
   const page = filters.page ?? 1;
   const limit = filters.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  const where: Record<string, unknown> = { workspaceId };
+  const where: TenantPrisma.WorkspaceMemberWhereInput = { workspaceId };
 
   if (filters.search) {
-    where['user'] = {
+    where.user = {
       displayName: { contains: filters.search, mode: 'insensitive' },
     };
   }
 
   const [rows, total] = await Promise.all([
-    repo.findMany({
+    db.workspaceMember.findMany({
       where,
       include: { user: { select: { displayName: true, avatarPath: true } } },
       orderBy: { createdAt: 'asc' },
       skip,
       take: limit,
     }),
-    repo.count({ where }),
+    db.workspaceMember.count({ where }),
   ]);
 
-  return { data: (rows as Parameters<typeof toDto>[0][]).map(toDto), total };
+  return { data: rows.map(toDto), total };
 }
 
 export async function findMember(
-  db: unknown,
+  db: TenantDbClient,
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceMemberDto | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (db as any).workspaceMember.findFirst({
+  const row = await db.workspaceMember.findFirst({
     where: { workspaceId, userId },
     include: { user: { select: { displayName: true, avatarPath: true } } },
   });
@@ -79,13 +77,12 @@ export async function findMember(
 }
 
 export async function addMember(
-  db: unknown,
+  db: TenantDbClient,
   workspaceId: string,
   userId: string,
   role: WorkspaceRole
 ): Promise<WorkspaceMemberDto> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (db as any).workspaceMember.create({
+  const row = await db.workspaceMember.create({
     data: { workspaceId, userId, role },
     include: { user: { select: { displayName: true, avatarPath: true } } },
   });
@@ -93,25 +90,23 @@ export async function addMember(
 }
 
 export async function removeMember(
-  db: unknown,
+  db: TenantDbClient,
   workspaceId: string,
   userId: string
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (db as any).workspaceMember.deleteMany({
+  await db.workspaceMember.deleteMany({
     where: { workspaceId, userId },
   });
 }
 
 export async function changeMemberRole(
-  db: unknown,
+  db: TenantDbClient,
   workspaceId: string,
   userId: string,
   role: WorkspaceRole
 ): Promise<WorkspaceMemberDto> {
   // updateMany does not return records — use update on the unique constraint
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (db as any).workspaceMember.update({
+  const row = await db.workspaceMember.update({
     where: { workspaceId_userId: { workspaceId, userId } },
     data: { role },
     include: { user: { select: { displayName: true, avatarPath: true } } },

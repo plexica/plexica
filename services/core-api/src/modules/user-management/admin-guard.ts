@@ -53,6 +53,8 @@ import { ConflictError } from '../../lib/app-error.js';
 
 import { findActiveProfileKeycloakIds } from './repository.js';
 
+import type { TenantDbClient } from '../../lib/tenant-database.js';
+
 interface KeycloakRoleUser {
   id: string;
 }
@@ -98,7 +100,7 @@ export async function fetchTenantAdminKeycloakIds(realm: string): Promise<Set<st
  * or the plain outer client for the pre-transaction fast path.
  */
 export async function assertNotLastTenantAdmin(
-  db: unknown,
+  db: TenantDbClient,
   targetUserId: string,
   targetKeycloakUserId: string,
   adminKeycloakIds: Set<string> | null

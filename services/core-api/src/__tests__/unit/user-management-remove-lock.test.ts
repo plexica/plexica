@@ -116,7 +116,12 @@ describe('removeUser — TOCTOU advisory lock wiring', () => {
       return new Set([fakeProfile.keycloakUserId]);
     });
     mockAssertGuard.mockImplementation(
-      async (db) => void sequence.push(db === TX_CLIENT ? 'assert:tx' : 'assert:outer')
+      // TX_CLIENT is an untyped hoisted double — cast across the ADR-028
+      // tenant-client type boundary for the identity comparison.
+      async (db) =>
+        void sequence.push(
+          db === (TX_CLIENT as unknown as typeof db) ? 'assert:tx' : 'assert:outer'
+        )
     );
     mockLock.mockImplementation(async () => void sequence.push('lock'));
     mockRemoveAllMemberships.mockImplementation(async () => {

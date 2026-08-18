@@ -22,6 +22,7 @@ import {
 } from './repository.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { UpdateProfileInput, UserProfileDto } from './types.js';
 import type { MultipartFile } from '@fastify/multipart';
 
@@ -41,7 +42,7 @@ async function attachAvatarUrl(profile: UserProfileDto, slug: string): Promise<U
 // ---------------------------------------------------------------------------
 
 export async function getProfile(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   keycloakUserId: string,
   tenantContext: TenantContext
 ): Promise<UserProfileDto> {
@@ -64,8 +65,9 @@ export async function getProfile(
   return attachAvatarUrl(profile, tenantContext.slug);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function updateProfile(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   keycloakUserId: string,
   input: UpdateProfileInput,
   tenantContext: TenantContext
@@ -103,8 +105,9 @@ export async function updateProfile(
   return attachAvatarUrl(updated, tenantContext.slug);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function uploadAvatar(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   keycloakUserId: string,
   file: MultipartFile,
   tenantContext: TenantContext

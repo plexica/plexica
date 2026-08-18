@@ -17,7 +17,6 @@ import {
 import { updateVisibilityListSchema } from '../schema/api.js';
 
 import type { FastifyInstance } from 'fastify';
-import type { TenantPrismaClient } from '../../../lib/tenant-database.js';
 import type { AbacContext } from '../../../modules/abac/types.js';
 
 const installIdParamSchema = z.object({ installId: z.string().uuid() });
@@ -30,8 +29,8 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
       const { installId } = installIdParamSchema.parse(request.params);
       const ctx = request.tenantContext;
 
-      return withTenantDb(async (db: TenantPrismaClient) => {
-        return getVisibilityEntries(db as never, installId);
+      return withTenantDb(async (db) => {
+        return getVisibilityEntries(db, installId);
       }, ctx);
     }
   );
@@ -76,13 +75,12 @@ export async function visibilityRoutes(fastify: FastifyInstance): Promise<void> 
         }
       }, ctx);
 
-      const results = await withTenantDb(async (db: TenantPrismaClient) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (db as any).$transaction(async (innerTx: TenantPrismaClient) => {
+      const results = await withTenantDb(async (db) => {
+        return db.$transaction(async (innerTx) => {
           for (const { workspaceId, isEnabled } of updates) {
             await setWorkspaceVisibility(innerTx, installId, workspaceId, isEnabled, userId);
           }
-          return getVisibilityEntries(innerTx as never, installId);
+          return getVisibilityEntries(innerTx, installId);
         });
       }, ctx);
 

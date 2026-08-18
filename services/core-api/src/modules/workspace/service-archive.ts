@@ -34,11 +34,12 @@ import { MAX_DEPTH, pathDepth } from './hierarchy.js';
 
 import type { Redis } from 'ioredis';
 import type { ArchiveResult, RestoreResult } from './types.js';
+import type { TenantPrismaClient } from '../../lib/tenant-database.js';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function archiveWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   actorId: string,
   _tenantSlug: string,
@@ -70,7 +71,7 @@ export async function archiveWorkspaceService(
 }
 
 export async function restoreWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   actorId: string,
   _tenantSlug: string,
@@ -108,7 +109,7 @@ export async function restoreWorkspaceService(
 }
 
 export async function reparentWorkspaceService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   newParentId: string | null,
   actorId: string,

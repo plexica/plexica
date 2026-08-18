@@ -4,7 +4,9 @@
 
 import { config } from '../../lib/config.js';
 import { logger } from '../../lib/logger.js';
+import { assertNonTransactionalDb } from '../../lib/tenant-database.js';
 
+import type { TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { AbacContext, AbacDecision } from './types.js';
 
 /**
@@ -35,29 +37,45 @@ export function shouldSampleDecision(): boolean {
  * Writes an ABAC decision to the tenant's abac_decision_log table.
  *
  * The returned promise settles only once the INSERT has completed, so callers
- * that own the tenant Prisma client (e.g. `withTenantDb`) must await it before
- * the callback returns — otherwise the write races against `$disconnect()`.
+ * must await it before their `withTenantDb` callback returns. Since ADR-027
+ * the client is NOT disconnected when the callback returns — `withTenantDb`
+ * only releases the cache pin (`releaseTenantClient`). But once the callback
+ * returns the cached entry is idle and becomes evictable: an LRU-cap or TTL
+ * eviction (tenant-db-cache-eviction.ts) `$disconnect()`s the client, which
+ * rejects any query still in flight. Awaiting keeps the INSERT inside the
+ * pin window, so it always completes on a live client.
  * Write failures are logged and swallowed so that a decision-log outage can
  * never fail the request being authorized.
+ *
+ * TRANSACTION SAFETY: like `writeAuditLog`, this writer swallows its own
+ * database errors, so it must run OUTSIDE an interactive `$transaction` —
+ * a failed INSERT would otherwise abort the surrounding transaction
+ * (SQLSTATE 25P02) and turn its COMMIT into a silent ROLLBACK. Enforced at
+ * compile time by the `TenantPrismaClient` parameter (a transaction client
+ * does not typecheck — lib/tenant-database.ts names the decision logger
+ * among the functions that must stay out of transactions) AND at runtime by
+ * `assertNonTransactionalDb`, kept as defence in depth for untyped call
+ * paths. Same contract as audit-log/writer.ts.
  *
  * Callers are responsible for the sampling gate — see shouldSampleDecision().
  * Implements: FR-015, NFR-08, DR-09, AC-07
  */
 export async function logDecision(
-  tenantDb: unknown, // tenant-schema PrismaClient, type-erased pending prisma generate
+  tenantDb: TenantPrismaClient,
   ctx: AbacContext,
   decision: AbacDecision
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = tenantDb as any;
+  // Compile-time: the TenantPrismaClient parameter already rejects transaction
+  // clients. Runtime: the guard stays as defence in depth for untyped callers.
+  assertNonTransactionalDb(tenantDb, 'logDecision');
 
   // resourceId is nullable (UUID | null) — pass null when workspaceId is empty
   // so routes without a workspace param don't fail with a UUID format error.
   const resourceId = ctx.workspaceId !== '' ? ctx.workspaceId : null;
 
-  // Awaited (so the caller's tenant client stays alive until the INSERT lands),
-  // but never rethrown.
-  await db.abacDecisionLog
+  // Awaited (so the INSERT lands while the caller's `withTenantDb` callback
+  // still pins the cached client — see JSDoc), but never rethrown.
+  await tenantDb.abacDecisionLog
     .create({
       data: {
         userId: ctx.userId,

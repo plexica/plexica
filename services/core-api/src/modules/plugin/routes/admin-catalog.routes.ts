@@ -66,8 +66,7 @@ export async function adminCatalogRoutes(fastify: FastifyInstance): Promise<void
 
       // Single withCoreDb call with Prisma transaction to prevent TOCTOU race
       const result: PluginRecord = await withCoreDb((prisma) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (prisma as any).$transaction(async (tx: any) => {
+        prisma.$transaction(async (tx) => {
           const validation = await validateManifest(tx, input.manifest);
           if (!validation.valid) {
             throw new ValidationError(validation.errors.join('; '));

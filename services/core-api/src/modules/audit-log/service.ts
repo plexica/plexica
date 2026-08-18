@@ -9,9 +9,10 @@ import { queryAuditLog } from './repository.js';
 
 import type { AuditLogDto, AuditLogFilters } from './types.js';
 import type { PaginatedResult } from '../../lib/pagination.js';
+import type { TenantDbClient } from '../../lib/tenant-database.js';
 
 export async function getAuditLog(
-  db: unknown,
+  db: TenantDbClient,
   filters: AuditLogFilters
 ): Promise<PaginatedResult<AuditLogDto>> {
   return queryAuditLog(db, filters);

@@ -22,6 +22,7 @@ import {
 } from './engine-helpers.js';
 
 import type { Redis } from 'ioredis';
+import type { TenantDbClient } from '../../lib/tenant-database.js';
 
 /**
  * The decision produced for a tenant admin. Exported so the ABAC middleware can
@@ -51,7 +52,7 @@ export function tenantAdminBypassDecision(action: string): AbacDecision {
  */
 export async function evaluate(
   ctx: AbacContext,
-  tenantDb: unknown, // tenant-schema PrismaClient, type-erased pending prisma generate
+  tenantDb: TenantDbClient,
   redis: Redis
 ): Promise<AbacDecision> {
   // 1. Tenant admin implicit bypass

@@ -16,6 +16,7 @@ import {
   changeMemberRole as repoChangeRole,
 } from './repository.js';
 
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -23,7 +24,7 @@ import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './typ
 // ---------------------------------------------------------------------------
 
 export async function listMembers(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   filters: MemberListFilters
 ): Promise<{ data: WorkspaceMemberDto[]; total: number }> {
@@ -32,10 +33,11 @@ export async function listMembers(
 
 // ---------------------------------------------------------------------------
 // addMember — also called by invitation service on accept
+// TenantPrismaClient (non-transactional): writes the audit log.
 // ---------------------------------------------------------------------------
 
 export async function addMember(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   role: WorkspaceRole,
@@ -68,8 +70,9 @@ export async function addMember(
 // removeMember
 // ---------------------------------------------------------------------------
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function removeMember(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   actorId: string,
@@ -105,8 +108,9 @@ export async function removeMember(
 // changeMemberRole
 // ---------------------------------------------------------------------------
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function changeMemberRole(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   workspaceId: string,
   userId: string,
   newRole: WorkspaceRole,

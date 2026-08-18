@@ -9,11 +9,13 @@ import { generateSlug } from '../../lib/slug.js';
 import { createWorkspace, slugExists } from './repository.js';
 import { findTemplateById } from './repository-templates.js';
 
+import type { TenantDbClient } from '../../lib/tenant-database.js';
+
 /**
  * Generates a slug for `baseName`, appending an incrementing numeric suffix
  * until it is unique inside the tenant schema.
  */
-export async function resolveSlug(tenantDb: unknown, baseName: string): Promise<string> {
+export async function resolveSlug(tenantDb: TenantDbClient, baseName: string): Promise<string> {
   let slug = generateSlug(baseName);
   let suffix = 2;
   while (await slugExists(tenantDb, slug)) {
@@ -28,7 +30,7 @@ export async function resolveSlug(tenantDb: unknown, baseName: string): Promise<
  * A missing template is a no-op — the parent workspace is still valid.
  */
 export async function seedTemplateChildren(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   templateId: string,
   parentId: string,
   parentPath: string,

@@ -3,15 +3,11 @@
 // Split out of repository.ts to keep both files under the 200-line limit
 // (constitution Rule 4). Read-side queries stay in repository.ts.
 //
-// Like repository.ts, every function accepts a type-erased tenant-schema Prisma
-// client (unknown → any): either the plain client from withTenantDb() or an
+// Like repository.ts, every function accepts a tenant-schema Prisma client
+// (TenantDbClient, ADR-028): either the plain client from withTenantDb() or an
 // interactive $transaction client — the caller decides.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toClient(db: unknown): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return db as any;
-}
+import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
 
 /**
  * Conditionally soft-deletes a profile.
@@ -25,13 +21,11 @@ function toClient(db: unknown): any {
  *
  * @returns the number of rows actually transitioned (0 or 1).
  */
-export async function softDeleteProfile(db: unknown, userId: string): Promise<number> {
-  const client = toClient(db);
-
-  const result = (await client.userProfile.updateMany({
+export async function softDeleteProfile(db: TenantDbClient, userId: string): Promise<number> {
+  const result = await db.userProfile.updateMany({
     where: { userId, deletedAt: null },
     data: { deletedAt: new Date(), status: 'disabled' },
-  })) as { count: number };
+  });
 
   return result.count;
 }
@@ -54,15 +48,20 @@ export async function softDeleteProfile(db: unknown, userId: string): Promise<nu
  *
  * MUST be called on an interactive $transaction client: on a plain
  * (autocommit) client the xact lock would be released at statement end and
- * protect nothing. The lock key is a constant prefix plus the tenant UUID —
+ * protect nothing. That contract is enforced at compile time — the parameter
+ * is typed `TenantPrisma.TransactionClient` (not the `TenantDbClient` union),
+ * so the plain cached client from withTenantDb() does not typecheck here —
+ * mirroring the inverse narrowing applied to writeAuditLog/logDecision
+ * (ADR-028). The lock key is a constant prefix plus the tenant UUID —
  * never user input — so $queryRawUnsafe is safe here. The subselect projects
  * a constant because pg_advisory_xact_lock returns `void`, which Prisma
  * cannot deserialize ("Failed to deserialize column of type 'void'").
  */
-export async function lockTenantAdminRemoval(db: unknown, tenantId: string): Promise<void> {
-  const client = toClient(db);
-
-  await client.$queryRawUnsafe(
+export async function lockTenantAdminRemoval(
+  db: TenantPrisma.TransactionClient,
+  tenantId: string
+): Promise<void> {
+  await db.$queryRawUnsafe(
     'SELECT 1 AS "locked" FROM (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) AS "_lock"',
     `user-management:last-admin:${tenantId}`
   );
@@ -78,15 +77,13 @@ export async function lockTenantAdminRemoval(db: unknown, tenantId: string): Pro
  * it just removed. Without that list a removed user keeps cached workspace
  * access until the ABAC cache TTL expires — see service-remove.ts.
  */
-export async function removeAllMemberships(db: unknown, userId: string): Promise<string[]> {
-  const client = toClient(db);
-
-  const rows = (await client.workspaceMember.findMany({
+export async function removeAllMemberships(db: TenantDbClient, userId: string): Promise<string[]> {
+  const rows = await db.workspaceMember.findMany({
     where: { userId },
     select: { workspaceId: true },
-  })) as Array<{ workspaceId: string }>;
+  });
 
-  await client.workspaceMember.deleteMany({ where: { userId } });
+  await db.workspaceMember.deleteMany({ where: { userId } });
 
   return rows.map((r) => r.workspaceId);
 }

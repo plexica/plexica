@@ -2,10 +2,7 @@
 // Seeds the default tenant_branding row for a newly provisioned tenant.
 // Idempotent — exits early if a branding row already exists.
 
-// TODO: Run 'pnpm db:generate' to generate tenant client types before this compiles.
- 
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
-import type { PrismaClient } from '../../../prisma/generated/tenant-client/index.js';
+import type { PrismaClient } from '../../../../prisma/generated/tenant-client/index.js';
 
 /**
  * Seeds the default branding row for the tenant.

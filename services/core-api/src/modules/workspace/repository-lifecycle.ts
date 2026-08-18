@@ -5,23 +5,19 @@
 
 import { assertNonTransactionalDb } from '../../lib/tenant-database.js';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function db(tenantDb: unknown): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return tenantDb as any;
-}
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 
 /** Accepts a plain client or a `$transaction` client. */
-export async function archiveWorkspaces(tenantDb: unknown, ids: string[]): Promise<void> {
-  await db(tenantDb).workspace.updateMany({
+export async function archiveWorkspaces(tenantDb: TenantDbClient, ids: string[]): Promise<void> {
+  await tenantDb.workspace.updateMany({
     where: { id: { in: ids } },
     data: { status: 'archived', archivedAt: new Date() },
   });
 }
 
 /** Accepts a plain client or a `$transaction` client. */
-export async function restoreWorkspaces(tenantDb: unknown, ids: string[]): Promise<void> {
-  await db(tenantDb).workspace.updateMany({
+export async function restoreWorkspaces(tenantDb: TenantDbClient, ids: string[]): Promise<void> {
+  await tenantDb.workspace.updateMany({
     where: { id: { in: ids } },
     data: { status: 'active', archivedAt: null },
   });
@@ -32,24 +28,24 @@ export async function restoreWorkspaces(tenantDb: unknown, ids: string[]): Promi
  *
  * REQUIRES A NON-TRANSACTIONAL CLIENT — unlike its neighbours above, which
  * accept either kind. This function opens its own batch transaction, and
- * Prisma's interactive-transaction clients do not expose `$transaction`, so
- * passing one in would fail with `db(tenantDb).$transaction is not a function`
- * at runtime. `tenantDb` is `unknown`, so the typechecker cannot catch that;
- * the guard below converts the opaque TypeError into an explicit diagnostic.
- * See lib/tenant-database.ts for why this is not enforced by the type system.
+ * Prisma's interactive-transaction clients do not expose `$transaction` —
+ * since ADR-028 the parameter type (TenantPrismaClient, not the
+ * TenantDbClient union) makes passing one a compile error. The runtime guard
+ * below is kept as defence in depth for untyped call paths (plain test
+ * doubles, JS callers).
  *
  * @param tenantDb - Non-transactional tenant-schema Prisma client.
  * @param updates  - Workspace id → new materialized path.
  */
 export async function updateMaterializedPaths(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   updates: Array<{ id: string; materializedPath: string }>
 ): Promise<void> {
   assertNonTransactionalDb(tenantDb, 'updateMaterializedPaths');
 
-  await db(tenantDb).$transaction(
+  await tenantDb.$transaction(
     updates.map((u) =>
-      db(tenantDb).workspace.update({
+      tenantDb.workspace.update({
         where: { id: u.id },
         data: { materializedPath: u.materializedPath },
       })

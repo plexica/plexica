@@ -12,6 +12,7 @@ import { writeAuditLog } from '../audit-log/writer.js';
 import { findBranding, upsertBranding, updateLogoPath } from './repository.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { TenantBrandingDto, UpdateBrandingInput, LogoFileBuffer } from './types.js';
 
 async function attachLogoUrl(
@@ -29,7 +30,7 @@ async function attachLogoUrl(
 // ---------------------------------------------------------------------------
 
 export async function getBranding(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   tenantContext: TenantContext
 ): Promise<TenantBrandingDto> {
   const branding = await findBranding(tenantDb, tenantContext.tenantId);
@@ -42,8 +43,9 @@ export async function getBranding(
   return attachLogoUrl(result, tenantContext.slug);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function updateBranding(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   actorId: string,
   tenantContext: TenantContext,
   input: UpdateBrandingInput,

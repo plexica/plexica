@@ -75,10 +75,16 @@ jobs:
           printf 'PLUGIN_CREDENTIAL_PEPPER=%s\n' "$(to_base64url)" >> "$GITHUB_ENV"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # ADR-028: `pnpm install` runs the core-api `prepare` script, which runs
+      # `db:generate` (it needs no database — prisma generate only reads the
+      # schema files). No explicit `db:generate` step here on purpose: one
+      # would mask the prepare mechanism — if it ever stopped working, CI
+      # would stay green while fresh clones broke. This check fails the build
+      # at the exact point a fresh clone would fail.
+      - name: Verify generated Prisma client exists
+        run: test -f services/core-api/prisma/generated/tenant-client/index.d.ts
       - name: Verify authored-file line gate
         run: pnpm test:line-gate && pnpm check:lines
-      - name: Generate Prisma client
-        run: pnpm --filter core-api db:generate
       - name: Build Keycloak theme JAR
         run: pnpm --filter @plexica/keycloak-theme build
 

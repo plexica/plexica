@@ -44,9 +44,9 @@ const mockGetMembership = vi.mocked(getMembership);
 const mockGetPluginOverride = vi.mocked(getPluginActionOverride);
 const mockGetPluginDefaultRole = vi.mocked(getPluginActionDefaultRole);
 
-// Dummy redis & tenantDb — never actually called thanks to mocks
+// Dummy redis & tenantDb — never called (mocked); cast crosses the ADR-028 tenant-client type boundary.
 const fakeRedis = {} as Parameters<typeof evaluate>[2];
-const fakeTenantDb = {};
+const fakeTenantDb = {} as unknown as Parameters<typeof evaluate>[1];
 
 function makeCtx(action: string, overrides: Partial<AbacContext> = {}): AbacContext {
   return {

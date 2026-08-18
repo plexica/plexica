@@ -21,6 +21,7 @@ import {
 } from './repository.js';
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { CreateInvitationInput, InvitationDto, ListInvitationsFilters } from './types.js';
 
 function expiryDate(): Date {
@@ -49,7 +50,7 @@ function buildInviteUrl(token: string): string {
 }
 
 async function assertNoActiveInvitation(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   email: string,
   workspaceId: string
 ): Promise<void> {
@@ -62,31 +63,30 @@ async function assertNoActiveInvitation(
 }
 
 async function assertNotAlreadyMember(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   email: string,
   workspaceId: string
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = tenantDb as any;
-  const profile = await db.userProfile.findFirst({
+  const profile = await tenantDb.userProfile.findFirst({
     where: { email },
     select: { userId: true },
   });
-  if (profile === null || profile === undefined) return;
+  if (profile === null) return;
 
-  const member = await db.workspaceMember.findUnique({
+  const member = await tenantDb.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: profile.userId } },
     select: { userId: true },
   });
-  if (member !== null && member !== undefined) {
+  if (member !== null) {
     throw new AlreadyExistsError(
       `User is already a member of this workspace (USER_ALREADY_IN_TENANT)`
     );
   }
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function createInvitationService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   input: CreateInvitationInput,
   actorId: string,
   tenantContext: TenantContext
@@ -119,8 +119,9 @@ export async function createInvitationService(
   return maskInvitation(invitation);
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function resendInvitationService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   invitationId: string,
   actorId: string,
   tenantContext: TenantContext
@@ -154,17 +155,16 @@ export async function resendInvitationService(
   return maskInvitation(updated);
 }
 
-async function getToken(tenantDb: unknown, id: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (tenantDb as any).invitation.findUnique({
+async function getToken(tenantDb: TenantDbClient, id: string): Promise<string> {
+  const row = await tenantDb.invitation.findUnique({
     where: { id },
     select: { token: true },
   });
-  return (row?.token as string) ?? '';
+  return row?.token ?? '';
 }
 
 export async function listInvitationsService(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   filters: ListInvitationsFilters
 ): Promise<{ data: InvitationDto[]; total: number }> {

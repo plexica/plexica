@@ -2,6 +2,8 @@
 // Template-related Prisma queries for the Workspace module.
 // Separated from repository.ts to respect the 200-line file limit.
 
+import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
+
 export interface WorkspaceTemplateRow {
   id: string;
   name: string;
@@ -14,29 +16,21 @@ export interface WorkspaceTemplateRow {
   updatedAt: Date;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function db(tenantDb: unknown): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return tenantDb as any;
-}
-
-export async function findTemplates(tenantDb: unknown): Promise<WorkspaceTemplateRow[]> {
-  const rows = await db(tenantDb).workspaceTemplate.findMany({
+export async function findTemplates(tenantDb: TenantDbClient): Promise<WorkspaceTemplateRow[]> {
+  return tenantDb.workspaceTemplate.findMany({
     orderBy: { name: 'asc' },
   });
-  return rows as WorkspaceTemplateRow[];
 }
 
 export async function findTemplateById(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   id: string
 ): Promise<WorkspaceTemplateRow | null> {
-  const row = await db(tenantDb).workspaceTemplate.findUnique({ where: { id } });
-  return row as WorkspaceTemplateRow | null;
+  return tenantDb.workspaceTemplate.findUnique({ where: { id } });
 }
 
 export async function createTemplate(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   data: {
     name: string;
     description?: string | null;
@@ -44,6 +38,7 @@ export async function createTemplate(
     createdBy: string;
   }
 ): Promise<WorkspaceTemplateRow> {
-  const row = await db(tenantDb).workspaceTemplate.create({ data });
-  return row as WorkspaceTemplateRow;
+  return tenantDb.workspaceTemplate.create({
+    data: { ...data, structure: data.structure as unknown as TenantPrisma.InputJsonValue },
+  });
 }

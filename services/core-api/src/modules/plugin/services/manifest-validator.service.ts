@@ -5,7 +5,7 @@ import { manifestSchema, type Manifest } from '../schema/manifest.js';
 
 import { findPluginBySlug } from './registry.service.js';
 
-import type { PrismaClient } from '@prisma/client';
+import type { CoreDbClient } from '../../../lib/database.js';
 
 export interface ValidationResult {
   valid: boolean;
@@ -28,7 +28,7 @@ const CORE_ACTION_PREFIXES = [
 ];
 
 export async function validateManifest(
-  prisma: PrismaClient,
+  prisma: CoreDbClient,
   raw: unknown,
   existingPluginId?: string
 ): Promise<ValidationResult> {

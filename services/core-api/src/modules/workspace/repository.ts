@@ -1,10 +1,12 @@
 // repository.ts
 // Workspace data access layer — Prisma queries scoped to the tenant schema.
-// All functions accept `db: unknown` and cast internally (type-erased pending prisma generate).
-// The functions here accept either a plain client or a `$transaction` client.
-// Archive/restore/path mutations live in repository-lifecycle.ts (note that
-// updateMaterializedPaths there does NOT accept a transaction client).
-// Template-related functions live in repository-templates.ts.
+// The functions here accept either a plain client or a `$transaction` client
+// (TenantDbClient, ADR-028). Archive/restore/path mutations live in
+// repository-lifecycle.ts (note that updateMaterializedPaths there does NOT
+// accept a transaction client). Template-related functions live in
+// repository-templates.ts.
+
+import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
 
 export {
   archiveWorkspaces,
@@ -41,88 +43,77 @@ export interface WorkspaceRow {
   memberCount?: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function db(tenantDb: unknown): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return tenantDb as any;
-}
-
 export async function findWorkspacesByUser(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   filters: WorkspaceFilters
 ): Promise<{ rows: WorkspaceRow[]; total: number }> {
   const { userId, isTenantAdmin, status, search, sort, order, page, limit } = filters;
   const skip = (page - 1) * limit;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: Record<string, any> = {};
-  if (status !== undefined) where['status'] = status;
+  const where: TenantPrisma.WorkspaceWhereInput = {};
+  if (status !== undefined) where.status = status;
   if (search !== undefined && search.length > 0) {
-    where['name'] = { contains: search, mode: 'insensitive' };
+    where.name = { contains: search, mode: 'insensitive' };
   }
   if (!isTenantAdmin) {
-    where['members'] = { some: { userId } };
+    where.members = { some: { userId } };
   }
 
-  const orderBy = { [sort ?? 'name']: order ?? 'asc' };
+  const orderBy: TenantPrisma.WorkspaceOrderByWithRelationInput =
+    sort === 'createdAt' ? { createdAt: order ?? 'asc' } : { name: order ?? 'asc' };
 
   const [rawRows, total] = await Promise.all([
-    db(tenantDb).workspace.findMany({
+    tenantDb.workspace.findMany({
       where,
       orderBy,
       skip,
       take: limit,
       include: { _count: { select: { members: true } } },
     }),
-    db(tenantDb).workspace.count({ where }),
+    tenantDb.workspace.count({ where }),
   ]);
 
   // Flatten the Prisma _count result into WorkspaceRow.memberCount
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (rawRows as any[]).map((r: any) => ({
+  const rows: WorkspaceRow[] = rawRows.map(({ _count, ...r }) => ({
     ...r,
-    memberCount: r._count?.members ?? 0,
-  })) as WorkspaceRow[];
+    memberCount: _count.members,
+  }));
 
   return { rows, total };
 }
 
 export async function findWorkspaceById(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   id: string
 ): Promise<
   (WorkspaceRow & { children: Array<{ id: string; name: string; slug: string }> }) | null
 > {
-  const row = await db(tenantDb).workspace.findUnique({
+  return tenantDb.workspace.findUnique({
     where: { id },
     include: {
       children: { select: { id: true, name: true, slug: true } },
     },
   });
-  return row as
-    | (WorkspaceRow & { children: Array<{ id: string; name: string; slug: string }> })
-    | null;
 }
 
 export async function countWorkspaceMembers(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string
 ): Promise<number> {
-  return db(tenantDb).workspaceMember.count({ where: { workspaceId } });
+  return tenantDb.workspaceMember.count({ where: { workspaceId } });
 }
 
 export async function findDescendants(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   materializedPath: string
 ): Promise<WorkspaceRow[]> {
-  const rows = await db(tenantDb).workspace.findMany({
+  return tenantDb.workspace.findMany({
     where: { materializedPath: { startsWith: materializedPath + '/' } },
   });
-  return rows as WorkspaceRow[];
 }
 
 export async function createWorkspace(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   data: {
     name: string;
     slug: string;
@@ -133,12 +124,11 @@ export async function createWorkspace(
     createdBy: string;
   }
 ): Promise<WorkspaceRow> {
-  const row = await db(tenantDb).workspace.create({ data });
-  return row as WorkspaceRow;
+  return tenantDb.workspace.create({ data });
 }
 
 export async function updateWorkspace(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   id: string,
   data: {
     name?: string | undefined;
@@ -146,23 +136,28 @@ export async function updateWorkspace(
     version?: number | undefined;
   }
 ): Promise<WorkspaceRow> {
-  const row = await db(tenantDb).workspace.update({ where: { id }, data });
-  return row as WorkspaceRow;
+  // Strip undefined fields: exactOptionalPropertyTypes forbids passing them
+  // through to the Prisma update input.
+  const update: TenantPrisma.WorkspaceUpdateInput = {};
+  if (data.name !== undefined) update.name = data.name;
+  if (data.description !== undefined) update.description = data.description;
+  if (data.version !== undefined) update.version = data.version;
+  return tenantDb.workspace.update({ where: { id }, data: update });
 }
 
 export async function findMemberRole(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   userId: string
 ): Promise<string | null> {
-  const member = await db(tenantDb).workspaceMember.findUnique({
+  const member = await tenantDb.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
     select: { role: true },
   });
-  return (member?.role as string | null | undefined) ?? null;
+  return member?.role ?? null;
 }
 
-export async function slugExists(tenantDb: unknown, slug: string): Promise<boolean> {
-  const row = await db(tenantDb).workspace.findUnique({ where: { slug }, select: { id: true } });
+export async function slugExists(tenantDb: TenantDbClient, slug: string): Promise<boolean> {
+  const row = await tenantDb.workspace.findUnique({ where: { slug }, select: { id: true } });
   return row !== null;
 }

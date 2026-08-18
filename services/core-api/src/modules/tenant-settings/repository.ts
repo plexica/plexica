@@ -1,11 +1,12 @@
 // repository.ts
 // Data access layer for the tenant-settings module.
 // Core table (tenant display name) uses prisma directly.
-// Tenant-schema tables (branding) use type-erased db.
+// Tenant-schema tables (branding) use the TenantDbClient (ADR-028).
 // Implements: Spec 003, Phase 9
 
 import { prisma } from '../../lib/database.js';
 
+import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
 import type { TenantBrandingDto, TenantSettingsDto } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -19,12 +20,20 @@ const DEFAULT_BRANDING: TenantBrandingDto = {
   logoUrl: null,
 };
 
-function brandingRowToDto(row: Record<string, unknown>): TenantBrandingDto {
+interface TenantBrandingRow {
+  id: string;
+  primaryColor: string;
+  darkMode: boolean;
+  logoPath: string | null;
+}
+
+function brandingRowToDto(row: TenantBrandingRow): TenantBrandingDto {
   return {
-    id: String(row['id']),
-    primaryColor: String(row['primaryColor'] ?? '#6366F1'),
-    darkMode: Boolean(row['darkMode']),
-    logoUrl: row['logoPath'] != null ? String(row['logoPath']) : null,
+    id: row.id,
+    // primaryColor is non-nullable in the tenant schema (default '#6366F1').
+    primaryColor: row.primaryColor,
+    darkMode: row.darkMode,
+    logoUrl: row.logoPath,
   };
 }
 
@@ -59,78 +68,69 @@ export async function updateTenantDisplayName(
 }
 
 // ---------------------------------------------------------------------------
-// Tenant-schema functions (use type-erased db)
+// Tenant-schema functions
 // ---------------------------------------------------------------------------
 
 export async function findBranding(
-  db: unknown,
+  db: TenantDbClient,
   // tenantId param kept for API compatibility — TenantBranding is a singleton per schema
   _tenantId: string
 ): Promise<TenantBrandingDto | null> {
   // TenantBranding has no tenantId column — it is a singleton record per tenant schema.
   // Use findFirst() to locate the single row (or null if not yet created).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = await (db as any).tenantBranding.findFirst();
-  if (row === null || row === undefined) return { ...DEFAULT_BRANDING };
-  return brandingRowToDto(row as Record<string, unknown>);
+  const row = await db.tenantBranding.findFirst();
+  if (row === null) return { ...DEFAULT_BRANDING };
+  return brandingRowToDto(row);
 }
 
 export async function upsertBranding(
-  db: unknown,
+  db: TenantDbClient,
   // tenantId param kept for API compatibility — TenantBranding is a singleton per schema
   _tenantId: string,
   data: { primaryColor?: string; darkMode?: boolean }
 ): Promise<TenantBrandingDto> {
-  const updateData: Record<string, unknown> = {};
-  if (data.primaryColor !== undefined) updateData['primaryColor'] = data.primaryColor;
-  if (data.darkMode !== undefined) updateData['darkMode'] = data.darkMode;
+  const updateData: TenantPrisma.TenantBrandingUpdateInput = {};
+  if (data.primaryColor !== undefined) updateData.primaryColor = data.primaryColor;
+  if (data.darkMode !== undefined) updateData.darkMode = data.darkMode;
 
   // TenantBranding is a singleton per schema. Find the existing row by id or create new.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db_ = db as any;
-  const existing = await db_.tenantBranding.findFirst();
-  let row: Record<string, unknown>;
-  if (existing !== null && existing !== undefined) {
-    row = await db_.tenantBranding.update({
-      where: { id: (existing as Record<string, unknown>)['id'] },
-      data: updateData,
-    });
-  } else {
-    row = await db_.tenantBranding.create({
-      data: {
-        primaryColor: data.primaryColor ?? DEFAULT_BRANDING.primaryColor,
-        darkMode: data.darkMode ?? DEFAULT_BRANDING.darkMode,
-        logoPath: null,
-      },
-    });
-  }
+  const existing = await db.tenantBranding.findFirst();
+  const row =
+    existing !== null
+      ? await db.tenantBranding.update({
+          where: { id: existing.id },
+          data: updateData,
+        })
+      : await db.tenantBranding.create({
+          data: {
+            primaryColor: data.primaryColor ?? DEFAULT_BRANDING.primaryColor,
+            darkMode: data.darkMode ?? DEFAULT_BRANDING.darkMode,
+            logoPath: null,
+          },
+        });
   return brandingRowToDto(row);
 }
 
 export async function updateLogoPath(
-  db: unknown,
+  db: TenantDbClient,
   // tenantId param kept for API compatibility — TenantBranding is a singleton per schema
   _tenantId: string,
   logoPath: string
 ): Promise<TenantBrandingDto> {
   // TenantBranding is a singleton per schema. Find the existing row by id or create new.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db_ = db as any;
-  const existing = await db_.tenantBranding.findFirst();
-  let row: Record<string, unknown>;
-  if (existing !== null && existing !== undefined) {
-    row = await db_.tenantBranding.update({
-      where: { id: (existing as Record<string, unknown>)['id'] },
-      data: { logoPath },
-    });
-  } else {
-    row = await db_.tenantBranding.create({
-      data: {
-        primaryColor: DEFAULT_BRANDING.primaryColor,
-        darkMode: DEFAULT_BRANDING.darkMode,
-        logoPath,
-      },
-    });
-  }
+  const existing = await db.tenantBranding.findFirst();
+  const row =
+    existing !== null
+      ? await db.tenantBranding.update({
+          where: { id: existing.id },
+          data: { logoPath },
+        })
+      : await db.tenantBranding.create({
+          data: {
+            primaryColor: DEFAULT_BRANDING.primaryColor,
+            darkMode: DEFAULT_BRANDING.darkMode,
+            logoPath,
+          },
+        });
   return brandingRowToDto(row);
 }

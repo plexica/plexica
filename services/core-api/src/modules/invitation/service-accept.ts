@@ -23,13 +23,8 @@ import { writeAuditLog } from '../audit-log/writer.js';
 
 import { findInvitationByToken, markAccepted } from './repository.js';
 
+import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
 import type { AcceptInvitationResult, WorkspaceRole } from './types.js';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function d(tenantDb: unknown): any {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return tenantDb as any;
-}
 
 /**
  * Inverse of lib/tenant-schema-helpers.ts `toRealmName()` (`plexica-<slug>`).
@@ -49,29 +44,29 @@ function tenantSlugFromRealm(realmName: string): string | null {
 }
 
 async function findOrCreateUserProfile(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   email: string,
   realmName: string
 ): Promise<string> {
-  const existing = await d(tenantDb).userProfile.findFirst({
+  const existing = await tenantDb.userProfile.findFirst({
     where: { email },
     select: { userId: true, deletedAt: true },
   });
 
-  if (existing !== null && existing !== undefined) {
+  if (existing !== null) {
     // A previously removed user can legitimately be re-invited. Reactivating
     // the row keeps the profile resolvable by user-profile-resolver.ts, which
     // refuses soft-deleted profiles. NOTE: the Keycloak account disabled by
     // removeUser() is NOT re-enabled here — an administrator must do that
     // before the invitee can authenticate again.
     if (existing.deletedAt !== null) {
-      await d(tenantDb).userProfile.update({
+      await tenantDb.userProfile.update({
         where: { userId: existing.userId },
         data: { deletedAt: null, status: 'invited' },
       });
       logger.info({ realmName }, 'Reactivated a soft-deleted profile on invitation accept');
     }
-    return existing.userId as string;
+    return existing.userId;
   }
 
   // User does not exist in the tenant — create in Keycloak first.
@@ -81,7 +76,7 @@ async function findOrCreateUserProfile(
 
   const internalUserId = randomUUID();
   try {
-    await d(tenantDb).userProfile.create({
+    await tenantDb.userProfile.create({
       data: {
         userId: internalUserId,
         keycloakUserId: kcUserId,
@@ -106,19 +101,19 @@ async function findOrCreateUserProfile(
  * already there — nothing was written, so nothing new must be published).
  */
 async function ensureWorkspaceMember(
-  tenantDb: unknown,
+  tenantDb: TenantDbClient,
   workspaceId: string,
   userId: string,
   role: WorkspaceRole
 ): Promise<WorkspaceRole> {
-  const existing = await d(tenantDb).workspaceMember.findUnique({
+  const existing = await tenantDb.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
     select: { role: true },
   });
 
-  if (existing !== null && existing !== undefined) return existing.role as WorkspaceRole;
+  if (existing !== null) return existing.role as WorkspaceRole;
 
-  await d(tenantDb).workspaceMember.create({
+  await tenantDb.workspaceMember.create({
     data: { workspaceId, userId, role },
   });
   return role;
@@ -157,8 +152,9 @@ async function publishMembership(
   });
 }
 
+// TenantPrismaClient (non-transactional): writes the audit log.
 export async function acceptInvitationService(
-  tenantDb: unknown,
+  tenantDb: TenantPrismaClient,
   token: string,
   realmName: string
 ): Promise<AcceptInvitationResult> {
@@ -187,14 +183,14 @@ export async function acceptInvitationService(
     targetId: invitation.id,
   });
 
-  const workspace = await d(tenantDb).workspace.findUnique({
+  const workspace = await tenantDb.workspace.findUnique({
     where: { id: invitation.workspaceId },
     select: { id: true, name: true },
   });
 
   return {
     workspaceId: invitation.workspaceId,
-    workspaceName: (workspace?.name as string | undefined) ?? '',
+    workspaceName: workspace?.name ?? '',
     role: invitation.role,
   };
 }

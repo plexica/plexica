@@ -56,8 +56,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
     if (!isTenantAdmin) {
       // Non-admins must be workspace admin in the target workspace.
       const member = await withTenantDb(async (db) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (db as any).workspaceMember.findUnique({
+        return db.workspaceMember.findUnique({
           where: {
             workspaceId_userId: {
               workspaceId: input.workspaceId,
@@ -68,7 +67,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
         });
       }, req.tenantContext);
 
-      const role = (member as { role: string } | null)?.role;
+      const role = member?.role;
       if (role !== 'admin') {
         throw new ForbiddenError('Only tenant admins or workspace admins can invite users');
       }

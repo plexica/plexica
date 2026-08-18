@@ -2,9 +2,6 @@
 // Orchestrates full tenant provisioning: PostgreSQL schema + Keycloak realm + MinIO bucket + seed data.
 // Implements tracked rollback — compensates completed steps in reverse order on failure.
 
-// TODO: Run 'pnpm db:generate' to generate tenant client types before Step 4 compiles.
-
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
 import { PrismaClient as TenantPrismaClient } from '../../../prisma/generated/tenant-client/index.js';
 import { prisma } from '../../lib/database.js';
 import { logger } from '../../lib/logger.js';
@@ -92,10 +89,10 @@ export async function provisionTenant(params: ProvisioningParams): Promise<Provi
 
     // Step 3: Create MinIO bucket + update tenant record
     await createBucket(minioBucket);
-    // Update minio_bucket column — use raw SQL until `prisma generate` refreshes types
-    await prisma.$executeRaw`
-      UPDATE core.tenants SET minio_bucket = ${minioBucket} WHERE slug = ${slug}
-    `;
+    // minioBucket is a first-class column on the generated core client
+    // (schema.prisma Tenant model) — the typed update replaces the former raw
+    // SQL workaround, which predated ADR-028 (generated types always present).
+    await prisma.tenant.update({ where: { slug }, data: { minioBucket } });
     completedSteps.push('bucket');
 
     // Step 4: Seed initial tenant data (built-in templates + default branding).

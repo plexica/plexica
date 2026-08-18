@@ -28,7 +28,8 @@
 
 import { PrismaClient } from '@prisma/client';
 
-// @ts-ignore — generated at build time via 'pnpm db:generate'; not present in git checkout
+// ADR-028: the generated tenant client is always present after `pnpm install`
+// (prepare script runs `pnpm db:generate` — no database connection required).
 import { PrismaClient as TenantPrismaClient } from '../../prisma/generated/tenant-client/index.js';
 
 import { prisma as coreDb } from './database.js';
@@ -36,9 +37,25 @@ import { logger } from './logger.js';
 import { getOrCreateTenantClient, releaseTenantClient } from './tenant-db-cache.js';
 import { getTenantContext } from './tenant-context-store.js';
 
+import type { Prisma as TenantPrisma } from '../../prisma/generated/tenant-client/index.js';
 import type { TenantContext } from './tenant-context-store.js';
 
 export type { TenantPrismaClient };
+// Re-exported so modules have a single import site for tenant-schema types
+// (where/orderBy/input types) and do not reach into prisma/generated directly.
+export type { TenantPrisma };
+
+/**
+ * Tenant-schema client accepted by module repositories and services (ADR-028):
+ * either the plain cached `TenantPrismaClient` handed out by `withTenantDb()`
+ * or an interactive `$transaction` client derived from it. Both expose the
+ * tenant model delegates; only the plain client exposes `$transaction`, so a
+ * function that opens its own transaction MUST declare the parameter as
+ * `TenantPrismaClient` — the compiler then rejects transaction clients.
+ * A function that must run OUTSIDE a transaction keeps the
+ * `assertNonTransactionalDb` runtime guard as defence in depth.
+ */
+export type TenantDbClient = TenantPrismaClient | TenantPrisma.TransactionClient;
 
 // ADR-027 lifecycle API: deprovisioning invalidation + graceful shutdown drain.
 export { disconnectAllTenantDbClients, invalidateTenantDbClient } from './tenant-db-cache.js';
@@ -51,18 +68,13 @@ export { disconnectAllTenantDbClients, invalidateTenantDbClient } from './tenant
 // `withTenantDb` so that a `Prisma.TransactionClient` fails to typecheck — was
 // evaluated and rejected on evidence:
 //
-//   1. TYPE ERASURE IS CONDITIONAL. The `@ts-ignore` on the tenant-client
-//      import above only erases the type when `prisma/generated/` is absent
-//      (it is .gitignored). Measured: with the client generated, the type is
-//      real; on a fresh checkout it collapses to `any` and any brand silently
-//      evaporates. A guarantee that depends on whether someone has run
-//      `pnpm db:generate` is not a guarantee.
-//   2. THE CALL SITES ARE ALREADY TYPE-ERASED. Every consumer of the tenant
-//      client declares its parameter as `tenantDb: unknown` (workspace-member,
-//      user-profile, invitation, tenant-settings, user-management, workspace…).
-//      `unknown` is not assignable to a branded type, so branding would break
-//      ~13 call sites; making it compile would mean threading the brand
-//      through those modules first.
+//   1. A BRAND FORBIDS WHAT IS LEGAL. Callers legitimately hand a transaction
+//      client to most repository functions; only a few (audit writer, decision
+//      logger) must run outside a transaction. A brand on `withTenantDb` would
+//      have to be un-branded at every legal transaction call site.
+//   2. THE RUNTIME GUARD IS PRECISE. The discriminant below is verified
+//      against the generated client and works even through test doubles and
+//      structural subtypes that would defeat branding.
 //
 // The discriminant below is verified against the generated client: an
 // interactive-transaction client exposes `$queryRaw`/`$executeRaw` but NOT
@@ -140,7 +152,7 @@ export function assertNonTransactionalDb(db: unknown, caller: string): void {
  *   });
  */
 export async function withTenantDb<T>(
-  fn: (db: InstanceType<typeof TenantPrismaClient>) => Promise<T>,
+  fn: (db: TenantPrismaClient) => Promise<T>,
   context?: TenantContext
 ): Promise<T> {
   // Use explicit context when provided (required in Fastify v5 route handlers).

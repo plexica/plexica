@@ -71,7 +71,10 @@ describe('fetchTenantAdminKeycloakIds', () => {
 });
 
 describe('assertNotLastTenantAdmin', () => {
-  const DB = { __client: 'db' };
+  // Untyped stand-in for the tenant client: repository access is mocked, so
+  // the double only needs to be distinguishable, not real. Cast across the
+  // ADR-028 tenant-client type boundary.
+  const DB = { __client: 'db' } as unknown as Parameters<typeof assertNotLastTenantAdmin>[0];
 
   it('throws ConflictError when the target is the only active admin', async () => {
     mockFindActive.mockResolvedValue([{ userId: 'u-1', keycloakUserId: 'kc-1' }]);

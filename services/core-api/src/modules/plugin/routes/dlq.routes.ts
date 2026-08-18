@@ -10,6 +10,7 @@ import { parseOrThrow } from '../../../lib/validation.js';
 import { buildPaginatedResult } from '../../../lib/pagination.js';
 
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 
 const DlqPageSizeMax = 100;
 
@@ -24,13 +25,12 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
   // ── GET /api/v1/admin/system/dlq ──────────────────────────────────────────
   fastify.get('/api/v1/admin/system/dlq', { preHandler: [requireSuperAdmin] }, async (request) => {
     const { status, pluginId, page, pageSize } = parseOrThrow(listQuerySchema, request.query);
-    const where: Record<string, unknown> = {};
+    const where: Prisma.DeadLetterQueueWhereInput = {};
     if (status) where.status = status;
     if (pluginId) where.pluginId = pluginId;
 
     return withCoreDb((prisma) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (prisma as any).$transaction(async (tx: any) => {
+      prisma.$transaction(async (tx) => {
         const [data, total] = await Promise.all([
           tx.deadLetterQueue.findMany({
             where,
@@ -45,7 +45,7 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
         // omitted — leaving page 2+ unreachable from the UI. The DLQ contract
         // names the page-size field `pageSize` (not `limit`), so rename the key.
         const { limit, ...rest } = buildPaginatedResult(
-          data.map((entry: { originalOffset: bigint }) => ({
+          data.map((entry) => ({
             ...entry,
             originalOffset: entry.originalOffset.toString(),
           })),

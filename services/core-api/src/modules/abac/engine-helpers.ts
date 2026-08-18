@@ -5,6 +5,7 @@
 import { config } from '../../lib/config.js';
 
 import type { Redis } from 'ioredis';
+import type { TenantDbClient } from '../../lib/tenant-database.js';
 import type { AbacContext, WorkspaceRole } from './types.js';
 
 /**
@@ -85,11 +86,11 @@ export function membershipCacheKey(
  * Lua CAS), which is deliberately not implemented — see the ADR note in
  * engine.ts.
  *
- * @param tenantDb - Tenant-schema Prisma client (type-erased until generated client exists)
+ * @param tenantDb - Tenant-schema Prisma client (plain or transaction client)
  */
 export async function getMembership(
   ctx: AbacContext,
-  tenantDb: unknown, // tenant-schema PrismaClient, type-erased pending prisma generate
+  tenantDb: TenantDbClient,
   redis: Redis
 ): Promise<CachedMembership> {
   const key = membershipCacheKey(ctx);
@@ -98,9 +99,7 @@ export async function getMembership(
     return JSON.parse(cached) as CachedMembership;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = tenantDb as any;
-  const member = await db.workspaceMember.findUnique({
+  const member = await tenantDb.workspaceMember.findUnique({
     where: { workspaceId_userId: { workspaceId: ctx.workspaceId, userId: ctx.userId } },
     select: { role: true },
   });
@@ -120,13 +119,11 @@ export async function getMembership(
  */
 export async function getPluginActionOverride(
   ctx: AbacContext,
-  tenantDb: unknown // tenant-schema PrismaClient, type-erased
+  tenantDb: TenantDbClient
 ): Promise<WorkspaceRole | null> {
   if (ctx.pluginActionKey === undefined) return null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = tenantDb as any;
-  const override = await db.workspaceRoleAction.findFirst({
+  const override = await tenantDb.workspaceRoleAction.findFirst({
     where: {
       workspaceId: ctx.workspaceId,
       actionKey: ctx.pluginActionKey,
@@ -146,12 +143,10 @@ export async function getPluginActionOverride(
  */
 export async function getPluginActionDefaultRole(
   ctx: AbacContext,
-  tenantDb: unknown
+  tenantDb: TenantDbClient
 ): Promise<WorkspaceRole | null> {
   if (ctx.pluginActionKey === undefined) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tenant-schema PrismaClient, type-erased pending prisma generate
-  const db = tenantDb as any;
-  const action = await db.actionRegistry.findFirst({
+  const action = await tenantDb.actionRegistry.findFirst({
     where: { actionKey: ctx.pluginActionKey },
     select: { defaultRole: true },
   });
