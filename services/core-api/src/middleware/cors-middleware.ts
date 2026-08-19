@@ -6,10 +6,12 @@
 import cors from '@fastify/cors';
 
 import type { Config } from '../lib/config.js';
-import type { FastifyInstance } from 'fastify';
 
+/** Registers @fastify/cors when config.E2E_CORS is true.
+ *  `server` is typed loosely to avoid TS2345 with Fastify's exactOptionalPropertyTypes. */
 export async function registerCors(
-  server: FastifyInstance,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  server: any,
   config: Config,
 ): Promise<void> {
   if (!config.E2E_CORS) return;
