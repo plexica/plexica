@@ -17,11 +17,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@originjs/vite-plugin-federation": "catalog:",
-    "ws": "8.21.0"
+    "@originjs/vite-plugin-federation": "catalog:"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.1",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
