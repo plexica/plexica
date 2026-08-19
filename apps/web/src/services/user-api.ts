@@ -17,12 +17,12 @@ import type { PaginatedResponse } from '../types/workspace.js';
 interface UserListParams {
   search?: string;
   page?: number;
-  limit?: number;
+  pageSize?: number;
 }
 
 export const userApi = {
-  // The backend envelope is PaginatedResult (lib/pagination.ts) — a superset
-  // of PaginatedResponse (it also carries `limit`, unused by the web client).
+  // The backend envelope is PaginatedResult (lib/pagination.ts) — canonical
+  // { data, total, page, pageSize, totalPages } (Decision 4, 2026-08-18).
   list: (params?: UserListParams) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiClient.get<PaginatedResponse<TenantUser>>(`/api/v1/users${qs}`);
@@ -40,7 +40,7 @@ export const userApi = {
 
 export const invitationApi = {
   list: (workspaceId: string) =>
-    apiClient.get<{ data: Invitation[] }>(`/api/v1/workspaces/${workspaceId}/invitations`),
+    apiClient.get<{ data: Invitation[]; total: number; page: number; pageSize: number; totalPages: number }>(`/api/v1/workspaces/${workspaceId}/invitations`),
 
   send: (payload: InviteUserPayload) =>
     apiClient.post<{ data: Invitation }>('/api/v1/users/invite', payload),

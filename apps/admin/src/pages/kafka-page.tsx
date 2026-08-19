@@ -22,11 +22,11 @@ export function KafkaPage(): JSX.Element {
   const { data, isLoading, isError, error, refetch, isFetching } = useKafkaStatus();
   const intl = useIntl();
 
-  const totalLag = data ? computeTotalLag(data.consumerLags) : 0;
-  const hasConsumers = (data?.consumerLags.length ?? 0) > 0;
+  const totalLag = data ? data.totalLag : 0;
+  const hasConsumers = (data?.consumers.length ?? 0) > 0;
   const dlqWarning = (data?.dlqDepth ?? 0) > DLQ_WARNING_THRESHOLD;
   const lagWarnings = data
-    ? data.consumerLags.filter((r) => r.lag > LAG_WARNING_THRESHOLD).length
+    ? data.consumers.filter((r) => r.lag > LAG_WARNING_THRESHOLD).length
     : 0;
 
   return (
@@ -86,7 +86,7 @@ export function KafkaPage(): JSX.Element {
                 <h2 className="mb-2 text-sm font-semibold text-neutral-700">
                   <FormattedMessage id="admin.kafka.consumerLag" />
                 </h2>
-                <ConsumerLagTable lags={data.consumerLags} />
+                <ConsumerLagTable lags={data.consumers} />
               </div>
             </>
           )}

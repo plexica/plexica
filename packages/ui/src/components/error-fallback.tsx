@@ -3,16 +3,18 @@
 // Shows heading + description + navigation options.
 // Never exposes stack traces or raw error messages to users.
 //
-// PASS3-M-5: The `error` prop is prefixed with `_` to signal intentional discard.
+// Extracted from apps/web to @plexica/ui (Decision 7, 2026-08-18).
+//
+// The `error` prop is prefixed with `_` to signal intentional discard.
 // The prop must remain in the interface because React error boundaries pass the
 // caught Error object to the fallback component. We do not display it to avoid
-// leaking implementation details, but callers should not expect it to be logged here —
-// error tracking (e.g., Sentry) should be wired at the error boundary level.
+// leaking implementation details. Error tracking (e.g. Sentry) should be wired
+// at the error boundary level (TD-001).
 
 import { useIntl, FormattedMessage } from 'react-intl';
 
 interface ErrorFallbackProps {
-  // Received from React error boundary API — intentionally not displayed (see note above).
+  /** Received from React error boundary API — intentionally not displayed. */
   error?: Error;
 }
 
@@ -28,7 +30,6 @@ export function ErrorFallback({ error: _error }: ErrorFallbackProps): JSX.Elemen
         <FormattedMessage id="error.boundary.heading" />
       </h2>
 
-      {/* NEW-L-1: Both branches rendered the same JSX — collapsed to a single unconditional <p>. */}
       <p className="max-w-md text-sm text-neutral-600">
         <FormattedMessage id="error.boundary.description" />
       </p>

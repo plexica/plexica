@@ -27,7 +27,7 @@ export async function auditLogRoutes(fastify: FastifyInstance): Promise<void> {
 
       const filters: AuditLogFilters = stripUndefined({
         page: query.page,
-        pageSize: query.limit,
+        pageSize: query.pageSize,
         actorId: query.actorId,
         actionType: query.actionType,
         workspaceId: query.workspaceId,

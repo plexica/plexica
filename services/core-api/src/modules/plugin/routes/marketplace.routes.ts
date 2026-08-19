@@ -9,6 +9,7 @@ import { RESOURCE_SLUG_REGEX } from '../../../lib/slug.js';
 import { requireAbac } from '../../../middleware/abac.js';
 import { ForbiddenError } from '../../../lib/app-error.js';
 import { getPresignedReadUrl } from '../../../lib/minio-client.js';
+import { buildPaginatedResult } from '../../../lib/pagination.js';
 import { PluginNotFoundError } from '../errors.js';
 import { manifestSchema } from '../schema/manifest.js';
 import { getDevBackendForInstallation } from '../services/dev-backends.js';
@@ -133,7 +134,7 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
   fastify.get('/api/v1/plugins', async (request) => {
     const parsed = listQuerySchema.safeParse(request.query);
     if (!parsed.success) {
-      return { data: [], total: 0, page: 1, pageSize: 20, totalPages: 0 };
+      return buildPaginatedResult([], 0, { page: 1, pageSize: 20 });
     }
     const { page, pageSize, search, category } = parsed.data;
     const installedIds = new Set(
@@ -160,17 +161,15 @@ export async function marketplaceRoutes(fastify: FastifyInstance): Promise<void>
           }),
           tx.plugin.count({ where }),
         ]);
-        return {
-          data: data.map((plugin) => ({
+        return buildPaginatedResult(
+          data.map((plugin) => ({
             ...plugin,
             isInstalled: installedIds.has(plugin.id),
             installCount: installedIds.has(plugin.id) ? 1 : 0,
           })),
           total,
-          page,
-          pageSize,
-          totalPages: Math.ceil(total / pageSize),
-        };
+          { page, pageSize },
+        );
       })
     );
   });

@@ -3,6 +3,9 @@
 // Tenant-schema Prisma client (TenantDbClient, ADR-028).
 // Implements: WS-003 (Workspace Member Management)
 
+import { buildPaginatedResult } from '../../lib/pagination.js';
+
+import type { PaginatedResult } from '../../lib/pagination.js';
 import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
 import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './types.js';
 
@@ -37,10 +40,10 @@ export async function findMembers(
   db: TenantDbClient,
   workspaceId: string,
   filters: MemberListFilters
-): Promise<{ data: WorkspaceMemberDto[]; total: number }> {
+): Promise<PaginatedResult<WorkspaceMemberDto>> {
   const page = filters.page ?? 1;
-  const limit = filters.limit ?? 20;
-  const skip = (page - 1) * limit;
+  const pageSize = filters.pageSize ?? 20;
+  const skip = (page - 1) * pageSize;
 
   const where: TenantPrisma.WorkspaceMemberWhereInput = { workspaceId };
 
@@ -56,12 +59,12 @@ export async function findMembers(
       include: { user: { select: { displayName: true, avatarPath: true } } },
       orderBy: { createdAt: 'asc' },
       skip,
-      take: limit,
+      take: pageSize,
     }),
     db.workspaceMember.count({ where }),
   ]);
 
-  return { data: rows.map(toDto), total };
+  return buildPaginatedResult(rows.map(toDto), total, { page, pageSize });
 }
 
 export async function findMember(

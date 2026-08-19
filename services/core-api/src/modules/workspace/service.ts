@@ -41,7 +41,7 @@ export async function listWorkspaces(
     sort?: 'name' | 'createdAt';
     order?: 'asc' | 'desc';
     page: number;
-    limit: number;
+    pageSize: number;
   }
 ): Promise<PaginatedResult<WorkspaceDto>> {
   const { rows, total } = await findWorkspacesByUser(tenantDb, {
@@ -60,7 +60,7 @@ export async function listWorkspaces(
     memberCount: row.memberCount ?? 0,
     createdAt: row.createdAt.toISOString(),
   }));
-  return buildPaginatedResult(dtos, total, { page: filters.page, limit: filters.limit });
+  return buildPaginatedResult(dtos, total, { page: filters.page, pageSize: filters.pageSize });
 }
 
 /**

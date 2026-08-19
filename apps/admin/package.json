@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",
+    "@plexica/api-types": "workspace:*",
     "@plexica/auth": "workspace:*",
     "@plexica/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",

@@ -2,6 +2,7 @@
 // CRUD for core.plugins + core.plugin_versions.
 
 import { PluginNotFoundError, PluginConflictError } from '../errors.js';
+import { buildPaginatedResult, type PaginatedResult } from '../../../lib/pagination.js';
 
 import type { Prisma } from '@prisma/client';
 import type { CoreDbClient } from '../../../lib/database.js';
@@ -70,12 +71,7 @@ function toPluginRecord(row: PluginRow): PluginRecord {
   };
 }
 
-export interface PaginatedPlugins {
-  data: PluginRecord[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
+export type PaginatedPlugins = PaginatedResult<PluginRecord>;
 
 export async function createPlugin(
   prisma: CoreDbClient,
@@ -140,12 +136,7 @@ export async function listPlugins(
     prisma.plugin.count({ where }),
   ]);
 
-  return {
-    data: data.map(toPluginRecord),
-    total,
-    page,
-    pageSize,
-  };
+  return buildPaginatedResult(data.map(toPluginRecord), total, { page, pageSize });
 }
 
 export async function updatePluginStatus(

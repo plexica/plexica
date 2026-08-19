@@ -1,9 +1,14 @@
 // routes/kafka-status.routes.ts
-// Super admin Kafka consumer lag status endpoint (Spec 004 — ops visibility).
+// Super admin Kafka consumer lag status endpoint (Spec 004/005 — ops visibility).
+//
+// Delegates to kafka-status.service.ts which returns the canonical
+// KafkaStatusResponse shape from @plexica/api-types (ADR-029).
+// Prior to ADR-029 this route had its own inline implementation that diverged
+// from both the service and the schema — the frontend read undefined fields.
 
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
-import { getLagMetrics } from '../events/lag-metrics.service.js';
-import { getActiveConsumerGroups, CONSUMER_GROUP_PREFIX } from '../events/consumer-manager.service.js';
+import { withCoreDb } from '../../../lib/tenant-database.js';
+import { getKafkaStatus } from '../../admin/services/kafka-status.service.js';
 
 import type { FastifyInstance } from 'fastify';
 
@@ -11,23 +16,6 @@ export async function kafkaStatusRoutes(fastify: FastifyInstance): Promise<void>
   fastify.get(
     '/api/v1/admin/system/kafka',
     { preHandler: [requireSuperAdmin] },
-    async () => {
-      const lagMetrics = getLagMetrics();
-
-      const consumers = lagMetrics.map((entry) => ({
-        pluginSlug: entry.pluginSlug,
-        tenantSlug: entry.tenantSlug,
-        lag: entry.lag,
-        topic: `plexica.plugin.${entry.pluginSlug}`,
-      }));
-
-      const activeGroups = getActiveConsumerGroups().filter((g) => g.startsWith(CONSUMER_GROUP_PREFIX));
-
-      return {
-        consumers,
-        totalLag: consumers.reduce((sum, c) => sum + c.lag, 0),
-        activeConsumerGroups: activeGroups.length,
-      };
-    }
+    async () => withCoreDb((prisma) => getKafkaStatus(prisma)),
   );
 }

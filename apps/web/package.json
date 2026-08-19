@@ -15,6 +15,7 @@
   "dependencies": {
     "@hookform/resolvers": "catalog:",
     "@originjs/vite-plugin-federation": "catalog:",
+    "@plexica/api-types": "workspace:*",
     "@plexica/auth": "workspace:*",
     "@plexica/ui": "workspace:*",
     "@radix-ui/react-avatar": "^1.2.6",

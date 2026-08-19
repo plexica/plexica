@@ -49,7 +49,7 @@ export async function queryAuditLog(
     where.createdAt = createdAt;
   }
 
-  const { skip, take } = buildPaginationClause({ page, limit: pageSize });
+  const { skip, take } = buildPaginationClause({ page, pageSize });
 
   const [rows, total] = await Promise.all([
     db.auditLog.findMany({
@@ -62,5 +62,5 @@ export async function queryAuditLog(
   ]);
 
   const data = rows.map(rowToDto);
-  return buildPaginatedResult(data, total, { page, limit: pageSize });
+  return buildPaginatedResult(data, total, { page, pageSize });
 }

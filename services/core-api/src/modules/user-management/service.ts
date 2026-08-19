@@ -28,16 +28,16 @@ export { removeUser } from './service-remove.js';
 
 // The envelope MUST come from buildPaginatedResult: the web client renders
 // <Pagination> from `totalPages`, which a hand-built { data, total, page,
-// limit } object silently omitted — leaving page 2+ unreachable from the UI.
+// pageSize } object silently omitted — leaving page 2+ unreachable from the UI.
 export async function listTenantUsers(
   db: TenantDbClient,
   filters: UserListFilters,
   _tenantContext: TenantContext
 ): Promise<PaginatedResult<TenantUserDto>> {
   const page = filters.page ?? 1;
-  const limit = filters.limit ?? 20;
+  const pageSize = filters.pageSize ?? 20;
   const { data, total } = await findTenantUsers(db, filters);
-  return buildPaginatedResult(data, total, { page, limit });
+  return buildPaginatedResult(data, total, { page, pageSize });
 }
 
 // ---------------------------------------------------------------------------

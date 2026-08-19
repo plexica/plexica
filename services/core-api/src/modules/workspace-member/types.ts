@@ -16,6 +16,6 @@ export interface WorkspaceMemberDto {
 
 export interface MemberListFilters {
   page?: number;
-  limit?: number;
+  pageSize?: number;
   search?: string;
 }

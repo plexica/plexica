@@ -31,7 +31,8 @@
   },
   "peerDependencies": {
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-intl": "catalog:"
   },
   "devDependencies": {
     "@storybook/addon-docs": "^10.4.6",

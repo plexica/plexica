@@ -58,9 +58,9 @@ export function ConsumerLagTable({ lags }: { lags: KafkaConsumerLag[] }): JSX.El
         {lags.map((row) => {
           const isWarning = row.lag > LAG_WARNING_THRESHOLD;
           return (
-            <TableRow key={`${row.pluginSlug}-${row.consumerGroup}`}>
+            <TableRow key={`${row.pluginSlug}-${row.topic}`}>
               <TableCell className="font-medium text-neutral-900">{row.pluginSlug}</TableCell>
-              <TableCell className="font-mono text-xs">{row.consumerGroup}</TableCell>
+              <TableCell className="font-mono text-xs">{row.topic}</TableCell>
               <TableCell
                 className={isWarning ? 'font-semibold text-warning-dark' : 'text-neutral-700'}
               >

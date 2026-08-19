@@ -9,7 +9,7 @@ import { userApi } from '../services/user-api.js';
 interface UserFilters {
   search?: string;
   page?: number;
-  limit?: number;
+  pageSize?: number;
 }
 
 export function useUsers(filters?: UserFilters) {

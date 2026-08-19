@@ -52,9 +52,11 @@ describe('GET /api/v1/admin/tenants — paginated tenant list', () => {
       total: number;
       page: number;
       pageSize: number;
+      totalPages: number;
     }>();
     expect(body.page).toBe(1);
     expect(body.pageSize).toBe(20);
+    expect(body.totalPages).toBeGreaterThanOrEqual(1);
     expect(body.total).toBeGreaterThanOrEqual(3);
     const slugs = body.data.map((t) => t.slug);
     expect(slugs).toContain(`${SLUG_PREFIX}-alpha`);

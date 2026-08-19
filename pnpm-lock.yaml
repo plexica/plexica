@@ -146,6 +146,9 @@ importers:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 5.4.0(react-hook-form@7.82.0(react@19.2.8))
+      '@plexica/api-types':
+        specifier: workspace:*
+        version: link:../../packages/api-types
       '@plexica/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -222,6 +225,9 @@ importers:
       '@originjs/vite-plugin-federation':
         specifier: 'catalog:'
         version: 1.4.1
+      '@plexica/api-types':
+        specifier: workspace:*
+        version: link:../../packages/api-types
       '@plexica/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -307,6 +313,9 @@ importers:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 5.4.0(react-hook-form@7.82.0(react@19.2.8))
+      '@plexica/sdk':
+        specifier: workspace:*
+        version: link:../../../packages/sdk
       '@plexica/ui':
         specifier: workspace:*
         version: link:../../../packages/ui
@@ -371,6 +380,16 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 6.4.3(@types/node@24.13.3)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.23.1)
+
+  packages/api-types:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
 
   packages/auth:
     dependencies:
@@ -497,6 +516,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.27.0(react@19.2.8)
+      react-intl:
+        specifier: 'catalog:'
+        version: 6.8.9(react@19.2.8)(typescript@5.9.3)
       tailwind-merge:
         specifier: ^2.3.0
         version: 2.6.1
@@ -571,6 +593,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10.3.0
         version: 10.3.0
+      '@plexica/api-types':
+        specifier: workspace:*
+        version: link:../../packages/api-types
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)

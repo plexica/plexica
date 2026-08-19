@@ -70,9 +70,11 @@ describe('GET /api/v1/admin/audit-logs — platform audit log', () => {
       total: number;
       page: number;
       pageSize: number;
+      totalPages: number;
     }>();
     expect(body.page).toBe(1);
     expect(body.pageSize).toBe(20);
+    expect(body.totalPages).toBeGreaterThanOrEqual(1);
     expect(body.total).toBeGreaterThanOrEqual(3);
     const ids = body.data.map((e) => e.id);
     for (const id of seededIds) {

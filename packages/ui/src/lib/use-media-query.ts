@@ -2,6 +2,9 @@
 // React hook that tracks whether a CSS media query matches.
 // Uses window.matchMedia with event listener cleanup — SSR-safe (returns false
 // on environments where window is undefined).
+//
+// Extracted from apps/web to @plexica/ui (Decision 7, 2026-08-18) so both
+// apps share the same reactive media query implementation.
 
 import { useEffect, useState } from 'react';
 

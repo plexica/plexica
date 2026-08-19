@@ -27,7 +27,7 @@ export async function workspaceMemberRoutes(fastify: FastifyInstance): Promise<v
       // exactOptionalPropertyTypes: stripUndefined drops undefined-valued keys.
       const filters: MemberListFilters = stripUndefined({
         page: query.page,
-        limit: query.limit,
+        pageSize: query.pageSize,
         search: query.search,
       });
       return withTenantDb((db) => listMembers(db, id, filters), req.tenantContext);

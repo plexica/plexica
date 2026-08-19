@@ -19,7 +19,7 @@ interface WorkspaceListParams {
   status?: 'active' | 'archived';
   parentId?: string;
   page?: number;
-  limit?: number;
+  pageSize?: number;
 }
 
 export const workspaceApi = {
@@ -47,9 +47,9 @@ export const workspaceApi = {
   reparent: (id: string, payload: ReparentPayload) =>
     apiClient.post<WorkspaceDetail>(`/api/v1/workspaces/${id}/reparent`, payload),
 
-  // Backend returns { data: WorkspaceMemberDto[], total } (wrapped)
+  // Backend returns PaginatedResult<WorkspaceMemberDto> (canonical envelope).
   listMembers: (id: string) =>
-    apiClient.get<{ data: WorkspaceMember[]; total: number }>(`/api/v1/workspaces/${id}/members`),
+    apiClient.get<{ data: WorkspaceMember[]; total: number; page: number; pageSize: number; totalPages: number }>(`/api/v1/workspaces/${id}/members`),
 
   addMember: (id: string, payload: { userId: string; role: string }) =>
     apiClient.post<WorkspaceMember>(`/api/v1/workspaces/${id}/members`, payload),

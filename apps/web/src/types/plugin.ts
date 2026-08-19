@@ -1,145 +1,26 @@
-// plugin.ts — TypeScript types for plugin system domain (Spec 004).
+// plugin.ts — Re-export from @plexica/api-types (ADR-029).
+// Plugin marketplace and installation types (tenant-side only).
+// Super-admin types (DLQ, registry) are in @plexica/api-types/admin.
+// App-specific payload/response types stay here.
 
-export interface PluginManifest {
-  slug: string;
-  name: string;
-  version: string;
-  description: string;
-  author: string;
-  icon: string;
-  categories: string[];
-  hosting: {
-    type: 'sidecar' | 'kubernetes';
-    image: string;
-    port: number;
-    resources: { cpu: string; memory: string };
-    env: { key: string; valueFrom: string }[];
-  };
-  ui: {
-    remoteEntry: string;
-    extensionPoints: string[];
-  };
-  events: {
-    subscribes: string[];
-  };
-  actions: PluginAction[];
-  declaredTables: PluginTable[];
-}
+export type {
+  PluginManifest,
+  PluginAction,
+  PluginTable,
+  PluginCatalogEntry,
+  PluginInstallation,
+  WorkspacePluginEntry,
+  PluginInstallStatus,
+  PluginVisibilityEntry,
+} from '@plexica/api-types';
 
-export interface PluginAction {
-  key: string;
-  label: string;
-  defaultRole: string;
-}
+import type { PaginatedResult } from '@plexica/api-types';
 
-export interface PluginTable {
-  name: string;
-  description: string;
-  migrationFile: string;
-}
-
-export interface PluginCatalogEntry {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  version: string;
-  author: string;
-  iconUrl: string | null;
-  categories: string[];
-  status: 'draft' | 'published' | 'unpublished';
-  installCount: number;
-  isInstalled: boolean;
-  rating?: number;
-  actions?: PluginAction[];
-  declaredTables?: PluginTable[];
-  declaredEvents?: string[];
-}
-
-export interface PluginInstallation {
-  id: string;
-  pluginId: string;
-  slug: string;
-  name: string;
-  version: string;
-  status: PluginInstallStatus;
-  hostingType: 'sidecar' | 'kubernetes';
-  tenantDefaultVisibility: 'enabled' | 'disabled';
-  installedBy: string;
-  installedAt: string;
-  healthStatus: 'healthy' | 'degraded' | 'unreachable';
-}
-
-export interface WorkspacePluginEntry {
-  installId: string;
-  slug: string;
-  remoteEntryUrl: string;
-  extensionPoint: string;
-}
-
-export type PluginInstallStatus =
-  | 'installing'
-  | 'active'
-  | 'degraded'
-  | 'deactivated'
-  | 'uninstalled'
-  | 'failed';
-
-export interface PluginVisibilityEntry {
-  workspaceId: string;
-  workspaceName: string;
-  isEnabled: boolean;
-  isOverride: boolean;
-  updatedAt: string | null;
-}
+export type MarketplaceListResponse = PaginatedResult<import('@plexica/api-types').PluginCatalogEntry>;
 
 export interface PluginVisibilityUpdate {
   workspaceId: string;
   isEnabled: boolean;
-}
-
-export interface DeadLetterEntry {
-  id: string;
-  eventType: string;
-  payload: Record<string, unknown>;
-  pluginId: string | null;
-  pluginName: string;
-  errorMessage: string | null;
-  retryCount: number;
-  failedAt: string;
-  status: 'pending' | 'retried' | 'dismissed';
-}
-
-export interface MarketplaceListResponse {
-  data: PluginCatalogEntry[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-export interface PluginRegisterPayload {
-  slug: string;
-  manifest: PluginManifest;
-  registryUrl: string;
-  imageName: string;
-  imageTag: string;
-  imageDigest?: string;
-  pullPolicy?: string;
-}
-
-export interface PluginRegisterResponse {
-  id: string;
-  slug: string;
-  status: string;
-  createdAt: string;
-}
-
-export interface DlqListResponse {
-  data: DeadLetterEntry[];
-  total: number;
-  page: number;
-  totalPages: number;
 }
 
 export interface InstallProgress {

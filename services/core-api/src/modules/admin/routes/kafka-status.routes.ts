@@ -7,39 +7,26 @@
 // BOTH at the admin scope and here per route (defense in depth, matches
 // tenant-list.routes.ts pattern).
 //
-// Runtime response validation: Zod parse enforces the API contract at the
-// boundary so malformed aggregation data never reaches the admin UI undetected.
-
-import { z } from 'zod';
+// The response schema is the canonical KafkaStatusResponseSchema from
+// @plexica/api-types (ADR-029). Runtime validation enforces the API contract
+// at the boundary so malformed aggregation data never reaches the admin UI.
 
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { getKafkaStatus } from '../services/kafka-status.service.js';
+import { KafkaStatusResponseSchema } from '@plexica/api-types';
 
 import type { FastifyInstance } from 'fastify';
-
-const KafkaStatusApiSchema = z.object({
-  brokers: z.array(z.string()),
-  consumerLags: z.array(
-    z.object({
-      pluginSlug: z.string().min(1),
-      consumerGroup: z.string().min(1),
-      lag: z.number().int().min(0),
-    })
-  ),
-  dlqDepth: z.number().int().min(0),
-});
 
 export async function kafkaStatusRoutes(
   fastify: FastifyInstance
 ): Promise<void> {
-  // ── GET /api/v1/admin/system/kafka ─────────────────────────────────────────
   fastify.get(
     '/system/kafka',
     { preHandler: [requireSuperAdmin] },
     async () => {
       const result = await withCoreDb((prisma) => getKafkaStatus(prisma));
-      return KafkaStatusApiSchema.parse(result);
+      return KafkaStatusResponseSchema.parse(result);
     }
   );
 }

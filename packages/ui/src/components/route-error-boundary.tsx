@@ -1,8 +1,13 @@
 // route-error-boundary.tsx
 // React class component error boundary for route subtrees.
 // Rendered inside AppShell's <main> so the header and sidebar remain intact.
-// The boundary is keyed by pathname via KeyedErrorBoundary in app-shell.tsx —
-// it resets automatically when the user navigates to a different route.
+//
+// Extracted from apps/web to @plexica/ui (Decision 7, 2026-08-18).
+//
+// The boundary should be keyed by pathname in each app's AppShell so it
+// resets automatically on route change. The keying wrapper (KeyedErrorBoundary)
+// is app-specific because it uses @tanstack/react-router's useLocation —
+// keep it in each app, not here.
 
 import { Component } from 'react';
 
@@ -31,8 +36,8 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     // L-7: only log to console in development. In production, integrate with
-    // an error tracking service (e.g. Sentry) here instead.
-    if (import.meta.env.DEV) {
+    // an error tracking service (e.g. Sentry) here instead (TD-001).
+    if (typeof import.meta !== 'undefined' && (import.meta as { env?: { DEV?: boolean } }).env?.DEV) {
       // eslint-disable-next-line no-console
       console.error('RouteErrorBoundary caught:', error, info.componentStack);
     }
@@ -44,8 +49,6 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   override render(): ReactNode {
     if (this.state.hasError) {
-      // No <main> wrapper here — this component is already rendered inside
-      // AppShell's <main id="main-content">.
       return this.state.error !== undefined ? (
         <ErrorFallback error={this.state.error} />
       ) : (

@@ -12,7 +12,7 @@ export const createInvitationSchema = z.object({
 export const invitationListQuerySchema = z.object({
   status: z.enum(['pending', 'accepted', 'expired']).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const invitationTokenSchema = z

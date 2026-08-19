@@ -1,46 +1,15 @@
-// user-management.ts — TypeScript types for user management domain.
-// Pure type definitions — no runtime logic.
+// user-management.ts — Re-export from @plexica/api-types (ADR-029).
+// User management domain types are sourced from the shared package.
+// App-specific payload types stay here.
 
-export interface TenantUser {
-  userId: string;
-  keycloakId: string;
-  email: string;
-  displayName: string | null;
-  status: 'active' | 'invited' | 'disabled';
-  createdAt: string;
-}
-
-export interface Invitation {
-  id: string;
-  email: string;
-  workspaceId: string;
-  role: 'admin' | 'member' | 'viewer';
-  status: 'pending' | 'accepted' | 'expired';
-  expiresAt: string;
-  createdAt: string;
-}
-
-export interface Role {
-  name: string;
-  scope: 'tenant' | 'workspace';
-  description: string;
-  actionCount: number;
-}
-
-export interface ActionMatrixRow {
-  action: string;
-  label: string;
-  tenantAdmin: boolean;
-  workspaceAdmin: boolean;
-  member: boolean;
-  viewer: boolean;
-}
-
-export interface WorkspaceMembership {
-  workspaceId: string;
-  workspaceName: string;
-  role: 'admin' | 'member' | 'viewer';
-}
+export type {
+  TenantUser,
+  Invitation,
+  Role,
+  ActionMatrixRow,
+  WorkspaceMembership,
+  UserProfileDto,
+} from '@plexica/api-types';
 
 export interface InviteUserPayload {
   email: string;

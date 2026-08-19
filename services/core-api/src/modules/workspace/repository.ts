@@ -20,7 +20,7 @@ export interface WorkspaceFilters {
   sort?: 'name' | 'createdAt';
   order?: 'asc' | 'desc';
   page: number;
-  limit: number;
+  pageSize: number;
   userId: string;
   isTenantAdmin: boolean;
 }
@@ -47,8 +47,8 @@ export async function findWorkspacesByUser(
   tenantDb: TenantDbClient,
   filters: WorkspaceFilters
 ): Promise<{ rows: WorkspaceRow[]; total: number }> {
-  const { userId, isTenantAdmin, status, search, sort, order, page, limit } = filters;
-  const skip = (page - 1) * limit;
+  const { userId, isTenantAdmin, status, search, sort, order, page, pageSize } = filters;
+  const skip = (page - 1) * pageSize;
 
   const where: TenantPrisma.WorkspaceWhereInput = {};
   if (status !== undefined) where.status = status;
@@ -67,7 +67,7 @@ export async function findWorkspacesByUser(
       where,
       orderBy,
       skip,
-      take: limit,
+      take: pageSize,
       include: { _count: { select: { members: true } } },
     }),
     tenantDb.workspace.count({ where }),

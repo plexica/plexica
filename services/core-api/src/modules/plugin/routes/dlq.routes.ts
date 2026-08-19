@@ -40,19 +40,18 @@ export async function dlqRoutes(fastify: FastifyInstance): Promise<void> {
           }),
           tx.deadLetterQueue.count({ where }),
         ]);
-        // The envelope MUST come from buildPaginatedResult: the web client renders
-        // <Pagination> from `totalPages`, which the hand-built envelope silently
-        // omitted — leaving page 2+ unreachable from the UI. The DLQ contract
-        // names the page-size field `pageSize` (not `limit`), so rename the key.
-        const { limit, ...rest } = buildPaginatedResult(
+        // Canonical envelope via buildPaginatedResult (Decision 4, 2026-08-18):
+        // { data, total, page, pageSize, totalPages }. The previous hand-built
+        // envelope omitted totalPages (page 2+ unreachable from the UI) and
+        // renamed limit→pageSize via a spread workaround — both eliminated.
+        return buildPaginatedResult(
           data.map((entry) => ({
             ...entry,
             originalOffset: entry.originalOffset.toString(),
           })),
           total,
-          { page, limit: pageSize }
+          { page, pageSize },
         );
-        return { ...rest, pageSize: limit };
       })
     );
   });

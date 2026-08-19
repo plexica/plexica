@@ -99,5 +99,11 @@ export type { TableSkeletonProps } from './components/table-skeleton.js';
 export { CardGridSkeleton } from './components/card-grid-skeleton.js';
 export type { CardGridSkeletonProps } from './components/card-grid-skeleton.js';
 
+// Accessibility & error boundary (Decision 7, 2026-08-18)
+export { SkipLink } from './components/skip-link.js';
+export { ErrorFallback } from './components/error-fallback.js';
+export { RouteErrorBoundary } from './components/route-error-boundary.js';
+
 // Utilities
 export { cn } from './lib/cn.js';
+export { useMediaQuery } from './lib/use-media-query.js';

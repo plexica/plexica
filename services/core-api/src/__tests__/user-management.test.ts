@@ -29,12 +29,12 @@ const USER_B = '00000000-0104-0003-0000-000000000001';
 const USER_C = '00000000-0104-0004-0000-000000000001';
 
 // Response envelope of GET /api/v1/users — mirrors PaginatedResult in
-// lib/pagination.ts; the list tests below assert this shape exactly.
+// lib/pagination.ts (canonical envelope, Decision 4, 2026-08-18).
 interface UserListBody {
   data: TenantUserDto[];
   total: number;
   page: number;
-  limit: number;
+  pageSize: number;
   totalPages: number;
 }
 
@@ -79,26 +79,26 @@ describe('INT-04 User list', () => {
     const body = JSON.parse(res.body) as UserListBody;
     // Exact envelope — the web client renders <Pagination> from totalPages;
     // when the backend omitted it the `?? 1` fallback hid page navigation.
-    expect(Object.keys(body).sort()).toEqual(['data', 'limit', 'page', 'total', 'totalPages']);
+    expect(Object.keys(body).sort()).toEqual(['data', 'page', 'pageSize', 'total', 'totalPages']);
     expect(body.total).toBe(4); // beforeEach seeds exactly 4 profiles
     expect(body.totalPages).toBe(1);
     expect(body.data).toHaveLength(4);
   });
 
-  // Regression guard: with more users than the page limit, totalPages must
+  // Regression guard: with more users than the page size, totalPages must
   // reflect the real page count — the bug this covers left <Pagination>
   // permanently hidden, so page 2 was unreachable from the UI.
-  skipIfNoDb('GET /api/v1/users?limit=2 → totalPages reflects the real page count', async () => {
+  skipIfNoDb('GET /api/v1/users?pageSize=2 → totalPages reflects the real page count', async () => {
     const getPage = async (url: string): Promise<UserListBody> => {
       const res = await server.inject({ method: 'GET', url, headers: reqHeaders });
       expect(res.statusCode).toBe(200);
       return JSON.parse(res.body) as UserListBody;
     };
-    const p1 = await getPage('/api/v1/users?limit=2&page=1');
-    expect(p1).toMatchObject({ total: 4, page: 1, limit: 2, totalPages: 2 });
+    const p1 = await getPage('/api/v1/users?pageSize=2&page=1');
+    expect(p1).toMatchObject({ total: 4, page: 1, pageSize: 2, totalPages: 2 });
     expect(p1.data).toHaveLength(2);
-    const p2 = await getPage('/api/v1/users?limit=2&page=2');
-    expect(p2).toMatchObject({ total: 4, page: 2, limit: 2, totalPages: 2 });
+    const p2 = await getPage('/api/v1/users?pageSize=2&page=2');
+    expect(p2).toMatchObject({ total: 4, page: 2, pageSize: 2, totalPages: 2 });
     expect(p2.data).toHaveLength(2);
     const p1Ids = new Set(p1.data.map((u) => u.userId));
     expect(p2.data.every((u) => !p1Ids.has(u.userId))).toBe(true);

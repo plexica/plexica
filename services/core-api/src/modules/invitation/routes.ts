@@ -39,7 +39,7 @@ export async function invitationRoutes(fastify: FastifyInstance): Promise<void> 
 
       const filters: ListInvitationsFilters = stripUndefined({
         page: query.page,
-        limit: query.limit,
+        pageSize: query.pageSize,
         status: query.status,
       });
 

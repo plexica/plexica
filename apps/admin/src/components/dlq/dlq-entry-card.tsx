@@ -1,30 +1,25 @@
 // dlq-entry-card.tsx
 // Individual DLQ entry with event details, retry/dismiss actions.
+// Ported from apps/web to apps/admin (Decision 6, 2026-08-18).
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
 import { Badge, Button } from '@plexica/ui';
 
-import type { DeadLetterEntry } from '../../types/plugin.js';
+import type { DlqEntry } from '../../types/admin-types.js';
 
 interface DlqEntryCardProps {
-  entry: DeadLetterEntry;
+  entry: DlqEntry;
   onRetry: (id: string) => void;
   onDismiss: (id: string) => void;
   isRetrying: boolean;
   isDismissing: boolean;
 }
 
-// Sensitive field patterns that should be redacted in DLQ payload display
-const SENSITIVE_FIELDS = ['email', 'password', 'token', 'secret', 'authorization', 'apiKey', 'ssn'];
+const SENSITIVE_FIELDS = ['email', 'password', 'token', 'secret', 'authorization', 'apikey', 'ssn'];
 
-/**
- * Redacts sensitive fields from a payload object recursively.
- * Truncates payloads over 1000 chars to avoid rendering bloat.
- */
 function redactPayload(payload: Record<string, unknown>): string {
   const redacted = structuredClone(payload);
-
   function walk(obj: Record<string, unknown>): void {
     for (const key of Object.keys(obj)) {
       if (SENSITIVE_FIELDS.some((f) => key.toLowerCase().includes(f))) {
@@ -34,7 +29,6 @@ function redactPayload(payload: Record<string, unknown>): string {
       }
     }
   }
-
   walk(redacted);
   const json = JSON.stringify(redacted, null, 2);
   return json.length > 1000 ? json.slice(0, 1000) + '\n… (truncated)' : json;
@@ -51,11 +45,7 @@ export function DlqEntryCard({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const statusVariant =
-    entry.status === 'pending'
-      ? 'pending'
-      : entry.status === 'retried'
-        ? 'success'
-        : 'default';
+    entry.status === 'pending' ? 'pending' : entry.status === 'retried' ? 'success' : 'default';
 
   const statusLabelId =
     entry.status === 'pending'
@@ -66,7 +56,6 @@ export function DlqEntryCard({
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-white">
-      {/* Summary row */}
       <button
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-neutral-50"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -74,7 +63,9 @@ export function DlqEntryCard({
       >
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-neutral-900">{entry.eventType}</span>
-          <span className="text-xs text-neutral-500">{entry.pluginName}</span>
+          {entry.pluginId && (
+            <span className="text-xs text-neutral-500">{entry.pluginId.slice(0, 8)}</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={statusVariant} label={intl.formatMessage({ id: statusLabelId })} />
@@ -90,7 +81,6 @@ export function DlqEntryCard({
         </div>
       </button>
 
-      {/* Expanded detail */}
       {isExpanded && (
         <div className="border-t border-neutral-100 px-4 py-3">
           <div className="mb-3 space-y-2 text-sm">

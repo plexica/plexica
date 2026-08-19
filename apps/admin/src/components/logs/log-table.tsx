@@ -39,8 +39,8 @@ const LEVEL_CONFIG: Record<LogLevel, LevelConfig> = {
   error: { icon: OctagonAlert, i18nKey: 'admin.logs.level.error', className: 'bg-error-light text-error-dark' },
 };
 
-function LogLevelBadge({ level }: { level: LogLevel }): JSX.Element {
-  const cfg = LEVEL_CONFIG[level];
+function LogLevelBadge({ level }: { level: string }): JSX.Element {
+  const cfg = LEVEL_CONFIG[level as LogLevel] ?? LEVEL_CONFIG.info;
   const Icon = cfg.icon;
   return (
     <span

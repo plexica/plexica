@@ -48,5 +48,5 @@ export interface UserListFilters {
   status?: 'active' | 'invited' | 'disabled';
   search?: string;
   page?: number;
-  limit?: number;
+  pageSize?: number;
 }

@@ -1,15 +1,26 @@
 // skip-link.tsx
 // Accessible skip navigation link — visible on keyboard focus.
 // Must be the first focusable element in the DOM.
-// L-4 fix: text is now sourced from react-intl (was hardcoded English string).
-// L-02 note: intentionally uses <a href="#..."> (not a router Link component).
+//
+// Extracted from apps/web to @plexica/ui (Decision 7, 2026-08-18).
+//
+// NOTE: intentionally uses <a href="#..."> (not a router Link component).
 //   AGENTS.md forbids <a href> in place of router components for page navigation,
 //   but this is an intra-page anchor jump (#main-content), not a route change.
 //   Using a native <a> is correct here; router navigation would be semantically wrong.
 
 import { useIntl } from 'react-intl';
 
-export function SkipLink(): JSX.Element {
+/**
+ * Skip link — jumps focus to `#main-content`.
+ * The `skipToContentLabelId` prop lets each app use its own i18n key.
+ * Defaults to `'nav.skipToContent'` (the key used by apps/web).
+ */
+export function SkipLink({
+  skipToContentLabelId = 'nav.skipToContent',
+}: {
+  skipToContentLabelId?: string;
+}): JSX.Element {
   const intl = useIntl();
 
   return (
@@ -22,7 +33,7 @@ export function SkipLink(): JSX.Element {
         'focus:ring-2 focus:ring-primary-500'
       }
     >
-      {intl.formatMessage({ id: 'nav.skipToContent' })}
+      {intl.formatMessage({ id: skipToContentLabelId })}
     </a>
   );
 }

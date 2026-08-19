@@ -40,8 +40,8 @@ export async function findTenantUsers(
   filters: UserListFilters
 ): Promise<{ data: TenantUserDto[]; total: number }> {
   const page = filters.page ?? 1;
-  const limit = filters.limit ?? 20;
-  const skip = (page - 1) * limit;
+  const pageSize = filters.pageSize ?? 20;
+  const skip = (page - 1) * pageSize;
 
   const where: TenantPrisma.UserProfileWhereInput = { deletedAt: null };
 
@@ -57,7 +57,7 @@ export async function findTenantUsers(
     db.userProfile.findMany({
       where,
       skip,
-      take: limit,
+      take: pageSize,
       orderBy: { createdAt: 'desc' },
       select: {
         userId: true,

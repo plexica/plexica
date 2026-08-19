@@ -2,6 +2,9 @@
 // Invitation data access layer — Prisma queries scoped to the tenant schema.
 // All functions accept a TenantDbClient (plain or transaction client, ADR-028).
 
+import { buildPaginatedResult } from '../../lib/pagination.js';
+
+import type { PaginatedResult } from '../../lib/pagination.js';
 import type { TenantDbClient, TenantPrisma } from '../../lib/tenant-database.js';
 import type {
   InvitationDto,
@@ -94,9 +97,9 @@ export async function findInvitationsByWorkspace(
   tenantDb: TenantDbClient,
   workspaceId: string,
   filters: ListInvitationsFilters
-): Promise<{ data: InvitationDto[]; total: number }> {
-  const { status, page, limit } = filters;
-  const skip = (page - 1) * limit;
+): Promise<PaginatedResult<InvitationDto>> {
+  const { status, page, pageSize } = filters;
+  const skip = (page - 1) * pageSize;
   const where: TenantPrisma.InvitationWhereInput = { workspaceId };
   if (status !== undefined) where.status = status;
 
@@ -106,12 +109,12 @@ export async function findInvitationsByWorkspace(
       include: INCLUDE_INVITER,
       orderBy: { createdAt: 'desc' },
       skip,
-      take: limit,
+      take: pageSize,
     }),
     tenantDb.invitation.count({ where }),
   ]);
 
-  return { data: rows.map(toDto), total };
+  return buildPaginatedResult(rows.map(toDto), total, { page, pageSize });
 }
 
 export async function markAccepted(tenantDb: TenantDbClient, id: string): Promise<void> {

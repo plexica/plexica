@@ -39,7 +39,7 @@ export async function userManagementRoutes(fastify: FastifyInstance): Promise<vo
     // stripUndefined drops undefined-valued keys to satisfy exactOptionalPropertyTypes.
     const filters: UserListFilters = stripUndefined({
       page: query.page,
-      limit: query.limit,
+      pageSize: query.pageSize,
       status: query.status,
       search: query.search,
     });

@@ -133,31 +133,31 @@ describe('Hex color — updateBrandingSchema.primaryColor', () => {
 
 describe('paginationSchema', () => {
   it('page=0 → invalid (min 1)', () => {
-    expect(paginationSchema.safeParse({ page: '0', limit: '10' }).success).toBe(false);
+    expect(paginationSchema.safeParse({ page: '0', pageSize: '10' }).success).toBe(false);
   });
 
   it('page=1 → valid', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '10' }).success).toBe(true);
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '10' }).success).toBe(true);
   });
 
-  it('limit=0 → invalid (min 1)', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '0' }).success).toBe(false);
+  it('pageSize=0 → invalid (min 1)', () => {
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '0' }).success).toBe(false);
   });
 
-  it('limit=101 → invalid (max 100)', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '101' }).success).toBe(false);
+  it('pageSize=101 → invalid (max 100)', () => {
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '101' }).success).toBe(false);
   });
 
-  it('limit=100 → valid (max boundary)', () => {
-    expect(paginationSchema.safeParse({ page: '1', limit: '100' }).success).toBe(true);
+  it('pageSize=100 → valid (max boundary)', () => {
+    expect(paginationSchema.safeParse({ page: '1', pageSize: '100' }).success).toBe(true);
   });
 
-  it('defaults: missing page defaults to 1, missing limit defaults to 20', () => {
+  it('defaults: missing page defaults to 1, missing pageSize defaults to 20', () => {
     const result = paginationSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.page).toBe(1);
-      expect(result.data.limit).toBe(20);
+      expect(result.data.pageSize).toBe(20);
     }
   });
 });

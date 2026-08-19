@@ -23,6 +23,7 @@
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
+    "@plexica/api-types": "workspace:*",
     "@prisma/client": "^6.19.3",
     "@xmldom/xmldom": "^0.9.10",
     "dockerode": "^5.0.1",

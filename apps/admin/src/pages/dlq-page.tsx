@@ -1,17 +1,16 @@
-// admin-dlq-page.tsx
-// Super admin: view, retry, and dismiss dead letter queue entries.
+// dlq-page.tsx — Dead Letter Queue management page (S5-901, FR 005-11).
+// List, retry, dismiss DLQ entries. Filter by status. Paginated.
+// Ported from apps/web (Decision 6, 2026-08-18 — super-admin features live only in admin).
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { Pagination, Select } from '@plexica/ui';
 import { AlertTriangle } from 'lucide-react';
+import { EmptyState, ErrorState, Pagination, Select } from '@plexica/ui';
 
-import { useDlqEntries, useRetryDlq, useDismissDlq } from '../hooks/use-plugins.js';
-import { DlqEntryCard } from '../components/plugins/dlq-entry-card.js';
-import { SkeletonLoader } from '../components/feedback/skeleton-loader.js';
-import { PageError } from '../components/feedback/page-error.js';
+import { useDlqEntries, useRetryDlq, useDismissDlq } from '../hooks/use-dlq.js';
+import { DlqEntryCard } from '../components/dlq/dlq-entry-card.js';
 
-export function AdminDlqPage(): JSX.Element {
+export function DlqPage(): JSX.Element {
   const intl = useIntl();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
@@ -20,8 +19,8 @@ export function AdminDlqPage(): JSX.Element {
 
   const { data, isPending, isError, refetch } = useDlqEntries(
     statusFilter.length > 0
-      ? { page, status: statusFilter }
-      : { page }
+      ? { page, status: statusFilter as 'pending' | 'retried' | 'dismissed' }
+      : { page },
   );
 
   const { mutate: retryEvent } = useRetryDlq();
@@ -58,55 +57,52 @@ export function AdminDlqPage(): JSX.Element {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
+          <h1 className="text-xl font-bold text-neutral-900">
             <FormattedMessage id="admin.dlq.title" />
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
             <FormattedMessage id="admin.dlq.total" values={{ count: totalCount }} />
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Select
-            value={statusFilter.length > 0 ? statusFilter : '__all__'}
-            onValueChange={(value: string) => { setStatusFilter(value === '__all__' ? '' : value); setPage(1); }}
-            options={[
-              { value: '__all__', label: intl.formatMessage({ id: 'admin.dlq.filterAll' }) },
-              { value: 'pending', label: intl.formatMessage({ id: 'admin.dlq.status.pending' }) },
-              { value: 'retried', label: intl.formatMessage({ id: 'admin.dlq.status.retried' }) },
-              { value: 'dismissed', label: intl.formatMessage({ id: 'admin.dlq.status.dismissed' }) },
-            ]}
-            aria-label={intl.formatMessage({ id: 'admin.dlq.status' })}
-          />
-        </div>
+        <Select
+          value={statusFilter.length > 0 ? statusFilter : '__all__'}
+          onValueChange={(value: string) => {
+            setStatusFilter(value === '__all__' ? '' : value);
+            setPage(1);
+          }}
+          options={[
+            { value: '__all__', label: intl.formatMessage({ id: 'admin.dlq.filterAll' }) },
+            { value: 'pending', label: intl.formatMessage({ id: 'admin.dlq.status.pending' }) },
+            { value: 'retried', label: intl.formatMessage({ id: 'admin.dlq.status.retried' }) },
+            { value: 'dismissed', label: intl.formatMessage({ id: 'admin.dlq.status.dismissed' }) },
+          ]}
+          aria-label={intl.formatMessage({ id: 'admin.dlq.status' })}
+        />
       </div>
 
-      {/* Loading state */}
       {isPending && (
         <div className="space-y-3" aria-busy="true" aria-live="polite">
-          <span className="sr-only"><FormattedMessage id="skeleton.loading" /></span>
           {Array.from({ length: 5 }).map((_, i) => (
-            <SkeletonLoader key={i} variant="card" className="h-16" />
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-neutral-100" />
           ))}
         </div>
       )}
 
-      {/* Error state */}
-      {isError && <PageError onRetry={() => void refetch()} />}
-
-      {/* Empty state */}
-      {!isPending && !isError && entries.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <AlertTriangle className="mb-4 h-12 w-12 text-neutral-300" />
-          <h3 className="text-lg font-medium text-neutral-600">
-            <FormattedMessage id="admin.dlq.empty" />
-          </h3>
-        </div>
+      {isError && (
+        <ErrorState
+          heading={<FormattedMessage id="admin.dlq.error.heading" />}
+          retryLabel={<FormattedMessage id="admin.dlq.retry" />}
+          onRetry={() => void refetch()}
+        />
       )}
 
-      {/* DLQ entries list */}
+      {!isPending && !isError && entries.length === 0 && (
+        <EmptyState heading={<FormattedMessage id="admin.dlq.empty" />} />
+      )}
+
       {!isPending && !isError && entries.length > 0 && (
         <>
           <div className="space-y-2">
@@ -129,6 +125,6 @@ export function AdminDlqPage(): JSX.Element {
           )}
         </>
       )}
-    </div>
+    </section>
   );
 }

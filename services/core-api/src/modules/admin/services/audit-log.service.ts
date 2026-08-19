@@ -12,6 +12,7 @@ import {
   type AuditQuery,
   type WriteAuditEntry,
 } from '../schemas/audit-schemas.js';
+import { buildPaginatedResult } from '../../../lib/pagination.js';
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 
@@ -127,10 +128,5 @@ export async function queryAuditLog(
     prisma.platformAuditLog.count({ where }),
   ]);
 
-  return {
-    data: rows.map(toEntry),
-    total,
-    page,
-    pageSize,
-  };
+  return buildPaginatedResult(rows.map(toEntry), total, { page, pageSize });
 }

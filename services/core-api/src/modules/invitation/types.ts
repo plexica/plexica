@@ -24,7 +24,7 @@ export interface CreateInvitationInput {
 export interface ListInvitationsFilters {
   status?: InvitationStatus;
   page: number;
-  limit: number;
+  pageSize: number;
 }
 
 export interface AcceptInvitationResult {

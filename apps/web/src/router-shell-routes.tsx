@@ -8,8 +8,6 @@ import { shellRoute } from './router-shell.js';
 import { DashboardPage } from './pages/dashboard-page.js';
 import { MarketplacePage } from './pages/marketplace-page.js';
 import { InstalledPluginsPage } from './pages/installed-plugins-page.js';
-import { AdminPluginRegistryPage } from './pages/admin-plugin-registry-page.js';
-import { AdminDlqPage } from './pages/admin-dlq-page.js';
 import { WorkspaceListPage } from './pages/workspace-list-page.js';
 import { WorkspaceDetailPage } from './pages/workspace-detail-page.js';
 import { WorkspaceSettingsPage } from './pages/workspace-settings-page.js';
@@ -122,18 +120,6 @@ export const installedPluginsRoute = createRoute({
   component: InstalledPluginsPage,
 });
 
-export const adminPluginRegistryRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/admin/plugins',
-  component: AdminPluginRegistryPage,
-});
-
-export const adminDlqRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: '/admin/system/dlq',
-  component: AdminDlqPage,
-});
-
 export const shellChildRoutes = [
   dashboardRoute,
   marketplaceRoute,
@@ -149,8 +135,6 @@ export const shellChildRoutes = [
   tenantSettingsRoute,
   tenantBrandingRoute,
   tenantAuthConfigRoute,
-  adminPluginRegistryRoute,
-  adminDlqRoute,
   profileRoute,
   auditLogRoute,
 ];

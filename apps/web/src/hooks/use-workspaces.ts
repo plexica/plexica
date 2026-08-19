@@ -16,7 +16,7 @@ interface WorkspaceFilters {
   status?: 'active' | 'archived';
   parentId?: string;
   page?: number;
-  limit?: number;
+  pageSize?: number;
 }
 
 export function useWorkspaces(filters?: WorkspaceFilters, options?: { enabled?: boolean }) {
@@ -31,11 +31,11 @@ export function useParentWorkspaceOptions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['workspaces', 'parent-options', 'active'],
     queryFn: async () => {
-      const firstPage = await workspaceApi.list({ status: 'active', page: 1, limit: 100 });
+      const firstPage = await workspaceApi.list({ status: 'active', page: 1, pageSize: 100 });
       const workspaces = [...firstPage.data];
 
       for (let page = 2; page <= firstPage.totalPages; page++) {
-        const nextPage = await workspaceApi.list({ status: 'active', page, limit: 100 });
+        const nextPage = await workspaceApi.list({ status: 'active', page, pageSize: 100 });
         workspaces.push(...nextPage.data);
       }
 

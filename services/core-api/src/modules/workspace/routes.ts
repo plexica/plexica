@@ -44,14 +44,14 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     '/api/v1/workspaces',
     { preHandler: [requireAbac('workspace:read')] },
     async (req) => {
-      const { page, limit, sort, order, status, search } = parseOrThrow(
+      const { page, pageSize, sort, order, status, search } = parseOrThrow(
         workspaceListQuerySchema,
         req.query
       );
       const isTenantAdmin = req.user.roles.includes('tenant_admin');
       const listFilters: Parameters<typeof listWorkspaces>[3] = stripUndefined({
         page,
-        limit,
+        pageSize,
         sort,
         order,
         status,

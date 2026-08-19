@@ -22,6 +22,7 @@ import {
 
 import type { TenantContext } from '../../lib/tenant-context-store.js';
 import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
+import type { PaginatedResult } from '../../lib/pagination.js';
 import type { CreateInvitationInput, InvitationDto, ListInvitationsFilters } from './types.js';
 
 function expiryDate(): Date {
@@ -167,7 +168,7 @@ export async function listInvitationsService(
   tenantDb: TenantDbClient,
   workspaceId: string,
   filters: ListInvitationsFilters
-): Promise<{ data: InvitationDto[]; total: number }> {
+): Promise<PaginatedResult<InvitationDto>> {
   const result = await findInvitationsByWorkspace(tenantDb, workspaceId, filters);
-  return { data: result.data.map(maskInvitation), total: result.total };
+  return { ...result, data: result.data.map(maskInvitation) };
 }

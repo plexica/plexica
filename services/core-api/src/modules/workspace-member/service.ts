@@ -17,6 +17,7 @@ import {
 } from './repository.js';
 
 import type { TenantDbClient, TenantPrismaClient } from '../../lib/tenant-database.js';
+import type { PaginatedResult } from '../../lib/pagination.js';
 import type { MemberListFilters, WorkspaceMemberDto, WorkspaceRole } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -27,7 +28,7 @@ export async function listMembers(
   tenantDb: TenantDbClient,
   workspaceId: string,
   filters: MemberListFilters
-): Promise<{ data: WorkspaceMemberDto[]; total: number }> {
+): Promise<PaginatedResult<WorkspaceMemberDto>> {
   return findMembers(tenantDb, workspaceId, filters);
 }
 

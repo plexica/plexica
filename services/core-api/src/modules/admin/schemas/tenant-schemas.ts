@@ -35,6 +35,7 @@ export const TenantListResponseSchema = z.object({
   total: z.number().int().min(0),
   page: z.number().int().min(1),
   pageSize: z.number().int().min(1).max(100),
+  totalPages: z.number().int().min(0),
 });
 
 export type TenantListItem = z.infer<typeof TenantListItemSchema>;
