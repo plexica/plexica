@@ -122,6 +122,8 @@ jobs:
           pnpm --filter core-api exec prisma migrate status
       - name: Run unit and integration tests
         run: pnpm --filter core-api test
+        env:
+          NODE_OPTIONS: '--trace-warnings'
 
       # Free ~2.3 GB before the web E2E suite boots its own isolated compose
       # stack (project plexica-e2e-*, ports 15432/16379/18080/...), otherwise

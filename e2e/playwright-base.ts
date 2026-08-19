@@ -97,15 +97,15 @@ export const baseE2eConfig = {
   retries: isCi ? 1 : 0,
   // Decision 10 (2026-08-19): read-only spec files opt into parallel mode via
   // test.describe.configure({ mode: 'parallel' }) — intra-file parallelism only.
-  // IMPORTANT (adversarial review 2026-08-19): workers MUST stay at 1.
-  // Playwright runs files concurrently across workers by default, so workers > 1
-  // would run mutating files in parallel against the shared tenant/DB/realm state
-  // (user-removal vs user-management, 005-04-provisioning vs tenant-list,
-  // plugin specs sharing Docker ports) — exactly the flakiness Constitution
-  // Rule 2 prohibits. Do NOT raise workers until tenant-per-worker isolation
-  // (testInfo.workerIndex) lands; that is Decision 10's own deferred gate.
-  workers: 1,
+  // workers default to 1: files would race on the shared tenant/DB/realm state.
+  // Override via PLAYWRIGHT_WORKERS env when per-worker tenant isolation is in
+  // place (Decision 10's deferred gate — see global-setup.ts provisionPerWorker).
+  workers: process.env['PLAYWRIGHT_WORKERS'] ? Number(process.env['PLAYWRIGHT_WORKERS']) : 1,
   timeout: 30_000,
+  // Stop the suite early after N failures instead of grinding through the
+  // remaining ~150 tests when a systemic failure (timeout, auth outage, etc.)
+  // is detected. 10 failures in CI is conclusive — no need to waste the budget.
+  maxFailures: isCi ? 10 : 0,
   reporter: [
     ['list'],
     ['html', { open: 'never', outputFolder: 'playwright-report' }],

@@ -10,6 +10,15 @@
 // Idempotent: 409 responses are treated as "already exists" and the password
 // is reset to the known test value so re-runs after partial failures are safe.
 //
+// Tenant isolation for parallel workers (Decision 10):
+//   When PLAYWRIGHT_WORKERS > 1, this script provisions N additional worker
+//   tenants (e2e-w0 … e2e-w{N-1}) with the same credentials as the e2e tenant.
+//   Test files opt in by reading their slug from:
+//     process.env[`E2E_WORKER_${testInfo.workerIndex}_SLUG`]
+//   Until test files are parameterized, the primary e2e / e2e-b tenants remain
+//   the default for all workers — parallel mode is ready but gated on file-level
+//   adoption. See e2e/playwright-base.ts for the workers gate.
+//
 // Users provisioned:
 //   Tenant e2e  (realm plexica-e2e):
 //     test@e2e.local          / PlexicaE2e!1   tenant_admin role
@@ -66,6 +75,16 @@ async function setup(): Promise<void> {
   // it so tenant resolution returns exists:true. The create-tenant CLI creates
   // a plexica-admin realm, but the frontend resolver overrides to 'master'.
   provisionTenant('admin', 'Super Admin', 'admin@plexica.local');
+
+  // ── 1a. Per-worker tenants (Decision 10 isolation) ─────────────────────────
+  const workerCount = Number(process.env['PLAYWRIGHT_WORKERS'] ?? '1');
+  for (let w = 0; w < workerCount; w++) {
+    const slug = `e2e-w${w}`;
+    const name = `E2E Worker ${w}`;
+    provisionTenant(slug, name, `admin@${slug}.local`);
+    // Export slug for test files to pick up via process.env.
+    process.env[`E2E_WORKER_${w}_SLUG`] = slug;
+  }
 
   // ── 1b. Apply tenant DDL migrations ──────────────────────────────────────
   migrateTenantSchemas();

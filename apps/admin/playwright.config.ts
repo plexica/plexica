@@ -78,6 +78,7 @@ export default defineConfig({
       timeout: 60_000,
       env: coreApiEnv({
         NODE_ENV: process.env['NODE_ENV'] ?? 'test',
+        NODE_OPTIONS: '--trace-warnings',
         PLUGIN_DB_SSL_MODE: 'disable',
         PLUGIN_CREDENTIAL_PEPPER: credentialPepper,
         LOKI_URL: process.env['PLAYWRIGHT_LOKI_URL'] ?? 'http://localhost:3100',

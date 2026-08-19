@@ -103,6 +103,7 @@ export default defineConfig({
         // Forward all infra env vars so core-api can connect to services
         NODE_ENV: 'production',
         PORT: '3001',
+        NODE_OPTIONS: '--trace-warnings',
         EVENT_KEY_ENCRYPTION_KEY: eventEncryptionKey,
         PLUGIN_DB_ENCRYPTION_KEY: pluginDbEncryptionKey,
         PLUGIN_DB_SSL_MODE: 'verify-full',
