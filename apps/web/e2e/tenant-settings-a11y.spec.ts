@@ -9,6 +9,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from './helpers/base-fixture.js';
 import { hasKeycloak, loginAsAdmin, requireKeycloakInCI } from './helpers/admin-login.js';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('E2E-07: Tenant settings — accessibility', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak (PLAYWRIGHT_KEYCLOAK_* env vars)');
 

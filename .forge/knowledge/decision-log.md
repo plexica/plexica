@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-18 (Codebase review Fase 5 Decisions 3-9 IMPLEMENTED — SDK dogfooding, pagination unified, api-types package, admin-only features, shell a11y, auth store unified, dev-server HMR removed; ADR-029 registered; ADR-028 registered; TD-003 resolved)
+**Last Updated**: 2026-08-19 (Codebase review Fase 5 Decisions 3-10 ALL IMPLEMENTED — SDK dogfooding, pagination unified, api-types package, admin-only features, shell a11y, auth store unified, dev-server HMR removed, E2E read-only parallelized; ADR-029 registered; ADR-028 registered; TD-003 resolved; Decision 10 `workers: 2` reverted to 1 after adversarial review — Playwright runs files concurrently across workers, mutating suites are not yet isolated)
 
 ---
 
@@ -137,7 +137,7 @@ written. This section tracks the resolution of each.
 | 7 | Extract the whole shell or only error boundary + `useMediaQuery`? | [03#7](../../docs/review/03-frontend-apps.md#7) | **Implemented**: minimal extract — `useMediaQuery`, `SkipLink`, `RouteErrorBoundary` + `ErrorFallback` moved to `@plexica/ui`. Admin AppShell now includes SkipLink + KeyedErrorBoundary + `main id` + tabIndex. Admin sidebar: focus trap, Escape, focus restore, `role="dialog"`. Admin header: `aria-expanded`/`aria-controls` + i18n aria-label. `startsWith` active state bug fixed. Two AppShell stay separate. | See notes below | 2026-08-18 |
 | 8 | Unify the auth store? | [04#2](../../docs/review/04-packages-condivisi.md#2) | **Implemented**: `createAuthStore` factory in `@plexica/auth` with DI for realm, profile, persist, logout. Web: 180→63 lines. Admin: 156→33 lines. Dead `createAuthBaseSlice` removed. `idToken` added to `AuthState`. | — | 2026-08-18 |
 | 9 | Complete or remove the "dev-server HMR" feature? | [04#3](../../docs/review/04-packages-condivisi.md#3) | **Implemented**: removed. Deleted `plugin-dev-watcher.ts` (104 LOC) from apps/web, `dev-server-registration.ts` (78 LOC) from vite-plugin. Removed `startDevWatcher()` call from main.tsx. Removed `ws` + `@types/ws` deps. Dev plugin registration uses `registerBackend()` HTTP (already working in CLI template). | — | 2026-08-18 |
-| 10 | Parallelize the 174 E2E tests? | [05#20](../../docs/review/05-build-ci-infra.md#20) | Pending | — | — |
+| 10 | Parallelize the 174 E2E tests? | [05#20](../../docs/review/05-build-ci-infra.md#20) | **Implemented (incremental)**: 11 read-only spec files marked `mode: 'parallel'` (8 web + 3 admin) — intra-file parallelism only. `workers` stays at 1: Playwright runs files concurrently across workers by default, so raising workers would run mutating suites in parallel against the shared tenant/DB/realm state (adversarial review 2026-08-19). Full parallelism + tenant-per-worker isolation deferred to post-v1.0 CI measurement. | — | 2026-08-19 |
 
 ### Decision 3 — RESOLVED: adopt `@plexica/sdk` in the CRM plugin
 

@@ -95,6 +95,15 @@ export const baseE2eConfig = {
   fullyParallel: false,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,
+  // Decision 10 (2026-08-19): read-only spec files opt into parallel mode via
+  // test.describe.configure({ mode: 'parallel' }) — intra-file parallelism only.
+  // IMPORTANT (adversarial review 2026-08-19): workers MUST stay at 1.
+  // Playwright runs files concurrently across workers by default, so workers > 1
+  // would run mutating files in parallel against the shared tenant/DB/realm state
+  // (user-removal vs user-management, 005-04-provisioning vs tenant-list,
+  // plugin specs sharing Docker ports) — exactly the flakiness Constitution
+  // Rule 2 prohibits. Do NOT raise workers until tenant-per-worker isolation
+  // (testInfo.workerIndex) lands; that is Decision 10's own deferred gate.
   workers: 1,
   timeout: 30_000,
   reporter: [

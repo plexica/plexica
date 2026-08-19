@@ -21,6 +21,8 @@ import {
 // Force mobile viewport for the entire suite.
 test.use({ viewport: { width: 375, height: 812 } });
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('Mobile sidebar drawer', () => {
   test.skip(
     !hasKeycloak,

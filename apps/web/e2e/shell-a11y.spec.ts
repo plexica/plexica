@@ -15,6 +15,8 @@ import {
   TENANT_SLUG,
 } from './helpers/keycloak-login.js';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('App shell accessibility', () => {
   test.skip(!hasKeycloak, 'Requires live Keycloak');
 

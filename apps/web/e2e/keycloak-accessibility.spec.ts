@@ -25,6 +25,8 @@ const plexicaTheme = isPlexicaThemeActive();
 // Accessibility — focus management (WCAG 2.4.7)
 // ---------------------------------------------------------------------------
 
+test.describe.configure({ mode: 'parallel' });
+
 test.describe('Keycloak theme — Accessibility', () => {
   test.skip(
     !hasKeycloak,
