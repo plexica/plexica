@@ -35,7 +35,13 @@ export type { ApiClientConfig, RequestOptions, ApiClient } from './api-client.js
 export type { AuthBaseState, AuthBaseActions } from './auth-store.js';
 
 export { createAuthStore } from './create-auth-store.js';
-export type { AuthStoreConfig, BaseAuthState, BaseAuthActions } from './create-auth-store.js';
+export type {
+  AuthStoreConfig,
+  AuthStoreState,
+  BaseAuthState,
+  BaseAuthActions,
+  ExtraActionsFactory,
+} from './create-auth-store.js';
 
 export type { SilentRefreshConfig } from './use-silent-refresh.js';
 

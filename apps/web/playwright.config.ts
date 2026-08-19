@@ -116,12 +116,6 @@ export default defineConfig({
         PLUGIN_RUNTIME_SCOPE: requiredRunValue('PLUGIN_RUNTIME_SCOPE', RUN_HINT),
         PLUGIN_CREDENTIAL_PEPPER: credentialPepper,
         APP_URL: 'http://e2e.localhost:3000',
-        // Enable CORS so the production Vite build (which embeds VITE_API_URL=
-        // http://localhost:3001) can make cross-origin fetch() calls to the API
-        // from the http://e2e.localhost:3000 origin without hitting the Vite
-        // preview proxy (which would block the TanStack Router loader).
-        E2E_CORS: 'true',
-        CORS_ORIGIN: 'http://e2e.localhost:3000',
         // Feature tests use isolated proxy IPs, while this high global ceiling
         // prevents unrelated direct API setup calls sharing one CI socket from
         // exhausting the generic budget. Resolve keeps its dedicated limit.
@@ -140,7 +134,6 @@ export default defineConfig({
       timeout: 30_000,
       env: {
         VITE_KEYCLOAK_URL: keycloakUrl(),
-        VITE_API_URL: 'http://localhost:3001',
         VITE_PLUGIN_ASSET_ORIGIN: requiredRunValue('VITE_PLUGIN_ASSET_ORIGIN', RUN_HINT),
       },
     },

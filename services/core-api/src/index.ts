@@ -10,7 +10,6 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 
 import { config } from './lib/config.js';
-import { registerCors } from './middleware/cors-middleware.js';
 import { logger } from './lib/logger.js';
 import { redis } from './lib/redis.js';
 import { connectRedis, startBackgroundServices, stopBackgroundServices } from './bootstrap.js';
@@ -47,14 +46,19 @@ const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY 
 // handler to a child plugin context, leaving sibling routes unprotected.
 configureErrorHandler(server);
 
-await registerCors(server, config);
-
 // Redis must be connected before the rate-limit plugin below is registered
 // with the same client. Never throws — see bootstrap.ts.
 await connectRedis();
 
-// Rate limiting — Redis-backed, global, registered before routes.
-// Per-user keying via hook:'preHandler' on admin scope below (ADR-012).
+// ---------------------------------------------------------------------------
+// Rate limiting — registered before route plugins so all routes are covered.
+// Redis-backed for correctness across multiple Node.js processes.
+// keyGenerator: library default (request.ip) — request.user is not yet
+// populated at plugin level. Per-user keying is applied via hook:'preHandler'
+// on individual routes/scopes (e.g. the admin scope below, POST
+// /api/admin/tenants/migrate-all in tenant-routes.ts).
+// Fails open when Redis is unavailable (ADR-012).
+// ---------------------------------------------------------------------------
 await server.register(rateLimit, {
   global: true,
   max: GLOBAL_RATE_LIMIT.max,

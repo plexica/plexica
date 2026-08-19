@@ -16,6 +16,7 @@
 import { createAuthStoreImpl } from './create-auth-store-impl.js';
 import { extractBaseProfile } from './jwt.js';
 
+import type { StoreApi, UseBoundStore } from 'zustand';
 import type { KeycloakClient } from './keycloak-client.js';
 import type { BaseUserProfile } from './types.js';
 
@@ -41,6 +42,15 @@ export interface BaseAuthActions {
   dismissExpired: () => void;
 }
 
+export type AuthStoreState<T extends BaseUserProfile, S extends object> = S &
+  BaseAuthState<T> &
+  BaseAuthActions;
+
+export type ExtraActionsFactory<T extends BaseUserProfile, S extends object> = (
+  set: StoreApi<AuthStoreState<T, S>>['setState'],
+  get: StoreApi<AuthStoreState<T, S>>['getState']
+) => Partial<S>;
+
 export interface AuthStoreConfig<T extends BaseUserProfile, S extends object> {
   keycloakClient: KeycloakClient;
   redirectUri: string;
@@ -49,17 +59,16 @@ export interface AuthStoreConfig<T extends BaseUserProfile, S extends object> {
   postLogoutUrlBuilder: (state: S) => string;
   persistName: string;
   partializeExtra?: (state: S) => Record<string, unknown>;
-  extraState?: object;
-  extraActions?: object;
+  extraState?: Partial<S>;
+  extraActions?: ExtraActionsFactory<T, S>;
   onClearAuth?: () => void;
 }
 
 // ─── Factory ────────────────────────────────────────────────────────────────
 
-export function createAuthStore<
-  T extends BaseUserProfile,
-  S extends object = object,
->(config: AuthStoreConfig<T, S>) {
+export function createAuthStore<T extends BaseUserProfile, S extends object = object>(
+  config: AuthStoreConfig<T, S>
+): UseBoundStore<StoreApi<AuthStoreState<T, S>>> {
   return createAuthStoreImpl(config);
 }
 

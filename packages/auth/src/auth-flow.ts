@@ -26,9 +26,11 @@ export function createAuthFlowCoordinator(): AuthFlowCoordinator {
       callbackFlight = null;
       const promise = Promise.resolve().then(operation);
       loginFlight = promise;
-      void promise.finally(() => {
-        if (loginFlight === promise) loginFlight = null;
-      });
+      void promise
+        .finally(() => {
+          if (loginFlight === promise) loginFlight = null;
+        })
+        .catch(() => undefined);
       return promise;
     },
 

@@ -8,22 +8,15 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { createAuthActions } from './create-auth-store-actions.js';
-import {
-  createRehydrationHandler,
-  partializeAuthState,
-} from './auth-store.js';
+import { createRehydrationHandler, partializeAuthState } from './auth-store.js';
 
-import type {
-  AuthStoreConfig,
-  BaseAuthActions,
-  BaseAuthState,
-} from './create-auth-store.js';
+import type { StoreApi } from 'zustand';
+import type { AuthStoreConfig, AuthStoreState, BaseAuthState } from './create-auth-store.js';
 import type { BaseUserProfile } from './types.js';
 
-export function createAuthStoreImpl<
-  T extends BaseUserProfile,
-  S extends object = object,
->(config: AuthStoreConfig<T, S>) {
+export function createAuthStoreImpl<T extends BaseUserProfile, S extends object = object>(
+  config: AuthStoreConfig<T, S>
+) {
   const {
     keycloakClient,
     redirectUri,
@@ -37,7 +30,7 @@ export function createAuthStoreImpl<
     onClearAuth,
   } = config;
 
-  type StoreType = S & BaseAuthState<T> & BaseAuthActions;
+  type StoreType = AuthStoreState<T, S>;
 
   return create<StoreType>()(
     persist(
@@ -54,10 +47,12 @@ export function createAuthStoreImpl<
           clearedAuth: BaseAuthState<T>;
           [key: string]: unknown;
         };
+        const typedSet = set as StoreApi<StoreType>['setState'];
+        const typedGet = get as StoreApi<StoreType>['getState'];
         return {
           ...clearedAuth,
           ...(extraState ?? {}),
-          ...(extraActions ?? {}),
+          ...(extraActions?.(typedSet, typedGet) ?? {}),
           ...actions,
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,10 +65,10 @@ export function createAuthStoreImpl<
           ...partializeAuthState(state),
           idToken: state.idToken,
           ...(partializeExtra?.(state as S) ?? {}),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         })) as any,
         onRehydrateStorage: createRehydrationHandler(),
-      },
-    ),
+      }
+    )
   );
 }

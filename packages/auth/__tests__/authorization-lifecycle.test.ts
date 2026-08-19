@@ -92,3 +92,26 @@ describe('callback replay lifecycle', () => {
     expect(operation).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('login flight lifecycle', () => {
+  it('should allow a subsequent login after a successful login settles', async () => {
+    const coordinator = createAuthFlowCoordinator();
+    const operation = vi.fn().mockResolvedValue(undefined);
+
+    await coordinator.runLogin(operation);
+    await coordinator.runLogin(operation);
+
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
+
+  it('should propagate a failed login and allow a subsequent attempt', async () => {
+    const coordinator = createAuthFlowCoordinator();
+    const failure = new Error('login failed');
+    const operation = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(undefined);
+
+    await expect(coordinator.runLogin(operation)).rejects.toBe(failure);
+    await coordinator.runLogin(operation);
+
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
+});

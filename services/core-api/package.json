@@ -21,7 +21,6 @@
     "test": "vitest run --project unit && bash scripts/check-test-env.sh && vitest run --project integration"
   },
   "dependencies": {
-    "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.3.0",
     "@plexica/api-types": "workspace:*",
