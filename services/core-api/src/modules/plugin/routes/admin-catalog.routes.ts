@@ -15,11 +15,6 @@ import { countPluginInstallationsBatch } from '../services/plugin-install-count.
 import type { FastifyInstance } from 'fastify';
 import type { PluginListOptions, PluginRecord } from '../services/registry.service.js';
 
-// listPlugins() selects all Plugin columns (no `select`), so reviewStatus is
-// present at runtime; the PluginRecord interface just omits it. Extend locally
-// rather than widening the shared interface (S5-801 scope).
-type PluginRow = PluginRecord & { reviewStatus: string };
-
 const listQuerySchema = z.object({
   search: z.string().optional(),
   status: z.string().optional(),
@@ -43,14 +38,12 @@ export async function adminCatalogRoutes(fastify: FastifyInstance): Promise<void
 
     const page = await withCoreDb((prisma) => listPlugins(prisma, options));
 
-    // S5-801: augment each row with reviewStatus (already on the row, just
-    // not on PluginRecord type) and platform-wide active installedCount.
+    // S5-801: augment catalog-safe rows with platform-wide active installedCount.
     const pluginIds = page.data.map((p) => p.id);
     const counts = await withCoreDb((prisma) => countPluginInstallationsBatch(prisma, pluginIds));
 
-    const data = (page.data as PluginRow[]).map((p) => ({
+    const data = page.data.map((p) => ({
       ...p,
-      reviewStatus: p.reviewStatus,
       installedCount: counts.get(p.id) ?? 0,
     }));
 

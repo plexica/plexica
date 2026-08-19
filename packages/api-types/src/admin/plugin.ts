@@ -1,6 +1,6 @@
 // admin/plugin.ts
 // Super-admin plugin catalog response types (S5-800).
-// These mirror the PluginRecord + review augmentation from the backend.
+// This public allow-list intentionally excludes registry and review internals.
 
 export type PluginStatus = 'draft' | 'published' | 'unpublished' | 'deprecated';
 export type ReviewStatus = 'none' | 'pending' | 'approved' | 'rejected';

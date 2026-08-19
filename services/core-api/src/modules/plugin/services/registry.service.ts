@@ -4,11 +4,15 @@
 import { PluginNotFoundError, PluginConflictError } from '../errors.js';
 import { buildPaginatedResult, type PaginatedResult } from '../../../lib/pagination.js';
 
+import { PLUGIN_CATALOG_SELECT, toPluginCatalogRecord } from './plugin-catalog-record.js';
+
 import type { Prisma } from '@prisma/client';
 import type { CoreDbClient } from '../../../lib/database.js';
 import type { RegisterPluginInput } from '../schema/api.js';
 import type { Manifest } from '../schema/manifest.js';
+import type { PluginCatalogRecord } from './plugin-catalog-record.js';
 
+/** Internal registry record for mutations and lookups, not a public API projection. */
 export interface PluginRecord {
   id: string;
   slug: string;
@@ -71,7 +75,7 @@ function toPluginRecord(row: PluginRow): PluginRecord {
   };
 }
 
-export type PaginatedPlugins = PaginatedResult<PluginRecord>;
+export type PaginatedPlugins = PaginatedResult<PluginCatalogRecord>;
 
 export async function createPlugin(
   prisma: CoreDbClient,
@@ -87,6 +91,7 @@ export async function createPlugin(
     data: {
       slug: data.slug,
       name: data.name,
+      description: data.manifest.description,
       version: data.manifest.version,
       author: data.manifest.author,
       iconUrl: data.manifest.icon ?? null,
@@ -129,6 +134,7 @@ export async function listPlugins(
   const [data, total] = await Promise.all([
     prisma.plugin.findMany({
       where,
+      select: PLUGIN_CATALOG_SELECT,
       skip: (page - 1) * pageSize,
       take: pageSize,
       orderBy: { createdAt: 'desc' },
@@ -136,7 +142,7 @@ export async function listPlugins(
     prisma.plugin.count({ where }),
   ]);
 
-  return buildPaginatedResult(data.map(toPluginRecord), total, { page, pageSize });
+  return buildPaginatedResult(data.map(toPluginCatalogRecord), total, { page, pageSize });
 }
 
 export async function updatePluginStatus(
