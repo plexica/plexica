@@ -9,6 +9,16 @@ const apiProxy = {
   changeOrigin: false,
 };
 
+// Preview proxy: changeOrigin=true so that requests arriving with Host
+// headers like e2e.localhost:3000 (used by E2E production tests) are
+// rewritten to localhost:3001 when forwarded to the core-api.
+// The dev server proxy keeps changeOrigin:false (the dev browser always
+// connects to localhost:3000, so the Host header already matches).
+const previewApiProxy = {
+  target: 'http://localhost:3001',
+  changeOrigin: true,
+};
+
 export default defineConfig({
   plugins: [
     react(),
@@ -40,7 +50,7 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
     allowedHosts: ['.localhost'],
-    proxy: { '/api': apiProxy },
+    proxy: { '/api': previewApiProxy },
   },
   build: {
     target: 'esnext',
