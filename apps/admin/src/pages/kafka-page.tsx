@@ -12,7 +12,6 @@ import {
   ConsumerLagTable,
   KafkaSkeleton,
   LAG_WARNING_THRESHOLD,
-  computeTotalLag,
 } from '../components/kafka/consumer-lag-table.js';
 import { useKafkaStatus } from '../hooks/use-kafka-status.js';
 

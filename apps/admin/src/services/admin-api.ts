@@ -10,7 +10,6 @@ import type {
   DashboardMetrics,
   DeletionRetryResponse,
   DeletionStatusResponse,
-  DlqEntry,
   DlqListResponse,
   HealthResponse,
   KafkaStatus,

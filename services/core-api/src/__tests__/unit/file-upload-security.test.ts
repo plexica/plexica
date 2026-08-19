@@ -48,6 +48,36 @@ describe('sniffMimeType()', () => {
     expect(sniffMimeType(LEGIT_SVG)).toBe('image/svg+xml');
   });
 
+  it('detects SVG with XML declaration, comments and DOCTYPE prologue', () => {
+    const withPrologue =
+      '<?xml version="1.0"?><!-- a comment --><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" ' +
+      '"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>';
+    expect(sniffMimeType(Buffer.from(withPrologue))).toBe('image/svg+xml');
+  });
+
+  it('returns null for an unterminated comment or DOCTYPE (no false positive)', () => {
+    // Regression: the old regex (<!--[\s\S]*?-->)* also matched a dangling
+    // "<!--" only if the comment was eventually closed; an unterminated one
+    // must not be sniffed as SVG. The scanner walks the window exactly once.
+    expect(sniffMimeType(Buffer.from('<!-- unterminated'))).toBeNull();
+    expect(sniffMimeType(Buffer.from('<!DOCTYPE svg'))).toBeNull();
+  });
+
+  it('sniffs a comment-heavy adversarial prologue in linear time (ReDoS regression)', () => {
+    // CodeQL 2026-08-19 (inefficient regular expression): the previous regex
+    // /(<!--[\s\S]*?-->)*<svg/ could backtrack exponentially on strings
+    // starting with "<!--" and containing many repetitions without a closing
+    // "-->" — each "<!--" doubles the candidate split points. The scanner is
+    // O(window): an unterminated comment is rejected with a single indexOf.
+    // 256 repetitions fill the whole 1024-byte sniff window; the old regex
+    // would hang on this for seconds/minutes.
+    const adversarial = '<!--'.repeat(256);
+    const started = Date.now();
+    expect(sniffMimeType(Buffer.from(adversarial))).toBeNull();
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
   it('returns null for unrecognised content', () => {
     expect(sniffMimeType(Buffer.from('not an image at all'))).toBeNull();
   });

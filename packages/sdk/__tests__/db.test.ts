@@ -1,7 +1,7 @@
 // Unit tests for PluginDb (typed pg.Pool wrapper).
 // Verifies lazy pool creation, query/queryOne, error handling, and close().
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const { PluginDb } = await import('../src/db.js');
 

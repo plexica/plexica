@@ -4,9 +4,10 @@
 // Extracted from PluginSDK to keep index.ts under the 200-line constitution limit
 // and to give consumers a typed query API without importing pg themselves.
 
+import { DbAccessError } from './errors.js';
+
 import type { Pool } from 'pg';
 
-import { DbAccessError } from './errors.js';
 
 export interface DbQueryResult {
   rows: Record<string, unknown>[];

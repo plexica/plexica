@@ -37,6 +37,17 @@ const MALICIOUS_SVGS: Array<[string, string]> = [
   // &#9; is a char-ref tab: it survives XML attribute-value normalization and
   // the WHATWG URL parser strips it, yielding "javascript:".
   ['javascript: URL via tab char ref', '<svg><a href="java&#9;script:alert(1)"/></svg>'],
+  // CodeQL 2026-08-19 (incomplete URL scheme check): the check previously
+  // only considered javascript:. vbscript: is the same script-executing class
+  // (legacy IE) and data: on non-image hrefs navigates a top-level document
+  // where embedded HTML/SVG scripts execute.
+  ['vbscript: URL', '<svg><a href="vbscript:msgbox(1)"><circle r="1"/></a></svg>'],
+  ['vbscript: URL via char ref', '<svg><a href="&#118;bscript:msgbox(1)"/></svg>'],
+  ['data: URL on <a> (navigable document)', '<svg><a href="data:text/html,<script>alert(1)</script>"><circle r="1"/></a></svg>'],
+  [
+    'data: URL on SMIL to=',
+    '<svg><a><set attributeName="href" to="data:text/html,<script>alert(1)</script>"/></a></svg>',
+  ],
   // Passive beacons: fetched with no user interaction when the SVG is loaded.
   ['external <image> beacon', '<svg><image href="https://evil.example/beacon.png"/></svg>'],
   ['external <use> beacon', '<svg><use href="https://evil.example/sprite.svg#i"/></svg>'],

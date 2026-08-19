@@ -9,8 +9,7 @@
 
 import { useState } from 'react';
 import { Outlet, useLocation } from '@tanstack/react-router';
-
-import { SkipLink, RouteErrorBoundary, useMediaQuery } from '@plexica/ui';
+import { SkipLink, RouteErrorBoundary } from '@plexica/ui';
 
 import { AdminSidebar } from './sidebar.js';
 import { AdminHeader } from './header.js';
@@ -31,7 +30,6 @@ function KeyedErrorBoundary(): JSX.Element {
 
 export function AppShell(): JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
 
   return (
     <div className="flex min-h-screen bg-neutral-50">

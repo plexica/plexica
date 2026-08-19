@@ -107,8 +107,21 @@ function checkElement(element: Element): void {
     if (attr.name.toLowerCase().startsWith('on')) rejectSvg('event handler attribute');
     if (URL_ATTRIBUTES.has(attrLocal)) {
       const url = normalizeUrlValue(attr.value);
-      if (url.startsWith('javascript:')) rejectSvg('javascript: URL');
-      if (attrLocal === 'href' && REMOTE_FETCH_ELEMENTS.has(name) && isRemoteRef(url)) {
+      // Script-capable schemes are rejected on ANY element, not just links:
+      // javascript: (event/anchor handlers), vbscript: (legacy IE, same
+      // class — CodeQL 2026-08-19: the check only considered javascript:),
+      // and data: on anything but a remote-fetch href (an <image>/<use>
+      // data: payload is rendered inert with scripting disabled; a data: URL
+      // elsewhere — <a>, SMIL to=/values= — navigates a top-level document
+      // where embedded HTML/SVG scripts execute).
+      if (url.startsWith('javascript:') || url.startsWith('vbscript:')) {
+        rejectSvg('scripted URL');
+      }
+      const isRemoteFetchHref = attrLocal === 'href' && REMOTE_FETCH_ELEMENTS.has(name);
+      if (url.startsWith('data:') && !isRemoteFetchHref) {
+        rejectSvg('data: URL');
+      }
+      if (isRemoteFetchHref && isRemoteRef(url)) {
         rejectSvg(`external resource (<${name}> remote href)`);
       }
     }

@@ -10,8 +10,8 @@
 
 import { Menu } from 'lucide-react';
 import { useIntl } from 'react-intl';
-
 import { useMediaQuery } from '@plexica/ui';
+
 import { WorkspaceSelectorDropdown } from '../workspace/workspace-selector-dropdown.js';
 
 import { Breadcrumb } from './breadcrumb.js';

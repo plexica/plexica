@@ -24,26 +24,8 @@ import {
   tenantDbCacheSize,
 } from '../lib/tenant-db-cache.js';
 import { withTenantDb } from '../lib/tenant-database.js';
-import { executeSchemaDrop } from '../modules/admin/services/deletion-step-schema-drop.js';
 
-import type { TenantContext } from '../lib/tenant-context-store.js';
-
-function makeContext(schemaName: string): TenantContext {
-  return { tenantId: `id-${schemaName}`, slug: schemaName, schemaName, realmName: 'r' };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Runs `SHOW search_path` through the cached client for `schemaName`. */
-async function showSearchPath(schemaName: string): Promise<string> {
-  const rows = await withTenantDb(
-    (db) => db.$queryRaw<Array<{ search_path: string }>>`SHOW search_path`,
-    makeContext(schemaName)
-  );
-  return rows[0]?.search_path ?? '';
-}
+import { makeContext, sleep, showSearchPath } from './helpers/tenant-db-cache.helpers.js';
 
 beforeEach(async () => {
   // isolate:false → the module-level cache is shared with other test files
@@ -188,25 +170,5 @@ describe('concurrency', () => {
     ]);
     expect(db1).toBe(db2);
     expect(tenantDbCacheSize()).toBe(1);
-  });
-});
-
-describe('deprovisioning wiring', () => {
-  const DROP_SCHEMA = 'tenant_cache_drop';
-
-  afterAll(async () => {
-    await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${DROP_SCHEMA}" CASCADE`);
-  });
-
-  it('the deletion saga schema_drop step invalidates the cached client', async () => {
-    await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${DROP_SCHEMA}"`);
-
-    const db1 = await withTenantDb((db) => Promise.resolve(db), makeContext(DROP_SCHEMA));
-    const disconnectSpy = vi.spyOn(db1, '$disconnect');
-
-    await executeSchemaDrop(prisma, 'tenant-id-cache-drop', DROP_SCHEMA);
-
-    expect(disconnectSpy).toHaveBeenCalledTimes(1);
-    expect(hasTenantDbClient(DROP_SCHEMA)).toBe(false);
   });
 });

@@ -93,10 +93,50 @@ function isWebp(content: Buffer): boolean {
 
 function isSvg(content: Buffer): boolean {
   const head = content.subarray(0, SNIFF_TEXT_WINDOW).toString('utf8');
-  // Allow a BOM, an XML declaration, comments and a DOCTYPE before the root tag,
-  // but nothing else — a file that only *contains* "<svg" is not an SVG.
-  return /^\uFEFF?\s*(<\?xml[^>]*\?>\s*|<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*<svg[\s>]/i.test(
-    head
+  // Linear-time prologue scanner (CodeQL 2026-08-19: the previous
+  // `(<!--[\s\S]*?-->)*` regex could backtrack exponentially on input like
+  // "<!--" repeated many times). Each prologue construct is consumed with a
+  // single indexOf — no nested quantifiers, worst case O(window).
+  // Case-insensitive like the replaced regex: lowercase once, keep positions.
+  const lower = head.toLowerCase();
+  let pos = 0;
+  // Optional BOM.
+  if (lower.charCodeAt(0) === 0xfeff) pos = 1;
+
+  const skipWhitespace = (): void => {
+    while (pos < lower.length && /\s/.test(lower.charAt(pos))) pos++;
+  };
+  skipWhitespace();
+
+  // Consume any mix of XML declaration, comment and DOCTYPE prologue items.
+  for (;;) {
+    if (lower.startsWith('<?xml', pos)) {
+      const end = lower.indexOf('?>', pos + 5);
+      if (end === -1) return false;
+      pos = end + 2;
+      skipWhitespace();
+    } else if (lower.startsWith('<!--', pos)) {
+      const end = lower.indexOf('-->', pos + 4);
+      if (end === -1) return false;
+      pos = end + 3;
+      skipWhitespace();
+    } else if (lower.startsWith('<!doctype', pos)) {
+      // DOCTYPE can contain an internal subset; only require a closing '>'.
+      const end = lower.indexOf('>', pos + 9);
+      if (end === -1) return false;
+      pos = end + 1;
+      skipWhitespace();
+    } else {
+      break;
+    }
+  }
+
+  // Allow a BOM, an XML declaration, comments and a DOCTYPE before the root
+  // tag, but nothing else — a file that only *contains* "<svg" is not an SVG.
+  return (
+    pos + 4 < lower.length &&
+    lower.startsWith('<svg', pos) &&
+    (lower[pos + 4] === '>' || /\s/.test(lower.charAt(pos + 4)))
   );
 }
 

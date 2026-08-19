@@ -182,12 +182,12 @@ describe('admin auth store', () => {
     });
 
     const logout = useAuthStore.getState().logout();
+    await logout;
 
     expect(logoutUrl).toHaveBeenCalledWith('master', 'id-token', 'https://admin.example.com/login');
-    expect(revoke).toHaveBeenCalledWith('refresh');
+    expect(revoke).toHaveBeenCalledWith('refresh', 'master');
     expect(useAuthStore.getState().status).toBe('unauthenticated');
     expect(storage.getItem('plexica-admin-auth')).not.toContain('expired');
-    await logout;
     expect(testWindow.location.href).toBe('https://id.example.com/logout');
     vi.resetModules();
     const { useAuthStore: reloadedStore } = await loadStore();

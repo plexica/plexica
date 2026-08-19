@@ -35,9 +35,9 @@ export class PluginSDK {
     const instId = config.installId ?? process.env['PLEXICA_INSTALL_ID'];
     if (svcToken) this.config.serviceToken = svcToken;
     if (instId) this.config.installId = instId;
-    this.db = new PluginDb({
-      onError: (err) => console.error('[PluginSDK] idle DB error:', err.message),
-    });
+    this.db = new PluginDb(
+      config.onError === undefined ? {} : { onError: config.onError },
+    );
     this.http = new PluginHttp(this.config);
   }
 

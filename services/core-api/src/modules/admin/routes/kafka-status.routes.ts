@@ -11,10 +11,11 @@
 // @plexica/api-types (ADR-029). Runtime validation enforces the API contract
 // at the boundary so malformed aggregation data never reaches the admin UI.
 
+import { KafkaStatusResponseSchema } from '@plexica/api-types';
+
 import { withCoreDb } from '../../../lib/tenant-database.js';
 import { requireSuperAdmin } from '../../../middleware/require-super-admin.js';
 import { getKafkaStatus } from '../services/kafka-status.service.js';
-import { KafkaStatusResponseSchema } from '@plexica/api-types';
 
 import type { FastifyInstance } from 'fastify';
 

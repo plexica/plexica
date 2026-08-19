@@ -4,7 +4,6 @@
 
 import { useState } from 'react';
 import { FormattedMessage, useIntl } from 'react-intl';
-import { AlertTriangle } from 'lucide-react';
 import { EmptyState, ErrorState, Pagination, Select } from '@plexica/ui';
 
 import { useDlqEntries, useRetryDlq, useDismissDlq } from '../hooks/use-dlq.js';

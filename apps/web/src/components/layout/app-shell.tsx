@@ -11,7 +11,6 @@
 
 import { useState } from 'react';
 import { Outlet, useLocation } from '@tanstack/react-router';
-
 import { useMediaQuery, RouteErrorBoundary, SkipLink } from '@plexica/ui';
 
 import { Sidebar } from './sidebar.js';

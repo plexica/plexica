@@ -93,8 +93,8 @@ export function AdminSidebar({ open, onClose }: SidebarProps): JSX.Element {
       ).filter((el) => el.offsetParent !== null);
       if (focusables.length === 0) return;
 
-      const first = focusables[0]!;
-      const last = focusables[focusables.length - 1]!;
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
