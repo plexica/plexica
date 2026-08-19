@@ -114,6 +114,11 @@ overrides:
   ws: 8.21.0
   find-my-way: ^9.7.0
 
+patchedDependencies:
+  kafkajs@2.2.4:
+    hash: 1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c
+    path: patches/kafkajs@2.2.4.patch
+
 importers:
 
   .:
@@ -612,7 +617,7 @@ importers:
         version: 6.2.3
       kafkajs:
         specifier: ^2.2.4
-        version: 2.2.4
+        version: 2.2.4(patch_hash=1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c)
       minio:
         specifier: ^8.0.0
         version: 8.0.7
@@ -8347,7 +8352,7 @@ snapshots:
 
   json5@2.2.3: {}
 
-  kafkajs@2.2.4: {}
+  kafkajs@2.2.4(patch_hash=1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c): {}
 
   keycloakify@11.15.11:
     dependencies:

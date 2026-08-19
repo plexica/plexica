@@ -54,6 +54,9 @@
       "allowedVersions": {
         "react-intl>react": "19"
       }
+    },
+    "patchedDependencies": {
+      "kafkajs@2.2.4": "patches/kafkajs@2.2.4.patch"
     }
   }
 }
