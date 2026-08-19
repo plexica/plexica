@@ -6,7 +6,7 @@
 > For lessons learned from the v1 codebase, see
 > [lessons-learned.md](./lessons-learned.md).
 
-**Last Updated**: 2026-08-18 (Codebase review Fase 5 Decisions 3-7 IMPLEMENTED — SDK dogfooding, pagination unified, api-types package, admin-only features, shell a11y; ADR-029 registered; ADR-028 registered; TD-003 resolved)
+**Last Updated**: 2026-08-18 (Codebase review Fase 5 Decisions 3-8 IMPLEMENTED — SDK dogfooding, pagination unified, api-types package, admin-only features, shell a11y, auth store unified; ADR-029 registered; ADR-028 registered; TD-003 resolved)
 
 ---
 
@@ -135,7 +135,7 @@ written. This section tracks the resolution of each.
 | 5 | Is a `@plexica/api-types` package needed? | [03#12](../../docs/review/03-frontend-apps.md#12) | **Implemented**: `@plexica/api-types` package created with Zod response schemas + `z.infer` types. Admin + tenant types extracted. Kafka 4-way divergence fixed (route+service+schema+frontend aligned). Both apps migrated. | [ADR-029](./adr/adr-029-api-types-package.md) | 2026-08-18 |
 | 6 | Do super-admin features live in `web` or `admin`? | [03#17](../../docs/review/03-frontend-apps.md#17) | **Implemented**: super-admin features live only in `apps/admin`. Removed `admin-plugin-registry-page.tsx` and `admin-dlq-page.tsx` from `apps/web` (+ routes, hooks, API functions, i18n). Ported DLQ detail page to `apps/admin` (`/dlq` route, `DlqPage`, `DlqEntryCard`, `useDlq` hooks). ~274 LOC removed from web bundle. | See notes below | 2026-08-18 |
 | 7 | Extract the whole shell or only error boundary + `useMediaQuery`? | [03#7](../../docs/review/03-frontend-apps.md#7) | **Implemented**: minimal extract — `useMediaQuery`, `SkipLink`, `RouteErrorBoundary` + `ErrorFallback` moved to `@plexica/ui`. Admin AppShell now includes SkipLink + KeyedErrorBoundary + `main id` + tabIndex. Admin sidebar: focus trap, Escape, focus restore, `role="dialog"`. Admin header: `aria-expanded`/`aria-controls` + i18n aria-label. `startsWith` active state bug fixed. Two AppShell stay separate. | See notes below | 2026-08-18 |
-| 8 | Unify the auth store? | [04#2](../../docs/review/04-packages-condivisi.md#2) | Pending | — | — |
+| 8 | Unify the auth store? | [04#2](../../docs/review/04-packages-condivisi.md#2) | **Implemented**: `createAuthStore` factory in `@plexica/auth` with DI for realm, profile, persist, logout. Web: 180→63 lines. Admin: 156→33 lines. Dead `createAuthBaseSlice` removed. `idToken` added to `AuthState`. | — | 2026-08-18 |
 | 9 | Complete or remove the "dev-server HMR" feature? | [04#3](../../docs/review/04-packages-condivisi.md#3) | Pending | — | — |
 | 10 | Parallelize the 174 E2E tests? | [05#20](../../docs/review/05-build-ci-infra.md#20) | Pending | — | — |
 

@@ -1,4 +1,7 @@
-import { type StateCreator } from 'zustand';
+// auth-store.ts
+// Shared auth store utilities: rehydration, partialization, and state interfaces.
+// The createAuthBaseSlice factory was integrated into createAuthStore
+// (Decision 8, 2026-08-18) and is no longer exported separately.
 
 import { isTokenValid } from './jwt.js';
 
@@ -17,58 +20,6 @@ export interface AuthBaseActions<T extends BaseUserProfile> {
   clearAuth: () => void;
   setSessionExpired: () => void;
   dismissExpired: () => void;
-}
-
-export const authBaseInitialState: AuthBaseState = {
-  accessToken: null,
-  refreshToken: null,
-  userProfile: null,
-  status: 'unauthenticated',
-  isAuthenticated: false,
-};
-
-function createInitialState<T extends BaseUserProfile>(): AuthBaseState<T> {
-  return {
-    accessToken: null,
-    refreshToken: null,
-    userProfile: null,
-    status: 'unauthenticated',
-    isAuthenticated: false,
-  };
-}
-
-export function createAuthBaseSlice<T extends BaseUserProfile>(
-  decodeProfile: (accessToken: string) => T
-): StateCreator<
-  AuthBaseState<T> & AuthBaseActions<T>,
-  [],
-  [],
-  AuthBaseState<T> & AuthBaseActions<T>
-> {
-  return (set) => ({
-    ...createInitialState<T>(),
-    setTokens: (tokens, profile) => {
-      set({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        userProfile: profile ?? decodeProfile(tokens.access_token),
-        status: 'authenticated',
-        isAuthenticated: true,
-      });
-    },
-    clearAuth: () => {
-      set(createInitialState<T>());
-    },
-    setSessionExpired: () => {
-      set({
-        ...createInitialState<T>(),
-        status: 'expired',
-      });
-    },
-    dismissExpired: () => {
-      set({ status: 'unauthenticated' });
-    },
-  });
 }
 
 export function rehydrateStatus(

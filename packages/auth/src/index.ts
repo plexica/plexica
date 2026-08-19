@@ -26,11 +26,16 @@
 
 export type { TokenResponse, BaseUserProfile, AuthStatus, AuthState } from './types.js';
 
+export { extractBaseProfile, isTokenValid } from './jwt.js';
+
 export type { KeycloakClientConfig, KeycloakClient } from './keycloak-client.js';
 
 export type { ApiClientConfig, RequestOptions, ApiClient } from './api-client.js';
 
 export type { AuthBaseState, AuthBaseActions } from './auth-store.js';
+
+export { createAuthStore } from './create-auth-store.js';
+export type { AuthStoreConfig, BaseAuthState, BaseAuthActions } from './create-auth-store.js';
 
 export type { SilentRefreshConfig } from './use-silent-refresh.js';
 
