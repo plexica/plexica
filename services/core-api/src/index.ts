@@ -5,12 +5,12 @@
 //   Admin     — auth only, no tenant context (admin/tenants*) — ID-003
 //   Tenant    — auth + tenant context (all tenant-scoped routes)
 
-import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 
 import { config } from './lib/config.js';
+import { registerCors } from './middleware/cors-middleware.js';
 import { logger } from './lib/logger.js';
 import { redis } from './lib/redis.js';
 import { connectRedis, startBackgroundServices, stopBackgroundServices } from './bootstrap.js';
@@ -47,32 +47,14 @@ const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY 
 // handler to a child plugin context, leaving sibling routes unprotected.
 configureErrorHandler(server);
 
-// CORS — enabled during E2E runs so the production Vite build (running on
-// http://e2e.localhost:3000) can make cross-origin fetch() calls directly to
-// the API on http://localhost:3001. This is required because the Vite preview
-// proxy path is not reliable enough for E2E; the Vite build embeds
-// VITE_API_URL=http://localhost:3001.
-if (config.E2E_CORS) {
-  await server.register(cors, {
-    origin: config.CORS_ORIGIN ?? true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    credentials: true,
-  });
-}
+await registerCors(server, config);
 
 // Redis must be connected before the rate-limit plugin below is registered
 // with the same client. Never throws — see bootstrap.ts.
 await connectRedis();
 
-// ---------------------------------------------------------------------------
-// Rate limiting — registered before route plugins so all routes are covered.
-// Redis-backed for correctness across multiple Node.js processes.
-// keyGenerator: library default (request.ip) — request.user is not yet
-// populated at plugin level. Per-user keying is applied via hook:'preHandler'
-// on individual routes/scopes (e.g. the admin scope below, POST
-// /api/admin/tenants/migrate-all in tenant-routes.ts).
-// Fails open when Redis is unavailable (ADR-012).
-// ---------------------------------------------------------------------------
+// Rate limiting — Redis-backed, global, registered before routes.
+// Per-user keying via hook:'preHandler' on admin scope below (ADR-012).
 await server.register(rateLimit, {
   global: true,
   max: GLOBAL_RATE_LIMIT.max,
