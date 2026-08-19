@@ -62,6 +62,15 @@ const configSchema = z
     INVITATION_EXPIRY_DAYS: z.coerce.number().int().default(7),
     APP_URL: z.string().default('http://localhost:5173'),
 
+    // CORS — enabled only during E2E runs to allow cross-origin fetch()
+    // from the production Vite build (http://e2e.localhost:3000) to the
+    // API (http://localhost:3001). Defaults: disabled in production.
+    E2E_CORS: z.preprocess(
+      (v) => (v === 'true' ? true : v === 'false' ? false : Boolean(v)),
+      z.boolean().default(false)
+    ),
+    CORS_ORIGIN: z.string().optional(),
+
     // File uploads (in bytes)
     AVATAR_MAX_BYTES: z.coerce.number().int().default(1_048_576), // 1MB
     LOGO_MAX_BYTES: z.coerce.number().int().default(2_097_152), // 2MB

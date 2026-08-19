@@ -5,6 +5,7 @@
 //   Admin     — auth only, no tenant context (admin/tenants*) — ID-003
 //   Tenant    — auth + tenant context (all tenant-scoped routes)
 
+import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
@@ -45,6 +46,19 @@ const server = Fastify({ loggerInstance: logger, trustProxy: config.TRUST_PROXY 
 // Do NOT use server.register(configureErrorHandler) — that would scope the
 // handler to a child plugin context, leaving sibling routes unprotected.
 configureErrorHandler(server);
+
+// CORS — enabled during E2E runs so the production Vite build (running on
+// http://e2e.localhost:3000) can make cross-origin fetch() calls directly to
+// the API on http://localhost:3001. This is required because the Vite preview
+// proxy path is not reliable enough for E2E; the Vite build embeds
+// VITE_API_URL=http://localhost:3001.
+if (config.E2E_CORS) {
+  await server.register(cors, {
+    origin: config.CORS_ORIGIN ?? true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
+}
 
 // Redis must be connected before the rate-limit plugin below is registered
 // with the same client. Never throws — see bootstrap.ts.
