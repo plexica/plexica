@@ -100,6 +100,26 @@ catalogs:
       specifier: ^5.0.14
       version: 5.0.14
 
+
+overrides:
+  brace-expansion@<2: 1.1.16
+  lodash: ^4.18.1
+  js-yaml: ^4.3.1
+  fast-uri: 3.1.5
+  deepmerge-ts: ^8.0.0
+  nanoid@<3.3.18: 3.3.18
+  fast-xml-builder: 1.1.7
+  fast-xml-parser: 5.7.0
+  '@babel/core': 7.29.6
+  protobufjs: 7.6.5
+  ws: 8.21.0
+  find-my-way: ^9.7.0
+
+patchedDependencies:
+  kafkajs@2.2.4:
+    hash: 1d5c373554812c4b66f208342d2fd61d59d3a2b625f0c0484ca99ba0fa3aaf1c
+    path: patches/kafkajs@2.2.4.patch
+
 importers:
 
   .:
